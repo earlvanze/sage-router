@@ -1,1 +1,10 @@
-{"version": "2.0.0", "clawhub": {"id": "k97891sdcmbnkve5k4rmrcjj1d84ks8b"}}
+{
+  "version": "2.0.0",
+  "clawhub": {
+    "id": "k979ga97fy1j6t2zy5hzhx282984nw4v"
+  },
+  "github": {
+    "repo": "earlvanze/smart-router-v2",
+    "url": "https://github.com/earlvanze/smart-router-v2"
+  }
+}
