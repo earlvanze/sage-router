@@ -1,5 +1,5 @@
 ---
-name: smart-router-v2
+name: smart-router-v3
 description: Dynamic AI model router with intent classification and automatic provider discovery
 version: 3.0.0
 ---
