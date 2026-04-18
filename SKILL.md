@@ -1,92 +1,50 @@
 ---
 name: smart-router-v3
-description: Dynamic AI model router with intent classification and automatic provider discovery
-version: 3.0.0
+description: Intent-based AI model router that classifies requests and routes to the best provider. Uses dario (Claude), ollama, ollama-cyber, and an optional OpenClaw gateway codex bridge. Code defaults to Claude → Ollama, General defaults to Ollama. Runs as systemd service on port 8788. Use when configuring, debugging, or modifying the smart-router service.
 ---
 
-# Smart Router V2
+# Smart Router V3
 
-HTTP server that routes AI requests to optimal models based on intent classification with **dynamic provider discovery**.
+HTTP server on `:8788` that routes OpenAI-compatible chat requests to the optimal provider based on intent classification.
 
-## Features
+## Active Providers
 
-- **Dynamic Discovery**: Automatically reads available providers from `~/.openclaw/openclaw.json`
-- **Intent Classification**: Routes based on task type (CODE, ANALYSIS, CREATIVE, REALTIME, GENERAL)
-- **Automatic Fallback**: Tries providers in priority order until success
-- **Zero-config**: Works out of the box with OpenClaw provider config
+| Provider | API | Base URL | Auth |
+|---|---|---|---|
+| ollama | ollama | `http://127.0.0.1:11434` | Bearer (env) |
+| ollama-cyber | ollama | `http://100.115.208.70:11434` | Bearer (env) |
+| dario | anthropic-messages | `http://127.0.0.1:3456` | Direct (no key) |
+| openai-codex | OpenClaw gateway bridge | Proxied via OpenClaw gateway `:18789` | OAuth (gateway-managed) |
 
-## Installation
-
-```bash
-# Clone and run
-python3 router.py --port 8788
-
-# Or use systemd
-systemctl --user enable smart-router.service
-systemctl --user start smart-router.service
-```
-
-## API
-
-### Health Check
-```
-GET /health
-```
-Returns discovered providers:
-```json
-{"status": "ok", "providers": ["ollama", "ollama-cyber", "openrouter", "claude-cli"]}
-```
-
-### Chat Completions
-```
-POST /v1/chat/completions
-```
-OpenAI-compatible endpoint with automatic routing.
+Controlled by `ALLOWED_PROVIDERS` in `router.py`. Provider configs read from `~/.openclaw/openclaw.json`.
+`openai-codex` may remain configured but be intentionally disabled from live routing when the gateway bridge is unstable.
 
 ## Routing Logic
 
-| Intent    | Priority Chain                          |
-|-----------|----------------------------------------|
-| CODE      | claude-cli → ollama → ollama-cyber     |
-| ANALYSIS  | claude-cli → ollama → ollama-cyber     |
-| CREATIVE  | ollama → claude-cli                     |
-| REALTIME  | ollama → openrouter                     |
-| GENERAL   | ollama → claude-cli → ollama-cyber     |
+| Intent | Priority | Preferred Models |
+|---|---|---|
+| CODE | dario → ollama → ollama-cyber | opus-4-6, kimi-k2.5 |
+| ANALYSIS | dario → ollama → ollama-cyber | opus-4-6, kimi-k2.5 |
+| CREATIVE | dario → ollama → ollama-cyber | opus-4-6, kimi-k2.5 |
+| GENERAL | ollama → dario → ollama-cyber | kimi-k2.5, sonnet-4-6 |
+| COMPLEX (>200 words) | dario → ollama → ollama-cyber | opus-4-6, kimi-k2.5 |
 
-## Intent Detection
+Intent detected by keyword matching on user message. Complexity by word count.
 
-Automatically classifies user messages:
+## API
 
-- **CODE**: `write`, `debug`, `fix`, `function`, code blocks (```)
-- **ANALYSIS**: `analyze`, `explain`, `compare`, `research`, `why`
-- **CREATIVE**: `create`, `brainstorm`, `imagine`, `design`, `story`
-- **REALTIME**: `now`, `today`, `current`, `latest`, `price`, `weather`
-- **GENERAL**: Default for unmatched patterns
+- `GET /health` — JSON with active providers and allowed list
+- `POST /v1/chat/completions` — OpenAI-compatible; routes automatically
 
-## Configuration
+## Notes
 
-Reads providers from OpenClaw config:
-- `~/.openclaw/openclaw.json` → `models.providers`
-- Supports: ollama, openai-completions, anthropic-messages APIs
-- Automatically skips `smart-router` (self-reference)
+- `openai-codex` is kept as an optional bridge, not a required first hop.
+- When the OpenClaw gateway model-set path is unhealthy, the helper falls back to running without provider/model overrides instead of failing hard.
+- If codex gateway calls start timing out again, keep it disabled in live routing until the gateway RPC path is fixed.
 
-## Files
+## Service
 
-- `router.py` — Main HTTP routing server (V3 with dynamic discovery)
-- `SKILL.md` — This documentation
-- `_meta.json` — Metadata
-
-## Changelog
-
-### v2.0.0 (2026-04-11)
-- Added dynamic provider discovery from OpenClaw config
-- Removed hardcoded endpoints
-- Added `/health` endpoint showing discovered providers
-- Improved error handling and fallback logic
-
-### v1.0.0
-- Initial release with hardcoded routing
-
-## License
-
-MIT
+```bash
+systemctl --user status smart-router
+systemctl --user restart smart-router
+journalctl --user -u smart-router -f   # live logs
