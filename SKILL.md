@@ -53,6 +53,7 @@ Intent is detected by keyword matching on the latest user message. Complexity is
 
 - `openai-codex` is kept as an optional bridge, not a required first hop.
 - Anthropic compatibility is provided through Dario, so `anthropic` can stay in `openclaw.json` while routing locally through `dario`.
+- The repo `systemd` unit is template-style and expects local machine values in `~/.config/smart-router/smart-router.env`.
 - When the OpenClaw gateway model-set path is unhealthy, the helper falls back to running without provider/model overrides instead of failing hard.
 - If any provider starts misbehaving, suppress it with `SMART_ROUTER_DISABLED_PROVIDERS` instead of editing the router.
 - GitHub workflows now include CI syntax checks and CodeQL analysis for Python + JavaScript.
@@ -63,11 +64,18 @@ Intent is detected by keyword matching on the latest user message. Complexity is
 Install the user service from the repo copy:
 
 ```bash
-mkdir -p ~/.config/systemd/user
+mkdir -p ~/.config/systemd/user ~/.config/smart-router
 cp systemd/smart-router.service ~/.config/systemd/user/smart-router.service
+cp systemd/smart-router.env.example ~/.config/smart-router/smart-router.env
+# edit ~/.config/smart-router/smart-router.env for your machine
 systemctl --user daemon-reload
 systemctl --user enable --now smart-router.service
 ```
+
+Notes:
+- the repo unit is now env-driven and does not hardcode your home path, Node version, or workspace location
+- set `SMART_ROUTER_HOME` to the actual repo path on your machine
+- optionally set `SMART_ROUTER_PATH_PREFIX` if your Python, Node, or Dario bins are not already on PATH
 
 If an Anthropic provider is detected and Dario is not installed yet, install Dario first:
 - GitHub: https://github.com/askalf/dario

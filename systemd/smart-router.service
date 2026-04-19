@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/.openclaw/workspace/skills/smart-router-v3
-ExecStart=/usr/bin/env PATH=%h/.nvm/versions/node/v25.8.1/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin python3 %h/.openclaw/workspace/skills/smart-router-v3/router.py --port 8788
+EnvironmentFile=-%h/.config/smart-router/smart-router.env
+ExecStart=/usr/bin/env bash -lc 'cd "$${SMART_ROUTER_HOME:?Set SMART_ROUTER_HOME in ~/.config/smart-router/smart-router.env}" && if [ -n "$${SMART_ROUTER_PATH_PREFIX:-}" ]; then export PATH="$${SMART_ROUTER_PATH_PREFIX}:$$PATH"; fi; exec "$${SMART_ROUTER_PYTHON:-python3}" router.py --port "$${SMART_ROUTER_PORT:-8788}" $${SMART_ROUTER_ARGS:-}'
 Restart=always
 RestartSec=10
 
