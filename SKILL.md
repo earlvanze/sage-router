@@ -34,12 +34,14 @@ Flow:
 - detect intent from the latest user message
 - estimate complexity from prompt length
 - score every reachable provider/model pair from `openclaw.json`
-- rank candidates by API type, model-name hints, and complexity
+- for `GENERAL`, blend static heuristics with persisted empirical latency stats by provider and model
+- rank candidates by API type, model-name hints, complexity, and measured latency
 - attempt the top `SMART_ROUTER_MAX_PROVIDER_ATTEMPTS` candidates in order
 
 Intent scoring is generic, for example:
 - code and analysis strongly favor Anthropic/OpenAI-style reasoning models
 - general/realtime requests prefer fast direct providers first
+- general traffic learns from real successful request latency over time, with light exploration for cold providers/models
 - complex prompts boost larger reasoning models and penalize mini/haiku-class models
 
 Intent is detected by keyword matching on the latest user message. Complexity is estimated by word count.
@@ -54,6 +56,7 @@ Intent is detected by keyword matching on the latest user message. Complexity is
 - `openai-codex` is kept as an optional bridge, not a required first hop.
 - Anthropic compatibility is provided through Dario, so `anthropic` can stay in `openclaw.json` while routing locally through `dario`.
 - The repo `systemd` unit is template-style and expects local machine values in `~/.config/smart-router/smart-router.env`.
+- Empirical latency memory is persisted at `~/.cache/smart-router-v3/latency-stats.json` by default.
 - When the OpenClaw gateway model-set path is unhealthy, the helper falls back to running without provider/model overrides instead of failing hard.
 - If any provider starts misbehaving, suppress it with `SMART_ROUTER_DISABLED_PROVIDERS` instead of editing the router.
 - GitHub workflows now include CI syntax checks and CodeQL analysis for Python + JavaScript.

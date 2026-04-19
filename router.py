@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Smart Router V3 - Dynamic provider discovery and routing"""
-import argparse, json, logging, os, shutil, socket, subprocess, time, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, json, logging, math, os, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
 from dataclasses import dataclass
 from enum import Enum, auto
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -28,9 +28,17 @@ OPENCLAW_GATEWAY_AGENT_ID = os.environ.get('SMART_ROUTER_OPENCLAW_AGENT_ID', 'ma
 REACHABILITY_TIMEOUT_SECONDS = float(os.environ.get('SMART_ROUTER_REACHABILITY_TIMEOUT_SECONDS', '0.5'))
 REACHABILITY_TTL_SECONDS = int(os.environ.get('SMART_ROUTER_REACHABILITY_TTL_SECONDS', '120'))
 PROVIDER_HEALTH_CACHE = {}
+LATENCY_STATS_PATH = os.path.expanduser(os.environ.get('SMART_ROUTER_LATENCY_STATS_PATH', '~/.cache/smart-router-v3/latency-stats.json'))
+LATENCY_EWMA_ALPHA = float(os.environ.get('SMART_ROUTER_LATENCY_EWMA_ALPHA', '0.35'))
+GENERAL_EMPIRICAL_EXPLORATION_BONUS = float(os.environ.get('SMART_ROUTER_GENERAL_EXPLORATION_BONUS', '20'))
+GENERAL_EMPIRICAL_SUCCESS_EXPLORATION_CAP = float(os.environ.get('SMART_ROUTER_GENERAL_SUCCESS_EXPLORATION_CAP', '8'))
+GENERAL_EMPIRICAL_LATENCY_BONUS_CAP = float(os.environ.get('SMART_ROUTER_GENERAL_LATENCY_BONUS_CAP', '18'))
+GENERAL_EMPIRICAL_LATENCY_PIVOT_MS = float(os.environ.get('SMART_ROUTER_GENERAL_LATENCY_PIVOT_MS', '2500'))
+GENERAL_EMPIRICAL_FAILURE_PENALTY = float(os.environ.get('SMART_ROUTER_GENERAL_FAILURE_PENALTY', '4'))
 DEFAULT_OPENAI_CODEX_MODELS = ['gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.3-codex', 'gpt-5.3-codex-spark', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini', 'gpt-5.1']
 DEFAULT_ANTHROPIC_MODELS = ['claude-opus-4-6', 'claude-opus-4-5', 'claude-opus-4-1', 'claude-opus-4-0', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-sonnet-4-0', 'claude-haiku-4-5', 'claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest']
 MAX_PROVIDER_ATTEMPTS = int(os.environ.get('SMART_ROUTER_MAX_PROVIDER_ATTEMPTS', '8'))
+LATENCY_STATS_LOCK = threading.Lock()
 
 INTENT_API_SCORES = {
     'CODE': {'anthropic-messages': 60, 'google-generative-language': 58, 'openai-completions': 56, 'ollama': 50, 'openclaw-gateway': 44},
@@ -282,6 +290,97 @@ def normalize_messages(messages):
     return normalized
 
 
+def load_latency_stats():
+    try:
+        with open(LATENCY_STATS_PATH) as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        logger.warning(f'Latency stats load failed: {e}')
+    return {'version': 1, 'intents': {}}
+
+
+LATENCY_STATS = load_latency_stats()
+
+
+def save_latency_stats():
+    try:
+        os.makedirs(os.path.dirname(LATENCY_STATS_PATH), exist_ok=True)
+        tmp_path = LATENCY_STATS_PATH + '.tmp'
+        with open(tmp_path, 'w') as f:
+            json.dump(LATENCY_STATS, f, indent=2, sort_keys=True)
+        os.replace(tmp_path, LATENCY_STATS_PATH)
+    except Exception as e:
+        logger.warning(f'Latency stats save failed: {e}')
+
+
+def get_latency_stat(intent_name, provider_name, model):
+    return (((LATENCY_STATS.get('intents') or {}).get(intent_name) or {}).get(provider_name) or {}).get(model)
+
+
+def get_intent_provider_stats(intent_name, provider_name):
+    return (((LATENCY_STATS.get('intents') or {}).get(intent_name) or {}).get(provider_name) or {})
+
+
+def record_latency_outcome(intent_name, provider_name, model, elapsed_seconds, ok):
+    elapsed_ms = max(1.0, float(elapsed_seconds) * 1000.0)
+    now = int(time.time())
+    with LATENCY_STATS_LOCK:
+        intents = LATENCY_STATS.setdefault('intents', {})
+        intent_stats = intents.setdefault(intent_name, {})
+        provider_stats = intent_stats.setdefault(provider_name, {})
+        stat = provider_stats.setdefault(model, {
+            'successes': 0,
+            'failures': 0,
+            'latency_ewma_ms': elapsed_ms,
+            'last_latency_ms': elapsed_ms,
+            'updated_at': now,
+        })
+
+        stat['last_latency_ms'] = elapsed_ms
+        stat['updated_at'] = now
+        if ok:
+            stat['successes'] = int(stat.get('successes', 0)) + 1
+            previous = float(stat.get('latency_ewma_ms', elapsed_ms) or elapsed_ms)
+            stat['latency_ewma_ms'] = round((LATENCY_EWMA_ALPHA * elapsed_ms) + ((1.0 - LATENCY_EWMA_ALPHA) * previous), 2)
+        else:
+            stat['failures'] = int(stat.get('failures', 0)) + 1
+
+        save_latency_stats()
+
+
+def general_empirical_adjustment(provider, model):
+    provider_name = provider.name
+    stat = get_latency_stat('GENERAL', provider_name, model)
+    provider_stats = get_intent_provider_stats('GENERAL', provider_name)
+    if not stat:
+        if provider.api_type == 'openclaw-gateway':
+            return -4.0, 'cold-gateway'
+        if provider_stats:
+            return -2.0, 'provider-known,cold-model'
+        return GENERAL_EMPIRICAL_EXPLORATION_BONUS, 'cold'
+
+    successes = int(stat.get('successes', 0))
+    failures = int(stat.get('failures', 0))
+    samples = successes + failures
+    exploration = GENERAL_EMPIRICAL_EXPLORATION_BONUS / math.sqrt(samples + 1)
+
+    if successes <= 0:
+        penalty = GENERAL_EMPIRICAL_FAILURE_PENALTY * failures
+        return exploration - penalty, f'explore={exploration:.2f},fail={penalty:.2f}'
+
+    latency_ewma_ms = float(stat.get('latency_ewma_ms', GENERAL_EMPIRICAL_LATENCY_PIVOT_MS) or GENERAL_EMPIRICAL_LATENCY_PIVOT_MS)
+    exploration = min(exploration, GENERAL_EMPIRICAL_SUCCESS_EXPLORATION_CAP)
+    speed_bonus = (GENERAL_EMPIRICAL_LATENCY_PIVOT_MS - latency_ewma_ms) / 250.0
+    speed_bonus = max(-GENERAL_EMPIRICAL_LATENCY_BONUS_CAP, min(GENERAL_EMPIRICAL_LATENCY_BONUS_CAP, speed_bonus))
+    penalty = GENERAL_EMPIRICAL_FAILURE_PENALTY * failures
+    total = speed_bonus + exploration - penalty
+    return total, f'ewma_ms={latency_ewma_ms:.0f},explore={exploration:.2f},fail={penalty:.2f}'
+
+
 def build_openclaw_gateway_prompt(messages):
     system_parts = []
     conversation_parts = []
@@ -401,6 +500,11 @@ def score_provider_model(provider, model, intent, complexity):
         score += 2
     if intent == Intent.GENERAL and provider.api_type == 'ollama':
         score -= 1
+    if intent == Intent.GENERAL:
+        score = 50 + ((score - 50) * 0.35)
+        empirical_bonus, empirical_note = general_empirical_adjustment(provider, model)
+        score += empirical_bonus
+        logger.debug(f"[scoring] GENERAL {provider.name}/{model}: base={score - empirical_bonus:.2f}, empirical={empirical_bonus:.2f} ({empirical_note}), final={score:.2f}")
 
     return score
 
@@ -621,6 +725,7 @@ def route_request(messages, request_id='req-unknown'):
         else:
             ok, text = call_openai_compat(prov.base_url, model, normalized_messages, prov.api_key, pn)
         elapsed = time.time() - started
+        record_latency_outcome(intent.name, pn, model, elapsed, ok)
         if ok:
             total_elapsed = time.time() - overall_started
             logger.info(f"[{request_id}] OK: {pn}/{model} ({len(text)} chars, provider={elapsed:.2f}s, total={total_elapsed:.2f}s)")
