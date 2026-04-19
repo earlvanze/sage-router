@@ -18,6 +18,7 @@ DISABLED_PROVIDERS = {
 OLLAMA_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OLLAMA_TIMEOUT_SECONDS', '30'))
 OPENAI_COMPAT_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OPENAI_TIMEOUT_SECONDS', '35'))
 ANTHROPIC_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_ANTHROPIC_TIMEOUT_SECONDS', '35'))
+GOOGLE_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_GOOGLE_TIMEOUT_SECONDS', '35'))
 OPENCLAW_GATEWAY_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OPENCLAW_TIMEOUT_SECONDS', '20'))
 OPENCLAW_GATEWAY_AGENT_ID = os.environ.get('SMART_ROUTER_OPENCLAW_AGENT_ID', 'main')
 REACHABILITY_TIMEOUT_SECONDS = float(os.environ.get('SMART_ROUTER_REACHABILITY_TIMEOUT_SECONDS', '0.5'))
@@ -27,11 +28,11 @@ DEFAULT_OPENAI_CODEX_MODELS = ['gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.
 MAX_PROVIDER_ATTEMPTS = int(os.environ.get('SMART_ROUTER_MAX_PROVIDER_ATTEMPTS', '8'))
 
 INTENT_API_SCORES = {
-    'CODE': {'anthropic-messages': 60, 'openai-completions': 56, 'ollama': 50, 'openclaw-gateway': 44},
-    'ANALYSIS': {'anthropic-messages': 60, 'openai-completions': 57, 'ollama': 52, 'openclaw-gateway': 46},
-    'CREATIVE': {'anthropic-messages': 60, 'openai-completions': 55, 'ollama': 50, 'openclaw-gateway': 44},
-    'REALTIME': {'openai-completions': 60, 'anthropic-messages': 54, 'ollama': 48, 'openclaw-gateway': 42},
-    'GENERAL': {'anthropic-messages': 58, 'openai-completions': 56, 'ollama': 50, 'openclaw-gateway': 42},
+    'CODE': {'anthropic-messages': 60, 'google-generative-language': 58, 'openai-completions': 56, 'ollama': 50, 'openclaw-gateway': 44},
+    'ANALYSIS': {'anthropic-messages': 60, 'google-generative-language': 58, 'openai-completions': 57, 'ollama': 52, 'openclaw-gateway': 46},
+    'CREATIVE': {'anthropic-messages': 60, 'google-generative-language': 59, 'openai-completions': 55, 'ollama': 50, 'openclaw-gateway': 44},
+    'REALTIME': {'google-generative-language': 60, 'openai-completions': 60, 'anthropic-messages': 54, 'ollama': 48, 'openclaw-gateway': 42},
+    'GENERAL': {'anthropic-messages': 58, 'google-generative-language': 57, 'openai-completions': 56, 'ollama': 50, 'openclaw-gateway': 42},
 }
 
 INTENT_MODEL_HINTS = {
@@ -77,6 +78,49 @@ def is_self_provider(name, base_url):
     parsed = urllib.parse.urlparse(base_url or '')
     return parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == 8788
 
+
+def infer_api_type(name, cfg, base_url):
+    api_type = cfg.get('api')
+    if api_type:
+        return api_type
+    host = (urllib.parse.urlparse(base_url or '').hostname or '').lower()
+    if 'generativelanguage.googleapis.com' in host or name == 'google':
+        return 'google-generative-language'
+    return 'openai-completions'
+
+
+def discover_google_models(base_url, api_key):
+    if not base_url or not api_key:
+        return []
+    try:
+        url = base_url.rstrip('/') + '/models'
+        req = urllib.request.Request(url, headers={'x-goog-api-key': api_key})
+        with urllib.request.urlopen(req, timeout=GOOGLE_TIMEOUT_SECONDS) as resp:
+            payload = json.loads(resp.read())
+        models = []
+        for entry in payload.get('models', []):
+            methods = entry.get('supportedGenerationMethods') or []
+            if 'generateContent' not in methods and 'streamGenerateContent' not in methods:
+                continue
+            model_name = entry.get('name', '')
+            if model_name.startswith('models/'):
+                model_name = model_name.split('/', 1)[1]
+            if model_name:
+                models.append(model_name)
+        return dedupe_keep_order(models)
+    except Exception as e:
+        logger.warning(f"Google model discovery {base_url}: {extract_http_error(e)}")
+        return []
+
+
+def discover_provider_models(name, cfg, base_url, api_key, api_type):
+    configured = [m.get('id') for m in cfg.get('models', []) if m.get('id')]
+    if configured:
+        return dedupe_keep_order(configured)
+    if api_type == 'google-generative-language':
+        return discover_google_models(base_url, api_key)
+    return []
+
 def load_openclaw_providers():
     providers = {}
     try:
@@ -87,12 +131,13 @@ def load_openclaw_providers():
             if is_self_provider(name, base_url):
                 continue
             api_key = resolve_config_value(cfg.get('apiKey', '') or '')
+            api_type = infer_api_type(name, cfg, base_url)
             providers[name] = Provider(
                 name,
-                cfg.get('api', 'openai-completions'),
+                api_type,
                 base_url,
                 api_key,
-                [m.get('id') for m in cfg.get('models', []) if m.get('id')],
+                discover_provider_models(name, cfg, base_url, api_key, api_type),
             )
 
         auth_profiles = config.get('auth', {}).get('profiles', {})
@@ -406,6 +451,62 @@ def call_anthropic(base_url, model, messages, api_key=''):
         logger.warning(f"Anthropic {base_url} {model}: {extract_http_error(e)}")
         return False, extract_http_error(e)
 
+
+def call_google(base_url, model, messages, api_key=''):
+    url = base_url.rstrip('/') + f'/models/{urllib.parse.quote(model, safe="")}:generateContent'
+    system_text = ''
+    contents = []
+    for msg in messages:
+        role = msg.get('role', 'user')
+        content = msg.get('content', '')
+        if not content:
+            continue
+        if role in ('system', 'developer'):
+            system_text += content + '\n'
+            continue
+        if role == 'assistant':
+            gemini_role = 'model'
+            text = content
+        elif role == 'user':
+            gemini_role = 'user'
+            text = content
+        else:
+            label = role.upper() if isinstance(role, str) else 'MESSAGE'
+            gemini_role = 'user'
+            text = f'[{label}]\n{content}'.strip()
+        part = {'text': text}
+        if contents and contents[-1].get('role') == gemini_role:
+            contents[-1].setdefault('parts', []).append(part)
+        else:
+            contents.append({'role': gemini_role, 'parts': [part]})
+
+    if contents and contents[0].get('role') != 'user':
+        contents.insert(0, {'role': 'user', 'parts': [{'text': 'Hello'}]})
+    if not contents:
+        contents = [{'role': 'user', 'parts': [{'text': 'Hello'}]}]
+
+    payload = {
+        'contents': contents,
+        'generationConfig': {'maxOutputTokens': 8192},
+    }
+    if system_text.strip():
+        payload['systemInstruction'] = {'parts': [{'text': system_text.strip()}]}
+
+    try:
+        data = json.dumps(payload).encode()
+        hdrs = {'Content-Type': 'application/json'}
+        if api_key:
+            hdrs['x-goog-api-key'] = api_key
+        req = urllib.request.Request(url, data=data, headers=hdrs)
+        with urllib.request.urlopen(req, timeout=GOOGLE_TIMEOUT_SECONDS) as resp:
+            result = json.loads(resp.read())
+        parts = result.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+        text = ''.join(part.get('text', '') for part in parts if isinstance(part, dict))
+        return (True, text) if text else (False, json.dumps(result)[:500])
+    except Exception as e:
+        logger.warning(f"Google {base_url} {model}: {extract_http_error(e)}")
+        return False, extract_http_error(e)
+
 def latest_user_text(messages):
     for msg in reversed(messages or []):
         if msg.get('role') == 'user' and msg.get('content'):
@@ -436,6 +537,8 @@ def route_request(messages, request_id='req-unknown'):
             ok, text = call_openclaw_gateway(model, normalized_messages, pn)
         elif prov.api_type == 'anthropic-messages':
             ok, text = call_anthropic(prov.base_url, model, normalized_messages, prov.api_key)
+        elif prov.api_type == 'google-generative-language':
+            ok, text = call_google(prov.base_url, model, normalized_messages, prov.api_key)
         else:
             ok, text = call_openai_compat(prov.base_url, model, normalized_messages, prov.api_key, pn)
         elapsed = time.time() - started

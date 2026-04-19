@@ -15,6 +15,8 @@ Rules:
 - skips the router's own `smart-router` provider entry to avoid recursion
 - resolves `${ENV_VAR}` values for `baseUrl` and `apiKey`
 - includes OpenClaw gateway `openai-codex` as a virtual provider when the auth profile exists
+- recognizes Google Gemini providers from `generativelanguage.googleapis.com`
+- auto-discovers Google models when the provider exists but `models` is empty in `openclaw.json`
 - supports temporary provider suppression via `SMART_ROUTER_DISABLED_PROVIDERS=name1,name2`
 
 `GET /health` shows:
@@ -51,6 +53,7 @@ Intent is detected by keyword matching on the latest user message. Complexity is
 - When the OpenClaw gateway model-set path is unhealthy, the helper falls back to running without provider/model overrides instead of failing hard.
 - If any provider starts misbehaving, suppress it with `SMART_ROUTER_DISABLED_PROVIDERS` instead of editing the router.
 - GitHub workflows now include CI syntax checks and CodeQL analysis for Python + JavaScript.
+- See `BRANCH_PROTECTION.md` for the exact required-check setup on GitHub.
 
 ## Service
 
