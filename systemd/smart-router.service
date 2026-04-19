@@ -1,0 +1,14 @@
+[Unit]
+Description=Smart Router V3 - Intent-based AI model routing
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.openclaw/workspace/skills/smart-router-v3
+ExecStart=/usr/bin/env PATH=%h/.nvm/versions/node/v25.8.1/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin python3 %h/.openclaw/workspace/skills/smart-router-v3/router.py --port 8788
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

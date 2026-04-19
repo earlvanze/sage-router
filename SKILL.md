@@ -58,9 +58,24 @@ Intent is detected by keyword matching on the latest user message. Complexity is
 - GitHub workflows now include CI syntax checks and CodeQL analysis for Python + JavaScript.
 - See `BRANCH_PROTECTION.md` for the exact required-check setup on GitHub.
 
+## Install
+
+Install the user service from the repo copy:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp systemd/smart-router.service ~/.config/systemd/user/smart-router.service
+systemctl --user daemon-reload
+systemctl --user enable --now smart-router.service
+```
+
+If an Anthropic provider is detected and Dario is not installed yet, install Dario first:
+- GitHub: https://github.com/askalf/dario
+
 ## Service
 
 ```bash
 systemctl --user status smart-router
 systemctl --user restart smart-router
 journalctl --user -u smart-router -f   # live logs
+```
