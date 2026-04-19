@@ -63,10 +63,12 @@ class Intent(Enum):
     CODE = auto(); ANALYSIS = auto(); CREATIVE = auto(); REALTIME = auto(); GENERAL = auto()
 class Complexity(Enum):
     SIMPLE = auto(); MEDIUM = auto(); COMPLEX = auto()
+class ThinkingLevel(Enum):
+    LOW = 'low'; MEDIUM = 'medium'; HIGH = 'high'
 
 @dataclass
 class Provider:
-    name: str; api_type: str; base_url: str; api_key: str; models: List[str]
+    name: str; api_type: str; base_url: str; api_key: str; models: List[str]; reasoning_models: set[str] | None = None
 
 
 def dedupe_keep_order(items):
@@ -91,6 +93,7 @@ def merge_provider(providers, provider):
         existing.base_url or provider.base_url,
         existing.api_key or provider.api_key,
         dedupe_keep_order((existing.models or []) + (provider.models or [])),
+        set(existing.reasoning_models or set()) | set(provider.reasoning_models or set()),
     )
 
 def resolve_config_value(value):
@@ -194,6 +197,26 @@ def discover_provider_models(name, cfg, base_url, api_key, api_type):
         return discover_google_models(base_url, api_key)
     return []
 
+
+def discover_reasoning_models(cfg):
+    reasoning_models = set()
+    for model in cfg.get('models', []) or []:
+        model_id = model.get('id')
+        if model_id and model.get('reasoning'):
+            reasoning_models.add(model_id)
+    return reasoning_models
+
+
+def provider_supports_reasoning(provider, model):
+    if provider.api_type == 'ollama':
+        return False
+    if provider.api_type == 'openclaw-gateway':
+        return True
+    if provider.api_type == 'anthropic-messages':
+        return model.startswith('claude-') or model.startswith('claude')
+    reasoning_models = provider.reasoning_models or set()
+    return model in reasoning_models
+
 def load_openclaw_providers():
     providers = {}
     try:
@@ -206,6 +229,7 @@ def load_openclaw_providers():
             api_key = resolve_config_value(cfg.get('apiKey', '') or '')
             api_type = infer_api_type(name, cfg, base_url)
             models = discover_provider_models(name, cfg, base_url, api_key, api_type)
+            reasoning_models = discover_reasoning_models(cfg)
 
             if should_route_anthropic_to_dario(name, api_type, base_url):
                 ensure_dario_proxy_ready()
@@ -215,6 +239,7 @@ def load_openclaw_providers():
                     DARIO_LOCAL_BASE_URL,
                     DARIO_LOCAL_API_KEY,
                     dedupe_keep_order(models or DEFAULT_ANTHROPIC_MODELS),
+                    set(models or DEFAULT_ANTHROPIC_MODELS),
                 ))
                 logger.info(f'Normalized provider {name} -> {DARIO_PROVIDER_NAME} via local Dario proxy')
                 continue
@@ -225,6 +250,7 @@ def load_openclaw_providers():
                 base_url,
                 api_key,
                 models,
+                reasoning_models,
             ))
 
         auth_profiles = config.get('auth', {}).get('profiles', {})
@@ -244,12 +270,13 @@ def load_openclaw_providers():
                 'ws://127.0.0.1:18789',
                 '',
                 codex_models,
+                set(codex_models),
             ))
 
         logger.info(f"Loaded {len(providers)} configured providers: {list(providers.keys())}")
     except Exception as e:
         logger.error(f"Config load failed: {e}")
-        providers['ollama'] = Provider('ollama', 'ollama', 'http://127.0.0.1:11434', '', ['qwen3.5:cloud', 'kimi-k2.5:cloud'])
+        providers['ollama'] = Provider('ollama', 'ollama', 'http://127.0.0.1:11434', '', ['qwen3.5:cloud', 'kimi-k2.5:cloud'], set())
     return providers
 
 PROVIDERS = load_openclaw_providers()
@@ -447,6 +474,25 @@ def available_provider_names():
     ]
 
 
+def reasoning_capabilities_summary():
+    summary = {}
+    for name, provider in PROVIDERS.items():
+        if name in DISABLED_PROVIDERS:
+            continue
+        summary[name] = {
+            'api': provider.api_type,
+            'reachable': provider_endpoint_reachable(provider),
+            'models': [
+                {
+                    'id': model,
+                    'reasoning': provider_supports_reasoning(provider, model),
+                }
+                for model in dedupe_keep_order(provider.models or [])
+            ],
+        }
+    return summary
+
+
 def classify_intent(text):
     tl = text.lower(); scores = {i:0 for i in Intent}
     for kw in ['write','code','debug','fix','refactor','implement','function','bug','test','.py','.js']:
@@ -475,7 +521,28 @@ def pick_model(prov, prefer=None):
     return prov.models[0]
 
 
-def score_provider_model(provider, model, intent, complexity):
+def normalize_thinking(raw):
+    if isinstance(raw, dict):
+        raw = raw.get('effort') or raw.get('level') or raw.get('thinking')
+    if raw is None:
+        return ThinkingLevel.MEDIUM
+    value = str(raw).strip().lower()
+    if value in {'low', 'minimal'}:
+        return ThinkingLevel.LOW
+    if value in {'high', 'max', 'deep'}:
+        return ThinkingLevel.HIGH
+    return ThinkingLevel.MEDIUM
+
+
+def thinking_max_tokens(level: ThinkingLevel):
+    if level == ThinkingLevel.LOW:
+        return 4096
+    if level == ThinkingLevel.HIGH:
+        return 12288
+    return 8192
+
+
+def score_provider_model(provider, model, intent, complexity, thinking=ThinkingLevel.MEDIUM):
     intent_key = intent.name
     api_score = INTENT_API_SCORES.get(intent_key, {}).get(provider.api_type, 40)
     model_l = model.lower()
@@ -500,6 +567,24 @@ def score_provider_model(provider, model, intent, complexity):
         score += 2
     if intent == Intent.GENERAL and provider.api_type == 'ollama':
         score -= 1
+
+    if thinking == ThinkingLevel.HIGH:
+        if any(hint in model_l for hint in COMPLEX_MODEL_HINTS):
+            score += 6
+        if any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
+            score -= 10
+        if provider.api_type in {'anthropic-messages', 'openai-completions', 'openclaw-gateway'}:
+            score += 3
+    elif thinking == ThinkingLevel.LOW:
+        if any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
+            score += 6
+        if any(hint in model_l for hint in COMPLEX_MODEL_HINTS):
+            score -= 4
+        if provider.api_type == 'openclaw-gateway':
+            score -= 6
+        if provider.api_type == 'ollama':
+            score += 2
+
     if intent == Intent.GENERAL:
         score = 50 + ((score - 50) * 0.35)
         empirical_bonus, empirical_note = general_empirical_adjustment(provider, model)
@@ -508,7 +593,7 @@ def score_provider_model(provider, model, intent, complexity):
 
     return score
 
-def select_model(intent, complexity):
+def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM):
     candidates = []
     for pn, provider in PROVIDERS.items():
         if pn in DISABLED_PROVIDERS:
@@ -517,7 +602,7 @@ def select_model(intent, complexity):
             continue
         best = None
         for model in dedupe_keep_order(provider.models):
-            scored = (score_provider_model(provider, model, intent, complexity), pn, model)
+            scored = (score_provider_model(provider, model, intent, complexity, thinking), pn, model)
             if best is None or scored[0] > best[0]:
                 best = scored
         if best:
@@ -526,9 +611,13 @@ def select_model(intent, complexity):
     candidates.sort(key=lambda item: (-item[0], item[1], item[2]))
     return [(pn, model) for _, pn, model in candidates[:MAX_PROVIDER_ATTEMPTS]]
 
-def call_ollama(base_url, model, messages, api_key=''):
+def call_ollama(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM):
     url = base_url.rstrip('/') + '/api/chat'
     payload = {"model": model, "messages": messages, "stream": False}
+    if thinking == ThinkingLevel.LOW:
+        payload["options"] = {"num_predict": 1024}
+    elif thinking == ThinkingLevel.HIGH:
+        payload["options"] = {"num_predict": 4096}
     try:
         data = json.dumps(payload).encode()
         hdrs = {'Content-Type': 'application/json'}
@@ -541,9 +630,11 @@ def call_ollama(base_url, model, messages, api_key=''):
         logger.warning(f"Ollama {base_url} {model}: {extract_http_error(e)}")
         return False, extract_http_error(e)
 
-def call_openai_compat(base_url, model, messages, api_key='', provider_name=''):
+def call_openai_compat(base_url, model, messages, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False):
     url = base_url.rstrip('/') + '/v1/chat/completions'
-    payload = {"model": model, "messages": messages, "max_tokens": 8192}
+    payload = {"model": model, "messages": messages, "max_tokens": thinking_max_tokens(thinking)}
+    if supports_reasoning:
+        payload["reasoning"] = {"effort": thinking.value}
     try:
         data = json.dumps(payload).encode()
         hdrs = {'Content-Type': 'application/json'}
@@ -557,7 +648,7 @@ def call_openai_compat(base_url, model, messages, api_key='', provider_name=''):
         return False, extract_http_error(e)
 
 
-def call_openclaw_gateway(model, messages, provider_name='openai-codex'):
+def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinking=ThinkingLevel.MEDIUM):
     if not os.path.exists(OPENCLAW_GATEWAY_HELPER):
         return False, f'Missing OpenClaw gateway helper: {OPENCLAW_GATEWAY_HELPER}'
 
@@ -567,6 +658,7 @@ def call_openclaw_gateway(model, messages, provider_name='openai-codex'):
         'model': model,
         'message': build_openclaw_gateway_prompt(messages),
         'timeoutMs': OPENCLAW_GATEWAY_TIMEOUT_SECONDS * 1000,
+        'thinking': thinking.value,
     }
 
     try:
@@ -600,7 +692,7 @@ def call_openclaw_gateway(model, messages, provider_name='openai-codex'):
         return True, text
     return False, json.dumps(result)
 
-def call_anthropic(base_url, model, messages, api_key=''):
+def call_anthropic(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False):
     url = base_url.rstrip('/') + '/v1/messages'
     system_text = ''
     api_msgs = []
@@ -618,7 +710,9 @@ def call_anthropic(base_url, model, messages, api_key=''):
         api_msgs.insert(0, {"role": "user", "content": "Hello"})
     if not api_msgs:
         api_msgs = [{"role": "user", "content": "Hello"}]
-    payload = {"model": model, "max_tokens": 8192, "messages": api_msgs}
+    payload = {"model": model, "max_tokens": thinking_max_tokens(thinking), "messages": api_msgs}
+    if supports_reasoning and thinking == ThinkingLevel.HIGH:
+        payload["thinking"] = {"type": "enabled", "budget_tokens": 4096}
     if system_text.strip():
         payload["system"] = system_text.strip()
     try:
@@ -635,7 +729,7 @@ def call_anthropic(base_url, model, messages, api_key=''):
         return False, extract_http_error(e)
 
 
-def call_google(base_url, model, messages, api_key=''):
+def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM):
     url = base_url.rstrip('/') + f'/models/{urllib.parse.quote(model, safe="")}:generateContent'
     system_text = ''
     contents = []
@@ -670,7 +764,7 @@ def call_google(base_url, model, messages, api_key=''):
 
     payload = {
         'contents': contents,
-        'generationConfig': {'maxOutputTokens': 8192},
+        'generationConfig': {'maxOutputTokens': thinking_max_tokens(thinking)},
     }
     if system_text.strip():
         payload['systemInstruction'] = {'parts': [{'text': system_text.strip()}]}
@@ -697,13 +791,13 @@ def latest_user_text(messages):
     return messages[-1].get('content', '') if messages else ''
 
 
-def route_request(messages, request_id='req-unknown'):
+def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MEDIUM):
     normalized_messages = normalize_messages(messages)
     user_text = latest_user_text(normalized_messages)
     intent, _ = classify_intent(user_text)
     complexity = estimate_complexity(user_text)
-    logger.info(f"[{request_id}] Intent: {intent.name}, Complexity: {complexity.name}")
-    chain = select_model(intent, complexity)
+    logger.info(f"[{request_id}] Intent: {intent.name}, Complexity: {complexity.name}, Thinking: {thinking.value}")
+    chain = select_model(intent, complexity, thinking)
     logger.info(f"[{request_id}] Chain: {chain}")
     overall_started = time.time()
     for pn, model in chain:
@@ -712,18 +806,19 @@ def route_request(messages, request_id='req-unknown'):
         if pn not in PROVIDERS:
             continue
         prov = PROVIDERS[pn]
-        logger.info(f"[{request_id}] Trying {pn}/{model} (api={prov.api_type})")
+        supports_reasoning = provider_supports_reasoning(prov, model)
+        logger.info(f"[{request_id}] Trying {pn}/{model} (api={prov.api_type}, reasoning={supports_reasoning})")
         started = time.time()
         if prov.api_type == 'ollama':
-            ok, text = call_ollama(prov.base_url, model, normalized_messages, prov.api_key)
+            ok, text = call_ollama(prov.base_url, model, normalized_messages, prov.api_key, thinking)
         elif prov.api_type == 'openclaw-gateway':
-            ok, text = call_openclaw_gateway(model, normalized_messages, pn)
+            ok, text = call_openclaw_gateway(model, normalized_messages, pn, thinking)
         elif prov.api_type == 'anthropic-messages':
-            ok, text = call_anthropic(prov.base_url, model, normalized_messages, prov.api_key)
+            ok, text = call_anthropic(prov.base_url, model, normalized_messages, prov.api_key, thinking, supports_reasoning)
         elif prov.api_type == 'google-generative-language':
-            ok, text = call_google(prov.base_url, model, normalized_messages, prov.api_key)
+            ok, text = call_google(prov.base_url, model, normalized_messages, prov.api_key, thinking)
         else:
-            ok, text = call_openai_compat(prov.base_url, model, normalized_messages, prov.api_key, pn)
+            ok, text = call_openai_compat(prov.base_url, model, normalized_messages, prov.api_key, pn, thinking, supports_reasoning)
         elapsed = time.time() - started
         record_latency_outcome(intent.name, pn, model, elapsed, ok)
         if ok:
@@ -757,6 +852,11 @@ class Handler(BaseHTTPRequestHandler):
                 "providers": available_provider_names(),
                 "configured": list(PROVIDERS.keys()),
                 "disabled": sorted(DISABLED_PROVIDERS),
+                "thinking": {
+                    "default": ThinkingLevel.MEDIUM.value,
+                    "accepted": [level.value for level in ThinkingLevel],
+                },
+                "reasoningCapabilities": reasoning_capabilities_summary(),
             })
         else:
             self.send_response(404)
@@ -770,8 +870,9 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 payload = json.loads(body or b'{}')
                 message_count = len(payload.get('messages', []) or [])
-                logger.info(f"[{request_id}] Incoming {self.path} with {message_count} messages")
-                result = route_request(payload.get('messages', []), request_id=request_id)
+                thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning'))
+                logger.info(f"[{request_id}] Incoming {self.path} with {message_count} messages, thinking={thinking.value}")
+                result = route_request(payload.get('messages', []), request_id=request_id, thinking=thinking)
                 self.write_json(200, result)
                 logger.info(f"[{request_id}] Responded in {time.time() - started:.2f}s")
             except Exception as e:
