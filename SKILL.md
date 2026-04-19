@@ -17,6 +17,8 @@ Rules:
 - includes OpenClaw gateway `openai-codex` as a virtual provider when the auth profile exists
 - recognizes Google Gemini providers from `generativelanguage.googleapis.com`
 - auto-discovers Google models when the provider exists but `models` is empty in `openclaw.json`
+- normalizes `anthropic` or Anthropic-hosted `anthropic-messages` providers onto the local Dario proxy at `localhost:3456`
+- starts the Dario user service when Anthropic compatibility is needed and the service is not already running
 - supports temporary provider suppression via `SMART_ROUTER_DISABLED_PROVIDERS=name1,name2`
 
 `GET /health` shows:
@@ -50,6 +52,7 @@ Intent is detected by keyword matching on the latest user message. Complexity is
 ## Notes
 
 - `openai-codex` is kept as an optional bridge, not a required first hop.
+- Anthropic compatibility is provided through Dario, so `anthropic` can stay in `openclaw.json` while routing locally through `dario`.
 - When the OpenClaw gateway model-set path is unhealthy, the helper falls back to running without provider/model overrides instead of failing hard.
 - If any provider starts misbehaving, suppress it with `SMART_ROUTER_DISABLED_PROVIDERS` instead of editing the router.
 - GitHub workflows now include CI syntax checks and CodeQL analysis for Python + JavaScript.

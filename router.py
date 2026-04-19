@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Smart Router V3 - Dynamic provider discovery and routing"""
-import argparse, json, logging, os, socket, subprocess, time, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, json, logging, os, shutil, socket, subprocess, time, urllib.error, urllib.parse, urllib.request, uuid
 from dataclasses import dataclass
 from enum import Enum, auto
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -11,6 +11,10 @@ logger = logging.getLogger("router")
 OPENCLAW_CONFIG = os.path.expanduser("~/.openclaw/openclaw.json")
 OPENCLAW_GATEWAY_HELPER = os.path.join(os.path.dirname(__file__), 'openclaw_gateway_agent.mjs')
 SELF_PROVIDER_NAMES = {'smart-router'}
+DARIO_PROVIDER_NAME = os.environ.get('SMART_ROUTER_DARIO_PROVIDER_NAME', 'dario')
+DARIO_LOCAL_BASE_URL = os.environ.get('SMART_ROUTER_DARIO_BASE_URL', 'http://127.0.0.1:3456')
+DARIO_LOCAL_API_KEY = os.environ.get('SMART_ROUTER_DARIO_API_KEY', 'dario')
+DARIO_SERVICE_NAME = os.environ.get('SMART_ROUTER_DARIO_SERVICE', 'dario.service')
 DISABLED_PROVIDERS = {
     name.strip() for name in os.environ.get('SMART_ROUTER_DISABLED_PROVIDERS', '').split(',')
     if name.strip()
@@ -25,6 +29,7 @@ REACHABILITY_TIMEOUT_SECONDS = float(os.environ.get('SMART_ROUTER_REACHABILITY_T
 REACHABILITY_TTL_SECONDS = int(os.environ.get('SMART_ROUTER_REACHABILITY_TTL_SECONDS', '120'))
 PROVIDER_HEALTH_CACHE = {}
 DEFAULT_OPENAI_CODEX_MODELS = ['gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.3-codex', 'gpt-5.3-codex-spark', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini', 'gpt-5.1']
+DEFAULT_ANTHROPIC_MODELS = ['claude-opus-4-6', 'claude-opus-4-5', 'claude-opus-4-1', 'claude-opus-4-0', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-sonnet-4-0', 'claude-haiku-4-5', 'claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest']
 MAX_PROVIDER_ATTEMPTS = int(os.environ.get('SMART_ROUTER_MAX_PROVIDER_ATTEMPTS', '8'))
 
 INTENT_API_SCORES = {
@@ -66,6 +71,20 @@ def dedupe_keep_order(items):
         ordered.append(item)
     return ordered
 
+
+def merge_provider(providers, provider):
+    existing = providers.get(provider.name)
+    if not existing:
+        providers[provider.name] = provider
+        return
+    providers[provider.name] = Provider(
+        provider.name,
+        existing.api_type or provider.api_type,
+        existing.base_url or provider.base_url,
+        existing.api_key or provider.api_key,
+        dedupe_keep_order((existing.models or []) + (provider.models or [])),
+    )
+
 def resolve_config_value(value):
     if isinstance(value, str) and value.startswith('${') and value.endswith('}'):
         return os.environ.get(value[2:-1], '')
@@ -77,6 +96,52 @@ def is_self_provider(name, base_url):
         return True
     parsed = urllib.parse.urlparse(base_url or '')
     return parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == 8788
+
+
+def is_local_dario_endpoint(base_url):
+    parsed = urllib.parse.urlparse(base_url or '')
+    return parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == 3456
+
+
+def should_route_anthropic_to_dario(name, api_type, base_url):
+    host = (urllib.parse.urlparse(base_url or '').hostname or '').lower()
+    if name == DARIO_PROVIDER_NAME or is_local_dario_endpoint(base_url):
+        return False
+    if name == 'anthropic':
+        return True
+    return api_type == 'anthropic-messages' and ('anthropic.com' in host or host == 'api.anthropic.com')
+
+
+def ensure_dario_proxy_ready():
+    try:
+        active = subprocess.run(
+            ['systemctl', '--user', 'is-active', '--quiet', DARIO_SERVICE_NAME],
+            check=False,
+            capture_output=True,
+            timeout=5,
+        )
+        if active.returncode == 0:
+            return True
+
+        if not shutil.which('dario'):
+            logger.warning('Anthropic provider detected but dario is not installed on PATH')
+            return False
+
+        start = subprocess.run(
+            ['systemctl', '--user', 'start', DARIO_SERVICE_NAME],
+            check=False,
+            capture_output=True,
+            timeout=10,
+        )
+        if start.returncode != 0:
+            detail = (start.stderr or start.stdout or b'').decode('utf-8', errors='replace').strip()
+            logger.warning(f'Failed to start {DARIO_SERVICE_NAME}: {detail[:300]}')
+            return False
+        logger.info(f'Started {DARIO_SERVICE_NAME} for Anthropic compatibility')
+        return True
+    except Exception as e:
+        logger.warning(f'Failed to ensure Dario proxy readiness: {e}')
+        return False
 
 
 def infer_api_type(name, cfg, base_url):
@@ -132,13 +197,27 @@ def load_openclaw_providers():
                 continue
             api_key = resolve_config_value(cfg.get('apiKey', '') or '')
             api_type = infer_api_type(name, cfg, base_url)
-            providers[name] = Provider(
+            models = discover_provider_models(name, cfg, base_url, api_key, api_type)
+
+            if should_route_anthropic_to_dario(name, api_type, base_url):
+                ensure_dario_proxy_ready()
+                merge_provider(providers, Provider(
+                    DARIO_PROVIDER_NAME,
+                    'anthropic-messages',
+                    DARIO_LOCAL_BASE_URL,
+                    DARIO_LOCAL_API_KEY,
+                    dedupe_keep_order(models or DEFAULT_ANTHROPIC_MODELS),
+                ))
+                logger.info(f'Normalized provider {name} -> {DARIO_PROVIDER_NAME} via local Dario proxy')
+                continue
+
+            merge_provider(providers, Provider(
                 name,
                 api_type,
                 base_url,
                 api_key,
-                discover_provider_models(name, cfg, base_url, api_key, api_type),
-            )
+                models,
+            ))
 
         auth_profiles = config.get('auth', {}).get('profiles', {})
         agent_defaults = config.get('agents', {}).get('defaults', {})
@@ -151,13 +230,13 @@ def load_openclaw_providers():
                 codex_models.append(model_ref.split('/', 1)[1])
         codex_models = dedupe_keep_order(codex_models) or DEFAULT_OPENAI_CODEX_MODELS
         if 'openai-codex:default' in auth_profiles:
-            providers['openai-codex'] = Provider(
+            merge_provider(providers, Provider(
                 'openai-codex',
                 'openclaw-gateway',
                 'ws://127.0.0.1:18789',
                 '',
                 codex_models,
-            )
+            ))
 
         logger.info(f"Loaded {len(providers)} configured providers: {list(providers.keys())}")
     except Exception as e:
