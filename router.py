@@ -14,13 +14,13 @@ ALLOWED_PROVIDERS = ['openai-codex', 'dario', 'ollama', 'ollama-cyber']
 # openai-codex gateway bridge hangs (90s timeout every request)
 # Remove from active routing until the gateway RPC path works.
 DISABLED_PROVIDERS = {'openai-codex'}
-OLLAMA_TIMEOUT_SECONDS = 45
-OPENAI_COMPAT_TIMEOUT_SECONDS = 60
-ANTHROPIC_TIMEOUT_SECONDS = 60
-OPENCLAW_GATEWAY_TIMEOUT_SECONDS = 90
+OLLAMA_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OLLAMA_TIMEOUT_SECONDS', '30'))
+OPENAI_COMPAT_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OPENAI_TIMEOUT_SECONDS', '35'))
+ANTHROPIC_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_ANTHROPIC_TIMEOUT_SECONDS', '35'))
+OPENCLAW_GATEWAY_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OPENCLAW_TIMEOUT_SECONDS', '20'))
 OPENCLAW_GATEWAY_AGENT_ID = os.environ.get('SMART_ROUTER_OPENCLAW_AGENT_ID', 'main')
-REACHABILITY_TIMEOUT_SECONDS = 1.5
-REACHABILITY_TTL_SECONDS = 30
+REACHABILITY_TIMEOUT_SECONDS = float(os.environ.get('SMART_ROUTER_REACHABILITY_TIMEOUT_SECONDS', '0.5'))
+REACHABILITY_TTL_SECONDS = int(os.environ.get('SMART_ROUTER_REACHABILITY_TTL_SECONDS', '120'))
 PROVIDER_HEALTH_CACHE = {}
 DEFAULT_OPENAI_CODEX_MODELS = ['gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.3-codex', 'gpt-5.3-codex-spark', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini', 'gpt-5.1']
 
@@ -186,7 +186,10 @@ def provider_endpoint_reachable(provider: Provider) -> bool:
 
 
 def available_provider_names():
-    return [name for name, provider in PROVIDERS.items() if provider_endpoint_reachable(provider)]
+    return [
+        name for name, provider in PROVIDERS.items()
+        if name not in DISABLED_PROVIDERS and provider_endpoint_reachable(provider)
+    ]
 
 
 def classify_intent(text):
