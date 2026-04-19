@@ -10,10 +10,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(
 logger = logging.getLogger("router")
 OPENCLAW_CONFIG = os.path.expanduser("~/.openclaw/openclaw.json")
 OPENCLAW_GATEWAY_HELPER = os.path.join(os.path.dirname(__file__), 'openclaw_gateway_agent.mjs')
-ALLOWED_PROVIDERS = ['openai-codex', 'dario', 'ollama', 'ollama-cyber']
-# openai-codex gateway bridge hangs (90s timeout every request)
-# Remove from active routing until the gateway RPC path works.
-DISABLED_PROVIDERS = {'openai-codex'}
+SELF_PROVIDER_NAMES = {'smart-router'}
+DISABLED_PROVIDERS = {
+    name.strip() for name in os.environ.get('SMART_ROUTER_DISABLED_PROVIDERS', '').split(',')
+    if name.strip()
+}
 OLLAMA_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OLLAMA_TIMEOUT_SECONDS', '30'))
 OPENAI_COMPAT_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OPENAI_TIMEOUT_SECONDS', '35'))
 ANTHROPIC_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_ANTHROPIC_TIMEOUT_SECONDS', '35'))
@@ -23,6 +24,26 @@ REACHABILITY_TIMEOUT_SECONDS = float(os.environ.get('SMART_ROUTER_REACHABILITY_T
 REACHABILITY_TTL_SECONDS = int(os.environ.get('SMART_ROUTER_REACHABILITY_TTL_SECONDS', '120'))
 PROVIDER_HEALTH_CACHE = {}
 DEFAULT_OPENAI_CODEX_MODELS = ['gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.3-codex', 'gpt-5.3-codex-spark', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini', 'gpt-5.1']
+MAX_PROVIDER_ATTEMPTS = int(os.environ.get('SMART_ROUTER_MAX_PROVIDER_ATTEMPTS', '8'))
+
+INTENT_API_SCORES = {
+    'CODE': {'anthropic-messages': 60, 'openai-completions': 56, 'ollama': 50, 'openclaw-gateway': 44},
+    'ANALYSIS': {'anthropic-messages': 60, 'openai-completions': 57, 'ollama': 52, 'openclaw-gateway': 46},
+    'CREATIVE': {'anthropic-messages': 60, 'openai-completions': 55, 'ollama': 50, 'openclaw-gateway': 44},
+    'REALTIME': {'openai-completions': 60, 'anthropic-messages': 54, 'ollama': 48, 'openclaw-gateway': 42},
+    'GENERAL': {'anthropic-messages': 58, 'openai-completions': 56, 'ollama': 50, 'openclaw-gateway': 42},
+}
+
+INTENT_MODEL_HINTS = {
+    'CODE': ['opus', 'sonnet', 'codex', 'gpt-5', 'deepseek', 'qwen', 'kimi', 'glm'],
+    'ANALYSIS': ['opus', 'sonnet', 'gpt-5', 'o3', 'qwen', 'kimi', 'minimax', 'glm'],
+    'CREATIVE': ['opus', 'sonnet', 'minimax', 'kimi', 'gpt-5', 'qwen'],
+    'REALTIME': ['gpt-4o', 'gpt-5', 'sonnet', 'kimi', 'qwen', 'glm'],
+    'GENERAL': ['sonnet', 'gpt-4o', 'gpt-5', 'kimi', 'minimax', 'qwen', 'glm', 'opus'],
+}
+
+COMPLEX_MODEL_HINTS = ['opus', 'sonnet', 'gpt-5', 'o3', 'qwen', 'kimi', 'deepseek']
+LIGHTWEIGHT_MODEL_HINTS = ['mini', 'small', 'haiku']
 
 class Intent(Enum):
     CODE = auto(); ANALYSIS = auto(); CREATIVE = auto(); REALTIME = auto(); GENERAL = auto()
@@ -44,21 +65,32 @@ def dedupe_keep_order(items):
         ordered.append(item)
     return ordered
 
+def resolve_config_value(value):
+    if isinstance(value, str) and value.startswith('${') and value.endswith('}'):
+        return os.environ.get(value[2:-1], '')
+    return value
+
+
+def is_self_provider(name, base_url):
+    if name in SELF_PROVIDER_NAMES:
+        return True
+    parsed = urllib.parse.urlparse(base_url or '')
+    return parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == 8788
+
 def load_openclaw_providers():
     providers = {}
     try:
         with open(OPENCLAW_CONFIG) as f:
             config = json.load(f)
         for name, cfg in config.get('models', {}).get('providers', {}).items():
-            if name not in ALLOWED_PROVIDERS:
+            base_url = resolve_config_value(cfg.get('baseUrl', '') or '')
+            if is_self_provider(name, base_url):
                 continue
-            api_key = cfg.get('apiKey', '')
-            if api_key.startswith('${') and api_key.endswith('}'):
-                api_key = os.environ.get(api_key[2:-1], '')
+            api_key = resolve_config_value(cfg.get('apiKey', '') or '')
             providers[name] = Provider(
                 name,
                 cfg.get('api', 'openai-completions'),
-                cfg.get('baseUrl', ''),
+                base_url,
                 api_key,
                 [m.get('id') for m in cfg.get('models', []) if m.get('id')],
             )
@@ -188,7 +220,7 @@ def provider_endpoint_reachable(provider: Provider) -> bool:
 def available_provider_names():
     return [
         name for name, provider in PROVIDERS.items()
-        if name not in DISABLED_PROVIDERS and provider_endpoint_reachable(provider)
+        if name not in DISABLED_PROVIDERS and provider.models and provider_endpoint_reachable(provider)
     ]
 
 
@@ -219,28 +251,52 @@ def pick_model(prov, prefer=None):
                     return m
     return prov.models[0]
 
+
+def score_provider_model(provider, model, intent, complexity):
+    intent_key = intent.name
+    api_score = INTENT_API_SCORES.get(intent_key, {}).get(provider.api_type, 40)
+    model_l = model.lower()
+    provider_l = provider.name.lower()
+    score = api_score
+
+    for idx, hint in enumerate(INTENT_MODEL_HINTS.get(intent_key, [])):
+        if hint in model_l:
+            score += max(1, 12 - idx)
+
+    if provider.api_type == 'anthropic-messages' and intent in (Intent.CODE, Intent.ANALYSIS, Intent.GENERAL):
+        score += 4
+    if provider.api_type == 'openclaw-gateway':
+        score -= 4
+    if 'cyber' in provider_l:
+        score -= 2
+    if complexity == Complexity.COMPLEX and any(hint in model_l for hint in COMPLEX_MODEL_HINTS):
+        score += 5
+    if complexity == Complexity.COMPLEX and any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
+        score -= 8
+    if complexity == Complexity.SIMPLE and any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
+        score += 2
+    if intent == Intent.GENERAL and provider.api_type == 'ollama':
+        score -= 1
+
+    return score
+
 def select_model(intent, complexity):
-    if intent == Intent.CODE:
-        pri = [('dario', ['opus-4-6', 'opus-4-5', 'sonnet-4-6']), ('ollama', ['kimi', 'qwen', 'glm']), ('ollama-cyber', [])]
-    elif intent == Intent.ANALYSIS:
-        pri = [('dario', ['opus-4-6', 'opus-4-5', 'sonnet-4-6']), ('ollama', ['kimi', 'qwen', 'minimax']), ('ollama-cyber', [])]
-    elif intent == Intent.CREATIVE:
-        pri = [('dario', ['opus-4-6', 'opus-4-5', 'sonnet-4-6']), ('ollama', ['kimi', 'minimax', 'qwen']), ('ollama-cyber', [])]
-    else:
-        pri = [('ollama', ['kimi', 'qwen', 'minimax', 'glm']), ('dario', ['sonnet-4-6', 'sonnet-4-5', 'opus-4-6']), ('ollama-cyber', [])]
-    if complexity == Complexity.COMPLEX:
-        pri = [('dario', ['opus-4-6', 'opus-4-5']), ('ollama', ['kimi', 'qwen']), ('ollama-cyber', [])]
-    chain = []
-    for pn, pk in pri:
-        if pn not in PROVIDERS:
+    candidates = []
+    for pn, provider in PROVIDERS.items():
+        if pn in DISABLED_PROVIDERS:
             continue
-        p = PROVIDERS[pn]
-        if not p.models or not provider_endpoint_reachable(p):
+        if not provider.models or not provider_endpoint_reachable(provider):
             continue
-        m = pick_model(p, pk) if pk else p.models[0]
-        if m:
-            chain.append((pn, m))
-    return chain
+        best = None
+        for model in dedupe_keep_order(provider.models):
+            scored = (score_provider_model(provider, model, intent, complexity), pn, model)
+            if best is None or scored[0] > best[0]:
+                best = scored
+        if best:
+            candidates.append(best)
+
+    candidates.sort(key=lambda item: (-item[0], item[1], item[2]))
+    return [(pn, model) for _, pn, model in candidates[:MAX_PROVIDER_ATTEMPTS]]
 
 def call_ollama(base_url, model, messages, api_key=''):
     url = base_url.rstrip('/') + '/api/chat'
@@ -409,7 +465,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == '/health':
-            self.write_json(200, {"status": "ok", "providers": available_provider_names(), "configured": list(PROVIDERS.keys()), "allowed": ALLOWED_PROVIDERS})
+            self.write_json(200, {
+                "status": "ok",
+                "providers": available_provider_names(),
+                "configured": list(PROVIDERS.keys()),
+                "disabled": sorted(DISABLED_PROVIDERS),
+            })
         else:
             self.send_response(404)
             self.end_headers()
@@ -436,5 +497,5 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--port',type=int,default=8788); args = parser.parse_args()
     server = ThreadingHTTPServer(('0.0.0.0', args.port), Handler)
-    logger.info(f"Router on :{args.port} | allowed={ALLOWED_PROVIDERS} | active={list(PROVIDERS.keys())}")
+    logger.info(f"Router on :{args.port} | configured={list(PROVIDERS.keys())} | disabled={sorted(DISABLED_PROVIDERS)}")
     server.serve_forever()
