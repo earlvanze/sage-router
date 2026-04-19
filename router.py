@@ -3,7 +3,7 @@
 import argparse, json, logging, os, socket, subprocess, time, urllib.error, urllib.parse, urllib.request
 from dataclasses import dataclass
 from enum import Enum, auto
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, List
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
@@ -321,8 +321,12 @@ def call_anthropic(base_url, model, messages, api_key=''):
         r, c = msg.get('role', 'user'), msg.get('content', '')
         if r == 'system':
             system_text += c + '\n'
-        else:
+        elif r in ('user', 'assistant'):
             api_msgs.append({"role": r, "content": c})
+        else:
+            label = r.upper() if isinstance(r, str) else 'MESSAGE'
+            wrapped = f'[{label}]\n{c}'.strip() if c else f'[{label}]'
+            api_msgs.append({"role": "user", "content": wrapped})
     if api_msgs and api_msgs[0].get('role') != 'user':
         api_msgs.insert(0, {"role": "user", "content": "Hello"})
     if not api_msgs:
@@ -343,9 +347,16 @@ def call_anthropic(base_url, model, messages, api_key=''):
         logger.warning(f"Anthropic {base_url} {model}: {extract_http_error(e)}")
         return False, extract_http_error(e)
 
+def latest_user_text(messages):
+    for msg in reversed(messages or []):
+        if msg.get('role') == 'user' and msg.get('content'):
+            return msg.get('content', '')
+    return messages[-1].get('content', '') if messages else ''
+
+
 def route_request(messages):
     normalized_messages = normalize_messages(messages)
-    user_text = normalized_messages[-1].get('content', '') if normalized_messages else ''
+    user_text = latest_user_text(normalized_messages)
     intent, _ = classify_intent(user_text)
     complexity = estimate_complexity(user_text)
     logger.info(f"Intent: {intent.name}, Complexity: {complexity.name}")
@@ -358,6 +369,7 @@ def route_request(messages):
             continue
         prov = PROVIDERS[pn]
         logger.info(f"Trying {pn}/{model} (api={prov.api_type})")
+        started = time.time()
         if prov.api_type == 'ollama':
             ok, text = call_ollama(prov.base_url, model, normalized_messages, prov.api_key)
         elif prov.api_type == 'openclaw-gateway':
@@ -366,9 +378,11 @@ def route_request(messages):
             ok, text = call_anthropic(prov.base_url, model, normalized_messages, prov.api_key)
         else:
             ok, text = call_openai_compat(prov.base_url, model, normalized_messages, prov.api_key, pn)
+        elapsed = time.time() - started
         if ok:
-            logger.info(f"OK: {pn}/{model} ({len(text)} chars)")
+            logger.info(f"OK: {pn}/{model} ({len(text)} chars, {elapsed:.2f}s)")
             return {"id": f"chatcmpl-{int(time.time())}", "object": "chat.completion", "created": int(time.time()), "model": f"{pn}/{model}", "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 0, "completion_tokens": 0}}
+        logger.warning(f"Failed {pn}/{model} after {elapsed:.2f}s")
     return {"error": "All providers failed", "choices": [{"message": {"content": "Error: No providers available"}}]}
 
 class Handler(BaseHTTPRequestHandler):
@@ -409,6 +423,6 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--port',type=int,default=8788); args = parser.parse_args()
-    server = HTTPServer(('0.0.0.0', args.port), Handler)
+    server = ThreadingHTTPServer(('0.0.0.0', args.port), Handler)
     logger.info(f"Router on :{args.port} | allowed={ALLOWED_PROVIDERS} | active={list(PROVIDERS.keys())}")
     server.serve_forever()
