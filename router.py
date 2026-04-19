@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Smart Router V3 - Dynamic provider discovery and routing"""
-import argparse, json, logging, os, socket, subprocess, time, urllib.error, urllib.parse, urllib.request
+import argparse, json, logging, os, socket, subprocess, time, urllib.error, urllib.parse, urllib.request, uuid
 from dataclasses import dataclass
 from enum import Enum, auto
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -357,21 +357,22 @@ def latest_user_text(messages):
     return messages[-1].get('content', '') if messages else ''
 
 
-def route_request(messages):
+def route_request(messages, request_id='req-unknown'):
     normalized_messages = normalize_messages(messages)
     user_text = latest_user_text(normalized_messages)
     intent, _ = classify_intent(user_text)
     complexity = estimate_complexity(user_text)
-    logger.info(f"Intent: {intent.name}, Complexity: {complexity.name}")
+    logger.info(f"[{request_id}] Intent: {intent.name}, Complexity: {complexity.name}")
     chain = select_model(intent, complexity)
-    logger.info(f"Chain: {chain}")
+    logger.info(f"[{request_id}] Chain: {chain}")
+    overall_started = time.time()
     for pn, model in chain:
         if pn in DISABLED_PROVIDERS:
             continue
         if pn not in PROVIDERS:
             continue
         prov = PROVIDERS[pn]
-        logger.info(f"Trying {pn}/{model} (api={prov.api_type})")
+        logger.info(f"[{request_id}] Trying {pn}/{model} (api={prov.api_type})")
         started = time.time()
         if prov.api_type == 'ollama':
             ok, text = call_ollama(prov.base_url, model, normalized_messages, prov.api_key)
@@ -383,9 +384,12 @@ def route_request(messages):
             ok, text = call_openai_compat(prov.base_url, model, normalized_messages, prov.api_key, pn)
         elapsed = time.time() - started
         if ok:
-            logger.info(f"OK: {pn}/{model} ({len(text)} chars, {elapsed:.2f}s)")
+            total_elapsed = time.time() - overall_started
+            logger.info(f"[{request_id}] OK: {pn}/{model} ({len(text)} chars, provider={elapsed:.2f}s, total={total_elapsed:.2f}s)")
             return {"id": f"chatcmpl-{int(time.time())}", "object": "chat.completion", "created": int(time.time()), "model": f"{pn}/{model}", "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 0, "completion_tokens": 0}}
-        logger.warning(f"Failed {pn}/{model} after {elapsed:.2f}s")
+        logger.warning(f"[{request_id}] Failed {pn}/{model} after {elapsed:.2f}s")
+    total_elapsed = time.time() - overall_started
+    logger.error(f"[{request_id}] All providers failed after {total_elapsed:.2f}s")
     return {"error": "All providers failed", "choices": [{"message": {"content": "Error: No providers available"}}]}
 
 class Handler(BaseHTTPRequestHandler):
@@ -413,12 +417,17 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path in ['/v1/chat/completions', '/chat/completions']:
             body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+            request_id = uuid.uuid4().hex[:8]
+            started = time.time()
             try:
                 payload = json.loads(body or b'{}')
-                result = route_request(payload.get('messages', []))
+                message_count = len(payload.get('messages', []) or [])
+                logger.info(f"[{request_id}] Incoming {self.path} with {message_count} messages")
+                result = route_request(payload.get('messages', []), request_id=request_id)
                 self.write_json(200, result)
+                logger.info(f"[{request_id}] Responded in {time.time() - started:.2f}s")
             except Exception as e:
-                logger.exception("Request handling failed")
+                logger.exception(f"[{request_id}] Request handling failed")
                 self.write_json(500, {"error": str(e)})
         else:
             self.send_response(404)
