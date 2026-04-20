@@ -623,6 +623,70 @@ def general_empirical_adjustment(provider, model):
     return total, f'ewma_ms={latency_ewma_ms:.0f},explore={exploration:.2f},fail={penalty:.2f}'
 
 
+
+def route_latency_target_ms(route_mode: str, complexity: Complexity, thinking: ThinkingLevel):
+    base = {
+        'fast': 9000,
+        'balanced': 14000,
+        'best': 24000,
+        'local-first': 11000,
+    }.get(route_mode, 14000)
+    if complexity == Complexity.SIMPLE:
+        base -= 2000
+    elif complexity == Complexity.COMPLEX:
+        base += 6000
+    if thinking == ThinkingLevel.HIGH:
+        base += 4000
+    elif thinking == ThinkingLevel.LOW:
+        base -= 1500
+    return max(6000, min(45000, base))
+
+
+
+def empirical_route_adjustment(provider, model, intent_name: str, route_mode: str, complexity: Complexity, thinking: ThinkingLevel):
+    stat = get_health_stat(intent_name, provider.name, model)
+    provider_stats = get_intent_provider_stats(intent_name, provider.name) or get_intent_provider_stats('GENERAL', provider.name)
+    successes = int(stat.get('successes', 0))
+    failures = int(stat.get('failures', 0))
+    samples = successes + failures
+
+    if samples <= 0:
+        if route_mode == 'best':
+            return 0.0, 'cold:best-mode'
+        if provider.api_type == 'ollama':
+            penalty = 6.0 if route_mode == 'balanced' else 4.0
+        elif provider.api_type == 'google-generative-language':
+            penalty = 10.0 if route_mode == 'balanced' else 12.0
+        else:
+            penalty = 18.0 if route_mode == 'balanced' else 22.0
+        if provider_stats:
+            penalty -= 2.0
+        return -penalty, f'cold:penalty={penalty:.1f}'
+
+    if successes <= 0:
+        penalty = min(30.0, 12.0 + (failures * 3.5))
+        if provider.api_type != 'ollama' and route_mode != 'best':
+            penalty += 4.0
+        if route_mode == 'best':
+            penalty *= 0.7
+        return -penalty, f'no-success:failures={failures}'
+
+    target_ms = route_latency_target_ms(route_mode, complexity, thinking)
+    ewma_ms = float(stat.get('latency_ewma_ms', target_ms) or target_ms)
+    delta_seconds = (target_ms - ewma_ms) / 1000.0
+    if delta_seconds >= 0:
+        latency_adjustment = min(14.0, delta_seconds * 0.9)
+    else:
+        multiplier = 1.6 if route_mode in {'fast', 'local-first'} else 1.15 if route_mode == 'balanced' else 0.65
+        latency_adjustment = -min(30.0, abs(delta_seconds) * multiplier)
+
+    confidence_bonus = min(8.0, math.log2(successes + 1) * 2.0)
+    failure_penalty = min(12.0, failures * 0.45)
+    total = latency_adjustment + confidence_bonus - failure_penalty
+    return total, f'ewma_ms={ewma_ms:.0f},target_ms={target_ms},succ={successes},fail={failures}'
+
+
+
 def ollama_family_bonus(model: str, intent: Intent):
     model_l = (model or '').lower()
     best = 0
@@ -1072,13 +1136,17 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
         score -= 100
         contributions.append(('cooldown_penalty', -100))
 
+    empirical_bonus, empirical_note = empirical_route_adjustment(provider, model, intent.name, route_mode, complexity, thinking)
+    score += empirical_bonus
+    contributions.append((f'route_empirical:{empirical_note}', round(empirical_bonus, 2)))
+
     if intent == Intent.GENERAL:
         score = 50 + ((score - 50) * 0.35)
         contributions.append(('general_blend', 'applied'))
-        empirical_bonus, empirical_note = general_empirical_adjustment(provider, model)
-        score += empirical_bonus
-        contributions.append((f'empirical:{empirical_note}', round(empirical_bonus, 2)))
-        logger.debug(f"[scoring] GENERAL {provider.name}/{model}: empirical={empirical_bonus:.2f} ({empirical_note}), health={health.get('score', 0):.2f}, final={score:.2f}")
+        general_bonus, general_note = general_empirical_adjustment(provider, model)
+        score += general_bonus
+        contributions.append((f'empirical:{general_note}', round(general_bonus, 2)))
+        logger.debug(f"[scoring] GENERAL {provider.name}/{model}: route_empirical={empirical_bonus:.2f} ({empirical_note}), empirical={general_bonus:.2f} ({general_note}), health={health.get('score', 0):.2f}, final={score:.2f}")
 
     final_score = round(score, 2)
     if debug_scores is not None:
