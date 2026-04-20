@@ -25,6 +25,7 @@ OPENAI_COMPAT_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OPENAI_TIMEOUT_
 ANTHROPIC_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_ANTHROPIC_TIMEOUT_SECONDS', '35'))
 GOOGLE_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_GOOGLE_TIMEOUT_SECONDS', '35'))
 OPENCLAW_GATEWAY_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OPENCLAW_TIMEOUT_SECONDS', '20'))
+OPENCLAW_GATEWAY_CODE_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OPENCLAW_CODE_TIMEOUT_SECONDS', '45'))
 OPENCLAW_GATEWAY_AGENT_ID = os.environ.get('SMART_ROUTER_OPENCLAW_AGENT_ID', 'main')
 REACHABILITY_TIMEOUT_SECONDS = float(os.environ.get('SMART_ROUTER_REACHABILITY_TIMEOUT_SECONDS', '0.5'))
 REACHABILITY_TTL_SECONDS = int(os.environ.get('SMART_ROUTER_REACHABILITY_TTL_SECONDS', '120'))
@@ -71,8 +72,8 @@ OLLAMA_MANIFEST_URLS = load_ollama_manifest_bindings('URL')
 OLLAMA_MANIFEST_FILES = load_ollama_manifest_bindings('FILE')
 
 INTENT_API_SCORES = {
-    'CODE': {'anthropic-messages': 60, 'google-generative-language': 58, 'openai-completions': 56, 'ollama': 50, 'openclaw-gateway': 44},
-    'ANALYSIS': {'anthropic-messages': 60, 'google-generative-language': 58, 'openai-completions': 57, 'ollama': 52, 'openclaw-gateway': 46},
+    'CODE': {'openclaw-gateway': 68, 'openai-completions': 60, 'anthropic-messages': 52, 'ollama': 48, 'google-generative-language': 46},
+    'ANALYSIS': {'ollama': 66, 'anthropic-messages': 58, 'openai-completions': 54, 'google-generative-language': 52, 'openclaw-gateway': 48},
     'CREATIVE': {'anthropic-messages': 60, 'google-generative-language': 59, 'openai-completions': 55, 'ollama': 50, 'openclaw-gateway': 44},
     'REALTIME': {'google-generative-language': 60, 'openai-completions': 60, 'anthropic-messages': 54, 'ollama': 48, 'openclaw-gateway': 42},
     'GENERAL': {'anthropic-messages': 58, 'google-generative-language': 57, 'openai-completions': 56, 'ollama': 50, 'openclaw-gateway': 42},
@@ -1058,6 +1059,28 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
     if 'cyber' in provider_l:
         score -= 2
         contributions.append(('cyber_penalty', -2))
+
+    if intent == Intent.CODE:
+        if provider.name == 'openai-codex' or model_l.startswith('gpt-') or 'codex' in model_l:
+            score += 22
+            contributions.append(('user_pref_code_gpt', 22))
+        elif provider.api_type == 'anthropic-messages':
+            score -= 8
+            contributions.append(('user_pref_code_non_gpt_penalty', -8))
+        elif provider.api_type == 'ollama':
+            score -= 10
+            contributions.append(('user_pref_code_ollama_penalty', -10))
+
+    if intent == Intent.ANALYSIS:
+        if provider.api_type == 'ollama':
+            score += 18
+            contributions.append(('user_pref_analysis_ollama', 18))
+            if 'cyber' in provider_l:
+                score += 4
+                contributions.append(('analysis_cyber_ollama_bonus', 4))
+        elif provider.name == 'openai-codex' or provider.api_type == 'openclaw-gateway':
+            score -= 10
+            contributions.append(('user_pref_analysis_not_gpt', -10))
     if complexity == Complexity.COMPLEX and any(hint in model_l for hint in COMPLEX_MODEL_HINTS):
         score += 5
         contributions.append(('complex_model_bonus', 5))
@@ -1271,16 +1294,17 @@ def call_openai_compat(base_url, model, messages, api_key='', provider_name='', 
         return False, extract_http_error(e)
 
 
-def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinking=ThinkingLevel.MEDIUM, want_json=False):
+def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinking=ThinkingLevel.MEDIUM, want_json=False, timeout_seconds=None):
     if not os.path.exists(OPENCLAW_GATEWAY_HELPER):
         return False, f'Missing OpenClaw gateway helper: {OPENCLAW_GATEWAY_HELPER}'
 
+    effective_timeout = int(timeout_seconds or OPENCLAW_GATEWAY_TIMEOUT_SECONDS)
     payload = {
         'agentId': OPENCLAW_GATEWAY_AGENT_ID,
         'provider': provider_name,
         'model': model,
         'message': build_openclaw_gateway_prompt(messages),
-        'timeoutMs': OPENCLAW_GATEWAY_TIMEOUT_SECONDS * 1000,
+        'timeoutMs': effective_timeout * 1000,
         'thinking': thinking.value,
         'responseFormat': 'json' if want_json else 'text',
     }
@@ -1291,12 +1315,12 @@ def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinkin
             input=json.dumps(payload),
             capture_output=True,
             text=True,
-            timeout=OPENCLAW_GATEWAY_TIMEOUT_SECONDS,
+            timeout=effective_timeout,
             check=False,
         )
     except subprocess.TimeoutExpired:
-        logger.warning(f'OpenClaw gateway {provider_name} {model}: timed out after {OPENCLAW_GATEWAY_TIMEOUT_SECONDS}s')
-        return False, f'OpenClaw gateway timeout after {OPENCLAW_GATEWAY_TIMEOUT_SECONDS}s'
+        logger.warning(f'OpenClaw gateway {provider_name} {model}: timed out after {effective_timeout}s')
+        return False, f'OpenClaw gateway timeout after {effective_timeout}s'
     except Exception as e:
         logger.warning(f'OpenClaw gateway {provider_name} {model}: {e}')
         return False, str(e)
@@ -1449,7 +1473,8 @@ def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
         if prov.api_type == 'ollama':
             ok, text = call_ollama(prov.base_url, model, normalized_messages, prov.api_key, thinking)
         elif prov.api_type == 'openclaw-gateway':
-            ok, text = call_openclaw_gateway(model, normalized_messages, pn, thinking, want_json)
+            gateway_timeout = OPENCLAW_GATEWAY_CODE_TIMEOUT_SECONDS if intent == Intent.CODE else OPENCLAW_GATEWAY_TIMEOUT_SECONDS
+            ok, text = call_openclaw_gateway(model, normalized_messages, pn, thinking, want_json, gateway_timeout)
         elif prov.api_type == 'anthropic-messages':
             ok, text = call_anthropic(prov.base_url, model, normalized_messages, prov.api_key, thinking, supports_reasoning, want_json)
         elif prov.api_type == 'google-generative-language':
