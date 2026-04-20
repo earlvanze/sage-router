@@ -31,6 +31,10 @@ REACHABILITY_TTL_SECONDS = int(os.environ.get('SMART_ROUTER_REACHABILITY_TTL_SEC
 OLLAMA_MODEL_REFRESH_TTL_SECONDS = int(os.environ.get('SMART_ROUTER_OLLAMA_MODEL_REFRESH_TTL_SECONDS', '300'))
 HEALTH_SCORE_TTL_SECONDS = int(os.environ.get('SMART_ROUTER_HEALTH_SCORE_TTL_SECONDS', '60'))
 RATE_LIMIT_COOLDOWN_BASE_SECONDS = int(os.environ.get('SMART_ROUTER_RATE_LIMIT_COOLDOWN_BASE_SECONDS', '120'))
+FAILURE_COOLDOWN_BASE_SECONDS = int(os.environ.get('SMART_ROUTER_FAILURE_COOLDOWN_BASE_SECONDS', '180'))
+CONSECUTIVE_FAILURE_COOLDOWN_THRESHOLD = int(os.environ.get('SMART_ROUTER_CONSECUTIVE_FAILURE_COOLDOWN_THRESHOLD', '2'))
+MODEL_MISSING_COOLDOWN_SECONDS = int(os.environ.get('SMART_ROUTER_MODEL_MISSING_COOLDOWN_SECONDS', '1800'))
+EMPTY_OUTPUT_COOLDOWN_SECONDS = int(os.environ.get('SMART_ROUTER_EMPTY_OUTPUT_COOLDOWN_SECONDS', '600'))
 PROVIDER_HEALTH_CACHE = {}
 LATENCY_STATS_PATH = os.path.expanduser(os.environ.get('SMART_ROUTER_LATENCY_STATS_PATH', '~/.cache/smart-router-v3/latency-stats.json'))
 LATENCY_EWMA_ALPHA = float(os.environ.get('SMART_ROUTER_LATENCY_EWMA_ALPHA', '0.35'))
@@ -45,6 +49,7 @@ MAX_PROVIDER_ATTEMPTS = int(os.environ.get('SMART_ROUTER_MAX_PROVIDER_ATTEMPTS',
 LATENCY_STATS_LOCK = threading.Lock()
 OLLAMA_MODEL_CACHE = {}
 MODEL_HEALTH_CACHE = {}
+TEMP_MODEL_BLOCKS = {}
 LAST_ROUTE_DEBUG = {'updated_at': None, 'request_id': None, 'intent': None, 'complexity': None, 'thinking': None, 'chain': [], 'scores': [], 'rejections': []}
 BACKGROUND_REFRESH_STARTED = False
 def canonical_provider_env_key(name: str):
@@ -287,7 +292,45 @@ def model_context_window(provider, model):
     return int(meta.get('contextWindow') or 0)
 
 
+def active_temp_model_block(provider_name, model):
+    key = f'{provider_name}/{model}'
+    blocked = TEMP_MODEL_BLOCKS.get(key)
+    if not blocked:
+        return None
+    if float(blocked.get('until', 0) or 0) <= time.time():
+        TEMP_MODEL_BLOCKS.pop(key, None)
+        return None
+    return blocked
+
+
+def invalidate_model_health_cache(provider_name, model):
+    suffix = f':{provider_name}/{model}'
+    for key in list(MODEL_HEALTH_CACHE.keys()):
+        if key.endswith(suffix):
+            MODEL_HEALTH_CACHE.pop(key, None)
+
+
+
+def set_temp_model_block(provider_name, model, seconds, reason):
+    if seconds <= 0:
+        return
+    TEMP_MODEL_BLOCKS[f'{provider_name}/{model}'] = {
+        'until': time.time() + seconds,
+        'reason': reason,
+    }
+    invalidate_model_health_cache(provider_name, model)
+
+
+
+def clear_temp_model_block(provider_name, model):
+    TEMP_MODEL_BLOCKS.pop(f'{provider_name}/{model}', None)
+    invalidate_model_health_cache(provider_name, model)
+
+
+
 def model_is_servable(provider, model):
+    if active_temp_model_block(provider.name, model):
+        return False
     meta = (provider.model_meta or {}).get(model, {})
     return bool(meta.get('servable', True))
 
@@ -483,6 +526,10 @@ def get_intent_provider_stats(intent_name, provider_name):
     return (((LATENCY_STATS.get('intents') or {}).get(intent_name) or {}).get(provider_name) or {})
 
 
+def get_health_stat(intent_name, provider_name, model):
+    return get_latency_stat(intent_name, provider_name, model) or get_latency_stat('GENERAL', provider_name, model) or {}
+
+
 def record_latency_outcome(intent_name, provider_name, model, elapsed_seconds, ok, error_text=''):
     elapsed_ms = max(1.0, float(elapsed_seconds) * 1000.0)
     now = int(time.time())
@@ -496,6 +543,8 @@ def record_latency_outcome(intent_name, provider_name, model, elapsed_seconds, o
             'failures': 0,
             'consecutive_failures': 0,
             'rate_limit_hits': 0,
+            'timeout_hits': 0,
+            'empty_output_hits': 0,
             'cooldown_until': 0,
             'latency_ewma_ms': elapsed_ms,
             'last_latency_ms': elapsed_ms,
@@ -508,18 +557,41 @@ def record_latency_outcome(intent_name, provider_name, model, elapsed_seconds, o
             stat['successes'] = int(stat.get('successes', 0)) + 1
             stat['consecutive_failures'] = 0
             stat['cooldown_until'] = 0
+            stat['timeout_hits'] = 0
+            stat['empty_output_hits'] = 0
             stat['last_success_at'] = now
             previous = float(stat.get('latency_ewma_ms', elapsed_ms) or elapsed_ms)
             stat['latency_ewma_ms'] = round((LATENCY_EWMA_ALPHA * elapsed_ms) + ((1.0 - LATENCY_EWMA_ALPHA) * previous), 2)
+            clear_temp_model_block(provider_name, model)
         else:
             stat['failures'] = int(stat.get('failures', 0)) + 1
             stat['consecutive_failures'] = int(stat.get('consecutive_failures', 0)) + 1
+            cooldown_until = float(stat.get('cooldown_until', 0) or 0)
             if error_meta['rate_limited']:
                 stat['rate_limit_hits'] = int(stat.get('rate_limit_hits', 0)) + 1
-                stat['cooldown_until'] = now + min(1800, RATE_LIMIT_COOLDOWN_BASE_SECONDS * (2 ** max(0, stat['rate_limit_hits'] - 1)))
+                cooldown_until = max(cooldown_until, now + min(1800, RATE_LIMIT_COOLDOWN_BASE_SECONDS * (2 ** max(0, stat['rate_limit_hits'] - 1))))
+            if error_meta['timeout']:
+                stat['timeout_hits'] = int(stat.get('timeout_hits', 0)) + 1
+                if stat['consecutive_failures'] >= CONSECUTIVE_FAILURE_COOLDOWN_THRESHOLD:
+                    timeout_backoff = min(1800, FAILURE_COOLDOWN_BASE_SECONDS * (2 ** max(0, stat['timeout_hits'] - 1)))
+                    cooldown_until = max(cooldown_until, now + timeout_backoff)
+                    set_temp_model_block(provider_name, model, timeout_backoff, 'timeout')
+            if error_meta['empty_output']:
+                stat['empty_output_hits'] = int(stat.get('empty_output_hits', 0)) + 1
+                empty_backoff = min(1800, EMPTY_OUTPUT_COOLDOWN_SECONDS * max(1, stat['empty_output_hits']))
+                cooldown_until = max(cooldown_until, now + empty_backoff)
+                set_temp_model_block(provider_name, model, empty_backoff, 'empty_output')
+            if error_meta['model_missing']:
+                cooldown_until = max(cooldown_until, now + MODEL_MISSING_COOLDOWN_SECONDS)
+                set_temp_model_block(provider_name, model, MODEL_MISSING_COOLDOWN_SECONDS, 'model_missing')
+            if stat['consecutive_failures'] >= CONSECUTIVE_FAILURE_COOLDOWN_THRESHOLD and cooldown_until <= now:
+                generic_backoff = min(1800, FAILURE_COOLDOWN_BASE_SECONDS * max(1, stat['consecutive_failures'] - CONSECUTIVE_FAILURE_COOLDOWN_THRESHOLD + 1))
+                cooldown_until = now + generic_backoff
+                set_temp_model_block(provider_name, model, generic_backoff, 'repeated_failures')
+            stat['cooldown_until'] = cooldown_until
 
         save_latency_stats()
-        MODEL_HEALTH_CACHE.pop(f'{provider_name}/{model}', None)
+        invalidate_model_health_cache(provider_name, model)
 
 
 def general_empirical_adjustment(provider, model):
@@ -697,27 +769,35 @@ def parse_error_meta(error_text: str):
     return {
         'rate_limited': 'http 429' in raw or 'rate limit' in raw or 'too many requests' in raw,
         'timeout': 'timed out' in raw or 'timeout' in raw,
+        'model_missing': ('model' in raw and 'not found' in raw) or 'no such model' in raw,
+        'empty_output': 'empty content' in raw or 'thinking-only output' in raw or 'empty visible content' in raw,
     }
 
 
-def model_health_snapshot(provider: Provider, model: str):
+def model_health_snapshot(provider: Provider, model: str, intent_name: str = 'GENERAL'):
     now = time.time()
-    cache_key = f'{provider.name}/{model}'
+    cache_key = f'{intent_name}:{provider.name}/{model}'
     cached = MODEL_HEALTH_CACHE.get(cache_key)
     if cached and now - cached['checked_at'] < HEALTH_SCORE_TTL_SECONDS:
         return cached
-    stat = get_latency_stat('GENERAL', provider.name, model) or {}
+    stat = get_health_stat(intent_name, provider.name, model)
     successes = int(stat.get('successes', 0))
     failures = int(stat.get('failures', 0))
     consecutive_failures = int(stat.get('consecutive_failures', 0))
     rate_limit_hits = int(stat.get('rate_limit_hits', 0))
+    timeout_hits = int(stat.get('timeout_hits', 0))
+    empty_output_hits = int(stat.get('empty_output_hits', 0))
     cooldown_until = float(stat.get('cooldown_until', 0) or 0)
     last_success_at = stat.get('last_success_at')
     reachable = provider_endpoint_reachable(provider)
+    temp_block = active_temp_model_block(provider.name, model)
     models_present = True
     if provider.api_type == 'ollama':
         live_models = fetch_ollama_models(provider)
         models_present = (model in live_models) if live_models else (model in (provider.models or []))
+    if temp_block:
+        models_present = False
+        cooldown_until = max(cooldown_until, float(temp_block.get('until', 0) or 0))
     latency_ewma_ms = float(stat.get('latency_ewma_ms', GENERAL_EMPIRICAL_LATENCY_PIVOT_MS) or GENERAL_EMPIRICAL_LATENCY_PIVOT_MS)
     score = 100.0
     if not reachable:
@@ -727,6 +807,8 @@ def model_health_snapshot(provider: Provider, model: str):
     score -= min(35, consecutive_failures * 8)
     score -= min(30, failures * 2)
     score -= min(30, rate_limit_hits * 10)
+    score -= min(20, timeout_hits * 6)
+    score -= min(15, empty_output_hits * 5)
     score += max(-20, min(20, (GENERAL_EMPIRICAL_LATENCY_PIVOT_MS - latency_ewma_ms) / 200.0))
     if cooldown_until > now:
         score -= 50
@@ -741,11 +823,15 @@ def model_health_snapshot(provider: Provider, model: str):
         'checked_at': now,
         'reachable': reachable,
         'models_present': models_present,
+        'temporarily_blocked': bool(temp_block),
+        'temporary_block_reason': (temp_block or {}).get('reason'),
         'latency_ewma_ms': latency_ewma_ms,
         'successes': successes,
         'failures': failures,
         'consecutive_failures': consecutive_failures,
         'rate_limit_hits': rate_limit_hits,
+        'timeout_hits': timeout_hits,
+        'empty_output_hits': empty_output_hits,
         'cooldown_until': cooldown_until,
         'last_success_at': last_success_at,
         'score': round(score, 2),
@@ -793,7 +879,7 @@ def background_refresh_loop():
                 if provider.api_type == 'ollama':
                     fetch_ollama_models(provider)
                 for model in dedupe_keep_order(provider.models or []):
-                    model_health_snapshot(provider, model)
+                    model_health_snapshot(provider, model, 'GENERAL')
         except Exception as e:
             logger.warning(f'Background refresh failed: {e}')
         time.sleep(max(30, min(OLLAMA_MODEL_REFRESH_TTL_SECONDS, HEALTH_SCORE_TTL_SECONDS)))
@@ -820,7 +906,7 @@ def reasoning_capabilities_summary():
                 {
                     'id': model,
                     'capabilities': model_capabilities(provider, model),
-                    'health': model_health_snapshot(provider, model),
+                    'health': model_health_snapshot(provider, model, 'GENERAL'),
                 }
                 for model in dedupe_keep_order(provider.models or [])
             ],
@@ -975,7 +1061,7 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
             score += 2
             contributions.append(('thinking_low_ollama_bonus', 2))
 
-    health = model_health_snapshot(provider, model)
+    health = model_health_snapshot(provider, model, intent.name)
     health_delta = max(-60, min(40, (health.get('score', 0) - 50) * 0.6))
     score += health_delta
     contributions.append(('health_score_delta', round(health_delta, 2)))
@@ -1105,7 +1191,13 @@ def call_openai_compat(base_url, model, messages, api_key='', provider_name='', 
             hdrs['Authorization'] = f'Bearer {api_key}'
         req = urllib.request.Request(url, data=data, headers=hdrs)
         with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
-            return True, json.loads(resp.read()).get('choices', [{}])[0].get('message', {}).get('content', '')
+            body = json.loads(resp.read())
+        text = body.get('choices', [{}])[0].get('message', {}).get('content', '') or ''
+        if text:
+            return True, text
+        err = 'OpenAI-compatible provider returned empty content'
+        logger.warning(f"OpenAI-compat {provider_name or base_url} {model}: {err}")
+        return False, err
     except Exception as e:
         logger.warning(f"OpenAI-compat {provider_name or base_url} {model}: {extract_http_error(e)}")
         return False, extract_http_error(e)
@@ -1189,7 +1281,12 @@ def call_anthropic(base_url, model, messages, api_key='', thinking=ThinkingLevel
         req = urllib.request.Request(url, data=data, headers=hdrs)
         with urllib.request.urlopen(req, timeout=ANTHROPIC_TIMEOUT_SECONDS) as resp:
             blocks = json.loads(resp.read()).get('content', [])
-            return True, ''.join(b.get('text', '') for b in blocks if isinstance(b, dict) and b.get('type') == 'text')
+        text = ''.join(b.get('text', '') for b in blocks if isinstance(b, dict) and b.get('type') == 'text')
+        if text:
+            return True, text
+        err = 'Anthropic returned empty content'
+        logger.warning(f"Anthropic {base_url} {model}: {err}")
+        return False, err
     except Exception as e:
         logger.warning(f"Anthropic {base_url} {model}: {extract_http_error(e)}")
         return False, extract_http_error(e)
@@ -1271,6 +1368,7 @@ def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
     LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug[:12], 'rejections': rejections[:30]})
     logger.info(f"[{request_id}] Chain: {chain}")
     overall_started = time.time()
+    attempts = []
     for pn, model in chain:
         if pn in DISABLED_PROVIDERS:
             continue
@@ -1292,6 +1390,7 @@ def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
             ok, text = call_openai_compat(prov.base_url, model, normalized_messages, prov.api_key, pn, thinking, supports_reasoning, want_json)
         elapsed = time.time() - started
         record_latency_outcome(intent.name, pn, model, elapsed, ok, '' if ok else text)
+        attempts.append({'provider': pn, 'model': model, 'ok': ok, 'elapsedMs': round(elapsed * 1000.0, 2), 'detail': '' if ok else str(text)[:240]})
         if ok:
             total_elapsed = time.time() - overall_started
             logger.info(f"[{request_id}] OK: {pn}/{model} ({len(text)} chars, provider={elapsed:.2f}s, total={total_elapsed:.2f}s)")
@@ -1299,7 +1398,7 @@ def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
         logger.warning(f"[{request_id}] Failed {pn}/{model} after {elapsed:.2f}s")
     total_elapsed = time.time() - overall_started
     logger.error(f"[{request_id}] All providers failed after {total_elapsed:.2f}s")
-    return {"error": "All providers failed", "choices": [{"message": {"content": "Error: No providers available"}}]}
+    return {"error": "All providers failed", "request_id": request_id, "attempts": attempts, "choices": [{"message": {"content": "Error: No providers available"}}]}
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *a):
@@ -1361,7 +1460,8 @@ class Handler(BaseHTTPRequestHandler):
                 want_json = str(payload.get('responseFormat') or '').lower() == 'json' or payload.get('response_format', {}).get('type') == 'json_object'
                 logger.info(f"[{request_id}] Incoming {self.path} with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}")
                 result = route_request(payload.get('messages', []), request_id=request_id, thinking=thinking, route_mode=route_mode, requirements=requirements, want_json=want_json)
-                self.write_json(200, result)
+                status_code = 503 if isinstance(result, dict) and result.get('error') else 200
+                self.write_json(status_code, result)
                 logger.info(f"[{request_id}] Responded in {time.time() - started:.2f}s")
             except Exception as e:
                 logger.exception(f"[{request_id}] Request handling failed")
