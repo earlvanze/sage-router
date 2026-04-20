@@ -27,6 +27,9 @@ OPENCLAW_GATEWAY_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OPENCLAW_TIM
 OPENCLAW_GATEWAY_AGENT_ID = os.environ.get('SMART_ROUTER_OPENCLAW_AGENT_ID', 'main')
 REACHABILITY_TIMEOUT_SECONDS = float(os.environ.get('SMART_ROUTER_REACHABILITY_TIMEOUT_SECONDS', '0.5'))
 REACHABILITY_TTL_SECONDS = int(os.environ.get('SMART_ROUTER_REACHABILITY_TTL_SECONDS', '120'))
+OLLAMA_MODEL_REFRESH_TTL_SECONDS = int(os.environ.get('SMART_ROUTER_OLLAMA_MODEL_REFRESH_TTL_SECONDS', '300'))
+HEALTH_SCORE_TTL_SECONDS = int(os.environ.get('SMART_ROUTER_HEALTH_SCORE_TTL_SECONDS', '60'))
+RATE_LIMIT_COOLDOWN_BASE_SECONDS = int(os.environ.get('SMART_ROUTER_RATE_LIMIT_COOLDOWN_BASE_SECONDS', '120'))
 PROVIDER_HEALTH_CACHE = {}
 LATENCY_STATS_PATH = os.path.expanduser(os.environ.get('SMART_ROUTER_LATENCY_STATS_PATH', '~/.cache/smart-router-v3/latency-stats.json'))
 LATENCY_EWMA_ALPHA = float(os.environ.get('SMART_ROUTER_LATENCY_EWMA_ALPHA', '0.35'))
@@ -39,6 +42,27 @@ DEFAULT_OPENAI_CODEX_MODELS = ['gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.
 DEFAULT_ANTHROPIC_MODELS = ['claude-opus-4-6', 'claude-opus-4-5', 'claude-opus-4-1', 'claude-opus-4-0', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-sonnet-4-0', 'claude-haiku-4-5', 'claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest']
 MAX_PROVIDER_ATTEMPTS = int(os.environ.get('SMART_ROUTER_MAX_PROVIDER_ATTEMPTS', '8'))
 LATENCY_STATS_LOCK = threading.Lock()
+OLLAMA_MODEL_CACHE = {}
+MODEL_HEALTH_CACHE = {}
+LAST_ROUTE_DEBUG = {'updated_at': None, 'request_id': None, 'intent': None, 'complexity': None, 'thinking': None, 'chain': [], 'scores': [], 'rejections': []}
+BACKGROUND_REFRESH_STARTED = False
+def canonical_provider_env_key(name: str):
+    return (name or '').strip().lower().replace('-', '_')
+
+
+def load_ollama_manifest_bindings(kind: str):
+    prefix = f'SMART_ROUTER_OLLAMA_MANIFEST_{kind}__'
+    bindings = {}
+    for key, value in os.environ.items():
+        if key.startswith(prefix) and value.strip():
+            provider_name = canonical_provider_env_key(key[len(prefix):])
+            if provider_name:
+                bindings[provider_name] = value.strip()
+    return bindings
+
+
+OLLAMA_MANIFEST_URLS = load_ollama_manifest_bindings('URL')
+OLLAMA_MANIFEST_FILES = load_ollama_manifest_bindings('FILE')
 
 INTENT_API_SCORES = {
     'CODE': {'anthropic-messages': 60, 'google-generative-language': 58, 'openai-completions': 56, 'ollama': 50, 'openclaw-gateway': 44},
@@ -58,6 +82,15 @@ INTENT_MODEL_HINTS = {
 
 COMPLEX_MODEL_HINTS = ['opus', 'sonnet', 'gpt-5', 'o3', 'qwen', 'kimi', 'deepseek']
 LIGHTWEIGHT_MODEL_HINTS = ['mini', 'small', 'haiku']
+OLLAMA_FAMILY_HINTS = {
+    'qwen': {'bonus': 9, 'intents': {'CODE', 'ANALYSIS', 'GENERAL'}},
+    'kimi': {'bonus': 8, 'intents': {'GENERAL', 'CREATIVE', 'REALTIME'}},
+    'glm': {'bonus': 11, 'intents': {'CODE', 'ANALYSIS', 'GENERAL', 'REALTIME'}},
+    'minimax': {'bonus': 6, 'intents': {'CREATIVE', 'GENERAL'}},
+    'deepseek': {'bonus': 10, 'intents': {'CODE', 'ANALYSIS'}},
+    'llama': {'bonus': 5, 'intents': {'GENERAL', 'CREATIVE'}},
+}
+NON_CHAT_MODEL_HINTS = ['embed', 'embedding', 'rerank', 'bge-', 'nomic-embed', 'whisper', 'tts', 'sdxl', 'stable-diffusion']
 
 class Intent(Enum):
     CODE = auto(); ANALYSIS = auto(); CREATIVE = auto(); REALTIME = auto(); GENERAL = auto()
@@ -68,7 +101,7 @@ class ThinkingLevel(Enum):
 
 @dataclass
 class Provider:
-    name: str; api_type: str; base_url: str; api_key: str; models: List[str]; reasoning_models: set[str] | None = None
+    name: str; api_type: str; base_url: str; api_key: str; models: List[str]; reasoning_models: set[str] | None = None; model_meta: dict[str, dict[str, Any]] | None = None
 
 
 def dedupe_keep_order(items):
@@ -87,6 +120,8 @@ def merge_provider(providers, provider):
     if not existing:
         providers[provider.name] = provider
         return
+    merged_meta = dict(existing.model_meta or {})
+    merged_meta.update(provider.model_meta or {})
     providers[provider.name] = Provider(
         provider.name,
         existing.api_type or provider.api_type,
@@ -94,6 +129,7 @@ def merge_provider(providers, provider):
         existing.api_key or provider.api_key,
         dedupe_keep_order((existing.models or []) + (provider.models or [])),
         set(existing.reasoning_models or set()) | set(provider.reasoning_models or set()),
+        merged_meta,
     )
 
 def resolve_config_value(value):
@@ -207,6 +243,61 @@ def discover_reasoning_models(cfg):
     return reasoning_models
 
 
+def discover_model_meta(cfg):
+    meta = {}
+    for model in cfg.get('models', []) or []:
+        model_id = model.get('id')
+        if not model_id:
+            continue
+        meta[model_id] = {
+            'reasoning': bool(model.get('reasoning')),
+            'contextWindow': model.get('contextWindow'),
+            'maxTokens': model.get('maxTokens'),
+            'input': model.get('input') or [],
+        }
+    return meta
+
+
+def normalize_route_mode(raw):
+    value = str(raw or 'balanced').strip().lower()
+    return value if value in {'fast', 'balanced', 'best', 'local-first'} else 'balanced'
+
+
+def normalize_requirements(payload):
+    req = payload.get('requirements') if isinstance(payload, dict) else None
+    if not isinstance(req, dict):
+        req = {}
+    return {
+        'reasoning': bool(req.get('reasoning') or payload.get('requiresReasoning')),
+        'json': bool(req.get('json') or payload.get('requiresJson')),
+        'tools': bool(req.get('tools') or payload.get('requiresTools')),
+        'longContext': bool(req.get('longContext') or payload.get('requiresLongContext')),
+        'streaming': bool(req.get('streaming') or payload.get('requiresStreaming')),
+    }
+
+
+def estimate_prompt_tokens(messages):
+    text = ' '.join((msg.get('content') or '') for msg in messages or [])
+    return max(1, int(len(text) / 4))
+
+
+def model_context_window(provider, model):
+    meta = (provider.model_meta or {}).get(model, {})
+    return int(meta.get('contextWindow') or 0)
+
+
+def model_is_servable(provider, model):
+    meta = (provider.model_meta or {}).get(model, {})
+    return bool(meta.get('servable', True))
+
+
+def is_chat_capable_model(provider, model):
+    model_l = (model or '').lower()
+    if provider.api_type == 'ollama' and any(hint in model_l for hint in NON_CHAT_MODEL_HINTS):
+        return False
+    return True
+
+
 def provider_supports_reasoning(provider, model):
     if provider.api_type == 'ollama':
         return False
@@ -216,6 +307,41 @@ def provider_supports_reasoning(provider, model):
         return model.startswith('claude-') or model.startswith('claude')
     reasoning_models = provider.reasoning_models or set()
     return model in reasoning_models
+
+
+def model_capabilities(provider, model):
+    meta = (provider.model_meta or {}).get(model, {})
+    return {
+        'chat': is_chat_capable_model(provider, model),
+        'servable': model_is_servable(provider, model),
+        'preferred': bool(meta.get('preferred', False)),
+        'resident': bool(meta.get('resident', False)),
+        'reasoning': provider_supports_reasoning(provider, model),
+        'json': provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages', 'google-generative-language'},
+        'tools': provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages'},
+        'streaming': provider.api_type != 'openclaw-gateway',
+        'longContext': model_context_window(provider, model),
+        'manifestReason': meta.get('manifestReason'),
+    }
+
+
+def model_meets_requirements(provider, model, requirements, estimated_tokens):
+    caps = model_capabilities(provider, model)
+    if not caps['servable']:
+        return False, 'not servable on host'
+    if requirements.get('reasoning') and not caps['reasoning']:
+        return False, 'requires reasoning'
+    if requirements.get('longContext'):
+        ctx = caps['longContext']
+        if ctx and ctx < max(64000, estimated_tokens * 2):
+            return False, f'context window too small ({ctx})'
+    if requirements.get('json') and not caps['json']:
+        return False, 'json unsupported'
+    if requirements.get('tools') and not caps['tools']:
+        return False, 'tools unsupported'
+    if requirements.get('streaming') and not caps['streaming']:
+        return False, 'streaming unsupported'
+    return True, None
 
 def load_openclaw_providers():
     providers = {}
@@ -230,6 +356,7 @@ def load_openclaw_providers():
             api_type = infer_api_type(name, cfg, base_url)
             models = discover_provider_models(name, cfg, base_url, api_key, api_type)
             reasoning_models = discover_reasoning_models(cfg)
+            model_meta = discover_model_meta(cfg)
 
             if should_route_anthropic_to_dario(name, api_type, base_url):
                 ensure_dario_proxy_ready()
@@ -240,6 +367,7 @@ def load_openclaw_providers():
                     DARIO_LOCAL_API_KEY,
                     dedupe_keep_order(models or DEFAULT_ANTHROPIC_MODELS),
                     set(models or DEFAULT_ANTHROPIC_MODELS),
+                    {m: {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 64000, 'input': ['text']} for m in dedupe_keep_order(models or DEFAULT_ANTHROPIC_MODELS)},
                 ))
                 logger.info(f'Normalized provider {name} -> {DARIO_PROVIDER_NAME} via local Dario proxy')
                 continue
@@ -251,6 +379,7 @@ def load_openclaw_providers():
                 api_key,
                 models,
                 reasoning_models,
+                model_meta,
             ))
 
         auth_profiles = config.get('auth', {}).get('profiles', {})
@@ -271,12 +400,13 @@ def load_openclaw_providers():
                 '',
                 codex_models,
                 set(codex_models),
+                {m: {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']} for m in codex_models},
             ))
 
         logger.info(f"Loaded {len(providers)} configured providers: {list(providers.keys())}")
     except Exception as e:
         logger.error(f"Config load failed: {e}")
-        providers['ollama'] = Provider('ollama', 'ollama', 'http://127.0.0.1:11434', '', ['qwen3.5:cloud', 'kimi-k2.5:cloud'], set())
+        providers['ollama'] = Provider('ollama', 'ollama', 'http://127.0.0.1:11434', '', ['qwen3.5:cloud', 'kimi-k2.5:cloud'], set(), {'qwen3.5:cloud': {'reasoning': False, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}, 'kimi-k2.5:cloud': {'reasoning': False, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}})
     return providers
 
 PROVIDERS = load_openclaw_providers()
@@ -352,9 +482,10 @@ def get_intent_provider_stats(intent_name, provider_name):
     return (((LATENCY_STATS.get('intents') or {}).get(intent_name) or {}).get(provider_name) or {})
 
 
-def record_latency_outcome(intent_name, provider_name, model, elapsed_seconds, ok):
+def record_latency_outcome(intent_name, provider_name, model, elapsed_seconds, ok, error_text=''):
     elapsed_ms = max(1.0, float(elapsed_seconds) * 1000.0)
     now = int(time.time())
+    error_meta = parse_error_meta(error_text)
     with LATENCY_STATS_LOCK:
         intents = LATENCY_STATS.setdefault('intents', {})
         intent_stats = intents.setdefault(intent_name, {})
@@ -362,6 +493,9 @@ def record_latency_outcome(intent_name, provider_name, model, elapsed_seconds, o
         stat = provider_stats.setdefault(model, {
             'successes': 0,
             'failures': 0,
+            'consecutive_failures': 0,
+            'rate_limit_hits': 0,
+            'cooldown_until': 0,
             'latency_ewma_ms': elapsed_ms,
             'last_latency_ms': elapsed_ms,
             'updated_at': now,
@@ -371,12 +505,20 @@ def record_latency_outcome(intent_name, provider_name, model, elapsed_seconds, o
         stat['updated_at'] = now
         if ok:
             stat['successes'] = int(stat.get('successes', 0)) + 1
+            stat['consecutive_failures'] = 0
+            stat['cooldown_until'] = 0
+            stat['last_success_at'] = now
             previous = float(stat.get('latency_ewma_ms', elapsed_ms) or elapsed_ms)
             stat['latency_ewma_ms'] = round((LATENCY_EWMA_ALPHA * elapsed_ms) + ((1.0 - LATENCY_EWMA_ALPHA) * previous), 2)
         else:
             stat['failures'] = int(stat.get('failures', 0)) + 1
+            stat['consecutive_failures'] = int(stat.get('consecutive_failures', 0)) + 1
+            if error_meta['rate_limited']:
+                stat['rate_limit_hits'] = int(stat.get('rate_limit_hits', 0)) + 1
+                stat['cooldown_until'] = now + min(1800, RATE_LIMIT_COOLDOWN_BASE_SECONDS * (2 ** max(0, stat['rate_limit_hits'] - 1)))
 
         save_latency_stats()
+        MODEL_HEALTH_CACHE.pop(f'{provider_name}/{model}', None)
 
 
 def general_empirical_adjustment(provider, model):
@@ -406,6 +548,15 @@ def general_empirical_adjustment(provider, model):
     penalty = GENERAL_EMPIRICAL_FAILURE_PENALTY * failures
     total = speed_bonus + exploration - penalty
     return total, f'ewma_ms={latency_ewma_ms:.0f},explore={exploration:.2f},fail={penalty:.2f}'
+
+
+def ollama_family_bonus(model: str, intent: Intent):
+    model_l = (model or '').lower()
+    best = 0
+    for family, meta in OLLAMA_FAMILY_HINTS.items():
+        if family in model_l and intent.name in meta['intents']:
+            best = max(best, int(meta['bonus']))
+    return best
 
 
 def build_openclaw_gateway_prompt(messages):
@@ -442,6 +593,166 @@ def extract_http_error(exc: Exception) -> str:
     return str(exc)
 
 
+def fetch_ollama_manifest(provider: Provider):
+    manifest_file = OLLAMA_MANIFEST_FILES.get(canonical_provider_env_key(provider.name), '')
+    if manifest_file:
+        try:
+            with open(os.path.expanduser(manifest_file)) as f:
+                payload = json.load(f)
+            if isinstance(payload, dict) and isinstance(payload.get('models'), list):
+                return payload, 'file'
+        except Exception as e:
+            logger.warning(f"Ollama manifest file {provider.name}: {e}")
+
+    manifest_url = OLLAMA_MANIFEST_URLS.get(canonical_provider_env_key(provider.name), '')
+    if manifest_url:
+        try:
+            req = urllib.request.Request(manifest_url, headers={'Content-Type': 'application/json'})
+            with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT_SECONDS) as resp:
+                payload = json.loads(resp.read())
+            if isinstance(payload, dict) and isinstance(payload.get('models'), list):
+                return payload, 'url'
+        except Exception as e:
+            logger.warning(f"Ollama manifest fetch {provider.name}: {extract_http_error(e)}")
+    return None, None
+
+
+def apply_ollama_manifest(provider: Provider, manifest):
+    models = []
+    meta = dict(provider.model_meta or {})
+    servable_only = []
+    for entry in manifest.get('models', []) or []:
+        if not isinstance(entry, dict):
+            continue
+        model_id = entry.get('id') or entry.get('model')
+        if not model_id:
+            continue
+        servable = bool(entry.get('servable', True))
+        models.append(model_id)
+        meta[model_id] = {
+            'reasoning': bool(entry.get('reasoning', False)),
+            'contextWindow': entry.get('contextWindow'),
+            'maxTokens': entry.get('maxTokens'),
+            'input': entry.get('input') or ['text'],
+            'servable': servable,
+            'preferred': bool(entry.get('preferred', False)),
+            'resident': bool(entry.get('resident', False)),
+            'manifestReason': entry.get('reason'),
+        }
+        if servable:
+            servable_only.append(model_id)
+    provider.model_meta = meta
+    provider.models = dedupe_keep_order(servable_only or models or provider.models or [])
+    return provider.models
+
+
+def fetch_ollama_models(provider: Provider):
+    now = time.time()
+    cached = OLLAMA_MODEL_CACHE.get(provider.name)
+    if cached and now - cached['checked_at'] < OLLAMA_MODEL_REFRESH_TTL_SECONDS:
+        return cached['models']
+
+    manifest, manifest_source = fetch_ollama_manifest(provider)
+    if manifest:
+        models = apply_ollama_manifest(provider, manifest)
+        OLLAMA_MODEL_CACHE[provider.name] = {'checked_at': now, 'models': models, 'source': f'manifest:{manifest_source}'}
+        return models
+
+    models = []
+    try:
+        url = provider.base_url.rstrip('/') + '/api/tags'
+        req = urllib.request.Request(url, headers={'Content-Type': 'application/json'})
+        if provider.api_key:
+            req.add_header('Authorization', f'Bearer {provider.api_key}')
+        with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT_SECONDS) as resp:
+            payload = json.loads(resp.read())
+        for model in payload.get('models', []) or []:
+            model_name = model.get('name') or model.get('model')
+            if model_name:
+                models.append(model_name)
+                meta = dict(provider.model_meta or {})
+                meta.setdefault(model_name, {
+                    'reasoning': False,
+                    'contextWindow': model.get('details', {}).get('context_length') if isinstance(model.get('details'), dict) else None,
+                    'maxTokens': None,
+                    'input': ['text'],
+                    'servable': True,
+                    'preferred': False,
+                    'resident': False,
+                    'manifestReason': None,
+                })
+                provider.model_meta = meta
+    except Exception as e:
+        logger.warning(f"Ollama model discovery {provider.name}: {extract_http_error(e)}")
+    models = dedupe_keep_order(models)
+    OLLAMA_MODEL_CACHE[provider.name] = {'checked_at': now, 'models': models, 'source': 'tags'}
+    if models:
+        provider.models = dedupe_keep_order((provider.models or []) + models)
+    return models
+
+
+def parse_error_meta(error_text: str):
+    raw = (error_text or '').lower()
+    return {
+        'rate_limited': 'http 429' in raw or 'rate limit' in raw or 'too many requests' in raw,
+        'timeout': 'timed out' in raw or 'timeout' in raw,
+    }
+
+
+def model_health_snapshot(provider: Provider, model: str):
+    now = time.time()
+    cache_key = f'{provider.name}/{model}'
+    cached = MODEL_HEALTH_CACHE.get(cache_key)
+    if cached and now - cached['checked_at'] < HEALTH_SCORE_TTL_SECONDS:
+        return cached
+    stat = get_latency_stat('GENERAL', provider.name, model) or {}
+    successes = int(stat.get('successes', 0))
+    failures = int(stat.get('failures', 0))
+    consecutive_failures = int(stat.get('consecutive_failures', 0))
+    rate_limit_hits = int(stat.get('rate_limit_hits', 0))
+    cooldown_until = float(stat.get('cooldown_until', 0) or 0)
+    last_success_at = stat.get('last_success_at')
+    reachable = provider_endpoint_reachable(provider)
+    models_present = True
+    if provider.api_type == 'ollama':
+        live_models = fetch_ollama_models(provider)
+        models_present = (model in live_models) if live_models else (model in (provider.models or []))
+    latency_ewma_ms = float(stat.get('latency_ewma_ms', GENERAL_EMPIRICAL_LATENCY_PIVOT_MS) or GENERAL_EMPIRICAL_LATENCY_PIVOT_MS)
+    score = 100.0
+    if not reachable:
+        score -= 60
+    if not models_present:
+        score -= 45
+    score -= min(35, consecutive_failures * 8)
+    score -= min(30, failures * 2)
+    score -= min(30, rate_limit_hits * 10)
+    score += max(-20, min(20, (GENERAL_EMPIRICAL_LATENCY_PIVOT_MS - latency_ewma_ms) / 200.0))
+    if cooldown_until > now:
+        score -= 50
+    if provider.api_type == 'ollama':
+        score += 8
+    meta = (provider.model_meta or {}).get(model, {})
+    if meta.get('preferred'):
+        score += 8
+    if meta.get('resident'):
+        score += 6
+    health = {
+        'checked_at': now,
+        'reachable': reachable,
+        'models_present': models_present,
+        'latency_ewma_ms': latency_ewma_ms,
+        'successes': successes,
+        'failures': failures,
+        'consecutive_failures': consecutive_failures,
+        'rate_limit_hits': rate_limit_hits,
+        'cooldown_until': cooldown_until,
+        'last_success_at': last_success_at,
+        'score': round(score, 2),
+    }
+    MODEL_HEALTH_CACHE[cache_key] = health
+    return health
+
+
 def provider_endpoint_reachable(provider: Provider) -> bool:
     now = time.time()
     cached = PROVIDER_HEALTH_CACHE.get(provider.name)
@@ -474,6 +785,28 @@ def available_provider_names():
     ]
 
 
+def background_refresh_loop():
+    while True:
+        try:
+            for provider in PROVIDERS.values():
+                if provider.api_type == 'ollama':
+                    fetch_ollama_models(provider)
+                for model in dedupe_keep_order(provider.models or []):
+                    model_health_snapshot(provider, model)
+        except Exception as e:
+            logger.warning(f'Background refresh failed: {e}')
+        time.sleep(max(30, min(OLLAMA_MODEL_REFRESH_TTL_SECONDS, HEALTH_SCORE_TTL_SECONDS)))
+
+
+def ensure_background_refresh_started():
+    global BACKGROUND_REFRESH_STARTED
+    if BACKGROUND_REFRESH_STARTED:
+        return
+    thread = threading.Thread(target=background_refresh_loop, name='smart-router-refresh', daemon=True)
+    thread.start()
+    BACKGROUND_REFRESH_STARTED = True
+
+
 def reasoning_capabilities_summary():
     summary = {}
     for name, provider in PROVIDERS.items():
@@ -485,7 +818,8 @@ def reasoning_capabilities_summary():
             'models': [
                 {
                     'id': model,
-                    'reasoning': provider_supports_reasoning(provider, model),
+                    'capabilities': model_capabilities(provider, model),
+                    'health': model_health_snapshot(provider, model),
                 }
                 for model in dedupe_keep_order(provider.models or [])
             ],
@@ -542,74 +876,157 @@ def thinking_max_tokens(level: ThinkingLevel):
     return 8192
 
 
-def score_provider_model(provider, model, intent, complexity, thinking=ThinkingLevel.MEDIUM):
+def score_provider_model(provider, model, intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='balanced', estimated_tokens=0, debug_scores=None):
     intent_key = intent.name
     api_score = INTENT_API_SCORES.get(intent_key, {}).get(provider.api_type, 40)
     model_l = model.lower()
     provider_l = provider.name.lower()
     score = api_score
+    contributions = [('api_base', round(api_score, 2))]
 
     for idx, hint in enumerate(INTENT_MODEL_HINTS.get(intent_key, [])):
         if hint in model_l:
-            score += max(1, 12 - idx)
+            bonus = max(1, 12 - idx)
+            score += bonus
+            contributions.append((f'intent_hint:{hint}', round(bonus, 2)))
+
+    ctx_window = model_context_window(provider, model)
+    if estimated_tokens and ctx_window and ctx_window < estimated_tokens * 1.2:
+        score -= 20
+        contributions.append(('context_window_penalty', -20))
+    elif estimated_tokens and ctx_window and ctx_window >= max(64000, estimated_tokens * 2):
+        score += 6
+        contributions.append(('long_context_bonus', 6))
 
     if provider.api_type == 'anthropic-messages' and intent in (Intent.CODE, Intent.ANALYSIS, Intent.GENERAL):
         score += 4
+        contributions.append(('anthropic_reasoning_bias', 4))
     if provider.api_type == 'openclaw-gateway':
         score -= 4
+        contributions.append(('openclaw_gateway_penalty', -4))
     if 'cyber' in provider_l:
         score -= 2
+        contributions.append(('cyber_penalty', -2))
     if complexity == Complexity.COMPLEX and any(hint in model_l for hint in COMPLEX_MODEL_HINTS):
         score += 5
+        contributions.append(('complex_model_bonus', 5))
     if complexity == Complexity.COMPLEX and any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
         score -= 8
+        contributions.append(('lightweight_complex_penalty', -8))
     if complexity == Complexity.SIMPLE and any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
         score += 2
+        contributions.append(('lightweight_simple_bonus', 2))
     if intent == Intent.GENERAL and provider.api_type == 'ollama':
         score -= 1
+        contributions.append(('general_ollama_penalty', -1))
+    if provider.api_type == 'ollama':
+        family_bonus = ollama_family_bonus(model, intent)
+        if family_bonus:
+            score += family_bonus
+            contributions.append(('ollama_family_bonus', family_bonus))
+        if intent == Intent.CODE and 'glm-5.1' in model_l:
+            score += 8
+            contributions.append(('glm51_code_preference', 8))
+        elif intent == Intent.CODE and ('qwen' in model_l or 'deepseek' in model_l):
+            score -= 2
+            contributions.append(('glm51_beats_qwen_deepseek_for_code', -2))
+
+    if route_mode == 'fast':
+        if provider.api_type == 'ollama':
+            score += 6
+            contributions.append(('route_mode_fast_ollama_bonus', 6))
+        if provider.api_type in {'anthropic-messages', 'openclaw-gateway'}:
+            score -= 3
+            contributions.append(('route_mode_fast_remote_penalty', -3))
+    elif route_mode == 'best':
+        if provider.api_type in {'anthropic-messages', 'openclaw-gateway'}:
+            score += 5
+            contributions.append(('route_mode_best_frontier_bonus', 5))
+    elif route_mode == 'local-first':
+        if provider.api_type == 'ollama':
+            score += 12
+            contributions.append(('route_mode_local_first_ollama_bonus', 12))
+        else:
+            score -= 4
+            contributions.append(('route_mode_local_first_remote_penalty', -4))
 
     if thinking == ThinkingLevel.HIGH:
         if any(hint in model_l for hint in COMPLEX_MODEL_HINTS):
             score += 6
+            contributions.append(('thinking_high_complex_bonus', 6))
         if any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
             score -= 10
+            contributions.append(('thinking_high_light_penalty', -10))
         if provider.api_type in {'anthropic-messages', 'openai-completions', 'openclaw-gateway'}:
             score += 3
+            contributions.append(('thinking_high_reasoning_bias', 3))
     elif thinking == ThinkingLevel.LOW:
         if any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
             score += 6
+            contributions.append(('thinking_low_light_bonus', 6))
         if any(hint in model_l for hint in COMPLEX_MODEL_HINTS):
             score -= 4
+            contributions.append(('thinking_low_complex_penalty', -4))
         if provider.api_type == 'openclaw-gateway':
             score -= 6
+            contributions.append(('thinking_low_gateway_penalty', -6))
         if provider.api_type == 'ollama':
             score += 2
+            contributions.append(('thinking_low_ollama_bonus', 2))
+
+    health = model_health_snapshot(provider, model)
+    health_delta = max(-60, min(40, (health.get('score', 0) - 50) * 0.6))
+    score += health_delta
+    contributions.append(('health_score_delta', round(health_delta, 2)))
+    if provider.api_type == 'ollama' and health.get('models_present'):
+        score += 5
+        contributions.append(('ollama_present_bonus', 5))
+    if health.get('cooldown_until', 0) > time.time():
+        score -= 100
+        contributions.append(('cooldown_penalty', -100))
 
     if intent == Intent.GENERAL:
         score = 50 + ((score - 50) * 0.35)
+        contributions.append(('general_blend', 'applied'))
         empirical_bonus, empirical_note = general_empirical_adjustment(provider, model)
         score += empirical_bonus
-        logger.debug(f"[scoring] GENERAL {provider.name}/{model}: base={score - empirical_bonus:.2f}, empirical={empirical_bonus:.2f} ({empirical_note}), final={score:.2f}")
+        contributions.append((f'empirical:{empirical_note}', round(empirical_bonus, 2)))
+        logger.debug(f"[scoring] GENERAL {provider.name}/{model}: empirical={empirical_bonus:.2f} ({empirical_note}), health={health.get('score', 0):.2f}, final={score:.2f}")
 
-    return score
+    final_score = round(score, 2)
+    if debug_scores is not None:
+        debug_scores.append({'provider': provider.name, 'model': model, 'score': final_score, 'health': health, 'contributions': contributions})
+    return final_score
 
-def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM):
+def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, estimated_tokens=0):
     candidates = []
+    debug_scores = []
+    rejections = []
+    requirements = requirements or {}
     for pn, provider in PROVIDERS.items():
         if pn in DISABLED_PROVIDERS:
             continue
+        if provider.api_type == 'ollama':
+            fetch_ollama_models(provider)
         if not provider.models or not provider_endpoint_reachable(provider):
             continue
         best = None
         for model in dedupe_keep_order(provider.models):
-            scored = (score_provider_model(provider, model, intent, complexity, thinking), pn, model)
+            if not is_chat_capable_model(provider, model):
+                rejections.append({'provider': pn, 'model': model, 'reason': 'not chat-capable'})
+                continue
+            ok_req, reason = model_meets_requirements(provider, model, requirements, estimated_tokens)
+            if not ok_req:
+                rejections.append({'provider': pn, 'model': model, 'reason': reason})
+                continue
+            scored = (score_provider_model(provider, model, intent, complexity, thinking, route_mode, estimated_tokens, debug_scores), pn, model)
             if best is None or scored[0] > best[0]:
                 best = scored
         if best:
             candidates.append(best)
 
     candidates.sort(key=lambda item: (-item[0], item[1], item[2]))
-    return [(pn, model) for _, pn, model in candidates[:MAX_PROVIDER_ATTEMPTS]]
+    return [(pn, model) for _, pn, model in candidates[:MAX_PROVIDER_ATTEMPTS]], sorted(debug_scores, key=lambda item: item['score'], reverse=True), rejections
 
 def call_ollama(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM):
     url = base_url.rstrip('/') + '/api/chat'
@@ -630,11 +1047,13 @@ def call_ollama(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
         logger.warning(f"Ollama {base_url} {model}: {extract_http_error(e)}")
         return False, extract_http_error(e)
 
-def call_openai_compat(base_url, model, messages, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False):
+def call_openai_compat(base_url, model, messages, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, want_json=False):
     url = base_url.rstrip('/') + '/v1/chat/completions'
     payload = {"model": model, "messages": messages, "max_tokens": thinking_max_tokens(thinking)}
     if supports_reasoning:
         payload["reasoning"] = {"effort": thinking.value}
+    if want_json:
+        payload["response_format"] = {"type": "json_object"}
     try:
         data = json.dumps(payload).encode()
         hdrs = {'Content-Type': 'application/json'}
@@ -648,7 +1067,7 @@ def call_openai_compat(base_url, model, messages, api_key='', provider_name='', 
         return False, extract_http_error(e)
 
 
-def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinking=ThinkingLevel.MEDIUM):
+def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinking=ThinkingLevel.MEDIUM, want_json=False):
     if not os.path.exists(OPENCLAW_GATEWAY_HELPER):
         return False, f'Missing OpenClaw gateway helper: {OPENCLAW_GATEWAY_HELPER}'
 
@@ -659,6 +1078,7 @@ def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinkin
         'message': build_openclaw_gateway_prompt(messages),
         'timeoutMs': OPENCLAW_GATEWAY_TIMEOUT_SECONDS * 1000,
         'thinking': thinking.value,
+        'responseFormat': 'json' if want_json else 'text',
     }
 
     try:
@@ -692,7 +1112,7 @@ def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinkin
         return True, text
     return False, json.dumps(result)
 
-def call_anthropic(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False):
+def call_anthropic(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, want_json=False):
     url = base_url.rstrip('/') + '/v1/messages'
     system_text = ''
     api_msgs = []
@@ -713,6 +1133,8 @@ def call_anthropic(base_url, model, messages, api_key='', thinking=ThinkingLevel
     payload = {"model": model, "max_tokens": thinking_max_tokens(thinking), "messages": api_msgs}
     if supports_reasoning and thinking == ThinkingLevel.HIGH:
         payload["thinking"] = {"type": "enabled", "budget_tokens": 4096}
+    if want_json:
+        api_msgs.append({"role": "user", "content": "Return valid JSON only."})
     if system_text.strip():
         payload["system"] = system_text.strip()
     try:
@@ -729,7 +1151,7 @@ def call_anthropic(base_url, model, messages, api_key='', thinking=ThinkingLevel
         return False, extract_http_error(e)
 
 
-def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM):
+def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM, want_json=False):
     url = base_url.rstrip('/') + f'/models/{urllib.parse.quote(model, safe="")}:generateContent'
     system_text = ''
     contents = []
@@ -766,6 +1188,8 @@ def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
         'contents': contents,
         'generationConfig': {'maxOutputTokens': thinking_max_tokens(thinking)},
     }
+    if want_json:
+        payload['generationConfig']['responseMimeType'] = 'application/json'
     if system_text.strip():
         payload['systemInstruction'] = {'parts': [{'text': system_text.strip()}]}
 
@@ -791,13 +1215,16 @@ def latest_user_text(messages):
     return messages[-1].get('content', '') if messages else ''
 
 
-def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MEDIUM):
+def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, want_json=False):
     normalized_messages = normalize_messages(messages)
+    estimated_tokens = estimate_prompt_tokens(normalized_messages)
     user_text = latest_user_text(normalized_messages)
     intent, _ = classify_intent(user_text)
     complexity = estimate_complexity(user_text)
-    logger.info(f"[{request_id}] Intent: {intent.name}, Complexity: {complexity.name}, Thinking: {thinking.value}")
-    chain = select_model(intent, complexity, thinking)
+    requirements = requirements or {}
+    logger.info(f"[{request_id}] Intent: {intent.name}, Complexity: {complexity.name}, Thinking: {thinking.value}, Route: {route_mode}, JSON: {want_json}, EstTokens: {estimated_tokens}")
+    chain, score_debug, rejections = select_model(intent, complexity, thinking, route_mode, requirements, estimated_tokens)
+    LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug[:12], 'rejections': rejections[:30]})
     logger.info(f"[{request_id}] Chain: {chain}")
     overall_started = time.time()
     for pn, model in chain:
@@ -812,15 +1239,15 @@ def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
         if prov.api_type == 'ollama':
             ok, text = call_ollama(prov.base_url, model, normalized_messages, prov.api_key, thinking)
         elif prov.api_type == 'openclaw-gateway':
-            ok, text = call_openclaw_gateway(model, normalized_messages, pn, thinking)
+            ok, text = call_openclaw_gateway(model, normalized_messages, pn, thinking, want_json)
         elif prov.api_type == 'anthropic-messages':
-            ok, text = call_anthropic(prov.base_url, model, normalized_messages, prov.api_key, thinking, supports_reasoning)
+            ok, text = call_anthropic(prov.base_url, model, normalized_messages, prov.api_key, thinking, supports_reasoning, want_json)
         elif prov.api_type == 'google-generative-language':
-            ok, text = call_google(prov.base_url, model, normalized_messages, prov.api_key, thinking)
+            ok, text = call_google(prov.base_url, model, normalized_messages, prov.api_key, thinking, want_json)
         else:
-            ok, text = call_openai_compat(prov.base_url, model, normalized_messages, prov.api_key, pn, thinking, supports_reasoning)
+            ok, text = call_openai_compat(prov.base_url, model, normalized_messages, prov.api_key, pn, thinking, supports_reasoning, want_json)
         elapsed = time.time() - started
-        record_latency_outcome(intent.name, pn, model, elapsed, ok)
+        record_latency_outcome(intent.name, pn, model, elapsed, ok, '' if ok else text)
         if ok:
             total_elapsed = time.time() - overall_started
             logger.info(f"[{request_id}] OK: {pn}/{model} ({len(text)} chars, provider={elapsed:.2f}s, total={total_elapsed:.2f}s)")
@@ -855,8 +1282,22 @@ class Handler(BaseHTTPRequestHandler):
                 "thinking": {
                     "default": ThinkingLevel.MEDIUM.value,
                     "accepted": [level.value for level in ThinkingLevel],
+                    "routeModes": ["fast", "balanced", "best", "local-first"],
+                },
+                "requirements": {
+                    "supportedKeys": ["reasoning", "json", "tools", "longContext", "streaming"]
+                },
+                "manifests": {
+                    name: {
+                        "url": OLLAMA_MANIFEST_URLS.get(canonical_provider_env_key(name), ''),
+                        "file": OLLAMA_MANIFEST_FILES.get(canonical_provider_env_key(name), ''),
+                        "cache": OLLAMA_MODEL_CACHE.get(name, {})
+                    }
+                    for name, provider in PROVIDERS.items()
+                    if provider.api_type == 'ollama'
                 },
                 "reasoningCapabilities": reasoning_capabilities_summary(),
+                "lastRoute": LAST_ROUTE_DEBUG,
             })
         else:
             self.send_response(404)
@@ -871,8 +1312,11 @@ class Handler(BaseHTTPRequestHandler):
                 payload = json.loads(body or b'{}')
                 message_count = len(payload.get('messages', []) or [])
                 thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning'))
-                logger.info(f"[{request_id}] Incoming {self.path} with {message_count} messages, thinking={thinking.value}")
-                result = route_request(payload.get('messages', []), request_id=request_id, thinking=thinking)
+                route_mode = normalize_route_mode(payload.get('route'))
+                requirements = normalize_requirements(payload)
+                want_json = str(payload.get('responseFormat') or '').lower() == 'json' or payload.get('response_format', {}).get('type') == 'json_object'
+                logger.info(f"[{request_id}] Incoming {self.path} with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}")
+                result = route_request(payload.get('messages', []), request_id=request_id, thinking=thinking, route_mode=route_mode, requirements=requirements, want_json=want_json)
                 self.write_json(200, result)
                 logger.info(f"[{request_id}] Responded in {time.time() - started:.2f}s")
             except Exception as e:
@@ -884,6 +1328,7 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--port',type=int,default=8788); args = parser.parse_args()
+    ensure_background_refresh_started()
     server = ThreadingHTTPServer(('0.0.0.0', args.port), Handler)
     logger.info(f"Router on :{args.port} | configured={list(PROVIDERS.keys())} | disabled={sorted(DISABLED_PROVIDERS)}")
     server.serve_forever()
