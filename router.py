@@ -1070,6 +1070,15 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
         elif provider.api_type == 'anthropic-messages':
             score -= 10
             contributions.append(('user_pref_code_non_gpt_penalty', -10))
+            if complexity == Complexity.COMPLEX and 'opus' in model_l:
+                score += 18
+                contributions.append(('complex_code_dario_opus_bonus', 18))
+            elif complexity != Complexity.COMPLEX and 'sonnet' in model_l:
+                score += 14
+                contributions.append(('simple_code_dario_sonnet_bonus', 14))
+            elif 'haiku' in model_l:
+                score -= 8
+                contributions.append(('code_dario_haiku_penalty', -8))
         elif provider.api_type == 'ollama':
             if 'glm-5.1' in model_l or model_l.startswith('glm-5:') or model_l == 'glm-5' or 'glm-5:cloud' in model_l:
                 score += 18
@@ -1109,6 +1118,13 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
     if intent == Intent.GENERAL and provider.api_type == 'ollama':
         score -= 1
         contributions.append(('general_ollama_penalty', -1))
+    if intent == Intent.GENERAL and provider.api_type == 'anthropic-messages':
+        if 'haiku' in model_l:
+            score += 34
+            contributions.append(('general_dario_haiku_bonus', 34))
+        elif 'sonnet' in model_l or 'opus' in model_l:
+            score -= 6
+            contributions.append(('general_dario_non_haiku_penalty', -6))
     if provider.api_type == 'ollama':
         family_bonus = ollama_family_bonus(model, intent)
         if family_bonus:
