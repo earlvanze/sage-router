@@ -19,7 +19,8 @@ DISABLED_PROVIDERS = {
     name.strip() for name in os.environ.get('SMART_ROUTER_DISABLED_PROVIDERS', '').split(',')
     if name.strip()
 }
-OLLAMA_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OLLAMA_TIMEOUT_SECONDS', '30'))
+OLLAMA_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OLLAMA_TIMEOUT_SECONDS', '120'))
+OLLAMA_ALLOW_THINK_FALSE_RETRY = os.environ.get('SMART_ROUTER_OLLAMA_ALLOW_THINK_FALSE_RETRY', '').strip().lower() in {'1', 'true', 'yes', 'on'}
 OPENAI_COMPAT_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OPENAI_TIMEOUT_SECONDS', '35'))
 ANTHROPIC_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_ANTHROPIC_TIMEOUT_SECONDS', '35'))
 GOOGLE_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_GOOGLE_TIMEOUT_SECONDS', '35'))
@@ -1035,17 +1036,60 @@ def call_ollama(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
         payload["options"] = {"num_predict": 1024}
     elif thinking == ThinkingLevel.HIGH:
         payload["options"] = {"num_predict": 4096}
-    try:
-        data = json.dumps(payload).encode()
-        hdrs = {'Content-Type': 'application/json'}
-        if api_key:
-            hdrs['Authorization'] = f'Bearer {api_key}'
+
+    hdrs = {'Content-Type': 'application/json'}
+    if api_key:
+        hdrs['Authorization'] = f'Bearer {api_key}'
+
+    def _post_chat(chat_payload):
+        data = json.dumps(chat_payload).encode()
         req = urllib.request.Request(url, data=data, headers=hdrs)
         with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT_SECONDS) as resp:
-            return True, json.loads(resp.read()).get('message', {}).get('content', '')
+            return json.loads(resp.read())
+
+    try:
+        body = _post_chat(payload)
+        message = body.get('message', {}) or {}
+        content = message.get('content', '') or ''
+        thinking_text = message.get('thinking', '') or ''
+        if content:
+            return True, content
+        # Some Ollama thinking-capable models can spend the whole budget in
+        # message.thinking and return empty content with done_reason=length.
+        # Do not silently disable thinking by default. If the operator wants
+        # the old recovery behavior, allow it explicitly via env.
+        if thinking_text and OLLAMA_ALLOW_THINK_FALSE_RETRY:
+            retry_payload = dict(payload)
+            retry_payload['think'] = False
+            retry_body = _post_chat(retry_payload)
+            retry_message = retry_body.get('message', {}) or {}
+            retry_content = retry_message.get('content', '') or ''
+            if retry_content:
+                logger.info(f"Ollama {base_url} {model}: recovered empty-content thinking response with opt-in think=false retry")
+                return True, retry_content
+        if thinking_text:
+            err = 'Ollama returned thinking-only output with empty visible content'
+            logger.warning(f"Ollama {base_url} {model}: {err}")
+            return False, err
+        err = 'Ollama returned empty content'
+        logger.warning(f"Ollama {base_url} {model}: {err}")
+        return False, err
     except Exception as e:
-        logger.warning(f"Ollama {base_url} {model}: {extract_http_error(e)}")
-        return False, extract_http_error(e)
+        err = extract_http_error(e)
+        if 'timed out' in err.lower() and OLLAMA_ALLOW_THINK_FALSE_RETRY:
+            try:
+                retry_payload = dict(payload)
+                retry_payload['think'] = False
+                retry_body = _post_chat(retry_payload)
+                retry_message = retry_body.get('message', {}) or {}
+                retry_content = retry_message.get('content', '') or ''
+                if retry_content:
+                    logger.info(f"Ollama {base_url} {model}: recovered timed-out response with opt-in think=false retry")
+                    return True, retry_content
+            except Exception as retry_err:
+                err = extract_http_error(retry_err)
+        logger.warning(f"Ollama {base_url} {model}: {err}")
+        return False, err
 
 def call_openai_compat(base_url, model, messages, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, want_json=False):
     url = base_url.rstrip('/') + '/v1/chat/completions'
