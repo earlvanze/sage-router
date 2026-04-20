@@ -72,7 +72,7 @@ OLLAMA_MANIFEST_URLS = load_ollama_manifest_bindings('URL')
 OLLAMA_MANIFEST_FILES = load_ollama_manifest_bindings('FILE')
 
 INTENT_API_SCORES = {
-    'CODE': {'openclaw-gateway': 68, 'openai-completions': 60, 'anthropic-messages': 52, 'ollama': 48, 'google-generative-language': 46},
+    'CODE': {'openclaw-gateway': 66, 'ollama': 60, 'openai-completions': 58, 'anthropic-messages': 48, 'google-generative-language': 44},
     'ANALYSIS': {'ollama': 66, 'anthropic-messages': 58, 'openai-completions': 54, 'google-generative-language': 52, 'openclaw-gateway': 48},
     'CREATIVE': {'anthropic-messages': 60, 'google-generative-language': 59, 'openai-completions': 55, 'ollama': 50, 'openclaw-gateway': 44},
     'REALTIME': {'google-generative-language': 60, 'openai-completions': 60, 'anthropic-messages': 54, 'ollama': 48, 'openclaw-gateway': 42},
@@ -87,11 +87,11 @@ INTENT_MODEL_HINTS = {
     'GENERAL': ['sonnet', 'gpt-4o', 'gpt-5', 'kimi', 'minimax', 'qwen', 'glm', 'opus'],
 }
 
-COMPLEX_MODEL_HINTS = ['opus', 'sonnet', 'gpt-5', 'o3', 'qwen', 'kimi', 'deepseek']
+COMPLEX_MODEL_HINTS = ['opus', 'sonnet', 'gpt-5', 'o3', 'glm', 'qwen', 'kimi', 'deepseek']
 LIGHTWEIGHT_MODEL_HINTS = ['mini', 'small', 'haiku']
 OLLAMA_FAMILY_HINTS = {
     'qwen': {'bonus': 9, 'intents': {'CODE', 'ANALYSIS', 'GENERAL'}},
-    'kimi': {'bonus': 8, 'intents': {'GENERAL', 'CREATIVE', 'REALTIME'}},
+    'kimi': {'bonus': 8, 'intents': {'CODE', 'GENERAL', 'CREATIVE', 'REALTIME'}},
     'glm': {'bonus': 11, 'intents': {'CODE', 'ANALYSIS', 'GENERAL', 'REALTIME'}},
     'minimax': {'bonus': 6, 'intents': {'CREATIVE', 'GENERAL'}},
     'deepseek': {'bonus': 10, 'intents': {'CODE', 'ANALYSIS'}},
@@ -1062,14 +1062,30 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
 
     if intent == Intent.CODE:
         if provider.name == 'openai-codex' or model_l.startswith('gpt-') or 'codex' in model_l:
-            score += 22
-            contributions.append(('user_pref_code_gpt', 22))
+            score += 14
+            contributions.append(('user_pref_code_gpt', 14))
+            if complexity == Complexity.COMPLEX:
+                score += 8
+                contributions.append(('complex_code_gpt_bonus', 8))
         elif provider.api_type == 'anthropic-messages':
-            score -= 8
-            contributions.append(('user_pref_code_non_gpt_penalty', -8))
-        elif provider.api_type == 'ollama':
             score -= 10
-            contributions.append(('user_pref_code_ollama_penalty', -10))
+            contributions.append(('user_pref_code_non_gpt_penalty', -10))
+        elif provider.api_type == 'ollama':
+            if 'glm-5.1' in model_l or model_l.startswith('glm-5:') or model_l == 'glm-5' or 'glm-5:cloud' in model_l:
+                score += 18
+                contributions.append(('user_pref_code_glm_bonus', 18))
+                if complexity == Complexity.COMPLEX:
+                    score += 8
+                    contributions.append(('complex_code_glm_bonus', 8))
+            elif 'kimi' in model_l:
+                score += 6
+                contributions.append(('user_pref_code_kimi_fallback', 6))
+                if complexity == Complexity.COMPLEX:
+                    score -= 4
+                    contributions.append(('complex_code_kimi_penalty', -4))
+            else:
+                score -= 8
+                contributions.append(('user_pref_code_other_ollama_penalty', -8))
 
     if intent == Intent.ANALYSIS:
         if provider.api_type == 'ollama':
@@ -1098,12 +1114,15 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
         if family_bonus:
             score += family_bonus
             contributions.append(('ollama_family_bonus', family_bonus))
-        if intent == Intent.CODE and 'glm-5.1' in model_l:
+        if intent == Intent.CODE and ('glm-5.1' in model_l or model_l.startswith('glm-5:') or model_l == 'glm-5' or 'glm-5:cloud' in model_l):
             score += 8
-            contributions.append(('glm51_code_preference', 8))
+            contributions.append(('glm5_code_preference', 8))
+        elif intent == Intent.CODE and 'kimi' in model_l:
+            score += 3
+            contributions.append(('kimi_code_fallback_bonus', 3))
         elif intent == Intent.CODE and ('qwen' in model_l or 'deepseek' in model_l):
-            score -= 2
-            contributions.append(('glm51_beats_qwen_deepseek_for_code', -2))
+            score -= 4
+            contributions.append(('glm_beats_qwen_deepseek_for_code', -4))
 
     if route_mode == 'fast':
         if provider.api_type == 'ollama':
