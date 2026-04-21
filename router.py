@@ -27,6 +27,8 @@ DARIO_PROVIDER_NAME = os.environ.get('SAGE_ROUTER_DARIO_PROVIDER_NAME', 'dario')
 DARIO_LOCAL_BASE_URL = os.environ.get('SAGE_ROUTER_DARIO_BASE_URL', 'http://127.0.0.1:3456')
 DARIO_LOCAL_API_KEY = os.environ.get('SAGE_ROUTER_DARIO_API_KEY', 'dario')
 DARIO_SERVICE_NAME = os.environ.get('SAGE_ROUTER_DARIO_SERVICE', 'dario.service')
+OPENCLAW_GATEWAY_BASE_URL = os.environ.get('SAGE_ROUTER_OPENCLAW_GATEWAY_URL', 'ws://127.0.0.1:18789')
+# Auth-profile-based gateway providers: defined after DEFAULT constants below
 DISABLED_PROVIDERS = {
     name.strip() for name in os.environ.get('SAGE_ROUTER_DISABLED_PROVIDERS', '').split(',')
     if name.strip()
@@ -58,6 +60,17 @@ GENERAL_EMPIRICAL_LATENCY_PIVOT_MS = float(os.environ.get('SAGE_ROUTER_GENERAL_L
 GENERAL_EMPIRICAL_FAILURE_PENALTY = float(os.environ.get('SAGE_ROUTER_GENERAL_FAILURE_PENALTY', '4'))
 DEFAULT_OPENAI_CODEX_MODELS = ['gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.3-codex', 'gpt-5.3-codex-spark', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini', 'gpt-5.1']
 DEFAULT_ANTHROPIC_MODELS = ['claude-opus-4-6', 'claude-opus-4-5', 'claude-opus-4-1', 'claude-opus-4-0', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-sonnet-4-0', 'claude-haiku-4-5', 'claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest']
+
+# Auth-profile-based gateway providers: auto-created when matching profile exists
+# Maps auth profile provider name -> (api_type, default_models, default_meta)
+GATEWAY_PROVIDER_PROFILES = {
+    'openai-codex': ('openclaw-gateway', DEFAULT_OPENAI_CODEX_MODELS, {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}),
+    'anthropic': ('anthropic-messages', DEFAULT_ANTHROPIC_MODELS, {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 64000, 'input': ['text']}),
+    'openai': ('openai-completions', ['gpt-5.4', 'gpt-5.4-mini', 'gpt-4o', 'gpt-4o-mini'], {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
+    'google': ('google-generative-language', ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'], {'reasoning': False, 'contextWindow': 1000000, 'maxTokens': 65536, 'input': ['text', 'image']}),
+    'xai': ('openai-completions', ['grok-3', 'grok-3-mini', 'grok-2'], {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
+    'zai': ('openai-completions', ['z1-ultra', 'z1-pro', 'z1-mini'], {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 65536, 'input': ['text']}),
+}
 MAX_PROVIDER_ATTEMPTS = int(os.environ.get('SAGE_ROUTER_MAX_PROVIDER_ATTEMPTS', '8'))
 LATENCY_STATS_LOCK = threading.Lock()
 OLLAMA_MODEL_CACHE = {}
@@ -114,7 +127,7 @@ OLLAMA_FAMILY_HINTS = {
     'qwen35moe': {'bonus': 9, 'intents': {'CODE', 'ANALYSIS', 'GENERAL'}},
 }
 
-# Known NON-chat families — dynamically extended from /api/tags.
+# Known NON-chat families - dynamically extended from /api/tags.
 # A family is non-chat if it matches these patterns or is explicitly listed.
 NON_CHAT_FAMILY_PATTERNS = ['embed', 'bert', 'clip', 'vl', 'vision', 'ocr', 'asr', 'whisper', 'tts', 'sd', 'rerank']
 NON_CHAT_MODEL_HINTS = [
@@ -123,7 +136,7 @@ NON_CHAT_MODEL_HINTS = [
 ]
 
 # Ollama model families that are NOT text-chat capable.
-# Seed list — dynamically extended by background_refresh_detect_families().
+# Seed list - dynamically extended by background_refresh_detect_families().
 NON_CHAT_OLLAMA_FAMILIES = {
     'nomic-bert',   # embedding
     'glmocr',      # OCR vision
@@ -243,6 +256,23 @@ def infer_api_type(name, cfg, base_url):
     if 'generativelanguage.googleapis.com' in host or name == 'google':
         return 'google-generative-language'
     return 'openai-completions'
+
+
+def discover_anthropic_models():
+    """Discover available Anthropic models via the Dario proxy's /v1/models endpoint."""
+    try:
+        url = DARIO_LOCAL_BASE_URL.rstrip('/') + '/v1/models'
+        hdrs = {'x-api-key': DARIO_LOCAL_API_KEY, 'anthropic-version': '2023-06-01'}
+        req = urllib.request.Request(url, headers=hdrs)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            payload = json.loads(resp.read())
+        models = [m.get('id', '') for m in payload.get('data', []) if m.get('id')]
+        if models:
+            logger.info(f'Discovered {len(models)} Anthropic models via Dario: {models}')
+            return models
+    except Exception as e:
+        logger.debug(f'Dario model discovery failed: {extract_http_error(e)}')
+    return None
 
 
 def discover_google_models(base_url, api_key):
@@ -474,25 +504,70 @@ def load_openclaw_providers():
             ))
 
         auth_profiles = config.get('auth', {}).get('profiles', {})
-        agent_defaults = config.get('agents', {}).get('defaults', {})
-        codex_models = []
-        for model_ref in agent_defaults.get('model', {}).get('fallbacks', []):
-            if isinstance(model_ref, str) and model_ref.startswith('openai-codex/'):
-                codex_models.append(model_ref.split('/', 1)[1])
-        for model_ref in (agent_defaults.get('models', {}) or {}).keys():
-            if isinstance(model_ref, str) and model_ref.startswith('openai-codex/'):
-                codex_models.append(model_ref.split('/', 1)[1])
-        codex_models = dedupe_keep_order(codex_models) or DEFAULT_OPENAI_CODEX_MODELS
-        if 'openai-codex:default' in auth_profiles:
-            merge_provider(providers, Provider(
-                'openai-codex',
-                'openclaw-gateway',
-                'ws://127.0.0.1:18789',
-                '',
-                codex_models,
-                set(codex_models),
-                {m: {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']} for m in codex_models},
-            ))
+        agent_defaults = config.get('agents', {}).get('defaults', {})        
+        # Auto-discover gateway-backed providers from auth profiles
+        # For each auth profile that matches a known gateway provider, create a provider
+        for profile_name, profile in auth_profiles.items():
+            if not isinstance(profile, dict):
+                continue
+            provider_name = profile.get('provider', profile_name.split(':')[0])
+            # Skip if already configured as a regular provider (e.g. ollama, anthropic via Dario)
+            if provider_name in providers and provider_name not in GATEWAY_PROVIDER_PROFILES:
+                continue
+            # Skip ollama - it's always direct, not gateway-backed
+            if provider_name == 'ollama':
+                continue
+            gw_spec = GATEWAY_PROVIDER_PROFILES.get(provider_name)
+            if not gw_spec:
+                continue
+            api_type, default_models, default_meta = gw_spec
+            # Don't add if already exists (e.g. anthropic already routed via Dario)
+            if provider_name in providers:
+                continue
+            # Determine models and base URL based on provider type
+            gw_models = list(default_models)
+            if api_type == 'anthropic-messages':
+                # Anthropic - route via Dario
+                ensure_dario_proxy_ready()
+                gw_models = discover_anthropic_models() or default_models
+                merge_provider(providers, Provider(
+                    provider_name,
+                    'anthropic-messages',
+                    DARIO_LOCAL_BASE_URL,
+                    DARIO_LOCAL_API_KEY,
+                    dedupe_keep_order(gw_models),
+                    set(gw_models),
+                    {m: dict(default_meta) for m in gw_models},
+                ))
+                logger.info(f'Auto-created gateway provider {provider_name} (anthropic-messages) with {len(gw_models)} models via Dario')
+            elif api_type == 'google-generative-language':
+                # Google - direct API if key available, otherwise gateway
+                api_key = resolve_config_value(config.get('auth', {}).get('profiles', {}).get(f'{provider_name}:default', {}).get('apiKey', ''))
+                if not api_key:
+                    # Use gateway as fallback
+                    merge_provider(providers, Provider(
+                        provider_name,
+                        'openclaw-gateway',
+                        OPENCLAW_GATEWAY_BASE_URL,
+                        '',
+                        dedupe_keep_order(gw_models),
+                        set(gw_models),
+                        {m: dict(default_meta) for m in gw_models},
+                    ))
+                    logger.info(f'Auto-created gateway provider {provider_name} (google via gateway) with {len(gw_models)} models')
+                # If key exists, it would have been loaded as a regular provider
+            else:
+                # Other providers (xai, zai, openai) - route via gateway
+                merge_provider(providers, Provider(
+                    provider_name,
+                    'openclaw-gateway',
+                    OPENCLAW_GATEWAY_BASE_URL,
+                    '',
+                    dedupe_keep_order(gw_models),
+                    set(gw_models),
+                    {m: dict(default_meta) for m in gw_models},
+                ))
+                logger.info(f'Auto-created gateway provider {provider_name} ({api_type}) with {len(gw_models)} models via gateway')
 
         logger.info(f"Loaded {len(providers)} configured providers: {list(providers.keys())}")
     except Exception as e:
@@ -1025,7 +1100,7 @@ def ollama_auto_pull_new_models():
         for pattern in OLLAMA_AUTO_PULL_PATTERNS:
             matching = [m for m in all_known if pattern in m]
             if not matching:
-                # Pattern has no match yet — nothing to pull
+                # Pattern has no match yet - nothing to pull
                 continue
             # Check if models matching pattern are actually available (not just known)
             available = set(fetch_ollama_models(provider))
@@ -1212,7 +1287,7 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
         score += 4
         contributions.append(('anthropic_reasoning_bias', 4))
     # openclaw-gateway is recursive (routes through this router), so it gets
-    # a fixed low base score — only used as a fallback, never preferred.
+    # a fixed low base score - only used as a fallback, never preferred.
     if provider.api_type == 'openclaw-gateway':
         score = min(score, 40)
         contributions.append(('openclaw_gateway_recursive_cap', min(0, 40 - score)))
@@ -1378,7 +1453,7 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
 
 def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, estimated_tokens=0):
     """Score ALL models across ALL providers globally, then rank.
-    
+
     Previous behavior picked the best model per provider first, then
     merged. This v3.1 approach scores every (provider, model) pair
     independently and takes the top N globally, which gives small but
@@ -1769,7 +1844,7 @@ def anthropic_to_openai_request(anthropic_payload):
 
 
 def handle_anthropic_messages(self, body, request_id, started):
-    """Handle POST /v1/messages — Anthropic Messages API compatibility.
+    """Handle POST /v1/messages - Anthropic Messages API compatibility.
     Translates request to OpenAI format, routes, translates response back."""
     try:
         anthropic_payload = json.loads(body or b'{}')
@@ -1784,7 +1859,7 @@ def handle_anthropic_messages(self, body, request_id, started):
         logger.info(f"[{request_id}] Incoming /v1/messages (Anthropic compat) with {message_count} messages, model={request_model}, thinking={thinking.value}, route={route_mode}, stream={want_stream}")
         result = route_request(openai_payload.get('messages', []), request_id=request_id, thinking=thinking, route_mode=route_mode, requirements=requirements, want_json=want_json)
         if isinstance(result, dict) and result.get('error'):
-            # Error response — translate to Anthropic error format
+            # Error response - translate to Anthropic error format
             self.write_json(503, {
                 'type': 'error',
                 'error': {'type': 'api_error', 'message': result.get('error', 'Internal error')}
@@ -1797,7 +1872,7 @@ def handle_anthropic_messages(self, body, request_id, started):
             usage = result.get('usage', {})
             sse_events = []
             # message_start
-            sse_events.append(f'event: message_start\ndata: {json.dumps({"type":"message_start","message":{"id":msg_id,"type":"message","role":"assistant","content":[],"model":model,"stop_reason":None,"stop_sequence":None,"usage":{"input_tokens":usage.get("prompt_tokens",0),"output_tokens":0}}})}')  
+            sse_events.append(f'event: message_start\ndata: {json.dumps({"type":"message_start","message":{"id":msg_id,"type":"message","role":"assistant","content":[],"model":model,"stop_reason":None,"stop_sequence":None,"usage":{"input_tokens":usage.get("prompt_tokens",0),"output_tokens":0}}})}')
             # content_block_start
             sse_events.append(f'event: content_block_start\ndata: {json.dumps({"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}})}')
             # content_block_delta (send full text as one chunk for simplicity)
@@ -1818,7 +1893,7 @@ def handle_anthropic_messages(self, body, request_id, started):
             self.wfile.write(sse_bytes)
             self.wfile.flush()
         else:
-            # Non-streaming — translate to Anthropic response format
+            # Non-streaming - translate to Anthropic response format
             anthropic_resp = openai_to_anthropic_response(result, request_model)
             self.write_json(200, anthropic_resp)
         logger.info(f'[{request_id}] Anthropic compat responded in {time.time() - started:.2f}s')
