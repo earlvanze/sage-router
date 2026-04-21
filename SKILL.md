@@ -2,10 +2,10 @@
 name: sage-router
 description: Intent-based AI model router that classifies requests and routes to the best provider. Auto-discovers OpenClaw providers and model lists from openclaw.json, skips self-recursion, and scores candidates dynamically by intent. Runs as a systemd service on port 8788. Use when configuring, debugging, or modifying the sage-router service.
 env:
-  - SMART_ROUTER_HOME (required: path to sage-router repo)
-  - SMART_ROUTER_DISABLED_PROVIDERS (optional: comma-separated provider names to suppress)
-  - SMART_ROUTER_OLLAMA_TIMEOUT_SECONDS (optional, default 120)
-  - SMART_ROUTER_OLLAMA_AUTO_PULL_PATTERNS (optional, default :cloud)
+  - SAGE_ROUTER_HOME (required: path to sage-router repo)
+  - SAGE_ROUTER_DISABLED_PROVIDERS (optional: comma-separated provider names to suppress)
+  - SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS (optional, default 120)
+  - SAGE_ROUTER_OLLAMA_AUTO_PULL_PATTERNS (optional, default :cloud)
   - OPENCLAW_GATEWAY_TOKEN (optional: token for OpenClaw gateway agent bridge)
 ---
 
@@ -25,7 +25,7 @@ Rules:
 - auto-discovers Google models when the provider exists but `models` is empty in `openclaw.json`
 - normalizes `anthropic` or Anthropic-hosted `anthropic-messages` providers onto the local Dario proxy at `localhost:3456`
 - starts the Dario user service when Anthropic compatibility is needed and the service is not already running
-- supports temporary provider suppression via `SMART_ROUTER_DISABLED_PROVIDERS=name1,name2`
+- supports temporary provider suppression via `SAGE_ROUTER_DISABLED_PROVIDERS=name1,name2`
 
 `GET /health` shows:
 - `configured`: all discovered providers
@@ -42,7 +42,7 @@ Flow:
 - score every reachable (provider, model) pair globally — not per-provider — from `openclaw.json`
 - for `GENERAL`, blend static heuristics with persisted empirical latency stats by provider and model
 - rank candidates by API type, model-name hints, complexity, and measured latency
-- attempt the top `SMART_ROUTER_MAX_PROVIDER_ATTEMPTS` candidates in order
+- attempt the top `SAGE_ROUTER_MAX_PROVIDER_ATTEMPTS` candidates in order
 - `openclaw-gateway` (this router itself) is scored as a low-priority recursive fallback, never preferred
 
 Intent scoring is generic, for example:
@@ -65,7 +65,7 @@ Intent is detected by keyword matching on the latest user message. Complexity is
 - The repo `systemd` unit is template-style and expects local machine values in `~/.config/sage-router/sage-router.env`.
 - Empirical latency memory is persisted at `~/.cache/sage-router/latency-stats.json` by default.
 - When the OpenClaw gateway model-set path is unhealthy, the helper falls back to running without provider/model overrides instead of failing hard.
-- If any provider starts misbehaving, suppress it with `SMART_ROUTER_DISABLED_PROVIDERS` instead of editing the router.
+- If any provider starts misbehaving, suppress it with `SAGE_ROUTER_DISABLED_PROVIDERS` instead of editing the router.
 - GitHub workflows now include CI syntax checks and CodeQL analysis for Python + JavaScript.
 - See `BRANCH_PROTECTION.md` for the exact required-check setup on GitHub.
 
@@ -84,8 +84,8 @@ systemctl --user enable --now sage-router.service
 
 Notes:
 - the repo unit is now env-driven and does not hardcode your home path, Node version, or workspace location
-- set `SMART_ROUTER_HOME` to the actual repo path on your machine
-- optionally set `SMART_ROUTER_PATH_PREFIX` if your Python, Node, or Dario bins are not already on PATH
+- set `SAGE_ROUTER_HOME` to the actual repo path on your machine
+- optionally set `SAGE_ROUTER_PATH_PREFIX` if your Python, Node, or Dario bins are not already on PATH
 
 If an Anthropic provider is detected and Dario is not installed yet, install Dario first:
 - GitHub: https://github.com/askalf/dario

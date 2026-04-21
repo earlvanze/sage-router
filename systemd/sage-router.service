@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=-%h/.config/sage-router/sage-router.env
-ExecStart=/usr/bin/env bash -lc 'cd "$${SMART_ROUTER_HOME:?Set SMART_ROUTER_HOME in ~/.config/sage-router/sage-router.env}" && if [ -n "$${SMART_ROUTER_PATH_PREFIX:-}" ]; then export PATH="$${SMART_ROUTER_PATH_PREFIX}:$$PATH"; fi; exec "$${SMART_ROUTER_PYTHON:-python3}" router.py --port "$${SMART_ROUTER_PORT:-8788}" $${SMART_ROUTER_ARGS:-}'
+ExecStart=/usr/bin/env bash -lc 'cd "$${SAGE_ROUTER_HOME:?Set SAGE_ROUTER_HOME in ~/.config/sage-router/sage-router.env}" && if [ -n "$${SAGE_ROUTER_PATH_PREFIX:-}" ]; then export PATH="$${SAGE_ROUTER_PATH_PREFIX}:$$PATH"; fi; exec "$${SAGE_ROUTER_PYTHON:-python3}" router.py --port "$${SAGE_ROUTER_PORT:-8788}" $${SAGE_ROUTER_ARGS:-}'
 Restart=always
 RestartSec=10
 

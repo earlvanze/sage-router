@@ -80,7 +80,7 @@ async function runRequest(includeOverrides) {
   }));
 }
 
-const allowOverrides = process.env.SMART_ROUTER_OPENCLAW_ALLOW_MODEL_OVERRIDE === '1';
+const allowOverrides = process.env.SAGE_ROUTER_OPENCLAW_ALLOW_MODEL_OVERRIDE === '1';
 
 try {
   await runRequest(allowOverrides);

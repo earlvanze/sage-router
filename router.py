@@ -11,42 +11,54 @@ logger = logging.getLogger("router")
 OPENCLAW_CONFIG = os.path.expanduser("~/.openclaw/openclaw.json")
 OPENCLAW_GATEWAY_HELPER = os.path.join(os.path.dirname(__file__), 'openclaw_gateway_agent.mjs')
 SELF_PROVIDER_NAMES = {'smart-router', 'sage-router'}
-DARIO_PROVIDER_NAME = os.environ.get('SMART_ROUTER_DARIO_PROVIDER_NAME', 'dario')
-DARIO_LOCAL_BASE_URL = os.environ.get('SMART_ROUTER_DARIO_BASE_URL', 'http://127.0.0.1:3456')
-DARIO_LOCAL_API_KEY = os.environ.get('SMART_ROUTER_DARIO_API_KEY', 'dario')
-DARIO_SERVICE_NAME = os.environ.get('SMART_ROUTER_DARIO_SERVICE', 'dario.service')
+
+# Backward compat: fall back to SMART_ROUTER_* env vars if SAGE_ROUTER_* not set
+import re as _re
+_env_compat_done = set()
+for _key in list(os.environ):
+    if _key.startswith('SMART_ROUTER_') and _key not in os.environ:
+        pass  # can't happen, but guard
+for _key in list(os.environ):
+    if _key.startswith('SMART_ROUTER_'):
+        _new_key = _key.replace('SMART_ROUTER_', 'SAGE_ROUTER_', 1)
+        if _new_key not in os.environ:
+            os.environ[_new_key] = os.environ[_key]
+DARIO_PROVIDER_NAME = os.environ.get('SAGE_ROUTER_DARIO_PROVIDER_NAME', 'dario')
+DARIO_LOCAL_BASE_URL = os.environ.get('SAGE_ROUTER_DARIO_BASE_URL', 'http://127.0.0.1:3456')
+DARIO_LOCAL_API_KEY = os.environ.get('SAGE_ROUTER_DARIO_API_KEY', 'dario')
+DARIO_SERVICE_NAME = os.environ.get('SAGE_ROUTER_DARIO_SERVICE', 'dario.service')
 DISABLED_PROVIDERS = {
-    name.strip() for name in os.environ.get('SMART_ROUTER_DISABLED_PROVIDERS', '').split(',')
+    name.strip() for name in os.environ.get('SAGE_ROUTER_DISABLED_PROVIDERS', '').split(',')
     if name.strip()
 }
-OLLAMA_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OLLAMA_TIMEOUT_SECONDS', '120'))
-OLLAMA_ALLOW_THINK_FALSE_RETRY = os.environ.get('SMART_ROUTER_OLLAMA_ALLOW_THINK_FALSE_RETRY', '').strip().lower() in {'1', 'true', 'yes', 'on'}
-OPENAI_COMPAT_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OPENAI_TIMEOUT_SECONDS', '35'))
-ANTHROPIC_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_ANTHROPIC_TIMEOUT_SECONDS', '35'))
-GOOGLE_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_GOOGLE_TIMEOUT_SECONDS', '35'))
-OPENCLAW_GATEWAY_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OPENCLAW_TIMEOUT_SECONDS', '20'))
-OPENCLAW_GATEWAY_CODE_TIMEOUT_SECONDS = int(os.environ.get('SMART_ROUTER_OPENCLAW_CODE_TIMEOUT_SECONDS', '45'))
-OPENCLAW_GATEWAY_AGENT_ID = os.environ.get('SMART_ROUTER_OPENCLAW_AGENT_ID', 'main')
-REACHABILITY_TIMEOUT_SECONDS = float(os.environ.get('SMART_ROUTER_REACHABILITY_TIMEOUT_SECONDS', '0.5'))
-REACHABILITY_TTL_SECONDS = int(os.environ.get('SMART_ROUTER_REACHABILITY_TTL_SECONDS', '120'))
-OLLAMA_MODEL_REFRESH_TTL_SECONDS = int(os.environ.get('SMART_ROUTER_OLLAMA_MODEL_REFRESH_TTL_SECONDS', '300'))
-HEALTH_SCORE_TTL_SECONDS = int(os.environ.get('SMART_ROUTER_HEALTH_SCORE_TTL_SECONDS', '60'))
-RATE_LIMIT_COOLDOWN_BASE_SECONDS = int(os.environ.get('SMART_ROUTER_RATE_LIMIT_COOLDOWN_BASE_SECONDS', '120'))
-FAILURE_COOLDOWN_BASE_SECONDS = int(os.environ.get('SMART_ROUTER_FAILURE_COOLDOWN_BASE_SECONDS', '180'))
-CONSECUTIVE_FAILURE_COOLDOWN_THRESHOLD = int(os.environ.get('SMART_ROUTER_CONSECUTIVE_FAILURE_COOLDOWN_THRESHOLD', '2'))
-MODEL_MISSING_COOLDOWN_SECONDS = int(os.environ.get('SMART_ROUTER_MODEL_MISSING_COOLDOWN_SECONDS', '1800'))
-EMPTY_OUTPUT_COOLDOWN_SECONDS = int(os.environ.get('SMART_ROUTER_EMPTY_OUTPUT_COOLDOWN_SECONDS', '600'))
+OLLAMA_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS', '120'))
+OLLAMA_ALLOW_THINK_FALSE_RETRY = os.environ.get('SAGE_ROUTER_OLLAMA_ALLOW_THINK_FALSE_RETRY', '').strip().lower() in {'1', 'true', 'yes', 'on'}
+OPENAI_COMPAT_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENAI_TIMEOUT_SECONDS', '35'))
+ANTHROPIC_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_ANTHROPIC_TIMEOUT_SECONDS', '35'))
+GOOGLE_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_GOOGLE_TIMEOUT_SECONDS', '35'))
+OPENCLAW_GATEWAY_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENCLAW_TIMEOUT_SECONDS', '20'))
+OPENCLAW_GATEWAY_CODE_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENCLAW_CODE_TIMEOUT_SECONDS', '45'))
+OPENCLAW_GATEWAY_AGENT_ID = os.environ.get('SAGE_ROUTER_OPENCLAW_AGENT_ID', 'main')
+REACHABILITY_TIMEOUT_SECONDS = float(os.environ.get('SAGE_ROUTER_REACHABILITY_TIMEOUT_SECONDS', '0.5'))
+REACHABILITY_TTL_SECONDS = int(os.environ.get('SAGE_ROUTER_REACHABILITY_TTL_SECONDS', '120'))
+OLLAMA_MODEL_REFRESH_TTL_SECONDS = int(os.environ.get('SAGE_ROUTER_OLLAMA_MODEL_REFRESH_TTL_SECONDS', '300'))
+HEALTH_SCORE_TTL_SECONDS = int(os.environ.get('SAGE_ROUTER_HEALTH_SCORE_TTL_SECONDS', '60'))
+RATE_LIMIT_COOLDOWN_BASE_SECONDS = int(os.environ.get('SAGE_ROUTER_RATE_LIMIT_COOLDOWN_BASE_SECONDS', '120'))
+FAILURE_COOLDOWN_BASE_SECONDS = int(os.environ.get('SAGE_ROUTER_FAILURE_COOLDOWN_BASE_SECONDS', '180'))
+CONSECUTIVE_FAILURE_COOLDOWN_THRESHOLD = int(os.environ.get('SAGE_ROUTER_CONSECUTIVE_FAILURE_COOLDOWN_THRESHOLD', '2'))
+MODEL_MISSING_COOLDOWN_SECONDS = int(os.environ.get('SAGE_ROUTER_MODEL_MISSING_COOLDOWN_SECONDS', '1800'))
+EMPTY_OUTPUT_COOLDOWN_SECONDS = int(os.environ.get('SAGE_ROUTER_EMPTY_OUTPUT_COOLDOWN_SECONDS', '600'))
 PROVIDER_HEALTH_CACHE = {}
-LATENCY_STATS_PATH = os.path.expanduser(os.environ.get('SMART_ROUTER_LATENCY_STATS_PATH', '~/.cache/sage-router/latency-stats.json'))
-LATENCY_EWMA_ALPHA = float(os.environ.get('SMART_ROUTER_LATENCY_EWMA_ALPHA', '0.35'))
-GENERAL_EMPIRICAL_EXPLORATION_BONUS = float(os.environ.get('SMART_ROUTER_GENERAL_EXPLORATION_BONUS', '20'))
-GENERAL_EMPIRICAL_SUCCESS_EXPLORATION_CAP = float(os.environ.get('SMART_ROUTER_GENERAL_SUCCESS_EXPLORATION_CAP', '8'))
-GENERAL_EMPIRICAL_LATENCY_BONUS_CAP = float(os.environ.get('SMART_ROUTER_GENERAL_LATENCY_BONUS_CAP', '18'))
-GENERAL_EMPIRICAL_LATENCY_PIVOT_MS = float(os.environ.get('SMART_ROUTER_GENERAL_LATENCY_PIVOT_MS', '2500'))
-GENERAL_EMPIRICAL_FAILURE_PENALTY = float(os.environ.get('SMART_ROUTER_GENERAL_FAILURE_PENALTY', '4'))
+LATENCY_STATS_PATH = os.path.expanduser(os.environ.get('SAGE_ROUTER_LATENCY_STATS_PATH', '~/.cache/sage-router/latency-stats.json'))
+LATENCY_EWMA_ALPHA = float(os.environ.get('SAGE_ROUTER_LATENCY_EWMA_ALPHA', '0.35'))
+GENERAL_EMPIRICAL_EXPLORATION_BONUS = float(os.environ.get('SAGE_ROUTER_GENERAL_EXPLORATION_BONUS', '20'))
+GENERAL_EMPIRICAL_SUCCESS_EXPLORATION_CAP = float(os.environ.get('SAGE_ROUTER_GENERAL_SUCCESS_EXPLORATION_CAP', '8'))
+GENERAL_EMPIRICAL_LATENCY_BONUS_CAP = float(os.environ.get('SAGE_ROUTER_GENERAL_LATENCY_BONUS_CAP', '18'))
+GENERAL_EMPIRICAL_LATENCY_PIVOT_MS = float(os.environ.get('SAGE_ROUTER_GENERAL_LATENCY_PIVOT_MS', '2500'))
+GENERAL_EMPIRICAL_FAILURE_PENALTY = float(os.environ.get('SAGE_ROUTER_GENERAL_FAILURE_PENALTY', '4'))
 DEFAULT_OPENAI_CODEX_MODELS = ['gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.3-codex', 'gpt-5.3-codex-spark', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini', 'gpt-5.1']
 DEFAULT_ANTHROPIC_MODELS = ['claude-opus-4-6', 'claude-opus-4-5', 'claude-opus-4-1', 'claude-opus-4-0', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-sonnet-4-0', 'claude-haiku-4-5', 'claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest']
-MAX_PROVIDER_ATTEMPTS = int(os.environ.get('SMART_ROUTER_MAX_PROVIDER_ATTEMPTS', '8'))
+MAX_PROVIDER_ATTEMPTS = int(os.environ.get('SAGE_ROUTER_MAX_PROVIDER_ATTEMPTS', '8'))
 LATENCY_STATS_LOCK = threading.Lock()
 OLLAMA_MODEL_CACHE = {}
 MODEL_HEALTH_CACHE = {}
@@ -58,7 +70,7 @@ def canonical_provider_env_key(name: str):
 
 
 def load_ollama_manifest_bindings(kind: str):
-    prefix = f'SMART_ROUTER_OLLAMA_MANIFEST_{kind}__'
+    prefix = f'SAGE_ROUTER_OLLAMA_MANIFEST_{kind}__'
     bindings = {}
     for key, value in os.environ.items():
         if key.startswith(prefix) and value.strip():
@@ -975,13 +987,13 @@ def available_provider_names():
 
 
 # Patterns of models to auto-pull when discovered on any Ollama instance.
-# Set via env: SMART_ROUTER_OLLAMA_AUTO_PULL_PATTERNS=comma,separated,patterns
+# Set via env: SAGE_ROUTER_OLLAMA_AUTO_PULL_PATTERNS=comma,separated,patterns
 OLLAMA_AUTO_PULL_PATTERNS = [
-    p.strip() for p in os.environ.get('SMART_ROUTER_OLLAMA_AUTO_PULL_PATTERNS', ':cloud').split(',')
+    p.strip() for p in os.environ.get('SAGE_ROUTER_OLLAMA_AUTO_PULL_PATTERNS', ':cloud').split(',')
     if p.strip()
 ]
 # How often to check for new models to pull (seconds)
-OLLAMA_AUTO_PULL_INTERVAL_SECONDS = int(os.environ.get('SMART_ROUTER_OLLAMA_AUTO_PULL_INTERVAL_SECONDS', '3600'))
+OLLAMA_AUTO_PULL_INTERVAL_SECONDS = int(os.environ.get('SAGE_ROUTER_OLLAMA_AUTO_PULL_INTERVAL_SECONDS', '3600'))
 
 
 def ollama_auto_pull_new_models():
