@@ -142,5 +142,21 @@
     "api": "openai-completions",
     "models": "auto-discover",
     "_note": "Meta-provider - only use if you specifically need OR models. Prefer direct providers."
+  },
+
+  "galaxy-ai": {
+    "baseUrl": "https://api.galaxy.ai/v1",
+    "apiKey": "${GALAXY_AI_API_KEY}",
+    "api": "openai-completions",
+    "models": "auto-discover",
+    "_note": "All-in-one AI platform with OpenAI-compatible API. Supports GPT-4o, Claude, Gemini, Grok, Llama from one endpoint. https://galaxy.ai"
+  },
+
+  "zemith": {
+    "baseUrl": "https://api.zemith.com/v1",
+    "apiKey": "${ZEMITH_API_KEY}",
+    "api": "openai-completions",
+    "models": "auto-discover",
+    "_note": "Developer-centric AI platform with 25+ models (GPT-4o, Gemini, Claude). Workflow Studio for AI automation. https://zemith.com"
   }
 }

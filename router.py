@@ -263,6 +263,10 @@ def infer_api_type(name, cfg, base_url):
         return 'google-generative-language'
     if 'x.ai' in host or name == 'xai':
         return 'openai-completions'
+    if 'galaxy.ai' in host or name == 'galaxy-ai':
+        return 'openai-completions'
+    if 'zemith.com' in host or name == 'zemith':
+        return 'openai-completions'
     return 'openai-completions'
 
 
