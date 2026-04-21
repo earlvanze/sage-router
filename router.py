@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smart Router V3 - Dynamic provider discovery and routing"""
+"""Sage Router - Dynamic provider discovery and routing"""
 import argparse, json, logging, math, os, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -80,7 +80,7 @@ INTENT_API_SCORES = {
 }
 
 INTENT_MODEL_HINTS = {
-    'CODE': ['opus', 'sonnet', 'codex', 'gpt-5', 'deepseek', 'qwen', 'kimi', 'glm'],
+    'CODE': ['coder', 'opus', 'sonnet', 'codex', 'gpt-5', 'deepseek', 'qwen', 'kimi', 'glm'],
     'ANALYSIS': ['opus', 'sonnet', 'gpt-5', 'o3', 'qwen', 'kimi', 'minimax', 'glm'],
     'CREATIVE': ['opus', 'sonnet', 'minimax', 'kimi', 'gpt-5', 'qwen'],
     'REALTIME': ['gpt-4o', 'gpt-5', 'sonnet', 'kimi', 'qwen', 'glm'],
@@ -97,7 +97,10 @@ OLLAMA_FAMILY_HINTS = {
     'deepseek': {'bonus': 10, 'intents': {'CODE', 'ANALYSIS'}},
     'llama': {'bonus': 5, 'intents': {'GENERAL', 'CREATIVE'}},
 }
-NON_CHAT_MODEL_HINTS = ['embed', 'embedding', 'rerank', 'bge-', 'nomic-embed', 'whisper', 'tts', 'sdxl', 'stable-diffusion']
+NON_CHAT_MODEL_HINTS = [
+    'embed', 'embedding', 'rerank', 'bge-', 'nomic-embed', 'whisper', 'tts', 'sdxl', 'stable-diffusion',
+    '-vl', ':vl', 'vision', 'ocr', 'asr', 'transcribe'
+]
 
 class Intent(Enum):
     CODE = auto(); ANALYSIS = auto(); CREATIVE = auto(); REALTIME = auto(); GENERAL = auto()

@@ -1,5 +1,5 @@
 [Unit]
-Description=Smart Router V3 - Intent-based AI model routing
+Description=Sage Router - Intent-based AI model routing
 After=network-online.target
 Wants=network-online.target
 
