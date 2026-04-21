@@ -1,9 +1,9 @@
 ---
-name: smart-router-v3
-description: Intent-based AI model router that classifies requests and routes to the best provider. Auto-discovers OpenClaw providers and model lists from openclaw.json, skips self-recursion, and scores candidates dynamically by intent. Runs as a systemd service on port 8788. Use when configuring, debugging, or modifying the smart-router service.
+name: sage-router
+description: Intent-based AI model router that classifies requests and routes to the best provider. Auto-discovers OpenClaw providers and model lists from openclaw.json, skips self-recursion, and scores candidates dynamically by intent. Runs as a systemd service on port 8788. Use when configuring, debugging, or modifying the sage-router service.
 ---
 
-# Smart Router V3
+# Sage Router
 
 HTTP server on `:8788` that routes OpenAI-compatible chat requests to the optimal provider based on intent classification.
 
@@ -12,7 +12,7 @@ HTTP server on `:8788` that routes OpenAI-compatible chat requests to the optima
 Providers are discovered from `~/.openclaw/openclaw.json` at startup.
 
 Rules:
-- skips the router's own `smart-router` provider entry to avoid recursion
+- skips the router's own `sage-router` provider entry to avoid recursion
 - resolves `${ENV_VAR}` values for `baseUrl` and `apiKey`
 - includes OpenClaw gateway `openai-codex` as a virtual provider when the auth profile exists
 - recognizes Google Gemini providers from `generativelanguage.googleapis.com`
@@ -55,8 +55,8 @@ Intent is detected by keyword matching on the latest user message. Complexity is
 
 - `openai-codex` is kept as an optional bridge, not a required first hop.
 - Anthropic compatibility is provided through Dario, so `anthropic` can stay in `openclaw.json` while routing locally through `dario`.
-- The repo `systemd` unit is template-style and expects local machine values in `~/.config/smart-router/smart-router.env`.
-- Empirical latency memory is persisted at `~/.cache/smart-router-v3/latency-stats.json` by default.
+- The repo `systemd` unit is template-style and expects local machine values in `~/.config/sage-router/sage-router.env`.
+- Empirical latency memory is persisted at `~/.cache/sage-router/latency-stats.json` by default.
 - When the OpenClaw gateway model-set path is unhealthy, the helper falls back to running without provider/model overrides instead of failing hard.
 - If any provider starts misbehaving, suppress it with `SMART_ROUTER_DISABLED_PROVIDERS` instead of editing the router.
 - GitHub workflows now include CI syntax checks and CodeQL analysis for Python + JavaScript.
@@ -67,12 +67,12 @@ Intent is detected by keyword matching on the latest user message. Complexity is
 Install the user service from the repo copy:
 
 ```bash
-mkdir -p ~/.config/systemd/user ~/.config/smart-router
-cp systemd/smart-router.service ~/.config/systemd/user/smart-router.service
-cp systemd/smart-router.env.example ~/.config/smart-router/smart-router.env
-# edit ~/.config/smart-router/smart-router.env for your machine
+mkdir -p ~/.config/systemd/user ~/.config/sage-router
+cp systemd/sage-router.service ~/.config/systemd/user/sage-router.service
+cp systemd/sage-router.env.example ~/.config/sage-router/sage-router.env
+# edit ~/.config/sage-router/sage-router.env for your machine
 systemctl --user daemon-reload
-systemctl --user enable --now smart-router.service
+systemctl --user enable --now sage-router.service
 ```
 
 Notes:
@@ -86,7 +86,7 @@ If an Anthropic provider is detected and Dario is not installed yet, install Dar
 ## Service
 
 ```bash
-systemctl --user status smart-router
-systemctl --user restart smart-router
-journalctl --user -u smart-router -f   # live logs
+systemctl --user status sage-router
+systemctl --user restart sage-router
+journalctl --user -u sage-router -f   # live logs
 ```

@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(
 logger = logging.getLogger("router")
 OPENCLAW_CONFIG = os.path.expanduser("~/.openclaw/openclaw.json")
 OPENCLAW_GATEWAY_HELPER = os.path.join(os.path.dirname(__file__), 'openclaw_gateway_agent.mjs')
-SELF_PROVIDER_NAMES = {'smart-router'}
+SELF_PROVIDER_NAMES = {'smart-router', 'sage-router'}
 DARIO_PROVIDER_NAME = os.environ.get('SMART_ROUTER_DARIO_PROVIDER_NAME', 'dario')
 DARIO_LOCAL_BASE_URL = os.environ.get('SMART_ROUTER_DARIO_BASE_URL', 'http://127.0.0.1:3456')
 DARIO_LOCAL_API_KEY = os.environ.get('SMART_ROUTER_DARIO_API_KEY', 'dario')
@@ -37,7 +37,7 @@ CONSECUTIVE_FAILURE_COOLDOWN_THRESHOLD = int(os.environ.get('SMART_ROUTER_CONSEC
 MODEL_MISSING_COOLDOWN_SECONDS = int(os.environ.get('SMART_ROUTER_MODEL_MISSING_COOLDOWN_SECONDS', '1800'))
 EMPTY_OUTPUT_COOLDOWN_SECONDS = int(os.environ.get('SMART_ROUTER_EMPTY_OUTPUT_COOLDOWN_SECONDS', '600'))
 PROVIDER_HEALTH_CACHE = {}
-LATENCY_STATS_PATH = os.path.expanduser(os.environ.get('SMART_ROUTER_LATENCY_STATS_PATH', '~/.cache/smart-router-v3/latency-stats.json'))
+LATENCY_STATS_PATH = os.path.expanduser(os.environ.get('SMART_ROUTER_LATENCY_STATS_PATH', '~/.cache/sage-router/latency-stats.json'))
 LATENCY_EWMA_ALPHA = float(os.environ.get('SMART_ROUTER_LATENCY_EWMA_ALPHA', '0.35'))
 GENERAL_EMPIRICAL_EXPLORATION_BONUS = float(os.environ.get('SMART_ROUTER_GENERAL_EXPLORATION_BONUS', '20'))
 GENERAL_EMPIRICAL_SUCCESS_EXPLORATION_CAP = float(os.environ.get('SMART_ROUTER_GENERAL_SUCCESS_EXPLORATION_CAP', '8'))
@@ -954,7 +954,7 @@ def ensure_background_refresh_started():
     global BACKGROUND_REFRESH_STARTED
     if BACKGROUND_REFRESH_STARTED:
         return
-    thread = threading.Thread(target=background_refresh_loop, name='smart-router-refresh', daemon=True)
+    thread = threading.Thread(target=background_refresh_loop, name='sage-router-refresh', daemon=True)
     thread.start()
     BACKGROUND_REFRESH_STARTED = True
 
@@ -1593,7 +1593,7 @@ class Handler(BaseHTTPRequestHandler):
                 if want_stream and status_code == 200:
                     # Return SSE stream wrapping the single response for OpenClaw compatibility
                     content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
-                    model = result.get('model', 'smart-router/auto')
+                    model = result.get('model', 'sage-router/auto')
                     chat_id = result.get('id', f'chatcmpl-{int(time.time())}')
                     # Build the complete SSE body
                     sse_body = ''
