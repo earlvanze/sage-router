@@ -1735,6 +1735,106 @@ def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
         logger.warning(f"Google {base_url} {model}: {extract_http_error(e)}")
         return False, extract_http_error(e)
 
+def google_to_openai_messages(payload):
+    """Convert Google Generative AI request format to OpenAI messages format."""
+    messages = []
+    system_instruction = payload.get('systemInstruction', {})
+    if system_instruction:
+        sys_parts = system_instruction.get('parts', [])
+        sys_text = ' '.join(p.get('text', '') for p in sys_parts if isinstance(p, dict))
+        if sys_text.strip():
+            messages.append({'role': 'system', 'content': sys_text.strip()})
+    for content in payload.get('contents', []):
+        role = content.get('role', 'user')
+        parts = content.get('parts', [])
+        text_parts = [p.get('text', '') for p in parts if isinstance(p, dict) and p.get('text')]
+        combined = '\n'.join(text_parts)
+        if combined.strip():
+            oai_role = 'assistant' if role == 'model' else 'user'
+            messages.append({'role': oai_role, 'content': combined})
+    return messages or [{'role': 'user', 'content': 'Hello'}]
+
+
+def openai_to_google_response(result, request_model):
+    """Convert OpenAI chat completion response to Google Generative AI format."""
+    content = result.get('choices', [{}])[0].get('message', {}).get('content', '') or ''
+    model = result.get('model', request_model or 'sage-router/auto')
+    usage = result.get('usage', {})
+    return {
+        'candidates': [{
+            'content': {
+                'parts': [{'text': content}],
+                'role': 'model'
+            },
+            'finishReason': 'STOP',
+            'index': 0
+        }],
+        'modelVersion': model,
+        'usageMetadata': {
+            'promptTokenCount': usage.get('prompt_tokens', 0),
+            'candidatesTokenCount': usage.get('completion_tokens', 0),
+            'totalTokenCount': usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)
+        }
+    }
+
+
+def handle_google_generate(self, body, request_id, started, model_name, want_stream=False):
+    """Handle Google Generative AI /v1beta/models/{model}:generateContent requests."""
+    try:
+        payload = json.loads(body or b'{}')
+        messages = google_to_openai_messages(payload)
+        gen_config = payload.get('generationConfig', {})
+        want_json = gen_config.get('responseMimeType') == 'application/json'
+        thinking = normalize_thinking(payload.get('thinking'))
+        route_mode = normalize_route_mode(payload.get('route'))
+        requirements = normalize_requirements(payload)
+
+        logger.info(f'[{request_id}] Google compat {model_name} with {len(messages)} messages, stream={want_stream}')
+        result = route_request(messages, request_id=request_id, thinking=thinking, route_mode=route_mode, requirements=requirements, want_json=want_json)
+
+        is_error = isinstance(result, dict) and result.get('error')
+        if is_error:
+            self.write_json(503, {
+                'error': {
+                    'code': 503,
+                    'message': result.get('error', 'Internal error'),
+                    'status': 'UNAVAILABLE'
+                }
+            })
+        elif want_stream:
+            content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+            model = result.get('model', model_name or 'sage-router/auto')
+            # Google streaming format - SSE with chunked candidates
+            sse_body = ''
+            # Initial chunk with metadata
+            chunk = json.dumps({'candidates': [{'content': {'parts': [{'text': content}], 'role': 'model'}, 'finishReason': 'STOP', 'index': 0}], 'modelVersion': model})
+            sse_body += f'data: {chunk}\n\n'
+            sse_body += 'data: [DONE]\n\n'
+            sse_bytes = sse_body.encode()
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('Content-Length', str(len(sse_bytes)))
+            self.end_headers()
+            self.wfile.write(sse_bytes)
+            self.wfile.flush()
+        else:
+            google_resp = openai_to_google_response(result, model_name)
+            self.write_json(200, google_resp)
+        logger.info(f'[{request_id}] Google compat responded in {time.time() - started:.2f}s')
+    except Exception as e:
+        logger.exception(f'[{request_id}] Google compat request failed')
+        self.write_json(500, {
+            'error': {'code': 500, 'message': str(e), 'status': 'INTERNAL'}
+        })
+
+
+    for msg in reversed(messages or []):
+        if msg.get('role') == 'user' and msg.get('content'):
+            return msg.get('content', '')
+    return messages[-1].get('content', '') if messages else ''
+
+
 def latest_user_text(messages):
     for msg in reversed(messages or []):
         if msg.get('role') == 'user' and msg.get('content'):
@@ -1964,6 +2064,17 @@ class Handler(BaseHTTPRequestHandler):
                 "reasoningCapabilities": reasoning_capabilities_summary(),
                 "lastRoute": LAST_ROUTE_DEBUG,
             })
+        elif self.path.startswith('/v1beta/models') or self.path.startswith('/v1/models'):
+            # Google Generative AI models listing endpoint
+            models_data = []
+            for name, prov in PROVIDERS.items():
+                for m in prov.models:
+                    models_data.append({
+                        'name': f'models/{m}',
+                        'displayName': m,
+                        'supportedGenerationMethods': ['generateContent', 'streamGenerateContent'],
+                    })
+            self.write_json(200, {'models': models_data})
         else:
             self.send_response(404)
             self.end_headers()
@@ -2015,6 +2126,20 @@ class Handler(BaseHTTPRequestHandler):
             request_id = uuid.uuid4().hex[:8]
             started = time.time()
             handle_anthropic_messages(self, body, request_id, started)
+        elif ':generateContent' in self.path or ':streamGenerateContent' in self.path:
+            # Google Generative AI compat: /v1beta/models/{model}:generateContent
+            import re
+            match = re.match(r'.*/models/([^:]+):(generateContent|streamGenerateContent)', self.path)
+            if match:
+                body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+                request_id = uuid.uuid4().hex[:8]
+                started = time.time()
+                model_name = match.group(1)
+                want_stream = match.group(2) == 'streamGenerateContent'
+                handle_google_generate(self, body, request_id, started, model_name, want_stream)
+            else:
+                self.send_response(404)
+                self.end_headers()
         else:
             self.send_response(404)
             self.end_headers()
