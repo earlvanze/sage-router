@@ -11,7 +11,15 @@ env:
 
 # Sage Router
 
-HTTP server on `:8788` that routes OpenAI-compatible chat requests to the optimal provider based on intent classification.
+HTTP server on `:8788` that routes chat requests to the optimal provider based on intent classification.
+
+## Endpoints
+
+- `POST /v1/chat/completions` — OpenAI-compatible; routes automatically
+- `POST /v1/messages` — Anthropic Messages API compatible; translates to/from OpenAI format internally
+- `GET /health` — Provider status, model lists, routing debug
+
+Any Anthropic-compatible tool (Cursor, Aider, Claude Code, Zed, Continue, OpenHands) can point at `http://localhost:8788` as the API base URL. Both streaming and non-streaming are supported.
 
 ## Active Providers
 
