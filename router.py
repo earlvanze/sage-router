@@ -1587,9 +1587,31 @@ class Handler(BaseHTTPRequestHandler):
                 requirements = normalize_requirements(payload)
                 want_json = str(payload.get('responseFormat') or '').lower() == 'json' or payload.get('response_format', {}).get('type') == 'json_object'
                 logger.info(f"[{request_id}] Incoming {self.path} with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}")
+                want_stream = payload.get('stream', False)
                 result = route_request(payload.get('messages', []), request_id=request_id, thinking=thinking, route_mode=route_mode, requirements=requirements, want_json=want_json)
                 status_code = 503 if isinstance(result, dict) and result.get('error') else 200
-                self.write_json(status_code, result)
+                if want_stream and status_code == 200:
+                    # Return SSE stream wrapping the single response for OpenClaw compatibility
+                    content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+                    model = result.get('model', 'smart-router/auto')
+                    chat_id = result.get('id', f'chatcmpl-{int(time.time())}')
+                    # Build the complete SSE body
+                    sse_body = ''
+                    chunk = json.dumps({"id": chat_id, "object": "chat.completion.chunk", "created": int(time.time()), "model": model, "choices": [{"index": 0, "delta": {"role": "assistant", "content": content}, "finish_reason": None}]})
+                    sse_body += f'data: {chunk}\n\n'
+                    done_chunk = json.dumps({"id": chat_id, "object": "chat.completion.chunk", "created": int(time.time()), "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]})
+                    sse_body += f'data: {done_chunk}\n\n'
+                    sse_body += 'data: [DONE]\n\n'
+                    sse_bytes = sse_body.encode()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'text/event-stream')
+                    self.send_header('Cache-Control', 'no-cache')
+                    self.send_header('Content-Length', str(len(sse_bytes)))
+                    self.end_headers()
+                    self.wfile.write(sse_bytes)
+                    self.wfile.flush()
+                else:
+                    self.write_json(status_code, result)
                 logger.info(f"[{request_id}] Responded in {time.time() - started:.2f}s")
             except Exception as e:
                 logger.exception(f"[{request_id}] Request handling failed")
