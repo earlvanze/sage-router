@@ -1,6 +1,32 @@
-import { r as callGateway } from '/home/umbrel/.nvm/versions/node/v25.8.1/lib/node_modules/openclaw/dist/call-BA3do6C0.js';
-import { g as GATEWAY_CLIENT_NAMES, h as GATEWAY_CLIENT_MODES } from '/home/umbrel/.nvm/versions/node/v25.8.1/lib/node_modules/openclaw/dist/message-channel-CBqCPFa_.js';
+// OpenClaw Gateway agent bridge for Sage Router
+// Dynamically resolves the OpenClaw SDK from NODE_PATH or the global npm install.
+import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
+
+const require = createRequire(import.meta.url);
+let callGateway, GATEWAY_CLIENT_NAMES, GATEWAY_CLIENT_MODES;
+try {
+  // Try global openclaw installation
+  const sdkBase = require.resolve('openclaw');
+  const callMod = require(require.resolve('openclaw/dist/call-BA3do6C0.js', { paths: [sdkBase] }));
+  const chanMod = require(require.resolve('openclaw/dist/message-channel-CBqCPFa_.js', { paths: [sdkBase] }));
+  callGateway = callMod.r;
+  GATEWAY_CLIENT_NAMES = chanMod.g;
+  GATEWAY_CLIENT_MODES = chanMod.h;
+} catch {
+  // Fallback: require from known paths
+  try {
+    const homeDir = process.env.HOME || '/home/umbrel';
+    const callMod = require(`${homeDir}/.nvm/versions/node/v25.8.1/lib/node_modules/openclaw/dist/call-BA3do6C0.js`);
+    const chanMod = require(`${homeDir}/.nvm/versions/node/v25.8.1/lib/node_modules/openclaw/dist/message-channel-CBqCPFa_.js`);
+    callGateway = callMod.r;
+    GATEWAY_CLIENT_NAMES = chanMod.g;
+    GATEWAY_CLIENT_MODES = chanMod.h;
+  } catch (e) {
+    console.error('Cannot load OpenClaw SDK. Ensure openclaw is installed globally.', e.message);
+    process.exit(1);
+  }
+}
 
 function readStdin() {
   return new Promise((resolve, reject) => {

@@ -1,6 +1,12 @@
 ---
 name: sage-router
 description: Intent-based AI model router that classifies requests and routes to the best provider. Auto-discovers OpenClaw providers and model lists from openclaw.json, skips self-recursion, and scores candidates dynamically by intent. Runs as a systemd service on port 8788. Use when configuring, debugging, or modifying the sage-router service.
+env:
+  - SMART_ROUTER_HOME (required: path to sage-router repo)
+  - SMART_ROUTER_DISABLED_PROVIDERS (optional: comma-separated provider names to suppress)
+  - SMART_ROUTER_OLLAMA_TIMEOUT_SECONDS (optional, default 120)
+  - SMART_ROUTER_OLLAMA_AUTO_PULL_PATTERNS (optional, default :cloud)
+  - OPENCLAW_GATEWAY_TOKEN (optional: token for OpenClaw gateway agent bridge)
 ---
 
 # Sage Router
