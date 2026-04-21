@@ -102,6 +102,20 @@ NON_CHAT_MODEL_HINTS = [
     '-vl', ':vl', 'vision', 'ocr', 'asr', 'transcribe'
 ]
 
+# Ollama model families that are NOT text-chat capable.
+# Populated dynamically from /api/tags `details.family` / `details.families`.
+NON_CHAT_OLLAMA_FAMILIES = {
+    'nomic-bert',   # embedding
+    'glmocr',      # OCR vision
+    'qwen3vl',     # vision-language
+    'llava',       # vision-language
+    'clip',        # image embedding
+    'bakllava',    # vision-language
+    'moondream',   # vision-language
+    'minicpm-v',   # vision-language
+    'llama-vision',# vision-language
+}
+
 class Intent(Enum):
     CODE = auto(); ANALYSIS = auto(); CREATIVE = auto(); REALTIME = auto(); GENERAL = auto()
 class Complexity(Enum):
@@ -341,8 +355,17 @@ def model_is_servable(provider, model):
 
 def is_chat_capable_model(provider, model):
     model_l = (model or '').lower()
-    if provider.api_type == 'ollama' and any(hint in model_l for hint in NON_CHAT_MODEL_HINTS):
-        return False
+    if provider.api_type == 'ollama':
+        # 1) Static name-pattern check (fast, catches most cases)
+        if any(hint in model_l for hint in NON_CHAT_MODEL_HINTS):
+            return False
+        # 2) Dynamic family check from discovered metadata
+        meta = (provider.model_meta or {}).get(model, {})
+        family = (meta.get('family') or '').lower()
+        families = [f.lower() for f in (meta.get('families') or []) if f]
+        all_families = set(families) | {family} - {''}
+        if all_families & NON_CHAT_OLLAMA_FAMILIES:
+            return False
     return True
 
 
@@ -812,15 +835,18 @@ def fetch_ollama_models(provider: Provider):
             if model_name:
                 models.append(model_name)
                 meta = dict(provider.model_meta or {})
+                details = model.get('details', {}) if isinstance(model.get('details'), dict) else {}
                 meta.setdefault(model_name, {
                     'reasoning': False,
-                    'contextWindow': model.get('details', {}).get('context_length') if isinstance(model.get('details'), dict) else None,
+                    'contextWindow': details.get('context_length'),
                     'maxTokens': None,
                     'input': ['text'],
                     'servable': True,
                     'preferred': False,
                     'resident': False,
                     'manifestReason': None,
+                    'family': details.get('family', ''),
+                    'families': details.get('families') or [],
                 })
                 provider.model_meta = meta
     except Exception as e:
