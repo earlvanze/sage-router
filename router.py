@@ -80,7 +80,7 @@ INTENT_API_SCORES = {
 }
 
 INTENT_MODEL_HINTS = {
-    'CODE': ['coder', 'opus', 'sonnet', 'codex', 'gpt-5', 'deepseek', 'qwen', 'kimi', 'glm'],
+    'CODE': ['coder', 'opus', 'sonnet', 'codex', 'gpt-5', 'deepseek', 'qwen', 'kimi', 'glm', 'gptoss'],
     'ANALYSIS': ['opus', 'sonnet', 'gpt-5', 'o3', 'qwen', 'kimi', 'minimax', 'glm'],
     'CREATIVE': ['opus', 'sonnet', 'minimax', 'kimi', 'gpt-5', 'qwen'],
     'REALTIME': ['gpt-4o', 'gpt-5', 'sonnet', 'kimi', 'qwen', 'glm'],
@@ -92,18 +92,26 @@ LIGHTWEIGHT_MODEL_HINTS = ['mini', 'small', 'haiku']
 OLLAMA_FAMILY_HINTS = {
     'qwen': {'bonus': 9, 'intents': {'CODE', 'ANALYSIS', 'GENERAL'}},
     'kimi': {'bonus': 8, 'intents': {'CODE', 'GENERAL', 'CREATIVE', 'REALTIME'}},
+    'kimi-k2': {'bonus': 9, 'intents': {'CODE', 'GENERAL', 'CREATIVE', 'REALTIME', 'ANALYSIS'}},
     'glm': {'bonus': 11, 'intents': {'CODE', 'ANALYSIS', 'GENERAL', 'REALTIME'}},
     'minimax': {'bonus': 6, 'intents': {'CREATIVE', 'GENERAL'}},
     'deepseek': {'bonus': 10, 'intents': {'CODE', 'ANALYSIS'}},
     'llama': {'bonus': 5, 'intents': {'GENERAL', 'CREATIVE'}},
+    'gptoss': {'bonus': 7, 'intents': {'CODE', 'GENERAL', 'ANALYSIS'}},
+    'qwen3moe': {'bonus': 8, 'intents': {'CODE', 'GENERAL'}},
+    'qwen35moe': {'bonus': 9, 'intents': {'CODE', 'ANALYSIS', 'GENERAL'}},
 }
+
+# Known NON-chat families — dynamically extended from /api/tags.
+# A family is non-chat if it matches these patterns or is explicitly listed.
+NON_CHAT_FAMILY_PATTERNS = ['embed', 'bert', 'clip', 'vl', 'vision', 'ocr', 'asr', 'whisper', 'tts', 'sd', 'rerank']
 NON_CHAT_MODEL_HINTS = [
     'embed', 'embedding', 'rerank', 'bge-', 'nomic-embed', 'whisper', 'tts', 'sdxl', 'stable-diffusion',
     '-vl', ':vl', 'vision', 'ocr', 'asr', 'transcribe'
 ]
 
 # Ollama model families that are NOT text-chat capable.
-# Populated dynamically from /api/tags `details.family` / `details.families`.
+# Seed list — dynamically extended by background_refresh_detect_families().
 NON_CHAT_OLLAMA_FAMILIES = {
     'nomic-bert',   # embedding
     'glmocr',      # OCR vision
@@ -966,6 +974,113 @@ def available_provider_names():
     ]
 
 
+# Patterns of models to auto-pull when discovered on any Ollama instance.
+# Set via env: SMART_ROUTER_OLLAMA_AUTO_PULL_PATTERNS=comma,separated,patterns
+OLLAMA_AUTO_PULL_PATTERNS = [
+    p.strip() for p in os.environ.get('SMART_ROUTER_OLLAMA_AUTO_PULL_PATTERNS', ':cloud').split(',')
+    if p.strip()
+]
+# How often to check for new models to pull (seconds)
+OLLAMA_AUTO_PULL_INTERVAL_SECONDS = int(os.environ.get('SMART_ROUTER_OLLAMA_AUTO_PULL_INTERVAL_SECONDS', '3600'))
+
+
+def ollama_auto_pull_new_models():
+    """Check all Ollama providers for models matching auto-pull patterns that
+    aren't yet available locally. Pull them in the background.
+    Only runs every OLLAMA_AUTO_PULL_INTERVAL_SECONDS to avoid excessive pulls."""
+    now = time.time()
+    last_pull_check_key = '_last_auto_pull_check'
+    if now - OLLAMA_MODEL_CACHE.get(last_pull_check_key, 0) < OLLAMA_AUTO_PULL_INTERVAL_SECONDS:
+        return
+    OLLAMA_MODEL_CACHE[last_pull_check_key] = now
+
+    if not OLLAMA_AUTO_PULL_PATTERNS:
+        return
+
+    for provider in PROVIDERS.values():
+        if provider.api_type != 'ollama':
+            continue
+        # Get manifest models (cloud-only models that may not be in /api/tags yet)
+        manifest, _ = fetch_ollama_manifest(provider)
+        manifest_models = []
+        if manifest:
+            manifest_models = [m.get('name', '') for m in manifest.get('models', []) if m.get('name')]
+
+        # Combine discovered + manifest models
+        all_known = set(dedupe_keep_order((provider.models or []) + manifest_models))
+
+        # Check which patterns have no matching model
+        for pattern in OLLAMA_AUTO_PULL_PATTERNS:
+            matching = [m for m in all_known if pattern in m]
+            if not matching:
+                # Pattern has no match yet — nothing to pull
+                continue
+            # Check if models matching pattern are actually available (not just known)
+            available = set(fetch_ollama_models(provider))
+            for model in matching:
+                if model not in available:
+                    logger.info(f'Auto-pulling new model: {model} (pattern: {pattern}, provider: {provider.name})')
+                    try:
+                        pull_url = provider.base_url.rstrip('/') + '/api/pull'
+                        data = json.dumps({'name': model, 'stream': False}).encode()
+                        req = urllib.request.Request(pull_url, data=data, headers={'Content-Type': 'application/json'})
+                        if provider.api_key:
+                            req.add_header('Authorization', f'Bearer {provider.api_key}')
+                        with urllib.request.urlopen(req, timeout=600) as resp:
+                            result = json.loads(resp.read())
+                        logger.info(f'Auto-pull complete: {model} -> {result.get("status", "ok")}')
+                        # Refresh model list after pull
+                        OLLAMA_MODEL_CACHE.pop(provider.name, None)
+                        fetch_ollama_models(provider)
+                    except Exception as e:
+                        logger.warning(f'Auto-pull failed for {model}: {extract_http_error(e)}')
+
+
+def background_refresh_detect_families():
+    """Scan all Ollama providers' /api/tags for new model families.
+    - Auto-register chat families into OLLAMA_FAMILY_HINTS with a default bonus.
+    - Auto-register non-chat families into NON_CHAT_OLLAMA_FAMILIES.
+    - Log newly discovered families for visibility.
+    """
+    new_chat = []
+    new_nonchat = []
+    for provider in PROVIDERS.values():
+        if provider.api_type != 'ollama':
+            continue
+        meta = provider.model_meta or {}
+        for model_name, info in meta.items():
+            family = (info.get('family') or '').strip().lower()
+            families = info.get('families') or []
+            all_families = set()
+            if family:
+                all_families.add(family)
+            for f in (families if isinstance(families, list) else []):
+                if f and isinstance(f, str):
+                    all_families.add(f.strip().lower())
+            for fam in all_families:
+                # Check if non-chat
+                is_nonchat = any(pat in fam for pat in NON_CHAT_FAMILY_PATTERNS) or fam in NON_CHAT_OLLAMA_FAMILIES
+                if is_nonchat:
+                    if fam not in NON_CHAT_OLLAMA_FAMILIES:
+                        NON_CHAT_OLLAMA_FAMILIES.add(fam)
+                        new_nonchat.append(fam)
+                else:
+                    # Check if chat family is known
+                    known = False
+                    for hint_key in OLLAMA_FAMILY_HINTS:
+                        if fam.startswith(hint_key) or hint_key.startswith(fam):
+                            known = True
+                            break
+                    if not known and fam not in OLLAMA_FAMILY_HINTS:
+                        # Auto-register new chat family with conservative defaults
+                        OLLAMA_FAMILY_HINTS[fam] = {'bonus': 5, 'intents': {'GENERAL', 'CODE'}}
+                        new_chat.append(fam)
+    if new_chat:
+        logger.info(f'Auto-registered new chat families: {new_chat}')
+    if new_nonchat:
+        logger.info(f'Auto-registered new non-chat families: {new_nonchat}')
+
+
 def background_refresh_loop():
     while True:
         try:
@@ -974,6 +1089,8 @@ def background_refresh_loop():
                     fetch_ollama_models(provider)
                 for model in dedupe_keep_order(provider.models or []):
                     model_health_snapshot(provider, model, 'GENERAL')
+            background_refresh_detect_families()
+            ollama_auto_pull_new_models()
         except Exception as e:
             logger.warning(f'Background refresh failed: {e}')
         time.sleep(max(30, min(OLLAMA_MODEL_REFRESH_TTL_SECONDS, HEALTH_SCORE_TTL_SECONDS)))
