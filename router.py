@@ -251,6 +251,9 @@ def ensure_dario_proxy_ready():
 def infer_api_type(name, cfg, base_url):
     api_type = cfg.get('api')
     if api_type:
+        # Normalize google-generative-ai -> google-generative-language (OpenClaw schema enum)
+        if api_type == 'google-generative-ai':
+            return 'google-generative-language'
         return api_type
     host = (urllib.parse.urlparse(base_url or '').hostname or '').lower()
     if 'generativelanguage.googleapis.com' in host or name == 'google':
@@ -279,8 +282,12 @@ def discover_google_models(base_url, api_key):
     if not base_url or not api_key:
         return []
     try:
-        url = base_url.rstrip('/') + '/models'
-        req = urllib.request.Request(url, headers={'x-goog-api-key': api_key})
+        # Google API requires ?key= query param on /v1beta/models endpoint
+        base = base_url.rstrip('/')
+        if not base.endswith('/v1beta') and not base.endswith('/v1'):
+            base += '/v1beta'
+        url = f'{base}/models?key={api_key}'
+        req = urllib.request.Request(url)
         with urllib.request.urlopen(req, timeout=GOOGLE_TIMEOUT_SECONDS) as resp:
             payload = json.loads(resp.read())
         models = []
@@ -293,6 +300,8 @@ def discover_google_models(base_url, api_key):
                 model_name = model_name.split('/', 1)[1]
             if model_name:
                 models.append(model_name)
+        if models:
+            logger.info(f'Discovered {len(models)} Google models via API')
         return dedupe_keep_order(models)
     except Exception as e:
         logger.warning(f"Google model discovery {base_url}: {extract_http_error(e)}")
@@ -301,10 +310,15 @@ def discover_google_models(base_url, api_key):
 
 def discover_provider_models(name, cfg, base_url, api_key, api_type):
     configured = [m.get('id') for m in cfg.get('models', []) if m.get('id')]
+    # For providers with API discovery, merge configured + discovered
+    discovered = []
+    if api_type in ('google-generative-language', 'google-generative-ai'):
+        discovered = discover_google_models(base_url, api_key)
+    if discovered:
+        # Configured models first (stable), then any discovered models not already listed
+        return dedupe_keep_order(configured + discovered)
     if configured:
         return dedupe_keep_order(configured)
-    if api_type == 'google-generative-language':
-        return discover_google_models(base_url, api_key)
     return []
 
 
