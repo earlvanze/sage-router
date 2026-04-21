@@ -1696,6 +1696,140 @@ def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
     logger.error(f"[{request_id}] All providers failed after {total_elapsed:.2f}s")
     return {"error": "All providers failed", "request_id": request_id, "attempts": attempts, "choices": [{"message": {"content": "Error: No providers available"}}]}
 
+def openai_to_anthropic_response(openai_resp, request_model=None):
+    """Translate an OpenAI chat completion response to Anthropic Messages API format."""
+    choice = (openai_resp.get('choices') or [{}])[0]
+    content_text = choice.get('message', {}).get('content', '') or ''
+    finish_reason = choice.get('finish_reason', 'stop')
+    model = openai_resp.get('model', request_model or 'sage-router/auto')
+    usage = openai_resp.get('usage', {})
+    return {
+        'id': f'msg_{uuid.uuid4().hex[:24]}',
+        'type': 'message',
+        'role': 'assistant',
+        'content': [{'type': 'text', 'text': content_text}],
+        'model': model,
+        'stop_reason': 'end_turn' if finish_reason == 'stop' else finish_reason,
+        'stop_sequence': None,
+        'usage': {
+            'input_tokens': usage.get('prompt_tokens', 0),
+            'output_tokens': usage.get('completion_tokens', 0),
+        },
+    }
+
+
+def anthropic_to_openai_request(anthropic_payload):
+    """Translate an Anthropic Messages API request to OpenAI chat completions format."""
+    messages = []
+    # Anthropic system is a top-level field, not a message
+    system_text = anthropic_payload.get('system', '')
+    if isinstance(system_text, list):
+        # Anthropic system can be a list of content blocks
+        system_text = ' '.join(b.get('text', '') for b in system_text if isinstance(b, dict) and b.get('type') == 'text')
+    if system_text:
+        messages.append({'role': 'system', 'content': system_text})
+    for msg in (anthropic_payload.get('messages') or []):
+        role = msg.get('role', 'user')
+        content = msg.get('content', '')
+        # Anthropic content can be a list of content blocks
+        if isinstance(content, list):
+            parts = []
+            for block in content:
+                if isinstance(block, dict):
+                    if block.get('type') == 'text':
+                        parts.append(block.get('text', ''))
+                    elif block.get('type') == 'tool_use':
+                        parts.append(f'[Tool Use: {block.get("name", "unknown")}] {json.dumps(block.get("input", {}))}')
+                    elif block.get('type') == 'tool_result':
+                        result_content = block.get('content', '')
+                        if isinstance(result_content, list):
+                            result_content = ' '.join(b.get('text', '') for b in result_content if isinstance(b, dict) and b.get('type') == 'text')
+                        parts.append(f'[Tool Result: {block.get("tool_use_id", "?")}] {result_content}')
+                    elif block.get('type') == 'image' and block.get('source', {}).get('type') == 'base64':
+                        parts.append('[Image attached]')
+                elif isinstance(block, str):
+                    parts.append(block)
+            content = '\n'.join(parts)
+        if role in ('user', 'assistant', 'system'):
+            messages.append({'role': role, 'content': content})
+        else:
+            messages.append({'role': 'user', 'content': f'[{role.upper()}] {content}'})
+    # Ensure first message is user or system
+    if messages and messages[0]['role'] not in ('system', 'user'):
+        messages.insert(0, {'role': 'user', 'content': 'Hello'})
+    if not messages:
+        messages = [{'role': 'user', 'content': 'Hello'}]
+    return {
+        'model': anthropic_payload.get('model', 'sage-router/auto'),
+        'messages': messages,
+        'max_tokens': anthropic_payload.get('max_tokens', 4096),
+        'stream': False,
+        'temperature': anthropic_payload.get('temperature', 1.0),
+    }
+
+
+def handle_anthropic_messages(self, body, request_id, started):
+    """Handle POST /v1/messages — Anthropic Messages API compatibility.
+    Translates request to OpenAI format, routes, translates response back."""
+    try:
+        anthropic_payload = json.loads(body or b'{}')
+        request_model = anthropic_payload.get('model', 'sage-router/auto')
+        want_stream = anthropic_payload.get('stream', False)
+        openai_payload = anthropic_to_openai_request(anthropic_payload)
+        message_count = len(openai_payload.get('messages', []))
+        thinking = normalize_thinking(openai_payload.get('thinking') or openai_payload.get('reasoning'))
+        route_mode = normalize_route_mode(openai_payload.get('route'))
+        requirements = normalize_requirements(openai_payload)
+        want_json = False
+        logger.info(f"[{request_id}] Incoming /v1/messages (Anthropic compat) with {message_count} messages, model={request_model}, thinking={thinking.value}, route={route_mode}, stream={want_stream}")
+        result = route_request(openai_payload.get('messages', []), request_id=request_id, thinking=thinking, route_mode=route_mode, requirements=requirements, want_json=want_json)
+        if isinstance(result, dict) and result.get('error'):
+            # Error response — translate to Anthropic error format
+            self.write_json(503, {
+                'type': 'error',
+                'error': {'type': 'api_error', 'message': result.get('error', 'Internal error')}
+            })
+        elif want_stream:
+            # Anthropic SSE streaming format
+            content_text = result.get('choices', [{}])[0].get('message', {}).get('content', '') or ''
+            model = result.get('model', request_model or 'sage-router/auto')
+            msg_id = f'msg_{uuid.uuid4().hex[:24]}'
+            usage = result.get('usage', {})
+            sse_events = []
+            # message_start
+            sse_events.append(f'event: message_start\ndata: {json.dumps({"type":"message_start","message":{"id":msg_id,"type":"message","role":"assistant","content":[],"model":model,"stop_reason":None,"stop_sequence":None,"usage":{"input_tokens":usage.get("prompt_tokens",0),"output_tokens":0}}})}')  
+            # content_block_start
+            sse_events.append(f'event: content_block_start\ndata: {json.dumps({"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}})}')
+            # content_block_delta (send full text as one chunk for simplicity)
+            sse_events.append(f'event: content_block_delta\ndata: {json.dumps({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":content_text}})}')
+            # content_block_stop
+            sse_events.append(f'event: content_block_stop\ndata: {json.dumps({"type":"content_block_stop","index":0})}')
+            # message_delta
+            sse_events.append(f'event: message_delta\ndata: {json.dumps({"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":None},"usage":{"output_tokens":usage.get("completion_tokens",len(content_text)//4)}})}')
+            # message_stop
+            sse_events.append(f'event: message_stop\ndata: {json.dumps({"type":"message_stop"})}')
+            sse_body = '\n\n'.join(sse_events) + '\n\n'
+            sse_bytes = sse_body.encode()
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('Content-Length', str(len(sse_bytes)))
+            self.end_headers()
+            self.wfile.write(sse_bytes)
+            self.wfile.flush()
+        else:
+            # Non-streaming — translate to Anthropic response format
+            anthropic_resp = openai_to_anthropic_response(result, request_model)
+            self.write_json(200, anthropic_resp)
+        logger.info(f'[{request_id}] Anthropic compat responded in {time.time() - started:.2f}s')
+    except Exception as e:
+        logger.exception(f'[{request_id}] Anthropic compat request failed')
+        self.write_json(500, {
+            'type': 'error',
+            'error': {'type': 'api_error', 'message': str(e)}
+        })
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *a):
         logger.info("%s - %s", self.address_string(), fmt % a)
@@ -1784,6 +1918,11 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 logger.exception(f"[{request_id}] Request handling failed")
                 self.write_json(500, {"error": str(e)})
+        elif self.path in ['/v1/messages', '/messages']:
+            body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+            request_id = uuid.uuid4().hex[:8]
+            started = time.time()
+            handle_anthropic_messages(self, body, request_id, started)
         else:
             self.send_response(404)
             self.end_headers()
