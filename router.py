@@ -261,6 +261,8 @@ def infer_api_type(name, cfg, base_url):
     host = (urllib.parse.urlparse(base_url or '').hostname or '').lower()
     if 'generativelanguage.googleapis.com' in host or name == 'google':
         return 'google-generative-language'
+    if 'x.ai' in host or name == 'xai':
+        return 'openai-completions'
     return 'openai-completions'
 
 

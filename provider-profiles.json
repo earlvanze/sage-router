@@ -1,0 +1,146 @@
+{
+  "_schema": "sage-router-provider-profiles-v1",
+  "_description": "Copy providers you want into your openclaw.json models.providers section",
+  
+  "openai": {
+    "baseUrl": "https://api.openai.com/v1",
+    "apiKey": "${OPENAI_API_KEY}",
+    "api": "openai-completions",
+    "models": [
+      {"id": "gpt-5", "name": "GPT-5"},
+      {"id": "gpt-5-mini", "name": "GPT-5 Mini"},
+      {"id": "gpt-4o", "name": "GPT-4o"},
+      {"id": "gpt-4o-mini", "name": "GPT-4o Mini"},
+      {"id": "o3-mini", "name": "o3 Mini"}
+    ]
+  },
+
+  "anthropic": {
+    "baseUrl": "https://api.anthropic.com",
+    "apiKey": "${ANTHROPIC_API_KEY}",
+    "api": "anthropic-messages",
+    "models": [
+      {"id": "claude-opus-4", "name": "Claude Opus 4"},
+      {"id": "claude-sonnet-4", "name": "Claude Sonnet 4"},
+      {"id": "claude-haiku-4", "name": "Claude Haiku 4"}
+    ],
+    "_note": "Or use Dario proxy at http://127.0.0.1:3456 with apiKey 'local' to use Claude subscription"
+  },
+
+  "google": {
+    "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+    "apiKey": "${GEMINI_API_KEY}",
+    "api": "google-generative-ai",
+    "models": "auto-discover",
+    "_note": "Auto-discovers all 38+ Gemini models including gemini-2.5-pro, gemini-2.5-flash, gemma"
+  },
+
+  "xai": {
+    "baseUrl": "https://api.x.ai/v1",
+    "apiKey": "${XAI_API_KEY}",
+    "api": "openai-completions",
+    "models": [
+      {"id": "grok-3", "name": "Grok 3"},
+      {"id": "grok-3-mini", "name": "Grok 3 Mini"},
+      {"id": "grok-2", "name": "Grok 2"},
+      {"id": "grok-2-vision", "name": "Grok 2 Vision"}
+    ],
+    "_note": "Requires XAI_API_KEY from https://x.ai/api. Grok web subscription (SuperGrok) does NOT include API access - separate purchase required"
+  },
+
+  "perplexity": {
+    "baseUrl": "https://api.perplexity.ai",
+    "apiKey": "${PERPLEXITY_API_KEY}",
+    "api": "openai-completions",
+    "models": [
+      {"id": "sonar-pro", "name": "Sonar Pro"},
+      {"id": "sonar", "name": "Sonar"},
+      {"id": "sonar-reasoning-pro", "name": "Sonar Reasoning Pro"},
+      {"id": "sonar-reasoning", "name": "Sonar Reasoning"}
+    ]
+  },
+
+  "groq": {
+    "baseUrl": "https://api.groq.com/openai/v1",
+    "apiKey": "${GROQ_API_KEY}",
+    "api": "openai-completions",
+    "models": "auto-discover",
+    "_note": "Fast inference for open-source models. Auto-discovery recommended."
+  },
+
+  "together": {
+    "baseUrl": "https://api.together.xyz/v1",
+    "apiKey": "${TOGETHER_API_KEY}",
+    "api": "openai-completions",
+    "models": "auto-discover",
+    "_note": "Large model zoo with pay-per-token pricing. Auto-discovery recommended."
+  },
+
+  "fireworks": {
+    "baseUrl": "https://api.fireworks.ai/inference/v1",
+    "apiKey": "${FIREWORKS_API_KEY}",
+    "api": "openai-completions",
+    "models": "auto-discover"
+  },
+
+  "mistral": {
+    "baseUrl": "https://api.mistral.ai/v1",
+    "apiKey": "${MISTRAL_API_KEY}",
+    "api": "openai-completions",
+    "models": [
+      {"id": "mistral-large-latest", "name": "Mistral Large"},
+      {"id": "mistral-medium-latest", "name": "Mistral Medium"},
+      {"id": "codestral-latest", "name": "Codestral"}
+    ]
+  },
+
+  "cohere": {
+    "baseUrl": "https://api.cohere.com/v1",
+    "apiKey": "${COHERE_API_KEY}",
+    "api": "openai-completions",
+    "models": [
+      {"id": "command-r-plus", "name": "Command R Plus"},
+      {"id": "command-r", "name": "Command R"}
+    ]
+  },
+
+  "azure-openai": {
+    "baseUrl": "https://YOUR_RESOURCE.openai.azure.com/openai/deployments",
+    "apiKey": "${AZURE_OPENAI_KEY}",
+    "api": "openai-completions",
+    "models": [
+      {"id": "gpt-4o", "name": "GPT-4o Azure"},
+      {"id": "gpt-4", "name": "GPT-4 Azure"}
+    ],
+    "_note": "Replace YOUR_RESOURCE with your Azure OpenAI resource name"
+  },
+
+  "github-copilot": {
+    "baseUrl": "https://api.githubcopilot.com",
+    "apiKey": "${GITHUB_COPILOT_TOKEN}",
+    "api": "openai-completions",
+    "models": [
+      {"id": "gpt-4o-copilot", "name": "Copilot GPT-4o"},
+      {"id": "claude-sonnet-copilot", "name": "Copilot Claude Sonnet"}
+    ],
+    "_note": "Requires Copilot token from https://github.com/settings/copilot"
+  },
+
+  "deepseek": {
+    "baseUrl": "https://api.deepseek.com/v1",
+    "apiKey": "${DEEPSEEK_API_KEY}",
+    "api": "openai-completions",
+    "models": [
+      {"id": "deepseek-chat", "name": "DeepSeek Chat"},
+      {"id": "deepseek-reasoner", "name": "DeepSeek Reasoner"}
+    ]
+  },
+
+  "openrouter": {
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKey": "${OPENROUTER_API_KEY}",
+    "api": "openai-completions",
+    "models": "auto-discover",
+    "_note": "Meta-provider - only use if you specifically need OR models. Prefer direct providers."
+  }
+}
