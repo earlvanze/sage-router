@@ -28,15 +28,16 @@ Rules:
 
 ## Routing Logic
 
-The router no longer uses a hardcoded provider whitelist.
+The router does **not** perform mid-stream switching. Once a request is sent to a provider, the full response is returned or the attempt fails. If it fails, the next candidate in the chain is tried sequentially. There is no partial-output fallback or streaming handoff between providers.
 
 Flow:
 - detect intent from the latest user message
 - estimate complexity from prompt length
-- score every reachable provider/model pair from `openclaw.json`
+- score every reachable (provider, model) pair globally — not per-provider — from `openclaw.json`
 - for `GENERAL`, blend static heuristics with persisted empirical latency stats by provider and model
 - rank candidates by API type, model-name hints, complexity, and measured latency
 - attempt the top `SMART_ROUTER_MAX_PROVIDER_ATTEMPTS` candidates in order
+- `openclaw-gateway` (this router itself) is scored as a low-priority recursive fallback, never preferred
 
 Intent scoring is generic, for example:
 - code and analysis strongly favor Anthropic/OpenAI-style reasoning models

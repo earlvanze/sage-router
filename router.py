@@ -72,11 +72,11 @@ OLLAMA_MANIFEST_URLS = load_ollama_manifest_bindings('URL')
 OLLAMA_MANIFEST_FILES = load_ollama_manifest_bindings('FILE')
 
 INTENT_API_SCORES = {
-    'CODE': {'openclaw-gateway': 66, 'ollama': 60, 'openai-completions': 58, 'anthropic-messages': 48, 'google-generative-language': 44},
-    'ANALYSIS': {'ollama': 66, 'anthropic-messages': 58, 'openai-completions': 54, 'google-generative-language': 52, 'openclaw-gateway': 48},
-    'CREATIVE': {'anthropic-messages': 60, 'google-generative-language': 59, 'openai-completions': 55, 'ollama': 50, 'openclaw-gateway': 44},
-    'REALTIME': {'google-generative-language': 60, 'openai-completions': 60, 'anthropic-messages': 54, 'ollama': 48, 'openclaw-gateway': 42},
-    'GENERAL': {'anthropic-messages': 58, 'google-generative-language': 57, 'openai-completions': 56, 'ollama': 50, 'openclaw-gateway': 42},
+    'CODE': {'ollama': 60, 'openai-completions': 58, 'anthropic-messages': 48, 'google-generative-language': 44},
+    'ANALYSIS': {'ollama': 66, 'anthropic-messages': 58, 'openai-completions': 54, 'google-generative-language': 52},
+    'CREATIVE': {'anthropic-messages': 60, 'google-generative-language': 59, 'openai-completions': 55, 'ollama': 50},
+    'REALTIME': {'google-generative-language': 60, 'openai-completions': 60, 'anthropic-messages': 54, 'ollama': 48},
+    'GENERAL': {'anthropic-messages': 58, 'google-generative-language': 57, 'openai-completions': 56, 'ollama': 50},
 }
 
 INTENT_MODEL_HINTS = {
@@ -1082,6 +1082,13 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
     if provider.api_type == 'anthropic-messages' and intent in (Intent.CODE, Intent.ANALYSIS, Intent.GENERAL):
         score += 4
         contributions.append(('anthropic_reasoning_bias', 4))
+    # openclaw-gateway is recursive (routes through this router), so it gets
+    # a fixed low base score — only used as a fallback, never preferred.
+    if provider.api_type == 'openclaw-gateway':
+        score = min(score, 40)
+        contributions.append(('openclaw_gateway_recursive_cap', min(0, 40 - score)))
+    # OpenAI-compat / non-recursive external APIs keep their score as-is.
+    # The openclaw-gateway penalty below handles the rest.
     if provider.api_type == 'openclaw-gateway':
         score -= 4
         contributions.append(('openclaw_gateway_penalty', -4))
@@ -1241,7 +1248,13 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
     return final_score
 
 def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, estimated_tokens=0):
-    candidates = []
+    """Score ALL models across ALL providers globally, then rank.
+    
+    Previous behavior picked the best model per provider first, then
+    merged. This v3.1 approach scores every (provider, model) pair
+    independently and takes the top N globally, which gives small but
+    high-quality providers a fair shot against large model pools."""
+    all_candidates = []
     debug_scores = []
     rejections = []
     requirements = requirements or {}
@@ -1252,7 +1265,6 @@ def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='
             fetch_ollama_models(provider)
         if not provider.models or not provider_endpoint_reachable(provider):
             continue
-        best = None
         for model in dedupe_keep_order(provider.models):
             if not is_chat_capable_model(provider, model):
                 rejections.append({'provider': pn, 'model': model, 'reason': 'not chat-capable'})
@@ -1262,13 +1274,10 @@ def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='
                 rejections.append({'provider': pn, 'model': model, 'reason': reason})
                 continue
             scored = (score_provider_model(provider, model, intent, complexity, thinking, route_mode, estimated_tokens, debug_scores), pn, model)
-            if best is None or scored[0] > best[0]:
-                best = scored
-        if best:
-            candidates.append(best)
+            all_candidates.append(scored)
 
-    candidates.sort(key=lambda item: (-item[0], item[1], item[2]))
-    return [(pn, model) for _, pn, model in candidates[:MAX_PROVIDER_ATTEMPTS]], sorted(debug_scores, key=lambda item: item['score'], reverse=True), rejections
+    all_candidates.sort(key=lambda item: (-item[0], item[1], item[2]))
+    return [(pn, model) for _, pn, model in all_candidates[:MAX_PROVIDER_ATTEMPTS]], sorted(debug_scores, key=lambda item: item['score'], reverse=True), rejections
 
 def call_ollama(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM):
     url = base_url.rstrip('/') + '/api/chat'
@@ -1522,7 +1531,8 @@ def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
     logger.info(f"[{request_id}] Intent: {intent.name}, Complexity: {complexity.name}, Thinking: {thinking.value}, Route: {route_mode}, JSON: {want_json}, EstTokens: {estimated_tokens}")
     chain, score_debug, rejections = select_model(intent, complexity, thinking, route_mode, requirements, estimated_tokens)
     LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug[:12], 'rejections': rejections[:30]})
-    logger.info(f"[{request_id}] Chain: {chain}")
+    mid_stream = len(chain) > 1
+    logger.info(f"[{request_id}] Chain: {chain} (no mid-stream switching; each candidate tried sequentially until one succeeds)")
     overall_started = time.time()
     attempts = []
     for pn, model in chain:
