@@ -43,7 +43,7 @@ Flow:
 - for `GENERAL`, blend static heuristics with persisted empirical latency stats by provider and model
 - rank candidates by API type, model-name hints, complexity, and measured latency
 - attempt the top `SAGE_ROUTER_MAX_PROVIDER_ATTEMPTS` candidates in order
-- `openclaw-gateway` (this router itself) is scored as a low-priority recursive fallback, never preferred
+- `sage-router` provider (the router itself, model `auto`) is scored as a low-priority recursive fallback, never preferred
 
 Intent scoring is generic, for example:
 - code and analysis strongly favor Anthropic/OpenAI-style reasoning models
