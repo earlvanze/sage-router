@@ -64,8 +64,6 @@ OLLAMA_ALLOW_THINK_FALSE_RETRY = os.environ.get('SAGE_ROUTER_OLLAMA_ALLOW_THINK_
 OPENAI_COMPAT_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENAI_TIMEOUT_SECONDS', '35'))
 ANTHROPIC_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_ANTHROPIC_TIMEOUT_SECONDS', '35'))
 GOOGLE_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_GOOGLE_TIMEOUT_SECONDS', '35'))
-GALAXY_RUN_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_GALAXY_RUN_TIMEOUT_SECONDS', '45'))
-GALAXY_POLL_INTERVAL_SECONDS = float(os.environ.get('SAGE_ROUTER_GALAXY_POLL_INTERVAL_SECONDS', '1.0'))
 OPENCLAW_GATEWAY_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENCLAW_TIMEOUT_SECONDS', '20'))
 OPENCLAW_GATEWAY_CODE_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENCLAW_CODE_TIMEOUT_SECONDS', '45'))
 OPENCLAW_GATEWAY_AGENT_ID = os.environ.get('SAGE_ROUTER_OPENCLAW_AGENT_ID', 'main')
@@ -147,11 +145,11 @@ OLLAMA_MANIFEST_URLS = load_ollama_manifest_bindings('URL')
 OLLAMA_MANIFEST_FILES = load_ollama_manifest_bindings('FILE')
 
 INTENT_API_SCORES = {
-    'CODE': {'ollama': 60, 'openai-completions': 58, 'galaxy-workflow': 54, 'anthropic-messages': 48, 'google-generative-language': 44},
-    'ANALYSIS': {'ollama': 66, 'anthropic-messages': 58, 'openai-completions': 54, 'galaxy-workflow': 53, 'google-generative-language': 52},
-    'CREATIVE': {'anthropic-messages': 60, 'google-generative-language': 59, 'openai-completions': 55, 'galaxy-workflow': 54, 'ollama': 50},
-    'REALTIME': {'google-generative-language': 60, 'openai-completions': 60, 'galaxy-workflow': 56, 'anthropic-messages': 54, 'ollama': 48},
-    'GENERAL': {'anthropic-messages': 58, 'google-generative-language': 57, 'openai-completions': 56, 'galaxy-workflow': 54, 'ollama': 50},
+    'CODE': {'ollama': 60, 'openai-completions': 58, 'anthropic-messages': 48, 'google-generative-language': 44},
+    'ANALYSIS': {'ollama': 66, 'anthropic-messages': 58, 'openai-completions': 54, 'google-generative-language': 52},
+    'CREATIVE': {'anthropic-messages': 60, 'google-generative-language': 59, 'openai-completions': 55, 'ollama': 50},
+    'REALTIME': {'google-generative-language': 60, 'openai-completions': 60, 'anthropic-messages': 54, 'ollama': 48},
+    'GENERAL': {'anthropic-messages': 58, 'google-generative-language': 57, 'openai-completions': 56, 'ollama': 50},
 }
 
 INTENT_MODEL_HINTS = {
@@ -400,7 +398,6 @@ def discover_model_meta(cfg):
         }
         for key in (
             'preferred', 'resident', 'family', 'families', 'servable', 'manifestReason',
-            'galaxyNodeType', 'galaxySubModelId', 'galaxyPromptKey', 'galaxySystemPromptKey',
             'supportsChat', 'supportsJson', 'supportsTools', 'supportsStreaming'
         ):
             if key in model:
@@ -449,7 +446,7 @@ def load_router_profile_overlays(existing_providers):
         logger.warning(f'Failed to load provider profile overlays: {e}')
         return providers
 
-    requested = [item.strip() for item in os.environ.get('SAGE_ROUTER_PROFILE_OVERLAYS', 'galaxy-ai,grok-sso').split(',') if item.strip()]
+    requested = [item.strip() for item in os.environ.get('SAGE_ROUTER_PROFILE_OVERLAYS', 'grok-sso').split(',') if item.strip()]
     for name in requested:
         if name in existing_providers:
             continue
@@ -468,9 +465,6 @@ def load_router_profile_overlays(existing_providers):
             ready, reason = grok_sso_proxy_ready(base_url)
             if not ready:
                 logger.info(f'Skipped grok-sso overlay because local proxy is not ready: {reason}')
-                continue
-        if name == 'galaxy-ai' and not api_key:
-            logger.info('Skipped galaxy-ai overlay because GALAXY_API_KEY is not available to sage-router')
             continue
         reasoning_models = discover_reasoning_models(cfg)
         model_meta = discover_model_meta(cfg)
@@ -2091,133 +2085,6 @@ def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
         return False, extract_http_error(e)
 
 
-def build_galaxy_input(payload, messages, model_meta=None):
-    model_meta = model_meta or {}
-    override = payload.get('galaxyInput')
-    if isinstance(override, dict) and override:
-        return override
-
-    prompt_key = model_meta.get('galaxyPromptKey') or payload.get('galaxyPromptKey') or 'prompt'
-    system_key = model_meta.get('galaxySystemPromptKey') or payload.get('galaxySystemPromptKey') or 'system_prompt'
-    system_text = '\n'.join(
-        msg.get('content', '') for msg in messages or []
-        if msg.get('role') in {'system', 'developer'} and msg.get('content')
-    ).strip()
-    prompt_text = latest_user_text(messages)
-    if not prompt_text:
-        prompt_text = '\n\n'.join(
-            f"{msg.get('role', 'user')}: {msg.get('content', '')}" for msg in messages or [] if msg.get('content')
-        ).strip() or 'Hello'
-
-    galaxy_input = {prompt_key: prompt_text}
-    if system_text:
-        galaxy_input[system_key] = system_text
-    return galaxy_input
-
-
-def extract_text_from_galaxy_output(value, depth=0):
-    if depth > 8 or value is None:
-        return []
-    if isinstance(value, str):
-        text = sanitize_visible_output(value)
-        return [text] if text else []
-    if isinstance(value, (int, float, bool)):
-        return [str(value)]
-    if isinstance(value, list):
-        found = []
-        for item in value:
-            found.extend(extract_text_from_galaxy_output(item, depth + 1))
-        return found
-    if isinstance(value, dict):
-        found = []
-        choice0 = ((value.get('choices') or [{}])[0] if isinstance(value.get('choices'), list) else {}) or {}
-        if isinstance(choice0, dict):
-            found.extend(extract_text_from_galaxy_output(choice0.get('message', {}), depth + 1))
-            found.extend(extract_text_from_galaxy_output(choice0.get('text'), depth + 1))
-            delta = choice0.get('delta') or {}
-            if isinstance(delta, dict):
-                found.extend(extract_text_from_galaxy_output(delta.get('content'), depth + 1))
-        for key in ['text', 'content', 'output_text', 'output', 'response', 'result', 'answer', 'message', 'completion', 'generatedText', 'data']:
-            if key in value:
-                found.extend(extract_text_from_galaxy_output(value.get(key), depth + 1))
-        if not found:
-            for sub_value in value.values():
-                if isinstance(sub_value, (str, list, dict, int, float, bool)):
-                    found.extend(extract_text_from_galaxy_output(sub_value, depth + 1))
-        return found
-    return []
-
-
-def pick_galaxy_output_text(output):
-    candidates = []
-    for item in extract_text_from_galaxy_output(output):
-        text = sanitize_visible_output(item)
-        if text and text not in candidates:
-            candidates.append(text)
-    if candidates:
-        return max(candidates, key=len)
-    if isinstance(output, (dict, list)):
-        try:
-            return json.dumps(output, ensure_ascii=False)
-        except Exception:
-            return ''
-    return '' if output is None else str(output)
-
-
-def call_galaxy_completion(base_url, model, payload, api_key='', provider_name='galaxy-ai', model_meta=None, debug_mode=False, request_id=''):
-    model_meta = model_meta or {}
-    messages = normalize_messages(payload.get('messages', []))
-    node_type = payload.get('galaxyNodeType') or model_meta.get('galaxyNodeType') or model
-    sub_model_id = payload.get('galaxySubModelId') or model_meta.get('galaxySubModelId')
-    run_url = base_url.rstrip('/') + f'/v1/nodes/{urllib.parse.quote(str(node_type), safe="")}/run'
-    headers = {'Content-Type': 'application/json'}
-    if api_key:
-        headers['Authorization'] = f'Bearer {api_key}'
-
-    run_payload = {'input': build_galaxy_input(payload, messages, model_meta)}
-    if sub_model_id:
-        run_payload['subModelId'] = sub_model_id
-
-    try:
-        req = urllib.request.Request(run_url, data=json.dumps(run_payload).encode(), headers=headers)
-        with urllib.request.urlopen(req, timeout=GALAXY_RUN_TIMEOUT_SECONDS) as resp:
-            run_body = json.loads(resp.read())
-        run_id = run_body.get('runId')
-        if not run_id:
-            err = f'Galaxy {provider_name}/{model} did not return runId'
-            logger.warning(err)
-            return False, err
-
-        status_url = base_url.rstrip('/') + f'/v1/nodes/runs/{urllib.parse.quote(str(run_id), safe="")}'
-        deadline = time.time() + GALAXY_RUN_TIMEOUT_SECONDS
-        last_status = 'queued'
-        while time.time() < deadline:
-            status_req = urllib.request.Request(status_url, headers=headers)
-            with urllib.request.urlopen(status_req, timeout=max(5, GALAXY_RUN_TIMEOUT_SECONDS)) as resp:
-                status_body = json.loads(resp.read())
-            last_status = str(status_body.get('status') or '').strip().lower() or last_status
-            if last_status in {'completed', 'complete', 'succeeded', 'success', 'done'}:
-                text = pick_galaxy_output_text(status_body.get('output'))
-                if text:
-                    return True, build_openai_completion(provider_name, model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
-                err = f'Galaxy run {run_id} completed with empty output'
-                logger.warning(err)
-                return False, err
-            if last_status in {'failed', 'error', 'cancelled', 'canceled'}:
-                err = status_body.get('error') or f'Galaxy run {run_id} failed with status {last_status}'
-                logger.warning(f'Galaxy {provider_name}/{model}: {err}')
-                return False, err
-            time.sleep(max(0.2, GALAXY_POLL_INTERVAL_SECONDS))
-
-        err = f'Galaxy run {run_id} timed out waiting for completion (last status: {last_status})'
-        logger.warning(f'Galaxy {provider_name}/{model}: {err}')
-        return False, err
-    except Exception as e:
-        err = extract_http_error(e)
-        logger.warning(f'Galaxy {provider_name}/{model}: {err}')
-        return False, err
-
-
 def call_openai_compat_completion(base_url, model, payload, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False, request_id=''):
     url = base_url.rstrip('/') + '/v1/chat/completions'
     proxied = build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=supports_reasoning, thinking=thinking)
@@ -2570,15 +2437,6 @@ def handle_openai_chat_completions(self, payload, request_id, started):
                     ok, result = call_google_completion(prov.base_url, model, payload, api_key=prov.api_key, thinking=thinking, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
-            elif prov.api_type == 'galaxy-workflow':
-                if want_stream:
-                    error_detail = 'streaming passthrough not implemented for galaxy workflow bridge'
-                elif payload.get('tools'):
-                    error_detail = 'tool passthrough unsupported for galaxy workflow bridge'
-                else:
-                    ok, result = call_galaxy_completion(prov.base_url, model, payload, api_key=prov.api_key, provider_name=pn, model_meta=(prov.model_meta or {}).get(model, {}), debug_mode=debug_mode, request_id=request_id)
-                    if not ok:
-                        error_detail = result
             elif prov.api_type == 'openclaw-gateway':
                 if want_stream or payload.get('tools'):
                     error_detail = 'streaming/tool passthrough unsupported for openclaw gateway bridge'
@@ -2803,12 +2661,6 @@ def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
             ok, text = call_anthropic(prov.base_url, model, normalized_messages, prov.api_key, thinking, supports_reasoning, want_json)
         elif prov.api_type == 'google-generative-language':
             ok, text = call_google(prov.base_url, model, normalized_messages, prov.api_key, thinking, want_json)
-        elif prov.api_type == 'galaxy-workflow':
-            ok, result = call_galaxy_completion(prov.base_url, model, {'messages': normalized_messages, 'response_format': {'type': 'json_object'} if want_json else {}}, prov.api_key, pn, (prov.model_meta or {}).get(model, {}), False, request_id)
-            if ok:
-                text = result.get('choices', [{}])[0].get('message', {}).get('content', '') or ''
-            else:
-                text = result
         else:
             ok, text = call_openai_compat(prov.base_url, model, normalized_messages, prov.api_key, pn, thinking, supports_reasoning, want_json)
         elapsed = time.time() - started

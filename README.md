@@ -203,19 +203,6 @@ Sage Router can route through a local Grok SSO proxy instead of burning xAI API 
 
 See `provider-profiles.json` for the `grok-sso` template and `GROK_SSO.md` for setup.
 
-### Galaxy.ai
-
-Galaxy is tracked in this skill as a **custom adapter target**, not a plain OpenAI-compatible provider.
-
-- REST base: `https://app.galaxy.ai/api`
-- MCP endpoint: `https://app.galaxy.ai/api/mcp`
-- env: `GALAXY_API_KEY`
-- Sage Router can now auto-load a `galaxy-ai` overlay from `provider-profiles.json` and bridge direct-run models through `POST /v1/nodes/{nodeType}/run` plus polling on `/v1/nodes/runs/{runId}`
-- current direct-run template ships with a `gpt_5_4` example model and extracts best-effort text output back into OpenAI-style chat completions
-- limitations: no native SSE token streaming, no tool passthrough, and live runs still depend on Galaxy credits
-
-See `GALAXY.md` for the direct-run API shape, MCP notes, and adapter details.
-
 ### OpenClaw Gateway
 
 ```json
@@ -242,8 +229,6 @@ See `GALAXY.md` for the direct-run API shape, MCP notes, and adapter details.
 | **OpenAI** | ❌ Manual list | ✅ | ✅ | API key |
 | **GitHub Copilot** | ❌ Manual list | ✅ | ✅ | Token |
 | **xAI/Grok** | ❌ SSO proxy | ❌ | ❌ | Cookie/SSO |
-| **Galaxy.ai** | ❌ Manual list | ✅ | ❌ | API key |
-| **OpenClaw Gateway** | ❌ Manual list | ✅ | ❌ | Internal |
 
 **Dynamic Discovery**: Models are auto-fetched from provider API  
 **Force Model**: Request specific model via `"model": "provider/model"`  
