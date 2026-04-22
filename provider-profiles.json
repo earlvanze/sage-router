@@ -159,7 +159,20 @@
     "baseUrl": "https://app.galaxy.ai/api",
     "apiKey": "${GALAXY_API_KEY}",
     "api": "galaxy-workflow",
-    "models": "discover-via-api-or-mcp",
-    "_note": "Galaxy is an async workflow/direct-run platform plus remote MCP server at https://app.galaxy.ai/api/mcp. It needs a custom adapter, not plain OpenAI compatibility."
+    "models": [
+      {
+        "id": "gpt_5_4",
+        "name": "GPT-5.4 (Galaxy direct-run)",
+        "reasoning": true,
+        "contextWindow": 256000,
+        "maxTokens": 128000,
+        "input": ["text"],
+        "galaxyNodeType": "gpt_5_4",
+        "galaxyPromptKey": "prompt",
+        "galaxySystemPromptKey": "system_prompt",
+        "manifestReason": "Galaxy direct-run adapter via /v1/nodes/{nodeType}/run"
+      }
+    ],
+    "_note": "Galaxy is an async workflow/direct-run platform plus remote MCP server at https://app.galaxy.ai/api/mcp. Sage Router can bridge configured direct-run nodeTypes, but this is not plain OpenAI compatibility and live runs still require Galaxy credits."
   }
 }

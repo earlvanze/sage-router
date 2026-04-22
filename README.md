@@ -195,6 +195,7 @@ If you install OpenClaw's `xai-grok-auth` plugin, Sage Router can route through 
 
 - local proxy provider: `grok-sso`
 - typical base URL: `http://127.0.0.1:18923/v1`
+- Sage Router will auto-load the `grok-sso` overlay from `provider-profiles.json` when that local proxy is actually reachable
 - SSO cookie mode is great for subscription-backed chat, but usually **does not support OpenAI-style tool calling**
 - xAI API-key mode keeps tool support
 
@@ -207,8 +208,11 @@ Galaxy is tracked in this skill as a **custom adapter target**, not a plain Open
 - REST base: `https://app.galaxy.ai/api`
 - MCP endpoint: `https://app.galaxy.ai/api/mcp`
 - env: `GALAXY_API_KEY`
+- Sage Router can now auto-load a `galaxy-ai` overlay from `provider-profiles.json` and bridge direct-run models through `POST /v1/nodes/{nodeType}/run` plus polling on `/v1/nodes/runs/{runId}`
+- current direct-run template ships with a `gpt_5_4` example model and extracts best-effort text output back into OpenAI-style chat completions
+- limitations: no native SSE token streaming, no tool passthrough, and live runs still depend on Galaxy credits
 
-See `GALAXY.md` for the direct-run API shape, MCP notes, and adapter plan.
+See `GALAXY.md` for the direct-run API shape, MCP notes, and adapter details.
 
 ### OpenClaw Gateway
 

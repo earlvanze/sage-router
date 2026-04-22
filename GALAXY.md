@@ -40,13 +40,33 @@ Example MCP config:
 - `start_run`
 - `get_run`
 
-## Adapter shape for Sage Router
-A future `galaxy-workflow` adapter should:
-1. map routed request intent to a Galaxy node/model or workflow
-2. `POST /v1/nodes/{nodeType}/run`
-3. poll `GET /v1/nodes/runs/{runId}` until terminal state
-4. translate output into OpenAI-style assistant content or tool-call payloads
-5. use dynamic timeout policy based on intent/route mode
+## Current Sage Router adapter
+`galaxy-workflow` is now wired in `router.py` as a best-effort direct-run bridge.
+
+Current behavior:
+1. load `GALAXY_API_KEY` from `~/.openclaw/.env` if the service env does not already expose it
+2. auto-load the `galaxy-ai` profile overlay from `provider-profiles.json`
+3. `POST /v1/nodes/{nodeType}/run`
+4. poll `GET /v1/nodes/runs/{runId}` until a terminal state
+5. extract the most plausible text payload from the returned `output`
+6. translate that into an OpenAI-style chat completion response
+
+Current limits:
+- no native SSE token streaming
+- no tool-call passthrough
+- success depends on a valid nodeType and available Galaxy credits
+- model-specific input field names may still need per-model overrides via `galaxyPromptKey`, `galaxySystemPromptKey`, `galaxyNodeType`, and `galaxySubModelId`
+
+## Model metadata example
+
+```json
+{
+  "id": "gpt_5_4",
+  "galaxyNodeType": "gpt_5_4",
+  "galaxyPromptKey": "prompt",
+  "galaxySystemPromptKey": "system_prompt"
+}
+```
 
 ## Caveats
 - async by design, so latency can be materially higher than standard chat providers
