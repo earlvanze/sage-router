@@ -53,10 +53,22 @@
     "apiKey": "local",
     "api": "openai-completions",
     "models": [
-      {"id": "grok-3", "name": "Grok 3 (SuperGrok SSO)"},
-      {"id": "grok-3-mini", "name": "Grok 3 Mini (SuperGrok SSO)"}
+      {
+        "id": "grok-3",
+        "name": "Grok 3 (SuperGrok SSO)",
+        "supportsTools": false,
+        "supportsStreaming": false,
+        "manifestReason": "Local Grok SSO proxy backed by browser/session cookies"
+      },
+      {
+        "id": "grok-3-mini",
+        "name": "Grok 3 Mini (SuperGrok SSO)",
+        "supportsTools": false,
+        "supportsStreaming": false,
+        "manifestReason": "Local Grok SSO proxy backed by browser/session cookies"
+      }
     ],
-    "_note": "Requires the OpenClaw xai-grok-auth plugin. SSO cookie mode gives subscription-backed chat routing but typically no OpenAI-style tool calling. API-key mode retains tool support."
+    "_note": "Requires a local Grok SSO proxy at http://127.0.0.1:18923. The old OpenClaw xai-grok-auth plugin can satisfy this, or you can run the bundled grok_sso_proxy.py replacement. SSO mode is chat-only and intentionally disables OpenAI-style tool calling and streaming."
   },
 
   "perplexity": {

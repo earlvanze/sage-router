@@ -1,0 +1,14 @@
+[Unit]
+Description=Grok SSO local OpenAI-compatible proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-%h/.config/sage-router/grok-sso-proxy.env
+ExecStart=/usr/bin/env bash -lc 'cd "$${GROK_SSO_PROXY_HOME:?Set GROK_SSO_PROXY_HOME in ~/.config/sage-router/grok-sso-proxy.env}" && exec "$${GROK_SSO_PROXY_PYTHON:-python3}" grok_sso_proxy.py --host "$${GROK_SSO_PROXY_HOST:-127.0.0.1}" --port "$${GROK_SSO_PROXY_PORT:-18923}"'
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

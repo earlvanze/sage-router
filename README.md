@@ -191,15 +191,17 @@ Models are auto-discovered via the Gemini API.
 
 ### xAI via SuperGrok subscription
 
-If you install OpenClaw's `xai-grok-auth` plugin, Sage Router can route through the plugin's local OpenAI-compatible proxy instead of burning xAI API credits.
+Sage Router can route through a local Grok SSO proxy instead of burning xAI API credits.
 
 - local proxy provider: `grok-sso`
 - typical base URL: `http://127.0.0.1:18923/v1`
-- Sage Router will auto-load the `grok-sso` overlay from `provider-profiles.json` when that local proxy is actually reachable
-- SSO cookie mode is great for subscription-backed chat, but usually **does not support OpenAI-style tool calling**
+- if the old OpenClaw `xai-grok-auth` plugin still exists for you, that works
+- this repo also ships a bundled replacement proxy: `grok_sso_proxy.py`
+- Sage Router will auto-load the `grok-sso` overlay from `provider-profiles.json` only when the local proxy `/health` reports `ready: true`
+- SSO mode is chat-only and intentionally **does not support OpenAI-style tool calling or streaming**
 - xAI API-key mode keeps tool support
 
-See `provider-profiles.json` for the `grok-sso` template.
+See `provider-profiles.json` for the `grok-sso` template and `GROK_SSO.md` for setup.
 
 ### Galaxy.ai
 

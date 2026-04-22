@@ -398,11 +398,44 @@ def discover_model_meta(cfg):
             'maxTokens': model.get('maxTokens'),
             'input': model.get('input') or [],
         }
-        for key in ('preferred', 'resident', 'family', 'families', 'servable', 'manifestReason', 'galaxyNodeType', 'galaxySubModelId', 'galaxyPromptKey', 'galaxySystemPromptKey'):
+        for key in (
+            'preferred', 'resident', 'family', 'families', 'servable', 'manifestReason',
+            'galaxyNodeType', 'galaxySubModelId', 'galaxyPromptKey', 'galaxySystemPromptKey',
+            'supportsChat', 'supportsJson', 'supportsTools', 'supportsStreaming'
+        ):
             if key in model:
                 entry[key] = model.get(key)
         meta[model_id] = entry
     return meta
+
+
+def grok_sso_proxy_health_url(base_url):
+    parsed = urllib.parse.urlparse(base_url or '')
+    if not parsed.scheme or not parsed.netloc:
+        return ''
+    path = parsed.path or ''
+    if path.endswith('/v1'):
+        path = path[:-3]
+    elif path.endswith('/v1/'):
+        path = path[:-4]
+    path = path.rstrip('/')
+    return urllib.parse.urlunparse((parsed.scheme, parsed.netloc, (path or '') + '/health', '', '', ''))
+
+
+def grok_sso_proxy_ready(base_url):
+    health_url = grok_sso_proxy_health_url(base_url)
+    if not health_url:
+        return False, 'missing health URL'
+    try:
+        req = urllib.request.Request(health_url)
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
+            payload = json.load(resp)
+        if payload.get('ready'):
+            return True, None
+        reason = payload.get('missingRequiredCookies') or payload.get('notes') or 'proxy not ready'
+        return False, reason
+    except Exception as e:
+        return False, str(e)
 
 
 def load_router_profile_overlays(existing_providers):
@@ -432,12 +465,9 @@ def load_router_profile_overlays(existing_providers):
         if name == 'grok-sso' and not base_url:
             continue
         if name == 'grok-sso':
-            try:
-                req = urllib.request.Request(base_url.rstrip('/') + '/models')
-                with urllib.request.urlopen(req, timeout=1.5):
-                    pass
-            except Exception:
-                logger.info('Skipped grok-sso overlay because local proxy is not reachable')
+            ready, reason = grok_sso_proxy_ready(base_url)
+            if not ready:
+                logger.info(f'Skipped grok-sso overlay because local proxy is not ready: {reason}')
                 continue
         if name == 'galaxy-ai' and not api_key:
             logger.info('Skipped galaxy-ai overlay because GALAXY_API_KEY is not available to sage-router')
@@ -767,15 +797,19 @@ def parse_anthropic_response(body):
 
 def model_capabilities(provider, model):
     meta = (provider.model_meta or {}).get(model, {})
+    default_chat = is_chat_capable_model(provider, model)
+    default_json = provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages', 'google-generative-language'}
+    default_tools = provider.api_type in {'openai-completions', 'ollama', 'anthropic-messages'}
+    default_streaming = provider.api_type in {'openai-completions', 'ollama'}
     return {
-        'chat': is_chat_capable_model(provider, model),
+        'chat': bool(meta.get('supportsChat', default_chat)),
         'servable': model_is_servable(provider, model),
         'preferred': bool(meta.get('preferred', False)),
         'resident': bool(meta.get('resident', False)),
         'reasoning': provider_supports_reasoning(provider, model),
-        'json': provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages', 'google-generative-language'},
-        'tools': provider.api_type in {'openai-completions', 'ollama', 'anthropic-messages'},
-        'streaming': provider.api_type in {'openai-completions', 'ollama'},
+        'json': bool(meta.get('supportsJson', default_json)),
+        'tools': bool(meta.get('supportsTools', default_tools)),
+        'streaming': bool(meta.get('supportsStreaming', default_streaming)),
         'longContext': model_context_window(provider, model),
         'manifestReason': meta.get('manifestReason'),
     }
