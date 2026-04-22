@@ -45,7 +45,18 @@
       {"id": "grok-2", "name": "Grok 2"},
       {"id": "grok-2-vision", "name": "Grok 2 Vision"}
     ],
-    "_note": "Requires XAI_API_KEY from https://x.ai/api. Grok web subscription (SuperGrok) does NOT include API access - separate purchase required"
+    "_note": "Standard xAI API key path. Alternative: install the OpenClaw xai-grok-auth plugin to expose a local grok-sso OpenAI-compatible proxy backed by a SuperGrok subscription"
+  },
+
+  "grok-sso": {
+    "baseUrl": "http://127.0.0.1:18923/v1",
+    "apiKey": "local",
+    "api": "openai-completions",
+    "models": [
+      {"id": "grok-3", "name": "Grok 3 (SuperGrok SSO)"},
+      {"id": "grok-3-mini", "name": "Grok 3 Mini (SuperGrok SSO)"}
+    ],
+    "_note": "Requires the OpenClaw xai-grok-auth plugin. SSO cookie mode gives subscription-backed chat routing but typically no OpenAI-style tool calling. API-key mode retains tool support."
   },
 
   "perplexity": {
@@ -142,5 +153,13 @@
     "api": "openai-completions",
     "models": "auto-discover",
     "_note": "Meta-provider - only use if you specifically need OR models. Prefer direct providers."
+  },
+
+  "galaxy-ai": {
+    "baseUrl": "https://app.galaxy.ai/api",
+    "apiKey": "${GALAXY_API_KEY}",
+    "api": "galaxy-workflow",
+    "models": "discover-via-api-or-mcp",
+    "_note": "Galaxy is an async workflow/direct-run platform plus remote MCP server at https://app.galaxy.ai/api/mcp. It needs a custom adapter, not plain OpenAI compatibility."
   }
 }

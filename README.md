@@ -19,6 +19,7 @@ Unlike OpenRouter, which optimizes for cost, Sage Router optimizes for **getting
 - **Automatic fallback**: If one provider fails or hits rate limits, it seamlessly tries the next
 - **Dynamic discovery**: New models from Ollama, Anthropic, OpenAI, Google, and OpenClaw are auto-detected — no config updates needed
 - **Zero API lock-in**: Use any subscription you already have (Ollama, Claude, OpenAI, Gemini, GitHub Copilot)
+- **Debuggable routing**: Surface the selected provider/model in headers, `/health`, or optional debug output
 
 ---
 
@@ -188,6 +189,27 @@ Models are auto-discovered via the Gemini API.
 }
 ```
 
+### xAI via SuperGrok subscription
+
+If you install OpenClaw's `xai-grok-auth` plugin, Sage Router can route through the plugin's local OpenAI-compatible proxy instead of burning xAI API credits.
+
+- local proxy provider: `grok-sso`
+- typical base URL: `http://127.0.0.1:18923/v1`
+- SSO cookie mode is great for subscription-backed chat, but usually **does not support OpenAI-style tool calling**
+- xAI API-key mode keeps tool support
+
+See `provider-profiles.json` for the `grok-sso` template.
+
+### Galaxy.ai
+
+Galaxy is tracked in this skill as a **custom adapter target**, not a plain OpenAI-compatible provider.
+
+- REST base: `https://app.galaxy.ai/api`
+- MCP endpoint: `https://app.galaxy.ai/api/mcp`
+- env: `GALAXY_API_KEY`
+
+See `GALAXY.md` for the direct-run API shape, MCP notes, and adapter plan.
+
 ### OpenClaw Gateway
 
 ```json
@@ -231,6 +253,30 @@ Control reasoning depth per request:
 | `high` | Deep reasoning for complex tasks |
 
 Set via request: `{"thinking": "high"}` or `{"reasoning": "high"}`
+
+## Debug Mode
+
+To surface routing info back in the response payload, send:
+
+```json
+{
+  "debug": true
+}
+```
+
+or:
+
+```json
+{
+  "routeDebug": true
+}
+```
+
+Current behavior:
+- response headers always include `X-Sage-Router-*` routing metadata
+- `/health` exposes the last selected provider/model and attempts
+- debug mode adds `sage_router` metadata to the JSON response
+- for plain text responses, debug mode also prefixes the visible content with the selected `provider/model`
 
 ---
 

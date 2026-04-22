@@ -76,6 +76,8 @@ Intent is detected by keyword matching on the latest user message. Complexity is
 - If any provider starts misbehaving, suppress it with `SAGE_ROUTER_DISABLED_PROVIDERS` instead of editing the router.
 - GitHub workflows now include CI syntax checks and CodeQL analysis for Python + JavaScript.
 - See `BRANCH_PROTECTION.md` for the exact required-check setup on GitHub.
+- See `GALAXY.md` for Galaxy.ai REST + MCP notes and the planned `galaxy-workflow` adapter shape.
+- `provider-profiles.json` now includes a `grok-sso` template for the OpenClaw xAI auth plugin's local SuperGrok-backed proxy.
 
 ## Install
 

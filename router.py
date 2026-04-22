@@ -384,8 +384,26 @@ def normalize_requirements(payload):
         'json': bool(req.get('json') or payload.get('requiresJson')),
         'tools': bool(req.get('tools') or payload.get('requiresTools')),
         'longContext': bool(req.get('longContext') or payload.get('requiresLongContext')),
-        'streaming': bool(req.get('streaming') or payload.get('requiresStreaming')),
+        'streaming': bool(req.get('streaming') or payload.get('requiresStreaming') or payload.get('stream')),
     }
+
+
+def is_truthy(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value or '').strip().lower() in {'1', 'true', 'yes', 'on', 'debug', 'route'}
+
+
+def normalize_debug_mode(payload):
+    if not isinstance(payload, dict):
+        return False
+    debug = payload.get('debug')
+    if isinstance(debug, dict):
+        if is_truthy(debug.get('route')) or is_truthy(debug.get('routing')):
+            return True
+    return is_truthy(debug) or is_truthy(payload.get('routeDebug')) or is_truthy(payload.get('debugRoute'))
 
 
 def estimate_prompt_tokens(messages):
@@ -486,6 +504,188 @@ def sanitize_visible_output(text: str):
     return cleaned or raw.strip()
 
 
+def normalize_tool_calls(tool_calls):
+    normalized = []
+    for idx, tool_call in enumerate(tool_calls or []):
+        if not isinstance(tool_call, dict):
+            continue
+        function = tool_call.get('function') if isinstance(tool_call.get('function'), dict) else {}
+        name = function.get('name') or tool_call.get('name') or f'tool_{idx + 1}'
+        arguments = function.get('arguments') if 'arguments' in function else tool_call.get('arguments', {})
+        if isinstance(arguments, str):
+            arguments_text = arguments
+        else:
+            try:
+                arguments_text = json.dumps(arguments or {}, separators=(',', ':'))
+            except Exception:
+                arguments_text = '{}'
+        normalized.append({
+            'id': tool_call.get('id') or f'call_{uuid.uuid4().hex[:24]}',
+            'type': 'function',
+            'function': {
+                'name': name,
+                'arguments': arguments_text,
+            },
+        })
+    return normalized
+
+
+def build_router_metadata(provider_name, model, request_id=''):
+    return {
+        'provider': provider_name,
+        'model': model,
+        'request_id': request_id,
+    }
+
+
+def maybe_prefix_debug_text(content, metadata, debug_mode=False, allow_prefix=True):
+    text = sanitize_visible_output(content or '')
+    if debug_mode and allow_prefix and text:
+        text = f"[sage-router {metadata.get('provider')}/{metadata.get('model')}]\n{text}"
+    return text
+
+
+def build_openai_completion(provider_name, model, request_id, content='', tool_calls=None, finish_reason=None, usage=None, debug_mode=False, allow_debug_prefix=True):
+    metadata = build_router_metadata(provider_name, model, request_id)
+    normalized_tool_calls = normalize_tool_calls(tool_calls)
+    content_text = maybe_prefix_debug_text(content, metadata, debug_mode=debug_mode, allow_prefix=allow_debug_prefix and not normalized_tool_calls)
+    message = {'role': 'assistant', 'content': content_text}
+    if normalized_tool_calls:
+        message['tool_calls'] = normalized_tool_calls
+    resolved_finish_reason = finish_reason or ('tool_calls' if normalized_tool_calls else 'stop')
+    response = {
+        'id': f'chatcmpl-{int(time.time())}',
+        'object': 'chat.completion',
+        'created': int(time.time()),
+        'model': f'{provider_name}/{model}',
+        'choices': [{
+            'index': 0,
+            'message': message,
+            'finish_reason': resolved_finish_reason,
+        }],
+        'usage': usage or {'prompt_tokens': 0, 'completion_tokens': 0},
+    }
+    if debug_mode:
+        response['sage_router'] = metadata
+    return response
+
+
+def build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=False, thinking=ThinkingLevel.MEDIUM):
+    allowed_keys = [
+        'messages', 'tools', 'tool_choice', 'parallel_tool_calls', 'response_format',
+        'temperature', 'top_p', 'frequency_penalty', 'presence_penalty',
+        'stop', 'n', 'user', 'seed', 'stream_options', 'max_tokens',
+        'max_completion_tokens', 'modalities', 'audio', 'metadata'
+    ]
+    proxied = {'model': model, 'stream': bool(stream)}
+    for key in allowed_keys:
+        if key in payload:
+            proxied[key] = payload.get(key)
+    if supports_reasoning:
+        proxied['reasoning'] = payload.get('reasoning') or {'effort': thinking.value}
+    return proxied
+
+
+def openai_messages_to_ollama(messages):
+    converted = []
+    for msg in messages or []:
+        if not isinstance(msg, dict):
+            continue
+        item = {
+            'role': msg.get('role', 'user'),
+            'content': normalize_content(msg.get('content', '')),
+        }
+        tool_calls = normalize_tool_calls(msg.get('tool_calls'))
+        if tool_calls:
+            item['tool_calls'] = tool_calls
+        if msg.get('tool_call_id'):
+            item['tool_call_id'] = msg.get('tool_call_id')
+        converted.append(item)
+    return converted
+
+
+def build_ollama_payload(model, payload, thinking=ThinkingLevel.MEDIUM, stream=False):
+    ollama_payload = {
+        'model': model,
+        'messages': openai_messages_to_ollama(payload.get('messages', [])),
+        'stream': bool(stream),
+    }
+    if payload.get('tools'):
+        ollama_payload['tools'] = payload.get('tools')
+    if thinking == ThinkingLevel.LOW:
+        ollama_payload['options'] = {'num_predict': 1024}
+    elif thinking == ThinkingLevel.HIGH:
+        ollama_payload['options'] = {'num_predict': 4096}
+    return ollama_payload
+
+
+def openai_tools_to_anthropic(tools):
+    converted = []
+    for tool in tools or []:
+        if not isinstance(tool, dict) or tool.get('type') != 'function':
+            continue
+        fn = tool.get('function') or {}
+        converted.append({
+            'name': fn.get('name'),
+            'description': fn.get('description', ''),
+            'input_schema': fn.get('parameters') or {'type': 'object', 'properties': {}},
+        })
+    return [tool for tool in converted if tool.get('name')]
+
+
+def openai_messages_to_anthropic(messages):
+    system_text = []
+    converted = []
+    for msg in messages or []:
+        if not isinstance(msg, dict):
+            continue
+        role = msg.get('role', 'user')
+        content = normalize_content(msg.get('content', ''))
+        if role == 'system':
+            if content:
+                system_text.append(content)
+            continue
+        if role == 'tool':
+            block = {'type': 'tool_result', 'tool_use_id': msg.get('tool_call_id') or f'toolu_{uuid.uuid4().hex[:16]}', 'content': content}
+            converted.append({'role': 'user', 'content': [block]})
+            continue
+        blocks = []
+        if content:
+            blocks.append({'type': 'text', 'text': content})
+        for tool_call in normalize_tool_calls(msg.get('tool_calls')):
+            try:
+                tool_input = json.loads(tool_call['function']['arguments']) if tool_call['function']['arguments'] else {}
+            except Exception:
+                tool_input = {'raw_arguments': tool_call['function']['arguments']}
+            blocks.append({'type': 'tool_use', 'id': tool_call['id'], 'name': tool_call['function']['name'], 'input': tool_input})
+        converted.append({'role': 'assistant' if role == 'assistant' else 'user', 'content': blocks or [{'type': 'text', 'text': ''}]})
+    return '\n'.join(system_text).strip(), converted or [{'role': 'user', 'content': [{'type': 'text', 'text': 'Hello'}]}]
+
+
+def parse_anthropic_response(body):
+    content_blocks = body.get('content', []) or []
+    text_parts = []
+    tool_calls = []
+    for block in content_blocks:
+        if not isinstance(block, dict):
+            continue
+        if block.get('type') == 'text':
+            text_parts.append(block.get('text', ''))
+        elif block.get('type') == 'tool_use':
+            tool_calls.append({
+                'id': block.get('id') or f'call_{uuid.uuid4().hex[:24]}',
+                'type': 'function',
+                'function': {
+                    'name': block.get('name') or 'tool',
+                    'arguments': json.dumps(block.get('input') or {}, separators=(',', ':')),
+                },
+            })
+    return sanitize_visible_output(''.join(text_parts)), normalize_tool_calls(tool_calls), body.get('stop_reason'), {
+        'prompt_tokens': ((body.get('usage') or {}).get('input_tokens') or 0),
+        'completion_tokens': ((body.get('usage') or {}).get('output_tokens') or 0),
+    }
+
+
 def model_capabilities(provider, model):
     meta = (provider.model_meta or {}).get(model, {})
     return {
@@ -495,8 +695,8 @@ def model_capabilities(provider, model):
         'resident': bool(meta.get('resident', False)),
         'reasoning': provider_supports_reasoning(provider, model),
         'json': provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages', 'google-generative-language'},
-        'tools': provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages'},
-        'streaming': provider.api_type != 'openclaw-gateway',
+        'tools': provider.api_type in {'openai-completions', 'ollama', 'anthropic-messages'},
+        'streaming': provider.api_type in {'openai-completions', 'ollama'},
         'longContext': model_context_window(provider, model),
         'manifestReason': meta.get('manifestReason'),
     }
@@ -1772,6 +1972,288 @@ def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
         logger.warning(f"Google {base_url} {model}: {extract_http_error(e)}")
         return False, extract_http_error(e)
 
+
+def call_openai_compat_completion(base_url, model, payload, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False, request_id=''):
+    url = base_url.rstrip('/') + '/v1/chat/completions'
+    proxied = build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=supports_reasoning, thinking=thinking)
+    try:
+        data = json.dumps(proxied).encode()
+        hdrs = {'Content-Type': 'application/json'}
+        if api_key:
+            hdrs['Authorization'] = f'Bearer {api_key}'
+        req = urllib.request.Request(url, data=data, headers=hdrs)
+        with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+            body = json.loads(resp.read())
+        choice = (body.get('choices') or [{}])[0]
+        message = choice.get('message') or {}
+        text = sanitize_visible_output(message.get('content', '') or '')
+        tool_calls = normalize_tool_calls(message.get('tool_calls'))
+        finish_reason = choice.get('finish_reason') or ('tool_calls' if tool_calls else 'stop')
+        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, body.get('usage'), debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
+    except Exception as e:
+        err = extract_http_error(e)
+        logger.warning(f"OpenAI-compat {provider_name or base_url} {model}: {err}")
+        return False, err
+
+
+def call_ollama_completion(base_url, model, payload, api_key='', thinking=ThinkingLevel.MEDIUM, provider_name='ollama', debug_mode=False, request_id=''):
+    url = base_url.rstrip('/') + '/api/chat'
+    hdrs = {'Content-Type': 'application/json'}
+    if api_key:
+        hdrs['Authorization'] = f'Bearer {api_key}'
+    try:
+        body_payload = build_ollama_payload(model, payload, thinking=thinking, stream=False)
+        req = urllib.request.Request(url, data=json.dumps(body_payload).encode(), headers=hdrs)
+        with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT_SECONDS) as resp:
+            body = json.loads(resp.read())
+        message = body.get('message', {}) or {}
+        text = sanitize_visible_output(message.get('content', '') or '')
+        tool_calls = normalize_tool_calls(message.get('tool_calls'))
+        finish_reason = 'tool_calls' if tool_calls else (body.get('done_reason') or 'stop')
+        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
+    except Exception as e:
+        err = extract_http_error(e)
+        logger.warning(f"Ollama {base_url} {model}: {err}")
+        return False, err
+
+
+def call_anthropic_completion(base_url, model, payload, api_key='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False, request_id='', provider_name='anthropic'):
+    url = base_url.rstrip('/') + '/v1/messages'
+    system_text, api_msgs = openai_messages_to_anthropic(payload.get('messages', []))
+    request_payload = {'model': model, 'max_tokens': thinking_max_tokens(thinking), 'messages': api_msgs}
+    tools = openai_tools_to_anthropic(payload.get('tools'))
+    if tools:
+        request_payload['tools'] = tools
+        tool_choice = payload.get('tool_choice')
+        if isinstance(tool_choice, dict) and tool_choice.get('type') == 'function':
+            request_payload['tool_choice'] = {'type': 'tool', 'name': ((tool_choice.get('function') or {}).get('name'))}
+        elif tool_choice == 'required':
+            request_payload['tool_choice'] = {'type': 'any'}
+    if supports_reasoning and thinking == ThinkingLevel.HIGH:
+        request_payload['thinking'] = {'type': 'enabled', 'budget_tokens': 4096}
+    if payload.get('response_format', {}).get('type') == 'json_object':
+        api_msgs.append({'role': 'user', 'content': [{'type': 'text', 'text': 'Return valid JSON only.'}]})
+    if system_text:
+        request_payload['system'] = system_text
+    try:
+        hdrs = {'Content-Type': 'application/json', 'anthropic-version': '2023-06-01'}
+        if api_key:
+            hdrs['x-api-key'] = api_key
+        req = urllib.request.Request(url, data=json.dumps(request_payload).encode(), headers=hdrs)
+        with urllib.request.urlopen(req, timeout=ANTHROPIC_TIMEOUT_SECONDS) as resp:
+            body = json.loads(resp.read())
+        text, tool_calls, stop_reason, usage = parse_anthropic_response(body)
+        finish_reason = 'tool_calls' if tool_calls or stop_reason == 'tool_use' else 'stop'
+        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, usage, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
+    except Exception as e:
+        err = extract_http_error(e)
+        logger.warning(f"Anthropic {base_url} {model}: {err}")
+        return False, err
+
+
+def call_google_completion(base_url, model, payload, api_key='', thinking=ThinkingLevel.MEDIUM, debug_mode=False, request_id=''):
+    ok, text = call_google(base_url, model, payload.get('messages', []), api_key=api_key, thinking=thinking, want_json=payload.get('response_format', {}).get('type') == 'json_object')
+    if not ok:
+        return False, text
+    return True, build_openai_completion('google', model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
+
+
+def stream_openai_compat_to_client(self, provider, model, payload, request_id, thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False):
+    url = provider.base_url.rstrip('/') + '/v1/chat/completions'
+    proxied = build_openai_proxy_payload(payload, model, stream=True, supports_reasoning=supports_reasoning, thinking=thinking)
+    hdrs = {'Content-Type': 'application/json'}
+    if provider.api_key:
+        hdrs['Authorization'] = f'Bearer {provider.api_key}'
+    req = urllib.request.Request(url, data=json.dumps(proxied).encode(), headers=hdrs)
+    with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/event-stream')
+        self.send_header('Cache-Control', 'no-cache')
+        for key, value in self.routing_headers({'model': f'{provider.name}/{model}'}, request_id).items():
+            if value:
+                self.send_header(key, str(value))
+        self.end_headers()
+        if debug_mode and not payload.get('tools') and payload.get('response_format', {}).get('type') != 'json_object':
+            debug_chunk = json.dumps({
+                'id': f'chatcmpl-{int(time.time())}',
+                'object': 'chat.completion.chunk',
+                'created': int(time.time()),
+                'model': f'{provider.name}/{model}',
+                'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': f'[sage-router {provider.name}/{model}]\n'}, 'finish_reason': None}],
+            })
+            self.wfile.write(f'data: {debug_chunk}\n\n'.encode())
+            self.wfile.flush()
+        while True:
+            line = resp.readline()
+            if not line:
+                break
+            self.wfile.write(line)
+            self.wfile.flush()
+    return True
+
+
+def stream_ollama_to_client(self, provider, model, payload, request_id, thinking=ThinkingLevel.MEDIUM, debug_mode=False):
+    url = provider.base_url.rstrip('/') + '/api/chat'
+    hdrs = {'Content-Type': 'application/json'}
+    if provider.api_key:
+        hdrs['Authorization'] = f'Bearer {provider.api_key}'
+    req = urllib.request.Request(url, data=json.dumps(build_ollama_payload(model, payload, thinking=thinking, stream=True)).encode(), headers=hdrs)
+    chat_id = f'chatcmpl-{int(time.time())}'
+    router_model = f'{provider.name}/{model}'
+    sent_role = False
+    with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT_SECONDS) as resp:
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/event-stream')
+        self.send_header('Cache-Control', 'no-cache')
+        for key, value in self.routing_headers({'model': router_model}, request_id).items():
+            if value:
+                self.send_header(key, str(value))
+        self.end_headers()
+        if debug_mode and not payload.get('tools') and payload.get('response_format', {}).get('type') != 'json_object':
+            debug_chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': int(time.time()), 'model': router_model, 'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': f'[sage-router {provider.name}/{model}]\n'}, 'finish_reason': None}]})
+            self.wfile.write(f'data: {debug_chunk}\n\n'.encode())
+            self.wfile.flush()
+            sent_role = True
+        while True:
+            raw = resp.readline()
+            if not raw:
+                break
+            line = raw.decode('utf-8', errors='replace').strip()
+            if not line:
+                continue
+            body = json.loads(line)
+            message = body.get('message', {}) or {}
+            content = sanitize_visible_output(message.get('content', '') or '')
+            tool_calls = normalize_tool_calls(message.get('tool_calls'))
+            if content:
+                delta = {'content': content}
+                if not sent_role:
+                    delta['role'] = 'assistant'
+                    sent_role = True
+                chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': int(time.time()), 'model': router_model, 'choices': [{'index': 0, 'delta': delta, 'finish_reason': None}]})
+                self.wfile.write(f'data: {chunk}\n\n'.encode())
+                self.wfile.flush()
+            if tool_calls:
+                delta = {'tool_calls': tool_calls}
+                if not sent_role:
+                    delta['role'] = 'assistant'
+                    sent_role = True
+                chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': int(time.time()), 'model': router_model, 'choices': [{'index': 0, 'delta': delta, 'finish_reason': None}]})
+                self.wfile.write(f'data: {chunk}\n\n'.encode())
+                self.wfile.flush()
+            if body.get('done'):
+                finish_reason = 'tool_calls' if tool_calls else (body.get('done_reason') or 'stop')
+                done_chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': int(time.time()), 'model': router_model, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': finish_reason}]})
+                self.wfile.write(f'data: {done_chunk}\n\n'.encode())
+                self.wfile.write(b'data: [DONE]\n\n')
+                self.wfile.flush()
+                break
+    return True
+
+
+def handle_openai_chat_completions(self, payload, request_id, started):
+    message_count = len(payload.get('messages', []) or [])
+    thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning'))
+    route_mode = normalize_route_mode(payload.get('route'))
+    requirements = normalize_requirements(payload)
+    want_json = str(payload.get('responseFormat') or '').lower() == 'json' or payload.get('response_format', {}).get('type') == 'json_object'
+    want_stream = bool(payload.get('stream', False))
+    debug_mode = normalize_debug_mode(payload)
+    logger.info(f"[{request_id}] Incoming /v1/chat/completions with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}, debug={debug_mode}")
+    _, intent, _, _, chain = prepare_route(
+        payload.get('messages', []),
+        request_id=request_id,
+        thinking=thinking,
+        route_mode=route_mode,
+        requirements=requirements,
+        want_json=want_json,
+        streaming_mode='native-pass-through' if want_stream else 'disabled',
+    )
+
+    attempts = []
+    overall_started = time.time()
+    for pn, model in chain:
+        if pn in DISABLED_PROVIDERS or pn not in PROVIDERS:
+            continue
+        prov = PROVIDERS[pn]
+        supports_reasoning = provider_supports_reasoning(prov, model)
+        logger.info(f"[{request_id}] Trying {pn}/{model} (api={prov.api_type}, reasoning={supports_reasoning}, stream={want_stream}, tools={bool(payload.get('tools'))})")
+        started_attempt = time.time()
+        ok = False
+        result = None
+        error_detail = None
+        try:
+            if prov.api_type == 'openai-completions':
+                if want_stream:
+                    stream_openai_compat_to_client(self, prov, model, payload, request_id, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode)
+                    ok = True
+                else:
+                    ok, result = call_openai_compat_completion(prov.base_url, model, payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+                    if not ok:
+                        error_detail = result
+            elif prov.api_type == 'ollama':
+                if want_stream:
+                    stream_ollama_to_client(self, prov, model, payload, request_id, thinking=thinking, debug_mode=debug_mode)
+                    ok = True
+                else:
+                    ok, result = call_ollama_completion(prov.base_url, model, payload, api_key=prov.api_key, thinking=thinking, provider_name=pn, debug_mode=debug_mode, request_id=request_id)
+                    if not ok:
+                        error_detail = result
+            elif prov.api_type == 'anthropic-messages':
+                if want_stream:
+                    error_detail = 'streaming passthrough not implemented for anthropic bridge'
+                else:
+                    ok, result = call_anthropic_completion(prov.base_url, model, payload, api_key=prov.api_key, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id, provider_name=pn)
+                    if not ok:
+                        error_detail = result
+            elif prov.api_type == 'google-generative-language':
+                if want_stream:
+                    error_detail = 'streaming passthrough not implemented for google bridge'
+                else:
+                    ok, result = call_google_completion(prov.base_url, model, payload, api_key=prov.api_key, thinking=thinking, debug_mode=debug_mode, request_id=request_id)
+                    if not ok:
+                        error_detail = result
+            elif prov.api_type == 'openclaw-gateway':
+                if want_stream or payload.get('tools'):
+                    error_detail = 'streaming/tool passthrough unsupported for openclaw gateway bridge'
+                else:
+                    ok_text, text = call_openclaw_gateway(model, payload.get('messages', []), pn, thinking, want_json)
+                    ok = ok_text
+                    if ok:
+                        result = build_openai_completion(pn, model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=not want_json)
+                    else:
+                        error_detail = text
+            else:
+                if want_stream:
+                    error_detail = f'streaming passthrough unsupported for {prov.api_type}'
+                else:
+                    ok, result = call_openai_compat_completion(prov.base_url, model, payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+                    if not ok:
+                        error_detail = result
+        except Exception as e:
+            error_detail = extract_http_error(e)
+            logger.warning(f"[{request_id}] Streaming/advanced call failed for {pn}/{model}: {error_detail}")
+            ok = False
+
+        elapsed = time.time() - started_attempt
+        record_latency_outcome(intent.name, pn, model, elapsed, ok, '' if ok else error_detail or '')
+        attempts.append({'provider': pn, 'model': model, 'ok': ok, 'elapsedMs': round(elapsed * 1000.0, 2), 'detail': '' if ok else str(error_detail or '')[:240]})
+        LAST_ROUTE_DEBUG['attempts'] = attempts[-12:]
+        if ok:
+            total_elapsed = time.time() - overall_started
+            LAST_ROUTE_DEBUG.update({'selected': {'provider': pn, 'model': model}, 'status': 'ok', 'error': None, 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
+            logger.info(f"[{request_id}] OK: {pn}/{model} (provider={elapsed:.2f}s, total={total_elapsed:.2f}s, stream={want_stream})")
+            if want_stream:
+                return
+            self.write_json(200, result, extra_headers=self.routing_headers(result, request_id))
+            logger.info(f"[{request_id}] Responded in {time.time() - started:.2f}s")
+            return
+        logger.warning(f"[{request_id}] Failed {pn}/{model} after {elapsed:.2f}s")
+
+    total_elapsed = time.time() - overall_started
+    LAST_ROUTE_DEBUG.update({'selected': None, 'attempts': attempts[-12:], 'status': 'failed', 'error': 'All providers failed', 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
+    self.write_json(503, {'error': 'All providers failed', 'request_id': request_id, 'attempts': attempts, 'choices': [{'message': {'content': 'Error: No providers available'}}]}, extra_headers={'X-Sage-Router-Request-Id': request_id})
+
 def google_to_openai_messages(payload):
     """Convert Google Generative AI request format to OpenAI messages format."""
     messages = []
@@ -1813,6 +2295,20 @@ def openai_to_google_response(result, request_model):
             'totalTokenCount': usage.get('prompt_tokens', 0) + usage.get('completion_tokens', 0)
         }
     }
+
+
+def prepare_route(messages, request_id='req-unknown', thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, want_json=False, streaming_mode=None):
+    normalized_messages = normalize_messages(messages)
+    estimated_tokens = estimate_prompt_tokens(normalized_messages)
+    user_text = latest_user_text(normalized_messages)
+    intent, _ = classify_intent(user_text)
+    complexity = estimate_complexity(user_text)
+    requirements = requirements or {}
+    logger.info(f"[{request_id}] Intent: {intent.name}, Complexity: {complexity.name}, Thinking: {thinking.value}, Route: {route_mode}, JSON: {want_json}, EstTokens: {estimated_tokens}")
+    chain, score_debug, rejections = select_model(intent, complexity, thinking, route_mode, requirements, estimated_tokens)
+    LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug[:12], 'rejections': rejections[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None})
+    logger.info(f"[{request_id}] Chain: {chain} (no mid-stream switching; each candidate tried sequentially until one succeeds)")
+    return normalized_messages, intent, complexity, estimated_tokens, chain
 
 
 def handle_google_generate(self, body, request_id, started, model_name, want_stream=False):
@@ -1883,16 +2379,16 @@ def latest_user_text(messages):
 
 
 def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, want_json=False):
-    normalized_messages = normalize_messages(messages)
-    estimated_tokens = estimate_prompt_tokens(normalized_messages)
-    user_text = latest_user_text(normalized_messages)
-    intent, _ = classify_intent(user_text)
-    complexity = estimate_complexity(user_text)
     requirements = requirements or {}
-    logger.info(f"[{request_id}] Intent: {intent.name}, Complexity: {complexity.name}, Thinking: {thinking.value}, Route: {route_mode}, JSON: {want_json}, EstTokens: {estimated_tokens}")
-    chain, score_debug, rejections = select_model(intent, complexity, thinking, route_mode, requirements, estimated_tokens)
-    LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug[:12], 'rejections': rejections[:30], 'selected': None, 'attempts': [], 'streaming': 'buffered-wrapper' if requirements.get('streaming') else 'disabled', 'status': 'routing', 'error': None, 'totalElapsedMs': None})
-    logger.info(f"[{request_id}] Chain: {chain} (no mid-stream switching; each candidate tried sequentially until one succeeds)")
+    normalized_messages, intent, complexity, estimated_tokens, chain = prepare_route(
+        messages,
+        request_id=request_id,
+        thinking=thinking,
+        route_mode=route_mode,
+        requirements=requirements,
+        want_json=want_json,
+        streaming_mode='buffered-wrapper' if requirements.get('streaming') else 'disabled',
+    )
     overall_started = time.time()
     attempts = []
     for pn, model in chain:
@@ -2152,41 +2648,7 @@ class Handler(BaseHTTPRequestHandler):
             started = time.time()
             try:
                 payload = json.loads(body or b'{}')
-                message_count = len(payload.get('messages', []) or [])
-                thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning'))
-                route_mode = normalize_route_mode(payload.get('route'))
-                requirements = normalize_requirements(payload)
-                want_json = str(payload.get('responseFormat') or '').lower() == 'json' or payload.get('response_format', {}).get('type') == 'json_object'
-                logger.info(f"[{request_id}] Incoming {self.path} with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}")
-                want_stream = payload.get('stream', False)
-                result = route_request(payload.get('messages', []), request_id=request_id, thinking=thinking, route_mode=route_mode, requirements=requirements, want_json=want_json)
-                status_code = 503 if isinstance(result, dict) and result.get('error') else 200
-                if want_stream and status_code == 200:
-                    # Return SSE stream wrapping the single response for OpenClaw compatibility
-                    content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
-                    model = result.get('model', 'sage-router/auto')
-                    chat_id = result.get('id', f'chatcmpl-{int(time.time())}')
-                    # Build the complete SSE body
-                    sse_body = ''
-                    chunk = json.dumps({"id": chat_id, "object": "chat.completion.chunk", "created": int(time.time()), "model": model, "choices": [{"index": 0, "delta": {"role": "assistant", "content": content}, "finish_reason": None}]})
-                    sse_body += f'data: {chunk}\n\n'
-                    done_chunk = json.dumps({"id": chat_id, "object": "chat.completion.chunk", "created": int(time.time()), "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]})
-                    sse_body += f'data: {done_chunk}\n\n'
-                    sse_body += 'data: [DONE]\n\n'
-                    sse_bytes = sse_body.encode()
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'text/event-stream')
-                    self.send_header('Cache-Control', 'no-cache')
-                    self.send_header('Content-Length', str(len(sse_bytes)))
-                    for key, value in self.routing_headers(result, request_id).items():
-                        if value:
-                            self.send_header(key, str(value))
-                    self.end_headers()
-                    self.wfile.write(sse_bytes)
-                    self.wfile.flush()
-                else:
-                    self.write_json(status_code, result, extra_headers=self.routing_headers(result, request_id))
-                logger.info(f"[{request_id}] Responded in {time.time() - started:.2f}s")
+                handle_openai_chat_completions(self, payload, request_id, started)
             except Exception as e:
                 logger.exception(f"[{request_id}] Request handling failed")
                 self.write_json(500, {"error": str(e)}, extra_headers={'X-Sage-Router-Request-Id': request_id})
