@@ -79,7 +79,26 @@ LATENCY_STATS_LOCK = threading.Lock()
 OLLAMA_MODEL_CACHE = {}
 MODEL_HEALTH_CACHE = {}
 TEMP_MODEL_BLOCKS = {}
-LAST_ROUTE_DEBUG = {'updated_at': None, 'request_id': None, 'intent': None, 'complexity': None, 'thinking': None, 'chain': [], 'scores': [], 'rejections': []}
+LAST_ROUTE_DEBUG = {
+    'updated_at': None,
+    'request_id': None,
+    'intent': None,
+    'complexity': None,
+    'thinking': None,
+    'routeMode': None,
+    'requirements': {},
+    'estimatedTokens': 0,
+    'json': False,
+    'chain': [],
+    'scores': [],
+    'rejections': [],
+    'selected': None,
+    'attempts': [],
+    'streaming': None,
+    'status': None,
+    'error': None,
+    'totalElapsedMs': None,
+}
 BACKGROUND_REFRESH_STARTED = False
 def canonical_provider_env_key(name: str):
     return (name or '').strip().lower().replace('-', '_')
@@ -447,6 +466,24 @@ def provider_supports_reasoning(provider, model):
         return model.startswith('claude-') or model.startswith('claude')
     reasoning_models = provider.reasoning_models or set()
     return model in reasoning_models
+
+
+def is_cloud_ollama_model(model: str):
+    model_l = (model or '').strip().lower()
+    return model_l.endswith(':cloud')
+
+
+def sanitize_visible_output(text: str):
+    raw = text or ''
+    if not raw:
+        return ''
+
+    cleaned = _re.sub(r'<think>.*?</think>\s*', '', raw, flags=_re.IGNORECASE | _re.DOTALL)
+    if cleaned == raw and '</think>' in raw.lower():
+        cleaned = _re.split(r'</think>', raw, flags=_re.IGNORECASE)[-1]
+    cleaned = _re.sub(r'</?think>', '', cleaned, flags=_re.IGNORECASE)
+    cleaned = cleaned.strip()
+    return cleaned or raw.strip()
 
 
 def model_capabilities(provider, model):
@@ -1315,9 +1352,6 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
     if provider.api_type == 'openclaw-gateway':
         score -= 4
         contributions.append(('openclaw_gateway_penalty', -4))
-    if 'cyber' in provider_l:
-        score -= 2
-        contributions.append(('cyber_penalty', -2))
 
     if intent == Intent.CODE:
         if provider.name == 'openai-codex' or model_l.startswith('gpt-') or 'codex' in model_l:
@@ -1359,9 +1393,6 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
         if provider.api_type == 'ollama':
             score += 18
             contributions.append(('user_pref_analysis_ollama', 18))
-            if 'cyber' in provider_l:
-                score += 4
-                contributions.append(('analysis_cyber_ollama_bonus', 4))
         elif provider.name == 'openai-codex' or provider.api_type == 'openclaw-gateway':
             score -= 10
             contributions.append(('user_pref_analysis_not_gpt', -10))
@@ -1489,6 +1520,9 @@ def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='
         if not provider.models or not provider_endpoint_reachable(provider):
             continue
         for model in dedupe_keep_order(provider.models):
+            if route_mode == 'local-first' and provider.api_type == 'ollama' and is_cloud_ollama_model(model):
+                rejections.append({'provider': pn, 'model': model, 'reason': 'excluded by local-first (:cloud model)'})
+                continue
             if not is_chat_capable_model(provider, model):
                 rejections.append({'provider': pn, 'model': model, 'reason': 'not chat-capable'})
                 continue
@@ -1525,6 +1559,7 @@ def call_ollama(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
         message = body.get('message', {}) or {}
         content = message.get('content', '') or ''
         thinking_text = message.get('thinking', '') or ''
+        content = sanitize_visible_output(content)
         if content:
             return True, content
         # Some Ollama thinking-capable models can spend the whole budget in
@@ -1536,7 +1571,7 @@ def call_ollama(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
             retry_payload['think'] = False
             retry_body = _post_chat(retry_payload)
             retry_message = retry_body.get('message', {}) or {}
-            retry_content = retry_message.get('content', '') or ''
+            retry_content = sanitize_visible_output(retry_message.get('content', '') or '')
             if retry_content:
                 logger.info(f"Ollama {base_url} {model}: recovered empty-content thinking response with opt-in think=false retry")
                 return True, retry_content
@@ -1555,7 +1590,7 @@ def call_ollama(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
                 retry_payload['think'] = False
                 retry_body = _post_chat(retry_payload)
                 retry_message = retry_body.get('message', {}) or {}
-                retry_content = retry_message.get('content', '') or ''
+                retry_content = sanitize_visible_output(retry_message.get('content', '') or '')
                 if retry_content:
                     logger.info(f"Ollama {base_url} {model}: recovered timed-out response with opt-in think=false retry")
                     return True, retry_content
@@ -1579,7 +1614,7 @@ def call_openai_compat(base_url, model, messages, api_key='', provider_name='', 
         req = urllib.request.Request(url, data=data, headers=hdrs)
         with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
             body = json.loads(resp.read())
-        text = body.get('choices', [{}])[0].get('message', {}).get('content', '') or ''
+        text = sanitize_visible_output(body.get('choices', [{}])[0].get('message', {}).get('content', '') or '')
         if text:
             return True, text
         err = 'OpenAI-compatible provider returned empty content'
@@ -1631,7 +1666,7 @@ def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinkin
     except Exception:
         return False, (proc.stdout or proc.stderr or 'Invalid OpenClaw gateway response').strip()
 
-    text = result.get('text', '')
+    text = sanitize_visible_output(result.get('text', ''))
     if text:
         return True, text
     return False, json.dumps(result)
@@ -1669,7 +1704,7 @@ def call_anthropic(base_url, model, messages, api_key='', thinking=ThinkingLevel
         req = urllib.request.Request(url, data=data, headers=hdrs)
         with urllib.request.urlopen(req, timeout=ANTHROPIC_TIMEOUT_SECONDS) as resp:
             blocks = json.loads(resp.read()).get('content', [])
-        text = ''.join(b.get('text', '') for b in blocks if isinstance(b, dict) and b.get('type') == 'text')
+        text = sanitize_visible_output(''.join(b.get('text', '') for b in blocks if isinstance(b, dict) and b.get('type') == 'text'))
         if text:
             return True, text
         err = 'Anthropic returned empty content'
@@ -1731,7 +1766,7 @@ def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
         with urllib.request.urlopen(req, timeout=GOOGLE_TIMEOUT_SECONDS) as resp:
             result = json.loads(resp.read())
         parts = result.get('candidates', [{}])[0].get('content', {}).get('parts', [])
-        text = ''.join(part.get('text', '') for part in parts if isinstance(part, dict))
+        text = sanitize_visible_output(''.join(part.get('text', '') for part in parts if isinstance(part, dict)))
         return (True, text) if text else (False, json.dumps(result)[:500])
     except Exception as e:
         logger.warning(f"Google {base_url} {model}: {extract_http_error(e)}")
@@ -1802,7 +1837,7 @@ def handle_google_generate(self, body, request_id, started, model_name, want_str
                     'message': result.get('error', 'Internal error'),
                     'status': 'UNAVAILABLE'
                 }
-            })
+            }, extra_headers=self.routing_headers(result, request_id))
         elif want_stream:
             content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
             model = result.get('model', model_name or 'sage-router/auto')
@@ -1817,18 +1852,21 @@ def handle_google_generate(self, body, request_id, started, model_name, want_str
             self.send_header('Content-Type', 'text/event-stream')
             self.send_header('Cache-Control', 'no-cache')
             self.send_header('Content-Length', str(len(sse_bytes)))
+            for key, value in self.routing_headers(result, request_id).items():
+                if value:
+                    self.send_header(key, str(value))
             self.end_headers()
             self.wfile.write(sse_bytes)
             self.wfile.flush()
         else:
             google_resp = openai_to_google_response(result, model_name)
-            self.write_json(200, google_resp)
+            self.write_json(200, google_resp, extra_headers=self.routing_headers(result, request_id))
         logger.info(f'[{request_id}] Google compat responded in {time.time() - started:.2f}s')
     except Exception as e:
         logger.exception(f'[{request_id}] Google compat request failed')
         self.write_json(500, {
             'error': {'code': 500, 'message': str(e), 'status': 'INTERNAL'}
-        })
+        }, extra_headers={'X-Sage-Router-Request-Id': request_id})
 
 
     for msg in reversed(messages or []):
@@ -1853,8 +1891,7 @@ def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
     requirements = requirements or {}
     logger.info(f"[{request_id}] Intent: {intent.name}, Complexity: {complexity.name}, Thinking: {thinking.value}, Route: {route_mode}, JSON: {want_json}, EstTokens: {estimated_tokens}")
     chain, score_debug, rejections = select_model(intent, complexity, thinking, route_mode, requirements, estimated_tokens)
-    LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug[:12], 'rejections': rejections[:30]})
-    mid_stream = len(chain) > 1
+    LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug[:12], 'rejections': rejections[:30], 'selected': None, 'attempts': [], 'streaming': 'buffered-wrapper' if requirements.get('streaming') else 'disabled', 'status': 'routing', 'error': None, 'totalElapsedMs': None})
     logger.info(f"[{request_id}] Chain: {chain} (no mid-stream switching; each candidate tried sequentially until one succeeds)")
     overall_started = time.time()
     attempts = []
@@ -1881,13 +1918,16 @@ def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
         elapsed = time.time() - started
         record_latency_outcome(intent.name, pn, model, elapsed, ok, '' if ok else text)
         attempts.append({'provider': pn, 'model': model, 'ok': ok, 'elapsedMs': round(elapsed * 1000.0, 2), 'detail': '' if ok else str(text)[:240]})
+        LAST_ROUTE_DEBUG['attempts'] = attempts[-12:]
         if ok:
             total_elapsed = time.time() - overall_started
             logger.info(f"[{request_id}] OK: {pn}/{model} ({len(text)} chars, provider={elapsed:.2f}s, total={total_elapsed:.2f}s)")
+            LAST_ROUTE_DEBUG.update({'selected': {'provider': pn, 'model': model}, 'status': 'ok', 'error': None, 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
             return {"id": f"chatcmpl-{int(time.time())}", "object": "chat.completion", "created": int(time.time()), "model": f"{pn}/{model}", "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 0, "completion_tokens": 0}}
         logger.warning(f"[{request_id}] Failed {pn}/{model} after {elapsed:.2f}s")
     total_elapsed = time.time() - overall_started
     logger.error(f"[{request_id}] All providers failed after {total_elapsed:.2f}s")
+    LAST_ROUTE_DEBUG.update({'selected': None, 'attempts': attempts[-12:], 'status': 'failed', 'error': 'All providers failed', 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
     return {"error": "All providers failed", "request_id": request_id, "attempts": attempts, "choices": [{"message": {"content": "Error: No providers available"}}]}
 
 def openai_to_anthropic_response(openai_resp, request_model=None):
@@ -1982,7 +2022,7 @@ def handle_anthropic_messages(self, body, request_id, started):
             self.write_json(503, {
                 'type': 'error',
                 'error': {'type': 'api_error', 'message': result.get('error', 'Internal error')}
-            })
+            }, extra_headers=self.routing_headers(result, request_id))
         elif want_stream:
             # Anthropic SSE streaming format
             content_text = result.get('choices', [{}])[0].get('message', {}).get('content', '') or ''
@@ -2008,32 +2048,56 @@ def handle_anthropic_messages(self, body, request_id, started):
             self.send_header('Content-Type', 'text/event-stream')
             self.send_header('Cache-Control', 'no-cache')
             self.send_header('Content-Length', str(len(sse_bytes)))
+            for key, value in self.routing_headers(result, request_id).items():
+                if value:
+                    self.send_header(key, str(value))
             self.end_headers()
             self.wfile.write(sse_bytes)
             self.wfile.flush()
         else:
             # Non-streaming - translate to Anthropic response format
             anthropic_resp = openai_to_anthropic_response(result, request_model)
-            self.write_json(200, anthropic_resp)
+            self.write_json(200, anthropic_resp, extra_headers=self.routing_headers(result, request_id))
         logger.info(f'[{request_id}] Anthropic compat responded in {time.time() - started:.2f}s')
     except Exception as e:
         logger.exception(f'[{request_id}] Anthropic compat request failed')
         self.write_json(500, {
             'type': 'error',
             'error': {'type': 'api_error', 'message': str(e)}
-        })
+        }, extra_headers={'X-Sage-Router-Request-Id': request_id})
 
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *a):
         logger.info("%s - %s", self.address_string(), fmt % a)
 
-    def write_json(self, status_code, payload):
+    def routing_headers(self, payload=None, request_id=''):
+        payload = payload or {}
+        headers = {}
+        model = payload.get('model') or ''
+        if model:
+            headers['X-Sage-Router-Model'] = model
+            if '/' in model:
+                provider, model_name = model.split('/', 1)
+                headers['X-Sage-Router-Provider'] = provider
+                headers['X-Sage-Router-Model-Name'] = model_name
+        if request_id:
+            headers['X-Sage-Router-Request-Id'] = request_id
+        if LAST_ROUTE_DEBUG.get('intent'):
+            headers['X-Sage-Router-Intent'] = LAST_ROUTE_DEBUG.get('intent')
+        if LAST_ROUTE_DEBUG.get('routeMode'):
+            headers['X-Sage-Router-Route-Mode'] = LAST_ROUTE_DEBUG.get('routeMode')
+        return headers
+
+    def write_json(self, status_code, payload, extra_headers=None):
         body = json.dumps(payload).encode()
         try:
             self.send_response(status_code)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(body)))
+            for key, value in (extra_headers or {}).items():
+                if value:
+                    self.send_header(key, str(value))
             self.end_headers()
             self.wfile.write(body)
         except (BrokenPipeError, ConnectionResetError):
@@ -2114,15 +2178,18 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_header('Content-Type', 'text/event-stream')
                     self.send_header('Cache-Control', 'no-cache')
                     self.send_header('Content-Length', str(len(sse_bytes)))
+                    for key, value in self.routing_headers(result, request_id).items():
+                        if value:
+                            self.send_header(key, str(value))
                     self.end_headers()
                     self.wfile.write(sse_bytes)
                     self.wfile.flush()
                 else:
-                    self.write_json(status_code, result)
+                    self.write_json(status_code, result, extra_headers=self.routing_headers(result, request_id))
                 logger.info(f"[{request_id}] Responded in {time.time() - started:.2f}s")
             except Exception as e:
                 logger.exception(f"[{request_id}] Request handling failed")
-                self.write_json(500, {"error": str(e)})
+                self.write_json(500, {"error": str(e)}, extra_headers={'X-Sage-Router-Request-Id': request_id})
         elif self.path in ['/v1/messages', '/messages']:
             body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
             request_id = uuid.uuid4().hex[:8]

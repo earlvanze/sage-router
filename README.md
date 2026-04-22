@@ -213,7 +213,7 @@ Control how Sage Router selects models:
 | `fast` | Prefer local models, minimize latency |
 | `balanced` | Balance capability and speed |
 | `best` | Always pick the best model for the task, regardless of latency |
-| `local-first` | Try local models before any cloud provider |
+| `local-first` | Try truly local models before any cloud provider. Ollama models ending in `:cloud` are excluded even if the endpoint is localhost. |
 
 Set via request: `{"route": "fast"}` or header: `X-Route-Mode: fast`
 
@@ -245,6 +245,21 @@ Returns:
 - Available models
 - Last route decision
 - Reasoning capabilities by provider
+- Selected provider/model, attempt history, and rejection reasons for the last request
+
+Every routed response also includes headers like:
+- `X-Sage-Router-Model`
+- `X-Sage-Router-Provider`
+- `X-Sage-Router-Intent`
+- `X-Sage-Router-Request-Id`
+
+Use these when you need to know exactly which model answered.
+
+## Streaming Note
+
+Sage Router currently supports compatibility streaming wrappers for clients that require SSE, but it does not yet do true token-by-token passthrough across heterogeneous providers.
+
+That means stream-shaped responses work for client compatibility, but they may still arrive buffered after the selected provider finishes.
 
 ---
 
