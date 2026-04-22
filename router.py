@@ -438,6 +438,43 @@ def discover_xai_models(base_url, api_key):
         return []
 
 
+def discover_openclaw_core_providers():
+    """Discover all providers and models from OpenClaw core config (~/.openclaw/openclaw.json)."""
+    providers = {}
+    try:
+        config_path = os.path.expanduser("~/.openclaw/openclaw.json")
+        if not os.path.exists(config_path):
+            return providers
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        models_config = config.get('models', {})
+        providers_config = models_config.get('providers', {})
+        for provider_name, provider_cfg in providers_config.items():
+            models = []
+            raw_models = provider_cfg.get('models', [])
+            if isinstance(raw_models, list):
+                for m in raw_models:
+                    if isinstance(m, dict) and m.get('id'):
+                        models.append({
+                            'id': m.get('id'),
+                            'name': m.get('name', m.get('id')),
+                            'reasoning': m.get('reasoning', False),
+                            'contextWindow': m.get('contextWindow'),
+                            'maxTokens': m.get('maxTokens'),
+                            'input': m.get('input', ['text']),
+                            'cost': m.get('cost', {})
+                        })
+            providers[provider_name] = {
+                'baseUrl': provider_cfg.get('baseUrl'),
+                'api': provider_cfg.get('api', 'openai-completions'),
+                'models': models
+            }
+        logger.info(f"Discovered {len(providers)} providers from OpenClaw core config")
+    except Exception as e:
+        logger.debug(f"OpenClaw core provider discovery failed: {e}")
+    return providers
+
+
 def discover_provider_models(name, cfg, base_url, api_key, api_type):
     raw_models = cfg.get('models', [])
     configured = [m.get('id') for m in raw_models if isinstance(m, dict) and m.get('id')] if isinstance(raw_models, list) else []
@@ -2977,6 +3014,14 @@ class Handler(BaseHTTPRequestHandler):
             self.write_json(200, {
                 "blocks": {key: {"until": info["until"], "reason": info["reason"], "expiresInSeconds": max(0, info["until"] - time.time())} for key, info in TEMP_MODEL_BLOCKS.items()},
                 "count": len(TEMP_MODEL_BLOCKS)
+            })
+        elif self.path == '/discovery':
+            # Return discovered providers from OpenClaw core config
+            openclaw_providers = discover_openclaw_core_providers()
+            self.write_json(200, {
+                "source": "openclaw-core",
+                "providers": openclaw_providers,
+                "count": len(openclaw_providers)
             })
         elif self.path.startswith('/v1beta/models') or self.path.startswith('/v1/models'):
             # Google Generative AI models listing endpoint
