@@ -849,7 +849,7 @@ def load_router_profile_overlays(existing_providers):
 
 def normalize_route_mode(raw):
     value = str(raw or 'balanced').strip().lower()
-    return value if value in {'fast', 'balanced', 'best', 'local-first'} else 'balanced'
+    return value if value in {'fast', 'balanced', 'best', 'local-first', 'realtime'} else 'balanced'
 
 
 def normalize_requirements(payload):
@@ -1496,6 +1496,7 @@ def route_latency_target_ms(route_mode: str, complexity: Complexity, thinking: T
         'balanced': 14000,
         'best': 24000,
         'local-first': 11000,
+        'realtime': 5000,
     }.get(route_mode, 14000)
     if complexity == Complexity.SIMPLE:
         base -= 2000
@@ -1543,7 +1544,7 @@ def empirical_route_adjustment(provider, model, intent_name: str, route_mode: st
     if delta_seconds >= 0:
         latency_adjustment = min(14.0, delta_seconds * 0.9)
     else:
-        multiplier = 1.6 if route_mode in {'fast', 'local-first'} else 1.15 if route_mode == 'balanced' else 0.65
+        multiplier = 1.6 if route_mode in {'fast', 'local-first', 'realtime'} else 1.15 if route_mode == 'balanced' else 0.65
         latency_adjustment = -min(30.0, abs(delta_seconds) * multiplier)
 
     confidence_bonus = min(8.0, math.log2(successes + 1) * 2.0)
@@ -2114,6 +2115,17 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
         if provider.api_type in {'anthropic-messages', 'openclaw-gateway'}:
             score -= 3
             contributions.append(('route_mode_fast_remote_penalty', -3))
+    elif route_mode == 'realtime':
+        # Realtime: prioritize speed above all else, minimal latency
+        if provider.api_type == 'ollama':
+            score += 15
+            contributions.append(('route_mode_realtime_ollama_bonus', 15))
+        if 'flash' in model_l or 'turbo' in model_l or 'mini' in model_l:
+            score += 8
+            contributions.append(('route_mode_realtime_speed_hint', 8))
+        if provider.api_type in {'anthropic-messages', 'openclaw-gateway'}:
+            score -= 8
+            contributions.append(('route_mode_realtime_remote_penalty', -8))
     elif route_mode == 'best':
         if provider.api_type in {'anthropic-messages', 'openclaw-gateway'}:
             score += 5
@@ -2746,10 +2758,13 @@ def stream_google_to_client(self, provider, model, payload, request_id, thinking
     return True
 
 
-def handle_openai_chat_completions(self, payload, request_id, started):
+def handle_openai_chat_completions(self, payload, request_id, started, force_realtime=False):
     message_count = len(payload.get('messages', []) or [])
     thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning'))
     route_mode = normalize_route_mode(payload.get('route'))
+    if force_realtime:
+        route_mode = 'realtime'
+        thinking = ThinkingLevel.LOW  # Force low thinking for speed
     requirements = normalize_requirements(payload)
     want_json = str(payload.get('responseFormat') or '').lower() == 'json' or payload.get('response_format', {}).get('type') == 'json_object'
     want_stream = bool(payload.get('stream', False))
@@ -3235,7 +3250,7 @@ class Handler(BaseHTTPRequestHandler):
                 "thinking": {
                     "default": ThinkingLevel.MEDIUM.value,
                     "accepted": [level.value for level in ThinkingLevel],
-                    "routeModes": ["fast", "balanced", "best", "local-first"],
+                    "routeModes": ["fast", "balanced", "best", "local-first", "realtime"],
                 },
                 "requirements": {
                     "supportedKeys": ["reasoning", "json", "tools", "longContext", "streaming"]
@@ -3339,6 +3354,20 @@ class Handler(BaseHTTPRequestHandler):
             request_id = uuid.uuid4().hex[:8]
             started = time.time()
             handle_anthropic_messages(self, body, request_id, started)
+        elif self.path in ['/v1/realtime', '/realtime']:
+            # Ultra-low-latency realtime endpoint with aggressive streaming
+            body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+            request_id = uuid.uuid4().hex[:8]
+            started = time.time()
+            try:
+                payload = json.loads(body or b'{}')
+                # Force realtime route mode and streaming
+                payload['route'] = 'realtime'
+                payload['stream'] = True
+                handle_openai_chat_completions(self, payload, request_id, started, force_realtime=True)
+            except Exception as e:
+                logger.exception(f"[{request_id}] Realtime request failed")
+                self.write_json(500, {"error": str(e)}, extra_headers={'X-Sage-Router-Request-Id': request_id})
         elif ':generateContent' in self.path or ':streamGenerateContent' in self.path:
             # Google Generative AI compat: /v1beta/models/{model}:generateContent
             import re
