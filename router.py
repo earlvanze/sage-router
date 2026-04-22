@@ -87,6 +87,18 @@ GENERAL_EMPIRICAL_FAILURE_PENALTY = float(os.environ.get('SAGE_ROUTER_GENERAL_FA
 DEFAULT_OPENAI_CODEX_MODELS = ['gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.3-codex', 'gpt-5.3-codex-spark', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini', 'gpt-5.1']
 DEFAULT_ANTHROPIC_MODELS = ['claude-opus-4-6', 'claude-opus-4-5', 'claude-opus-4-1', 'claude-opus-4-0', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-sonnet-4-0', 'claude-haiku-4-5', 'claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest']
 
+
+def extract_http_error(exc: Exception) -> str:
+    if isinstance(exc, urllib.error.HTTPError):
+        try:
+            body = exc.read().decode('utf-8', errors='replace').strip()
+        except Exception:
+            body = ''
+        detail = f"HTTP {exc.code} {exc.reason}"
+        return f"{detail} | {body[:300]}" if body else detail
+    return str(exc)
+
+
 # Auth-profile-based gateway providers: auto-created when matching profile exists
 # Maps auth profile provider name -> (api_type, default_models, default_meta)
 GATEWAY_PROVIDER_PROFILES = {
@@ -971,8 +983,10 @@ def sanitize_visible_output(text: str):
 
 def normalize_tool_calls(tool_calls):
     normalized = []
+    logger.debug(f"normalize_tool_calls input: {tool_calls}")
     for idx, tool_call in enumerate(tool_calls or []):
         if not isinstance(tool_call, dict):
+            logger.debug(f"Skipping non-dict tool_call: {tool_call}")
             continue
         function = tool_call.get('function') if isinstance(tool_call.get('function'), dict) else {}
         name = function.get('name') or tool_call.get('name') or f'tool_{idx + 1}'
@@ -981,7 +995,8 @@ def normalize_tool_calls(tool_calls):
         if isinstance(arguments, str):
             try:
                 arguments = json.loads(arguments)
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Failed to parse arguments JSON: {e}")
                 arguments = {}
         normalized.append({
             'id': tool_call.get('id') or f'call_{uuid.uuid4().hex[:24]}',
@@ -991,6 +1006,8 @@ def normalize_tool_calls(tool_calls):
                 'arguments': arguments if isinstance(arguments, dict) else {},
             },
         })
+        logger.debug(f"Normalized tool call: name={name}, arguments={arguments}")
+    logger.debug(f"normalize_tool_calls output: {normalized}")
     return normalized
 
 
@@ -1566,17 +1583,6 @@ def build_openclaw_gateway_prompt(messages):
         sections.append('Conversation so far:\n' + '\n'.join(conversation_parts))
     sections.append('Reply as the assistant to the latest user message.')
     return '\n\n'.join(section for section in sections if section).strip()
-
-
-def extract_http_error(exc: Exception) -> str:
-    if isinstance(exc, urllib.error.HTTPError):
-        try:
-            body = exc.read().decode('utf-8', errors='replace').strip()
-        except Exception:
-            body = ''
-        detail = f"HTTP {exc.code} {exc.reason}"
-        return f"{detail} | {body[:300]}" if body else detail
-    return str(exc)
 
 
 def fetch_ollama_manifest(provider: Provider):
@@ -2450,6 +2456,7 @@ def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
 def call_openai_compat_completion(base_url, model, payload, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False, request_id=''):
     url = base_url.rstrip('/') + '/v1/chat/completions'
     proxied = build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=supports_reasoning, thinking=thinking)
+    logger.info(f"[openai-compat] Sending to {provider_name} with tools: {bool(proxied.get('tools'))}")
     try:
         data = json.dumps(proxied).encode()
         hdrs = {'Content-Type': 'application/json'}
@@ -2461,7 +2468,9 @@ def call_openai_compat_completion(base_url, model, payload, api_key='', provider
         choice = (body.get('choices') or [{}])[0]
         message = choice.get('message') or {}
         text = sanitize_visible_output(message.get('content', '') or '')
-        tool_calls = normalize_tool_calls(message.get('tool_calls'))
+        raw_tool_calls = message.get('tool_calls')
+        logger.info(f"[openai-compat] Response tool_calls: {raw_tool_calls}")
+        tool_calls = normalize_tool_calls(raw_tool_calls)
         finish_reason = choice.get('finish_reason') or ('tool_calls' if tool_calls else 'stop')
         return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, body.get('usage'), debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
     except Exception as e:
@@ -2477,12 +2486,15 @@ def call_ollama_completion(base_url, model, payload, api_key='', thinking=Thinki
         hdrs['Authorization'] = f'Bearer {api_key}'
     try:
         body_payload = build_ollama_payload(model, payload, thinking=thinking, stream=False)
+        logger.info(f"[ollama] Sending request to {url} with {len(body_payload.get('tools', []))} tools")
         req = urllib.request.Request(url, data=json.dumps(body_payload).encode(), headers=hdrs)
         with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT_SECONDS) as resp:
             body = json.loads(resp.read())
         message = body.get('message', {}) or {}
         text = sanitize_visible_output(message.get('content', '') or '')
-        tool_calls = normalize_tool_calls(message.get('tool_calls'))
+        raw_tool_calls = message.get('tool_calls')
+        logger.info(f"[ollama] Response tool_calls: {raw_tool_calls}")
+        tool_calls = normalize_tool_calls(raw_tool_calls)
         finish_reason = 'tool_calls' if tool_calls else (body.get('done_reason') or 'stop')
         return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
     except Exception as e:
