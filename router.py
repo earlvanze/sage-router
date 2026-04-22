@@ -478,6 +478,98 @@ def discover_hermes_core_providers():
     return providers
 
 
+def discover_openclaw_cli_providers(timeout_seconds=15):
+    """Discover providers using 'openclaw models list --all' CLI with caching."""
+    cache_key = 'openclaw_cli_providers'
+    cache_ttl = 60  # Cache for 60 seconds
+    
+    # Check cache
+    now = time.time()
+    if hasattr(discover_openclaw_cli_providers, '_cache'):
+        cached_data, cached_time = discover_openclaw_cli_providers._cache
+        if now - cached_time < cache_ttl:
+            return cached_data
+    
+    providers = {}
+    try:
+        result = subprocess.run(
+            ['openclaw', 'models', 'list', '--all'],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds
+        )
+        if result.returncode == 0:
+            # Parse the output - assume it's JSON or table format
+            output = result.stdout.strip()
+            if output.startswith('{'):
+                # JSON output
+                providers = json.loads(output)
+            else:
+                # Parse table/text output
+                providers = {'raw': output[:5000]}  # Limit size
+            logger.info(f"Discovered providers via openclaw CLI")
+    except subprocess.TimeoutExpired:
+        logger.warning("openclaw CLI timed out - using cached/config data")
+    except Exception as e:
+        logger.debug(f"openclaw CLI discovery failed: {e}")
+    
+    # Cache result even if empty (to avoid hammering)
+    discover_openclaw_cli_providers._cache = (providers, now)
+    return providers
+
+
+def discover_hermes_cli_providers(timeout_seconds=10):
+    """Discover providers using 'hermes' CLI with caching."""
+    cache_key = 'hermes_cli_providers'
+    cache_ttl = 60  # Cache for 60 seconds
+    
+    # Check cache
+    now = time.time()
+    if hasattr(discover_hermes_cli_providers, '_cache'):
+        cached_data, cached_time = discover_hermes_cli_providers._cache
+        if now - cached_time < cache_ttl:
+            return cached_data
+    
+    providers = {}
+    try:
+        # Try hermes status --json if available
+        result = subprocess.run(
+            ['hermes', 'status', '--json'],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            try:
+                status = json.loads(result.stdout)
+                providers['hermes-status'] = status
+            except json.JSONDecodeError:
+                providers['hermes-status'] = {'raw': result.stdout[:2000]}
+        else:
+            # Fallback: try hermes model --json
+            result2 = subprocess.run(
+                ['hermes', 'model', '--json'],
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds
+            )
+            if result2.returncode == 0 and result2.stdout.strip():
+                try:
+                    model_info = json.loads(result2.stdout)
+                    providers['hermes-model'] = model_info
+                except json.JSONDecodeError:
+                    providers['hermes-model'] = {'raw': result2.stdout[:2000]}
+        logger.info(f"Discovered providers via Hermes CLI")
+    except subprocess.TimeoutExpired:
+        logger.warning("Hermes CLI timed out - using cached/config data")
+    except Exception as e:
+        logger.debug(f"Hermes CLI discovery failed: {e}")
+    
+    # Cache result even if empty
+    discover_hermes_cli_providers._cache = (providers, now)
+    return providers
+
+
 def discover_openclaw_core_providers():
     """Discover all providers and models from OpenClaw core config (~/.openclaw/openclaw.json)."""
     providers = {}
@@ -3056,21 +3148,37 @@ class Handler(BaseHTTPRequestHandler):
                 "count": len(TEMP_MODEL_BLOCKS)
             })
         elif self.path == '/discovery':
-            # Return discovered providers from OpenClaw core and Hermes core
-            openclaw_providers = discover_openclaw_core_providers()
-            hermes_providers = discover_hermes_core_providers()
+            # Return discovered providers from OpenClaw CLI, Hermes CLI, and fallbacks
+            openclaw_cli = discover_openclaw_cli_providers(timeout_seconds=12)
+            hermes_cli = discover_hermes_cli_providers(timeout_seconds=8)
+            openclaw_file = discover_openclaw_core_providers()
+            hermes_file = discover_hermes_core_providers()
             self.write_json(200, {
                 "openclaw": {
-                    "source": "~/.openclaw/openclaw.json",
-                    "providers": openclaw_providers,
-                    "count": len(openclaw_providers)
+                    "cli": {
+                        "command": "openclaw models list --all",
+                        "providers": openclaw_cli,
+                        "count": len(openclaw_cli) if isinstance(openclaw_cli, dict) else 0
+                    },
+                    "config": {
+                        "source": "~/.openclaw/openclaw.json",
+                        "providers": openclaw_file,
+                        "count": len(openclaw_file)
+                    }
                 },
                 "hermes": {
-                    "source": "~/.hermes/config.yaml + auth.json",
-                    "providers": hermes_providers,
-                    "count": len(hermes_providers)
+                    "cli": {
+                        "command": "hermes status --json",
+                        "providers": hermes_cli,
+                        "count": len(hermes_cli) if isinstance(hermes_cli, dict) else 0
+                    },
+                    "config": {
+                        "source": "~/.hermes/config.yaml + auth.json",
+                        "providers": hermes_file,
+                        "count": len(hermes_file)
+                    }
                 },
-                "totalProviders": len(openclaw_providers) + len(hermes_providers)
+                "totalProviders": len(openclaw_file) + len(hermes_file)
             })
         elif self.path.startswith('/v1beta/models') or self.path.startswith('/v1/models'):
             # Google Generative AI models listing endpoint
