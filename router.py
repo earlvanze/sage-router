@@ -607,6 +607,93 @@ def discover_openclaw_core_providers():
     return providers
 
 
+def fetch_github_providers_manifest(repo_owner, repo_name, path_in_repo="providers.json", timeout_seconds=10):
+    """Fetch provider manifest from GitHub repo source code."""
+    try:
+        url = f"https://raw.githubusercontent.com/{repo_owner}/{repo_name}/main/{path_in_repo}"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+            return json.loads(resp.read())
+    except Exception as e:
+        logger.debug(f"GitHub fetch failed for {repo_owner}/{repo_name}: {e}")
+        return None
+
+
+def discover_openclaw_github_manifests():
+    """Discover OpenClaw providers from GitHub source manifests."""
+    manifests = {}
+    
+    # Try to fetch from OpenClaw GitHub repo
+    manifest = fetch_github_providers_manifest("openclaw", "openclaw", "providers.json")
+    if manifest:
+        manifests['openclaw-github'] = manifest
+    
+    # Fallback: known OpenClaw provider patterns from source analysis
+    manifests['openclaw-supported'] = {
+        "source": "GitHub source analysis",
+        "url": "https://github.com/openclaw/openclaw",
+        "providers": [
+            {"name": "anthropic", "api": "anthropic-messages", "models": ["claude-opus", "claude-sonnet", "claude-haiku"]},
+            {"name": "openai", "api": "openai-completions", "models": ["gpt-5.4", "gpt-4o", "gpt-4o-mini"]},
+            {"name": "google", "api": "google-generative-ai", "models": ["gemini-3-pro", "gemini-3-flash", "gemini-2.5-pro", "gemini-2.5-flash"]},
+            {"name": "haimaker", "api": "openai-completions", "models": ["qwen3-coder", "llama-3.3-70b"]},
+            {"name": "minimax", "api": "openai-completions", "models": ["minimax-m2.5", "minimax-m2.7"]},
+            {"name": "moonshot", "api": "openai-completions", "models": ["kimi-k2", "kimi-k2.5", "kimi-k2.6"]},
+            {"name": "ollama", "api": "ollama", "models": ["dynamic-local"]},
+            {"name": "openrouter", "api": "openai-completions", "models": ["200+ models"]},
+            {"name": "xiaomi", "api": "openai-completions", "models": ["mimo-v2-pro"]},
+            {"name": "zai", "api": "openai-completions", "models": ["glm-5", "glm-5-turbo"]},
+            {"name": "bedrock", "api": "openai-completions", "models": ["claude", "nova", "llama"]},
+            {"name": "deepseek", "api": "openai-completions", "models": ["deepseek-chat", "deepseek-reasoner"]},
+            {"name": "github-copilot", "api": "openai-completions", "models": ["gpt-4o-copilot", "claude-sonnet-copilot"]},
+            {"name": "groq", "api": "openai-completions", "models": ["llama", "mixtral"]},
+            {"name": "together", "api": "openai-completions", "models": ["various open source"]},
+            {"name": "fireworks", "api": "openai-completions", "models": ["various open source"]},
+            {"name": "huggingface", "api": "openai-completions", "models": ["inference endpoints"]},
+            {"name": "perplexity", "api": "openai-completions", "models": ["sonar"]},
+            {"name": "mistral", "api": "openai-completions", "models": ["mistral-large", "mistral-medium"]},
+            {"name": "nvidia", "api": "openai-completions", "models": ["nemotron"]},
+        ],
+        "notes": "OpenClaw supports any OpenAI-compatible endpoint. Dynamic model discovery via /v1/models where available."
+    }
+    
+    return manifests
+
+
+def discover_hermes_github_manifests():
+    """Discover Hermes Agent providers from GitHub source manifests."""
+    manifests = {}
+    
+    # Try to fetch from Hermes GitHub repo
+    manifest = fetch_github_providers_manifest("NousResearch", "hermes-agent", "providers.json")
+    if manifest:
+        manifests['hermes-github'] = manifest
+    
+    # Fallback: known Hermes provider patterns from source analysis
+    manifests['hermes-supported'] = {
+        "source": "GitHub source analysis",
+        "url": "https://github.com/NousResearch/hermes-agent",
+        "providers": [
+            {"name": "nous-portal", "api": "openai-completions"},
+            {"name": "openrouter", "api": "openai-completions", "models": "200+"},
+            {"name": "nvidia-nim", "api": "openai-completions", "models": ["nemotron"]},
+            {"name": "xiaomi", "api": "openai-completions", "models": ["mimo-v2-pro"]},
+            {"name": "zai", "api": "openai-completions", "models": ["glm-5"]},
+            {"name": "kimi", "api": "openai-completions", "models": ["kimi-k2"]},
+            {"name": "minimax", "api": "openai-completions", "models": ["minimax-m2"]},
+            {"name": "huggingface", "api": "openai-completions"},
+            {"name": "openai", "api": "openai-completions"},
+            {"name": "anthropic", "api": "anthropic-messages"},
+            {"name": "google", "api": "google-generative-ai"},
+            {"name": "xai", "api": "openai-completions"},
+            {"name": "openclaw-gateway", "api": "openclaw-gateway"},
+        ],
+        "notes": "Hermes supports any OpenAI-compatible endpoint. Uses hermes model command to switch."
+    }
+    
+    return manifests
+
+
 def discover_provider_models(name, cfg, base_url, api_key, api_type):
     raw_models = cfg.get('models', [])
     configured = [m.get('id') for m in raw_models if isinstance(m, dict) and m.get('id')] if isinstance(raw_models, list) else []
@@ -3148,13 +3235,20 @@ class Handler(BaseHTTPRequestHandler):
                 "count": len(TEMP_MODEL_BLOCKS)
             })
         elif self.path == '/discovery':
-            # Return discovered providers from OpenClaw CLI, Hermes CLI, and fallbacks
+            # Return discovered providers from GitHub manifests, CLI, and fallbacks
+            openclaw_github = discover_openclaw_github_manifests()
+            hermes_github = discover_hermes_github_manifests()
             openclaw_cli = discover_openclaw_cli_providers(timeout_seconds=12)
             hermes_cli = discover_hermes_cli_providers(timeout_seconds=8)
             openclaw_file = discover_openclaw_core_providers()
             hermes_file = discover_hermes_core_providers()
             self.write_json(200, {
                 "openclaw": {
+                    "github": {
+                        "source": "openclaw/openclaw repo",
+                        "manifests": openclaw_github,
+                        "count": len(openclaw_github)
+                    },
                     "cli": {
                         "command": "openclaw models list --all",
                         "providers": openclaw_cli,
@@ -3167,6 +3261,11 @@ class Handler(BaseHTTPRequestHandler):
                     }
                 },
                 "hermes": {
+                    "github": {
+                        "source": "NousResearch/hermes-agent repo",
+                        "manifests": hermes_github,
+                        "count": len(hermes_github)
+                    },
                     "cli": {
                         "command": "hermes status --json",
                         "providers": hermes_cli,
