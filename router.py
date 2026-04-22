@@ -358,6 +358,67 @@ def discover_google_models(base_url, api_key):
         return []
 
 
+def discover_openai_models(base_url, api_key):
+    """Discover available OpenAI models via /v1/models endpoint."""
+    if not base_url or not api_key:
+        return []
+    try:
+        url = base_url.rstrip('/') + '/v1/models'
+        hdrs = {'Authorization': f'Bearer {api_key}'}
+        req = urllib.request.Request(url, headers=hdrs)
+        with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+            payload = json.loads(resp.read())
+        models = [m.get('id', '') for m in payload.get('data', []) if m.get('id')]
+        # Filter to chat completion models only
+        chat_models = [m for m in models if any(x in m.lower() for x in ['gpt', 'chat', 'o1', 'o3'])]
+        if chat_models:
+            logger.info(f'Discovered {len(chat_models)} OpenAI chat models via API')
+        return dedupe_keep_order(chat_models)
+    except Exception as e:
+        logger.debug(f"OpenAI model discovery {base_url}: {extract_http_error(e)}")
+        return []
+
+
+def discover_github_copilot_models(base_url, api_key):
+    """Discover available GitHub Copilot models via /v1/models endpoint."""
+    if not base_url or not api_key:
+        return []
+    try:
+        url = base_url.rstrip('/') + '/v1/models'
+        hdrs = {'Authorization': f'Bearer {api_key}'}
+        req = urllib.request.Request(url, headers=hdrs)
+        with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+            payload = json.loads(resp.read())
+        models = [m.get('id', '') for m in payload.get('data', []) if m.get('id')]
+        if models:
+            logger.info(f'Discovered {len(models)} GitHub Copilot models via API')
+        return dedupe_keep_order(models)
+    except Exception as e:
+        logger.debug(f"GitHub Copilot model discovery {base_url}: {extract_http_error(e)}")
+        return []
+
+
+def discover_openclaw_gateway_models(base_url, gateway_token=None):
+    """Discover available OpenClaw Gateway models via /v1/models endpoint."""
+    if not base_url:
+        return []
+    try:
+        url = base_url.rstrip('/') + '/v1/models'
+        req = urllib.request.Request(url)
+        # Add auth if token available
+        if gateway_token:
+            req.add_header('Authorization', f'Bearer {gateway_token}')
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            payload = json.loads(resp.read())
+        models = [m.get('id', '') for m in payload.get('data', []) if m.get('id')]
+        if models:
+            logger.info(f'Discovered {len(models)} OpenClaw Gateway models via API')
+        return dedupe_keep_order(models)
+    except Exception as e:
+        logger.debug(f"OpenClaw Gateway model discovery {base_url}: {extract_http_error(e)}")
+        return []
+
+
 def discover_provider_models(name, cfg, base_url, api_key, api_type):
     raw_models = cfg.get('models', [])
     configured = [m.get('id') for m in raw_models if isinstance(m, dict) and m.get('id')] if isinstance(raw_models, list) else []
@@ -365,6 +426,12 @@ def discover_provider_models(name, cfg, base_url, api_key, api_type):
     discovered = []
     if api_type in ('google-generative-language', 'google-generative-ai'):
         discovered = discover_google_models(base_url, api_key)
+    elif api_type == 'openai-completions':
+        # Try OpenAI-style discovery for openai, github-copilot, etc.
+        discovered = discover_openai_models(base_url, api_key)
+    elif api_type == 'openclaw-gateway':
+        # For OpenClaw Gateway, try to discover models
+        discovered = discover_openclaw_gateway_models(base_url, api_key)
     if discovered:
         # Configured models first (stable), then any discovered models not already listed
         return dedupe_keep_order(configured + discovered)

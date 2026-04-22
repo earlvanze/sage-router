@@ -150,12 +150,14 @@ Models are auto-discovered via `/api/tags`.
     "openai": {
       "baseUrl": "https://api.openai.com/v1",
       "apiKey": "${OPENAI_API_KEY}",
-      "models": ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"],
+      "models": ["auto-discover"],
       "api": "openai-completions"
     }
   }
 }
 ```
+
+Models are auto-discovered via `/v1/models`.
 
 ### Google Gemini
 
@@ -182,11 +184,14 @@ Models are auto-discovered via the Gemini API.
     "github-copilot": {
       "baseUrl": "https://api.githubcopilot.com",
       "apiKey": "${GITHUB_COPILOT_TOKEN}",
-      "models": ["gpt-4o-copilot", "claude-sonnet-copilot"],
+      "models": ["auto-discover"],
       "api": "openai-completions"
     }
   }
 }
+```
+
+Models are auto-discovered via Copilot's `/v1/models`.
 ```
 
 ### xAI via SuperGrok subscription
@@ -210,11 +215,14 @@ See `provider-profiles.json` for the `grok-sso` template and `GROK_SSO.md` for s
   "providers": {
     "openai-codex": {
       "baseUrl": "http://127.0.0.1:8788",
-      "models": ["codex", "codex-mini"],
+      "models": ["auto-discover"],
       "api": "openclaw-gateway"
     }
   }
 }
+```
+
+Models are auto-discovered via the gateway's `/v1/models` endpoint.
 ```
 
 ---
@@ -226,8 +234,9 @@ See `provider-profiles.json` for the `grok-sso` template and `GROK_SSO.md` for s
 | **Ollama** | ✅ `/api/tags` | ✅ | ✅ | Local socket |
 | **Google Gemini** | ✅ `/v1beta/models` | ✅ | ✅ | API key |
 | **Anthropic** | ✅ Via Dario | ✅ | ✅ | API key |
-| **OpenAI** | ❌ Manual list | ✅ | ✅ | API key |
-| **GitHub Copilot** | ❌ Manual list | ✅ | ✅ | Token |
+| **OpenAI** | ✅ `/v1/models` | ✅ | ✅ | API key |
+| **GitHub Copilot** | ✅ `/v1/models` | ✅ | ✅ | Token |
+| **OpenClaw Gateway** | ✅ `/v1/models` | ✅ | ✅ | Gateway token |
 | **xAI/Grok** | ❌ SSO proxy | ❌ | ❌ | Cookie/SSO |
 
 **Dynamic Discovery**: Models are auto-fetched from provider API  
