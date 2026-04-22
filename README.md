@@ -232,6 +232,25 @@ See `GALAXY.md` for the direct-run API shape, MCP notes, and adapter details.
 
 ---
 
+## Provider Feature Matrix
+
+| Provider | Dynamic Discovery | Force Model | Passthrough | Auth Method |
+|----------|-------------------|-------------|-------------|-------------|
+| **Ollama** | ✅ `/api/tags` | ✅ | ✅ | Local socket |
+| **Google Gemini** | ✅ `/v1beta/models` | ✅ | ✅ | API key |
+| **Anthropic** | ✅ Via Dario | ✅ | ✅ | API key |
+| **OpenAI** | ❌ Manual list | ✅ | ✅ | API key |
+| **GitHub Copilot** | ❌ Manual list | ✅ | ✅ | Token |
+| **xAI/Grok** | ❌ SSO proxy | ❌ | ❌ | Cookie/SSO |
+| **Galaxy.ai** | ❌ Manual list | ✅ | ❌ | API key |
+| **OpenClaw Gateway** | ❌ Manual list | ✅ | ❌ | Internal |
+
+**Dynamic Discovery**: Models are auto-fetched from provider API  
+**Force Model**: Request specific model via `"model": "provider/model"`  
+**Passthrough**: Any model name accepted (even if not in discovered list)
+
+---
+
 ## Route Modes
 
 Control how Sage Router selects models:

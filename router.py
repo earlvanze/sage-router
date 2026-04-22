@@ -621,19 +621,18 @@ def normalize_tool_calls(tool_calls):
         function = tool_call.get('function') if isinstance(tool_call.get('function'), dict) else {}
         name = function.get('name') or tool_call.get('name') or f'tool_{idx + 1}'
         arguments = function.get('arguments') if 'arguments' in function else tool_call.get('arguments', {})
+        # Ollama expects arguments as an object, not a JSON string
         if isinstance(arguments, str):
-            arguments_text = arguments
-        else:
             try:
-                arguments_text = json.dumps(arguments or {}, separators=(',', ':'))
+                arguments = json.loads(arguments)
             except Exception:
-                arguments_text = '{}'
+                arguments = {}
         normalized.append({
             'id': tool_call.get('id') or f'call_{uuid.uuid4().hex[:24]}',
             'type': 'function',
             'function': {
                 'name': name,
-                'arguments': arguments_text,
+                'arguments': arguments if isinstance(arguments, dict) else {},
             },
         })
     return normalized
@@ -800,7 +799,7 @@ def model_capabilities(provider, model):
     default_chat = is_chat_capable_model(provider, model)
     default_json = provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages', 'google-generative-language'}
     default_tools = provider.api_type in {'openai-completions', 'ollama', 'anthropic-messages'}
-    default_streaming = provider.api_type in {'openai-completions', 'ollama'}
+    default_streaming = provider.api_type in {'openai-completions', 'ollama', 'google-generative-language'}
     return {
         'chat': bool(meta.get('supportsChat', default_chat)),
         'servable': model_is_servable(provider, model),
@@ -2032,6 +2031,9 @@ def call_anthropic(base_url, model, messages, api_key='', thinking=ThinkingLevel
 
 
 def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM, want_json=False):
+    # Ensure base_url has /v1beta for Google API
+    if 'generativelanguage.googleapis.com' in base_url and '/v1beta' not in base_url:
+        base_url = base_url.rstrip('/') + '/v1beta'
     url = base_url.rstrip('/') + f'/models/{urllib.parse.quote(model, safe="")}:generateContent'
     system_text = ''
     contents = []
@@ -2394,6 +2396,115 @@ def stream_ollama_to_client(self, provider, model, payload, request_id, thinking
     return True
 
 
+def stream_google_to_client(self, provider, model, payload, request_id, thinking=ThinkingLevel.MEDIUM, debug_mode=False):
+    """Stream Google Generative AI responses via SSE."""
+    base_url = provider.base_url
+    # Ensure base_url has /v1beta for Google API
+    if 'generativelanguage.googleapis.com' in base_url and '/v1beta' not in base_url:
+        base_url = base_url.rstrip('/') + '/v1beta'
+    
+    # Build URL with API key as query param (required for streaming)
+    api_key_param = f"?key={urllib.parse.quote(provider.api_key)}" if provider.api_key else ""
+    url = base_url.rstrip('/') + f'/models/{urllib.parse.quote(model, safe="")}:streamGenerateContent' + api_key_param
+    
+    # Build Google payload from OpenAI messages
+    system_text = ''
+    contents = []
+    for msg in payload.get('messages', []):
+        role = msg.get('role', 'user')
+        content = msg.get('content', '')
+        if not content:
+            continue
+        if role in ('system', 'developer'):
+            system_text += content + '\n'
+            continue
+        if role == 'assistant':
+            gemini_role = 'model'
+        else:
+            gemini_role = 'user'
+        part = {'text': content}
+        if contents and contents[-1].get('role') == gemini_role:
+            contents[-1].setdefault('parts', []).append(part)
+        else:
+            contents.append({'role': gemini_role, 'parts': [part]})
+    
+    if contents and contents[0].get('role') != 'user':
+        contents.insert(0, {'role': 'user', 'parts': [{'text': 'Hello'}]})
+    if not contents:
+        contents = [{'role': 'user', 'parts': [{'text': 'Hello'}]}]
+    
+    google_payload = {
+        'contents': contents,
+        'generationConfig': {'maxOutputTokens': thinking_max_tokens(thinking)},
+    }
+    if system_text.strip():
+        google_payload['systemInstruction'] = {'parts': [{'text': system_text.strip()}]}
+    
+    # API key is in URL query param for streaming
+    req = urllib.request.Request(url, data=json.dumps(google_payload).encode(), headers={'Content-Type': 'application/json'})
+    chat_id = f'chatcmpl-{int(time.time())}'
+    router_model = f'{provider.name}/{model}'
+    
+    with urllib.request.urlopen(req, timeout=GOOGLE_TIMEOUT_SECONDS) as resp:
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/event-stream')
+        self.send_header('Cache-Control', 'no-cache')
+        for key, value in self.routing_headers({'model': router_model}, request_id).items():
+            if value:
+                self.send_header(key, str(value))
+        self.end_headers()
+        
+        if debug_mode:
+            debug_chunk = json.dumps({
+                'id': chat_id, 'object': 'chat.completion.chunk', 'created': int(time.time()),
+                'model': router_model,
+                'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': f'[sage-router {provider.name}/{model}]\n'}, 'finish_reason': None}],
+            })
+            self.wfile.write(f'data: {debug_chunk}\n\n'.encode())
+            self.wfile.flush()
+        
+        sent_role = False
+        for line in resp:
+            if not line:
+                continue
+            line_str = line.decode('utf-8', errors='replace').strip()
+            if not line_str:
+                continue
+            try:
+                chunk = json.loads(line_str)
+                candidates = chunk.get('candidates', [])
+                if candidates:
+                    content_parts = candidates[0].get('content', {}).get('parts', [])
+                    text = ''.join(p.get('text', '') for p in content_parts if p.get('text'))
+                    if text:
+                        delta = {'content': text}
+                        if not sent_role:
+                            delta['role'] = 'assistant'
+                            sent_role = True
+                        sse_chunk = json.dumps({
+                            'id': chat_id, 'object': 'chat.completion.chunk', 'created': int(time.time()),
+                            'model': router_model,
+                            'choices': [{'index': 0, 'delta': delta, 'finish_reason': None}],
+                        })
+                        self.wfile.write(f'data: {sse_chunk}\n\n'.encode())
+                        self.wfile.flush()
+                    
+                    finish_reason_str = candidates[0].get('finishReason')
+                    if finish_reason_str:
+                        done_chunk = json.dumps({
+                            'id': chat_id, 'object': 'chat.completion.chunk', 'created': int(time.time()),
+                            'model': router_model,
+                            'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'stop'}],
+                        })
+                        self.wfile.write(f'data: {done_chunk}\n\n'.encode())
+                        self.wfile.write(b'data: [DONE]\n\n')
+                        self.wfile.flush()
+                        break
+            except json.JSONDecodeError:
+                continue
+    return True
+
+
 def handle_openai_chat_completions(self, payload, request_id, started):
     message_count = len(payload.get('messages', []) or [])
     thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning'))
@@ -2411,6 +2522,8 @@ def handle_openai_chat_completions(self, payload, request_id, started):
         requirements=requirements,
         want_json=want_json,
         streaming_mode='native-pass-through' if want_stream else 'disabled',
+        force_provider=payload.get('provider'),
+        requested_model=payload.get('model'),
     )
 
     attempts = []
@@ -2451,7 +2564,8 @@ def handle_openai_chat_completions(self, payload, request_id, started):
                         error_detail = result
             elif prov.api_type == 'google-generative-language':
                 if want_stream:
-                    error_detail = 'streaming passthrough not implemented for google bridge'
+                    stream_google_to_client(self, prov, model, payload, request_id, thinking=thinking, debug_mode=debug_mode)
+                    ok = True
                 else:
                     ok, result = call_google_completion(prov.base_url, model, payload, api_key=prov.api_key, thinking=thinking, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
@@ -2549,14 +2663,42 @@ def openai_to_google_response(result, request_model):
     }
 
 
-def prepare_route(messages, request_id='req-unknown', thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, want_json=False, streaming_mode=None):
+def prepare_route(messages, request_id='req-unknown', thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, want_json=False, streaming_mode=None, force_provider=None, requested_model=None):
     normalized_messages = normalize_messages(messages)
     estimated_tokens = estimate_prompt_tokens(normalized_messages)
     user_text = latest_user_text(normalized_messages)
     intent, _ = classify_intent(user_text)
     complexity = estimate_complexity(user_text)
     requirements = requirements or {}
-    logger.info(f"[{request_id}] Intent: {intent.name}, Complexity: {complexity.name}, Thinking: {thinking.value}, Route: {route_mode}, JSON: {want_json}, EstTokens: {estimated_tokens}")
+    logger.info(f"[{request_id}] Intent: {intent.name}, Complexity: {complexity.name}, Thinking: {thinking.value}, Route: {route_mode}, JSON: {want_json}, EstTokens: {estimated_tokens}, ForceProvider: {force_provider or 'none'}")
+    
+    # If provider forced, build chain with only that provider's models
+    if force_provider and force_provider in PROVIDERS and force_provider not in DISABLED_PROVIDERS:
+        prov = PROVIDERS[force_provider]
+        if prov.api_type == 'ollama':
+            fetch_ollama_models(prov)
+        if prov.models and provider_endpoint_reachable(prov):
+            # Build chain, prioritizing the requested model if specified
+            all_models = dedupe_keep_order(prov.models)
+            if requested_model and requested_model not in all_models:
+                # For Google and other API providers, allow any model name (passthrough)
+                if prov.api_type in ('google-generative-language', 'google-generative-ai'):
+                    chain = [(force_provider, requested_model)]
+                    logger.info(f"[{request_id}] Chain (Google passthrough): {chain}")
+                    LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': [{'provider': force_provider, 'model': requested_model, 'score': 100}], 'rejections': [], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider, 'passthrough': True})
+                    return normalized_messages, intent, complexity, estimated_tokens, chain
+                # Otherwise prepend requested model if not in list
+                all_models = [requested_model] + all_models
+            elif requested_model and requested_model in all_models:
+                # Move requested model to front if it exists
+                all_models = [requested_model] + [m for m in all_models if m != requested_model]
+            chain = [(force_provider, model) for model in all_models[:MAX_PROVIDER_ATTEMPTS]]
+            score_debug = [{'provider': force_provider, 'model': model, 'score': 100} for _, model in chain]
+            rejections = []
+            logger.info(f"[{request_id}] Chain (forced): {chain}")
+            LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug, 'rejections': [], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider})
+            return normalized_messages, intent, complexity, estimated_tokens, chain
+    
     chain, score_debug, rejections = select_model(intent, complexity, thinking, route_mode, requirements, estimated_tokens)
     LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug[:12], 'rejections': rejections[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None})
     logger.info(f"[{request_id}] Chain: {chain} (no mid-stream switching; each candidate tried sequentially until one succeeds)")
@@ -2883,6 +3025,17 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 "reasoningCapabilities": reasoning_capabilities_summary(),
                 "lastRoute": LAST_ROUTE_DEBUG,
+                "blocks": {key: {"until": info["until"], "reason": info["reason"]} for key, info in TEMP_MODEL_BLOCKS.items()},
+            })
+        elif self.path == '/admin/clear-blocks':
+            count = len(TEMP_MODEL_BLOCKS)
+            TEMP_MODEL_BLOCKS.clear()
+            MODEL_HEALTH_CACHE.clear()
+            self.write_json(200, {"cleared": count, "status": "ok"})
+        elif self.path == '/admin/blocks':
+            self.write_json(200, {
+                "blocks": {key: {"until": info["until"], "reason": info["reason"], "expiresInSeconds": max(0, info["until"] - time.time())} for key, info in TEMP_MODEL_BLOCKS.items()},
+                "count": len(TEMP_MODEL_BLOCKS)
             })
         elif self.path.startswith('/v1beta/models') or self.path.startswith('/v1/models'):
             # Google Generative AI models listing endpoint
