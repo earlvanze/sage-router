@@ -194,8 +194,24 @@ Models are auto-discovered via the Gemini API.
 Models are auto-discovered via Copilot's `/v1/models`.
 ```
 
-### xAI via SuperGrok subscription
+### xAI (Grok)
 
+**API Key mode** (recommended for production):
+```json
+{
+  "providers": {
+    "xai": {
+      "baseUrl": "https://api.x.ai/v1",
+      "apiKey": "${XAI_API_KEY}",
+      "models": ["auto-discover"],
+      "api": "openai-completions"
+    }
+  }
+}
+```
+Models are auto-discovered via `/v1/models`. Supports tool calling, streaming, and passthrough.
+
+**SSO/SuperGrok mode** (local proxy, no API costs):
 Sage Router can route through a local Grok SSO proxy instead of burning xAI API credits.
 
 - local proxy provider: `grok-sso`
@@ -237,7 +253,8 @@ Models are auto-discovered via the gateway's `/v1/models` endpoint.
 | **OpenAI** | ✅ `/v1/models` | ✅ | ✅ | API key |
 | **GitHub Copilot** | ✅ `/v1/models` | ✅ | ✅ | Token |
 | **OpenClaw Gateway** | ✅ `/v1/models` | ✅ | ✅ | Gateway token |
-| **xAI/Grok** | ❌ SSO proxy | ❌ | ❌ | Cookie/SSO |
+| **xAI/Grok (API)** | ✅ `/v1/models` | ✅ | ✅ | API key |
+| **xAI/Grok (SSO)** | ❌ SSO proxy | ❌ | ❌ | Cookie/SSO |
 
 **Dynamic Discovery**: Models are auto-fetched from provider API  
 **Force Model**: Request specific model via `"model": "provider/model"`  

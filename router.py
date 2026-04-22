@@ -419,6 +419,25 @@ def discover_openclaw_gateway_models(base_url, gateway_token=None):
         return []
 
 
+def discover_xai_models(base_url, api_key):
+    """Discover available xAI Grok models via /v1/models endpoint (API-key mode)."""
+    if not base_url or not api_key:
+        return []
+    try:
+        url = base_url.rstrip('/') + '/v1/models'
+        hdrs = {'Authorization': f'Bearer {api_key}'}
+        req = urllib.request.Request(url, headers=hdrs)
+        with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+            payload = json.loads(resp.read())
+        models = [m.get('id', '') for m in payload.get('data', []) if m.get('id')]
+        if models:
+            logger.info(f'Discovered {len(models)} xAI Grok models via API')
+        return dedupe_keep_order(models)
+    except Exception as e:
+        logger.debug(f"xAI model discovery {base_url}: {extract_http_error(e)}")
+        return []
+
+
 def discover_provider_models(name, cfg, base_url, api_key, api_type):
     raw_models = cfg.get('models', [])
     configured = [m.get('id') for m in raw_models if isinstance(m, dict) and m.get('id')] if isinstance(raw_models, list) else []
@@ -427,8 +446,11 @@ def discover_provider_models(name, cfg, base_url, api_key, api_type):
     if api_type in ('google-generative-language', 'google-generative-ai'):
         discovered = discover_google_models(base_url, api_key)
     elif api_type == 'openai-completions':
-        # Try OpenAI-style discovery for openai, github-copilot, etc.
-        discovered = discover_openai_models(base_url, api_key)
+        # Try OpenAI-style discovery for openai, github-copilot, xai, etc.
+        if name == 'xai' or 'x.ai' in (base_url or '').lower():
+            discovered = discover_xai_models(base_url, api_key)
+        else:
+            discovered = discover_openai_models(base_url, api_key)
     elif api_type == 'openclaw-gateway':
         # For OpenClaw Gateway, try to discover models
         discovered = discover_openclaw_gateway_models(base_url, api_key)
