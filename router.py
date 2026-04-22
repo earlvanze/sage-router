@@ -438,6 +438,46 @@ def discover_xai_models(base_url, api_key):
         return []
 
 
+def discover_hermes_core_providers():
+    """Discover all providers from Hermes Agent core config (~/.hermes/config.yaml and auth.json)."""
+    providers = {}
+    try:
+        config_path = os.path.expanduser("~/.hermes/config.yaml")
+        auth_path = os.path.expanduser("~/.hermes/auth.json")
+        
+        # Read Hermes config
+        if os.path.exists(config_path):
+            import yaml
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            model_config = config.get('model', {})
+            providers['hermes-active'] = {
+                'default': model_config.get('default'),
+                'provider': model_config.get('provider'),
+                'baseUrl': model_config.get('base_url'),
+                'source': 'hermes-config'
+            }
+        
+        # Read Hermes auth providers
+        if os.path.exists(auth_path):
+            with open(auth_path, 'r') as f:
+                auth = json.load(f)
+            auth_providers = auth.get('providers', {})
+            for provider_name, provider_data in auth_providers.items():
+                providers[f'hermes-{provider_name}'] = {
+                    'authMode': provider_data.get('auth_mode'),
+                    'lastRefresh': provider_data.get('last_refresh'),
+                    'hasIdToken': bool(provider_data.get('tokens', {}).get('id_token')),
+                    'hasAccessToken': bool(provider_data.get('tokens', {}).get('access_token')),
+                    'source': 'hermes-auth'
+                }
+        
+        logger.info(f"Discovered {len(providers)} providers from Hermes core")
+    except Exception as e:
+        logger.debug(f"Hermes core provider discovery failed: {e}")
+    return providers
+
+
 def discover_openclaw_core_providers():
     """Discover all providers and models from OpenClaw core config (~/.openclaw/openclaw.json)."""
     providers = {}
@@ -3016,12 +3056,21 @@ class Handler(BaseHTTPRequestHandler):
                 "count": len(TEMP_MODEL_BLOCKS)
             })
         elif self.path == '/discovery':
-            # Return discovered providers from OpenClaw core config
+            # Return discovered providers from OpenClaw core and Hermes core
             openclaw_providers = discover_openclaw_core_providers()
+            hermes_providers = discover_hermes_core_providers()
             self.write_json(200, {
-                "source": "openclaw-core",
-                "providers": openclaw_providers,
-                "count": len(openclaw_providers)
+                "openclaw": {
+                    "source": "~/.openclaw/openclaw.json",
+                    "providers": openclaw_providers,
+                    "count": len(openclaw_providers)
+                },
+                "hermes": {
+                    "source": "~/.hermes/config.yaml + auth.json",
+                    "providers": hermes_providers,
+                    "count": len(hermes_providers)
+                },
+                "totalProviders": len(openclaw_providers) + len(hermes_providers)
             })
         elif self.path.startswith('/v1beta/models') or self.path.startswith('/v1/models'):
             # Google Generative AI models listing endpoint
