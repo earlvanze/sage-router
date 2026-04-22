@@ -112,6 +112,215 @@ def parse_cookie_header(value: str) -> dict[str, str]:
     return result
 
 
+# Security hardening configuration
+BITWARDEN_ENABLED = str(os.environ.get("GROK_SSO_BITWARDEN_ENABLED", "true")).strip().lower() in {"1", "true", "yes", "on"}
+BITWARDEN_ITEM_NAME = os.environ.get("GROK_SSO_BITWARDEN_ITEM", "X.com Grok SSO").strip()
+BITWARDEN_SESSION_TIMEOUT = int(os.environ.get("GROK_SSO_BITWARDEN_SESSION_TIMEOUT", "3600"))  # 1 hour
+ENCRYPTED_COOKIE_PATH = os.path.expanduser(os.environ.get("GROK_SSO_ENCRYPTED_COOKIE_PATH", "~/.config/sage-router/grok-cookies.enc").strip())
+COOKIE_ENCRYPTION_KEY_PATH = os.path.expanduser(os.environ.get("GROK_SSO_COOKIE_KEY_PATH", "~/.config/sage-router/grok-cookies.key").strip())
+RATE_LIMIT_REQUESTS = int(os.environ.get("GROK_SSO_RATE_LIMIT_REQUESTS", "60"))  # per minute
+RATE_LIMIT_WINDOW = int(os.environ.get("GROK_SSO_RATE_LIMIT_WINDOW", "60"))  # seconds
+REQUIRE_HTTPS = str(os.environ.get("GROK_SSO_REQUIRE_HTTPS", "false")).strip().lower() in {"1", "true", "yes", "on"}
+IP_ALLOWLIST = [ip.strip() for ip in os.environ.get("GROK_SSO_IP_ALLOWLIST", "127.0.0.1,::1,100.64.0.0/10,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16").split(",") if ip.strip()]
+
+try:
+    from cryptography.fernet import Fernet
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+    CRYPTO_AVAILABLE = True
+except Exception:
+    CRYPTO_AVAILABLE = False
+    Fernet = None
+    hashes = None
+    PBKDF2 = None
+
+
+    PBKDF2 = None
+
+
+# Security hardening globals
+_request_tracker: dict[str, list[float]] = {}
+_bw_session_cached: tuple[str, float] | None = None
+
+
+def get_encryption_key() -> bytes:
+    """Get or create encryption key for cookie storage."""
+    key_path = Path(COOKIE_ENCRYPTION_KEY_PATH)
+    if key_path.exists():
+        return key_path.read_bytes()
+    
+    if not CRYPTO_AVAILABLE:
+        raise RuntimeError("cryptography library required for secure cookie storage")
+    
+    key = Fernet.generate_key()
+    key_path.parent.mkdir(parents=True, exist_ok=True)
+    key_path.chmod(0o600)
+    key_path.write_bytes(key)
+    return key
+
+
+def encrypt_cookies(cookies: dict[str, str]) -> bytes:
+    """Encrypt cookies for secure storage."""
+    if not CRYPTO_AVAILABLE:
+        raise RuntimeError("cryptography library required")
+    key = get_encryption_key()
+    f = Fernet(key)
+    return f.encrypt(json.dumps(cookies).encode())
+
+
+def decrypt_cookies(encrypted: bytes) -> dict[str, str]:
+    """Decrypt stored cookies."""
+    if not CRYPTO_AVAILABLE:
+        raise RuntimeError("cryptography library required")
+    key = get_encryption_key()
+    f = Fernet(key)
+    return json.loads(f.decrypt(encrypted).decode())
+
+
+def is_ip_allowed(client_ip: str) -> bool:
+    """Check if client IP is in allowlist."""
+    import ipaddress
+    try:
+        client = ipaddress.ip_address(client_ip)
+        for allowed in IP_ALLOWLIST:
+            if "/" in allowed:
+                if client in ipaddress.ip_network(allowed, strict=False):
+                    return True
+            elif client == ipaddress.ip_address(allowed):
+                return True
+        return False
+    except Exception:
+        return False
+
+
+def check_rate_limit(client_ip: str) -> bool:
+    """Check if request is within rate limit."""
+    now = time.time()
+    window_start = now - RATE_LIMIT_WINDOW
+    
+    if client_ip not in _request_tracker:
+        _request_tracker[client_ip] = []
+    
+    _request_tracker[client_ip] = [t for t in _request_tracker[client_ip] if t > window_start]
+    
+    if len(_request_tracker[client_ip]) >= RATE_LIMIT_REQUESTS:
+        return False
+    
+    _request_tracker[client_ip].append(now)
+    return True
+
+
+def get_bitwarden_session() -> str | None:
+    """Get cached Bitwarden session or unlock."""
+    global _bw_session_cached
+    
+    if _bw_session_cached:
+        session, timestamp = _bw_session_cached
+        if time.time() - timestamp < BITWARDEN_SESSION_TIMEOUT:
+            return session
+    
+    session = os.environ.get("BW_SESSION", "").strip()
+    if session:
+        _bw_session_cached = (session, time.time())
+        return session
+    
+    password = os.environ.get("BW_PASSWORD", "").strip()
+    if not password:
+        logger.warning("BW_PASSWORD not set, cannot unlock Bitwarden")
+        return None
+    
+    try:
+        result = subprocess.run(
+            ["bw", "unlock", password, "--raw"],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            session = result.stdout.strip()
+            _bw_session_cached = (session, time.time())
+            os.environ["BW_SESSION"] = session
+            logger.info("Bitwarden unlocked successfully")
+            return session
+    except Exception as e:
+        logger.warning(f"Failed to unlock Bitwarden: {e}")
+    
+    return None
+
+
+def get_x_credentials_from_bitwarden() -> dict[str, str] | None:
+    """Retrieve X.com credentials from Bitwarden."""
+    if not BITWARDEN_ENABLED:
+        return None
+    
+    session = get_bitwarden_session()
+    if not session:
+        return None
+    
+    try:
+        result = subprocess.run(
+            ["bw", "get", "item", BITWARDEN_ITEM_NAME, "--session", session],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode != 0:
+            logger.warning(f"Bitwarden item '{BITWARDEN_ITEM_NAME}' not found")
+            return None
+        
+        item = json.loads(result.stdout)
+        credentials = {}
+        
+        if "login" in item:
+            login = item["login"]
+            if "username" in login:
+                credentials["username"] = login["username"]
+            if "password" in login:
+                credentials["password"] = login["password"]
+        
+        if "fields" in item:
+            for field in item["fields"]:
+                name = field.get("name", "").lower()
+                value = field.get("value", "")
+                if name and value:
+                    credentials[name] = value
+        
+        if credentials:
+            logger.info(f"Retrieved credentials from Bitwarden")
+            return credentials
+        
+    except Exception as e:
+        logger.warning(f"Failed to get credentials from Bitwarden: {e}")
+    
+    return None
+
+
+def save_cookies_secure(cookies: dict[str, str]) -> None:
+    """Save cookies to encrypted storage."""
+    try:
+        encrypted = encrypt_cookies(cookies)
+        Path(ENCRYPTED_COOKIE_PATH).parent.mkdir(parents=True, exist_ok=True)
+        Path(ENCRYPTED_COOKIE_PATH).write_bytes(encrypted)
+        Path(ENCRYPTED_COOKIE_PATH).chmod(0o600)
+        logger.info("Cookies saved to encrypted storage")
+    except Exception as e:
+        logger.warning(f"Failed to save cookies securely: {e}")
+
+
+def load_cookies_secure() -> dict[str, str] | None:
+    """Load cookies from encrypted storage."""
+    try:
+        path = Path(ENCRYPTED_COOKIE_PATH)
+        if not path.exists():
+            return None
+        encrypted = path.read_bytes()
+        return decrypt_cookies(encrypted)
+    except Exception as e:
+        logger.debug(f"No encrypted cookies found: {e}")
+        return None
+
+
 def load_cookie_json(path: str) -> dict[str, str]:
     with open(path) as fh:
         payload = json.load(fh)
