@@ -642,7 +642,24 @@ def discover_openclaw_github_manifests():
             {"name": "ollama", "api": "ollama", "models": ["dynamic-local"]},
             {"name": "openrouter", "api": "openai-completions", "models": ["200+ models"]},
             {"name": "xiaomi", "api": "openai-completions", "models": ["mimo-v2-pro"]},
-            {"name": "zai", "api": "openai-completions", "models": ["glm-5", "glm-5-turbo"]},
+            {"name": "zai", "api": "openai-completions", "models": ["glm-5", "glm-5-turbo", "glm-5.1", "glm-5v-turbo"], "subscriptionPlans": {
+                "lite": {"price": "$6/month", "quarterly": "$27/quarter"},
+                "pro": {"price": "$30/month", "quarterly": "$81/quarter"},
+                "max": {"price": "$72/month", "quarterly": "$216/quarter"}
+            }, "apiPricing": {
+                "glm-5": {"input": "$1.00/1M", "output": "$3.20/1M"},
+                "glm-5-turbo": {"input": "$1.20/1M", "output": "$4.00/1M", "cacheRead": "$0.24/1M"}
+            }},
+            {"name": "alibaba-qwen", "api": "openai-completions", "models": ["qwen-max", "qwen-plus", "qwen-flash", "qwen-turbo", "qwen2.5-72b", "qwen2.5-coder", "qwen3-vl-flash"], "subscriptionPlans": {
+                "codingLite": {"price": "$10/month", "requests": "18,000/month"},
+                "codingPro": {"price": "$50/month", "requests": "90,000/month"},
+                "freeTier": {"tokens": "1M", "valid": "90 days"}
+            }, "apiPricing": {
+                "qwen-max": {"input": "$1.60/1M", "output": "$6.40/1M"},
+                "qwen-plus": {"input": "$0.40/1M", "output": "$1.20/1M"},
+                "qwen-flash": {"input": "$0.022-0.173/1M", "output": "$0.216-1.721/1M"},
+                "qwen-turbo": {"input": "$0.05/1M", "output": "$0.20-0.40/1M"}
+            }},
             {"name": "bedrock", "api": "openai-completions", "models": ["claude", "nova", "llama"]},
             {"name": "deepseek", "api": "openai-completions", "models": ["deepseek-chat", "deepseek-reasoner"]},
             {"name": "github-copilot", "api": "openai-completions", "models": ["gpt-4o-copilot", "claude-sonnet-copilot"]},
