@@ -434,6 +434,7 @@ LOG_LEVEL=DEBUG python3 router.py
 - [ ] Usage analytics dashboard
 - [ ] Distributed deployment mode
 - [ ] CDN-hosted option (high-availability)
+- [ ] **Grok SSO Browser Extension** — Chrome extension to proxy SuperGrok web access via local OpenAI-compatible endpoint (blocked by anti-bot; needs extension architecture)
 
 ---
 

@@ -856,10 +856,12 @@ def normalize_requirements(payload):
     req = payload.get('requirements') if isinstance(payload, dict) else None
     if not isinstance(req, dict):
         req = {}
+    # Also check standard OpenAI fields (tools, tool_choice)
+    has_tools = bool(payload.get('tools')) or payload.get('tool_choice') is not None
     return {
         'reasoning': bool(req.get('reasoning') or payload.get('requiresReasoning')),
         'json': bool(req.get('json') or payload.get('requiresJson')),
-        'tools': bool(req.get('tools') or payload.get('requiresTools')),
+        'tools': bool(req.get('tools') or payload.get('requiresTools') or has_tools),
         'longContext': bool(req.get('longContext') or payload.get('requiresLongContext')),
         'streaming': bool(req.get('streaming') or payload.get('requiresStreaming') or payload.get('stream')),
     }
