@@ -852,18 +852,24 @@ def normalize_route_mode(raw):
     return value if value in {'fast', 'balanced', 'best', 'local-first', 'realtime'} else 'balanced'
 
 
-def normalize_requirements(payload):
+def normalize_requirements(payload, thinking_level=ThinkingLevel.MEDIUM):
     req = payload.get('requirements') if isinstance(payload, dict) else None
     if not isinstance(req, dict):
         req = {}
     # Also check standard OpenAI fields (tools, tool_choice)
     has_tools = bool(payload.get('tools')) or payload.get('tool_choice') is not None
+    # Check for reasoning/thinking requests
+    has_reasoning = bool(payload.get('thinking')) or bool(payload.get('reasoning'))
+    # If thinking level is HIGH, treat as requiring reasoning
+    requires_reasoning = has_reasoning or thinking_level == ThinkingLevel.HIGH
+    explicit_streaming = bool(req.get('streaming') or payload.get('requiresStreaming'))
+    requested_stream = bool(payload.get('stream'))
     return {
-        'reasoning': bool(req.get('reasoning') or payload.get('requiresReasoning')),
+        'reasoning': bool(req.get('reasoning') or payload.get('requiresReasoning') or requires_reasoning),
         'json': bool(req.get('json') or payload.get('requiresJson')),
         'tools': bool(req.get('tools') or payload.get('requiresTools') or has_tools),
         'longContext': bool(req.get('longContext') or payload.get('requiresLongContext')),
-        'streaming': bool(req.get('streaming') or payload.get('requiresStreaming') or payload.get('stream')),
+        'streaming': bool(explicit_streaming or (requested_stream and not has_tools)),
     }
 
 
@@ -1169,11 +1175,19 @@ def parse_anthropic_response(body):
     }
 
 
+def provider_default_tools_support(provider):
+    if provider.api_type == 'anthropic-messages':
+        return True
+    if provider.api_type == 'openai-completions' and provider.name in {'openai', 'openai-codex', 'github-copilot'}:
+        return True
+    return False
+
+
 def model_capabilities(provider, model):
     meta = (provider.model_meta or {}).get(model, {})
     default_chat = is_chat_capable_model(provider, model)
     default_json = provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages', 'google-generative-language'}
-    default_tools = provider.api_type in {'openai-completions', 'ollama', 'anthropic-messages'}
+    default_tools = provider_default_tools_support(provider)
     default_streaming = provider.api_type in {'openai-completions', 'ollama', 'google-generative-language'}
     return {
         'chat': bool(meta.get('supportsChat', default_chat)),
@@ -2767,9 +2781,9 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
     if force_realtime:
         route_mode = 'realtime'
         thinking = ThinkingLevel.LOW  # Force low thinking for speed
-    requirements = normalize_requirements(payload)
+    requirements = normalize_requirements(payload, thinking)
     want_json = str(payload.get('responseFormat') or '').lower() == 'json' or payload.get('response_format', {}).get('type') == 'json_object'
-    want_stream = bool(payload.get('stream', False))
+    want_stream = bool(payload.get('stream', False) and not requirements.get('tools'))
     debug_mode = normalize_debug_mode(payload)
     logger.info(f"[{request_id}] Incoming /v1/chat/completions with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}, debug={debug_mode}")
     _, intent, _, _, chain = prepare_route(
@@ -2963,7 +2977,7 @@ def handle_google_generate(self, body, request_id, started, model_name, want_str
         want_json = gen_config.get('responseMimeType') == 'application/json'
         thinking = normalize_thinking(payload.get('thinking'))
         route_mode = normalize_route_mode(payload.get('route'))
-        requirements = normalize_requirements(payload)
+        requirements = normalize_requirements(payload, thinking)
 
         logger.info(f'[{request_id}] Google compat {model_name} with {len(messages)} messages, stream={want_stream}')
         result = route_request(messages, request_id=request_id, thinking=thinking, route_mode=route_mode, requirements=requirements, want_json=want_json)
@@ -3152,7 +3166,7 @@ def handle_anthropic_messages(self, body, request_id, started):
         message_count = len(openai_payload.get('messages', []))
         thinking = normalize_thinking(openai_payload.get('thinking') or openai_payload.get('reasoning'))
         route_mode = normalize_route_mode(openai_payload.get('route'))
-        requirements = normalize_requirements(openai_payload)
+        requirements = normalize_requirements(openai_payload, thinking)
         want_json = False
         logger.info(f"[{request_id}] Incoming /v1/messages (Anthropic compat) with {message_count} messages, model={request_model}, thinking={thinking.value}, route={route_mode}, stream={want_stream}")
         result = route_request(openai_payload.get('messages', []), request_id=request_id, thinking=thinking, route_mode=route_mode, requirements=requirements, want_json=want_json)
