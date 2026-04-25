@@ -1180,6 +1180,8 @@ def provider_default_tools_support(provider):
         return True
     if provider.api_type == 'openai-completions' and provider.name in {'openai', 'openai-codex', 'github-copilot'}:
         return True
+    if provider.api_type in ('ollama', 'openrouter', 'google-generative-language'):
+        return True
     return False
 
 
