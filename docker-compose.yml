@@ -9,9 +9,9 @@
 name: sage-router
 services:
   sage-router:
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: ghcr.io/earlvanze/sage-router:latest
     container_name: sage-router
     restart: unless-stopped
@@ -21,6 +21,10 @@ services:
       # Mount OpenClaw config read-only so the router can discover providers
       # Adjust the source path if your openclaw config lives elsewhere
       - ~/.openclaw:/config:ro
+      # Dario OAuth/accounts/cache. Mount your host ~/.dario here for Claude subscription routing.
+      - ~/.dario:/root/.dario
+      # Optional llama.cpp GGUF model cache for the classifier sidecar.
+      - ${SAGE_ROUTER_MODELS_DIR:-./models}:/models
       # Optional: mount a custom provider-profiles.json
       # - ./provider-profiles.json:/app/provider-profiles.json:ro
     environment:
@@ -31,10 +35,14 @@ services:
       # SAGE_ROUTER_OLLAMA_AUTO_PULL_PATTERNS: ":cloud"
       # Cost controls
       SAGE_ROUTER_OPENROUTER_FREE_ONLY: "${SAGE_ROUTER_OPENROUTER_FREE_ONLY:-1}"
-      # Optional tiny intent classifier for Cyber GPU / Ollama. Leave disabled on CPU hosts.
+      # Dario is bundled in the image and autostarts when Anthropic/Claude routing is detected.
+      SAGE_ROUTER_DARIO_AUTOSTART: "${SAGE_ROUTER_DARIO_AUTOSTART:-1}"
+      SAGE_ROUTER_DARIO_BASE_URL: "${SAGE_ROUTER_DARIO_BASE_URL:-http://127.0.0.1:3456}"
+      # Optional tiny intent classifier. Production default is llama.cpp sidecar.
       SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED: "${SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED:-0}"
-      SAGE_ROUTER_INTENT_CLASSIFIER_BASE_URL: "${SAGE_ROUTER_INTENT_CLASSIFIER_BASE_URL:-http://host.docker.internal:11434}"
-      SAGE_ROUTER_INTENT_CLASSIFIER_MODEL: "${SAGE_ROUTER_INTENT_CLASSIFIER_MODEL:-qwen2.5:0.5b-instruct}"
+      SAGE_ROUTER_INTENT_CLASSIFIER_PROVIDER: "${SAGE_ROUTER_INTENT_CLASSIFIER_PROVIDER:-llamacpp}"
+      SAGE_ROUTER_INTENT_CLASSIFIER_BASE_URL: "${SAGE_ROUTER_INTENT_CLASSIFIER_BASE_URL:-http://llamacpp-classifier:8080}"
+      SAGE_ROUTER_INTENT_CLASSIFIER_MODEL: "${SAGE_ROUTER_INTENT_CLASSIFIER_MODEL:-classifier}"
       SAGE_ROUTER_INTENT_CLASSIFIER_TIMEOUT_SECONDS: "${SAGE_ROUTER_INTENT_CLASSIFIER_TIMEOUT_SECONDS:-3}"
       SAGE_ROUTER_INTENT_CLASSIFIER_MIN_CONFIDENCE: "${SAGE_ROUTER_INTENT_CLASSIFIER_MIN_CONFIDENCE:-0.65}"
       # OPENCLAW_GATEWAY_TOKEN: "${OPENCLAW_GATEWAY_TOKEN}"
@@ -44,3 +52,36 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  # Optional GPU classifier sidecar. Enable with:
+  #   docker compose --profile classifier up -d
+  # Requires a GGUF model mounted at ${SAGE_ROUTER_MODELS_DIR:-./models}.
+  llamacpp-classifier:
+    image: ghcr.io/ggerganov/llama.cpp:server-cuda
+    profiles: ["classifier"]
+    container_name: sage-router-llamacpp-classifier
+    restart: unless-stopped
+    ports:
+      - "${SAGE_ROUTER_CLASSIFIER_PORT:-8080}:8080"
+    volumes:
+      - ${SAGE_ROUTER_MODELS_DIR:-./models}:/models:ro
+    command:
+      - "-m"
+      - "${SAGE_ROUTER_INTENT_CLASSIFIER_MODEL_PATH:-/models/qwen2.5-0.5b-instruct-q4_K_M.gguf}"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8080"
+      - "-ngl"
+      - "${SAGE_ROUTER_INTENT_CLASSIFIER_N_GPU_LAYERS:-999}"
+      - "-c"
+      - "${SAGE_ROUTER_INTENT_CLASSIFIER_CTX:-1024}"
+      - "--alias"
+      - "${SAGE_ROUTER_INTENT_CLASSIFIER_MODEL:-classifier}"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

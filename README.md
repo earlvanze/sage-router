@@ -266,6 +266,36 @@ Models are auto-discovered via the gateway's `/v1/models` endpoint.
 
 ---
 
+## Docker / Production deployment
+
+The Docker image bundles Sage Router plus Dario for Anthropic-compatible Claude requests. Dario credentials are read from `~/.dario`, mounted into the container at `/root/.dario`.
+
+```bash
+# Router only, with Dario available for Anthropic-compatible requests
+docker compose up -d --build
+
+# Router + llama.cpp GPU classifier sidecar
+SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED=1 \
+SAGE_ROUTER_MODELS_DIR=/path/to/gguf-models \
+docker compose --profile classifier up -d --build
+```
+
+Key production flags:
+
+```bash
+SAGE_ROUTER_OPENROUTER_FREE_ONLY=1
+SAGE_ROUTER_DARIO_AUTOSTART=1
+SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED=1
+SAGE_ROUTER_INTENT_CLASSIFIER_PROVIDER=llamacpp
+SAGE_ROUTER_INTENT_CLASSIFIER_BASE_URL=http://llamacpp-classifier:8080
+SAGE_ROUTER_INTENT_CLASSIFIER_MODEL=classifier
+SAGE_ROUTER_INTENT_CLASSIFIER_MODEL_PATH=/models/qwen2.5-0.5b-instruct-q4_K_M.gguf
+SAGE_ROUTER_INTENT_CLASSIFIER_N_GPU_LAYERS=999
+```
+
+The classifier backend speaks OpenAI-compatible llama.cpp server API (`/v1/chat/completions`), so it can be run as a sidecar, on Cyber GPU, or replaced by any compatible local inference server.
+
+
 ## Provider Feature Matrix
 
 | Provider | Dynamic Discovery | Force Model | Passthrough | Auth Method |

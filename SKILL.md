@@ -32,7 +32,7 @@ Rules:
 - recognizes Google Gemini providers from `generativelanguage.googleapis.com`
 - auto-discovers Google models when the provider exists but `models` is empty in `openclaw.json`
 - normalizes `anthropic` or Anthropic-hosted `anthropic-messages` providers onto the local Dario proxy at `localhost:3456`
-- starts the Dario user service when Anthropic compatibility is needed and the service is not already running
+- starts the Dario user service when Anthropic compatibility is needed and the service is not already running; in Docker, the image bundles `@askalf/dario` and autostarts `dario proxy` when credentials are mounted at `/root/.dario`
 - supports temporary provider suppression via `SAGE_ROUTER_DISABLED_PROVIDERS=name1,name2`
 
 `GET /health` shows:
@@ -106,3 +106,11 @@ systemctl --user status sage-router
 systemctl --user restart sage-router
 journalctl --user -u sage-router -f   # live logs
 ```
+
+
+## Docker production notes
+
+- Docker image includes Node, Python, Sage Router, and `@askalf/dario`.
+- Mount host Dario credentials as `~/.dario:/root/.dario` for Anthropic-compatible Claude routing.
+- Enable llama.cpp classifier sidecar with `docker compose --profile classifier up -d` and `SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED=1`.
+- Production classifier flags: `SAGE_ROUTER_INTENT_CLASSIFIER_PROVIDER=llamacpp`, `SAGE_ROUTER_INTENT_CLASSIFIER_BASE_URL=http://llamacpp-classifier:8080`, `SAGE_ROUTER_INTENT_CLASSIFIER_MODEL=classifier`.

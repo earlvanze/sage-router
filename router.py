@@ -8,8 +8,9 @@ from typing import Any, List
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger("router")
-OPENCLAW_CONFIG = os.path.expanduser("~/.openclaw/openclaw.json")
-OPENCLAW_DOTENV = os.path.expanduser("~/.openclaw/.env")
+SAGE_ROUTER_HOME = os.path.expanduser(os.environ.get('SAGE_ROUTER_HOME', '~/.openclaw'))
+OPENCLAW_CONFIG = os.environ.get('SAGE_ROUTER_OPENCLAW_CONFIG', os.path.join(SAGE_ROUTER_HOME, 'openclaw.json'))
+OPENCLAW_DOTENV = os.environ.get('SAGE_ROUTER_OPENCLAW_DOTENV', os.path.join(SAGE_ROUTER_HOME, '.env'))
 PROVIDER_PROFILES_PATH = os.path.join(os.path.dirname(__file__), 'provider-profiles.json')
 OPENCLAW_GATEWAY_HELPER = os.path.join(os.path.dirname(__file__), 'openclaw_gateway_agent.mjs')
 SELF_PROVIDER_NAMES = {'smart-router', 'sage-router'}
@@ -54,6 +55,8 @@ DARIO_PROVIDER_NAME = os.environ.get('SAGE_ROUTER_DARIO_PROVIDER_NAME', 'dario')
 DARIO_LOCAL_BASE_URL = os.environ.get('SAGE_ROUTER_DARIO_BASE_URL', 'http://127.0.0.1:3456')
 DARIO_LOCAL_API_KEY = os.environ.get('SAGE_ROUTER_DARIO_API_KEY', 'dario')
 DARIO_SERVICE_NAME = os.environ.get('SAGE_ROUTER_DARIO_SERVICE', 'dario.service')
+DARIO_AUTOSTART = os.environ.get('SAGE_ROUTER_DARIO_AUTOSTART', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+DARIO_PROCESS = None
 OPENCLAW_GATEWAY_BASE_URL = os.environ.get('SAGE_ROUTER_OPENCLAW_GATEWAY_URL', 'ws://127.0.0.1:18789')
 # Auth-profile-based gateway providers: defined after DEFAULT constants below
 DISABLED_PROVIDERS = {
@@ -121,6 +124,7 @@ OPENROUTER_FREE_ONLY = os.environ.get('SAGE_ROUTER_OPENROUTER_FREE_ONLY', '0').s
 INTENT_CLASSIFIER_ENABLED = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED', '0').strip().lower() in {'1', 'true', 'yes', 'on'}
 INTENT_CLASSIFIER_PROVIDER = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_PROVIDER', 'ollama')
 INTENT_CLASSIFIER_BASE_URL = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_BASE_URL', 'http://127.0.0.1:11434')
+INTENT_CLASSIFIER_API_KEY = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_API_KEY', os.environ.get('LLAMACPP_API_KEY', 'local'))
 INTENT_CLASSIFIER_MODEL = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_MODEL', 'qwen2.5:0.5b-instruct')
 INTENT_CLASSIFIER_TIMEOUT_SECONDS = float(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_TIMEOUT_SECONDS', '3'))
 INTENT_CLASSIFIER_MIN_CONFIDENCE = float(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_MIN_CONFIDENCE', '0.65'))
@@ -288,33 +292,81 @@ def should_route_anthropic_to_dario(name, api_type, base_url):
     return api_type == 'anthropic-messages' and ('anthropic.com' in host or host == 'api.anthropic.com')
 
 
-def ensure_dario_proxy_ready():
+def dario_endpoint_ready(timeout=0.5):
+    parsed = urllib.parse.urlparse(DARIO_LOCAL_BASE_URL or '')
+    host = parsed.hostname or '127.0.0.1'
+    port = parsed.port or 3456
     try:
-        active = subprocess.run(
-            ['systemctl', '--user', 'is-active', '--quiet', DARIO_SERVICE_NAME],
-            check=False,
-            capture_output=True,
-            timeout=5,
-        )
-        if active.returncode == 0:
+        with socket.create_connection((host, port), timeout=timeout):
             return True
+    except Exception:
+        return False
 
+
+def ensure_dario_proxy_ready():
+    """Ensure the Dario Anthropic-compatible proxy is reachable.
+
+    On systemd hosts this preserves the old user-service behavior. In Docker or
+    other non-systemd runtimes, it can autostart the bundled `dario proxy`
+    binary when SAGE_ROUTER_DARIO_AUTOSTART is truthy.
+    """
+    global DARIO_PROCESS
+    if dario_endpoint_ready():
+        return True
+    try:
+        if shutil.which('systemctl'):
+            active = subprocess.run(
+                ['systemctl', '--user', 'is-active', '--quiet', DARIO_SERVICE_NAME],
+                check=False,
+                capture_output=True,
+                timeout=5,
+            )
+            if active.returncode == 0 and dario_endpoint_ready(timeout=1.0):
+                return True
+            if shutil.which('dario'):
+                start = subprocess.run(
+                    ['systemctl', '--user', 'start', DARIO_SERVICE_NAME],
+                    check=False,
+                    capture_output=True,
+                    timeout=10,
+                )
+                if start.returncode == 0:
+                    for _ in range(20):
+                        if dario_endpoint_ready(timeout=0.5):
+                            logger.info(f'Started {DARIO_SERVICE_NAME} for Anthropic compatibility')
+                            return True
+                        time.sleep(0.25)
+                else:
+                    detail = (start.stderr or start.stdout or b'').decode('utf-8', errors='replace').strip()
+                    logger.warning(f'Failed to start {DARIO_SERVICE_NAME}: {detail[:300]}')
+
+        if not DARIO_AUTOSTART:
+            logger.warning('Dario autostart disabled and proxy is not reachable')
+            return False
         if not shutil.which('dario'):
             logger.warning('Anthropic provider detected but dario is not installed on PATH')
             return False
-
-        start = subprocess.run(
-            ['systemctl', '--user', 'start', DARIO_SERVICE_NAME],
-            check=False,
-            capture_output=True,
-            timeout=10,
+        if DARIO_PROCESS is not None and DARIO_PROCESS.poll() is None:
+            return dario_endpoint_ready(timeout=1.0)
+        parsed = urllib.parse.urlparse(DARIO_LOCAL_BASE_URL or '')
+        host = parsed.hostname or '127.0.0.1'
+        port = str(parsed.port or 3456)
+        cmd = ['dario', 'proxy', '--host', host, '--port', port]
+        DARIO_PROCESS = subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
         )
-        if start.returncode != 0:
-            detail = (start.stderr or start.stdout or b'').decode('utf-8', errors='replace').strip()
-            logger.warning(f'Failed to start {DARIO_SERVICE_NAME}: {detail[:300]}')
-            return False
-        logger.info(f'Started {DARIO_SERVICE_NAME} for Anthropic compatibility')
-        return True
+        for _ in range(40):
+            if dario_endpoint_ready(timeout=0.5):
+                logger.info(f'Started bundled Dario proxy at {DARIO_LOCAL_BASE_URL}')
+                return True
+            if DARIO_PROCESS.poll() is not None:
+                break
+            time.sleep(0.25)
+        logger.warning('Dario proxy autostart did not become reachable')
+        return False
     except Exception as e:
         logger.warning(f'Failed to ensure Dario proxy readiness: {e}')
         return False
@@ -2160,36 +2212,58 @@ def reasoning_capabilities_summary():
 def classify_intent_with_local_model(text):
     """Optional tiny local/GPU model classifier for ambiguous routing.
 
-    Enabled with SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED=1. Intended for a
-    dockerized Cyber deployment where Ollama/llama.cpp has GPU acceleration.
-    Returns (Intent|None, scores, metadata).
+    Enabled with SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED=1. Providers:
+    - ollama: POST /api/chat
+    - llamacpp/openai-compatible: POST /v1/chat/completions
     """
     if not INTENT_CLASSIFIER_ENABLED:
         return None, {}, {'enabled': False}
-    if INTENT_CLASSIFIER_PROVIDER != 'ollama':
-        return None, {}, {'enabled': True, 'used': False, 'error': f'unsupported provider {INTENT_CLASSIFIER_PROVIDER}'}
+    provider = (INTENT_CLASSIFIER_PROVIDER or 'ollama').strip().lower()
     prompt = (
         'Classify this request for AI model routing. Return ONLY compact JSON with keys: '
         'intent, complexity, confidence, needs_tools, needs_reasoning, needs_json. '
         'intent must be one of GENERAL, CODE, ANALYSIS, CREATIVE, REALTIME.\n\n'
         f'Request:\n{text[:INTENT_CLASSIFIER_MAX_PROMPT_CHARS]}'
     )
-    payload = {
-        'model': INTENT_CLASSIFIER_MODEL,
-        'messages': [{'role': 'user', 'content': prompt}],
-        'stream': False,
-        'options': {'num_predict': 96, 'temperature': 0, 'num_ctx': 4096},
-    }
     started = time.time()
     try:
-        req = urllib.request.Request(
-            INTENT_CLASSIFIER_BASE_URL.rstrip('/') + '/api/chat',
-            data=json.dumps(payload).encode(),
-            headers={'Content-Type': 'application/json'},
-        )
-        with urllib.request.urlopen(req, timeout=INTENT_CLASSIFIER_TIMEOUT_SECONDS) as resp:
-            body = json.loads(resp.read())
-        raw = (body.get('message') or {}).get('content') or ''
+        if provider == 'ollama':
+            payload = {
+                'model': INTENT_CLASSIFIER_MODEL,
+                'messages': [{'role': 'user', 'content': prompt}],
+                'stream': False,
+                'options': {'num_predict': 96, 'temperature': 0, 'num_ctx': 4096},
+            }
+            req = urllib.request.Request(
+                INTENT_CLASSIFIER_BASE_URL.rstrip('/') + '/api/chat',
+                data=json.dumps(payload).encode(),
+                headers={'Content-Type': 'application/json'},
+            )
+            with urllib.request.urlopen(req, timeout=INTENT_CLASSIFIER_TIMEOUT_SECONDS) as resp:
+                body = json.loads(resp.read())
+            raw = (body.get('message') or {}).get('content') or ''
+        elif provider in {'llamacpp', 'llama.cpp', 'openai-compatible', 'openai_compatible'}:
+            payload = {
+                'model': INTENT_CLASSIFIER_MODEL,
+                'messages': [{'role': 'user', 'content': prompt}],
+                'stream': False,
+                'max_tokens': 96,
+                'temperature': 0,
+            }
+            headers = {'Content-Type': 'application/json'}
+            if INTENT_CLASSIFIER_API_KEY:
+                headers['Authorization'] = f'Bearer {INTENT_CLASSIFIER_API_KEY}'
+            req = urllib.request.Request(
+                INTENT_CLASSIFIER_BASE_URL.rstrip('/') + '/v1/chat/completions',
+                data=json.dumps(payload).encode(),
+                headers=headers,
+            )
+            with urllib.request.urlopen(req, timeout=INTENT_CLASSIFIER_TIMEOUT_SECONDS) as resp:
+                body = json.loads(resp.read())
+            raw = (((body.get('choices') or [{}])[0].get('message') or {}).get('content') or '')
+        else:
+            return None, {}, {'enabled': True, 'used': False, 'error': f'unsupported provider {provider}'}
+
         cleaned = raw.strip()
         if cleaned.startswith('```'):
             cleaned = _re.sub(r'^```(?:json)?\s*', '', cleaned, flags=_re.IGNORECASE).strip()
@@ -2206,16 +2280,16 @@ def classify_intent_with_local_model(text):
             return Intent[intent_name], scores, {
                 'enabled': True,
                 'used': True,
-                'provider': INTENT_CLASSIFIER_PROVIDER,
+                'provider': provider,
                 'baseUrl': INTENT_CLASSIFIER_BASE_URL,
                 'model': INTENT_CLASSIFIER_MODEL,
                 'confidence': confidence,
                 'elapsedMs': round((time.time() - started) * 1000.0, 2),
                 'raw': parsed,
             }
-        return None, {}, {'enabled': True, 'used': False, 'model': INTENT_CLASSIFIER_MODEL, 'confidence': confidence, 'intent': intent_name, 'elapsedMs': round((time.time() - started) * 1000.0, 2), 'error': 'low confidence or invalid intent'}
+        return None, {}, {'enabled': True, 'used': False, 'provider': provider, 'model': INTENT_CLASSIFIER_MODEL, 'confidence': confidence, 'intent': intent_name, 'elapsedMs': round((time.time() - started) * 1000.0, 2), 'error': 'low confidence or invalid intent'}
     except Exception as e:
-        return None, {}, {'enabled': True, 'used': False, 'model': INTENT_CLASSIFIER_MODEL, 'elapsedMs': round((time.time() - started) * 1000.0, 2), 'error': extract_http_error(e)}
+        return None, {}, {'enabled': True, 'used': False, 'provider': provider, 'model': INTENT_CLASSIFIER_MODEL, 'elapsedMs': round((time.time() - started) * 1000.0, 2), 'error': extract_http_error(e)}
 
 
 def classify_intent(text):
@@ -3788,6 +3862,12 @@ class Handler(BaseHTTPRequestHandler):
                     "model": INTENT_CLASSIFIER_MODEL,
                     "timeoutSeconds": INTENT_CLASSIFIER_TIMEOUT_SECONDS,
                     "minConfidence": INTENT_CLASSIFIER_MIN_CONFIDENCE,
+                },
+                "dario": {
+                    "baseUrl": DARIO_LOCAL_BASE_URL,
+                    "autostart": DARIO_AUTOSTART,
+                    "reachable": dario_endpoint_ready(timeout=0.1),
+                    "bundled": bool(shutil.which('dario')),
                 },
                 "manifests": {
                     name: {
