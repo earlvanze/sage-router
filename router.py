@@ -1032,9 +1032,10 @@ def normalize_requirements(payload, thinking_level=ThinkingLevel.MEDIUM):
     if not isinstance(req, dict):
         req = {}
     # Tool definitions are often attached by OpenClaw even for ordinary chat.
-    # Treat tools as a hard routing requirement only when explicitly required
-    # or when tool_choice forces tool use; otherwise non-tool providers can
-    # answer normally and we avoid empty candidate chains.
+    # For auto tool_choice, keep tools as a soft capability preference rather
+    # than a hard requirement so plain chat can still route broadly. If the
+    # client explicitly requires tools or forces a concrete tool choice, route
+    # only to providers/models that support valid tool calls.
     tool_choice = payload.get('tool_choice')
     forced_tool_choice = bool(tool_choice and tool_choice not in ('auto', 'none'))
     has_tools = forced_tool_choice
@@ -1048,6 +1049,7 @@ def normalize_requirements(payload, thinking_level=ThinkingLevel.MEDIUM):
         'reasoning': bool(req.get('reasoning') or payload.get('requiresReasoning') or requires_reasoning),
         'json': bool(req.get('json') or payload.get('requiresJson')),
         'tools': bool(req.get('tools') or payload.get('requiresTools') or has_tools),
+        'preferTools': bool(payload.get('tools') and not (req.get('tools') or payload.get('requiresTools') or has_tools)),
         'longContext': bool(req.get('longContext') or payload.get('requiresLongContext')),
         'streaming': bool(explicit_streaming or (requested_stream and not has_tools)),
     }
@@ -1396,7 +1398,11 @@ def parse_anthropic_response(body):
 def provider_default_tools_support(provider):
     if provider.api_type == 'anthropic-messages':
         return True
-    if provider.api_type in ('openai-completions', 'openai-codex-responses') and provider.name in {'openai', 'openai-codex', 'github-copilot'}:
+    if provider.api_type == 'openai-codex-responses':
+        return True
+    if provider.api_type == 'openclaw-gateway':
+        return True
+    if provider.api_type == 'openai-completions' and provider.name in {'openai', 'openai-codex', 'github-copilot'}:
         return True
     return False
 
@@ -2556,6 +2562,10 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
         debug_scores.append({'provider': provider.name, 'model': model, 'score': final_score, 'health': health, 'contributions': contributions})
     return final_score
 
+
+def payload_tools_soft_preference(requirements):
+    return bool((requirements or {}).get('preferTools'))
+
 def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, estimated_tokens=0):
     """Score ALL models across ALL providers globally, then rank.
 
@@ -2585,7 +2595,16 @@ def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='
             if not ok_req:
                 rejections.append({'provider': pn, 'model': model, 'reason': reason})
                 continue
-            scored = (score_provider_model(provider, model, intent, complexity, thinking, route_mode, estimated_tokens, debug_scores), pn, model)
+            score = score_provider_model(provider, model, intent, complexity, thinking, route_mode, estimated_tokens, debug_scores)
+            if payload_tools_soft_preference(requirements) and model_capabilities(provider, model).get('tools'):
+                score += 120
+                if debug_scores is not None:
+                    for entry in reversed(debug_scores):
+                        if entry.get('provider') == provider.name and entry.get('model') == model:
+                            entry['score'] = round(score, 2)
+                            entry.setdefault('contributions', []).append(('tools_soft_preference_bonus', 120))
+                            break
+            scored = (score, pn, model)
             all_candidates.append(scored)
 
     all_candidates.sort(key=lambda item: (-item[0], item[1], item[2]))
