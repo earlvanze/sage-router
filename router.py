@@ -13,6 +13,7 @@ OPENCLAW_DOTENV = os.path.expanduser("~/.openclaw/.env")
 PROVIDER_PROFILES_PATH = os.path.join(os.path.dirname(__file__), 'provider-profiles.json')
 OPENCLAW_GATEWAY_HELPER = os.path.join(os.path.dirname(__file__), 'openclaw_gateway_agent.mjs')
 SELF_PROVIDER_NAMES = {'smart-router', 'sage-router'}
+SHOW_MODEL_PREFIX = True  # Show provider/model at start of response by default
 
 
 def load_env_file(path):
@@ -84,7 +85,8 @@ GENERAL_EMPIRICAL_SUCCESS_EXPLORATION_CAP = float(os.environ.get('SAGE_ROUTER_GE
 GENERAL_EMPIRICAL_LATENCY_BONUS_CAP = float(os.environ.get('SAGE_ROUTER_GENERAL_LATENCY_BONUS_CAP', '18'))
 GENERAL_EMPIRICAL_LATENCY_PIVOT_MS = float(os.environ.get('SAGE_ROUTER_GENERAL_LATENCY_PIVOT_MS', '2500'))
 GENERAL_EMPIRICAL_FAILURE_PENALTY = float(os.environ.get('SAGE_ROUTER_GENERAL_FAILURE_PENALTY', '4'))
-DEFAULT_OPENAI_CODEX_MODELS = ['gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.3-codex', 'gpt-5.3-codex-spark', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini', 'gpt-5.1']
+DEFAULT_OPENAI_CODEX_MODELS = ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.3-codex', 'gpt-5.3-codex-spark', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini', 'gpt-5.1']
+DEFAULT_NGC_MODELS = ['nemotron-tts', 'canary-asr', 'nemo-tts', 'nemo-asr', 'nvidia/tts', 'nvidia/asr']
 DEFAULT_ANTHROPIC_MODELS = ['claude-opus-4-6', 'claude-opus-4-5', 'claude-opus-4-1', 'claude-opus-4-0', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-sonnet-4-0', 'claude-haiku-4-5', 'claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest']
 
 
@@ -103,6 +105,7 @@ def extract_http_error(exc: Exception) -> str:
 # Maps auth profile provider name -> (api_type, default_models, default_meta)
 GATEWAY_PROVIDER_PROFILES = {
     'openai-codex': ('openclaw-gateway', DEFAULT_OPENAI_CODEX_MODELS, {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}),
+    'nvidia-ngc': ('https://api.ngc.nvidia.com', DEFAULT_NGC_MODELS, {'reasoning': False, 'contextWindow': 16384, 'maxTokens': 4096, 'input': ['text', 'audio'], 'output': ['text', 'audio']}),
     'anthropic': ('anthropic-messages', DEFAULT_ANTHROPIC_MODELS, {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 64000, 'input': ['text']}),
     'openai': ('openai-completions', ['gpt-5.4', 'gpt-5.4-mini', 'gpt-4o', 'gpt-4o-mini'], {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
     'google': ('google-generative-language', ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'], {'reasoning': False, 'contextWindow': 1000000, 'maxTokens': 65536, 'input': ['text', 'image']}),
@@ -192,7 +195,7 @@ OLLAMA_FAMILY_HINTS = {
 NON_CHAT_FAMILY_PATTERNS = ['embed', 'bert', 'clip', 'vl', 'vision', 'ocr', 'asr', 'whisper', 'tts', 'sd', 'rerank']
 NON_CHAT_MODEL_HINTS = [
     'embed', 'embedding', 'rerank', 'bge-', 'nomic-embed', 'whisper', 'tts', 'sdxl', 'stable-diffusion',
-    '-vl', ':vl', 'vision', 'ocr', 'asr', 'transcribe'
+    '-vl', ':vl', 'vision', 'ocr', 'asr', 'transcribe', 'glm-ocr'
 ]
 
 # Ollama model families that are NOT text-chat capable.
@@ -488,6 +491,73 @@ def discover_hermes_core_providers():
     except Exception as e:
         logger.debug(f"Hermes core provider discovery failed: {e}")
     return providers
+
+
+def discover_openclaw_agent_auth_providers():
+    """Discover OAuth providers from OpenClaw agent auth-profiles.json."""
+    providers = {}
+    try:
+        # Try main agent first
+        auth_path = os.path.expanduser('~/.openclaw/agents/main/agent/auth-profiles.json')
+        if not os.path.exists(auth_path):
+            # Fallback to checking other agents
+            agents_dir = os.path.expanduser('~/.openclaw/agents')
+            if os.path.exists(agents_dir):
+                for agent in os.listdir(agents_dir):
+                    candidate = os.path.join(agents_dir, agent, 'agent', 'auth-profiles.json')
+                    if os.path.exists(candidate):
+                        auth_path = candidate
+                        break
+        
+        if not os.path.exists(auth_path):
+            return providers
+        
+        with open(auth_path) as f:
+            auth = json.load(f)
+        
+        profiles = auth.get('profiles', {})
+        now_ms = time.time() * 1000
+        
+        for profile_name, profile in profiles.items():
+            if profile.get('type') != 'oauth':
+                continue
+            
+            provider_name = profile.get('provider', profile_name.split(':')[0])
+            access_token = profile.get('access', '')
+            refresh_token = profile.get('refresh', '')
+            expires = profile.get('expires', 0)
+            
+            # Check if expired
+            is_valid = expires and (expires - now_ms) > 0
+            
+            providers[f'openclaw-{profile_name}'] = {
+                'provider': provider_name,
+                'profile': profile_name,
+                'hasAccessToken': bool(access_token),
+                'hasRefreshToken': bool(refresh_token),
+                'expires': expires,
+                'isExpired': not is_valid,
+                'source': 'openclaw-agent-auth'
+            }
+            
+            # Also store tokens for gateway to use
+            if access_token:
+                # Store in a format sage-router can use
+                if provider_name not in providers:
+                    providers[provider_name] = {
+                        'accessToken': access_token,
+                        'refreshToken': refresh_token,
+                        'expires': expires,
+                        'source': 'openclaw-agent-auth',
+                        'profile': profile_name
+                    }
+        
+        logger.info(f"Discovered {len(providers)} providers from OpenClaw agent auth")
+    except Exception as e:
+        logger.debug(f"OpenClaw agent auth discovery failed: {e}")
+    
+    return providers
+
 
 
 def discover_openclaw_cli_providers(timeout_seconds=15):
@@ -963,7 +1033,7 @@ def is_chat_capable_model(provider, model):
 def provider_supports_reasoning(provider, model):
     if provider.api_type == 'ollama':
         return False
-    if provider.api_type == 'openclaw-gateway':
+    if provider.api_type in ('openclaw-gateway', 'openai-codex-responses'):
         return True
     if provider.api_type == 'anthropic-messages':
         return model.startswith('claude-') or model.startswith('claude')
@@ -975,22 +1045,33 @@ def is_cloud_ollama_model(model: str):
     model_l = (model or '').strip().lower()
     return model_l.endswith(':cloud')
 
+# Detect if a model supports vision/multimodal based on name patterns
+VISION_MODEL_PATTERNS = ['vl', 'vision', 'qwen-vl', 'qwen_vl', 'llava', 'bakllava', 'moondream', 'minicpm-v', 'llama-vision', 'glm-4v', 'gpt-4o', 'gpt-4-turbo', 'claude-3-opus', 'claude-3-sonnet', 'claude-3.5', 'gemini-pro-vision', 'gemini-1.5', 'gpt-5.4', 'gpt-5.5']
+OCR_MODEL_PATTERNS = ['ocr', 'paddleocr', 'trocr']
+
+def is_multimodal_model(model: str) -> bool:
+    model_l = (model or '').strip().lower()
+    # Check exact matches first
+    for pattern in VISION_MODEL_PATTERNS:
+        pattern_l = pattern.lower()
+        if model_l == pattern_l or model_l.startswith(pattern_l + '/') or f'-{pattern_l}' in model_l or f'_{pattern_l}' in model_l:
+            return True
+    # Check suffix patterns (e.g., model-name-vl)
+    if any(model_l.endswith(suffix) for suffix in (':vl', '-vl', '_vl', '-vision', ':vision')):
+        return True
+    return False
+
 
 def sanitize_visible_output(text: str):
     raw = text or ''
     if not raw:
         return ''
-
     cleaned = _re.sub(r'<think>.*?</think>\s*', '', raw, flags=_re.IGNORECASE | _re.DOTALL)
     if cleaned == raw and '</think>' in raw.lower():
         cleaned = _re.split(r'</think>', raw, flags=_re.IGNORECASE)[-1]
     cleaned = _re.sub(r'</?think>', '', cleaned, flags=_re.IGNORECASE)
     cleaned = cleaned.strip()
     return cleaned or raw.strip()
-
-
-
-OCR_MODEL_PATTERNS = ['ocr', 'paddleocr', 'trocr']
 
 
 def is_ocr_model(model: str) -> bool:
@@ -1049,6 +1130,8 @@ def build_openai_completion(provider_name, model, request_id, content='', tool_c
     metadata = build_router_metadata(provider_name, model, request_id)
     normalized_tool_calls = normalize_tool_calls(tool_calls)
     content_text = maybe_prefix_debug_text(content, metadata, debug_mode=debug_mode, allow_prefix=allow_debug_prefix and not normalized_tool_calls)
+    if SHOW_MODEL_PREFIX and content_text and not normalized_tool_calls:
+        content_text = '[' + provider_name + '/' + model + '] ' + content_text
     message = {'role': 'assistant', 'content': content_text}
     if normalized_tool_calls:
         message['tool_calls'] = normalized_tool_calls
@@ -1203,9 +1286,7 @@ def parse_anthropic_response(body):
 def provider_default_tools_support(provider):
     if provider.api_type == 'anthropic-messages':
         return True
-    if provider.api_type == 'openai-completions' and provider.name in {'openai', 'openai-codex', 'github-copilot'}:
-        return True
-    if provider.api_type in ('ollama', 'openrouter', 'google-generative-language'):
+    if provider.api_type in ('openai-completions', 'openai-codex-responses') and provider.name in {'openai', 'openai-codex', 'github-copilot'}:
         return True
     return False
 
@@ -1213,9 +1294,9 @@ def provider_default_tools_support(provider):
 def model_capabilities(provider, model):
     meta = (provider.model_meta or {}).get(model, {})
     default_chat = is_chat_capable_model(provider, model)
-    default_json = provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages', 'google-generative-language'}
+    default_json = provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages', 'google-generative-language', 'openai-codex-responses'}
     default_tools = provider_default_tools_support(provider)
-    default_streaming = provider.api_type in {'openai-completions', 'ollama', 'google-generative-language'}
+    default_streaming = provider.api_type in {'openai-completions', 'ollama', 'google-generative-language', 'openai-codex-responses'}
     return {
         'chat': bool(meta.get('supportsChat', default_chat)),
         'servable': model_is_servable(provider, model),
@@ -1225,6 +1306,8 @@ def model_capabilities(provider, model):
         'json': bool(meta.get('supportsJson', default_json)),
         'tools': bool(meta.get('supportsTools', default_tools)),
         'streaming': bool(meta.get('supportsStreaming', default_streaming)),
+        'vision': bool(meta.get('supportsVision') or is_multimodal_model(model)),
+        'ocr': bool(meta.get('supportsOcr') or is_ocr_model(model)),
         'longContext': model_context_window(provider, model),
         'manifestReason': meta.get('manifestReason'),
     }
@@ -1277,6 +1360,30 @@ def load_openclaw_providers():
                 logger.info(f'Normalized provider {name} -> {DARIO_PROVIDER_NAME} via local Dario proxy')
                 continue
 
+            # Inject OAuth token for openai-codex-responses from OpenClaw agent auth
+            if name == 'openai-codex' and api_type == 'openai-codex-responses' and not api_key:
+                import time
+                auth_path = os.path.expanduser('~/.openclaw/agents/main/agent/auth-profiles.json')
+                try:
+                    with open(auth_path) as af:
+                        auth = json.load(af)
+                    now_ms = time.time() * 1000
+                    for pname, prof in auth.get('profiles', {}).items():
+                        if prof.get('provider') == 'openai-codex' and prof.get('type') == 'oauth':
+                            if not prof.get('expires') or prof.get('expires', 0) > now_ms:
+                                api_key = prof.get('access', '')
+                                if api_key:
+                                    logger.info(f'Injected OAuth token for openai-codex from {pname}')
+                                    break
+                except Exception:
+                    pass
+            
+            # Add multimodal metadata for GPT-5.4/5.5 which support vision
+            multimodal_models = {'gpt-5.5', 'gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini'}
+            extra_meta = {m: {'input': ['text', 'image'], 'supportsVision': True} for m in multimodal_models if m in (models or [])}
+            if extra_meta:
+                model_meta = {**(model_meta or {}), **extra_meta}
+            
             merge_provider(providers, Provider(
                 name,
                 api_type,
@@ -1508,7 +1615,7 @@ def general_empirical_adjustment(provider, model):
     stat = get_latency_stat('GENERAL', provider_name, model)
     provider_stats = get_intent_provider_stats('GENERAL', provider_name)
     if not stat:
-        if provider.api_type == 'openclaw-gateway':
+        if provider.api_type in ('openclaw-gateway', 'openai-codex-responses'):
             return -4.0, 'cold-gateway'
         if provider_stats:
             return -2.0, 'provider-known,cold-model'
@@ -2065,12 +2172,12 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
         contributions.append(('anthropic_reasoning_bias', 4))
     # openclaw-gateway is recursive (routes through this router), so it gets
     # a fixed low base score - only used as a fallback, never preferred.
-    if provider.api_type == 'openclaw-gateway':
+    if provider.api_type in ('openclaw-gateway', 'openai-codex-responses'):
         score = min(score, 40)
         contributions.append(('openclaw_gateway_recursive_cap', min(0, 40 - score)))
     # OpenAI-compat / non-recursive external APIs keep their score as-is.
     # The openclaw-gateway penalty below handles the rest.
-    if provider.api_type == 'openclaw-gateway':
+    if provider.api_type in ('openclaw-gateway', 'openai-codex-responses'):
         score -= 4
         contributions.append(('openclaw_gateway_penalty', -4))
 
@@ -2198,7 +2305,7 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
         if any(hint in model_l for hint in COMPLEX_MODEL_HINTS):
             score -= 4
             contributions.append(('thinking_low_complex_penalty', -4))
-        if provider.api_type == 'openclaw-gateway':
+        if provider.api_type in ('openclaw-gateway', 'openai-codex-responses'):
             score -= 6
             contributions.append(('thinking_low_gateway_penalty', -6))
         if provider.api_type == 'ollama':
@@ -2403,6 +2510,136 @@ def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinkin
         return True, text
     return False, json.dumps(result)
 
+
+
+def call_codex_responses(base_url, model, messages, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, want_json=False):
+    """Call OpenAI Codex Responses API at chatgpt.com/backend-api/codex/responses"""
+    url = base_url.rstrip('/') + '/responses'
+    
+    # Build instructions and input from messages
+    instructions = "You are a helpful assistant."
+    input_msgs = []
+    for msg in messages:
+        role = msg.get('role', 'user')
+        content = msg.get('content', '')
+        if role == 'system':
+            instructions = content if isinstance(content, str) else str(content)
+        else:
+            input_msgs.append({"role": role, "content": content})
+    
+    payload = {
+        "model": model,
+        "instructions": instructions,
+        "input": input_msgs or [{"role": "user", "content": ""}],
+        "store": False,
+        "stream": True,
+    }
+    
+    # Add reasoning effort if supported
+    if supports_reasoning and thinking == ThinkingLevel.HIGH:
+        payload["reasoning"] = {"effort": "high"}
+    
+    try:
+        data = json.dumps(payload).encode()
+        hdrs = {'Content-Type': 'application/json'}
+        if api_key:
+            hdrs['Authorization'] = f'Bearer {api_key}'
+        req = urllib.request.Request(url, data=data, headers=hdrs)
+        
+        # Handle streaming response
+        full_text = []
+        event_type = None
+        with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+            for line in resp:
+                line = line.decode().strip()
+                if line.startswith('event: '):
+                    event_type = line[6:].strip()
+                elif line.startswith('data: ') and event_type == 'response.output_text.delta':
+                    try:
+                        delta_data = json.loads(line[6:])
+                        if delta_data.get('type') == 'response.output_text.delta':
+                            full_text.append(delta_data.get('delta', ''))
+                    except Exception:
+                        pass
+                elif line == 'data: [DONE]':
+                    break
+                elif line.startswith('event: ') and not line.startswith('event: data'):
+                    continue
+        
+        text = sanitize_visible_output(''.join(full_text))
+        if text:
+            return True, text
+        return False, 'Empty Codex response'
+    except Exception as e:
+        logger.warning(f"Codex responses {provider_name or base_url} {model}: {extract_http_error(e)}")
+        return False, extract_http_error(e)
+
+
+
+def call_codex_completion(base_url, model, payload, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False, request_id=''):
+    """Call OpenAI Codex Responses API with streaming SSE support"""
+    url = base_url.rstrip('/') + '/responses'
+    
+    messages = payload.get('messages', [])
+    instructions = "You are a helpful assistant."
+    input_msgs = []
+    for msg in messages:
+        role = msg.get('role', 'user')
+        content = msg.get('content', '')
+        if role == 'system':
+            instructions = content if isinstance(content, str) else str(content)
+        else:
+            input_msgs.append({"role": role, "content": content})
+    
+    req_payload = {
+        "model": model,
+        "instructions": instructions,
+        "input": input_msgs or [{"role": "user", "content": ""}],
+        "store": False,
+        "stream": True,
+    }
+    
+    if supports_reasoning and thinking == ThinkingLevel.HIGH:
+        req_payload["reasoning"] = {"effort": "high"}
+    
+    try:
+        data = json.dumps(req_payload).encode()
+        hdrs = {'Content-Type': 'application/json'}
+        if api_key:
+            hdrs['Authorization'] = f'Bearer {api_key}'
+        
+        req = urllib.request.Request(url, data=data, headers=hdrs)
+        
+        full_text = []
+        event_type = None
+        with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+            for line in resp:
+                line = line.decode().strip()
+                if line.startswith('event: '):
+                    event_type = line[6:].strip()
+                elif line.startswith('data: ') and event_type == 'response.output_text.delta':
+                    try:
+                        delta_data = json.loads(line[6:])
+                        if delta_data.get('type') == 'response.output_text.delta':
+                            full_text.append(delta_data.get('delta', ''))
+                    except Exception:
+                        pass
+                elif line == 'data: [DONE]':
+                    break
+        
+        text = sanitize_visible_output(''.join(full_text))
+        if text:
+            return True, build_openai_completion(
+                provider_name or 'openai-codex', model, request_id, text, [],
+                'stop', {'prompt_tokens': 0, 'completion_tokens': 0},
+                debug_mode=debug_mode
+            )
+        return False, 'Empty Codex response'
+    except Exception as e:
+        return False, extract_http_error(e)
+
+
+
 def call_anthropic(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, want_json=False):
     url = base_url.rstrip('/') + '/v1/messages'
     system_text = ''
@@ -2556,6 +2793,67 @@ def call_ollama_completion(base_url, model, payload, api_key='', thinking=Thinki
         err = extract_http_error(e)
         logger.warning(f"Ollama {base_url} {model}: {err}")
         return False, err
+
+
+def call_ollama_ocr(base_url, model, payload, request_id):
+    url = base_url.rstrip("/") + "/api/generate"
+    messages = payload.get("messages", [])
+    prompt = "Extract all text from this image."
+    images = []
+    for msg in messages:
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            if content.startswith("http"):
+                import base64
+                try:
+                    img_data = urllib.request.urlopen(content, timeout=30).read()
+                    images.append(base64.b64encode(img_data).decode())
+                except: pass
+            else:
+                prompt = content
+        elif isinstance(content, list):
+            for item in content:
+                if isinstance(item, dict):
+                    if item.get("type") == "text":
+                        prompt = item.get("text", prompt)
+                    elif item.get("type") == "image_url":
+                        img_url = item.get("image_url", {}).get("url", "")
+                        if img_url.startswith("http"):
+                            import base64
+                            try:
+                                img_data = urllib.request.urlopen(img_url, timeout=30).read()
+                                images.append(base64.b64encode(img_data).decode())
+                            except: pass
+    req_payload = {"model": model, "prompt": prompt, "images": images if images else None, "stream": False}
+    try:
+        data = json.dumps(req_payload).encode()
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            body = json.loads(resp.read())
+        text = sanitize_visible_output(body.get("response", ""))
+        if text:
+            return True, build_openai_completion("ollama", model, request_id, text, [], "stop", {"prompt_tokens": 0, "completion_tokens": 0})
+        return False, "Empty OCR response"
+    except Exception as e:
+        return False, extract_http_error(e)
+
+
+def call_ngc(base_url, model, payload, api_key='', request_id=''):
+    url = base_url.rstrip('/') + '/v1/chat/completions'
+    messages = payload.get('messages', [])
+    headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'}
+    req_payload = {'model': model, 'messages': messages, 'max_tokens': 4096}
+    try:
+        data = json.dumps(req_payload).encode()
+        req = urllib.request.Request(url, data=data, headers=headers)
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            body = json.loads(resp.read())
+        text = body.get('choices', [{}])[0].get('message', {}).get('content', '')
+        if text:
+            return True, build_openai_completion('nvidia-ngc', model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0})
+        return False, 'Empty NGC response'
+    except Exception as e:
+        return False, extract_http_error(e)
 
 
 def call_anthropic_completion(base_url, model, payload, api_key='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False, request_id='', provider_name='anthropic'):
@@ -2801,6 +3099,33 @@ def stream_google_to_client(self, provider, model, payload, request_id, thinking
     return True
 
 
+def write_openai_completion_as_sse(self, result, request_id):
+    chat_id = result.get('id') or f'chatcmpl-{int(time.time())}'
+    model = result.get('model') or 'sage-router/auto'
+    created = int(result.get('created') or time.time())
+    choice = (result.get('choices') or [{}])[0] or {}
+    message = choice.get('message') or {}
+    content = message.get('content') or ''
+    tool_calls = message.get('tool_calls') or []
+    self.send_response(200)
+    self.send_header('Content-Type', 'text/event-stream')
+    self.send_header('Cache-Control', 'no-cache')
+    for key, value in self.routing_headers(result, request_id).items():
+        if value:
+            self.send_header(key, str(value))
+    self.end_headers()
+    if content:
+        chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': created, 'model': model, 'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': content}, 'finish_reason': None}]})
+        self.wfile.write(f'data: {chunk}\n\n'.encode())
+    if tool_calls:
+        chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': created, 'model': model, 'choices': [{'index': 0, 'delta': {'role': 'assistant', 'tool_calls': tool_calls}, 'finish_reason': None}]})
+        self.wfile.write(f'data: {chunk}\n\n'.encode())
+    finish_reason = 'tool_calls' if tool_calls else (choice.get('finish_reason') or 'stop')
+    done_chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': created, 'model': model, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': finish_reason}]})
+    self.wfile.write(f'data: {done_chunk}\n\n'.encode())
+    self.wfile.write(b'data: [DONE]\n\n')
+    self.wfile.flush()
+
 def handle_openai_chat_completions(self, payload, request_id, started, force_realtime=False):
     message_count = len(payload.get('messages', []) or [])
     thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning'))
@@ -2810,9 +3135,21 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         thinking = ThinkingLevel.LOW  # Force low thinking for speed
     requirements = normalize_requirements(payload, thinking)
     want_json = str(payload.get('responseFormat') or '').lower() == 'json' or payload.get('response_format', {}).get('type') == 'json_object'
-    want_stream = bool(payload.get('stream', False))
+    client_wants_stream = bool(payload.get('stream', False))
+    # Buffer provider responses and synthesize SSE for client streaming. This preserves fallback/empty-output detection even when OpenClaw streams with tools.
+    want_stream = False
     debug_mode = normalize_debug_mode(payload)
     logger.info(f"[{request_id}] Incoming /v1/chat/completions with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}, debug={debug_mode}")
+
+    # Parse provider from model field (e.g., "openai-codex/gpt-5.5")
+    _fp = payload.get('provider')
+    _rm = payload.get('model')
+    if '/' in str(_rm):
+        _parts = str(_rm).split('/', 1)
+        _pp = _parts[0]
+        if not _fp and _pp in PROVIDERS and _pp not in DISABLED_PROVIDERS:
+            _fp = _pp
+        _rm = _parts[1]
     _, intent, _, _, chain = prepare_route(
         payload.get('messages', []),
         request_id=request_id,
@@ -2821,8 +3158,8 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         requirements=requirements,
         want_json=want_json,
         streaming_mode='native-pass-through' if want_stream else 'disabled',
-        force_provider=payload.get('provider'),
-        requested_model=payload.get('model'),
+        force_provider=_fp,
+        requested_model=_rm,
     )
 
     attempts = []
@@ -2847,7 +3184,11 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'ollama':
-                if want_stream:
+                if is_ocr_model(model):
+                    ok, result = call_ollama_ocr(prov.base_url, model, payload, request_id)
+                    if not ok:
+                        error_detail = result
+                elif want_stream:
                     stream_ollama_to_client(self, prov, model, payload, request_id, thinking=thinking, debug_mode=debug_mode)
                     ok = True
                 else:
@@ -2867,6 +3208,13 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
                     ok = True
                 else:
                     ok, result = call_google_completion(prov.base_url, model, payload, api_key=prov.api_key, thinking=thinking, debug_mode=debug_mode, request_id=request_id)
+                    if not ok:
+                        error_detail = result
+            elif prov.api_type == 'openai-codex-responses':
+                if want_stream:
+                    error_detail = 'streaming not implemented for Codex responses'
+                else:
+                    ok, result = call_codex_completion(prov.base_url, model, payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'openclaw-gateway':
@@ -2902,7 +3250,8 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
             total_elapsed = time.time() - overall_started
             LAST_ROUTE_DEBUG.update({'selected': {'provider': pn, 'model': model}, 'status': 'ok', 'error': None, 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
             logger.info(f"[{request_id}] OK: {pn}/{model} (provider={elapsed:.2f}s, total={total_elapsed:.2f}s, stream={want_stream})")
-            if want_stream:
+            if client_wants_stream:
+                write_openai_completion_as_sse(self, result, request_id)
                 return
             self.write_json(200, result, extra_headers=self.routing_headers(result, request_id))
             logger.info(f"[{request_id}] Responded in {time.time() - started:.2f}s")
@@ -3332,6 +3681,7 @@ class Handler(BaseHTTPRequestHandler):
             hermes_cli = discover_hermes_cli_providers(timeout_seconds=8)
             openclaw_file = discover_openclaw_core_providers()
             hermes_file = discover_hermes_core_providers()
+            openclaw_agent_auth = discover_openclaw_agent_auth_providers()
             self.write_json(200, {
                 "openclaw": {
                     "github": {

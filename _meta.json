@@ -1,10 +1,6 @@
 {
-  "version": "3.24.2",
-  "clawhub": {
-    "id": "k97cpgsjq8v69e1z3v652yfyxd859d3w"
-  },
-  "github": {
-    "repo": "earlvanze/sage-router",
-    "url": "https://github.com/earlvanze/sage-router"
-  }
+  "ownerId": "kn7a5vdq619nymw8zq4aq95b49846rhq",
+  "slug": "sage-router",
+  "version": "3.26.2",
+  "publishedAt": 1777137195204
 }

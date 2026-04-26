@@ -17,7 +17,7 @@ Unlike OpenRouter, which optimizes for cost, Sage Router optimizes for **getting
 
 - **Intent-based routing**: Code tasks go to coding models, creative tasks to creative models, reasoning tasks to reasoning models
 - **Automatic fallback**: If one provider fails or hits rate limits, it seamlessly tries the next
-- **Dynamic discovery**: New models from Ollama, Anthropic, OpenAI, Google, and OpenClaw are auto-detected — no config updates needed
+- **Dynamic discovery**: New models from Ollama, Anthropic, OpenAI, Google, NVIDIA Cloud, and OpenClaw are auto-detected — no config updates needed
 - **Zero API lock-in**: Use any subscription you already have (Ollama, Claude, OpenAI, Gemini, GitHub Copilot)
 - **Debuggable routing**: Surface the selected provider/model in headers, `/health`, or optional debug output
 
@@ -224,6 +224,29 @@ Sage Router can route through a local Grok SSO proxy instead of burning xAI API 
 
 See `provider-profiles.json` for the `grok-sso` template and `GROK_SSO.md` for setup.
 
+### NVIDIA Cloud
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "nvidia": {
+        "enabled": true,
+        "config": {
+          "autoDiscovery": {
+            "enabled": true,
+            "base_url": "integrate.api.nvidia.com/v1",
+            "api_key": "$NVIDIA_API_KEY"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Models are auto-discovered from NVIDIA Cloud when `NVIDIA_API_KEY` is present.
+
 ### OpenClaw Gateway
 
 ```json
@@ -252,6 +275,7 @@ Models are auto-discovered via the gateway's `/v1/models` endpoint.
 | **Anthropic** | ✅ Via Dario | ✅ | ✅ | API key |
 | **OpenAI** | ✅ `/v1/models` | ✅ | ✅ | API key |
 | **GitHub Copilot** | ✅ `/v1/models` | ✅ | ✅ | Token |
+| **NVIDIA Cloud** | ✅ auto-discovery | ✅ | ✅ | API key |
 | **OpenClaw Gateway** | ✅ `/v1/models` | ✅ | ✅ | Gateway token |
 | **xAI/Grok (API)** | ✅ `/v1/models` | ✅ | ✅ | API key |
 | **xAI/Grok (SSO)** | ❌ SSO proxy | ❌ | ❌ | Cookie/SSO |
@@ -380,6 +404,7 @@ That means stream-shaped responses work for client compatibility, but they may s
 ANTHROPIC_API_KEY=sk-...
 OPENAI_API_KEY=sk-...
 GEMINI_API_KEY=AIza...
+NVIDIA_API_KEY=nvapi-...
 OLLAMA_HOST=http://localhost:11434
 
 # Router behavior
