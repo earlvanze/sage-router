@@ -926,8 +926,13 @@ def normalize_requirements(payload, thinking_level=ThinkingLevel.MEDIUM):
     req = payload.get('requirements') if isinstance(payload, dict) else None
     if not isinstance(req, dict):
         req = {}
-    # Also check standard OpenAI fields (tools, tool_choice)
-    has_tools = bool(payload.get('tools')) or payload.get('tool_choice') is not None
+    # Tool definitions are often attached by OpenClaw even for ordinary chat.
+    # Treat tools as a hard routing requirement only when explicitly required
+    # or when tool_choice forces tool use; otherwise non-tool providers can
+    # answer normally and we avoid empty candidate chains.
+    tool_choice = payload.get('tool_choice')
+    forced_tool_choice = bool(tool_choice and tool_choice not in ('auto', 'none'))
+    has_tools = forced_tool_choice
     # Check for reasoning/thinking requests
     has_reasoning = bool(payload.get('thinking')) or bool(payload.get('reasoning'))
     # If thinking level is HIGH, treat as requiring reasoning
