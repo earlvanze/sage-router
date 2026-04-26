@@ -203,6 +203,13 @@ OLLAMA_FAMILY_HINTS = {
     'qwen35moe': {'bonus': 9, 'intents': {'CODE', 'ANALYSIS', 'GENERAL'}},
 }
 
+
+OLLAMA_TOOL_MODEL_HINTS = [
+    'qwen3', 'qwen2.5', 'qwen2', 'kimi', 'minimax', 'glm-5', 'glm-4',
+    'gpt-oss', 'llama3.1', 'llama3.2', 'llama3.3', 'mistral', 'mixtral', 'nemotron'
+]
+OLLAMA_NON_TOOL_MODEL_HINTS = ['embed', 'embedding', 'ocr', 'vision', '-vl', ':vl', 'whisper', 'tts']
+
 # Known NON-chat families - dynamically extended from /api/tags.
 # A family is non-chat if it matches these patterns or is explicitly listed.
 NON_CHAT_FAMILY_PATTERNS = ['embed', 'bert', 'clip', 'vl', 'vision', 'ocr', 'asr', 'whisper', 'tts', 'sd', 'rerank']
@@ -1395,9 +1402,21 @@ def parse_anthropic_response(body):
     }
 
 
+
+def ollama_model_default_tools_support(model: str):
+    model_l = (model or '').strip().lower()
+    if not model_l or any(hint in model_l for hint in OLLAMA_NON_TOOL_MODEL_HINTS):
+        return False
+    # Ollama Cloud exposes native tool calling for many hosted chat families.
+    # Local Ollama support is model-template dependent, so keep the default
+    # conservative unless the model is a known tool-capable family.
+    return any(hint in model_l for hint in OLLAMA_TOOL_MODEL_HINTS)
+
 def provider_default_tools_support(provider):
     if provider.api_type == 'anthropic-messages':
         return True
+    if provider.api_type == 'ollama':
+        return None
     if provider.api_type == 'openai-codex-responses':
         return True
     if provider.api_type == 'openclaw-gateway':
@@ -1411,7 +1430,8 @@ def model_capabilities(provider, model):
     meta = (provider.model_meta or {}).get(model, {})
     default_chat = is_chat_capable_model(provider, model)
     default_json = provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages', 'google-generative-language', 'openai-codex-responses'}
-    default_tools = provider_default_tools_support(provider)
+    provider_tools_default = provider_default_tools_support(provider)
+    default_tools = ollama_model_default_tools_support(model) if provider_tools_default is None else provider_tools_default
     default_streaming = provider.api_type in {'openai-completions', 'ollama', 'google-generative-language', 'openai-codex-responses'}
     return {
         'chat': bool(meta.get('supportsChat', default_chat)),
