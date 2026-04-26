@@ -117,6 +117,7 @@ GATEWAY_PROVIDER_PROFILES = {
     'azure-openai': ('openclaw-gateway', ['gpt-5.4', 'gpt-5.4-mini', 'gpt-4o', 'gpt-4o-mini'], {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
 }
 MAX_PROVIDER_ATTEMPTS = int(os.environ.get('SAGE_ROUTER_MAX_PROVIDER_ATTEMPTS', '8'))
+OPENROUTER_FREE_ONLY = os.environ.get('SAGE_ROUTER_OPENROUTER_FREE_ONLY', '0').strip().lower() in {'1', 'true', 'yes', 'on'}
 LATENCY_STATS_LOCK = threading.Lock()
 OLLAMA_MODEL_CACHE = {}
 MODEL_HEALTH_CACHE = {}
@@ -392,6 +393,31 @@ def discover_openai_models(base_url, api_key):
         return dedupe_keep_order(chat_models)
     except Exception as e:
         logger.debug(f"OpenAI model discovery {base_url}: {extract_http_error(e)}")
+        return []
+
+
+def discover_openrouter_models(base_url, api_key):
+    """Discover OpenRouter models, optionally constrained to :free IDs."""
+    if not base_url or not api_key:
+        return []
+    try:
+        root = base_url.rstrip('/')
+        if root.endswith('/v1'):
+            root = root[:-3]
+        url = root.rstrip('/') + '/v1/models'
+        hdrs = {'Authorization': f'Bearer {api_key}'}
+        req = urllib.request.Request(url, headers=hdrs)
+        with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+            payload = json.loads(resp.read())
+        models = [m.get('id', '') for m in payload.get('data', []) if m.get('id')]
+        if OPENROUTER_FREE_ONLY:
+            models = [m for m in models if str(m).endswith(':free')]
+        if models:
+            suffix = ' free' if OPENROUTER_FREE_ONLY else ''
+            logger.info(f'Discovered {len(models)} OpenRouter{suffix} models via API')
+        return dedupe_keep_order(models)
+    except Exception as e:
+        logger.debug(f"OpenRouter model discovery {base_url}: {extract_http_error(e)}")
         return []
 
 
@@ -803,7 +829,11 @@ def discover_provider_models(name, cfg, base_url, api_key, api_type):
         discovered = discover_google_models(base_url, api_key)
     elif api_type == 'openai-completions':
         # Try OpenAI-style discovery for openai, github-copilot, xai, etc.
-        if name == 'xai' or 'x.ai' in (base_url or '').lower():
+        if name == 'openrouter' or 'openrouter.ai' in (base_url or '').lower():
+            discovered = discover_openrouter_models(base_url, api_key)
+            if OPENROUTER_FREE_ONLY:
+                configured = [m for m in configured if str(m).endswith(':free')]
+        elif name == 'xai' or 'x.ai' in (base_url or '').lower():
             discovered = discover_xai_models(base_url, api_key)
         else:
             discovered = discover_openai_models(base_url, api_key)
