@@ -989,6 +989,17 @@ def sanitize_visible_output(text: str):
     return cleaned or raw.strip()
 
 
+
+OCR_MODEL_PATTERNS = ['ocr', 'paddleocr', 'trocr']
+
+
+def is_ocr_model(model: str) -> bool:
+    model_l = (model or '').strip().lower()
+    for pattern in OCR_MODEL_PATTERNS:
+        if pattern in model_l:
+            return True
+    return False
+
 def normalize_tool_calls(tool_calls):
     normalized = []
     logger.debug(f"normalize_tool_calls input: {tool_calls}")
