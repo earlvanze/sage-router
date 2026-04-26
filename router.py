@@ -209,6 +209,12 @@ OLLAMA_TOOL_MODEL_HINTS = [
     'gpt-oss', 'llama3.1', 'llama3.2', 'llama3.3', 'mistral', 'mixtral', 'nemotron'
 ]
 OLLAMA_NON_TOOL_MODEL_HINTS = ['embed', 'embedding', 'ocr', 'vision', '-vl', ':vl', 'whisper', 'tts']
+NVIDIA_TOOL_MODEL_HINTS = [
+    'nemotron', 'llama', 'qwen', 'deepseek', 'mistral', 'mixtral', 'gpt-oss', 'glm', 'kimi'
+]
+NVIDIA_NON_TOOL_MODEL_HINTS = [
+    'tts', 'asr', 'canary', 'nemo-tts', 'nemo-asr', 'embed', 'embedding', 'rerank', 'ocr', 'vision', '-vl', ':vl', 'whisper'
+]
 
 # Known NON-chat families - dynamically extended from /api/tags.
 # A family is non-chat if it matches these patterns or is explicitly listed.
@@ -1412,6 +1418,21 @@ def ollama_model_default_tools_support(model: str):
     # conservative unless the model is a known tool-capable family.
     return any(hint in model_l for hint in OLLAMA_TOOL_MODEL_HINTS)
 
+
+def is_nvidia_provider(provider):
+    name_l = (provider.name or '').strip().lower()
+    host_l = (urllib.parse.urlparse(provider.base_url or '').hostname or '').lower()
+    return any(hint in name_l for hint in ('nvidia', 'nim', 'ngc')) or 'nvidia.com' in host_l
+
+
+def nvidia_model_default_tools_support(model: str):
+    model_l = (model or '').strip().lower()
+    if not model_l or any(hint in model_l for hint in NVIDIA_NON_TOOL_MODEL_HINTS):
+        return False
+    # NVIDIA-hosted NIM/OpenAI-compatible LLMs commonly support tool calling;
+    # non-LLM/audio/embedding models are excluded above.
+    return any(hint in model_l for hint in NVIDIA_TOOL_MODEL_HINTS)
+
 def provider_default_tools_support(provider):
     if provider.api_type == 'anthropic-messages':
         return True
@@ -1421,6 +1442,8 @@ def provider_default_tools_support(provider):
         return True
     if provider.api_type == 'openclaw-gateway':
         return True
+    if provider.api_type == 'openai-completions' and is_nvidia_provider(provider):
+        return None
     if provider.api_type == 'openai-completions' and provider.name in {'openai', 'openai-codex', 'github-copilot'}:
         return True
     return False
@@ -1431,7 +1454,12 @@ def model_capabilities(provider, model):
     default_chat = is_chat_capable_model(provider, model)
     default_json = provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages', 'google-generative-language', 'openai-codex-responses'}
     provider_tools_default = provider_default_tools_support(provider)
-    default_tools = ollama_model_default_tools_support(model) if provider_tools_default is None else provider_tools_default
+    if provider_tools_default is None and provider.api_type == 'ollama':
+        default_tools = ollama_model_default_tools_support(model)
+    elif provider_tools_default is None and is_nvidia_provider(provider):
+        default_tools = nvidia_model_default_tools_support(model)
+    else:
+        default_tools = provider_tools_default
     default_streaming = provider.api_type in {'openai-completions', 'ollama', 'google-generative-language', 'openai-codex-responses'}
     return {
         'chat': bool(meta.get('supportsChat', default_chat)),
