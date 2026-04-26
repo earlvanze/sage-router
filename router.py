@@ -118,6 +118,13 @@ GATEWAY_PROVIDER_PROFILES = {
 }
 MAX_PROVIDER_ATTEMPTS = int(os.environ.get('SAGE_ROUTER_MAX_PROVIDER_ATTEMPTS', '8'))
 OPENROUTER_FREE_ONLY = os.environ.get('SAGE_ROUTER_OPENROUTER_FREE_ONLY', '0').strip().lower() in {'1', 'true', 'yes', 'on'}
+INTENT_CLASSIFIER_ENABLED = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED', '0').strip().lower() in {'1', 'true', 'yes', 'on'}
+INTENT_CLASSIFIER_PROVIDER = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_PROVIDER', 'ollama')
+INTENT_CLASSIFIER_BASE_URL = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_BASE_URL', 'http://127.0.0.1:11434')
+INTENT_CLASSIFIER_MODEL = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_MODEL', 'qwen2.5:0.5b-instruct')
+INTENT_CLASSIFIER_TIMEOUT_SECONDS = float(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_TIMEOUT_SECONDS', '3'))
+INTENT_CLASSIFIER_MIN_CONFIDENCE = float(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_MIN_CONFIDENCE', '0.65'))
+INTENT_CLASSIFIER_MAX_PROMPT_CHARS = int(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_MAX_PROMPT_CHARS', '4000'))
 LATENCY_STATS_LOCK = threading.Lock()
 OLLAMA_MODEL_CACHE = {}
 MODEL_HEALTH_CACHE = {}
@@ -2150,7 +2157,73 @@ def reasoning_capabilities_summary():
     return summary
 
 
+def classify_intent_with_local_model(text):
+    """Optional tiny local/GPU model classifier for ambiguous routing.
+
+    Enabled with SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED=1. Intended for a
+    dockerized Cyber deployment where Ollama/llama.cpp has GPU acceleration.
+    Returns (Intent|None, scores, metadata).
+    """
+    if not INTENT_CLASSIFIER_ENABLED:
+        return None, {}, {'enabled': False}
+    if INTENT_CLASSIFIER_PROVIDER != 'ollama':
+        return None, {}, {'enabled': True, 'used': False, 'error': f'unsupported provider {INTENT_CLASSIFIER_PROVIDER}'}
+    prompt = (
+        'Classify this request for AI model routing. Return ONLY compact JSON with keys: '
+        'intent, complexity, confidence, needs_tools, needs_reasoning, needs_json. '
+        'intent must be one of GENERAL, CODE, ANALYSIS, CREATIVE, REALTIME.\n\n'
+        f'Request:\n{text[:INTENT_CLASSIFIER_MAX_PROMPT_CHARS]}'
+    )
+    payload = {
+        'model': INTENT_CLASSIFIER_MODEL,
+        'messages': [{'role': 'user', 'content': prompt}],
+        'stream': False,
+        'options': {'num_predict': 96, 'temperature': 0, 'num_ctx': 4096},
+    }
+    started = time.time()
+    try:
+        req = urllib.request.Request(
+            INTENT_CLASSIFIER_BASE_URL.rstrip('/') + '/api/chat',
+            data=json.dumps(payload).encode(),
+            headers={'Content-Type': 'application/json'},
+        )
+        with urllib.request.urlopen(req, timeout=INTENT_CLASSIFIER_TIMEOUT_SECONDS) as resp:
+            body = json.loads(resp.read())
+        raw = (body.get('message') or {}).get('content') or ''
+        cleaned = raw.strip()
+        if cleaned.startswith('```'):
+            cleaned = _re.sub(r'^```(?:json)?\s*', '', cleaned, flags=_re.IGNORECASE).strip()
+            cleaned = _re.sub(r'\s*```$', '', cleaned).strip()
+        m = _re.search(r'\{.*\}', cleaned, flags=_re.DOTALL)
+        if m:
+            cleaned = m.group(0)
+        parsed = json.loads(cleaned)
+        intent_name = str(parsed.get('intent') or '').strip().upper()
+        confidence = float(parsed.get('confidence') or 0)
+        if intent_name in Intent.__members__ and confidence >= INTENT_CLASSIFIER_MIN_CONFIDENCE:
+            scores = {i: 0 for i in Intent}
+            scores[Intent[intent_name]] = max(1, int(confidence * 10))
+            return Intent[intent_name], scores, {
+                'enabled': True,
+                'used': True,
+                'provider': INTENT_CLASSIFIER_PROVIDER,
+                'baseUrl': INTENT_CLASSIFIER_BASE_URL,
+                'model': INTENT_CLASSIFIER_MODEL,
+                'confidence': confidence,
+                'elapsedMs': round((time.time() - started) * 1000.0, 2),
+                'raw': parsed,
+            }
+        return None, {}, {'enabled': True, 'used': False, 'model': INTENT_CLASSIFIER_MODEL, 'confidence': confidence, 'intent': intent_name, 'elapsedMs': round((time.time() - started) * 1000.0, 2), 'error': 'low confidence or invalid intent'}
+    except Exception as e:
+        return None, {}, {'enabled': True, 'used': False, 'model': INTENT_CLASSIFIER_MODEL, 'elapsedMs': round((time.time() - started) * 1000.0, 2), 'error': extract_http_error(e)}
+
+
 def classify_intent(text):
+    model_intent, model_scores, model_meta = classify_intent_with_local_model(text)
+    if model_intent is not None:
+        LAST_ROUTE_DEBUG['intentClassifier'] = model_meta
+        return model_intent, model_scores
+    LAST_ROUTE_DEBUG['intentClassifier'] = model_meta
     tl = text.lower(); scores = {i:0 for i in Intent}
     for kw in ['write','code','debug','fix','refactor','implement','function','bug','test','.py','.js']:
         if kw in tl: scores[Intent.CODE] += 1
@@ -3707,6 +3780,14 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 "requirements": {
                     "supportedKeys": ["reasoning", "json", "tools", "longContext", "streaming"]
+                },
+                "intentClassifier": {
+                    "enabled": INTENT_CLASSIFIER_ENABLED,
+                    "provider": INTENT_CLASSIFIER_PROVIDER,
+                    "baseUrl": INTENT_CLASSIFIER_BASE_URL,
+                    "model": INTENT_CLASSIFIER_MODEL,
+                    "timeoutSeconds": INTENT_CLASSIFIER_TIMEOUT_SECONDS,
+                    "minConfidence": INTENT_CLASSIFIER_MIN_CONFIDENCE,
                 },
                 "manifests": {
                     name: {
