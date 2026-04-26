@@ -129,6 +129,7 @@ INTENT_CLASSIFIER_MODEL = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_MODEL', 
 INTENT_CLASSIFIER_TIMEOUT_SECONDS = float(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_TIMEOUT_SECONDS', '3'))
 INTENT_CLASSIFIER_MIN_CONFIDENCE = float(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_MIN_CONFIDENCE', '0.65'))
 INTENT_CLASSIFIER_MAX_PROMPT_CHARS = int(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_MAX_PROMPT_CHARS', '4000'))
+INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW = int(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW', '2'))
 LATENCY_STATS_LOCK = threading.Lock()
 OLLAMA_MODEL_CACHE = {}
 MODEL_HEALTH_CACHE = {}
@@ -2288,21 +2289,25 @@ def classify_intent_with_local_model(text):
     if not INTENT_CLASSIFIER_ENABLED:
         return None, {}, {'enabled': False}
     provider = (INTENT_CLASSIFIER_PROVIDER or 'ollama').strip().lower()
+    # Small local classifiers are most valuable on vague requests. Keep the
+    # prompt deliberately label-only because tiny Qwen/llama.cpp models are
+    # more reliable at one-token classification than strict JSON.
     prompt = (
-        'Classify the request for AI model routing. Output JSON only with keys: '
-        'intent, complexity, confidence, needs_tools, needs_reasoning, needs_json.\n'
-        'Allowed intents: GENERAL, CODE, ANALYSIS, CREATIVE, REALTIME. '
-        'Allowed complexity: SIMPLE, MEDIUM, COMPLEX.\n'
+        'Classify this request for AI model routing.\n'
+        'Reply with exactly one label and no extra text.\n'
+        'Labels: GENERAL, CODE, ANALYSIS, CREATIVE, REALTIME.\n'
+        'Use CODE for programming/debugging/implementation.\n'
+        'Use REALTIME for current/latest/weather/price/news/time-sensitive facts.\n'
+        'Use CREATIVE for writing/story/brainstorm/design ideation.\n'
+        'Use ANALYSIS for compare/review/research/explain/why/how reasoning.\n'
+        'Use GENERAL for ordinary chat or unclear requests.\n'
         'Examples:\n'
-        'Request: Fix this Python bug.\n'
-        '{\"intent\":\"CODE\",\"complexity\":\"SIMPLE\",\"confidence\":0.95,\"needs_tools\":false,\"needs_reasoning\":false,\"needs_json\":false}\n'
-        'Request: Weather today in Paris?\n'
-        '{\"intent\":\"REALTIME\",\"complexity\":\"SIMPLE\",\"confidence\":0.95,\"needs_tools\":false,\"needs_reasoning\":false,\"needs_json\":false}\n'
-        'Request: Write a sci-fi story.\n'
-        '{\"intent\":\"CREATIVE\",\"complexity\":\"SIMPLE\",\"confidence\":0.95,\"needs_tools\":false,\"needs_reasoning\":false,\"needs_json\":false}\n'
-        'Request: Compare A vs B.\n'
-        '{\"intent\":\"ANALYSIS\",\"complexity\":\"MEDIUM\",\"confidence\":0.9,\"needs_tools\":false,\"needs_reasoning\":true,\"needs_json\":false}\n'
+        'Fix this Python bug => CODE\n'
+        'Weather today in Paris? => REALTIME\n'
+        'Write a sci-fi story => CREATIVE\n'
+        'Compare A vs B => ANALYSIS\n'
         f'Request: {text[:INTENT_CLASSIFIER_MAX_PROMPT_CHARS]}\n'
+        'Label:'
     )
     started = time.time()
     try:
@@ -2311,7 +2316,7 @@ def classify_intent_with_local_model(text):
                 'model': INTENT_CLASSIFIER_MODEL,
                 'messages': [{'role': 'user', 'content': prompt}],
                 'stream': False,
-                'options': {'num_predict': 96, 'temperature': 0, 'num_ctx': 4096},
+                'options': {'num_predict': 8, 'temperature': 0, 'num_ctx': 1024},
             }
             req = urllib.request.Request(
                 INTENT_CLASSIFIER_BASE_URL.rstrip('/') + '/api/chat',
@@ -2324,9 +2329,9 @@ def classify_intent_with_local_model(text):
         elif provider in {'llamacpp', 'llama.cpp', 'openai-compatible', 'openai_compatible'}:
             payload = {
                 'model': INTENT_CLASSIFIER_MODEL,
-                'messages': [{'role': 'system', 'content': 'Output valid JSON only.'}, {'role': 'user', 'content': prompt}],
+                'messages': [{'role': 'system', 'content': 'Reply with exactly one routing label.'}, {'role': 'user', 'content': prompt}],
                 'stream': False,
-                'max_tokens': 64,
+                'max_tokens': 8,
                 'temperature': 0,
             }
             headers = {'Content-Type': 'application/json'}
@@ -2347,12 +2352,21 @@ def classify_intent_with_local_model(text):
         if cleaned.startswith('```'):
             cleaned = _re.sub(r'^```(?:json)?\s*', '', cleaned, flags=_re.IGNORECASE).strip()
             cleaned = _re.sub(r'\s*```$', '', cleaned).strip()
+        parsed = None
+        intent_name = ''
+        confidence = 0.9
         m = _re.search(r'\{.*\}', cleaned, flags=_re.DOTALL)
         if m:
-            cleaned = m.group(0)
-        parsed = json.loads(cleaned)
-        intent_name = str(parsed.get('intent') or '').strip().upper()
-        confidence = float(parsed.get('confidence') or 0)
+            try:
+                parsed = json.loads(m.group(0))
+                intent_name = str(parsed.get('intent') or '').strip().upper()
+                confidence = float(parsed.get('confidence') or confidence)
+            except Exception:
+                parsed = None
+        if not intent_name:
+            label_match = _re.search(r'\b(GENERAL|CODE|ANALYSIS|CREATIVE|REALTIME)\b', cleaned.upper())
+            if label_match:
+                intent_name = label_match.group(1)
         if intent_name in Intent.__members__ and confidence >= INTENT_CLASSIFIER_MIN_CONFIDENCE:
             scores = {i: 0 for i in Intent}
             scores[Intent[intent_name]] = max(1, int(confidence * 10))
@@ -2364,9 +2378,9 @@ def classify_intent_with_local_model(text):
                 'model': INTENT_CLASSIFIER_MODEL,
                 'confidence': confidence,
                 'elapsedMs': round((time.time() - started) * 1000.0, 2),
-                'raw': parsed,
+                'raw': parsed if parsed is not None else cleaned,
             }
-        return None, {}, {'enabled': True, 'used': False, 'provider': provider, 'model': INTENT_CLASSIFIER_MODEL, 'confidence': confidence, 'intent': intent_name, 'elapsedMs': round((time.time() - started) * 1000.0, 2), 'error': 'low confidence or invalid intent'}
+        return None, {}, {'enabled': True, 'used': False, 'provider': provider, 'model': INTENT_CLASSIFIER_MODEL, 'confidence': confidence, 'intent': intent_name, 'elapsedMs': round((time.time() - started) * 1000.0, 2), 'raw': cleaned[:200], 'error': 'low confidence or invalid intent'}
     except Exception as e:
         return None, {}, {'enabled': True, 'used': False, 'provider': provider, 'model': INTENT_CLASSIFIER_MODEL, 'elapsedMs': round((time.time() - started) * 1000.0, 2), 'error': extract_http_error(e)}
 
@@ -2386,13 +2400,23 @@ def heuristic_intent_scores(text):
 
 
 def classify_intent(text):
-    model_intent, model_scores, model_meta = classify_intent_with_local_model(text)
     heuristic_scores = heuristic_intent_scores(text)
     heuristic_winner = max(heuristic_scores, key=heuristic_scores.get)
     heuristic_score = heuristic_scores.get(heuristic_winner, 0)
+    if INTENT_CLASSIFIER_ENABLED and heuristic_score >= INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW:
+        LAST_ROUTE_DEBUG['intentClassifier'] = {
+            'enabled': True,
+            'used': False,
+            'skippedByHeuristic': True,
+            'heuristicIntent': heuristic_winner.name,
+            'heuristicScore': heuristic_score,
+            'threshold': INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW,
+        }
+        return heuristic_winner, heuristic_scores
+    model_intent, model_scores, model_meta = classify_intent_with_local_model(text)
     if model_intent is not None:
-        # Tiny local classifiers are useful for ambiguity, but should not override
-        # strong lexical evidence (e.g. a 0.5B model occasionally labels code as REALTIME).
+        # Local classifiers are useful for ambiguity, but should not override
+        # strong lexical evidence (e.g. a tiny model occasionally labels code as REALTIME).
         if heuristic_score >= 2 and heuristic_winner != model_intent:
             model_meta = dict(model_meta or {})
             model_meta.update({
