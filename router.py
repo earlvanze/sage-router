@@ -79,6 +79,7 @@ MODEL_MISSING_COOLDOWN_SECONDS = int(os.environ.get('SAGE_ROUTER_MODEL_MISSING_C
 EMPTY_OUTPUT_COOLDOWN_SECONDS = int(os.environ.get('SAGE_ROUTER_EMPTY_OUTPUT_COOLDOWN_SECONDS', '600'))
 PROVIDER_HEALTH_CACHE = {}
 LATENCY_STATS_PATH = os.path.expanduser(os.environ.get('SAGE_ROUTER_LATENCY_STATS_PATH', '~/.cache/sage-router/latency-stats.json'))
+ROUTE_EVENTS_PATH = os.path.expanduser(os.environ.get('SAGE_ROUTER_ROUTE_EVENTS_PATH', '~/.cache/sage-router/route-events.jsonl'))
 LATENCY_EWMA_ALPHA = float(os.environ.get('SAGE_ROUTER_LATENCY_EWMA_ALPHA', '0.35'))
 GENERAL_EMPIRICAL_EXPLORATION_BONUS = float(os.environ.get('SAGE_ROUTER_GENERAL_EXPLORATION_BONUS', '20'))
 GENERAL_EMPIRICAL_SUCCESS_EXPLORATION_CAP = float(os.environ.get('SAGE_ROUTER_GENERAL_SUCCESS_EXPLORATION_CAP', '8'))
@@ -1543,6 +1544,18 @@ def save_latency_stats():
         os.replace(tmp_path, LATENCY_STATS_PATH)
     except Exception as e:
         logger.warning(f'Latency stats save failed: {e}')
+
+
+def append_route_event(event):
+    """Append one structured routing event for offline analysis."""
+    try:
+        os.makedirs(os.path.dirname(ROUTE_EVENTS_PATH), exist_ok=True)
+        event = dict(event or {})
+        event.setdefault('ts', int(time.time()))
+        with open(ROUTE_EVENTS_PATH, 'a') as f:
+            f.write(json.dumps(event, sort_keys=True, separators=(',', ':')) + '\n')
+    except Exception as e:
+        logger.debug(f'Route event append failed: {e}')
 
 
 def get_latency_stat(intent_name, provider_name, model):
@@ -3161,7 +3174,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         if not _fp and _pp in PROVIDERS and _pp not in DISABLED_PROVIDERS:
             _fp = _pp
         _rm = _parts[1]
-    _, intent, _, _, chain = prepare_route(
+    _, intent, complexity, estimated_tokens, chain = prepare_route(
         payload.get('messages', []),
         request_id=request_id,
         thinking=thinking,
@@ -3260,6 +3273,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         if ok:
             total_elapsed = time.time() - overall_started
             LAST_ROUTE_DEBUG.update({'selected': {'provider': pn, 'model': model}, 'status': 'ok', 'error': None, 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
+            append_route_event({'request_id': request_id, 'status': 'ok', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': bool(want_stream), 'requirements': requirements, 'selected': {'provider': pn, 'model': model}, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]]})
             logger.info(f"[{request_id}] OK: {pn}/{model} (provider={elapsed:.2f}s, total={total_elapsed:.2f}s, stream={want_stream})")
             if client_wants_stream:
                 write_openai_completion_as_sse(self, result, request_id)
@@ -3271,6 +3285,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
 
     total_elapsed = time.time() - overall_started
     LAST_ROUTE_DEBUG.update({'selected': None, 'attempts': attempts[-12:], 'status': 'failed', 'error': 'All providers failed', 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
+    append_route_event({'request_id': request_id, 'status': 'failed', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': bool(want_stream), 'requirements': requirements, 'selected': None, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]], 'error': 'All providers failed'})
     self.write_json(503, {'error': 'All providers failed', 'request_id': request_id, 'attempts': attempts, 'choices': [{'message': {'content': 'Error: No providers available'}}]}, extra_headers={'X-Sage-Router-Request-Id': request_id})
 
 def google_to_openai_messages(payload):
@@ -3466,11 +3481,13 @@ def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
             total_elapsed = time.time() - overall_started
             logger.info(f"[{request_id}] OK: {pn}/{model} ({len(text)} chars, provider={elapsed:.2f}s, total={total_elapsed:.2f}s)")
             LAST_ROUTE_DEBUG.update({'selected': {'provider': pn, 'model': model}, 'status': 'ok', 'error': None, 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
+            append_route_event({'request_id': request_id, 'status': 'ok', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': False, 'requirements': requirements, 'selected': {'provider': pn, 'model': model}, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]]})
             return {"id": f"chatcmpl-{int(time.time())}", "object": "chat.completion", "created": int(time.time()), "model": f"{pn}/{model}", "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 0, "completion_tokens": 0}}
         logger.warning(f"[{request_id}] Failed {pn}/{model} after {elapsed:.2f}s")
     total_elapsed = time.time() - overall_started
     logger.error(f"[{request_id}] All providers failed after {total_elapsed:.2f}s")
     LAST_ROUTE_DEBUG.update({'selected': None, 'attempts': attempts[-12:], 'status': 'failed', 'error': 'All providers failed', 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
+    append_route_event({'request_id': request_id, 'status': 'failed', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': False, 'requirements': requirements, 'selected': None, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]], 'error': 'All providers failed'})
     return {"error": "All providers failed", "request_id": request_id, "attempts": attempts, "choices": [{"message": {"content": "Error: No providers available"}}]}
 
 def openai_to_anthropic_response(openai_resp, request_model=None):
