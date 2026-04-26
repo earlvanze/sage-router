@@ -1345,6 +1345,9 @@ def load_openclaw_providers():
             base_url = resolve_config_value(cfg.get('baseUrl', '') or '')
             if is_self_provider(name, base_url):
                 continue
+            if name in DISABLED_PROVIDERS:
+                logger.info(f'Skipping disabled provider {name} during discovery')
+                continue
             api_key = resolve_config_value(cfg.get('apiKey', '') or '')
             api_type = infer_api_type(name, cfg, base_url)
             models = discover_provider_models(name, cfg, base_url, api_key, api_type)
@@ -1407,6 +1410,9 @@ def load_openclaw_providers():
             if not isinstance(profile, dict):
                 continue
             provider_name = profile.get('provider', profile_name.split(':')[0])
+            if provider_name in DISABLED_PROVIDERS:
+                logger.info(f'Skipping disabled gateway provider {provider_name} during discovery')
+                continue
             # Skip if already configured as a regular provider (e.g. ollama, anthropic via Dario)
             if provider_name in providers and provider_name not in GATEWAY_PROVIDER_PROFILES:
                 continue
