@@ -1070,6 +1070,20 @@ def build_openai_completion(provider_name, model, request_id, content='', tool_c
     return response
 
 
+
+def openai_completion_has_visible_output(result):
+    if not isinstance(result, dict):
+        return False
+    choices = result.get('choices') or []
+    if not choices:
+        return False
+    message = (choices[0] or {}).get('message') or {}
+    content = message.get('content')
+    has_text = bool(str(content or '').strip())
+    has_tools = bool(message.get('tool_calls'))
+    return has_text or has_tools
+
+
 def build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=False, thinking=ThinkingLevel.MEDIUM):
     allowed_keys = [
         'messages', 'tools', 'tool_choice', 'parallel_tool_calls', 'response_format',
@@ -2796,7 +2810,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         thinking = ThinkingLevel.LOW  # Force low thinking for speed
     requirements = normalize_requirements(payload, thinking)
     want_json = str(payload.get('responseFormat') or '').lower() == 'json' or payload.get('response_format', {}).get('type') == 'json_object'
-    want_stream = bool(payload.get('stream', False) and not requirements.get('tools'))
+    want_stream = bool(payload.get('stream', False))
     debug_mode = normalize_debug_mode(payload)
     logger.info(f"[{request_id}] Incoming /v1/chat/completions with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}, debug={debug_mode}")
     _, intent, _, _, chain = prepare_route(
@@ -2877,6 +2891,9 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
             logger.warning(f"[{request_id}] Streaming/advanced call failed for {pn}/{model}: {error_detail}")
             ok = False
 
+        if ok and not want_stream and not openai_completion_has_visible_output(result):
+            ok = False
+            error_detail = 'empty visible content'
         elapsed = time.time() - started_attempt
         record_latency_outcome(intent.name, pn, model, elapsed, ok, '' if ok else error_detail or '')
         attempts.append({'provider': pn, 'model': model, 'ok': ok, 'elapsedMs': round(elapsed * 1000.0, 2), 'detail': '' if ok else str(error_detail or '')[:240]})
