@@ -2289,11 +2289,20 @@ def classify_intent_with_local_model(text):
         return None, {}, {'enabled': False}
     provider = (INTENT_CLASSIFIER_PROVIDER or 'ollama').strip().lower()
     prompt = (
-        'You are a strict classifier. Reply with ONLY this exact JSON schema on one line: '
-        '{\"intent\":\"CODE\",\"complexity\":\"SIMPLE\",\"confidence\":0.9,\"needs_tools\":false,\"needs_reasoning\":false,\"needs_json\":false}\n'
-        'Choose intent from GENERAL,CODE,ANALYSIS,CREATIVE,REALTIME. '
-        'Choose complexity from SIMPLE,MEDIUM,COMPLEX. '
-        f'Request: {text[:INTENT_CLASSIFIER_MAX_PROMPT_CHARS]}'
+        'Classify the request for AI model routing. Output JSON only with keys: '
+        'intent, complexity, confidence, needs_tools, needs_reasoning, needs_json.\n'
+        'Allowed intents: GENERAL, CODE, ANALYSIS, CREATIVE, REALTIME. '
+        'Allowed complexity: SIMPLE, MEDIUM, COMPLEX.\n'
+        'Examples:\n'
+        'Request: Fix this Python bug.\n'
+        '{\"intent\":\"CODE\",\"complexity\":\"SIMPLE\",\"confidence\":0.95,\"needs_tools\":false,\"needs_reasoning\":false,\"needs_json\":false}\n'
+        'Request: Weather today in Paris?\n'
+        '{\"intent\":\"REALTIME\",\"complexity\":\"SIMPLE\",\"confidence\":0.95,\"needs_tools\":false,\"needs_reasoning\":false,\"needs_json\":false}\n'
+        'Request: Write a sci-fi story.\n'
+        '{\"intent\":\"CREATIVE\",\"complexity\":\"SIMPLE\",\"confidence\":0.95,\"needs_tools\":false,\"needs_reasoning\":false,\"needs_json\":false}\n'
+        'Request: Compare A vs B.\n'
+        '{\"intent\":\"ANALYSIS\",\"complexity\":\"MEDIUM\",\"confidence\":0.9,\"needs_tools\":false,\"needs_reasoning\":true,\"needs_json\":false}\n'
+        f'Request: {text[:INTENT_CLASSIFIER_MAX_PROMPT_CHARS]}\n'
     )
     started = time.time()
     try:
