@@ -879,9 +879,17 @@ def discover_hermes_github_manifests():
     return manifests
 
 
+def configured_model_id(model):
+    if isinstance(model, str):
+        return model
+    if isinstance(model, dict):
+        return model.get('id')
+    return None
+
+
 def discover_provider_models(name, cfg, base_url, api_key, api_type):
     raw_models = cfg.get('models', [])
-    configured = [m.get('id') for m in raw_models if isinstance(m, dict) and m.get('id')] if isinstance(raw_models, list) else []
+    configured = [mid for mid in (configured_model_id(m) for m in raw_models) if mid] if isinstance(raw_models, list) else []
     # For providers with API discovery, merge configured + discovered
     discovered = []
     if api_type in ('google-generative-language', 'google-generative-ai'):
@@ -911,6 +919,8 @@ def discover_reasoning_models(cfg):
     reasoning_models = set()
     raw_models = cfg.get('models', [])
     for model in raw_models if isinstance(raw_models, list) else []:
+        if not isinstance(model, dict):
+            continue
         model_id = model.get('id')
         if model_id and model.get('reasoning'):
             reasoning_models.add(model_id)
@@ -921,6 +931,11 @@ def discover_model_meta(cfg):
     meta = {}
     raw_models = cfg.get('models', [])
     for model in raw_models if isinstance(raw_models, list) else []:
+        if isinstance(model, str):
+            meta[model] = {}
+            continue
+        if not isinstance(model, dict):
+            continue
         model_id = model.get('id')
         if not model_id:
             continue
