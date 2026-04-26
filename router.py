@@ -2289,10 +2289,11 @@ def classify_intent_with_local_model(text):
         return None, {}, {'enabled': False}
     provider = (INTENT_CLASSIFIER_PROVIDER or 'ollama').strip().lower()
     prompt = (
-        'Classify this request for AI model routing. Return ONLY compact JSON with keys: '
-        'intent, complexity, confidence, needs_tools, needs_reasoning, needs_json. '
-        'intent must be one of GENERAL, CODE, ANALYSIS, CREATIVE, REALTIME.\n\n'
-        f'Request:\n{text[:INTENT_CLASSIFIER_MAX_PROMPT_CHARS]}'
+        'You are a strict classifier. Reply with ONLY this exact JSON schema on one line: '
+        '{\"intent\":\"CODE\",\"complexity\":\"SIMPLE\",\"confidence\":0.9,\"needs_tools\":false,\"needs_reasoning\":false,\"needs_json\":false}\n'
+        'Choose intent from GENERAL,CODE,ANALYSIS,CREATIVE,REALTIME. '
+        'Choose complexity from SIMPLE,MEDIUM,COMPLEX. '
+        f'Request: {text[:INTENT_CLASSIFIER_MAX_PROMPT_CHARS]}'
     )
     started = time.time()
     try:
@@ -2314,9 +2315,9 @@ def classify_intent_with_local_model(text):
         elif provider in {'llamacpp', 'llama.cpp', 'openai-compatible', 'openai_compatible'}:
             payload = {
                 'model': INTENT_CLASSIFIER_MODEL,
-                'messages': [{'role': 'user', 'content': prompt}],
+                'messages': [{'role': 'system', 'content': 'Output valid JSON only.'}, {'role': 'user', 'content': prompt}],
                 'stream': False,
-                'max_tokens': 96,
+                'max_tokens': 64,
                 'temperature': 0,
             }
             headers = {'Content-Type': 'application/json'}
@@ -2361,12 +2362,7 @@ def classify_intent_with_local_model(text):
         return None, {}, {'enabled': True, 'used': False, 'provider': provider, 'model': INTENT_CLASSIFIER_MODEL, 'elapsedMs': round((time.time() - started) * 1000.0, 2), 'error': extract_http_error(e)}
 
 
-def classify_intent(text):
-    model_intent, model_scores, model_meta = classify_intent_with_local_model(text)
-    if model_intent is not None:
-        LAST_ROUTE_DEBUG['intentClassifier'] = model_meta
-        return model_intent, model_scores
-    LAST_ROUTE_DEBUG['intentClassifier'] = model_meta
+def heuristic_intent_scores(text):
     tl = text.lower(); scores = {i:0 for i in Intent}
     for kw in ['write','code','debug','fix','refactor','implement','function','bug','test','.py','.js']:
         if kw in tl: scores[Intent.CODE] += 1
@@ -2377,6 +2373,32 @@ def classify_intent(text):
         if kw in tl: scores[Intent.CREATIVE] += 2
     for kw in ['now','today','current','latest','price','weather']:
         if kw in tl: scores[Intent.REALTIME] += 2
+    return scores
+
+
+def classify_intent(text):
+    model_intent, model_scores, model_meta = classify_intent_with_local_model(text)
+    heuristic_scores = heuristic_intent_scores(text)
+    heuristic_winner = max(heuristic_scores, key=heuristic_scores.get)
+    heuristic_score = heuristic_scores.get(heuristic_winner, 0)
+    if model_intent is not None:
+        # Tiny local classifiers are useful for ambiguity, but should not override
+        # strong lexical evidence (e.g. a 0.5B model occasionally labels code as REALTIME).
+        if heuristic_score >= 2 and heuristic_winner != model_intent:
+            model_meta = dict(model_meta or {})
+            model_meta.update({
+                'used': False,
+                'overriddenByHeuristic': True,
+                'heuristicIntent': heuristic_winner.name,
+                'heuristicScore': heuristic_score,
+                'modelIntent': model_intent.name,
+            })
+            LAST_ROUTE_DEBUG['intentClassifier'] = model_meta
+            return heuristic_winner, heuristic_scores
+        LAST_ROUTE_DEBUG['intentClassifier'] = model_meta
+        return model_intent, model_scores
+    LAST_ROUTE_DEBUG['intentClassifier'] = model_meta
+    scores = heuristic_scores
     m = max(scores, key=scores.get)
     return (m if scores[m] > 0 else Intent.GENERAL), scores
 
