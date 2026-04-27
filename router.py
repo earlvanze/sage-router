@@ -139,6 +139,13 @@ INTENT_CLASSIFIER_CACHE = {}
 INTENT_CLASSIFIER_CACHE_LOCK = threading.Lock()
 LATENCY_STATS_LOCK = threading.Lock()
 OLLAMA_MODEL_CACHE = {}
+OLLAMA_CLOUD_CATALOG_CACHE = {'checked_at': 0, 'models': []}
+OLLAMA_CLOUD_CATALOG_TTL_SECONDS = int(os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_TTL_SECONDS', '21600'))
+OLLAMA_CLOUD_CATALOG_URL = os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_URL', 'https://ollama.com/search?c=cloud')
+OLLAMA_CLOUD_CATALOG_MAX_LIBRARIES = int(os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_MAX_LIBRARIES', '200'))
+OLLAMA_CLOUD_CATALOG_MAX_PAGES = int(os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_MAX_PAGES', '8'))
+OLLAMA_CLOUD_CATALOG_ENABLED = os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+LOCAL_OLLAMA_CLOUD_AUTH_BLOCKS = {}
 MODEL_HEALTH_CACHE = {}
 TEMP_MODEL_BLOCKS = {}
 LAST_ROUTE_DEBUG = {
@@ -908,6 +915,95 @@ def configured_model_id(model):
     return None
 
 
+def fetch_text_url(url, timeout=10):
+    req = urllib.request.Request(url, headers={'User-Agent': 'sage-router/ollama-cloud-discovery', 'Accept': 'text/html,application/json'})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read().decode('utf-8', errors='replace')
+
+
+def ollama_cloud_catalog_models(force=False):
+    """Discover Ollama Cloud catalog models from ollama.com.
+
+    The public cloud search page is currently server-rendered HTML.  We parse
+    library links from /search?c=cloud, then parse each library page for cloud
+    tag links such as /library/qwen3.5:cloud or /library/gemma4:31b-cloud.
+    """
+    if not OLLAMA_CLOUD_CATALOG_ENABLED:
+        return []
+    now = time.time()
+    if not force and OLLAMA_CLOUD_CATALOG_CACHE.get('models') and now - OLLAMA_CLOUD_CATALOG_CACHE.get('checked_at', 0) < OLLAMA_CLOUD_CATALOG_TTL_SECONDS:
+        return list(OLLAMA_CLOUD_CATALOG_CACHE.get('models') or [])
+    try:
+        libraries = []
+        parsed_catalog_url = urllib.parse.urlparse(OLLAMA_CLOUD_CATALOG_URL)
+        base_query = urllib.parse.parse_qs(parsed_catalog_url.query)
+        for page in range(1, max(1, OLLAMA_CLOUD_CATALOG_MAX_PAGES) + 1):
+            query = {k: v[:] for k, v in base_query.items()}
+            if page > 1:
+                query['p'] = [str(page)]
+            page_url = urllib.parse.urlunparse(parsed_catalog_url._replace(query=urllib.parse.urlencode(query, doseq=True)))
+            search_html = fetch_text_url(page_url, timeout=12)
+            before_count = len(libraries)
+            for match in _re.finditer(r'href=["\']/library/([a-zA-Z0-9_.-]+)["\']', search_html):
+                name = match.group(1).strip()
+                if name and name not in libraries:
+                    libraries.append(name)
+                    if len(libraries) >= max(1, OLLAMA_CLOUD_CATALOG_MAX_LIBRARIES):
+                        break
+            if len(libraries) >= max(1, OLLAMA_CLOUD_CATALOG_MAX_LIBRARIES):
+                break
+            # Stop after the first page that contributes no new library links.
+            if page > 1 and len(libraries) == before_count:
+                break
+        libraries = libraries[:max(1, OLLAMA_CLOUD_CATALOG_MAX_LIBRARIES)]
+        models = []
+        for name in libraries:
+            try:
+                lib_html = fetch_text_url(f'https://ollama.com/library/{urllib.parse.quote(name)}', timeout=12)
+            except Exception as e:
+                logger.debug(f'Ollama cloud library fetch failed for {name}: {extract_http_error(e)}')
+                models.append(f'{name}:cloud')
+                continue
+            tags = []
+            escaped = _re.escape(name)
+            for tag in _re.findall(r'href=["\']/library/' + escaped + r':([^"\']+)["\']', lib_html):
+                tag = urllib.parse.unquote(tag).strip()
+                if tag and ('cloud' in tag.lower()) and tag not in tags:
+                    tags.append(tag)
+            if not tags and 'cloud' in lib_html.lower():
+                tags = ['cloud']
+            for tag in tags:
+                models.append(f'{name}:{tag}')
+        models = dedupe_keep_order(m for m in models if m and is_cloud_ollama_model(m))
+        if models:
+            OLLAMA_CLOUD_CATALOG_CACHE.update({'checked_at': now, 'models': models})
+            logger.info(f'Discovered {len(models)} Ollama Cloud catalog models')
+            return models
+    except Exception as e:
+        logger.warning(f'Ollama cloud catalog discovery failed: {extract_http_error(e)}')
+    return list(OLLAMA_CLOUD_CATALOG_CACHE.get('models') or [])
+
+
+def ollama_cloud_model_meta(model: str):
+    model_l = (model or '').lower()
+    meta = {
+        'reasoning': any(x in model_l for x in ['deepseek', 'qwen', 'glm', 'nemotron', 'minimax', 'kimi', 'gemini', 'gemma']),
+        'contextWindow': 256000,
+        'maxTokens': 128000,
+        'input': ['text'],
+        'servable': True,
+        'supportsChat': True,
+        'supportsStreaming': True,
+        'supportsTools': not any(x in model_l for x in NON_CHAT_MODEL_HINTS),
+        'supportsJson': True,
+        'manifestReason': 'ollama-cloud-catalog',
+    }
+    if is_multimodal_model(model) or any(x in model_l for x in ['gemini', 'gemma4', 'qwen3.5', 'kimi-k2.5', 'kimi-k2.6', 'ministral', 'devstral']):
+        meta['input'] = ['text', 'image']
+        meta['supportsVision'] = True
+    return meta
+
+
 def discover_provider_models(name, cfg, base_url, api_key, api_type):
     raw_models = cfg.get('models', [])
     configured = [mid for mid in (configured_model_id(m) for m in raw_models) if mid] if isinstance(raw_models, list) else []
@@ -928,6 +1024,8 @@ def discover_provider_models(name, cfg, base_url, api_key, api_type):
     elif api_type == 'openclaw-gateway':
         # For OpenClaw Gateway, try to discover models
         discovered = discover_openclaw_gateway_models(base_url, api_key)
+    elif api_type == 'ollama':
+        discovered = ollama_cloud_catalog_models()
     if discovered:
         # Configured models first (stable), then any discovered models not already listed
         return dedupe_keep_order(configured + discovered)
@@ -1143,7 +1241,7 @@ def clear_temp_model_block(provider_name, model):
 def model_is_servable(provider, model):
     if active_temp_model_block(provider.name, model):
         return False
-    if is_local_cloud_ollama_model(provider, model):
+    if local_ollama_cloud_auth_blocked(provider, model):
         return False
     meta = (provider.model_meta or {}).get(model, {})
     return bool(meta.get('servable', True))
@@ -1178,7 +1276,10 @@ def provider_supports_reasoning(provider, model):
 
 def is_cloud_ollama_model(model: str):
     model_l = (model or '').strip().lower()
-    return model_l.endswith(':cloud')
+    if ':' not in model_l:
+        return False
+    tag = model_l.rsplit(':', 1)[1]
+    return tag == 'cloud' or tag.endswith('-cloud') or tag.endswith('_cloud')
 
 
 def is_local_ollama_provider(provider):
@@ -1189,12 +1290,46 @@ def is_local_ollama_provider(provider):
 
 
 def is_local_cloud_ollama_model(provider, model: str):
-    # Ollama Cloud entries can appear in /api/tags after pull, but on an
-    # unauthenticated/self-hosted local Ollama they return 401 at inference.
-    # Treat them as not locally servable unless explicitly allowed.
-    if os.environ.get('SAGE_ROUTER_OLLAMA_ALLOW_LOCAL_CLOUD_MODELS', '').strip().lower() in {'1', 'true', 'yes', 'on'}:
-        return False
     return is_local_ollama_provider(provider) and is_cloud_ollama_model(model)
+
+
+def local_ollama_cloud_auth_blocked(provider, model: str):
+    if not is_local_cloud_ollama_model(provider, model):
+        return False
+    key = provider.name
+    until = float(LOCAL_OLLAMA_CLOUD_AUTH_BLOCKS.get(key, 0) or 0)
+    if until <= time.time():
+        LOCAL_OLLAMA_CLOUD_AUTH_BLOCKS.pop(key, None)
+        return False
+    return True
+
+
+def set_local_ollama_cloud_auth_block(provider_name, seconds=300):
+    if not provider_name:
+        return
+    LOCAL_OLLAMA_CLOUD_AUTH_BLOCKS[provider_name] = time.time() + max(30, int(seconds))
+    MODEL_HEALTH_CACHE.clear()
+
+
+def probe_local_ollama_cloud_auth(provider, model: str):
+    if not is_local_cloud_ollama_model(provider, model) or local_ollama_cloud_auth_blocked(provider, model):
+        return
+    if os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_AUTH_PREFLIGHT', '1').strip().lower() not in {'1', 'true', 'yes', 'on'}:
+        return
+    url = provider.base_url.rstrip('/') + '/api/chat'
+    payload = {'model': model, 'messages': [{'role': 'user', 'content': 'ping'}], 'stream': False, 'options': {'num_predict': 1}}
+    headers = {'Content-Type': 'application/json'}
+    if provider.api_key:
+        headers['Authorization'] = f'Bearer {provider.api_key}'
+    try:
+        req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers)
+        with urllib.request.urlopen(req, timeout=min(8, OLLAMA_TIMEOUT_SECONDS)) as resp:
+            resp.read(256)
+    except Exception as e:
+        err = extract_http_error(e)
+        if 'HTTP 401' in err:
+            set_local_ollama_cloud_auth_block(provider.name, seconds=int(os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_AUTH_COOLDOWN_SECONDS', '3600')))
+            logger.warning(f'Ollama Cloud auth preflight failed for local provider {provider.name}; suppressing local :cloud routing temporarily')
 
 # Detect if a model supports vision/multimodal based on name patterns
 VISION_MODEL_PATTERNS = ['vl', 'vision', 'qwen-vl', 'qwen_vl', 'llava', 'bakllava', 'moondream', 'minicpm-v', 'llama-vision', 'glm-4v', 'gpt-4o', 'gpt-4-turbo', 'claude-3-opus', 'claude-3-sonnet', 'claude-3.5', 'gemini-pro-vision', 'gemini-1.5', 'gpt-5.4', 'gpt-5.5']
@@ -1538,6 +1673,11 @@ def load_openclaw_providers():
             models = discover_provider_models(name, cfg, base_url, api_key, api_type)
             reasoning_models = discover_reasoning_models(cfg)
             model_meta = discover_model_meta(cfg)
+            if api_type == 'ollama':
+                cloud_models = [m for m in (models or []) if is_cloud_ollama_model(m)]
+                if cloud_models:
+                    model_meta = {**{m: ollama_cloud_model_meta(m) for m in cloud_models}, **(model_meta or {})}
+                    reasoning_models = set(reasoning_models or set()) | {m for m in cloud_models if model_meta.get(m, {}).get('reasoning')}
 
             if should_route_anthropic_to_dario(name, api_type, base_url):
                 ensure_dario_proxy_ready()
@@ -2015,6 +2155,12 @@ def fetch_ollama_models(provider: Provider):
     manifest_models = []
     if manifest:
         manifest_models = apply_ollama_manifest(provider, manifest)
+    catalog_models = ollama_cloud_catalog_models()
+    if catalog_models:
+        meta = dict(provider.model_meta or {})
+        for model_name in catalog_models:
+            meta.setdefault(model_name, ollama_cloud_model_meta(model_name))
+        provider.model_meta = meta
 
     tag_models = []
     try:
@@ -2036,7 +2182,7 @@ def fetch_ollama_models(provider: Provider):
                     'contextWindow': existing.get('contextWindow') or details.get('context_length'),
                     'maxTokens': existing.get('maxTokens'),
                     'input': existing.get('input') or ['text'],
-                    'servable': bool(existing.get('servable', True)) and not is_local_cloud_ollama_model(provider, model_name),
+                    'servable': bool(existing.get('servable', True)),
                     'preferred': bool(existing.get('preferred', False)),
                     'resident': bool(existing.get('resident', False)),
                     'manifestReason': existing.get('manifestReason'),
@@ -2048,7 +2194,10 @@ def fetch_ollama_models(provider: Provider):
     except Exception as e:
         logger.warning(f"Ollama model discovery {provider.name}: {extract_http_error(e)}")
     tag_models = dedupe_keep_order(tag_models)
-    known_models = dedupe_keep_order((provider.models or []) + manifest_models + tag_models)
+    first_local_cloud = next((m for m in tag_models if is_local_cloud_ollama_model(provider, m)), None)
+    if first_local_cloud:
+        probe_local_ollama_cloud_auth(provider, first_local_cloud)
+    known_models = dedupe_keep_order((provider.models or []) + manifest_models + catalog_models + tag_models)
     if known_models:
         provider.models = known_models
     source = 'tags'
@@ -3271,6 +3420,11 @@ def call_ollama_completion(base_url, model, payload, api_key='', thinking=Thinki
         return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
     except Exception as e:
         err = extract_http_error(e)
+        if is_cloud_ollama_model(model) and 'HTTP 401' in err:
+            prov = PROVIDERS.get(provider_name)
+            if prov and is_local_ollama_provider(prov):
+                set_local_ollama_cloud_auth_block(provider_name, seconds=int(os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_AUTH_COOLDOWN_SECONDS', '3600')))
+                logger.warning(f"Ollama Cloud auth unavailable for local provider {provider_name}; suppressing local :cloud routing temporarily")
         logger.warning(f"Ollama {base_url} {model}: {err}")
         return False, err
 
