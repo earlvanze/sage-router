@@ -130,6 +130,13 @@ INTENT_CLASSIFIER_TIMEOUT_SECONDS = float(os.environ.get('SAGE_ROUTER_INTENT_CLA
 INTENT_CLASSIFIER_MIN_CONFIDENCE = float(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_MIN_CONFIDENCE', '0.65'))
 INTENT_CLASSIFIER_MAX_PROMPT_CHARS = int(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_MAX_PROMPT_CHARS', '4000'))
 INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW = int(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW', '2'))
+# The intent model must never sit on the request path.  Keep routing heuristic-first,
+# and let the optional classifier warm a tiny cache for later similar turns only.
+INTENT_CLASSIFIER_ASYNC = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_ASYNC', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+INTENT_CLASSIFIER_CACHE_TTL_SECONDS = int(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_CACHE_TTL_SECONDS', '86400'))
+INTENT_CLASSIFIER_CACHE_MAX = int(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_CACHE_MAX', '512'))
+INTENT_CLASSIFIER_CACHE = {}
+INTENT_CLASSIFIER_CACHE_LOCK = threading.Lock()
 LATENCY_STATS_LOCK = threading.Lock()
 OLLAMA_MODEL_CACHE = {}
 MODEL_HEALTH_CACHE = {}
@@ -2399,41 +2406,117 @@ def heuristic_intent_scores(text):
     return scores
 
 
+def normalized_intent_pattern(text):
+    """Collapse a request into a stable cache key for similar routing intent.
+
+    Keep signal words, but strip volatile values so "fix foo.py line 41" and
+    "fix bar.ts line 98" reuse the same classifier hint.
+    """
+    t = (text or '').lower()[:INTENT_CLASSIFIER_MAX_PROMPT_CHARS]
+    t = _re.sub(r'```.*?```', ' <codeblock> ', t, flags=_re.DOTALL)
+    t = _re.sub(r'`[^`]*`', ' <inline> ', t)
+    t = _re.sub(r'https?://\S+', ' <url> ', t)
+    t = _re.sub(r'(?<!\w)[~/./-]*[\w.-]+/(?:[\w./-]+)', ' <path> ', t)
+    t = _re.sub(r'\b[\w.-]+\.(py|js|ts|tsx|jsx|json|md|yml|yaml|sh|sql|html|css)\b', ' <file> ', t)
+    t = _re.sub(r'\b[0-9a-f]{7,40}\b', ' <hash> ', t)
+    t = _re.sub(r'\b\d+(?:\.\d+)?\b', ' <num> ', t)
+    t = _re.sub(r'[^a-z0-9_<>{}:+#./-]+', ' ', t)
+    return _re.sub(r'\s+', ' ', t).strip()[:512]
+
+
+def _intent_cache_get(pattern):
+    if not pattern:
+        return None
+    now = time.time()
+    with INTENT_CLASSIFIER_CACHE_LOCK:
+        item = INTENT_CLASSIFIER_CACHE.get(pattern)
+        if not item:
+            return None
+        if now - item.get('ts', 0) > INTENT_CLASSIFIER_CACHE_TTL_SECONDS:
+            INTENT_CLASSIFIER_CACHE.pop(pattern, None)
+            return None
+        return dict(item)
+
+
+def _intent_cache_put(pattern, intent, scores, meta):
+    if not pattern or intent is None:
+        return
+    with INTENT_CLASSIFIER_CACHE_LOCK:
+        if len(INTENT_CLASSIFIER_CACHE) >= INTENT_CLASSIFIER_CACHE_MAX:
+            oldest = min(INTENT_CLASSIFIER_CACHE, key=lambda k: INTENT_CLASSIFIER_CACHE[k].get('ts', 0), default=None)
+            if oldest:
+                INTENT_CLASSIFIER_CACHE.pop(oldest, None)
+        INTENT_CLASSIFIER_CACHE[pattern] = {
+            'ts': time.time(),
+            'intent': intent.name,
+            'scores': {k.name: v for k, v in (scores or {}).items()},
+            'meta': dict(meta or {}),
+        }
+
+
+def _warm_intent_cache_async(text, pattern, heuristic_winner, heuristic_score):
+    def worker():
+        model_intent, model_scores, model_meta = classify_intent_with_local_model(text)
+        if model_intent is None:
+            return
+        if heuristic_score >= 2 and heuristic_winner != model_intent:
+            return
+        _intent_cache_put(pattern, model_intent, model_scores, model_meta)
+
+    thread = threading.Thread(target=worker, name='sage-router-intent-cache', daemon=True)
+    thread.start()
+
+
 def classify_intent(text):
     heuristic_scores = heuristic_intent_scores(text)
     heuristic_winner = max(heuristic_scores, key=heuristic_scores.get)
     heuristic_score = heuristic_scores.get(heuristic_winner, 0)
-    if INTENT_CLASSIFIER_ENABLED and heuristic_score >= INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW:
-        LAST_ROUTE_DEBUG['intentClassifier'] = {
-            'enabled': True,
-            'used': False,
-            'skippedByHeuristic': True,
-            'heuristicIntent': heuristic_winner.name,
-            'heuristicScore': heuristic_score,
-            'threshold': INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW,
-        }
-        return heuristic_winner, heuristic_scores
-    model_intent, model_scores, model_meta = classify_intent_with_local_model(text)
-    if model_intent is not None:
-        # Local classifiers are useful for ambiguity, but should not override
-        # strong lexical evidence (e.g. a tiny model occasionally labels code as REALTIME).
-        if heuristic_score >= 2 and heuristic_winner != model_intent:
-            model_meta = dict(model_meta or {})
-            model_meta.update({
-                'used': False,
-                'overriddenByHeuristic': True,
-                'heuristicIntent': heuristic_winner.name,
-                'heuristicScore': heuristic_score,
-                'modelIntent': model_intent.name,
-            })
-            LAST_ROUTE_DEBUG['intentClassifier'] = model_meta
-            return heuristic_winner, heuristic_scores
-        LAST_ROUTE_DEBUG['intentClassifier'] = model_meta
-        return model_intent, model_scores
-    LAST_ROUTE_DEBUG['intentClassifier'] = model_meta
-    scores = heuristic_scores
-    m = max(scores, key=scores.get)
-    return (m if scores[m] > 0 else Intent.GENERAL), scores
+    heuristic_intent = heuristic_winner if heuristic_score > 0 else Intent.GENERAL
+
+    # Default path: deterministic heuristics only. This avoids adding a model
+    # round trip before the real response starts.
+    if not INTENT_CLASSIFIER_ENABLED:
+        LAST_ROUTE_DEBUG['intentClassifier'] = {'enabled': False, 'used': False}
+        return heuristic_intent, heuristic_scores
+
+    pattern = normalized_intent_pattern(text)
+    cached = _intent_cache_get(pattern)
+    if cached and heuristic_score < INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW:
+        intent_name = cached.get('intent')
+        if intent_name in Intent.__members__:
+            scores = {i: 0 for i in Intent}
+            for k, v in (cached.get('scores') or {}).items():
+                if k in Intent.__members__:
+                    scores[Intent[k]] = v
+            meta = dict(cached.get('meta') or {})
+            meta.update({'enabled': True, 'used': True, 'source': 'cache', 'pattern': pattern})
+            LAST_ROUTE_DEBUG['intentClassifier'] = meta
+            return Intent[intent_name], scores
+
+    meta = {
+        'enabled': True,
+        'used': False,
+        'source': 'heuristic',
+        'heuristicIntent': heuristic_intent.name,
+        'heuristicScore': heuristic_score,
+        'threshold': INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW,
+        'pattern': pattern,
+    }
+    if heuristic_score >= INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW:
+        meta['skippedByHeuristic'] = True
+    elif INTENT_CLASSIFIER_ASYNC:
+        meta['asyncWarmupQueued'] = True
+        _warm_intent_cache_async(text, pattern, heuristic_winner, heuristic_score)
+    else:
+        # Synchronous mode remains available for explicit tests, but should not
+        # be enabled in normal operation.
+        model_intent, model_scores, model_meta = classify_intent_with_local_model(text)
+        if model_intent is not None:
+            _intent_cache_put(pattern, model_intent, model_scores, model_meta)
+        meta.update(model_meta or {})
+
+    LAST_ROUTE_DEBUG['intentClassifier'] = meta
+    return heuristic_intent, heuristic_scores
 
 def estimate_complexity(text):
     w = len(text.split())
