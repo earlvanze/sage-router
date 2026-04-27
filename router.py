@@ -1143,6 +1143,8 @@ def clear_temp_model_block(provider_name, model):
 def model_is_servable(provider, model):
     if active_temp_model_block(provider.name, model):
         return False
+    if is_local_cloud_ollama_model(provider, model):
+        return False
     meta = (provider.model_meta or {}).get(model, {})
     return bool(meta.get('servable', True))
 
@@ -1177,6 +1179,22 @@ def provider_supports_reasoning(provider, model):
 def is_cloud_ollama_model(model: str):
     model_l = (model or '').strip().lower()
     return model_l.endswith(':cloud')
+
+
+def is_local_ollama_provider(provider):
+    if not provider or provider.api_type != 'ollama':
+        return False
+    host = (urllib.parse.urlparse(provider.base_url or '').hostname or '').lower()
+    return host in {'127.0.0.1', 'localhost', '::1'}
+
+
+def is_local_cloud_ollama_model(provider, model: str):
+    # Ollama Cloud entries can appear in /api/tags after pull, but on an
+    # unauthenticated/self-hosted local Ollama they return 401 at inference.
+    # Treat them as not locally servable unless explicitly allowed.
+    if os.environ.get('SAGE_ROUTER_OLLAMA_ALLOW_LOCAL_CLOUD_MODELS', '').strip().lower() in {'1', 'true', 'yes', 'on'}:
+        return False
+    return is_local_ollama_provider(provider) and is_cloud_ollama_model(model)
 
 # Detect if a model supports vision/multimodal based on name patterns
 VISION_MODEL_PATTERNS = ['vl', 'vision', 'qwen-vl', 'qwen_vl', 'llava', 'bakllava', 'moondream', 'minicpm-v', 'llama-vision', 'glm-4v', 'gpt-4o', 'gpt-4-turbo', 'claude-3-opus', 'claude-3-sonnet', 'claude-3.5', 'gemini-pro-vision', 'gemini-1.5', 'gpt-5.4', 'gpt-5.5']
@@ -1950,14 +1968,18 @@ def fetch_ollama_manifest(provider: Provider):
     return None, None
 
 
+def ollama_manifest_model_id(entry):
+    if not isinstance(entry, dict):
+        return ''
+    return (entry.get('id') or entry.get('model') or entry.get('name') or '').strip()
+
+
 def apply_ollama_manifest(provider: Provider, manifest):
     models = []
     meta = dict(provider.model_meta or {})
     servable_only = []
     for entry in manifest.get('models', []) or []:
-        if not isinstance(entry, dict):
-            continue
-        model_id = entry.get('id') or entry.get('model')
+        model_id = ollama_manifest_model_id(entry)
         if not model_id:
             continue
         servable = bool(entry.get('servable', True))
@@ -1971,6 +1993,10 @@ def apply_ollama_manifest(provider: Provider, manifest):
             'preferred': bool(entry.get('preferred', False)),
             'resident': bool(entry.get('resident', False)),
             'manifestReason': entry.get('reason'),
+            'supportsChat': entry.get('supportsChat', True),
+            'supportsTools': entry.get('supportsTools'),
+            'supportsJson': entry.get('supportsJson'),
+            'supportsStreaming': entry.get('supportsStreaming', True),
         }
         if servable:
             servable_only.append(model_id)
@@ -1986,12 +2012,11 @@ def fetch_ollama_models(provider: Provider):
         return cached['models']
 
     manifest, manifest_source = fetch_ollama_manifest(provider)
+    manifest_models = []
     if manifest:
-        models = apply_ollama_manifest(provider, manifest)
-        OLLAMA_MODEL_CACHE[provider.name] = {'checked_at': now, 'models': models, 'source': f'manifest:{manifest_source}'}
-        return models
+        manifest_models = apply_ollama_manifest(provider, manifest)
 
-    models = []
+    tag_models = []
     try:
         url = provider.base_url.rstrip('/') + '/api/tags'
         req = urllib.request.Request(url, headers={'Content-Type': 'application/json'})
@@ -2000,31 +2025,40 @@ def fetch_ollama_models(provider: Provider):
         with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT_SECONDS) as resp:
             payload = json.loads(resp.read())
         for model in payload.get('models', []) or []:
-            model_name = model.get('name') or model.get('model')
+            model_name = (model.get('name') or model.get('model') or '').strip()
             if model_name:
-                models.append(model_name)
+                tag_models.append(model_name)
                 meta = dict(provider.model_meta or {})
                 details = model.get('details', {}) if isinstance(model.get('details'), dict) else {}
-                meta.setdefault(model_name, {
-                    'reasoning': False,
-                    'contextWindow': details.get('context_length'),
-                    'maxTokens': None,
-                    'input': ['text'],
-                    'servable': True,
-                    'preferred': False,
-                    'resident': False,
-                    'manifestReason': None,
-                    'family': details.get('family', ''),
-                    'families': details.get('families') or [],
+                existing = dict(meta.get(model_name) or {})
+                existing.update({
+                    'reasoning': bool(existing.get('reasoning', False)),
+                    'contextWindow': existing.get('contextWindow') or details.get('context_length'),
+                    'maxTokens': existing.get('maxTokens'),
+                    'input': existing.get('input') or ['text'],
+                    'servable': bool(existing.get('servable', True)) and not is_local_cloud_ollama_model(provider, model_name),
+                    'preferred': bool(existing.get('preferred', False)),
+                    'resident': bool(existing.get('resident', False)),
+                    'manifestReason': existing.get('manifestReason'),
+                    'family': details.get('family', existing.get('family', '')),
+                    'families': details.get('families') or existing.get('families') or [],
                 })
+                meta[model_name] = existing
                 provider.model_meta = meta
     except Exception as e:
         logger.warning(f"Ollama model discovery {provider.name}: {extract_http_error(e)}")
-    models = dedupe_keep_order(models)
-    OLLAMA_MODEL_CACHE[provider.name] = {'checked_at': now, 'models': models, 'source': 'tags'}
-    if models:
-        provider.models = dedupe_keep_order((provider.models or []) + models)
-    return models
+    tag_models = dedupe_keep_order(tag_models)
+    known_models = dedupe_keep_order((provider.models or []) + manifest_models + tag_models)
+    if known_models:
+        provider.models = known_models
+    source = 'tags'
+    if manifest_models and tag_models:
+        source = f'manifest:{manifest_source}+tags'
+    elif manifest_models:
+        source = f'manifest:{manifest_source}'
+    # Cache installed/tagged models separately from configured/manifest-known models.
+    OLLAMA_MODEL_CACHE[provider.name] = {'checked_at': now, 'models': tag_models, 'known_models': known_models, 'source': source}
+    return tag_models
 
 
 def parse_error_meta(error_text: str):
@@ -2145,10 +2179,36 @@ OLLAMA_AUTO_PULL_PATTERNS = [
 OLLAMA_AUTO_PULL_INTERVAL_SECONDS = int(os.environ.get('SAGE_ROUTER_OLLAMA_AUTO_PULL_INTERVAL_SECONDS', '3600'))
 
 
+def ollama_pattern_matches(pattern: str, model: str):
+    pattern = (pattern or '').strip().lower()
+    model_l = (model or '').strip().lower()
+    if not pattern:
+        return False
+    if pattern in {'*', 'all'}:
+        return True
+    if pattern.endswith('*') and model_l.startswith(pattern[:-1]):
+        return True
+    if pattern.startswith('*') and model_l.endswith(pattern[1:]):
+        return True
+    return pattern in model_l
+
+
+def ollama_model_auto_pull_compatible(provider: Provider, model: str):
+    if not model or not model_is_servable(provider, model):
+        return False
+    if not is_chat_capable_model(provider, model):
+        return False
+    caps = model_capabilities(provider, model)
+    return bool(caps.get('chat') and caps.get('streaming', True))
+
+
 def ollama_auto_pull_new_models():
-    """Check all Ollama providers for models matching auto-pull patterns that
-    aren't yet available locally. Pull them in the background.
-    Only runs every OLLAMA_AUTO_PULL_INTERVAL_SECONDS to avoid excessive pulls."""
+    """Pull missing compatible Ollama models that match configured patterns.
+
+    Sources are merged from config, manifests, and live /api/tags.  This lets a
+    fresh Umbrel Ollama app with zero local tags still pull configured/known
+    compatible models instead of being invisible to routing.
+    """
     now = time.time()
     last_pull_check_key = '_last_auto_pull_check'
     if now - OLLAMA_MODEL_CACHE.get(last_pull_check_key, 0) < OLLAMA_AUTO_PULL_INTERVAL_SECONDS:
@@ -2159,42 +2219,41 @@ def ollama_auto_pull_new_models():
         return
 
     for provider in PROVIDERS.values():
-        if provider.api_type != 'ollama':
+        if provider.api_type != 'ollama' or provider.name in DISABLED_PROVIDERS:
             continue
-        # Get manifest models (cloud-only models that may not be in /api/tags yet)
         manifest, _ = fetch_ollama_manifest(provider)
         manifest_models = []
         if manifest:
-            manifest_models = [m.get('name', '') for m in manifest.get('models', []) if m.get('name')]
+            manifest_models = [ollama_manifest_model_id(m) for m in manifest.get('models', []) or []]
 
-        # Combine discovered + manifest models
-        all_known = set(dedupe_keep_order((provider.models or []) + manifest_models))
-
-        # Check which patterns have no matching model
-        for pattern in OLLAMA_AUTO_PULL_PATTERNS:
-            matching = [m for m in all_known if pattern in m]
-            if not matching:
-                # Pattern has no match yet - nothing to pull
+        cache = OLLAMA_MODEL_CACHE.get(provider.name, {})
+        available = set(fetch_ollama_models(provider))
+        all_known = dedupe_keep_order((provider.models or []) + cache.get('known_models', []) + manifest_models)
+        matching = []
+        for model in all_known:
+            if model in available:
                 continue
-            # Check if models matching pattern are actually available (not just known)
-            available = set(fetch_ollama_models(provider))
-            for model in matching:
-                if model not in available:
-                    logger.info(f'Auto-pulling new model: {model} (pattern: {pattern}, provider: {provider.name})')
-                    try:
-                        pull_url = provider.base_url.rstrip('/') + '/api/pull'
-                        data = json.dumps({'name': model, 'stream': False}).encode()
-                        req = urllib.request.Request(pull_url, data=data, headers={'Content-Type': 'application/json'})
-                        if provider.api_key:
-                            req.add_header('Authorization', f'Bearer {provider.api_key}')
-                        with urllib.request.urlopen(req, timeout=600) as resp:
-                            result = json.loads(resp.read())
-                        logger.info(f'Auto-pull complete: {model} -> {result.get("status", "ok")}')
-                        # Refresh model list after pull
-                        OLLAMA_MODEL_CACHE.pop(provider.name, None)
-                        fetch_ollama_models(provider)
-                    except Exception as e:
-                        logger.warning(f'Auto-pull failed for {model}: {extract_http_error(e)}')
+            if not ollama_model_auto_pull_compatible(provider, model):
+                continue
+            if any(ollama_pattern_matches(pattern, model) for pattern in OLLAMA_AUTO_PULL_PATTERNS):
+                matching.append(model)
+
+        for model in dedupe_keep_order(matching):
+            logger.info(f'Auto-pulling missing compatible Ollama model: {model} (provider={provider.name}, patterns={OLLAMA_AUTO_PULL_PATTERNS})')
+            try:
+                pull_url = provider.base_url.rstrip('/') + '/api/pull'
+                data = json.dumps({'name': model, 'stream': False}).encode()
+                req = urllib.request.Request(pull_url, data=data, headers={'Content-Type': 'application/json'})
+                if provider.api_key:
+                    req.add_header('Authorization', f'Bearer {provider.api_key}')
+                with urllib.request.urlopen(req, timeout=600) as resp:
+                    result = json.loads(resp.read())
+                logger.info(f'Auto-pull complete: {model} -> {result.get("status", "ok")}')
+                OLLAMA_MODEL_CACHE.pop(provider.name, None)
+                fetch_ollama_models(provider)
+                MODEL_HEALTH_CACHE.clear()
+            except Exception as e:
+                logger.warning(f'Auto-pull failed for {model}: {extract_http_error(e)}')
 
 
 def background_refresh_detect_families():
@@ -3757,11 +3816,22 @@ def prepare_route(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
             elif requested_model and requested_model in all_models:
                 # Move requested model to front if it exists
                 all_models = [requested_model] + [m for m in all_models if m != requested_model]
-            chain = [(force_provider, model) for model in all_models[:MAX_PROVIDER_ATTEMPTS]]
+            filtered_models = []
+            forced_rejections = []
+            for model in all_models:
+                if not is_chat_capable_model(prov, model):
+                    forced_rejections.append({'provider': force_provider, 'model': model, 'reason': 'not chat-capable'})
+                    continue
+                ok_req, reason = model_meets_requirements(prov, model, requirements, estimated_tokens)
+                if not ok_req:
+                    forced_rejections.append({'provider': force_provider, 'model': model, 'reason': reason})
+                    continue
+                filtered_models.append(model)
+            chain = [(force_provider, model) for model in filtered_models[:MAX_PROVIDER_ATTEMPTS]]
             score_debug = [{'provider': force_provider, 'model': model, 'score': 100} for _, model in chain]
-            rejections = []
+            rejections = forced_rejections
             logger.info(f"[{request_id}] Chain (forced): {chain}")
-            LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug, 'rejections': [], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider})
+            LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug, 'rejections': rejections[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider})
             return normalized_messages, intent, complexity, estimated_tokens, chain
     
     chain, score_debug, rejections = select_model(intent, complexity, thinking, route_mode, requirements, estimated_tokens)
