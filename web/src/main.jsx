@@ -47,6 +47,8 @@ function App() {
             <a href="#how">How it works</a>
             <a href="#security">Security</a>
             <a href="#automation">Automation</a>
+            <a href="#docs">Guides</a>
+            <a href="#waitlist">Waitlist</a>
             <a href="https://github.com/earlvanze/sage-router">GitHub</a>
           </div>
         </nav>
@@ -64,8 +66,8 @@ function App() {
               <a className="button primary" href="https://github.com/earlvanze/sage-router">
                 View on GitHub
               </a>
-              <a className="button secondary" href="#docs">
-                Read docs
+              <a className="button secondary" href="#waitlist">
+                Join waitlist
               </a>
             </div>
             <p className="complianceNote">
@@ -254,8 +256,19 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           </p>
         </div>
         <div className="docsGrid">
-          {["Use Sage Router with Codex", "Use Sage Router with Claude Code", "Use Sage Router with OpenClaw", "Use Sage Router with Ollama/Ollama Cloud", "Use Sage Router with NVIDIA NIM", "Use Sage Router as an OpenAI-compatible endpoint", "Use Sage Router for BYOK provider fallback"].map((item) => (
-            <a key={item} href="https://github.com/earlvanze/sage-router#readme">{item}</a>
+          {[
+            ['Use Sage Router with Codex', 'Codex CLI via the OpenAI-compatible endpoint.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/codex.md'],
+            ['Use Sage Router with Claude Code', 'Anthropic Messages routing with fallback behind one endpoint.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md'],
+            ['Use Sage Router with OpenClaw', 'Route OpenClaw agents across local, cloud, and BYOK providers.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openclaw.md'],
+            ['Use Sage Router with Ollama/Ollama Cloud', 'Local Ollama plus :cloud model routing through the local runtime.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/ollama.md'],
+            ['Use Sage Router with NVIDIA NIM', 'NVIDIA-backed inference as a BYOK provider route.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/nvidia-nim.md'],
+            ['OpenAI-compatible clients', 'Drop-in base URL for SDKs, Aider, Continue, and similar tools.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openai-compatible.md'],
+            ['BYOK provider fallback', 'Policy-based fallback across authorized provider accounts.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/byok-fallback.md'],
+          ].map(([title, body, href]) => (
+            <a className="guideCard" key={title} href={href}>
+              <strong>{title}</strong>
+              <span>{body}</span>
+            </a>
           ))}
         </div>
       </section>
@@ -275,6 +288,40 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <article><h3>Best local fallback</h3><p>Keep agents moving with local models when cloud providers are down, slow, or rate limited.</p></article>
           <article><h3>Hybrid local/cloud routes</h3><p>Blend local Ollama routes, Ollama Cloud models exposed through your local Ollama runtime, cloud APIs, and NVIDIA NIM endpoints behind one endpoint.</p></article>
         </div>
+      </section>
+
+
+      <section className="section waitlistSection" id="waitlist">
+        <div className="sectionHeader">
+          <p className="eyebrow">Waitlist</p>
+          <h2>Get Sage Router updates.</h2>
+          <p>Join the waitlist for integration updates, release notes, and early hosted reliability testing.</p>
+        </div>
+        <form className="waitlistForm" onSubmit={async (event) => {
+          event.preventDefault();
+          const form = event.currentTarget;
+          const data = Object.fromEntries(new FormData(form));
+          const status = form.querySelector('[data-status]');
+          status.textContent = 'Submitting...';
+          try {
+            const response = await fetch('/api/waitlist', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data),
+            });
+            if (!response.ok) throw new Error('Submit failed');
+            form.reset();
+            status.textContent = 'You are on the list.';
+          } catch (error) {
+            status.textContent = 'Could not submit. Try again or use GitHub for now.';
+          }
+        }}>
+          <input name="website" tabIndex="-1" autoComplete="off" className="honeypot" aria-hidden="true" />
+          <input name="email" type="email" placeholder="you@example.com" required />
+          <input name="company" type="text" placeholder="Company or project" />
+          <button type="submit">Join waitlist</button>
+          <p data-status></p>
+        </form>
       </section>
 
       <footer>

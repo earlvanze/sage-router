@@ -24,3 +24,12 @@ Sage Router routes only across authorized provider access that customers already
 - How to route requests across OpenAI, Anthropic, Gemini, Ollama, BYOK-compatible endpoints, and local models.
 - Local-first BYOK model routing for AI agents.
 
+
+Integration guides:
+- Codex CLI: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/codex.md
+- Claude Code: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md
+- OpenClaw: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openclaw.md
+- Ollama/Ollama Cloud: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/ollama.md
+- NVIDIA NIM: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/nvidia-nim.md
+- OpenAI-compatible clients: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openai-compatible.md
+- BYOK fallback: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/byok-fallback.md

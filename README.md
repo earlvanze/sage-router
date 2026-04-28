@@ -66,6 +66,18 @@ export ANTHROPIC_API_KEY=irrelevant
 
 ---
 
+## Integration Guides
+
+- [Codex CLI](docs/integrations/codex.md)
+- [Claude Code](docs/integrations/claude-code.md)
+- [OpenClaw](docs/integrations/openclaw.md)
+- [Ollama and Ollama Cloud](docs/integrations/ollama.md)
+- [NVIDIA NIM / NVIDIA Cloud](docs/integrations/nvidia-nim.md)
+- [OpenAI-compatible clients](docs/integrations/openai-compatible.md)
+- [BYOK provider fallback](docs/integrations/byok-fallback.md)
+
+---
+
 ## Supported API Formats
 
 | Endpoint | Format | Used By |

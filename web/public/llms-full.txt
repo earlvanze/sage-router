@@ -35,3 +35,7 @@ Sage Router supports local Ollama and Ollama Cloud today through Ollama running 
 ## NVIDIA NIM / NVIDIA Cloud
 
 Sage Router can route to NVIDIA NIM / NVIDIA Cloud endpoints using the customer's own `NVIDIA_API_KEY`. Models are auto-discovered where the provider API supports it, making NVIDIA-backed hosted inference another BYOK route rather than a provider resale feature.
+
+## Integration guides
+
+Sage Router publishes integration guides for Codex CLI, Claude Code, OpenClaw, Ollama/Ollama Cloud, NVIDIA NIM, OpenAI-compatible clients, and BYOK provider fallback under `docs/integrations/` in the GitHub repository.
