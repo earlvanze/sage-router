@@ -500,12 +500,20 @@ LOG_LEVEL=DEBUG python3 router.py
 
 ## Roadmap
 
-- [ ] Multi-modal support (vision models)
-- [ ] Tool/function calling proxy
+### Completed
+
+- [x] Multi-modal support (vision-capable model detection and image payload routing)
+- [x] Tool/function calling proxy (OpenAI, Ollama, and Anthropic-compatible tool-call normalization)
+- [x] Cloudflare Pages marketing site on `https://sagerouter.dev`
+- [x] Integration guides for major agent harnesses and SDK-compatible clients
+- [x] Waitlist capture into AOps Supabase
+
+### Next
+
 - [ ] Request/response caching
 - [ ] Usage analytics dashboard
 - [ ] Distributed deployment mode
-- [ ] CDN-hosted option (high-availability)
+- [ ] CDN-hosted option / hosted reliability layer
 - [ ] **Grok SSO Browser Extension** — Chrome extension to proxy SuperGrok web access via local OpenAI-compatible endpoint (blocked by anti-bot; needs extension architecture)
 
 ---

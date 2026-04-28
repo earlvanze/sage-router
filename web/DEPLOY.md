@@ -49,21 +49,30 @@ After the Pages project exists, attach:
 
 Let Cloudflare manage the required CNAME/flattened records.
 
-## SEO / GEO launch checklist
+## Deployment phases
 
-Before public launch:
+### Phase 1 — Static site foundation (complete)
 
-- Confirm canonical URL is `https://sagerouter.dev/`.
-- Confirm `robots.txt`, `sitemap.xml`, `llms.txt`, and `llms-full.txt` are reachable at site root.
-- Submit sitemap in Google Search Console and Bing Webmaster Tools.
-- Add GitHub repo link back to `https://sagerouter.dev/`.
-- Add docs/tutorial pages for:
-  - Codex
-  - Claude Code
-  - OpenClaw
-  - Ollama / Ollama Cloud
-  - OpenAI-compatible endpoint
-  - BYOK provider fallback
+- [x] Cloudflare Pages project: `sage-router-web`
+- [x] Custom domain: `https://sagerouter.dev`
+- [x] Canonical URL set to `https://sagerouter.dev/`
+- [x] `robots.txt`, `sitemap.xml`, `llms.txt`, and `llms-full.txt` reachable at site root
+- [x] Waitlist form wired to AOps Supabase via Cloudflare Pages Function
+
+### Phase 2 — Public launch polish (in progress)
+
+- [x] GitHub repo homepage points back to `https://sagerouter.dev/`
+- [x] GitHub repo description/topics configured for discovery
+- [x] Integration guide pages published for Codex, Claude Code, OpenClaw, Hermes, Pi agents, Cursor, Aider, Continue, OpenHands, Ollama / Ollama Cloud, NVIDIA NIM, OpenAI-compatible clients, Anthropic-compatible clients, and harness fallback
+- [x] Public sitemap ping endpoints checked (Google deprecated, Bing returned gone)
+- [ ] Submit sitemap in Google Search Console / Bing Webmaster Tools dashboards
+- [ ] Confirm indexing in Google Search Console / Bing Webmaster Tools dashboards
+
+### Phase 3 — Hosted reliability layer (future)
+
+- [ ] Architecture review for key custody and customer data boundaries
+- [ ] Hosted health/observability control plane design
+- [ ] Optional managed router deployment path
 
 ## Deployment boundary
 
