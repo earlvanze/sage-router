@@ -2,14 +2,6 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
-const integrations = [
-  ['OpenClaw', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openclaw.md'],
-  ['Hermes', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/hermes.md'],
-  ['Pi agents', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/pi.md'],
-  ['Codex CLI', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/codex.md'],
-  ['Claude Code', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md'],
-  ['Cursor', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/cursor.md'],
-];
 const steps = [
   {
     number: '01',
@@ -157,14 +149,9 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <p className="eyebrow">Integrations</p>
           <h2>Connect the tools your agents already use.</h2>
           <p>
-            Start with the primary agent harnesses. The guide cards below cover local runtimes, cloud APIs,
-            SDK-compatible clients, and harness fallback routes.
+            One clean guide grid for agent harnesses, local runtimes, cloud APIs, SDK-compatible clients,
+            and harness fallback routes.
           </p>
-        </div>
-        <div className="logoGrid">
-          {integrations.map(([item, href]) => (
-            <a key={item} href={href}>{item}</a>
-          ))}
         </div>
         <div className="docsGrid">
           {[
