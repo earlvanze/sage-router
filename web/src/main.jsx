@@ -160,14 +160,37 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         </div>
       </section>
 
-      <section className="section integrations">
+      <section className="section integrations" id="docs">
         <div className="sectionHeader">
           <p className="eyebrow">Integrations</p>
-          <h2>Designed for agent harnesses and developer AI tools.</h2>
+          <h2>Connect the tools your agents already use.</h2>
+          <p>
+            Sage Router works with agent harnesses, developer AI tools, local runtimes, cloud APIs,
+            and harness fallback routes from one local-first endpoint.
+          </p>
         </div>
         <div className="logoGrid">
           {integrations.map((item) => (
             <span key={item}>{item}</span>
+          ))}
+        </div>
+        <div className="docsGrid">
+          {[
+            ['Use Sage Router with Codex', 'Codex CLI via the OpenAI-compatible endpoint.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/codex.md'],
+            ['Use Sage Router with Claude Code', 'Anthropic Messages routing with fallback behind one endpoint.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md'],
+            ['Use Sage Router with OpenClaw', 'Route OpenClaw agents across local, cloud, and authorized providers.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openclaw.md'],
+            ['Use Sage Router with Hermes', 'Operator-agent routing for status, review, and escalation workflows.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/hermes.md'],
+            ['Use Sage Router with Pi agents', 'Route Pi agents through one OpenAI-compatible endpoint.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/pi.md'],
+            ['Use Sage Router with Cursor', 'Use OpenAI-compatible or Anthropic-compatible routing from Cursor.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/cursor.md'],
+            ['Use Sage Router with Ollama/Ollama Cloud', 'Local Ollama plus :cloud model routing through the local runtime.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/ollama.md'],
+            ['Use Sage Router with NVIDIA NIM', 'NVIDIA-backed inference as a BYOK provider route.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/nvidia-nim.md'],
+            ['OpenAI-compatible clients', 'Drop-in base URL for SDKs, Aider, Continue, and similar tools.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openai-compatible.md'],
+            ['Harness fallback', 'Policy-based failover for agent harnesses across your authorized providers.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/harness-fallback.md'],
+          ].map(([title, body, href]) => (
+            <a className="guideCard" key={title} href={href}>
+              <strong>{title}</strong>
+              <span>{body}</span>
+            </a>
           ))}
         </div>
       </section>
@@ -245,36 +268,6 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
             <summary>Where do provider API keys live?</summary>
             <p>By default, provider credentials live locally on the customer machine or server. Sage Router is designed so routing and fallback do not require default custody of customer provider keys.</p>
           </details>
-        </div>
-      </section>
-
-      <section className="section docs" id="docs">
-        <div className="sectionHeader">
-          <p className="eyebrow">Integration guides</p>
-          <h2>Connect the tools your agents already use.</h2>
-          <p>
-            Start with practical guides for Codex, Claude Code, OpenClaw, Ollama, NVIDIA NIM,
-            OpenAI-compatible clients, and harness fallback routes.
-          </p>
-        </div>
-        <div className="docsGrid">
-          {[
-            ['Use Sage Router with Codex', 'Codex CLI via the OpenAI-compatible endpoint.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/codex.md'],
-            ['Use Sage Router with Claude Code', 'Anthropic Messages routing with fallback behind one endpoint.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md'],
-            ['Use Sage Router with OpenClaw', 'Route OpenClaw agents across local, cloud, and authorized providers.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openclaw.md'],
-            ['Use Sage Router with Hermes', 'Operator-agent routing for status, review, and escalation workflows.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/hermes.md'],
-            ['Use Sage Router with Pi agents', 'Route Pi agents through one OpenAI-compatible endpoint.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/pi.md'],
-            ['Use Sage Router with Cursor', 'Use OpenAI-compatible or Anthropic-compatible routing from Cursor.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/cursor.md'],
-            ['Use Sage Router with Ollama/Ollama Cloud', 'Local Ollama plus :cloud model routing through the local runtime.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/ollama.md'],
-            ['Use Sage Router with NVIDIA NIM', 'NVIDIA-backed inference as a BYOK provider route.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/nvidia-nim.md'],
-            ['OpenAI-compatible clients', 'Drop-in base URL for SDKs, Aider, Continue, and similar tools.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openai-compatible.md'],
-            ['Harness fallback', 'Policy-based failover for agent harnesses across your authorized providers.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/harness-fallback.md'],
-          ].map(([title, body, href]) => (
-            <a className="guideCard" key={title} href={href}>
-              <strong>{title}</strong>
-              <span>{body}</span>
-            </a>
-          ))}
         </div>
       </section>
 
