@@ -3579,7 +3579,7 @@ def call_google_completion(base_url, model, payload, api_key='', thinking=Thinki
 
 
 def stream_openai_compat_to_client(self, provider, model, payload, request_id, thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False):
-    url = provider.openai_chat_completions_url(base_url)
+    url = openai_chat_completions_url(provider.base_url)
     proxied = build_openai_proxy_payload(payload, model, stream=True, supports_reasoning=supports_reasoning, thinking=thinking)
     hdrs = {'Content-Type': 'application/json'}
     if provider.api_key:
