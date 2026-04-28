@@ -6,6 +6,8 @@ This deployment is for a public Phase 2 demo of Sage Router on Google Cloud Run.
 
 - Cloud Run: `min-instances=0`, `max-instances=1`, 512Mi memory.
 - No provider/customer API keys are deployed by default.
+- Dario is bundled for Anthropic-compatible routing, but is not authenticated unless credentials are supplied via Secret Manager or a private runtime config.
+- Ollama is not bundled in the Cloud Run image; local Ollama belongs in the self-hosted Docker image, while this GCP demo stays lightweight.
 - Artifact Registry stores one small Python image.
 - The service is public for demoability and exposes `/health`.
 
@@ -17,6 +19,7 @@ This deployment is for a public Phase 2 demo of Sage Router on Google Cloud Run.
 - Service: `sage-router`
 - URL: `https://sage-router-434058661374.us-central1.run.app`
 - Verified endpoints: `/`, `/health`, `/v1/models`
+- Runtime boundary: Dario binary is present; Dario proxy requires auth before Anthropic-compatible provider traffic can use it. Ollama daemon is intentionally absent.
 
 ## Deploy
 
