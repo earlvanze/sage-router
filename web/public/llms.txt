@@ -11,7 +11,7 @@ Docs: https://github.com/earlvanze/sage-router#readme
 - Automates AI model/provider selection.
 - Routes requests across the customer own authorized providers, subscriptions, API keys, and local models.
 - Supports OpenAI-compatible, Anthropic-compatible, and Google/Gemini-style endpoint patterns documented in the repo.
-- Supports local Ollama routing today; Ollama Cloud hybrid routing is an integrations-roadmap target unless explicitly verified.
+- Supports local Ollama and Ollama Cloud today through Ollama running locally. Sage Router discovers available `:cloud` models, can auto-pull discovered cloud models, and routes between local Ollama, Ollama Cloud, NVIDIA NIM, and other cloud APIs according to policy and health.
 - Provides provider health, fallback, observability, and routing policy infrastructure for agents.
 
 ## Compliance and custody

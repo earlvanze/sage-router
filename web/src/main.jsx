@@ -238,9 +238,10 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <article>
             <h3>Local + Ollama Cloud hybrid routing</h3>
             <p>
-              The router already supports local Ollama-style routing. Ollama Cloud hybrid routing is
-              a natural integrations-roadmap target: route between local Ollama, Ollama Cloud, and
-              other BYOK providers with health-aware fallback.
+              The router supports local Ollama and Ollama Cloud today through your local Ollama
+              runtime. Sage Router discovers available cloud models, can auto-pull matching
+              <code>:cloud</code> models, and routes between them and other cloud APIs with
+              health-aware fallback.
             </p>
           </article>
         </div>
@@ -270,7 +271,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           </details>
           <details>
             <summary>Can Sage Router route between Ollama, Ollama Cloud, and cloud APIs?</summary>
-            <p>Sage Router supports local Ollama routing today. Ollama Cloud hybrid routing is positioned as an integrations-roadmap target unless and until explicit support is verified and documented.</p>
+            <p>Sage Router supports local Ollama and Ollama Cloud today through Ollama running locally. It discovers available <code>:cloud</code> models, can auto-pull discovered cloud models, and routes between local Ollama, Ollama Cloud, NVIDIA NIM, and other cloud APIs according to policy and health.</p>
           </details>
           <details>
             <summary>Where do provider API keys live?</summary>
@@ -343,7 +344,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <article><h3>Best model for coding</h3><p>Route coding, refactor, and debugging tasks to coding-strong models with sensible fallbacks.</p></article>
           <article><h3>Best model for fast chat</h3><p>Prefer low-latency models for lightweight agent chatter, planning, and status checks.</p></article>
           <article><h3>Best local fallback</h3><p>Keep agents moving with local models when cloud providers are down, slow, or rate limited.</p></article>
-          <article><h3>Hybrid local/cloud routes</h3><p>Blend local Ollama-style routes, cloud APIs, NVIDIA NIM endpoints, and future Ollama Cloud integration targets behind one endpoint.</p></article>
+          <article><h3>Hybrid local/cloud routes</h3><p>Blend local Ollama routes, Ollama Cloud models exposed through your local Ollama runtime, cloud APIs, and NVIDIA NIM endpoints behind one endpoint.</p></article>
         </div>
       </section>
 
