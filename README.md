@@ -1,6 +1,6 @@
 # Sage Router
 
-**The OpenRouter replacement that optimizes for performance, not cost.**
+**Local-first AI model routing for serious agents.**
 
 One endpoint. Any provider. The router figures out the rest.
 
@@ -13,7 +13,7 @@ One endpoint. Any provider. The router figures out the rest.
 
 Sage Router is a **local-first, self-hosted AI model gateway** that intelligently routes requests to the best available model based on intent, latency, and capability — not just price.
 
-Unlike OpenRouter, which optimizes for cost, Sage Router optimizes for **getting the job done**:
+Sage Router optimizes for **getting the job done**:
 
 - **Intent-based routing**: Code tasks go to coding models, creative tasks to creative models, reasoning tasks to reasoning models
 - **Automatic fallback**: If one provider fails or hits rate limits, it seamlessly tries the next
@@ -421,29 +421,7 @@ That means stream-shaped responses work for client compatibility, but they may s
 
 ## Why Sage Router?
 
-### vs. OpenRouter
 
-| Feature | OpenRouter | Sage Router |
-|---------|-----------|-------------|
-| Cost optimization | ✅ | ❌ |
-| Performance optimization | ❌ | ✅ |
-| Self-hosted | ❌ | ✅ |
-| Dynamic model discovery | ❌ | ✅ |
-| Intent-based routing | ❌ | ✅ |
-| Subscription reuse | ❌ | ✅ |
-| Multi-format API | OpenAI only | OpenAI + Anthropic + Google |
-
-### vs. LiteLLM
-
-| Feature | LiteLLM | Sage Router |
-|---------|---------|-------------|
-| Drop-in proxy | ✅ | ✅ |
-| Model routing logic | Manual | Automatic (intent-based) |
-| Fallback chains | Manual | Automatic |
-| Configuration | YAML-heavy | Minimal JSON |
-| Local-first | ❌ | ✅ |
-
----
 
 ## Configuration
 
@@ -524,7 +502,6 @@ MIT — Use it, fork it, improve it. PRs welcome.
 Built this because I was tired of:
 - Switching API keys between coding agents
 - Burning Claude API credits on trivial tasks
-- Waiting for OpenRouter's cheapest option when I just needed an answer
 - Configuring new models in 3 different places
 
 If you're running local AI infrastructure, Sage Router is the single endpoint that makes everything else just work.

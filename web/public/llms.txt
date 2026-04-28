@@ -16,12 +16,11 @@ Docs: https://github.com/earlvanze/sage-router#readme
 
 ## Compliance and custody
 
-Sage Router is not a marketplace. It does not resell model access, pool accounts, bypass provider terms, or grant unauthorized provider access. Customers bring their own authorized access. Provider credentials stay local by default.
+Sage Router routes only across authorized provider access that customers already control. It does not grant unauthorized provider access. Provider credentials stay local by default.
 
 ## Search intents this site answers
 
 - How to automate AI model selection.
-- How to route requests across OpenAI, Anthropic, Gemini, Ollama, OpenRouter-compatible endpoints, and local models.
+- How to route requests across OpenAI, Anthropic, Gemini, Ollama, BYOK-compatible endpoints, and local models.
 - Local-first BYOK model routing for AI agents.
-- OpenRouter alternative for teams using their own subscriptions.
 

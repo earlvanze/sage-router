@@ -34,13 +34,6 @@ const steps = [
   },
 ];
 
-const comparison = [
-  ['Default posture', 'Local-first router you operate', 'Hosted marketplace/proxy'],
-  ['Access model', 'Your own authorized providers, subscriptions, API keys, and local models', 'Marketplace access through a third-party proxy'],
-  ['Key custody', 'Local by default. Provider keys stay under your control.', 'Provider credentials and requests flow through the marketplace layer'],
-  ['Primary job', 'Routing infrastructure for serious agent workflows', 'Model discovery, purchasing, and proxy access'],
-];
-
 function App() {
   return (
     <main>
@@ -54,7 +47,6 @@ function App() {
             <a href="#how">How it works</a>
             <a href="#security">Security</a>
             <a href="#automation">Automation</a>
-            <a href="#compare">Compare</a>
             <a href="https://github.com/earlvanze/sage-router">GitHub</a>
           </div>
         </nav>
@@ -176,28 +168,6 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         </div>
       </section>
 
-      <section className="section compare" id="compare">
-        <div className="sectionHeader">
-          <p className="eyebrow">Careful comparison</p>
-          <h2>Sage Router is not a marketplace.</h2>
-          <p>
-            OpenRouter is useful as a marketplace and hosted proxy. Sage Router is local-first routing
-            infrastructure for your own authorized access, built for people who want control over key
-            custody, failover, policies, and agent reliability.
-          </p>
-        </div>
-        <div className="comparisonTable" role="table" aria-label="Sage Router compared with OpenRouter">
-          <div className="tableRow tableHead" role="row">
-            <span>Category</span><span>Sage Router</span><span>OpenRouter-style marketplace</span>
-          </div>
-          {comparison.map(([category, sage, market]) => (
-            <div className="tableRow" role="row" key={category}>
-              <span>{category}</span><span>{sage}</span><span>{market}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
       <section className="section searchIntents" id="automation">
         <div className="sectionHeader">
           <p className="eyebrow">Model selection automation</p>
@@ -212,9 +182,9 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <article>
             <h3>Route requests across providers</h3>
             <p>
-              Configure authorized access for OpenAI, Anthropic, Gemini, Ollama, OpenRouter-compatible
-              endpoints, local models, and other BYOK providers, then expose a stable router endpoint
-              to agents and developer tools.
+              Configure authorized access for OpenAI, Anthropic, Gemini, NVIDIA NIM, Ollama,
+              local models, and other BYOK providers, then expose a stable router endpoint to agents
+              and developer tools.
             </p>
           </article>
           <article>
@@ -226,11 +196,11 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
             </p>
           </article>
           <article>
-            <h3>OpenRouter alternative for teams using their own subscriptions</h3>
+            <h3>Policy-based routing for teams using their own providers</h3>
             <p>
-              Sage Router is not a model marketplace. It is routing infrastructure for teams that
-              already have authorized provider accounts, subscriptions, API keys, local models, or
-              approved proxy endpoints and want smarter selection/fallback.
+              Sage Router is routing infrastructure for teams that already have authorized provider
+              accounts, subscriptions, API keys, local models, or approved proxy endpoints and want
+              smarter selection and fallback.
             </p>
           </article>
           <article>
@@ -247,8 +217,8 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
 
       <section className="section faq" id="faq">
         <div className="sectionHeader">
-          <p className="eyebrow">FAQ for humans, agents, and search</p>
-          <h2>Answers for AI model routing discovery.</h2>
+          <p className="eyebrow">FAQ</p>
+          <h2>Answers for AI model routing.</h2>
         </div>
         <div className="faqList">
           <details open>
@@ -258,10 +228,6 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <details>
             <summary>How do I automate model/provider selection for AI agents?</summary>
             <p>Run Sage Router locally, configure your authorized providers and local models, then point OpenAI-compatible or Anthropic-compatible tools at the Sage Router endpoint. The router performs model selection and fallback without every tool needing its own routing logic.</p>
-          </details>
-          <details>
-            <summary>Is Sage Router an OpenRouter alternative?</summary>
-            <p>Yes, for teams that want local-first routing infrastructure using their own authorized access. OpenRouter is a hosted marketplace/proxy. Sage Router is not a marketplace and does not resell model access, pool accounts, or bypass provider terms.</p>
           </details>
           <details>
             <summary>Does Sage Router work with OpenAI-compatible and Anthropic-compatible clients?</summary>
@@ -280,7 +246,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
 
       <section className="section docs" id="docs">
         <div className="sectionHeader">
-          <p className="eyebrow">Developer-first docs</p>
+          <p className="eyebrow">Integration guides</p>
           <h2>Connect the tools your agents already use.</h2>
           <p>
             Start with practical guides for Codex, Claude Code, OpenClaw, Ollama, NVIDIA NIM,

@@ -6,7 +6,7 @@ Sage Router is an open-source local-first routing layer for AI agents and develo
 
 ## Primary categories
 
-AI model router; LLM router; provider routing; model selection automation; AI agent model routing; OpenAI-compatible router; Anthropic-compatible router; Ollama routing; BYOK AI gateway; local-first AI router; OpenRouter alternative.
+AI model router; LLM router; provider routing; model selection automation; AI agent model routing; OpenAI-compatible router; Anthropic-compatible router; Ollama routing; BYOK AI gateway; local-first AI router.
 
 ## Product promise
 
@@ -26,11 +26,7 @@ Default architecture keeps provider credentials on the customer machine or serve
 
 ## Provider routing scope
 
-The router can be positioned around routing across NVIDIA NIM / NVIDIA Cloud, OpenAI, Anthropic, Gemini, Ollama, OpenRouter-compatible endpoints, local models, and other BYOK providers, provided the customer has authorized access and the repo/service supports the endpoint pattern. Do not describe Sage Router as reselling access or bypassing terms.
-
-## OpenRouter comparison
-
-OpenRouter is a model marketplace/proxy. Sage Router is local-first routing infrastructure for customers using their own authorized provider access. Sage Router is not a marketplace and does not pool accounts.
+The router can be positioned around routing across NVIDIA NIM / NVIDIA Cloud, OpenAI, Anthropic, Gemini, Ollama, BYOK-compatible endpoints, local models, and other BYOK providers, provided the customer has authorized access and the repo/service supports the endpoint pattern.
 
 ## Ollama and Ollama Cloud angle
 
@@ -38,4 +34,4 @@ Sage Router supports local Ollama and Ollama Cloud today through Ollama running 
 
 ## NVIDIA NIM / NVIDIA Cloud
 
-Sage Router can route to NVIDIA NIM / NVIDIA Cloud endpoints using the customer's own `NVIDIA_API_KEY`. Models are auto-discovered where the provider API supports it, making NVIDIA-backed hosted inference another BYOK route rather than a marketplace resale feature.
+Sage Router can route to NVIDIA NIM / NVIDIA Cloud endpoints using the customer's own `NVIDIA_API_KEY`. Models are auto-discovered where the provider API supports it, making NVIDIA-backed hosted inference another BYOK route rather than a provider resale feature.
