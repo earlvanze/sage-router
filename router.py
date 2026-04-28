@@ -39,6 +39,7 @@ def load_env_file(path):
 
 
 load_env_file(OPENCLAW_DOTENV)
+load_env_file(os.path.join(os.path.dirname(__file__), '.env'))
 
 # Backward compat: fall back to SMART_ROUTER_* env vars if SAGE_ROUTER_* not set
 import re as _re
@@ -92,6 +93,7 @@ GENERAL_EMPIRICAL_FAILURE_PENALTY = float(os.environ.get('SAGE_ROUTER_GENERAL_FA
 DEFAULT_OPENAI_CODEX_MODELS = ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.3-codex', 'gpt-5.3-codex-spark', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini', 'gpt-5.1']
 DEFAULT_NGC_MODELS = ['nemotron-tts', 'canary-asr', 'nemo-tts', 'nemo-asr', 'nvidia/tts', 'nvidia/asr']
 DEFAULT_ANTHROPIC_MODELS = ['claude-opus-4-6', 'claude-opus-4-5', 'claude-opus-4-1', 'claude-opus-4-0', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-sonnet-4-0', 'claude-haiku-4-5', 'claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest']
+DEFAULT_DARKBLOOM_MODELS = ['mlx-community/gemma-4-26b-a4b-it-8bit', 'qwen3.5-27b-claude-opus-8bit', 'mlx-community/Trinity-Mini-8bit', 'mlx-community/Qwen3.5-122B-A10B-8bit', 'mlx-community/MiniMax-M2.5-8bit']
 
 
 def extract_http_error(exc: Exception) -> str:
@@ -115,6 +117,7 @@ GATEWAY_PROVIDER_PROFILES = {
     'google': ('google-generative-language', ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'], {'reasoning': False, 'contextWindow': 1000000, 'maxTokens': 65536, 'input': ['text', 'image']}),
     'xai': ('openai-completions', ['grok-3', 'grok-3-mini', 'grok-2'], {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
     'zai': ('openai-completions', ['z1-ultra', 'z1-pro', 'z1-mini'], {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 65536, 'input': ['text']}),
+    'darkbloom': ('openai-completions', DEFAULT_DARKBLOOM_MODELS, {'reasoning': False, 'contextWindow': 131072, 'maxTokens': 16384, 'input': ['text']}),
     'github-copilot': ('openclaw-gateway', ['gpt-5.4', 'gpt-5.4-mini', 'claude-sonnet-4-5', 'gemini-2.5-pro'], {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}),
     'bedrock': ('openclaw-gateway', ['anthropic.claude-sonnet-4-5', 'anthropic.claude-haiku-4-5', 'amazon.nova-pro', 'amazon.nova-lite', 'meta.llama4-405b'], {'reasoning': True, 'contextWindow': 200000, 'maxTokens': 64000, 'input': ['text']}),
     'azure-openai': ('openclaw-gateway', ['gpt-5.4', 'gpt-5.4-mini', 'gpt-4o', 'gpt-4o-mini'], {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
@@ -482,6 +485,30 @@ def discover_openai_models(base_url, api_key):
         logger.debug(f"OpenAI model discovery {base_url}: {extract_http_error(e)}")
         return []
 
+
+
+def discover_darkbloom_models(base_url, api_key):
+    """Discover Darkbloom models via OpenAI-compatible /v1/models.
+
+    Darkbloom model IDs are mostly MLX community names, so do not apply the
+    OpenAI-specific GPT/chat/o-series filter used for api.openai.com.
+    """
+    if not base_url or not api_key:
+        return []
+    try:
+        root = base_url.rstrip('/')
+        url = root + '/v1/models'
+        hdrs = {'Authorization': f'Bearer {api_key}'}
+        req = urllib.request.Request(url, headers=hdrs)
+        with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+            payload = json.loads(resp.read())
+        models = [m.get('id', '') for m in payload.get('data', []) if m.get('id')]
+        if models:
+            logger.info(f'Discovered {len(models)} Darkbloom models via API')
+        return dedupe_keep_order(models)
+    except Exception as e:
+        logger.debug(f"Darkbloom model discovery {base_url}: {extract_http_error(e)}")
+        return []
 
 def discover_openrouter_models(base_url, api_key):
     """Discover OpenRouter models, optionally constrained to :free IDs."""
@@ -1017,6 +1044,8 @@ def discover_provider_models(name, cfg, base_url, api_key, api_type):
             discovered = discover_openrouter_models(base_url, api_key)
             if OPENROUTER_FREE_ONLY:
                 configured = [m for m in configured if str(m).endswith(':free')]
+        elif name == 'darkbloom' or 'api.darkbloom.dev' in (base_url or '').lower():
+            discovered = discover_darkbloom_models(base_url, api_key)
         elif name == 'xai' or 'x.ai' in (base_url or '').lower():
             discovered = discover_xai_models(base_url, api_key)
         else:
@@ -1114,7 +1143,7 @@ def load_router_profile_overlays(existing_providers):
         logger.warning(f'Failed to load provider profile overlays: {e}')
         return providers
 
-    requested = [item.strip() for item in os.environ.get('SAGE_ROUTER_PROFILE_OVERLAYS', 'grok-sso').split(',') if item.strip()]
+    requested = [item.strip() for item in os.environ.get('SAGE_ROUTER_PROFILE_OVERLAYS', 'grok-sso,darkbloom').split(',') if item.strip()]
     for name in requested:
         if name in existing_providers:
             continue

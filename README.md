@@ -159,6 +159,26 @@ Models are auto-discovered via `/api/tags`.
 
 Models are auto-discovered via `/v1/models`.
 
+
+### Darkbloom
+
+Darkbloom is OpenAI-compatible at `https://api.darkbloom.dev`. If `DARKBLOOM_API_KEY` is present in `~/.openclaw/.env` or the skill-local `.env`, Sage Router loads it automatically through the bundled `darkbloom` provider profile.
+
+```json
+{
+  "providers": {
+    "darkbloom": {
+      "baseUrl": "https://api.darkbloom.dev",
+      "apiKey": "${DARKBLOOM_API_KEY}",
+      "models": "auto-discover",
+      "api": "openai-completions"
+    }
+  }
+}
+```
+
+Models are auto-discovered via `/v1/models`. Chat requests route through `/v1/chat/completions`.
+
 ### Google Gemini
 
 ```json

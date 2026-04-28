@@ -229,6 +229,13 @@
       }
     ]
   },
+  "darkbloom": {
+    "baseUrl": "https://api.darkbloom.dev",
+    "apiKey": "${DARKBLOOM_API_KEY}",
+    "api": "openai-completions",
+    "models": "auto-discover",
+    "_note": "OpenAI-compatible Darkbloom API. Supports /v1/chat/completions, /v1/responses, and /v1/models. API key can live in ~/.openclaw/.env or the skill-local .env as DARKBLOOM_API_KEY."
+  },
   "openrouter": {
     "baseUrl": "https://openrouter.ai/api/v1",
     "apiKey": "${OPENROUTER_API_KEY}",
