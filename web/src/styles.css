@@ -60,7 +60,7 @@ pre { margin: 0; padding: 30px; color: #c8fadd; font-size: clamp(13px, 1.55vw, 1
 .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 .step span { color: var(--amber); font-weight: 900; letter-spacing: .14em; font-size: 13px; }
 .logoGrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
-.logoGrid span { border: 1px solid var(--border); border-radius: 18px; padding: 16px; text-align: center; background: rgba(255,255,255,.035); color: #dff7eb; font-weight: 750; }
+.logoGrid a { border: 1px solid var(--border); border-radius: 18px; padding: 16px; text-align: center; background: rgba(255,255,255,.035); color: #dff7eb; font-weight: 750; }
 footer { max-width: 1180px; margin: 0 auto; padding: 34px clamp(20px, 5vw, 0px) 54px; display: flex; gap: 18px; color: var(--muted); border-top: 1px solid rgba(166,255,207,.1); }
 footer span { margin-right: auto; }
 @media (max-width: 920px) {
@@ -93,3 +93,4 @@ footer span { margin-right: auto; }
 @media (max-width: 920px) { .waitlistForm { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .docsGrid { grid-template-columns: 1fr; } .waitlistForm button { width: 100%; } }
 .integrations .docsGrid { margin-top: 18px; }
+.logoGrid a:hover { border-color: rgba(141,240,178,.34); transform: translateY(-1px); }

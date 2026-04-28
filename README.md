@@ -74,9 +74,13 @@ export ANTHROPIC_API_KEY=irrelevant
 - [Hermes](docs/integrations/hermes.md)
 - [Pi agents](docs/integrations/pi.md)
 - [Cursor](docs/integrations/cursor.md)
+- [Aider](docs/integrations/aider.md)
+- [Continue](docs/integrations/continue.md)
+- [OpenHands](docs/integrations/openhands.md)
 - [Ollama and Ollama Cloud](docs/integrations/ollama.md)
 - [NVIDIA NIM / NVIDIA Cloud](docs/integrations/nvidia-nim.md)
 - [OpenAI-compatible clients](docs/integrations/openai-compatible.md)
+- [Anthropic-compatible clients](docs/integrations/anthropic-compatible.md)
 - [Harness fallback](docs/integrations/harness-fallback.md)
 
 ---

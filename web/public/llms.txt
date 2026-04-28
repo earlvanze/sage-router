@@ -32,7 +32,11 @@ Integration guides:
 - Hermes: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/hermes.md
 - Pi agents: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/pi.md
 - Cursor: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/cursor.md
+- Aider: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/aider.md
+- Continue: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/continue.md
+- OpenHands: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openhands.md
 - Ollama/Ollama Cloud: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/ollama.md
 - NVIDIA NIM: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/nvidia-nim.md
 - OpenAI-compatible clients: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openai-compatible.md
+- Anthropic-compatible clients: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/anthropic-compatible.md
 - Harness fallback: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/harness-fallback.md

@@ -3,19 +3,19 @@ import { createRoot } from 'react-dom/client';
 import './styles.css';
 
 const integrations = [
-  'OpenClaw',
-  'Hermes',
-  'Pi agents',
-  'Codex CLI',
-  'Claude Code',
-  'Cursor',
-  'Aider',
-  'Continue',
-  'OpenHands',
-  'Ollama',
-  'NVIDIA NIM',
-  'OpenAI SDKs',
-  'Anthropic clients',
+  ['OpenClaw', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openclaw.md'],
+  ['Hermes', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/hermes.md'],
+  ['Pi agents', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/pi.md'],
+  ['Codex CLI', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/codex.md'],
+  ['Claude Code', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md'],
+  ['Cursor', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/cursor.md'],
+  ['Aider', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/aider.md'],
+  ['Continue', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/continue.md'],
+  ['OpenHands', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openhands.md'],
+  ['Ollama', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/ollama.md'],
+  ['NVIDIA NIM', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/nvidia-nim.md'],
+  ['OpenAI SDKs', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openai-compatible.md'],
+  ['Anthropic clients', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/anthropic-compatible.md'],
 ];
 
 const steps = [
@@ -170,8 +170,8 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           </p>
         </div>
         <div className="logoGrid">
-          {integrations.map((item) => (
-            <span key={item}>{item}</span>
+          {integrations.map(([item, href]) => (
+            <a key={item} href={href}>{item}</a>
           ))}
         </div>
         <div className="docsGrid">
@@ -184,7 +184,11 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
             ['Use Sage Router with Cursor', 'Use OpenAI-compatible or Anthropic-compatible routing from Cursor.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/cursor.md'],
             ['Use Sage Router with Ollama/Ollama Cloud', 'Local Ollama plus :cloud model routing through the local runtime.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/ollama.md'],
             ['Use Sage Router with NVIDIA NIM', 'NVIDIA-backed inference as a BYOK provider route.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/nvidia-nim.md'],
-            ['OpenAI-compatible clients', 'Drop-in base URL for SDKs, Aider, Continue, and similar tools.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openai-compatible.md'],
+            ['Use Sage Router with Aider', 'Aider via the OpenAI-compatible endpoint.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/aider.md'],
+            ['Use Sage Router with Continue', 'Continue configured against the Sage Router endpoint.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/continue.md'],
+            ['Use Sage Router with OpenHands', 'OpenHands through one policy-routed OpenAI-compatible endpoint.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openhands.md'],
+            ['OpenAI-compatible clients', 'Drop-in base URL for SDKs and similar tools.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openai-compatible.md'],
+            ['Anthropic-compatible clients', 'Claude-style /v1/messages routing with local policy and fallback.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/anthropic-compatible.md'],
             ['Harness fallback', 'Policy-based failover for agent harnesses across your authorized providers.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/harness-fallback.md'],
           ].map(([title, body, href]) => (
             <a className="guideCard" key={title} href={href}>
