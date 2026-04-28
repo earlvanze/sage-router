@@ -1,6 +1,6 @@
-# Use Sage Router for BYOK provider fallback
+# Use Sage Router for provider fallback
 
-Sage Router is designed for teams that bring their own authorized provider access and want policy-based fallback.
+Sage Router is designed for teams that use their own authorized provider access and want policy-based fallback.
 
 Example provider mix:
 

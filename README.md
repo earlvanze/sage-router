@@ -71,10 +71,13 @@ export ANTHROPIC_API_KEY=irrelevant
 - [Codex CLI](docs/integrations/codex.md)
 - [Claude Code](docs/integrations/claude-code.md)
 - [OpenClaw](docs/integrations/openclaw.md)
+- [Hermes](docs/integrations/hermes.md)
+- [Pi agents](docs/integrations/pi.md)
+- [Cursor](docs/integrations/cursor.md)
 - [Ollama and Ollama Cloud](docs/integrations/ollama.md)
 - [NVIDIA NIM / NVIDIA Cloud](docs/integrations/nvidia-nim.md)
 - [OpenAI-compatible clients](docs/integrations/openai-compatible.md)
-- [BYOK provider fallback](docs/integrations/byok-fallback.md)
+- [Provider fallback](docs/integrations/provider-fallback.md)
 
 ---
 

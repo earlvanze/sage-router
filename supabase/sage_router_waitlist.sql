@@ -10,8 +10,19 @@ create table if not exists public.sage_router_waitlist (
 
 alter table public.sage_router_waitlist enable row level security;
 
-create policy "service role manages sage router waitlist"
-  on public.sage_router_waitlist
-  for all
-  using (auth.role() = 'service_role')
-  with check (auth.role() = 'service_role');
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'sage_router_waitlist'
+      and policyname = 'service role manages sage router waitlist'
+  ) then
+    create policy "service role manages sage router waitlist"
+      on public.sage_router_waitlist
+      for all
+      using (auth.role() = 'service_role')
+      with check (auth.role() = 'service_role');
+  end if;
+end $$;

@@ -4,6 +4,8 @@ import './styles.css';
 
 const integrations = [
   'OpenClaw',
+  'Hermes',
+  'Pi agents',
   'Codex CLI',
   'Claude Code',
   'Cursor',
@@ -58,7 +60,7 @@ function App() {
             <p className="eyebrow">Open-source • local-first • agent-focused</p>
             <h1>Smarter model routing for serious AI agents.</h1>
             <p className="subhero">
-              One local-first endpoint for OpenClaw, Codex, Claude Code, Cursor, Aider, Continue,
+              One local-first endpoint for OpenClaw, Hermes, Pi agents, Codex, Claude Code, Cursor, Aider, Continue,
               OpenHands, and the tools your agents already use. Make your agents’ engine
               hot-swappable, across authorized providers and local/cloud models.
             </p>
@@ -252,18 +254,21 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <h2>Connect the tools your agents already use.</h2>
           <p>
             Start with practical guides for Codex, Claude Code, OpenClaw, Ollama, NVIDIA NIM,
-            OpenAI-compatible clients, and BYOK fallback routes.
+            OpenAI-compatible clients, and provider fallback routes.
           </p>
         </div>
         <div className="docsGrid">
           {[
             ['Use Sage Router with Codex', 'Codex CLI via the OpenAI-compatible endpoint.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/codex.md'],
             ['Use Sage Router with Claude Code', 'Anthropic Messages routing with fallback behind one endpoint.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md'],
-            ['Use Sage Router with OpenClaw', 'Route OpenClaw agents across local, cloud, and BYOK providers.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openclaw.md'],
+            ['Use Sage Router with OpenClaw', 'Route OpenClaw agents across local, cloud, and authorized providers.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openclaw.md'],
+            ['Use Sage Router with Hermes', 'Operator-agent routing for status, review, and escalation workflows.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/hermes.md'],
+            ['Use Sage Router with Pi agents', 'Route Pi agents through one OpenAI-compatible endpoint.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/pi.md'],
+            ['Use Sage Router with Cursor', 'Use OpenAI-compatible or Anthropic-compatible routing from Cursor.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/cursor.md'],
             ['Use Sage Router with Ollama/Ollama Cloud', 'Local Ollama plus :cloud model routing through the local runtime.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/ollama.md'],
             ['Use Sage Router with NVIDIA NIM', 'NVIDIA-backed inference as a BYOK provider route.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/nvidia-nim.md'],
             ['OpenAI-compatible clients', 'Drop-in base URL for SDKs, Aider, Continue, and similar tools.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openai-compatible.md'],
-            ['BYOK provider fallback', 'Policy-based fallback across authorized provider accounts.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/byok-fallback.md'],
+            ['Provider fallback', 'Policy-based fallback across your authorized provider accounts.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/provider-fallback.md'],
           ].map(([title, body, href]) => (
             <a className="guideCard" key={title} href={href}>
               <strong>{title}</strong>
