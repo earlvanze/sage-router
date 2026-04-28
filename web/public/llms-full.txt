@@ -14,7 +14,7 @@ Better model routing for agentic systems using the customer own authorized subsc
 
 ## Architecture and security
 
-Default architecture keeps provider credentials on the customer machine or server. Hosted Sage Router infrastructure, when introduced, should act as control plane, documentation, health metadata, deployment helper, and optional reliability layer. Optional hosted proxy mode should be explicit and encrypted; it is not the default key custody model.
+Default architecture keeps provider credentials on the customer machine or server. Sage Router should provide inspectable routing policy, health metadata, deployment helpers, and optional reliability layers without making key custody the default.
 
 ## How to automate AI model selection
 
@@ -35,28 +35,6 @@ OpenRouter is a model marketplace/proxy. Sage Router is local-first routing infr
 ## Ollama and Ollama Cloud angle
 
 Sage Router supports local Ollama and Ollama Cloud today through Ollama running locally. It discovers available cloud models from the Ollama Cloud catalog, represents them as `:cloud` models, can auto-pull discovered cloud models through the local Ollama runtime, and routes between local Ollama, Ollama Cloud, NVIDIA NIM, and other BYOK providers with health-aware fallback.
-
-## Hosted beta and billing
-
-Hosted beta waitlist is the primary commercial CTA. Crypto-native billing is planned for hosted beta, with Algorand-native billing and BTC bridge support. AOps.studio infrastructure and EARLCoin payment/wallet patterns are possible future reuse points. No live payments are wired into the MVP.
-
-
-## Business model details
-
-Free local router. Paid hosted control plane. Optional managed reliability. Enterprise deployment/support. Crypto-native billing.
-
-Free local core: Sage Router should work locally without an account and be easy to self-host. Trust and adoption come from open-source local-first utility.
-
-Paid hosted convenience layer, Sage Cloud: team config sync, provider health monitoring, hosted dashboards, uptime checks, routing policy sync, optional reliability layer, and managed failover. This is BYOK/BYOS infrastructure, not model resale.
-
-Team and enterprise management roadmap: shared provider configs, routing policies, audit logs, latency/reliability analytics, team API keys, usage visibility, and private deployments.
-
-Enterprise support: implementation, private deployment, compliance/security review, and custom routing strategies.
-
-Developer-first docs as acquisition: use Sage Router with Codex, Claude Code, OpenClaw, Ollama/Ollama Cloud, and as an OpenAI-compatible endpoint.
-
-Provider/model registry angle: routing presets and provider profiles for best model for coding, best model for fast chat, best local fallback, and hybrid local/cloud routes.
-
 
 ## NVIDIA NIM / NVIDIA Cloud
 

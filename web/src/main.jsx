@@ -37,7 +37,7 @@ const steps = [
 const comparison = [
   ['Default posture', 'Local-first router you operate', 'Hosted marketplace/proxy'],
   ['Access model', 'Your own authorized providers, subscriptions, API keys, and local models', 'Marketplace access through a third-party proxy'],
-  ['Key custody', 'Local by default. Hosted Sage infra cannot harvest provider keys in the default architecture.', 'Provider credentials and requests flow through the marketplace layer'],
+  ['Key custody', 'Local by default. Provider keys stay under your control.', 'Provider credentials and requests flow through the marketplace layer'],
   ['Primary job', 'Routing infrastructure for serious agent workflows', 'Model discovery, purchasing, and proxy access'],
 ];
 
@@ -55,8 +55,6 @@ function App() {
             <a href="#security">Security</a>
             <a href="#automation">Automation</a>
             <a href="#compare">Compare</a>
-            <a href="#business">Business</a>
-            <a href="#billing">Billing</a>
             <a href="https://github.com/earlvanze/sage-router">GitHub</a>
           </div>
         </nav>
@@ -74,8 +72,8 @@ function App() {
               <a className="button primary" href="https://github.com/earlvanze/sage-router">
                 View on GitHub
               </a>
-              <a className="button secondary" href="#waitlist">
-                Join hosted beta waitlist
+              <a className="button secondary" href="#docs">
+                Read docs
               </a>
             </div>
             <p className="complianceNote">
@@ -137,8 +135,8 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <article id="security">
           <h3>Keys stay local by default</h3>
           <p>
-            The default architecture keeps provider credentials on your machine or server. Hosted
-            Sage infrastructure is for control plane, docs, health, and optional reliability layers.
+            The default architecture keeps provider credentials on your machine or server. Routing
+            policy and fallback behavior stay inspectable instead of disappearing inside a black-box proxy.
           </p>
         </article>
         <article>
@@ -222,9 +220,9 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <article>
             <h3>Local-first BYOK model routing for AI agents</h3>
             <p>
-              Keep provider credentials on your machine or server by default. Hosted Sage Router
-              services should support control plane, health, docs, and optional reliability layers
-              without default custody of customer provider keys.
+              Keep provider credentials on your machine or server by default. Sage Router gives teams
+              routing policy, health checks, and fallback behavior without default custody of customer
+              provider keys.
             </p>
           </article>
           <article>
@@ -275,53 +273,18 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           </details>
           <details>
             <summary>Where do provider API keys live?</summary>
-            <p>By default, provider credentials live locally on the customer machine or server. Hosted Sage Router infrastructure should not need default custody of customer provider keys.</p>
+            <p>By default, provider credentials live locally on the customer machine or server. Sage Router is designed so routing and fallback do not require default custody of customer provider keys.</p>
           </details>
         </div>
       </section>
 
-      <section className="section businessModel" id="business">
-        <div className="sectionHeader">
-          <p className="eyebrow">Business model</p>
-          <h2>Free local router. Paid hosted control plane. Optional managed reliability. Enterprise support. Crypto-native billing.</h2>
-          <p>
-            Sage Router earns trust the local-first way: useful infrastructure first, hosted
-            convenience second. The open-source core works locally without an account. Sage Cloud is
-            planned as the paid convenience layer for teams that want sync, dashboards, monitoring,
-            and managed reliability without turning Sage Router into a model marketplace.
-          </p>
-        </div>
-        <div className="businessGrid">
-          <article>
-            <span>Free local core</span>
-            <h3>One-command/self-host install</h3>
-            <p>Run Sage Router locally or on your own server. Adopt it because it solves routing, fallback, and model selection before any cloud account is required.</p>
-          </article>
-          <article>
-            <span>Sage Cloud</span>
-            <h3>Paid hosted control plane</h3>
-            <p>Planned team config sync, provider health monitoring, dashboards, uptime checks, routing policy sync, and optional reliability layers.</p>
-          </article>
-          <article>
-            <span>Cloud fallback</span>
-            <h3>Managed failover, not resale</h3>
-            <p>Hosted reliability should help route around outages and degraded providers while keeping BYOK/BYOS access and avoiding marketplace positioning.</p>
-          </article>
-          <article>
-            <span>Enterprise</span>
-            <h3>Private deployments and support</h3>
-            <p>Implementation help, compliance/security review, custom routing strategies, private deployments, audit logs, usage visibility, and team API key management.</p>
-          </article>
-        </div>
-      </section>
-
-      <section className="section docsAcquisition" id="docs">
+      <section className="section docs" id="docs">
         <div className="sectionHeader">
           <p className="eyebrow">Developer-first docs</p>
-          <h2>Tutorials are the acquisition channel.</h2>
+          <h2>Connect the tools your agents already use.</h2>
           <p>
-            Sage Router should be the result agents find when they ask how to automate model/provider
-            selection. The launch docs should make every popular agent harness easy to connect.
+            Start with practical guides for Codex, Claude Code, OpenClaw, Ollama, NVIDIA NIM,
+            OpenAI-compatible clients, and BYOK fallback routes.
           </p>
         </div>
         <div className="docsGrid">
@@ -346,54 +309,6 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <article><h3>Best local fallback</h3><p>Keep agents moving with local models when cloud providers are down, slow, or rate limited.</p></article>
           <article><h3>Hybrid local/cloud routes</h3><p>Blend local Ollama routes, Ollama Cloud models exposed through your local Ollama runtime, cloud APIs, and NVIDIA NIM endpoints behind one endpoint.</p></article>
         </div>
-      </section>
-
-      <section className="section billing" id="billing">
-        <div className="sectionHeader">
-          <p className="eyebrow">Billing direction</p>
-          <h2>Crypto-native billing planned for hosted beta.</h2>
-          <p>
-            The open-source router stays local-first. For hosted beta, Sage Router is planning
-            Algorand-native billing with BTC bridge support, using AOps.studio infrastructure where it
-            fits. No Stripe-first assumption, and no live payments are wired into this MVP.
-          </p>
-        </div>
-        <div className="billingGrid">
-          <article>
-            <span>Algorand-native</span>
-            <h3>Fast settlement for hosted infrastructure</h3>
-            <p>Planned payment rails should match the product posture: open, programmable, and agent-friendly.</p>
-          </article>
-          <article>
-            <span>BTC bridge</span>
-            <h3>Bitcoin-aligned access path</h3>
-            <p>Support BTC-oriented buyers without making card payments the default product assumption.</p>
-          </article>
-          <article>
-            <span>AOps + EARLCoin patterns</span>
-            <h3>Reuse before rebuilding</h3>
-            <p>Existing wallet and crypto checkout patterns are candidates for later reuse once payment scope is explicit.</p>
-          </article>
-        </div>
-      </section>
-
-      <section className="section cta" id="waitlist">
-        <div>
-          <p className="eyebrow">Launch path</p>
-          <h2>Open-source repo first. Hosted beta second.</h2>
-          <p>
-            Start with the local router today. The hosted beta will focus on docs, deployment helpers,
-            health metadata, team config, and optional reliability infrastructure, not default key custody.
-          </p>
-        </div>
-        <form className="waitlist" onSubmit={(event) => event.preventDefault()}>
-          <label htmlFor="email">Hosted beta waitlist</label>
-          <div className="formRow">
-            <input id="email" name="email" type="email" placeholder="you@example.com" aria-label="Email address" />
-            <button type="submit">Notify me</button>
-          </div>
-          <p>Static MVP placeholder. Wire this to your waitlist provider when beta opens.</p>
-        </form>
       </section>
 
       <footer>

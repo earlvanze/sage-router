@@ -52,9 +52,9 @@ pre { margin: 0; padding: 30px; color: #c8fadd; font-size: clamp(13px, 1.55vw, 1
 .hotSwap { display: grid; grid-template-columns: .95fr 1.05fr; gap: clamp(32px, 6vw, 76px); align-items: center; padding-top: 18px; }
 .hotSwap p:last-child { color: #d2eadf; font-size: clamp(19px, 2.1vw, 26px); line-height: 1.38; }
 .intro { display: grid; grid-template-columns: .9fr 1.1fr; gap: clamp(32px, 6vw, 76px); align-items: center; }
-.intro > p, .sectionHeader p, .cta p, article p { color: var(--muted); font-size: 17px; }
+.intro > p, .sectionHeader p, article p { color: var(--muted); font-size: 17px; }
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; padding-top: 20px; }
-.cards article, .step, .waitlist, .comparisonTable, .billingGrid article, .intentGrid article, .faqList details, .businessGrid article, .presetGrid article { background: var(--panel); border: 1px solid var(--border); border-radius: 28px; padding: 28px; backdrop-filter: blur(18px); box-shadow: 0 18px 60px rgba(0,0,0,.18); }
+.cards article, .step, .comparisonTable, .intentGrid article, .faqList details, .presetGrid article { background: var(--panel); border: 1px solid var(--border); border-radius: 28px; padding: 28px; backdrop-filter: blur(18px); box-shadow: 0 18px 60px rgba(0,0,0,.18); }
 .cards article:nth-child(2) { background: linear-gradient(180deg, rgba(26, 67, 50, .9), rgba(12, 28, 22, .86)); border-color: rgba(141,240,178,.28); }
 .sectionHeader { max-width: 790px; margin-bottom: 34px; }
 .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
@@ -67,18 +67,11 @@ pre { margin: 0; padding: 30px; color: #c8fadd; font-size: clamp(13px, 1.55vw, 1
 .tableRow span:first-child { color: #dff7eb; font-weight: 800; }
 .tableHead { background: rgba(141,240,178,.08); }
 .tableHead span { color: var(--text); border-top: 0; font-weight: 900; }
-.cta { display: grid; grid-template-columns: 1fr .9fr; gap: 28px; align-items: center; }
-.waitlist label { display: block; font-weight: 900; font-size: 22px; margin-bottom: 18px; }
-.formRow { display: flex; gap: 10px; }
-input { flex: 1; min-width: 0; height: 50px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,255,255,.05); color: var(--text); padding: 0 18px; font: inherit; }
-input:focus { outline: 2px solid rgba(141,240,178,.42); outline-offset: 2px; }
-button { height: 50px; border: 0; border-radius: 999px; padding: 0 18px; background: var(--brand); color: #04150d; font-weight: 900; cursor: pointer; }
-.waitlist p { margin: 14px 0 0; font-size: 13px; color: var(--muted); }
 footer { max-width: 1180px; margin: 0 auto; padding: 34px clamp(20px, 5vw, 0px) 54px; display: flex; gap: 18px; color: var(--muted); border-top: 1px solid rgba(166,255,207,.1); }
 footer span { margin-right: auto; }
 @media (max-width: 920px) {
-  .heroGrid, .hotSwap, .intro, .cta { grid-template-columns: 1fr; }
-  .cards, .steps, .billingGrid, .intentGrid, .businessGrid, .presetGrid, .docsGrid { grid-template-columns: 1fr; }
+  .heroGrid, .hotSwap, .intro { grid-template-columns: 1fr; }
+  .cards, .steps, .intentGrid, .presetGrid, .docsGrid { grid-template-columns: 1fr; }
   .logoGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .terminalCard { transform: none; }
   .nav { align-items: flex-start; }
@@ -88,9 +81,9 @@ footer span { margin-right: auto; }
 }
 @media (max-width: 560px) {
   .hero { padding-top: 18px; }
-  .nav, .formRow, footer { flex-direction: column; align-items: stretch; }
+  .nav, footer { flex-direction: column; align-items: stretch; }
   .navLinks { justify-content: flex-start; }
-  .button, button { width: 100%; }
+  .button { width: 100%; }
   .logoGrid { grid-template-columns: 1fr; }
   pre { padding: 22px; }
 }

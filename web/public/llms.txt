@@ -25,16 +25,3 @@ Sage Router is not a marketplace. It does not resell model access, pool accounts
 - Local-first BYOK model routing for AI agents.
 - OpenRouter alternative for teams using their own subscriptions.
 
-
-## Business model
-
-Free local router. Paid hosted control plane. Optional managed reliability. Enterprise deployment/support. Crypto-native billing.
-
-Sage Router works locally without an account. Sage Cloud is planned for team config sync, provider health monitoring, hosted dashboards, uptime checks, routing policy sync, optional reliability layers, managed failover, private deployments, and enterprise support. This should remain BYOK/BYOS, not model resale.
-
-## Provider profiles and routing presets
-
-Sage Router should expose reusable provider profiles such as best model for coding, best model for fast chat, best local fallback, and hybrid local/cloud routes.
-
-
-NVIDIA: Sage Router can route to NVIDIA NIM / NVIDIA Cloud endpoints using the customer's own NVIDIA_API_KEY. Models are auto-discovered where the provider API supports it.
