@@ -35,4 +35,4 @@ Integration guides:
 - Ollama/Ollama Cloud: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/ollama.md
 - NVIDIA NIM: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/nvidia-nim.md
 - OpenAI-compatible clients: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openai-compatible.md
-- Provider fallback: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/provider-fallback.md
+- Harness fallback: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/harness-fallback.md

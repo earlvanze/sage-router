@@ -77,7 +77,7 @@ export ANTHROPIC_API_KEY=irrelevant
 - [Ollama and Ollama Cloud](docs/integrations/ollama.md)
 - [NVIDIA NIM / NVIDIA Cloud](docs/integrations/nvidia-nim.md)
 - [OpenAI-compatible clients](docs/integrations/openai-compatible.md)
-- [Provider fallback](docs/integrations/provider-fallback.md)
+- [Harness fallback](docs/integrations/harness-fallback.md)
 
 ---
 

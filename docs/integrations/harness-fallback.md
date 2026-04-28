@@ -1,6 +1,6 @@
-# Use Sage Router for provider fallback
+# Use Sage Router for harness fallback
 
-Sage Router is designed for teams that use their own authorized provider access and want policy-based fallback.
+Sage Router is designed for agent harnesses and developer tools that need policy-based fallback across the user’s own authorized provider access.
 
 Example provider mix:
 

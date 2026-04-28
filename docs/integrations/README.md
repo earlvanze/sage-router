@@ -13,4 +13,4 @@ Use these guides to point common agent harnesses and developer AI tools at a loc
 - [Ollama and Ollama Cloud](ollama.md)
 - [NVIDIA NIM / NVIDIA Cloud](nvidia-nim.md)
 - [OpenAI-compatible clients](openai-compatible.md)
-- [Provider fallback](provider-fallback.md)
+- [Harness fallback](harness-fallback.md)

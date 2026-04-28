@@ -254,7 +254,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <h2>Connect the tools your agents already use.</h2>
           <p>
             Start with practical guides for Codex, Claude Code, OpenClaw, Ollama, NVIDIA NIM,
-            OpenAI-compatible clients, and provider fallback routes.
+            OpenAI-compatible clients, and harness fallback routes.
           </p>
         </div>
         <div className="docsGrid">
@@ -268,7 +268,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
             ['Use Sage Router with Ollama/Ollama Cloud', 'Local Ollama plus :cloud model routing through the local runtime.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/ollama.md'],
             ['Use Sage Router with NVIDIA NIM', 'NVIDIA-backed inference as a BYOK provider route.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/nvidia-nim.md'],
             ['OpenAI-compatible clients', 'Drop-in base URL for SDKs, Aider, Continue, and similar tools.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openai-compatible.md'],
-            ['Provider fallback', 'Policy-based fallback across your authorized provider accounts.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/provider-fallback.md'],
+            ['Harness fallback', 'Policy-based failover for agent harnesses across your authorized providers.', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/harness-fallback.md'],
           ].map(([title, body, href]) => (
             <a className="guideCard" key={title} href={href}>
               <strong>{title}</strong>
