@@ -4314,7 +4314,23 @@ class Handler(BaseHTTPRequestHandler):
             logger.warning("Client disconnected before response could be written")
 
     def do_GET(self):
-        if self.path == '/health':
+        if self.path in ('', '/'):
+            self.write_json(200, {
+                "name": "Sage Router",
+                "status": "ok",
+                "description": "Local-first AI model router with OpenAI, Anthropic, Ollama, NVIDIA NIM, and agent-harness compatible endpoints.",
+                "endpoints": {
+                    "health": "/health",
+                    "models": "/v1/models",
+                    "chatCompletions": "/v1/chat/completions",
+                    "anthropicMessages": "/v1/messages",
+                    "googleGenerateContent": "/v1beta/models/{model}:generateContent",
+                    "discovery": "/discovery"
+                },
+                "docs": "https://sagerouter.dev",
+                "source": "https://github.com/earlvanze/sage-router"
+            })
+        elif self.path == '/health':
             self.write_json(200, {
                 "status": "ok",
                 "providers": available_provider_names(),
