@@ -1,0 +1,17 @@
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PORT=8080 \
+    SAGE_ROUTER_HOME=/app \
+    SAGE_ROUTER_BUNDLED_OLLAMA_AUTOSTART=0 \
+    SAGE_ROUTER_OLLAMA_AUTO_PULL_PATTERNS=
+
+WORKDIR /app
+COPY router.py provider-profiles.json requirements.txt ./
+COPY scripts ./scripts
+
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=10s \
+  CMD python -c "import urllib.request, os; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ.get('PORT','8080'), timeout=5)"
+
+CMD ["sh", "-c", "python /app/router.py --port ${PORT:-8080}"]
