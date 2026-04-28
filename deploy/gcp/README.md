@@ -9,6 +9,15 @@ This deployment is for a public Phase 2 demo of Sage Router on Google Cloud Run.
 - Artifact Registry stores one small Python image.
 - The service is public for demoability and exposes `/health`.
 
+
+## Live Phase 2 deployment
+
+- Project: `sage-router-demo-20260428`
+- Region: `us-central1`
+- Service: `sage-router`
+- URL: `https://sage-router-434058661374.us-central1.run.app`
+- Verified endpoints: `/`, `/health`, `/v1/models`
+
 ## Deploy
 
 ```bash
