@@ -403,6 +403,13 @@ def ensure_dario_proxy_ready():
         return False
 
 
+
+def openai_chat_completions_url(base_url):
+    base = (base_url or '').rstrip('/')
+    if base.endswith('/v1') or base.endswith('/api/v1'):
+        return base + '/chat/completions'
+    return base + '/v1/chat/completions'
+
 def infer_api_type(name, cfg, base_url):
     api_type = cfg.get('api')
     if api_type:
@@ -2593,7 +2600,7 @@ def classify_intent_with_local_model(text):
             if INTENT_CLASSIFIER_API_KEY:
                 headers['Authorization'] = f'Bearer {INTENT_CLASSIFIER_API_KEY}'
             req = urllib.request.Request(
-                INTENT_CLASSIFIER_BASE_URL.rstrip('/') + '/v1/chat/completions',
+                openai_chat_completions_url(INTENT_CLASSIFIER_BASE_URL),
                 data=json.dumps(payload).encode(),
                 headers=headers,
             )
@@ -3108,7 +3115,7 @@ def call_ollama(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
         return False, err
 
 def call_openai_compat(base_url, model, messages, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, want_json=False):
-    url = base_url.rstrip('/') + '/v1/chat/completions'
+    url = openai_chat_completions_url(base_url)
     payload = {"model": model, "messages": messages, "max_tokens": thinking_max_tokens(thinking)}
     if supports_reasoning:
         payload["reasoning"] = {"effort": thinking.value}
@@ -3415,7 +3422,7 @@ def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
 
 
 def call_openai_compat_completion(base_url, model, payload, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False, request_id=''):
-    url = base_url.rstrip('/') + '/v1/chat/completions'
+    url = openai_chat_completions_url(base_url)
     proxied = build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=supports_reasoning, thinking=thinking)
     logger.info(f"[openai-compat] Sending to {provider_name} with tools: {bool(proxied.get('tools'))}")
     try:
@@ -3513,7 +3520,7 @@ def call_ollama_ocr(base_url, model, payload, request_id):
 
 
 def call_ngc(base_url, model, payload, api_key='', request_id=''):
-    url = base_url.rstrip('/') + '/v1/chat/completions'
+    url = openai_chat_completions_url(base_url)
     messages = payload.get('messages', [])
     headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'}
     req_payload = {'model': model, 'messages': messages, 'max_tokens': 4096}
@@ -3572,7 +3579,7 @@ def call_google_completion(base_url, model, payload, api_key='', thinking=Thinki
 
 
 def stream_openai_compat_to_client(self, provider, model, payload, request_id, thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False):
-    url = provider.base_url.rstrip('/') + '/v1/chat/completions'
+    url = provider.openai_chat_completions_url(base_url)
     proxied = build_openai_proxy_payload(payload, model, stream=True, supports_reasoning=supports_reasoning, thinking=thinking)
     hdrs = {'Content-Type': 'application/json'}
     if provider.api_key:
