@@ -11,6 +11,7 @@ const integrations = [
   'Continue',
   'OpenHands',
   'Ollama',
+  'NVIDIA NIM',
   'OpenAI SDKs',
   'Anthropic clients',
 ];
@@ -129,7 +130,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <article>
           <h3>Route across what you already have</h3>
           <p>
-            Use OpenAI, Anthropic, Gemini, Grok, GitHub Copilot-compatible endpoints, Ollama, and
+            Use OpenAI, Anthropic, Gemini, Grok, NVIDIA NIM / NVIDIA Cloud, GitHub Copilot-compatible endpoints, Ollama, and
             other local or authorized providers behind one policy-aware gateway.
           </p>
         </article>
@@ -323,7 +324,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           </p>
         </div>
         <div className="docsGrid">
-          {["Use Sage Router with Codex", "Use Sage Router with Claude Code", "Use Sage Router with OpenClaw", "Use Sage Router with Ollama/Ollama Cloud", "Use Sage Router as an OpenAI-compatible endpoint", "Use Sage Router for BYOK provider fallback"].map((item) => (
+          {["Use Sage Router with Codex", "Use Sage Router with Claude Code", "Use Sage Router with OpenClaw", "Use Sage Router with Ollama/Ollama Cloud", "Use Sage Router with NVIDIA NIM", "Use Sage Router as an OpenAI-compatible endpoint", "Use Sage Router for BYOK provider fallback"].map((item) => (
             <a key={item} href="https://github.com/earlvanze/sage-router#readme">{item}</a>
           ))}
         </div>
@@ -342,7 +343,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <article><h3>Best model for coding</h3><p>Route coding, refactor, and debugging tasks to coding-strong models with sensible fallbacks.</p></article>
           <article><h3>Best model for fast chat</h3><p>Prefer low-latency models for lightweight agent chatter, planning, and status checks.</p></article>
           <article><h3>Best local fallback</h3><p>Keep agents moving with local models when cloud providers are down, slow, or rate limited.</p></article>
-          <article><h3>Hybrid local/cloud routes</h3><p>Blend local Ollama-style routes, cloud APIs, and future Ollama Cloud integration targets behind one endpoint.</p></article>
+          <article><h3>Hybrid local/cloud routes</h3><p>Blend local Ollama-style routes, cloud APIs, NVIDIA NIM endpoints, and future Ollama Cloud integration targets behind one endpoint.</p></article>
         </div>
       </section>
 

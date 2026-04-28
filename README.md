@@ -4,7 +4,7 @@
 
 One endpoint. Any provider. The router figures out the rest.
 
-[![ClawHub](https://img.shields.io/badge/ClawHub-v3.15.0-blue)](https://clawhub.ai/earlvanze/sage-router)
+[![ClawHub](https://img.shields.io/badge/ClawHub-v3.26.16-blue)](https://clawhub.ai/earlvanze/sage-router)
 [![GitHub](https://img.shields.io/badge/GitHub-earlvanze%2Fsage--router-black)](https://github.com/earlvanze/sage-router)
 
 ---
@@ -17,8 +17,8 @@ Unlike OpenRouter, which optimizes for cost, Sage Router optimizes for **getting
 
 - **Intent-based routing**: Code tasks go to coding models, creative tasks to creative models, reasoning tasks to reasoning models
 - **Automatic fallback**: If one provider fails or hits rate limits, it seamlessly tries the next
-- **Dynamic discovery**: New models from Ollama, Anthropic, OpenAI, Google, NVIDIA Cloud, and OpenClaw are auto-detected — no config updates needed
-- **Zero API lock-in**: Use any subscription you already have (Ollama, Claude, OpenAI, Gemini, GitHub Copilot)
+- **Dynamic discovery**: New models from Ollama, Anthropic, OpenAI, Google, NVIDIA NIM / NVIDIA Cloud, and OpenClaw are auto-detected — no config updates needed
+- **Zero API lock-in**: Use any subscription or key you already have (Ollama, Claude, OpenAI, Gemini, NVIDIA NIM, GitHub Copilot)
 - **Debuggable routing**: Surface the selected provider/model in headers, `/health`, or optional debug output
 
 ---
@@ -244,7 +244,7 @@ Sage Router can route through a local Grok SSO proxy instead of burning xAI API 
 
 See `provider-profiles.json` for the `grok-sso` template and `GROK_SSO.md` for setup.
 
-### NVIDIA Cloud
+### NVIDIA NIM / NVIDIA Cloud
 
 ```json
 {
@@ -265,7 +265,7 @@ See `provider-profiles.json` for the `grok-sso` template and `GROK_SSO.md` for s
 }
 ```
 
-Models are auto-discovered from NVIDIA Cloud when `NVIDIA_API_KEY` is present.
+Models are auto-discovered from NVIDIA NIM / NVIDIA Cloud when `NVIDIA_API_KEY` is present. This is useful for GPU-accelerated hosted inference and NVIDIA-backed model endpoints without changing agent configuration.
 
 ### OpenClaw Gateway
 
@@ -325,7 +325,7 @@ The classifier backend speaks OpenAI-compatible llama.cpp server API (`/v1/chat/
 | **Anthropic** | ✅ Via Dario | ✅ | ✅ | API key |
 | **OpenAI** | ✅ `/v1/models` | ✅ | ✅ | API key |
 | **GitHub Copilot** | ✅ `/v1/models` | ✅ | ✅ | Token |
-| **NVIDIA Cloud** | ✅ auto-discovery | ✅ | ✅ | API key |
+| **NVIDIA NIM / Cloud** | ✅ auto-discovery | ✅ | ✅ | API key |
 | **OpenClaw Gateway** | ✅ `/v1/models` | ✅ | ✅ | Gateway token |
 | **xAI/Grok (API)** | ✅ `/v1/models` | ✅ | ✅ | API key |
 | **xAI/Grok (SSO)** | ❌ SSO proxy | ❌ | ❌ | Cookie/SSO |

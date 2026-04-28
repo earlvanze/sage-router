@@ -35,3 +35,6 @@ Sage Router works locally without an account. Sage Cloud is planned for team con
 ## Provider profiles and routing presets
 
 Sage Router should expose reusable provider profiles such as best model for coding, best model for fast chat, best local fallback, and hybrid local/cloud routes.
+
+
+NVIDIA: Sage Router can route to NVIDIA NIM / NVIDIA Cloud endpoints using the customer's own NVIDIA_API_KEY. Models are auto-discovered where the provider API supports it.
