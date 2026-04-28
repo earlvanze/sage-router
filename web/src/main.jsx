@@ -9,15 +9,7 @@ const integrations = [
   ['Codex CLI', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/codex.md'],
   ['Claude Code', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md'],
   ['Cursor', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/cursor.md'],
-  ['Aider', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/aider.md'],
-  ['Continue', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/continue.md'],
-  ['OpenHands', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openhands.md'],
-  ['Ollama', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/ollama.md'],
-  ['NVIDIA NIM', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/nvidia-nim.md'],
-  ['OpenAI SDKs', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openai-compatible.md'],
-  ['Anthropic clients', 'https://github.com/earlvanze/sage-router/blob/master/docs/integrations/anthropic-compatible.md'],
 ];
-
 const steps = [
   {
     number: '01',
@@ -165,8 +157,8 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <p className="eyebrow">Integrations</p>
           <h2>Connect the tools your agents already use.</h2>
           <p>
-            Sage Router works with agent harnesses, developer AI tools, local runtimes, cloud APIs,
-            and harness fallback routes from one local-first endpoint.
+            Start with the primary agent harnesses. The guide cards below cover local runtimes, cloud APIs,
+            SDK-compatible clients, and harness fallback routes.
           </p>
         </div>
         <div className="logoGrid">
