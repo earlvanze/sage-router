@@ -1172,6 +1172,8 @@ def load_router_profile_overlays(existing_providers):
 
 def normalize_route_mode(raw):
     value = str(raw or 'balanced').strip().lower()
+    aliases = {'deep': 'best', 'thorough': 'best'}
+    value = aliases.get(value, value)
     return value if value in {'fast', 'balanced', 'best', 'local-first', 'realtime'} else 'balanced'
 
 
@@ -1187,10 +1189,19 @@ def normalize_requirements(payload, thinking_level=ThinkingLevel.MEDIUM):
     tool_choice = payload.get('tool_choice')
     forced_tool_choice = bool(tool_choice and tool_choice not in ('auto', 'none'))
     has_tools = forced_tool_choice
-    # Check for reasoning/thinking requests
-    has_reasoning = bool(payload.get('thinking')) or bool(payload.get('reasoning'))
-    # If thinking level is HIGH, treat as requiring reasoning
-    requires_reasoning = has_reasoning or thinking_level == ThinkingLevel.HIGH
+    # Check for explicit reasoning requirements. Thinking levels are routing
+    # hints; they should not make a forced provider unusable unless the client
+    # explicitly requires reasoning-capable models.
+    raw_reasoning = payload.get('reasoning')
+    explicit_reasoning = bool(payload.get('requiresReasoning') or req.get('reasoning'))
+    if isinstance(raw_reasoning, dict):
+        effort = str(raw_reasoning.get('effort') or raw_reasoning.get('level') or '').lower()
+        explicit_reasoning = explicit_reasoning or effort in {'high', 'max', 'deep'}
+    elif isinstance(raw_reasoning, str):
+        explicit_reasoning = explicit_reasoning or raw_reasoning.lower() in {'high', 'max', 'deep'}
+    elif isinstance(raw_reasoning, bool):
+        explicit_reasoning = explicit_reasoning or raw_reasoning
+    requires_reasoning = explicit_reasoning
     explicit_streaming = bool(req.get('streaming') or payload.get('requiresStreaming'))
     requested_stream = bool(payload.get('stream'))
     return {
@@ -4209,6 +4220,10 @@ def anthropic_to_openai_request(anthropic_payload):
         'max_tokens': anthropic_payload.get('max_tokens', 4096),
         'stream': False,
         'temperature': anthropic_payload.get('temperature', 1.0),
+        'route': anthropic_payload.get('route'),
+        'thinking': anthropic_payload.get('thinking'),
+        'reasoning': anthropic_payload.get('reasoning'),
+        'requirements': anthropic_payload.get('requirements'),
     }
 
 
@@ -4339,7 +4354,7 @@ class Handler(BaseHTTPRequestHandler):
                 "thinking": {
                     "default": ThinkingLevel.MEDIUM.value,
                     "accepted": [level.value for level in ThinkingLevel],
-                    "routeModes": ["fast", "balanced", "best", "local-first", "realtime"],
+                    "routeModes": ["fast", "balanced", "deep", "best", "local-first", "realtime"],
                 },
                 "requirements": {
                     "supportedKeys": ["reasoning", "json", "tools", "longContext", "streaming"]
