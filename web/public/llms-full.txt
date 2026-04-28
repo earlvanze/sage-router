@@ -2,7 +2,7 @@
 
 Sage Router positioning: Smarter model routing for serious AI agents. Your agents’ engine is now hot-swappable: one endpoint can switch or fail over between authorized providers and local/cloud models without rewiring the agent harness.
 
-Sage Router is an open-source local-first routing layer for AI agents and developer tools. It exists because basic built-in model routing was not smart enough for serious OpenClaw-style agent workflows, so Earl built a dedicated router.
+Sage Router is an open-source local-first routing layer for AI agents and developer tools. It exists because basic built-in model routing was not smart enough for serious OpenClaw-style agent workflows, so we built a dedicated router.
 
 ## Primary categories
 
@@ -34,7 +34,7 @@ OpenRouter is a model marketplace/proxy. Sage Router is local-first routing infr
 
 ## Ollama and Ollama Cloud angle
 
-Sage Router supports local Ollama-style routing today. A likely roadmap and partner/affiliate target is hybrid routing between local Ollama, Ollama Cloud, NVIDIA NIM, and other BYOK providers with health-aware fallback. Do not claim an Ollama partnership unless one exists.
+Sage Router supports local Ollama-style routing today. A likely roadmap and partner/affiliate target is hybrid routing between local Ollama, Ollama Cloud, NVIDIA NIM, and other BYOK providers with health-aware fallback.
 
 ## Hosted beta and billing
 

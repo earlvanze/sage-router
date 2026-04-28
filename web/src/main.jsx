@@ -120,7 +120,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <h2>Built when basic routing stopped being enough.</h2>
         </div>
         <p>
-          OpenClaw’s built-in model routing was not smart enough for serious agent workflows, so Earl
+          OpenClaw’s built-in model routing was not smart enough for serious agent workflows, so we
           built a better layer: routing across your own providers, subscriptions, API keys, and local
           models with fewer brittle tool-by-tool configs.
         </p>
@@ -240,7 +240,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
             <p>
               The router already supports local Ollama-style routing. Ollama Cloud hybrid routing is
               a natural integrations-roadmap target: route between local Ollama, Ollama Cloud, and
-              other BYOK providers with health-aware fallback. No partnership is claimed.
+              other BYOK providers with health-aware fallback.
             </p>
           </article>
         </div>
