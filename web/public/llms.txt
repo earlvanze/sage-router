@@ -2,7 +2,7 @@
 
 Sage Router is an open-source, local-first AI model router and BYOK AI gateway for serious AI agents and developer tools. It gives agents a hot-swappable model layer: one endpoint that can switch or fail over between authorized providers and local/cloud models without rewiring the agent harness.
 
-Canonical site: https://sagerouter.ai/
+Canonical site: https://sagerouter.dev/
 Repository: https://github.com/earlvanze/sage-router
 Docs: https://github.com/earlvanze/sage-router#readme
 

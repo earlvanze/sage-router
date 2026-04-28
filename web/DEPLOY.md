@@ -5,7 +5,7 @@
 Frontend hosting decision: use Cloudflare Pages for the static marketing site, especially while the free tier is sufficient. Keep backend/control plane decisions separate from the static frontend.
 
 
-Static frontend for `sagerouter.ai`.
+Static frontend for `sagerouter.dev`.
 
 ## Local preview
 
@@ -36,7 +36,7 @@ Cloudflare Pages settings:
 - Root directory: `web`
 - Build command: `npm ci && npm run build`
 - Build output directory: `dist`
-- Custom domain: `sagerouter.ai`
+- Custom domain: `sagerouter.dev`
 
 Do not deploy the Python router service or any local provider credentials to Pages. This site is static marketing/docs content only.
 
@@ -44,8 +44,8 @@ Do not deploy the Python router service or any local provider credentials to Pag
 
 After the Pages project exists, attach:
 
-- `sagerouter.ai`
-- optionally `www.sagerouter.ai`
+- `sagerouter.dev`
+- optionally `www.sagerouter.dev`
 
 Let Cloudflare manage the required CNAME/flattened records.
 
@@ -53,10 +53,10 @@ Let Cloudflare manage the required CNAME/flattened records.
 
 Before public launch:
 
-- Confirm canonical URL is `https://sagerouter.ai/`.
+- Confirm canonical URL is `https://sagerouter.dev/`.
 - Confirm `robots.txt`, `sitemap.xml`, `llms.txt`, and `llms-full.txt` are reachable at site root.
 - Submit sitemap in Google Search Console and Bing Webmaster Tools.
-- Add GitHub repo link back to `https://sagerouter.ai/`.
+- Add GitHub repo link back to `https://sagerouter.dev/`.
 - Add docs/tutorial pages for:
   - Codex
   - Claude Code
