@@ -1473,6 +1473,36 @@ def normalize_tool_calls(tool_calls):
     return normalized
 
 
+def openai_tool_calls(tool_calls):
+    """Return OpenAI-compatible tool_calls with function.arguments as JSON strings.
+
+    Internally Sage Router normalizes tool arguments as dicts because Ollama
+    expects objects. OpenAI-compatible clients, including OpenClaw tool
+    validators, expect function.arguments to be a JSON object string. Returning
+    raw arrays/objects can cause empty/invalid tool invocation payloads.
+    """
+    converted = []
+    for tool_call in normalize_tool_calls(tool_calls):
+        function = tool_call.get('function') or {}
+        arguments = function.get('arguments')
+        if isinstance(arguments, str):
+            try:
+                parsed = json.loads(arguments) if arguments else {}
+            except Exception:
+                parsed = {}
+        else:
+            parsed = arguments if isinstance(arguments, dict) else {}
+        converted.append({
+            'id': tool_call.get('id') or f'call_{uuid.uuid4().hex[:24]}',
+            'type': 'function',
+            'function': {
+                'name': function.get('name') or 'tool',
+                'arguments': json.dumps(parsed, separators=(',', ':')),
+            },
+        })
+    return converted
+
+
 def build_router_metadata(provider_name, model, request_id=''):
     return {
         'provider': provider_name,
@@ -1490,7 +1520,7 @@ def maybe_prefix_debug_text(content, metadata, debug_mode=False, allow_prefix=Tr
 
 def build_openai_completion(provider_name, model, request_id, content='', tool_calls=None, finish_reason=None, usage=None, debug_mode=False, allow_debug_prefix=True):
     metadata = build_router_metadata(provider_name, model, request_id)
-    normalized_tool_calls = normalize_tool_calls(tool_calls)
+    normalized_tool_calls = openai_tool_calls(tool_calls)
     content_text = maybe_prefix_debug_text(content, metadata, debug_mode=debug_mode, allow_prefix=allow_debug_prefix and not normalized_tool_calls)
     if SHOW_MODEL_PREFIX and content_text and not normalized_tool_calls:
         content_text = '[' + provider_name + '/' + model + '] ' + content_text
@@ -1612,10 +1642,14 @@ def openai_messages_to_anthropic(messages):
         if content:
             blocks.append({'type': 'text', 'text': content})
         for tool_call in normalize_tool_calls(msg.get('tool_calls')):
-            try:
-                tool_input = json.loads(tool_call['function']['arguments']) if tool_call['function']['arguments'] else {}
-            except Exception:
-                tool_input = {'raw_arguments': tool_call['function']['arguments']}
+            raw_arguments = tool_call['function'].get('arguments')
+            if isinstance(raw_arguments, dict):
+                tool_input = raw_arguments
+            else:
+                try:
+                    tool_input = json.loads(raw_arguments) if raw_arguments else {}
+                except Exception:
+                    tool_input = {'raw_arguments': raw_arguments}
             blocks.append({'type': 'tool_use', 'id': tool_call['id'], 'name': tool_call['function']['name'], 'input': tool_input})
         converted.append({'role': 'assistant' if role == 'assistant' else 'user', 'content': blocks or [{'type': 'text', 'text': ''}]})
     return '\n'.join(system_text).strip(), converted or [{'role': 'user', 'content': [{'type': 'text', 'text': 'Hello'}]}]

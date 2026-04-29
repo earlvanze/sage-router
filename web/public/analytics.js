@@ -89,6 +89,35 @@ async function refresh() {
   }
 }
 
+
+async function oauthLogin(provider) {
+  setText('auth-status', `Opening ${provider} sign-in...`);
+  const { error } = await sb.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: window.location.href }
+  });
+  if (error) setText('auth-status', error.message);
+}
+
+async function walletLogin() {
+  const status = $('wallet-status') || $('auth-status');
+  if (!status) return;
+  try {
+    status.textContent = 'Connecting wallet...';
+    if (window.algorand?.enable) {
+      const result = await window.algorand.enable({ genesisID: 'mainnet-v1.0' });
+      const account = result?.accounts?.[0]?.address || result?.accounts?.[0];
+      if (!account) throw new Error('No wallet account returned.');
+      localStorage.setItem('sage_wallet_address', account);
+      status.textContent = `Wallet connected: ${account.slice(0, 8)}…${account.slice(-6)}`;
+      return;
+    }
+    throw new Error('Install or unlock an Algorand wallet extension, then try again.');
+  } catch (error) {
+    status.textContent = error.message || 'Wallet connection failed.';
+  }
+}
+
 async function passwordLogin() {
   setText('auth-status', 'Signing in...');
   const email = $('email').value.trim();
@@ -105,6 +134,8 @@ async function magicLogin() {
   setText('auth-status', error ? error.message : 'Magic link sent. Check your email.');
 }
 
+document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventListener('click', () => oauthLogin(button.dataset.oauth)));
+$('wallet-login')?.addEventListener('click', walletLogin);
 $('password-login')?.addEventListener('click', passwordLogin);
 $('magic-login')?.addEventListener('click', magicLogin);
 $('refresh')?.addEventListener('click', refresh);
