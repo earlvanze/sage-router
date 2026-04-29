@@ -1848,9 +1848,11 @@ def nvidia_model_default_tools_support(model: str):
     model_l = (model or '').strip().lower()
     if not model_l or any(hint in model_l for hint in NVIDIA_NON_TOOL_MODEL_HINTS):
         return False
-    # NVIDIA-hosted NIM/OpenAI-compatible LLMs commonly support tool calling;
-    # non-LLM/audio/embedding models are excluded above.
-    return any(hint in model_l for hint in NVIDIA_TOOL_MODEL_HINTS)
+    # Observed NVIDIA NIM chat models can leak OpenAI tool schemas as visible
+    # assistant text when tools are present, which is especially bad in public
+    # Discord channels.  Only allow NIM tool calling when a model is explicitly
+    # marked with tools=true in model_meta; the default must be conservative.
+    return False
 
 def provider_default_tools_support(provider):
     if provider.api_type == 'anthropic-messages':
@@ -3661,6 +3663,12 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
     if requirements.get('qualitySensitive') and any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
         score -= 12
         contributions.append(('quality_sensitive_lightweight_penalty', -12))
+    if is_nvidia_provider(provider) and (requirements.get('preferTools') or requirements.get('tools')):
+        score -= 45
+        contributions.append(('nvidia_tool_schema_leak_penalty', -45))
+    if is_nvidia_provider(provider) and requirements.get('qualitySensitive'):
+        score -= 25
+        contributions.append(('quality_sensitive_nvidia_penalty', -25))
     if intent == Intent.GENERAL and provider.api_type == 'ollama':
         score -= 1
         contributions.append(('general_ollama_penalty', -1))
@@ -4657,7 +4665,12 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         if model_disabled_reason(pn, model):
             continue
         supports_reasoning = provider_supports_reasoning(prov, model)
-        logger.info(f"[{request_id}] Trying {pn}/{model} (api={prov.api_type}, reasoning={supports_reasoning}, stream={want_stream}, tools={bool(provider_payload.get('tools'))})")
+        attempt_payload = provider_payload
+        if provider_payload.get('tools') and not model_capabilities(prov, model).get('tools'):
+            attempt_payload = dict(provider_payload)
+            attempt_payload.pop('tools', None)
+            attempt_payload.pop('tool_choice', None)
+        logger.info(f"[{request_id}] Trying {pn}/{model} (api={prov.api_type}, reasoning={supports_reasoning}, stream={want_stream}, tools={bool(attempt_payload.get('tools'))})")
         started_attempt = time.time()
         ok = False
         result = None
@@ -4665,51 +4678,51 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         try:
             if prov.api_type == 'openai-completions':
                 if want_stream:
-                    stream_openai_compat_to_client(self, prov, model, provider_payload, request_id, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode)
+                    stream_openai_compat_to_client(self, prov, model, attempt_payload, request_id, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode)
                     ok = True
                 else:
-                    ok, result = call_openai_compat_completion(prov.base_url, model, provider_payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_openai_compat_completion(prov.base_url, model, attempt_payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'ollama':
                 if is_ocr_model(model):
-                    ok, result = call_ollama_ocr(prov.base_url, model, provider_payload, request_id)
+                    ok, result = call_ollama_ocr(prov.base_url, model, attempt_payload, request_id)
                     if not ok:
                         error_detail = result
                 elif want_stream:
-                    stream_ollama_to_client(self, prov, model, provider_payload, request_id, thinking=thinking, debug_mode=debug_mode)
+                    stream_ollama_to_client(self, prov, model, attempt_payload, request_id, thinking=thinking, debug_mode=debug_mode)
                     ok = True
                 else:
-                    ok, result = call_ollama_completion(prov.base_url, model, provider_payload, api_key=prov.api_key, thinking=thinking, provider_name=pn, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_ollama_completion(prov.base_url, model, attempt_payload, api_key=prov.api_key, thinking=thinking, provider_name=pn, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'anthropic-messages':
                 if want_stream:
                     error_detail = 'streaming passthrough not implemented for anthropic bridge'
                 else:
-                    ok, result = call_anthropic_completion(prov.base_url, model, provider_payload, api_key=prov.api_key, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id, provider_name=pn)
+                    ok, result = call_anthropic_completion(prov.base_url, model, attempt_payload, api_key=prov.api_key, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id, provider_name=pn)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'google-generative-language':
                 if want_stream:
-                    stream_google_to_client(self, prov, model, provider_payload, request_id, thinking=thinking, debug_mode=debug_mode)
+                    stream_google_to_client(self, prov, model, attempt_payload, request_id, thinking=thinking, debug_mode=debug_mode)
                     ok = True
                 else:
-                    ok, result = call_google_completion(prov.base_url, model, provider_payload, api_key=prov.api_key, thinking=thinking, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_google_completion(prov.base_url, model, attempt_payload, api_key=prov.api_key, thinking=thinking, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'openai-codex-responses':
                 if want_stream:
                     error_detail = 'streaming not implemented for Codex responses'
                 else:
-                    ok, result = call_codex_completion(prov.base_url, model, provider_payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_codex_completion(prov.base_url, model, attempt_payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'openclaw-gateway':
-                if want_stream or provider_payload.get('tools'):
+                if want_stream or attempt_payload.get('tools'):
                     error_detail = 'streaming/tool passthrough unsupported for openclaw gateway bridge'
                 else:
-                    ok_text, text = call_openclaw_gateway(model, provider_payload.get('messages', []), pn, thinking, want_json)
+                    ok_text, text = call_openclaw_gateway(model, attempt_payload.get('messages', []), pn, thinking, want_json)
                     ok = ok_text
                     if ok:
                         result = build_openai_completion(pn, model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=not want_json)
@@ -4719,7 +4732,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
                 if want_stream:
                     error_detail = f'streaming passthrough unsupported for {prov.api_type}'
                 else:
-                    ok, result = call_openai_compat_completion(prov.base_url, model, provider_payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_openai_compat_completion(prov.base_url, model, attempt_payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
         except Exception as e:
