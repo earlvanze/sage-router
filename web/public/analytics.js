@@ -6,6 +6,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (id) => document.getElementById(id);
 
 function setText(id, text) { const el = $(id); if (el) el.textContent = text; }
+function setNote(text) { const el = $('dashboard-note'); if (!el) return; el.textContent = text || ''; el.classList.toggle('hidden', !text); }
 function show(id, visible) { const el = $(id); if (el) el.classList.toggle('hidden', !visible); }
 function esc(v) { return String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function fmtMs(v) { return v == null ? '—' : `${Math.round(v).toLocaleString()} ms`; }
@@ -72,12 +73,19 @@ async function refresh() {
   if (!s) { show('auth-panel', true); show('dashboard', false); show('sign-out', false); return; }
   show('auth-panel', false); show('dashboard', true); show('sign-out', true);
   setText('dashboard-status', 'Loading analytics...');
+  setNote('');
   try {
     render(await fetchAnalytics(s));
+    setNote('Live backend analytics loaded.');
   } catch (e) {
-    setText('dashboard-status', `${e.message}. Loading latest Supabase mirror snapshot instead.`);
     const fallback = await fetchSnapshotFallback();
-    if (fallback) render({ ...fallback, source: fallback.source || 'supabase-snapshot' });
+    if (fallback) {
+      render({ ...fallback, source: fallback.source || 'supabase-snapshot' });
+      setNote('Showing the latest mirrored snapshot while live backend analytics is unavailable.');
+    } else {
+      setText('dashboard-status', 'Analytics temporarily unavailable.');
+      setNote('No mirrored snapshot is available yet.');
+    }
   }
 }
 
