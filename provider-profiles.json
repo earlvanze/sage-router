@@ -297,5 +297,10 @@
     "api": "openai-completions",
     "models": "auto-discover",
     "_note": "Meta-provider - only use if you specifically need OR models. Prefer direct providers."
+  },
+  "_local": {
+    "disabledModels": [
+      "gpt-oss"
+    ]
   }
 }
