@@ -48,7 +48,7 @@ Flow:
 - detect intent from the latest user message
 - estimate complexity from prompt length
 - score every reachable (provider, model) pair globally — not per-provider — from `openclaw.json`
-- in `local-first`, operate as local-strict: reject Internet API providers and only allow local/LAN/Tailnet endpoints, with Ollama `:cloud` models excluded
+- in `local-first`, operate as local-strict: reject centralized Internet API providers and only allow local/LAN/Tailnet endpoints plus approved decentralized providers such as Darkbloom, with Ollama `:cloud` models excluded
 - for `GENERAL`, blend static heuristics with persisted empirical latency stats by provider and model
 - rank candidates by API type, model-name hints, complexity, and measured latency
 - attempt the top `SAGE_ROUTER_MAX_PROVIDER_ATTEMPTS` candidates in order

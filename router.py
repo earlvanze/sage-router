@@ -16,6 +16,7 @@ OPENCLAW_GATEWAY_HELPER = os.path.join(os.path.dirname(__file__), 'openclaw_gate
 SELF_PROVIDER_NAMES = {'smart-router', 'sage-router'}
 LOCAL_STRICT_PROXY_PROVIDER_NAMES = {'dario', 'openai-codex', 'grok-sso'}
 LOCAL_STRICT_PROXY_API_TYPES = {'openclaw-gateway', 'openai-codex-responses'}
+LOCAL_STRICT_DECENTRALIZED_PROVIDER_NAMES = {'darkbloom'}
 SHOW_MODEL_PREFIX = True  # Show provider/model at start of response by default
 
 
@@ -359,6 +360,8 @@ def is_lan_or_tailnet_endpoint(base_url):
 
 
 def provider_allowed_in_local_first(provider):
+    if provider.name in LOCAL_STRICT_DECENTRALIZED_PROVIDER_NAMES:
+        return True
     if provider.name in LOCAL_STRICT_PROXY_PROVIDER_NAMES:
         return False
     if provider.api_type in LOCAL_STRICT_PROXY_API_TYPES:
