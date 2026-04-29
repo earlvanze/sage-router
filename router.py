@@ -67,6 +67,10 @@ DISABLED_PROVIDERS = {
     name.strip() for name in os.environ.get('SAGE_ROUTER_DISABLED_PROVIDERS', '').split(',')
     if name.strip()
 }
+DISABLED_MODELS = {
+    name.strip() for name in os.environ.get('SAGE_ROUTER_DISABLED_MODELS', '').split(',')
+    if name.strip()
+}
 OLLAMA_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS', '120'))
 OLLAMA_ALLOW_THINK_FALSE_RETRY = os.environ.get('SAGE_ROUTER_OLLAMA_ALLOW_THINK_FALSE_RETRY', '').strip().lower() in {'1', 'true', 'yes', 'on'}
 OPENAI_COMPAT_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENAI_TIMEOUT_SECONDS', '35'))
@@ -1366,6 +1370,18 @@ def model_context_window(provider, model):
     return int(meta.get('contextWindow') or 0)
 
 
+def model_disabled_reason(provider_name, model):
+    if not DISABLED_MODELS:
+        return None
+    candidates = {str(model or '')}
+    if provider_name:
+        candidates.add(f'{provider_name}/{model}')
+    for candidate in candidates:
+        if candidate in DISABLED_MODELS:
+            return 'disabled by SAGE_ROUTER_DISABLED_MODELS'
+    return None
+
+
 def active_temp_model_block(provider_name, model):
     key = f'{provider_name}/{model}'
     blocked = TEMP_MODEL_BLOCKS.get(key)
@@ -1403,6 +1419,8 @@ def clear_temp_model_block(provider_name, model):
 
 
 def model_is_servable(provider, model):
+    if model_disabled_reason(provider.name, model):
+        return False
     if active_temp_model_block(provider.name, model):
         return False
     if local_ollama_cloud_auth_blocked(provider, model):
@@ -3711,6 +3729,10 @@ def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='
         if not provider.models or not provider_endpoint_reachable(provider):
             continue
         for model in dedupe_keep_order(provider.models):
+            disabled_reason = model_disabled_reason(provider.name, model)
+            if disabled_reason:
+                rejections.append({'provider': pn, 'model': model, 'reason': disabled_reason})
+                continue
             if route_mode == 'local-first' and provider.api_type == 'ollama' and is_cloud_ollama_model(model):
                 rejections.append({'provider': pn, 'model': model, 'reason': 'excluded by local-first (:cloud model)'})
                 continue
@@ -4544,6 +4566,8 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         if pn in DISABLED_PROVIDERS or pn not in PROVIDERS:
             continue
         prov = PROVIDERS[pn]
+        if model_disabled_reason(pn, model):
+            continue
         supports_reasoning = provider_supports_reasoning(prov, model)
         logger.info(f"[{request_id}] Trying {pn}/{model} (api={prov.api_type}, reasoning={supports_reasoning}, stream={want_stream}, tools={bool(provider_payload.get('tools'))})")
         started_attempt = time.time()
@@ -4719,6 +4743,10 @@ def prepare_route(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
             filtered_models = []
             forced_rejections = []
             for model in all_models:
+                disabled_reason = model_disabled_reason(prov.name, model)
+                if disabled_reason:
+                    forced_rejections.append({'provider': force_provider, 'model': model, 'reason': disabled_reason})
+                    continue
                 if route_mode == 'local-first' and prov.api_type == 'ollama' and is_cloud_ollama_model(model):
                     forced_rejections.append({'provider': force_provider, 'model': model, 'reason': 'excluded by local-first (:cloud model)'})
                     continue
@@ -5077,6 +5105,7 @@ class Handler(BaseHTTPRequestHandler):
                 "providers": available_provider_names(),
                 "configured": list(PROVIDERS.keys()),
                 "disabled": sorted(DISABLED_PROVIDERS),
+                "disabledModels": sorted(DISABLED_MODELS),
                 "thinking": {
                     "default": ThinkingLevel.MEDIUM.value,
                     "accepted": [level.value for level in ThinkingLevel],
@@ -5244,5 +5273,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--port',type=int,default=8788); args = parser.parse_args()
     ensure_background_refresh_started()
     server = ThreadingHTTPServer(('0.0.0.0', args.port), Handler)
-    logger.info(f"Router on :{args.port} | configured={list(PROVIDERS.keys())} | disabled={sorted(DISABLED_PROVIDERS)}")
+    logger.info(f"Router on :{args.port} | configured={list(PROVIDERS.keys())} | disabled={sorted(DISABLED_PROVIDERS)} disabledModels={sorted(DISABLED_MODELS)}")
     server.serve_forever()
