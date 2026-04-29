@@ -1572,6 +1572,39 @@ def is_multimodal_model(model: str) -> bool:
     return False
 
 
+
+def looks_like_visible_tool_call(text: str) -> bool:
+    """Detect tool-call-shaped text that a non-tool model leaked visibly.
+
+    OpenClaw expects actual OpenAI-compatible tool_calls, not prose/code blocks
+    containing `tool_code` or `message(action=...)`. When a provider returns this
+    while tools were offered, treat the attempt as failed so routing can fall
+    through to a model with real tool-call support instead of posting the leak.
+    Keep this intentionally narrow to avoid rejecting legitimate discussion of
+    code samples.
+    """
+    raw = str(text or '').strip()
+    if not raw:
+        return False
+    lowered = raw.lower()
+    if 'tool_code' in lowered or '<tool_call' in lowered or '</tool_call>' in lowered:
+        return True
+    if re.search(r'(?m)^\s*(?:functions\.)?message\s*\(\s*action\s*=', raw):
+        return True
+    if re.search(r'(?m)^\s*(?:functions\.)?(?:exec|browser|web_fetch|web_search|read|pdf)\s*\(', raw):
+        return True
+    if re.search(r'(?m)^\s*```(?:tool_code|tool|json)?\s*\n\s*\{\s*["\'](?:tool|name)["\']', raw, re.IGNORECASE):
+        return True
+    return False
+
+
+def reject_visible_tool_call_leak(payload, text: str, tool_calls) -> str:
+    if not (payload or {}).get('tools') or tool_calls:
+        return ''
+    if looks_like_visible_tool_call(text):
+        return 'provider leaked tool call as visible text instead of structured tool_calls'
+    return ''
+
 def sanitize_visible_output(text: str):
     raw = text or ''
     if not raw:
@@ -4244,6 +4277,10 @@ def call_openai_compat_completion(base_url, model, payload, api_key='', provider
         raw_tool_calls = message.get('tool_calls')
         logger.info(f"[openai-compat] Response tool_calls: {raw_tool_calls}")
         tool_calls = normalize_tool_calls(raw_tool_calls)
+        leak_reason = reject_visible_tool_call_leak(payload, text, tool_calls)
+        if leak_reason:
+            logger.warning(f"OpenAI-compat {provider_name or base_url} {model}: {leak_reason}")
+            return False, leak_reason
         finish_reason = choice.get('finish_reason') or ('tool_calls' if tool_calls else 'stop')
         return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, body.get('usage'), debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
     except Exception as e:
@@ -4268,6 +4305,10 @@ def call_ollama_completion(base_url, model, payload, api_key='', thinking=Thinki
         raw_tool_calls = message.get('tool_calls')
         logger.info(f"[ollama] Response tool_calls: {raw_tool_calls}")
         tool_calls = normalize_tool_calls(raw_tool_calls)
+        leak_reason = reject_visible_tool_call_leak(payload, text, tool_calls)
+        if leak_reason:
+            logger.warning(f"Ollama {base_url} {model}: {leak_reason}")
+            return False, leak_reason
         finish_reason = 'tool_calls' if tool_calls else (body.get('done_reason') or 'stop')
         return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
     except Exception as e:
