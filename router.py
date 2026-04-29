@@ -84,6 +84,21 @@ EMPTY_OUTPUT_COOLDOWN_SECONDS = int(os.environ.get('SAGE_ROUTER_EMPTY_OUTPUT_COO
 PROVIDER_HEALTH_CACHE = {}
 LATENCY_STATS_PATH = os.path.expanduser(os.environ.get('SAGE_ROUTER_LATENCY_STATS_PATH', '~/.cache/sage-router/latency-stats.json'))
 ROUTE_EVENTS_PATH = os.path.expanduser(os.environ.get('SAGE_ROUTER_ROUTE_EVENTS_PATH', '~/.cache/sage-router/route-events.jsonl'))
+ANALYTICS_TOKEN = os.environ.get('SAGE_ROUTER_ANALYTICS_TOKEN', '').strip()
+ANALYTICS_EVENT_LIMIT = int(os.environ.get('SAGE_ROUTER_ANALYTICS_EVENT_LIMIT', '10000'))
+FIRESTORE_PROJECT_ID = os.environ.get('SAGE_ROUTER_FIRESTORE_PROJECT_ID') or os.environ.get('GOOGLE_CLOUD_PROJECT') or os.environ.get('GCP_PROJECT')
+FIRESTORE_DATABASE = os.environ.get('SAGE_ROUTER_FIRESTORE_DATABASE', '(default)')
+FIRESTORE_ROUTE_EVENTS_COLLECTION = os.environ.get('SAGE_ROUTER_FIRESTORE_ROUTE_EVENTS_COLLECTION', 'sage_router_route_events')
+FIRESTORE_ENABLED = os.environ.get('SAGE_ROUTER_FIRESTORE_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+SUPABASE_URL = (os.environ.get('SAGE_ROUTER_SUPABASE_URL') or os.environ.get('PUBLIC_SUPABASE_URL') or os.environ.get('SUPABASE_URL') or '').rstrip('/')
+SUPABASE_ANON_KEY = os.environ.get('SAGE_ROUTER_SUPABASE_ANON_KEY') or os.environ.get('AOPS_SUPABASE_ANON_KEY') or os.environ.get('SUPABASE_ANON_KEY') or ''
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_SERVICE_ROLE') or os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or ''
+SUPABASE_ROUTE_EVENTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_ROUTE_EVENTS_TABLE', 'sage_router_route_events')
+SUPABASE_ANALYTICS_SNAPSHOTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_ANALYTICS_SNAPSHOTS_TABLE', 'sage_router_analytics_snapshots')
+SUPABASE_MIRROR_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_MIRROR_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+SUPABASE_AUTH_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_AUTH_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+CORS_ORIGIN = os.environ.get('SAGE_ROUTER_CORS_ORIGIN', '*')
+CORS_ORIGINS = [o.strip() for o in CORS_ORIGIN.split(',') if o.strip()]
 LATENCY_EWMA_ALPHA = float(os.environ.get('SAGE_ROUTER_LATENCY_EWMA_ALPHA', '0.35'))
 GENERAL_EMPIRICAL_EXPLORATION_BONUS = float(os.environ.get('SAGE_ROUTER_GENERAL_EXPLORATION_BONUS', '20'))
 GENERAL_EMPIRICAL_SUCCESS_EXPLORATION_CAP = float(os.environ.get('SAGE_ROUTER_GENERAL_SUCCESS_EXPLORATION_CAP', '8'))
@@ -288,9 +303,9 @@ def merge_provider(providers, provider):
     merged_meta.update(provider.model_meta or {})
     providers[provider.name] = Provider(
         provider.name,
-        existing.api_type or provider.api_type,
-        existing.base_url or provider.base_url,
-        existing.api_key or provider.api_key,
+        provider.api_type or existing.api_type,
+        provider.base_url or existing.base_url,
+        provider.api_key or existing.api_key,
         dedupe_keep_order((existing.models or []) + (provider.models or [])),
         set(existing.reasoning_models or set()) | set(provider.reasoning_models or set()),
         merged_meta,
@@ -406,9 +421,21 @@ def ensure_dario_proxy_ready():
 
 def openai_chat_completions_url(base_url):
     base = (base_url or '').rstrip('/')
+    host = (urllib.parse.urlparse(base).hostname or '').lower()
+    if 'githubcopilot.com' in host:
+        return base + '/chat/completions'
     if base.endswith('/v1') or base.endswith('/api/v1'):
         return base + '/chat/completions'
     return base + '/v1/chat/completions'
+
+
+def add_openai_compat_headers(hdrs, provider_name=''):
+    if (provider_name or '').strip().lower() == 'github-copilot':
+        hdrs.setdefault('User-Agent', 'GitHubCopilotChat/0.35.0')
+        hdrs.setdefault('Editor-Version', 'vscode/1.107.0')
+        hdrs.setdefault('Editor-Plugin-Version', 'copilot-chat/0.35.0')
+        hdrs.setdefault('Copilot-Integration-Id', 'vscode-chat')
+    return hdrs
 
 def infer_api_type(name, cfg, base_url):
     api_type = cfg.get('api')
@@ -1152,8 +1179,6 @@ def load_router_profile_overlays(existing_providers):
 
     requested = [item.strip() for item in os.environ.get('SAGE_ROUTER_PROFILE_OVERLAYS', 'grok-sso,darkbloom').split(',') if item.strip()]
     for name in requested:
-        if name in existing_providers:
-            continue
         cfg = profiles.get(name)
         if not isinstance(cfg, dict):
             continue
@@ -1290,6 +1315,10 @@ def model_is_servable(provider, model):
         return False
     if local_ollama_cloud_auth_blocked(provider, model):
         return False
+    # Hosted Ollama Cloud models are servable through the remote Ollama API even
+    # when they are not present in the local /api/tags installed-model list.
+    if provider and provider.api_type == 'ollama' and is_cloud_ollama_model(model) and not is_local_ollama_provider(provider):
+        return True
     meta = (provider.model_meta or {}).get(model, {})
     return bool(meta.get('servable', True))
 
@@ -1850,6 +1879,11 @@ def load_openclaw_providers():
     except Exception as e:
         logger.error(f"Config load failed: {e}")
         providers['ollama'] = Provider('ollama', 'ollama', 'http://127.0.0.1:11434', '', ['qwen3.5:cloud', 'kimi-k2.5:cloud'], set(), {'qwen3.5:cloud': {'reasoning': False, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}, 'kimi-k2.5:cloud': {'reasoning': False, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}})
+        # Even without a local OpenClaw config (e.g. public Cloud Run demo),
+        # explicitly requested profile overlays should still be able to replace
+        # the fallback local Ollama provider.
+        for name, provider in load_router_profile_overlays(providers).items():
+            merge_provider(providers, provider)
     return providers
 
 PROVIDERS = load_openclaw_providers()
@@ -1917,16 +1951,436 @@ def save_latency_stats():
         logger.warning(f'Latency stats save failed: {e}')
 
 
+def sanitize_route_event(event):
+    """Keep analytics useful while explicitly excluding prompt/user content and credentials."""
+    allowed = {
+        'request_id', 'ts', 'status', 'intent', 'complexity', 'thinking', 'routeMode',
+        'estimatedTokens', 'json', 'stream', 'requirements', 'selected', 'attempts',
+        'totalElapsedMs', 'chain', 'error'
+    }
+    clean = {k: v for k, v in dict(event or {}).items() if k in allowed}
+    clean.setdefault('ts', int(time.time()))
+    return clean
+
+
 def append_route_event(event):
-    """Append one structured routing event for offline analysis."""
+    """Persist one structured routing event locally, then mirror durable telemetry async."""
     try:
         os.makedirs(os.path.dirname(ROUTE_EVENTS_PATH), exist_ok=True)
-        event = dict(event or {})
-        event.setdefault('ts', int(time.time()))
+        event = sanitize_route_event(event)
         with open(ROUTE_EVENTS_PATH, 'a') as f:
             f.write(json.dumps(event, sort_keys=True, separators=(',', ':')) + '\n')
     except Exception as e:
         logger.debug(f'Route event append failed: {e}')
+        event = sanitize_route_event(event)
+    mirror_route_event_async(event)
+
+
+def read_recent_route_events(limit=None):
+    """Read recent structured route events without retaining prompts or message bodies."""
+    limit = int(limit or ANALYTICS_EVENT_LIMIT)
+    events = []
+    try:
+        with open(ROUTE_EVENTS_PATH) as f:
+            lines = f.readlines()[-limit:]
+        for line in lines:
+            try:
+                event = json.loads(line)
+                if isinstance(event, dict):
+                    events.append(sanitize_route_event(event))
+            except Exception:
+                continue
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        logger.debug(f'Route events read failed: {e}')
+    return events
+
+
+def metadata_access_token():
+    try:
+        req = urllib.request.Request(
+            'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
+            headers={'Metadata-Flavor': 'Google'},
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            payload = json.loads(resp.read().decode('utf-8'))
+        return payload.get('access_token') or ''
+    except Exception as e:
+        logger.debug(f'GCP metadata token unavailable: {e}')
+        return ''
+
+
+def firestore_value(value):
+    if value is None:
+        return {'nullValue': None}
+    if isinstance(value, bool):
+        return {'booleanValue': value}
+    if isinstance(value, int) and not isinstance(value, bool):
+        return {'integerValue': str(value)}
+    if isinstance(value, float):
+        return {'doubleValue': value}
+    if isinstance(value, list):
+        return {'arrayValue': {'values': [firestore_value(v) for v in value]}}
+    if isinstance(value, dict):
+        return {'mapValue': {'fields': {str(k): firestore_value(v) for k, v in value.items()}}}
+    return {'stringValue': str(value)}
+
+
+def firestore_plain(value):
+    if not isinstance(value, dict):
+        return None
+    if 'stringValue' in value:
+        return value.get('stringValue')
+    if 'integerValue' in value:
+        try:
+            return int(value.get('integerValue'))
+        except Exception:
+            return value.get('integerValue')
+    if 'doubleValue' in value:
+        return float(value.get('doubleValue'))
+    if 'booleanValue' in value:
+        return bool(value.get('booleanValue'))
+    if 'nullValue' in value:
+        return None
+    if 'arrayValue' in value:
+        return [firestore_plain(v) for v in (value.get('arrayValue') or {}).get('values', [])]
+    if 'mapValue' in value:
+        return {k: firestore_plain(v) for k, v in ((value.get('mapValue') or {}).get('fields') or {}).items()}
+    return None
+
+
+def write_firestore_route_event(event):
+    if not (FIRESTORE_ENABLED and FIRESTORE_PROJECT_ID):
+        return False
+    token = metadata_access_token()
+    if not token:
+        return False
+    event = sanitize_route_event(event)
+    doc_id = urllib.parse.quote(str(event.get('request_id') or uuid.uuid4().hex), safe='')
+    database = urllib.parse.quote(FIRESTORE_DATABASE, safe='')
+    coll = urllib.parse.quote(FIRESTORE_ROUTE_EVENTS_COLLECTION, safe='')
+    url = f'https://firestore.googleapis.com/v1/projects/{FIRESTORE_PROJECT_ID}/databases/{database}/documents/{coll}/{doc_id}'
+    body = json.dumps({'fields': {k: firestore_value(v) for k, v in event.items()}}).encode('utf-8')
+    req = urllib.request.Request(url, data=body, method='PATCH', headers={
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+    })
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        resp.read(256)
+    return True
+
+
+def read_firestore_route_events(window_seconds=7 * 24 * 3600, limit=None):
+    if not (FIRESTORE_ENABLED and FIRESTORE_PROJECT_ID):
+        return []
+    token = metadata_access_token()
+    if not token:
+        return []
+    limit = int(limit or ANALYTICS_EVENT_LIMIT)
+    since = int(time.time()) - int(window_seconds or 0) if window_seconds else 0
+    database = urllib.parse.quote(FIRESTORE_DATABASE, safe='')
+    url = f'https://firestore.googleapis.com/v1/projects/{FIRESTORE_PROJECT_ID}/databases/{database}/documents:runQuery'
+    query = {
+        'structuredQuery': {
+            'from': [{'collectionId': FIRESTORE_ROUTE_EVENTS_COLLECTION}],
+            'where': {'fieldFilter': {'field': {'fieldPath': 'ts'}, 'op': 'GREATER_THAN_OR_EQUAL', 'value': {'integerValue': str(since)}}},
+            'orderBy': [{'field': {'fieldPath': 'ts'}, 'direction': 'DESCENDING'}],
+            'limit': limit,
+        }
+    }
+    req = urllib.request.Request(url, data=json.dumps(query).encode('utf-8'), headers={
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            payload = json.loads(resp.read().decode('utf-8'))
+        events = []
+        for row in payload if isinstance(payload, list) else []:
+            fields = ((row.get('document') or {}).get('fields') or {})
+            event = {k: firestore_plain(v) for k, v in fields.items()}
+            if event:
+                events.append(sanitize_route_event(event))
+        return list(reversed(events))
+    except Exception as e:
+        logger.debug(f'Firestore analytics read failed: {extract_http_error(e)}')
+        return []
+
+
+def supabase_request(path, method='GET', body=None, service=False, extra_headers=None, timeout=8):
+    key = SUPABASE_SERVICE_ROLE_KEY if service else SUPABASE_ANON_KEY
+    if not (SUPABASE_URL and key):
+        return None
+    headers = {'apikey': key, 'Authorization': f'Bearer {key}'}
+    if body is not None:
+        headers['Content-Type'] = 'application/json'
+        headers['Prefer'] = 'resolution=merge-duplicates,return=minimal'
+    if extra_headers:
+        headers.update(extra_headers)
+    data = json.dumps(body).encode('utf-8') if body is not None else None
+    req = urllib.request.Request(SUPABASE_URL.rstrip('/') + path, data=data, method=method, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        raw = resp.read()
+    if not raw:
+        return None
+    try:
+        return json.loads(raw.decode('utf-8'))
+    except Exception:
+        return raw.decode('utf-8', errors='replace')
+
+
+def write_supabase_route_event(event):
+    if not (SUPABASE_MIRROR_ENABLED and SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return False
+    event = sanitize_route_event(event)
+    selected = event.get('selected') or {}
+    row = {
+        'request_id': str(event.get('request_id') or uuid.uuid4().hex),
+        'event_ts': int(event.get('ts') or time.time()),
+        'status': event.get('status'),
+        'intent': event.get('intent'),
+        'complexity': event.get('complexity'),
+        'thinking': event.get('thinking'),
+        'route_mode': event.get('routeMode'),
+        'estimated_tokens': event.get('estimatedTokens'),
+        'selected_provider': selected.get('provider'),
+        'selected_model': selected.get('model'),
+        'total_elapsed_ms': event.get('totalElapsedMs'),
+        'attempt_count': len(event.get('attempts') or []),
+        'event': event,
+    }
+    supabase_request(f'/rest/v1/{SUPABASE_ROUTE_EVENTS_TABLE}', method='POST', body=row, service=True)
+    return True
+
+
+def write_supabase_analytics_snapshot(snapshot):
+    if not (SUPABASE_MIRROR_ENABLED and SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return False
+    row = {
+        'snapshot_id': f"{int(snapshot.get('generatedAt') or time.time())}-{int(snapshot.get('windowSeconds') or 0)}",
+        'generated_at_epoch': int(snapshot.get('generatedAt') or time.time()),
+        'window_seconds': int(snapshot.get('windowSeconds') or 0),
+        'events_analyzed': int(snapshot.get('eventsAnalyzed') or 0),
+        'snapshot': snapshot,
+    }
+    supabase_request(f'/rest/v1/{SUPABASE_ANALYTICS_SNAPSHOTS_TABLE}', method='POST', body=row, service=True)
+    return True
+
+
+def read_supabase_route_events(window_seconds=7 * 24 * 3600, limit=None):
+    if not (SUPABASE_MIRROR_ENABLED and SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return []
+    since = int(time.time()) - int(window_seconds or 0) if window_seconds else 0
+    limit = int(limit or ANALYTICS_EVENT_LIMIT)
+    path = f'/rest/v1/{SUPABASE_ROUTE_EVENTS_TABLE}?select=event&event_ts=gte.{since}&order=event_ts.desc&limit={limit}'
+    try:
+        rows = supabase_request(path, service=True, timeout=10) or []
+        events = [sanitize_route_event((r or {}).get('event') or {}) for r in rows if isinstance(r, dict)]
+        return list(reversed([e for e in events if e]))
+    except Exception as e:
+        logger.debug(f'Supabase analytics read failed: {extract_http_error(e)}')
+        return []
+
+
+def mirror_route_event_async(event):
+    def worker():
+        try:
+            write_firestore_route_event(event)
+        except Exception as e:
+            logger.debug(f'Firestore route event mirror failed: {extract_http_error(e)}')
+        try:
+            write_supabase_route_event(event)
+        except Exception as e:
+            logger.debug(f'Supabase route event mirror failed: {extract_http_error(e)}')
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def mirror_analytics_snapshot_async(snapshot):
+    def worker():
+        try:
+            write_supabase_analytics_snapshot(snapshot)
+        except Exception as e:
+            logger.debug(f'Supabase analytics snapshot mirror failed: {extract_http_error(e)}')
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def percentile(values, pct):
+    if not values:
+        return None
+    values = sorted(float(v) for v in values)
+    if len(values) == 1:
+        return round(values[0], 2)
+    pos = (len(values) - 1) * pct
+    lo = math.floor(pos)
+    hi = math.ceil(pos)
+    if lo == hi:
+        return round(values[int(pos)], 2)
+    return round(values[lo] + (values[hi] - values[lo]) * (pos - lo), 2)
+
+
+def build_analytics_snapshot(window_seconds=7 * 24 * 3600, event_limit=None):
+    """Build provider/model performance analytics for the paid observability layer."""
+    now = int(time.time())
+    since = now - int(window_seconds or 0) if window_seconds else 0
+    durable_events = read_firestore_route_events(window_seconds, event_limit)
+    source = 'firestore' if durable_events else 'local'
+    if not durable_events:
+        durable_events = read_supabase_route_events(window_seconds, event_limit)
+        source = 'supabase' if durable_events else 'local'
+    events = durable_events or [e for e in read_recent_route_events(event_limit) if int(e.get('ts', 0) or 0) >= since]
+    provider_rows = {}
+    model_rows = {}
+    intent_rows = {}
+
+    def row_for(table, key):
+        row = table.setdefault(key, {
+            'requests': 0,
+            'successes': 0,
+            'failures': 0,
+            'attempts': 0,
+            'attemptFailures': 0,
+            'latencies': [],
+            'lastSeenAt': 0,
+        })
+        return row
+
+    for event in events:
+        event = sanitize_route_event(event)
+        status_ok = event.get('status') == 'ok'
+        selected = event.get('selected') or {}
+        attempts = event.get('attempts') or []
+        intent = str(event.get('intent') or 'UNKNOWN')
+        total_ms = event.get('totalElapsedMs')
+        intent_row = row_for(intent_rows, intent)
+        intent_row['requests'] += 1
+        intent_row['successes' if status_ok else 'failures'] += 1
+        if isinstance(total_ms, (int, float)):
+            intent_row['latencies'].append(float(total_ms))
+        intent_row['lastSeenAt'] = max(intent_row['lastSeenAt'], int(event.get('ts', 0) or 0))
+
+        if selected:
+            provider = selected.get('provider') or 'unknown'
+            model = selected.get('model') or 'unknown'
+            for table, key in ((provider_rows, provider), (model_rows, f'{provider}/{model}')):
+                row = row_for(table, key)
+                row['requests'] += 1
+                row['successes' if status_ok else 'failures'] += 1
+                if isinstance(total_ms, (int, float)):
+                    row['latencies'].append(float(total_ms))
+                row['lastSeenAt'] = max(row['lastSeenAt'], int(event.get('ts', 0) or 0))
+
+        for attempt in attempts:
+            provider = attempt.get('provider') or 'unknown'
+            model = attempt.get('model') or 'unknown'
+            ok = bool(attempt.get('ok'))
+            elapsed = attempt.get('elapsedMs')
+            for table, key in ((provider_rows, provider), (model_rows, f'{provider}/{model}')):
+                row = row_for(table, key)
+                row['attempts'] += 1
+                if not ok:
+                    row['attemptFailures'] += 1
+                if isinstance(elapsed, (int, float)):
+                    row['latencies'].append(float(elapsed))
+
+    for intent, providers in (LATENCY_STATS.get('intents') or {}).items():
+        for provider, models in (providers or {}).items():
+            for model, stat in (models or {}).items():
+                key = f'{provider}/{model}'
+                for table, row_key in ((provider_rows, provider), (model_rows, key)):
+                    row = row_for(table, row_key)
+                    successes = int(stat.get('successes', 0) or 0)
+                    failures = int(stat.get('failures', 0) or 0)
+                    if row['requests'] == 0:
+                        row['successes'] += successes
+                        row['failures'] += failures
+                        row['requests'] += successes + failures
+                    ewma = stat.get('latency_ewma_ms')
+                    if isinstance(ewma, (int, float)):
+                        row['latencies'].append(float(ewma))
+                    row['lastSeenAt'] = max(row['lastSeenAt'], int(stat.get('updated_at', 0) or 0))
+
+    def finalize(table):
+        out = []
+        for key, row in table.items():
+            requests = int(row['requests'])
+            successes = int(row['successes'])
+            failures = int(row['failures'])
+            attempts = int(row['attempts'])
+            attempt_failures = int(row['attemptFailures'])
+            lats = row.pop('latencies', [])
+            success_rate = (successes / requests) if requests else None
+            attempt_failure_rate = (attempt_failures / attempts) if attempts else None
+            out.append({
+                'id': key,
+                'requests': requests,
+                'successes': successes,
+                'failures': failures,
+                'successRate': round(success_rate, 4) if success_rate is not None else None,
+                'attempts': attempts,
+                'attemptFailureRate': round(attempt_failure_rate, 4) if attempt_failure_rate is not None else None,
+                'p50Ms': percentile(lats, 0.50),
+                'p95Ms': percentile(lats, 0.95),
+                'avgMs': round(sum(lats) / len(lats), 2) if lats else None,
+                'lastSeenAt': row.get('lastSeenAt') or None,
+            })
+        return sorted(out, key=lambda x: (-(x.get('successRate') or 0), x.get('p50Ms') or 999999, -x.get('requests', 0)))
+
+    models = finalize(model_rows)
+    providers = finalize(provider_rows)
+    intents = finalize(intent_rows)
+    best_fast = [m for m in models if m.get('successRate') is not None and m.get('p50Ms') is not None][:10]
+    most_reliable = sorted(models, key=lambda x: (-(x.get('successRate') or 0), -(x.get('requests') or 0), x.get('p95Ms') or 999999))[:10]
+    degraded = sorted([m for m in models if (m.get('attemptFailureRate') or 0) > 0 or (m.get('successRate') is not None and m.get('successRate') < 0.95)], key=lambda x: (-(x.get('attemptFailureRate') or 0), x.get('successRate') or 0))[:10]
+
+    snapshot = {
+        'version': 2,
+        'generatedAt': now,
+        'windowSeconds': int(window_seconds or 0),
+        'eventsAnalyzed': len(events),
+        'source': source,
+        'privacy': {
+            'promptsStored': False,
+            'messageBodiesStored': False,
+            'containsProviderCredentials': False,
+        },
+        'providers': providers,
+        'models': models,
+        'intents': intents,
+        'recommendations': {
+            'fastestModels': best_fast,
+            'mostReliableModels': most_reliable,
+            'degradedModels': degraded,
+        },
+    }
+    mirror_analytics_snapshot_async(snapshot)
+    return snapshot
+
+
+def supabase_user_for_bearer(token):
+    if not (SUPABASE_AUTH_ENABLED and SUPABASE_URL and SUPABASE_ANON_KEY and token):
+        return None
+    try:
+        req = urllib.request.Request(SUPABASE_URL.rstrip('/') + '/auth/v1/user', headers={
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': f'Bearer {token}',
+        })
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            user = json.loads(resp.read().decode('utf-8'))
+        return user if isinstance(user, dict) and user.get('id') else None
+    except Exception as e:
+        logger.debug(f'Supabase auth validation failed: {extract_http_error(e)}')
+        return None
+
+
+def analytics_authorized(handler):
+    auth = handler.headers.get('Authorization') or ''
+    bearer = auth[7:].strip() if auth.lower().startswith('bearer ') else ''
+    if ANALYTICS_TOKEN and bearer == ANALYTICS_TOKEN:
+        return True
+    if supabase_user_for_bearer(bearer):
+        return True
+    return not ANALYTICS_TOKEN and not SUPABASE_AUTH_ENABLED
 
 
 def get_latency_stat(intent_name, provider_name, model):
@@ -2287,7 +2741,10 @@ def model_health_snapshot(provider: Provider, model: str, intent_name: str = 'GE
     models_present = True
     if provider.api_type == 'ollama':
         live_models = fetch_ollama_models(provider)
-        models_present = (model in live_models) if live_models else (model in (provider.models or []))
+        if is_cloud_ollama_model(model) and not is_local_ollama_provider(provider):
+            models_present = model in (provider.models or [])
+        else:
+            models_present = (model in live_models) if live_models else (model in (provider.models or []))
     if temp_block:
         models_present = False
         cooldown_until = max(cooldown_until, float(temp_block.get('until', 0) or 0))
@@ -3124,6 +3581,7 @@ def call_openai_compat(base_url, model, messages, api_key='', provider_name='', 
     try:
         data = json.dumps(payload).encode()
         hdrs = {'Content-Type': 'application/json'}
+        add_openai_compat_headers(hdrs, provider_name)
         if api_key:
             hdrs['Authorization'] = f'Bearer {api_key}'
         req = urllib.request.Request(url, data=data, headers=hdrs)
@@ -3428,6 +3886,7 @@ def call_openai_compat_completion(base_url, model, payload, api_key='', provider
     try:
         data = json.dumps(proxied).encode()
         hdrs = {'Content-Type': 'application/json'}
+        add_openai_compat_headers(hdrs, provider_name)
         if api_key:
             hdrs['Authorization'] = f'Bearer {api_key}'
         req = urllib.request.Request(url, data=data, headers=hdrs)
@@ -3582,6 +4041,7 @@ def stream_openai_compat_to_client(self, provider, model, payload, request_id, t
     url = openai_chat_completions_url(provider.base_url)
     proxied = build_openai_proxy_payload(payload, model, stream=True, supports_reasoning=supports_reasoning, thinking=thinking)
     hdrs = {'Content-Type': 'application/json'}
+    add_openai_compat_headers(hdrs, provider.name)
     if provider.api_key:
         hdrs['Authorization'] = f'Bearer {provider.api_key}'
     req = urllib.request.Request(url, data=json.dumps(proxied).encode(), headers=hdrs)
@@ -4321,12 +4781,28 @@ class Handler(BaseHTTPRequestHandler):
             headers['X-Sage-Router-Route-Mode'] = LAST_ROUTE_DEBUG.get('routeMode')
         return headers
 
+    def send_cors_headers(self):
+        origin = self.headers.get('Origin') or ''
+        allow_origin = '*'
+        if CORS_ORIGINS and '*' not in CORS_ORIGINS:
+            allow_origin = origin if origin in CORS_ORIGINS else CORS_ORIGINS[0]
+        self.send_header('Access-Control-Allow-Origin', allow_origin)
+        self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Vary', 'Origin')
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_cors_headers()
+        self.end_headers()
+
     def write_json(self, status_code, payload, extra_headers=None):
         body = json.dumps(payload).encode()
         try:
             self.send_response(status_code)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(body)))
+            self.send_cors_headers()
             for key, value in (extra_headers or {}).items():
                 if value:
                     self.send_header(key, str(value))
@@ -4347,7 +4823,8 @@ class Handler(BaseHTTPRequestHandler):
                     "chatCompletions": "/v1/chat/completions",
                     "anthropicMessages": "/v1/messages",
                     "googleGenerateContent": "/v1beta/models/{model}:generateContent",
-                    "discovery": "/discovery"
+                    "discovery": "/discovery",
+                    "analytics": "/analytics?days=7"
                 },
                 "docs": "https://sagerouter.dev",
                 "source": "https://github.com/earlvanze/sage-router"
@@ -4393,6 +4870,15 @@ class Handler(BaseHTTPRequestHandler):
                 "lastRoute": LAST_ROUTE_DEBUG,
                 "blocks": {key: {"until": info["until"], "reason": info["reason"]} for key, info in TEMP_MODEL_BLOCKS.items()},
             })
+        elif self.path.startswith('/analytics'):
+            if not analytics_authorized(self):
+                self.write_json(401, {'error': 'unauthorized'})
+                return
+            parsed = urllib.parse.urlparse(self.path)
+            qs = urllib.parse.parse_qs(parsed.query)
+            days = float((qs.get('days') or ['7'])[0] or 7)
+            limit = int((qs.get('limit') or [ANALYTICS_EVENT_LIMIT])[0] or ANALYTICS_EVENT_LIMIT)
+            self.write_json(200, build_analytics_snapshot(days * 24 * 3600, limit))
         elif self.path == '/admin/clear-blocks':
             count = len(TEMP_MODEL_BLOCKS)
             TEMP_MODEL_BLOCKS.clear()

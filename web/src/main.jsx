@@ -33,6 +33,8 @@ function App() {
             <a href="#how">How it works</a>
             <a href="#security">Security</a>
             <a href="#automation">Automation</a>
+            <a href="#analytics">Analytics</a>
+            <a href="/analytics.html">Dashboard</a>
             <a href="#docs">Guides</a>
             <a href="#waitlist">Waitlist</a>
             <a href="https://github.com/earlvanze/sage-router">GitHub</a>
@@ -54,6 +56,9 @@ function App() {
               </a>
               <a className="button secondary" href="#waitlist">
                 Join waitlist
+              </a>
+              <a className="button secondary" href="/analytics.html">
+                View analytics dashboard
               </a>
             </div>
             <p className="complianceNote">
@@ -141,6 +146,34 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
               <p>{step.body}</p>
             </article>
           ))}
+        </div>
+      </section>
+
+
+      <section className="section analytics" id="analytics">
+        <div className="sectionHeader">
+          <p className="eyebrow">Paid performance intelligence</p>
+          <h2>Free routing. Paid analytics that prove the best route.</h2>
+          <p>
+            When teams bring their own subscriptions, they are not paying Sage for model access. They are paying
+            for live provider intelligence: latency trends, error rates, fallback frequency, best-model recommendations,
+            and alerts when a provider degrades.
+          </p>
+          <p><a className="inlineLink" href="/analytics.html">Open the private analytics dashboard →</a></p>
+        </div>
+        <div className="cards">
+          <article>
+            <h3>Model rankings over time</h3>
+            <p>See which model is fastest and most reliable by task type, provider, route mode, and time window.</p>
+          </article>
+          <article>
+            <h3>Degradation detection</h3>
+            <p>Spot rate limits, timeouts, empty outputs, and provider slowdowns before they break agent workflows.</p>
+          </article>
+          <article>
+            <h3>Routing recommendations</h3>
+            <p>Turn telemetry into policy suggestions: default models, fallback order, budget caps, and providers to cancel.</p>
+          </article>
         </div>
       </section>
 

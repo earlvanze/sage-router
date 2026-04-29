@@ -199,20 +199,37 @@
     "_note": "Replace YOUR_RESOURCE with your Azure OpenAI resource name"
   },
   "github-copilot": {
-    "baseUrl": "https://api.githubcopilot.com",
+    "baseUrl": "https://api.individual.githubcopilot.com",
     "apiKey": "${GITHUB_COPILOT_TOKEN}",
     "api": "openai-completions",
     "models": [
       {
-        "id": "gpt-4o-copilot",
-        "name": "Copilot GPT-4o"
+        "id": "gpt-4o",
+        "name": "Copilot GPT-4o",
+        "supportsTools": true,
+        "supportsStreaming": true
       },
       {
-        "id": "claude-sonnet-copilot",
-        "name": "Copilot Claude Sonnet"
+        "id": "gpt-4.1",
+        "name": "Copilot GPT-4.1",
+        "supportsTools": true,
+        "supportsStreaming": true
+      },
+      {
+        "id": "gemini-2.5-pro",
+        "name": "Copilot Gemini 2.5 Pro",
+        "supportsTools": true,
+        "supportsStreaming": true
+      },
+      {
+        "id": "gemini-3-flash-preview",
+        "name": "Copilot Gemini 3 Flash",
+        "supportsTools": true,
+        "supportsStreaming": true,
+        "reasoning": true
       }
     ],
-    "_note": "Requires Copilot token from https://github.com/settings/copilot"
+    "_note": "Requires GitHub Copilot OAuth token. Runtime base URL matches OpenClaw native provider."
   },
   "deepseek": {
     "baseUrl": "https://api.deepseek.com/v1",
@@ -235,6 +252,44 @@
     "api": "openai-completions",
     "models": "auto-discover",
     "_note": "OpenAI-compatible Darkbloom API. Supports /v1/chat/completions, /v1/responses, and /v1/models. API key can live in ~/.openclaw/.env or the skill-local .env as DARKBLOOM_API_KEY."
+  },
+  "ollama": {
+    "baseUrl": "https://ollama.com",
+    "apiKey": "${OLLAMA_API_KEY}",
+    "api": "ollama",
+    "models": [
+      {
+        "id": "minimax-m2.7:cloud",
+        "name": "MiniMax M2.7 Cloud",
+        "reasoning": true,
+        "contextWindow": 256000,
+        "maxTokens": 128000,
+        "input": [
+          "text"
+        ]
+      },
+      {
+        "id": "kimi-k2.5:cloud",
+        "name": "Kimi K2.5 Cloud",
+        "reasoning": true,
+        "contextWindow": 256000,
+        "maxTokens": 128000,
+        "input": [
+          "text"
+        ]
+      },
+      {
+        "id": "glm-5:cloud",
+        "name": "GLM 5 Cloud",
+        "reasoning": true,
+        "contextWindow": 202752,
+        "maxTokens": 131072,
+        "input": [
+          "text"
+        ]
+      }
+    ],
+    "_note": "Hosted premium Ollama Cloud profile for public/open-beta deployments. Requires OLLAMA_API_KEY."
   },
   "openrouter": {
     "baseUrl": "https://openrouter.ai/api/v1",
