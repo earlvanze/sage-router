@@ -256,6 +256,24 @@ NVIDIA_NON_TOOL_MODEL_HINTS = [
     'tts', 'asr', 'canary', 'nemo-tts', 'nemo-asr', 'embed', 'embedding', 'rerank', 'ocr', 'vision', '-vl', ':vl', 'whisper'
 ]
 
+ANALYSIS_SIGNAL_TERMS = [
+    'analyze', 'analysis', 'evaluate', 'assess', 'compare', 'tradeoff', 'trade-off',
+    'why', 'how should', 'how can', 'what should', 'should we', 'can we', 'could we',
+    'root cause', 'diagnose', 'strategy', 'recommend', 'recommendation', 'decide',
+    'risk', 'failure mode', 'implication', 'forecast', 'predict', 'prioritize',
+    'optimize', 'improve', 'smarter', 'heuristic', 'architecture', 'routing',
+    'user experience', 'discord-public', 'public channel',
+]
+ANALYSIS_QUALITY_MODEL_HINTS = [
+    'opus', 'sonnet', 'gpt-5.5', 'gpt-5.4', 'gpt-5.3', 'gpt-5', 'o3',
+    'gemini-2.5-pro', 'gemini-3-pro', 'qwen3.5', 'qwen3:32b', 'qwen3:30b',
+    'kimi-k2', 'minimax-m2.7', 'glm-5', 'deepseek-v4',
+]
+WEAK_ANALYSIS_MODEL_HINTS = [
+    'mini', 'small', 'haiku', 'flash-lite', 'lite', 'nano', 'tiny',
+    '1b', '3b', '7b', '8b', '12b', '14b', '16b',
+]
+
 # Known NON-chat families - dynamically extended from /api/tags.
 # A family is non-chat if it matches these patterns or is explicitly listed.
 NON_CHAT_FAMILY_PATTERNS = ['embed', 'bert', 'clip', 'vl', 'vision', 'ocr', 'asr', 'whisper', 'tts', 'sd', 'rerank']
@@ -1301,6 +1319,17 @@ def payload_vision_signal(payload):
             return True
     return False
 
+
+def payload_quality_sensitive_signal(payload):
+    if not isinstance(payload, dict):
+        return False
+    needles = ('discord-public', 'public channel', 'group chat', 'telegram', 'whatsapp', 'production', 'external')
+    try:
+        haystack = json.dumps({k: payload.get(k) for k in ('metadata', 'channel', 'surface', 'source', 'chat_type', 'messages')}, default=str)[:12000].lower()
+    except Exception:
+        haystack = str(payload)[:12000].lower()
+    return any(n in haystack for n in needles)
+
 def normalize_requirements(payload, thinking_level=ThinkingLevel.MEDIUM):
     req = payload.get('requirements') if isinstance(payload, dict) else None
     if not isinstance(req, dict):
@@ -1339,6 +1368,7 @@ def normalize_requirements(payload, thinking_level=ThinkingLevel.MEDIUM):
         'document': document_signal,
         'vision': vision_signal,
         'streaming': bool(explicit_streaming or (requested_stream and not has_tools)),
+        'qualitySensitive': bool(req.get('qualitySensitive') or payload.get('requiresQuality') or payload_quality_sensitive_signal(payload)),
     }
 
 
@@ -1373,11 +1403,19 @@ def model_context_window(provider, model):
 def model_disabled_reason(provider_name, model):
     if not DISABLED_MODELS:
         return None
-    candidates = {str(model or '')}
-    if provider_name:
-        candidates.add(f'{provider_name}/{model}')
-    for candidate in candidates:
-        if candidate in DISABLED_MODELS:
+    model_s = str(model or '')
+    provider_s = str(provider_name or '')
+    candidates = {model_s}
+    if provider_s:
+        candidates.add(f'{provider_s}/{model_s}')
+        if provider_s.startswith('nvidia') or provider_s.endswith('-nim') or provider_s == 'nim':
+            candidates.add(f'nvidia/{model_s}')
+    for disabled in DISABLED_MODELS:
+        if disabled in candidates:
+            return 'disabled by SAGE_ROUTER_DISABLED_MODELS'
+        # Accept provider aliases such as nvidia/openai/gpt-oss-120b for a
+        # nvidia-nim provider whose actual model id is openai/gpt-oss-120b.
+        if '/' in disabled and disabled.endswith('/' + model_s):
             return 'disabled by SAGE_ROUTER_DISABLED_MODELS'
     return None
 
@@ -3326,6 +3364,19 @@ def classify_intent_with_local_model(text):
         return None, {}, {'enabled': True, 'used': False, 'provider': provider, 'model': INTENT_CLASSIFIER_MODEL, 'elapsedMs': round((time.time() - started) * 1000.0, 2), 'error': extract_http_error(e)}
 
 
+def analysis_signal_score(text):
+    tl = (text or '').lower()
+    score = 0
+    for kw in ANALYSIS_SIGNAL_TERMS:
+        if kw in tl:
+            score += 2 if ' ' in kw or '-' in kw else 1
+    if '?' in tl and any(prefix in tl for prefix in ('can we', 'could we', 'should we', 'would it', 'do we', 'how ', 'why ', 'what would', 'what should')):
+        score += 2
+    if len(tl.split()) >= 40 and any(x in tl for x in ('because', 'but', 'however', 'tradeoff', 'risk', 'if ', 'when ')):
+        score += 2
+    return score
+
+
 def heuristic_intent_scores(text):
     tl = text.lower(); scores = {i:0 for i in Intent}
     for kw in ['write','code','debug','fix','refactor','implement','function','bug','test','.py','.js']:
@@ -3333,6 +3384,7 @@ def heuristic_intent_scores(text):
     if '```' in text: scores[Intent.CODE] += 3
     for kw in ['analyze','explain','compare','research','why','how does','review','translate','summarize','summary','extract','parse','pdf','document','report','informe','conclusion','findings','medical report','mri','resonancia']:
         if kw in tl: scores[Intent.ANALYSIS] += 1
+    scores[Intent.ANALYSIS] += analysis_signal_score(text)
     for kw in ['create','brainstorm','imagine','design','story']:
         if kw in tl: scores[Intent.CREATIVE] += 2
     for kw in ['now','today','current','latest','price','weather']:
@@ -3454,7 +3506,12 @@ def classify_intent(text):
 
 def estimate_complexity(text):
     w = len(text.split())
-    return Complexity.SIMPLE if w < 30 else (Complexity.COMPLEX if w > 200 else Complexity.MEDIUM)
+    analysis_score = analysis_signal_score(text)
+    if w > 200 or analysis_score >= 6 or (analysis_score >= 4 and w >= 35):
+        return Complexity.COMPLEX
+    if w < 30 and analysis_score < 3:
+        return Complexity.SIMPLE
+    return Complexity.MEDIUM
 
 def pick_model(prov, prefer=None):
     if not prov.models: return ''
@@ -3485,6 +3542,15 @@ def thinking_max_tokens(level: ThinkingLevel):
     if level == ThinkingLevel.HIGH:
         return 12288
     return 8192
+
+
+def model_quality_tier(model):
+    model_l = (model or '').lower()
+    if any(h in model_l for h in WEAK_ANALYSIS_MODEL_HINTS) and not any(h in model_l for h in ('opus', 'sonnet', '-pro', ' pro')):
+        return 'weak'
+    if any(h in model_l for h in ANALYSIS_QUALITY_MODEL_HINTS):
+        return 'strong'
+    return 'medium'
 
 
 def score_provider_model(provider, model, intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='balanced', estimated_tokens=0, debug_scores=None, requirements=None):
@@ -3561,12 +3627,28 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
                 contributions.append(('user_pref_code_other_ollama_penalty', -8))
 
     if intent == Intent.ANALYSIS:
+        tier = model_quality_tier(model)
         if provider.api_type == 'ollama':
             score += 18
             contributions.append(('user_pref_analysis_ollama', 18))
         elif provider.name == 'openai-codex' or provider.api_type == 'openclaw-gateway':
             score -= 10
             contributions.append(('user_pref_analysis_not_gpt', -10))
+        if tier == 'strong':
+            score += 24
+            contributions.append(('analysis_strong_model_bonus', 24))
+        elif tier == 'weak':
+            score -= 32
+            contributions.append(('analysis_weak_model_penalty', -32))
+        if complexity == Complexity.COMPLEX and tier != 'strong':
+            score -= 16
+            contributions.append(('complex_analysis_non_strong_penalty', -16))
+        if requirements.get('qualitySensitive') and tier == 'strong':
+            score += 12
+            contributions.append(('quality_sensitive_strong_bonus', 12))
+        elif requirements.get('qualitySensitive') and tier == 'weak':
+            score -= 18
+            contributions.append(('quality_sensitive_weak_penalty', -18))
     if complexity == Complexity.COMPLEX and any(hint in model_l for hint in COMPLEX_MODEL_HINTS):
         score += 5
         contributions.append(('complex_model_bonus', 5))
@@ -3576,6 +3658,9 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
     if complexity == Complexity.SIMPLE and any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
         score += 2
         contributions.append(('lightweight_simple_bonus', 2))
+    if requirements.get('qualitySensitive') and any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
+        score -= 12
+        contributions.append(('quality_sensitive_lightweight_penalty', -12))
     if intent == Intent.GENERAL and provider.api_type == 'ollama':
         score -= 1
         contributions.append(('general_ollama_penalty', -1))
@@ -3745,12 +3830,15 @@ def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='
                 continue
             score = score_provider_model(provider, model, intent, complexity, thinking, route_mode, estimated_tokens, debug_scores, requirements)
             if payload_tools_soft_preference(requirements) and model_capabilities(provider, model).get('tools'):
-                score += 120
+                bonus = 30 if intent in (Intent.ANALYSIS, Intent.CODE) or complexity == Complexity.COMPLEX or requirements.get('qualitySensitive') else 55
+                if model_quality_tier(model) == 'weak' and (intent == Intent.ANALYSIS or complexity == Complexity.COMPLEX or requirements.get('qualitySensitive')):
+                    bonus -= 20
+                score += bonus
                 if debug_scores is not None:
                     for entry in reversed(debug_scores):
                         if entry.get('provider') == provider.name and entry.get('model') == model:
                             entry['score'] = round(score, 2)
-                            entry.setdefault('contributions', []).append(('tools_soft_preference_bonus', 120))
+                            entry.setdefault('contributions', []).append(('tools_soft_preference_bonus', bonus))
                             break
             scored = (score, pn, model)
             all_candidates.append(scored)
