@@ -1,6 +1,6 @@
 ---
 name: sage-router
-description: Local-first, self-hosted AI model gateway that intelligently routes requests to the best available model based on intent, latency, and capability. Use when configuring, debugging, or modifying Sage Router.
+description: Local-first AI model routing for serious agents. One endpoint. Any provider. The router figures out the rest.
 env:
   - SAGE_ROUTER_HOME (required: path to sage-router repo)
   - SAGE_ROUTER_DISABLED_PROVIDERS (optional: comma-separated provider names to suppress)
