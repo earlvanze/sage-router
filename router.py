@@ -270,8 +270,8 @@ ANALYSIS_QUALITY_MODEL_HINTS = [
     'kimi-k2', 'minimax-m2.7', 'glm-5', 'deepseek-v4',
 ]
 WEAK_ANALYSIS_MODEL_HINTS = [
-    'mini', 'small', 'haiku', 'flash-lite', 'lite', 'nano', 'tiny',
-    '1b', '3b', '7b', '8b', '12b', '14b', '16b',
+    'mini', 'small', 'haiku', 'flash', 'flash-lite', 'lite', 'nano', 'tiny',
+    '0.5b', '1b', '3b', '7b', '8b', '12b', '14b', '16b',
 ]
 
 # Known NON-chat families - dynamically extended from /api/tags.
