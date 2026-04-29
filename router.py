@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Sage Router - Dynamic provider discovery and routing"""
-import argparse, json, logging, math, os, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, ipaddress, json, logging, math, os, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
 from dataclasses import dataclass
 from enum import Enum, auto
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -14,6 +14,8 @@ OPENCLAW_DOTENV = os.environ.get('SAGE_ROUTER_OPENCLAW_DOTENV', os.path.join(SAG
 PROVIDER_PROFILES_PATH = os.path.join(os.path.dirname(__file__), 'provider-profiles.json')
 OPENCLAW_GATEWAY_HELPER = os.path.join(os.path.dirname(__file__), 'openclaw_gateway_agent.mjs')
 SELF_PROVIDER_NAMES = {'smart-router', 'sage-router'}
+LOCAL_STRICT_PROXY_PROVIDER_NAMES = {'dario', 'openai-codex', 'grok-sso'}
+LOCAL_STRICT_PROXY_API_TYPES = {'openclaw-gateway', 'openai-codex-responses'}
 SHOW_MODEL_PREFIX = True  # Show provider/model at start of response by default
 
 
@@ -327,6 +329,47 @@ def is_self_provider(name, base_url):
 def is_local_dario_endpoint(base_url):
     parsed = urllib.parse.urlparse(base_url or '')
     return parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == 3456
+
+
+def is_lan_or_tailnet_endpoint(base_url):
+    """True when the provider endpoint itself is local/LAN/Tailnet.
+
+    Used by route=local-first, which is intentionally local-strict: no
+    Internet API endpoints, even if they are otherwise healthy and cheap.
+    Allows loopback, RFC1918/private LAN, link-local, IPv6 ULA, and
+    Tailscale/CGNAT 100.64.0.0/10 addresses. Bare hostnames and .local/.lan
+    names are treated as local network names.
+    """
+    parsed = urllib.parse.urlparse(base_url or '')
+    host = (parsed.hostname or '').strip().lower().rstrip('.')
+    if not host:
+        return False
+    if host in {'localhost'}:
+        return True
+    if '.' not in host and ':' not in host:
+        return True
+    if host.endswith(('.local', '.lan', '.home', '.tailnet')):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    tailscale_cgnat = ip.version == 4 and ip in ipaddress.ip_network('100.64.0.0/10')
+    return bool(ip.is_loopback or ip.is_private or ip.is_link_local or tailscale_cgnat)
+
+
+def provider_allowed_in_local_first(provider):
+    if provider.name in LOCAL_STRICT_PROXY_PROVIDER_NAMES:
+        return False
+    if provider.api_type in LOCAL_STRICT_PROXY_API_TYPES:
+        return False
+    return is_lan_or_tailnet_endpoint(provider.base_url)
+
+
+def local_first_rejection_reason(provider):
+    if provider.name in LOCAL_STRICT_PROXY_PROVIDER_NAMES or provider.api_type in LOCAL_STRICT_PROXY_API_TYPES:
+        return 'excluded by local-first (known cloud/SSO proxy provider)'
+    return 'excluded by local-first (endpoint is not LAN/Tailnet/local)'
 
 
 def should_route_anthropic_to_dario(name, api_type, base_url):
@@ -1204,7 +1247,7 @@ def load_router_profile_overlays(existing_providers):
 
 def normalize_route_mode(raw):
     value = str(raw or 'balanced').strip().lower()
-    aliases = {'deep': 'best', 'thorough': 'best'}
+    aliases = {'deep': 'best', 'thorough': 'best', 'local-strict': 'local-first'}
     value = aliases.get(value, value)
     return value if value in {'fast', 'balanced', 'best', 'local-first', 'realtime'} else 'balanced'
 
@@ -3514,6 +3557,9 @@ def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='
             continue
         if provider.api_type == 'ollama':
             fetch_ollama_models(provider)
+        if route_mode == 'local-first' and not provider_allowed_in_local_first(provider):
+            rejections.append({'provider': pn, 'model': '*', 'reason': local_first_rejection_reason(provider)})
+            continue
         if not provider.models or not provider_endpoint_reachable(provider):
             continue
         for model in dedupe_keep_order(provider.models):
@@ -4494,6 +4540,10 @@ def prepare_route(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
     # If provider forced, build chain with only that provider's models
     if force_provider and force_provider in PROVIDERS and force_provider not in DISABLED_PROVIDERS:
         prov = PROVIDERS[force_provider]
+        if route_mode == 'local-first' and not provider_allowed_in_local_first(prov):
+            rejections = [{'provider': force_provider, 'model': requested_model or '*', 'reason': local_first_rejection_reason(prov)}]
+            LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': [], 'scores': [], 'rejections': rejections[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': 'forced provider rejected by local-first', 'totalElapsedMs': None, 'forcedProvider': force_provider})
+            return normalized_messages, intent, complexity, estimated_tokens, []
         if prov.api_type == 'ollama':
             fetch_ollama_models(prov)
         if prov.models and provider_endpoint_reachable(prov):
@@ -4514,6 +4564,9 @@ def prepare_route(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
             filtered_models = []
             forced_rejections = []
             for model in all_models:
+                if route_mode == 'local-first' and prov.api_type == 'ollama' and is_cloud_ollama_model(model):
+                    forced_rejections.append({'provider': force_provider, 'model': model, 'reason': 'excluded by local-first (:cloud model)'})
+                    continue
                 if not is_chat_capable_model(prov, model):
                     forced_rejections.append({'provider': force_provider, 'model': model, 'reason': 'not chat-capable'})
                     continue
@@ -4872,7 +4925,7 @@ class Handler(BaseHTTPRequestHandler):
                 "thinking": {
                     "default": ThinkingLevel.MEDIUM.value,
                     "accepted": [level.value for level in ThinkingLevel],
-                    "routeModes": ["fast", "balanced", "deep", "best", "local-first", "realtime"],
+                    "routeModes": ["fast", "balanced", "deep", "best", "local-first", "local-strict", "realtime"],
                 },
                 "requirements": {
                     "supportedKeys": ["reasoning", "json", "tools", "longContext", "streaming"]

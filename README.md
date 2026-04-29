@@ -4,7 +4,7 @@
 
 One endpoint. Any provider. The router figures out the rest.
 
-[![ClawHub](https://img.shields.io/badge/ClawHub-v3.26.20-blue)](https://clawhub.ai/earlvanze/sage-router)
+[![ClawHub](https://img.shields.io/badge/ClawHub-v3.26.22-blue)](https://clawhub.ai/earlvanze/sage-router)
 [![GitHub](https://img.shields.io/badge/GitHub-earlvanze%2Fsage--router-black)](https://github.com/earlvanze/sage-router)
 
 ---
@@ -152,6 +152,8 @@ function route_request(payload):
             if provider has no models or endpoint is unreachable: continue
 
             for each model in provider.models:
+                if local-first mode and provider endpoint is not LAN/Tailnet/local: reject
+                if local-first mode and provider is a known cloud/SSO proxy: reject
                 if local-first mode and model is an Ollama Cloud model: reject
                 if model is not chat-capable: reject
                 if model does not satisfy hard requirements
@@ -434,7 +436,7 @@ Control how Sage Router selects models:
 | `fast` | Prefer local models, minimize latency |
 | `balanced` | Balance capability and speed |
 | `best` | Always pick the best model for the task, regardless of latency |
-| `local-first` | Try truly local models before any cloud provider. Ollama models ending in `:cloud` are excluded even if the endpoint is localhost. |
+| `local-first` / `local-strict` | Local-strict mode. Only use local, LAN, or Tailnet provider endpoints. Reject Internet APIs such as OpenAI, Anthropic/Dario, Google, NVIDIA Cloud, Copilot, xAI/Grok SSO, OpenRouter, etc. Ollama models ending in `:cloud` are also excluded even if the Ollama endpoint is localhost. |
 
 Set via request: `{"route": "fast"}` or header: `X-Route-Mode: fast`
 
