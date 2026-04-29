@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Sage Router - Dynamic provider discovery and routing"""
-import argparse, ipaddress, json, logging, math, os, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, ipaddress, json, logging, math, os, re, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
 from dataclasses import dataclass
 from enum import Enum, auto
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -1255,6 +1255,48 @@ def normalize_route_mode(raw):
     return value if value in {'fast', 'balanced', 'best', 'local-first', 'realtime'} else 'balanced'
 
 
+def _content_blocks(payload):
+    blocks = []
+    if not isinstance(payload, dict):
+        return blocks
+    for msg in payload.get('messages') or []:
+        if isinstance(msg, dict):
+            content = msg.get('content')
+            if isinstance(content, list):
+                blocks.extend([b for b in content if isinstance(b, dict)])
+            elif isinstance(content, dict):
+                blocks.append(content)
+    return blocks
+
+
+def _payload_text(payload):
+    if not isinstance(payload, dict):
+        return ''
+    return ' '.join(normalize_content((m or {}).get('content', '')) for m in payload.get('messages') or [] if isinstance(m, dict))
+
+
+def payload_document_signal(payload):
+    text = _payload_text(payload).lower()
+    blocks = _content_blocks(payload)
+    filenames = ' '.join(str(b.get(k, '')) for b in blocks for k in ('filename', 'fileName', 'name', 'path', 'filePath', 'mime_type', 'mimeType', 'media_type', 'mediaType')).lower()
+    haystack = f'{text} {filenames}'
+    doc_markers = [
+        '.pdf', 'application/pdf', '<file ', '<media:', 'media attached', 'external_untrusted_content',
+        'document', 'report', 'informe', 'conclusiones', 'findings', 'clinical information',
+        'translate', 'summarize', 'extract', 'parse', 'ocr', 'mri', 'rm columna', 'resonancia',
+    ]
+    return any(marker in haystack for marker in doc_markers) or len(text) > 4000
+
+
+def payload_vision_signal(payload):
+    blocks = _content_blocks(payload)
+    for block in blocks:
+        btype = str(block.get('type') or '').lower()
+        mime = str(block.get('mime_type') or block.get('mimeType') or block.get('media_type') or block.get('mediaType') or '').lower()
+        if btype in {'image', 'image_url', 'input_image'} or mime.startswith('image/'):
+            return True
+    return False
+
 def normalize_requirements(payload, thinking_level=ThinkingLevel.MEDIUM):
     req = payload.get('requirements') if isinstance(payload, dict) else None
     if not isinstance(req, dict):
@@ -1282,12 +1324,16 @@ def normalize_requirements(payload, thinking_level=ThinkingLevel.MEDIUM):
     requires_reasoning = explicit_reasoning
     explicit_streaming = bool(req.get('streaming') or payload.get('requiresStreaming'))
     requested_stream = bool(payload.get('stream'))
+    document_signal = bool(req.get('document') or payload.get('requiresDocumentParsing') or payload_document_signal(payload))
+    vision_signal = bool(req.get('vision') or payload.get('requiresVision') or payload_vision_signal(payload))
     return {
         'reasoning': bool(req.get('reasoning') or payload.get('requiresReasoning') or requires_reasoning),
         'json': bool(req.get('json') or payload.get('requiresJson')),
         'tools': bool(req.get('tools') or payload.get('requiresTools') or has_tools),
         'preferTools': bool(payload.get('tools') and not (req.get('tools') or payload.get('requiresTools') or has_tools)),
-        'longContext': bool(req.get('longContext') or payload.get('requiresLongContext')),
+        'longContext': bool(req.get('longContext') or payload.get('requiresLongContext') or document_signal),
+        'document': document_signal,
+        'vision': vision_signal,
         'streaming': bool(explicit_streaming or (requested_stream and not has_tools)),
     }
 
@@ -1709,7 +1755,7 @@ def parse_anthropic_response(body):
         if not isinstance(block, dict):
             continue
         if block.get('type') == 'text':
-            text_parts.append(block.get('text', ''))
+            text_parts.append(str(block.get('text', '')))
         elif block.get('type') == 'tool_use':
             tool_calls.append({
                 'id': block.get('id') or f'call_{uuid.uuid4().hex[:24]}',
@@ -1787,7 +1833,10 @@ def model_capabilities(provider, model):
         'json': bool(meta.get('supportsJson', default_json)),
         'tools': bool(meta.get('supportsTools', default_tools)),
         'streaming': bool(meta.get('supportsStreaming', default_streaming)),
-        'vision': bool(meta.get('supportsVision') or is_multimodal_model(model)),
+        'vision': bool(meta.get('supportsVision') or ('image' in (meta.get('input') or [])) or is_multimodal_model(model)),
+        # Document parsing here means extracted-text document work. Native binary PDF ingestion
+        # is still handled by OpenClaw/pdf tooling before it reaches this router.
+        'document': bool(meta.get('supportsDocument') or meta.get('supportsFiles') or default_chat),
         'ocr': bool(meta.get('supportsOcr') or is_ocr_model(model)),
         'longContext': model_context_window(provider, model),
         'manifestReason': meta.get('manifestReason'),
@@ -1808,6 +1857,10 @@ def model_meets_requirements(provider, model, requirements, estimated_tokens):
         return False, 'json unsupported'
     if requirements.get('tools') and not caps['tools']:
         return False, 'tools unsupported'
+    if requirements.get('vision') and not caps['vision']:
+        return False, 'vision unsupported'
+    if requirements.get('document') and not caps['document']:
+        return False, 'document parsing unsupported'
     if requirements.get('streaming') and not caps['streaming']:
         return False, 'streaming unsupported'
     return True, None
@@ -1980,7 +2033,13 @@ def normalize_content(content: Any) -> str:
             elif isinstance(block, dict):
                 block_type = block.get('type')
                 if block_type == 'text':
-                    parts.append(block.get('text', ''))
+                    parts.append(str(block.get('text', '')))
+                elif block_type in {'image', 'image_url', 'input_image'}:
+                    parts.append('[image attached]')
+                elif block_type in {'document', 'file', 'input_file'}:
+                    name = block.get('filename') or block.get('fileName') or block.get('name') or block.get('path') or block.get('filePath') or 'file'
+                    mime = block.get('mime_type') or block.get('mimeType') or block.get('media_type') or block.get('mediaType') or ''
+                    parts.append(f'[document attached: {name} {mime}]')
                 elif 'content' in block:
                     parts.append(normalize_content(block.get('content')))
         return ' '.join(part for part in parts if part).strip()
@@ -2002,6 +2061,71 @@ def normalize_messages(messages):
             'content': normalize_content(msg.get('content', '')),
         })
     return normalized
+
+
+def _safe_document_path(path_value):
+    path = os.path.abspath(os.path.expanduser(str(path_value or '').strip()))
+    allowed_roots = [
+        os.path.abspath(os.path.expanduser('~/.openclaw/media/inbound')),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')),
+    ]
+    if not any(path == root or path.startswith(root + os.sep) for root in allowed_roots):
+        return ''
+    if not os.path.isfile(path):
+        return ''
+    return path
+
+
+def extract_document_paths_from_content(content):
+    paths = []
+    if isinstance(content, list):
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            for key in ('path', 'filePath', 'filename', 'fileName'):
+                candidate = block.get(key)
+                safe = _safe_document_path(candidate) if candidate else ''
+                if safe:
+                    paths.append(safe)
+    text = normalize_content(content)
+    for match in re.findall(r'(/[^\s\]\)\}<>"\']+\.(?:pdf|txt|md))', text, flags=re.IGNORECASE):
+        safe = _safe_document_path(match)
+        if safe:
+            paths.append(safe)
+    return dedupe_keep_order(paths)
+
+
+def extract_document_text(path, max_chars=30000):
+    try:
+        lower = path.lower()
+        if lower.endswith('.pdf') and shutil.which('pdftotext'):
+            proc = subprocess.run(['pdftotext', '-layout', '-nopgbrk', path, '-'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=20)
+            if proc.returncode == 0 and proc.stdout.strip():
+                return proc.stdout[:max_chars]
+            logger.warning(f'pdftotext failed for {path}: {proc.stderr[:180]}')
+        if lower.endswith(('.txt', '.md')):
+            with open(path, 'r', encoding='utf-8', errors='replace') as f:
+                return f.read(max_chars)
+    except Exception as e:
+        logger.warning(f'document extraction failed for {path}: {e}')
+    return ''
+
+
+def enrich_document_messages(messages, max_chars_per_doc=30000):
+    enriched = []
+    for msg in messages or []:
+        if not isinstance(msg, dict):
+            continue
+        base = normalize_content(msg.get('content', ''))
+        additions = []
+        for path in extract_document_paths_from_content(msg.get('content', '')):
+            text = extract_document_text(path, max_chars=max_chars_per_doc)
+            if text.strip():
+                additions.append(f'\n\n[Extracted text from {os.path.basename(path)}]\n{text.strip()}')
+            else:
+                additions.append(f'\n\n[Document attached but text extraction failed: {os.path.basename(path)}]')
+        enriched.append({'role': msg.get('role', 'user'), 'content': (base + ''.join(additions)).strip()})
+    return enriched
 
 
 def load_latency_stats():
@@ -3189,7 +3313,7 @@ def heuristic_intent_scores(text):
     for kw in ['write','code','debug','fix','refactor','implement','function','bug','test','.py','.js']:
         if kw in tl: scores[Intent.CODE] += 1
     if '```' in text: scores[Intent.CODE] += 3
-    for kw in ['analyze','explain','compare','research','why','how does','review']:
+    for kw in ['analyze','explain','compare','research','why','how does','review','translate','summarize','summary','extract','parse','pdf','document','report','informe','conclusion','findings','medical report','mri','resonancia']:
         if kw in tl: scores[Intent.ANALYSIS] += 1
     for kw in ['create','brainstorm','imagine','design','story']:
         if kw in tl: scores[Intent.CREATIVE] += 2
@@ -3345,7 +3469,8 @@ def thinking_max_tokens(level: ThinkingLevel):
     return 8192
 
 
-def score_provider_model(provider, model, intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='balanced', estimated_tokens=0, debug_scores=None):
+def score_provider_model(provider, model, intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='balanced', estimated_tokens=0, debug_scores=None, requirements=None):
+    requirements = requirements or {}
     intent_key = intent.name
     api_score = INTENT_API_SCORES.get(intent_key, {}).get(provider.api_type, 40)
     model_l = model.lower()
@@ -3512,6 +3637,26 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
             score += 2
             contributions.append(('thinking_low_ollama_bonus', 2))
 
+    if requirements.get('document'):
+        if provider.api_type == 'google-generative-language':
+            score += 55
+            contributions.append(('document_google_bonus', 55))
+        elif provider.api_type in {'openai-completions', 'anthropic-messages'}:
+            score += 30
+            contributions.append(('document_frontier_bonus', 30))
+        elif provider.api_type == 'ollama':
+            score -= 35
+            contributions.append(('document_ollama_penalty', -35))
+        if any(h in model_l for h in ('gemini', 'gpt-5', 'gpt-4o', 'opus', 'sonnet', 'qwen', 'kimi', 'minimax')):
+            score += 10
+            contributions.append(('document_model_hint_bonus', 10))
+        if is_nvidia_provider(provider):
+            score -= 25
+            contributions.append(('document_nvidia_penalty', -25))
+        if any(h in model_l for h in ('nano', 'tiny', 'tts', 'asr', 'embed', 'clip', 'nemotron', '1b', '3b', '7b')):
+            score -= 35
+            contributions.append(('document_weak_model_penalty', -35))
+
     health = model_health_snapshot(provider, model, intent.name)
     health_delta = max(-60, min(40, (health.get('score', 0) - 50) * 0.6))
     score += health_delta
@@ -3576,7 +3721,7 @@ def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='
             if not ok_req:
                 rejections.append({'provider': pn, 'model': model, 'reason': reason})
                 continue
-            score = score_provider_model(provider, model, intent, complexity, thinking, route_mode, estimated_tokens, debug_scores)
+            score = score_provider_model(provider, model, intent, complexity, thinking, route_mode, estimated_tokens, debug_scores, requirements)
             if payload_tools_soft_preference(requirements) and model_capabilities(provider, model).get('tools'):
                 score += 120
                 if debug_scores is not None:
@@ -4374,7 +4519,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         if not _fp and _pp in PROVIDERS and _pp not in DISABLED_PROVIDERS:
             _fp = _pp
         _rm = _parts[1]
-    _, intent, complexity, estimated_tokens, chain = prepare_route(
+    normalized_messages, intent, complexity, estimated_tokens, chain = prepare_route(
         payload.get('messages', []),
         request_id=request_id,
         thinking=thinking,
@@ -4386,6 +4531,13 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         requested_model=_rm,
     )
 
+    provider_payload = payload
+    # For document/text extraction requests, send provider-compatible text instead of raw
+    # attachment blocks. Native image/vision requests keep the original multimodal payload.
+    if requirements.get('document') and not requirements.get('vision'):
+        provider_payload = dict(payload)
+        provider_payload['messages'] = enrich_document_messages(payload.get('messages', []))
+
     attempts = []
     overall_started = time.time()
     for pn, model in chain:
@@ -4393,7 +4545,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
             continue
         prov = PROVIDERS[pn]
         supports_reasoning = provider_supports_reasoning(prov, model)
-        logger.info(f"[{request_id}] Trying {pn}/{model} (api={prov.api_type}, reasoning={supports_reasoning}, stream={want_stream}, tools={bool(payload.get('tools'))})")
+        logger.info(f"[{request_id}] Trying {pn}/{model} (api={prov.api_type}, reasoning={supports_reasoning}, stream={want_stream}, tools={bool(provider_payload.get('tools'))})")
         started_attempt = time.time()
         ok = False
         result = None
@@ -4401,51 +4553,51 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         try:
             if prov.api_type == 'openai-completions':
                 if want_stream:
-                    stream_openai_compat_to_client(self, prov, model, payload, request_id, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode)
+                    stream_openai_compat_to_client(self, prov, model, provider_payload, request_id, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode)
                     ok = True
                 else:
-                    ok, result = call_openai_compat_completion(prov.base_url, model, payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_openai_compat_completion(prov.base_url, model, provider_payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'ollama':
                 if is_ocr_model(model):
-                    ok, result = call_ollama_ocr(prov.base_url, model, payload, request_id)
+                    ok, result = call_ollama_ocr(prov.base_url, model, provider_payload, request_id)
                     if not ok:
                         error_detail = result
                 elif want_stream:
-                    stream_ollama_to_client(self, prov, model, payload, request_id, thinking=thinking, debug_mode=debug_mode)
+                    stream_ollama_to_client(self, prov, model, provider_payload, request_id, thinking=thinking, debug_mode=debug_mode)
                     ok = True
                 else:
-                    ok, result = call_ollama_completion(prov.base_url, model, payload, api_key=prov.api_key, thinking=thinking, provider_name=pn, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_ollama_completion(prov.base_url, model, provider_payload, api_key=prov.api_key, thinking=thinking, provider_name=pn, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'anthropic-messages':
                 if want_stream:
                     error_detail = 'streaming passthrough not implemented for anthropic bridge'
                 else:
-                    ok, result = call_anthropic_completion(prov.base_url, model, payload, api_key=prov.api_key, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id, provider_name=pn)
+                    ok, result = call_anthropic_completion(prov.base_url, model, provider_payload, api_key=prov.api_key, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id, provider_name=pn)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'google-generative-language':
                 if want_stream:
-                    stream_google_to_client(self, prov, model, payload, request_id, thinking=thinking, debug_mode=debug_mode)
+                    stream_google_to_client(self, prov, model, provider_payload, request_id, thinking=thinking, debug_mode=debug_mode)
                     ok = True
                 else:
-                    ok, result = call_google_completion(prov.base_url, model, payload, api_key=prov.api_key, thinking=thinking, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_google_completion(prov.base_url, model, provider_payload, api_key=prov.api_key, thinking=thinking, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'openai-codex-responses':
                 if want_stream:
                     error_detail = 'streaming not implemented for Codex responses'
                 else:
-                    ok, result = call_codex_completion(prov.base_url, model, payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_codex_completion(prov.base_url, model, provider_payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'openclaw-gateway':
-                if want_stream or payload.get('tools'):
+                if want_stream or provider_payload.get('tools'):
                     error_detail = 'streaming/tool passthrough unsupported for openclaw gateway bridge'
                 else:
-                    ok_text, text = call_openclaw_gateway(model, payload.get('messages', []), pn, thinking, want_json)
+                    ok_text, text = call_openclaw_gateway(model, provider_payload.get('messages', []), pn, thinking, want_json)
                     ok = ok_text
                     if ok:
                         result = build_openai_completion(pn, model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=not want_json)
@@ -4455,7 +4607,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
                 if want_stream:
                     error_detail = f'streaming passthrough unsupported for {prov.api_type}'
                 else:
-                    ok, result = call_openai_compat_completion(prov.base_url, model, payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_openai_compat_completion(prov.base_url, model, provider_payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
         except Exception as e:
@@ -4749,7 +4901,7 @@ def anthropic_to_openai_request(anthropic_payload):
             for block in content:
                 if isinstance(block, dict):
                     if block.get('type') == 'text':
-                        parts.append(block.get('text', ''))
+                        parts.append(str(block.get('text', '')))
                     elif block.get('type') == 'tool_use':
                         parts.append(f'[Tool Use: {block.get("name", "unknown")}] {json.dumps(block.get("input", {}))}')
                     elif block.get('type') == 'tool_result':
@@ -4931,7 +5083,7 @@ class Handler(BaseHTTPRequestHandler):
                     "routeModes": ["fast", "balanced", "deep", "best", "local-first", "local-strict", "realtime"],
                 },
                 "requirements": {
-                    "supportedKeys": ["reasoning", "json", "tools", "longContext", "streaming"]
+                    "supportedKeys": ["reasoning", "json", "tools", "longContext", "document", "vision", "streaming"]
                 },
                 "intentClassifier": {
                     "enabled": INTENT_CLASSIFIER_ENABLED,
