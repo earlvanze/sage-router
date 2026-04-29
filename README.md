@@ -114,13 +114,83 @@ Request: "Refactor this Python function"
   → Intent: CODE, Complexity: MEDIUM
   → Route Mode: balanced
   → Selected Chain:
-    1. ollama/claude-3.5-sonnet:fast   (local, fast)
-    2. ollama/gpt-4o-mini:latest       (fallback)
-    3. anthropic/claude-sonnet-4-6     (if local fails)
-    4. openai/gpt-4o                   (last resort)
+    1. ollama/glm-5.1:cloud            (best score for CODE + available)
+    2. openai-codex/gpt-5.5            (fallback)
+    3. ollama/kimi-k2:cloud            (fallback)
+    4. openai/gpt-4.1                  (last resort)
 ```
 
 If the first model fails or times out, it automatically tries the next. No manual retry needed.
+
+### Model Selection Pseudocode
+
+The core selection path lives in `router.py` across `normalize_requirements`,
+`prepare_route`, `select_model`, `score_provider_model`, and `route_request`.
+In pseudocode:
+
+```text
+function route_request(payload):
+    messages = payload.messages
+    thinking = normalize_thinking(payload.reasoning / payload.thinking)
+    route_mode = payload.routeMode or "balanced"
+    requirements = normalize_requirements(payload)
+
+    latest_prompt = last user/developer message text
+    intent = classify_intent(latest_prompt)        # code, analysis, general, creative, etc.
+    complexity = estimate_complexity(latest_prompt)
+    estimated_tokens = estimate_prompt_tokens(messages)
+
+    if caller forced a provider/model:
+        candidate_chain = validate_forced_route_against_requirements()
+    else:
+        candidate_chain = []
+        rejected = []
+
+        for each provider in configured providers:
+            if provider is disabled: continue
+            if provider is Ollama: refresh discovered model list
+            if provider has no models or endpoint is unreachable: continue
+
+            for each model in provider.models:
+                if local-first mode and model is an Ollama Cloud model: reject
+                if model is not chat-capable: reject
+                if model does not satisfy hard requirements
+                   such as JSON, tools, streaming, reasoning, or long context: reject
+
+                score = base score for intent + provider API type
+                score += model-name intent hints
+                score += / -= context-window fit
+                score += / -= provider/model family preferences
+                score += / -= route mode preference
+                         # fast, realtime, best, local-first, balanced
+                score += / -= thinking-level preference
+                         # high favors larger reasoning models, low favors lightweight models
+                score += / -= current health/cooldown signal
+                score += / -= empirical latency/success adjustment
+
+                if tools were supplied but not forced:
+                    score += soft bonus for models with tool support
+
+                candidate_chain.append((score, provider, model))
+
+        sort candidate_chain by score descending, then provider/model name for stability
+        candidate_chain = top MAX_PROVIDER_ATTEMPTS
+
+    for provider, model in candidate_chain:
+        response = call_provider(provider, model, payload)
+        if response has visible text or valid tool calls:
+            record successful route event
+            return response
+        record failure and try next candidate
+
+    record failed route event
+    return provider_failure_error
+```
+
+Hard filters happen before scoring, so an otherwise high-scoring model is never
+selected when it cannot satisfy explicit requirements like forced tool calling or
+JSON output. Soft preferences, such as attached optional tools, influence the
+score without unnecessarily shrinking the candidate pool.
 
 ---
 
