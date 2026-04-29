@@ -1,6 +1,6 @@
 ---
 name: sage-router
-description: Intent-based AI model router that classifies requests and routes to the best provider. Auto-discovers OpenClaw providers and model lists from openclaw.json, skips self-recursion, and scores candidates dynamically by intent. Runs as a systemd service on port 8788. Use when configuring, debugging, or modifying the sage-router service.
+description: Local-first AI model router and BYOK gateway with intent/capability scoring, health-aware fallbacks, tool-call support, and OpenAI/Anthropic/Gemini-compatible endpoints. Use when configuring, debugging, or modifying the sage-router service.
 env:
   - SAGE_ROUTER_HOME (required: path to sage-router repo)
   - SAGE_ROUTER_DISABLED_PROVIDERS (optional: comma-separated provider names to suppress)
