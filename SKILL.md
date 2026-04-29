@@ -1,6 +1,6 @@
 ---
 name: sage-router
-description: Local-first AI model router and BYOK gateway with intent/capability scoring, health-aware fallbacks, tool-call support, and OpenAI/Anthropic/Gemini-compatible endpoints. Use when configuring, debugging, or modifying the sage-router service.
+description: Local-first, self-hosted AI model gateway that intelligently routes requests to the best available model based on intent, latency, and capability. Use when configuring, debugging, or modifying Sage Router.
 env:
   - SAGE_ROUTER_HOME (required: path to sage-router repo)
   - SAGE_ROUTER_DISABLED_PROVIDERS (optional: comma-separated provider names to suppress)
