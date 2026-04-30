@@ -1596,7 +1596,13 @@ def looks_like_visible_tool_call(text: str) -> bool:
         return True
     if re.search(r'(?m)^\s*(?:functions\.)?(?:exec|browser|web_fetch|web_search|read|pdf)\s*\(', raw):
         return True
-    if re.search(r'(?m)^\s*```(?:tool_code|tool|json)?\s*\n\s*\{\s*["\'](?:tool|name)["\']', raw, re.IGNORECASE):
+    if re.search(r'(?m)^\s*```(?:tool_code|tool|json)?\s*\n\s*\{\s*["\'](?:tool|name|cmd|path|command)["\']', raw, re.IGNORECASE):
+        return True
+    if re.search(r'(?m)(?:^|\s)to\s*=\s*(?:exec|read|browser|message|web_search|web_fetch|pdf)\s*\{', raw, re.IGNORECASE):
+        return True
+    if re.search(r'(?s)\{\s*["\'](?:cmd|command)["\']\s*:\s*["\'][^"\']*(?:cd\s+|/|find\s+|ls\s+|python|bash|git)\b', raw, re.IGNORECASE):
+        return True
+    if re.search(r'(?s)\{\s*["\']path["\']\s*:\s*["\'](?:/|~|\./|[^"\']*/)[^"\']*["\']\s*\}', raw, re.IGNORECASE):
         return True
     return False
 
@@ -4355,10 +4361,16 @@ def call_codex_completion(base_url, model, payload, api_key='', provider_name=''
         
         text = sanitize_visible_output(''.join(full_text))
         if text:
+            leak_reason = reject_visible_tool_call_leak(payload, text, [])
+            if leak_reason:
+                logger.warning(f"Codex responses {provider_name or base_url} {model}: {leak_reason}")
+                return False, leak_reason
             return True, build_openai_completion(
                 provider_name or 'openai-codex', model, request_id, text, [],
                 'stop', {'prompt_tokens': 0, 'completion_tokens': 0},
-                debug_mode=debug_mode
+                debug_mode=debug_mode,
+                allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object',
+                suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText'))
             )
         return False, 'Empty Codex response'
     except Exception as e:

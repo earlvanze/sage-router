@@ -25,6 +25,23 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertEqual('', router.reject_visible_tool_call_leak({}, 'tool_code\nmessage(action="send")', []))
         self.assertEqual('', router.reject_visible_tool_call_leak(payload, 'tool_code\nmessage(action="send")', [{'id': 'call_1'}]))
 
+
+    def test_detects_codex_inline_tool_leaks(self):
+        noisy = '''I’ll pull the records.
+{"cmd":"cd /data/.openclaw/workspace-discord-public && find EARLCoin -maxdepth 4 -type f", "yieldMs":1000}
+{"path":"/home/umbrel/.openclaw/workspace-discord-public/AGENTS.md"}
+to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
+ I can calculate it, but need source records.'''
+        self.assertTrue(router.looks_like_visible_tool_call(noisy))
+
+    def test_rejects_codex_inline_tool_leaks_when_tools_present(self):
+        payload = {'tools': [{'type': 'function', 'function': {'name': 'exec'}}]}
+        text = 'I will inspect it. {"cmd":"cd /data/.openclaw/workspace-discord-public && ls EARLCoin"}'
+        self.assertEqual(
+            'provider leaked tool call as visible text instead of structured tool_calls',
+            router.reject_visible_tool_call_leak(payload, text, []),
+        )
+
     def test_normalized_tool_arguments_stay_openai_compatible(self):
         call = {'function': {'name': 'message', 'arguments': {'action': 'send', 'message': 'hi'}}}
         converted = router.openai_tool_calls([call])
