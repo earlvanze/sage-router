@@ -1371,6 +1371,7 @@ def normalize_requirements(payload, thinking_level=ThinkingLevel.MEDIUM):
         'streaming': bool(explicit_streaming or (requested_stream and not has_tools)),
         'qualitySensitive': bool(req.get('qualitySensitive') or payload.get('requiresQuality') or payload_quality_sensitive_signal(payload)),
         'frontierOrReasoningTools': bool(req.get('frontierOrReasoningTools') or payload.get('requiresFrontierOrReasoningTools')),
+        'suppressToolCallContent': bool(req.get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')),
     }
 
 
@@ -1701,9 +1702,11 @@ def maybe_prefix_debug_text(content, metadata, debug_mode=False, allow_prefix=Tr
     return text
 
 
-def build_openai_completion(provider_name, model, request_id, content='', tool_calls=None, finish_reason=None, usage=None, debug_mode=False, allow_debug_prefix=True):
+def build_openai_completion(provider_name, model, request_id, content='', tool_calls=None, finish_reason=None, usage=None, debug_mode=False, allow_debug_prefix=True, suppress_tool_call_content=False):
     metadata = build_router_metadata(provider_name, model, request_id)
     normalized_tool_calls = openai_tool_calls(tool_calls)
+    if suppress_tool_call_content and normalized_tool_calls:
+        content = ''
     content_text = maybe_prefix_debug_text(content, metadata, debug_mode=debug_mode, allow_prefix=allow_debug_prefix and not normalized_tool_calls)
     if SHOW_MODEL_PREFIX and content_text and not normalized_tool_calls:
         content_text = '[' + provider_name + '/' + model + '] ' + content_text
@@ -3670,9 +3673,11 @@ def apply_router_profile(payload):
     req = payload.get('requirements')
     if not isinstance(req, dict):
         req = {}
-    for key in ('qualitySensitive', 'reasoning', 'tools', 'preferTools', 'json', 'vision', 'document', 'longContext', 'frontierOrReasoningTools'):
+    for key in ('qualitySensitive', 'reasoning', 'tools', 'preferTools', 'json', 'vision', 'document', 'longContext', 'frontierOrReasoningTools', 'suppressToolCallContent'):
         if key in profile:
             req[key] = bool(profile.get(key))
+    if profile.get('suppressIntermediateToolText'):
+        req['suppressToolCallContent'] = True
     if profile.get('requiresQuality'):
         payload['requiresQuality'] = True
         req['qualitySensitive'] = True
@@ -3766,6 +3771,7 @@ def apply_discord_public_route_profile(payload):
         'qualitySensitive': True,
         'reasoning': True,
         'frontierOrReasoningTools': True,
+        'suppressToolCallContent': True,
     })
     payload['requirements'] = req
     payload['requiresQuality'] = True
@@ -4489,7 +4495,7 @@ def call_openai_compat_completion(base_url, model, payload, api_key='', provider
             logger.warning(f"OpenAI-compat {provider_name or base_url} {model}: {leak_reason}")
             return False, leak_reason
         finish_reason = choice.get('finish_reason') or ('tool_calls' if tool_calls else 'stop')
-        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, body.get('usage'), debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
+        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, body.get('usage'), debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
     except Exception as e:
         err = extract_http_error(e)
         logger.warning(f"OpenAI-compat {provider_name or base_url} {model}: {err}")
@@ -4517,7 +4523,7 @@ def call_ollama_completion(base_url, model, payload, api_key='', thinking=Thinki
             logger.warning(f"Ollama {base_url} {model}: {leak_reason}")
             return False, leak_reason
         finish_reason = 'tool_calls' if tool_calls else (body.get('done_reason') or 'stop')
-        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
+        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
     except Exception as e:
         err = extract_http_error(e)
         if is_cloud_ollama_model(model) and 'HTTP 401' in err:
@@ -4617,7 +4623,7 @@ def call_anthropic_completion(base_url, model, payload, api_key='', thinking=Thi
             body = json.loads(resp.read())
         text, tool_calls, stop_reason, usage = parse_anthropic_response(body)
         finish_reason = 'tool_calls' if tool_calls or stop_reason == 'tool_use' else 'stop'
-        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, usage, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
+        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, usage, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
     except Exception as e:
         err = extract_http_error(e)
         logger.warning(f"Anthropic {base_url} {model}: {err}")
@@ -4628,7 +4634,7 @@ def call_google_completion(base_url, model, payload, api_key='', thinking=Thinki
     ok, text = call_google(base_url, model, payload.get('messages', []), api_key=api_key, thinking=thinking, want_json=payload.get('response_format', {}).get('type') == 'json_object')
     if not ok:
         return False, text
-    return True, build_openai_completion('google', model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
+    return True, build_openai_completion('google', model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
 
 
 def stream_openai_compat_to_client(self, provider, model, payload, request_id, thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False):

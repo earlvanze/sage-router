@@ -129,11 +129,11 @@ Request a profile with any of:
 Profile fields currently supported:
 - `route`: `fast`, `balanced`, `best`, `local-first`, `realtime`
 - `thinking`: `low`, `medium`, `high`
-- capability/quality flags: `requiresQuality`, `requiresReasoning`, `requiresTools`, `frontierLargeOnly`, `frontierOrReasoningTools`, `qualitySensitive`, `reasoning`, `tools`, `preferTools`, `json`, `vision`, `document`, `longContext`
+- capability/quality flags: `requiresQuality`, `requiresReasoning`, `requiresTools`, `frontierLargeOnly`, `frontierOrReasoningTools`, `suppressIntermediateToolText`, `qualitySensitive`, `reasoning`, `tools`, `preferTools`, `json`, `vision`, `document`, `longContext`
 - constraints: `allowProviders`, `denyProviders`, `allowModels`, `denyModels`, `minParamsB`
 
 Current profiles:
-- `discord-public`: public-facing quality profile. Forces best/high, reasoning, quality-sensitive, and blocks tiny/free filler models.
+- `discord-public`: public-facing quality profile. Forces best/high, reasoning, quality-sensitive, suppresses tool-call narration, and blocks tiny/free filler models.
 - `frontier-large`: strict frontier-large-only routing.
 - `fast-local`: low-latency local-first routing.
 - `coding-max`: high-thinking code route with weak model exclusions.

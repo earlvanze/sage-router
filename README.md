@@ -4,7 +4,7 @@
 
 One endpoint. Any provider. The router figures out the rest.
 
-[![ClawHub](https://img.shields.io/badge/ClawHub-v3.26.24-blue)](https://clawhub.ai/earlvanze/sage-router)
+[![ClawHub](https://img.shields.io/badge/ClawHub-v3.26.25-blue)](https://clawhub.ai/earlvanze/sage-router)
 [![GitHub](https://img.shields.io/badge/GitHub-earlvanze%2Fsage--router-black)](https://github.com/earlvanze/sage-router)
 
 ---
@@ -627,11 +627,11 @@ Profiles live in `router-profiles.json` and can set:
 - route mode: `fast`, `balanced`, `best`, `local-first`, `realtime`
 - thinking level: `low`, `medium`, `high`
 - requirements: quality, reasoning, tools, JSON, vision, documents, long context
-- constraints: provider/model allowlists and denylists, `minParamsB`, `frontierLargeOnly`, `frontierOrReasoningTools`
+- constraints: provider/model allowlists and denylists, `minParamsB`, `frontierLargeOnly`, `frontierOrReasoningTools`, `suppressIntermediateToolText`
 
 Bundled profiles:
 
-- `discord-public` — public-channel quality profile, high thinking, quality/reasoning required, tiny/free filler models blocked
+- `discord-public` — public-channel quality profile, high thinking, quality/reasoning required, tiny/free filler models blocked, tool-call narration suppressed
 - `frontier-large` — strict frontier/large-model-only routing
 - `fast-local` — low-latency local-first routing
 - `coding-max` — high-thinking coding route with weak model exclusions
