@@ -14,6 +14,14 @@ import router  # noqa: E402
 
 
 class ToolCallLeakTests(unittest.TestCase):
+
+    def test_default_thinking_is_high(self):
+        self.assertEqual(router.ThinkingLevel.HIGH, router.DEFAULT_THINKING_LEVEL)
+        self.assertEqual(router.ThinkingLevel.HIGH, router.normalize_thinking(None))
+        self.assertEqual(router.ThinkingLevel.HIGH, router.normalize_thinking({}))
+        self.assertEqual(router.ThinkingLevel.LOW, router.normalize_thinking('low'))
+        self.assertEqual(router.ThinkingLevel.MEDIUM, router.normalize_thinking('medium'))
+
     def test_detects_visible_tool_code_blocks(self):
         self.assertTrue(router.looks_like_visible_tool_call('tool_code\nmessage(action="delete")'))
         self.assertTrue(router.looks_like_visible_tool_call('```tool_code\n{"tool":"message","arguments":{}}\n```'))

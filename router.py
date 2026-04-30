@@ -304,6 +304,8 @@ class Complexity(Enum):
 class ThinkingLevel(Enum):
     LOW = 'low'; MEDIUM = 'medium'; HIGH = 'high'
 
+DEFAULT_THINKING_LEVEL = ThinkingLevel.HIGH
+
 @dataclass
 class Provider:
     name: str; api_type: str; base_url: str; api_key: str; models: List[str]; reasoning_models: set[str] | None = None; model_meta: dict[str, dict[str, Any]] | None = None
@@ -1331,7 +1333,7 @@ def payload_quality_sensitive_signal(payload):
         haystack = str(payload)[:12000].lower()
     return any(n in haystack for n in needles)
 
-def normalize_requirements(payload, thinking_level=ThinkingLevel.MEDIUM):
+def normalize_requirements(payload, thinking_level=DEFAULT_THINKING_LEVEL):
     req = payload.get('requirements') if isinstance(payload, dict) else None
     if not isinstance(req, dict):
         req = {}
@@ -1751,7 +1753,7 @@ def openai_completion_has_visible_output(result):
     return has_text or has_tools
 
 
-def build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=False, thinking=ThinkingLevel.MEDIUM):
+def build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=False, thinking=DEFAULT_THINKING_LEVEL):
     allowed_keys = [
         'messages', 'tools', 'tool_choice', 'parallel_tool_calls', 'response_format',
         'temperature', 'top_p', 'frequency_penalty', 'presence_penalty',
@@ -1785,7 +1787,7 @@ def openai_messages_to_ollama(messages):
     return converted
 
 
-def build_ollama_payload(model, payload, thinking=ThinkingLevel.MEDIUM, stream=False):
+def build_ollama_payload(model, payload, thinking=DEFAULT_THINKING_LEVEL, stream=False):
     ollama_payload = {
         'model': model,
         'messages': openai_messages_to_ollama(payload.get('messages', [])),
@@ -3597,13 +3599,15 @@ def normalize_thinking(raw):
     if isinstance(raw, dict):
         raw = raw.get('effort') or raw.get('level') or raw.get('thinking')
     if raw is None:
-        return ThinkingLevel.MEDIUM
+        return DEFAULT_THINKING_LEVEL
     value = str(raw).strip().lower()
     if value in {'low', 'minimal'}:
         return ThinkingLevel.LOW
+    if value in {'medium', 'normal', 'default'}:
+        return ThinkingLevel.MEDIUM
     if value in {'high', 'max', 'deep'}:
         return ThinkingLevel.HIGH
-    return ThinkingLevel.MEDIUM
+    return DEFAULT_THINKING_LEVEL
 
 
 def thinking_max_tokens(level: ThinkingLevel):
@@ -3785,7 +3789,7 @@ def apply_discord_public_route_profile(payload):
     return True
 
 
-def score_provider_model(provider, model, intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='balanced', estimated_tokens=0, debug_scores=None, requirements=None):
+def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_THINKING_LEVEL, route_mode='balanced', estimated_tokens=0, debug_scores=None, requirements=None):
     requirements = requirements or {}
     intent_key = intent.name
     api_score = INTENT_API_SCORES.get(intent_key, {}).get(provider.api_type, 40)
@@ -4052,7 +4056,7 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
 def payload_tools_soft_preference(requirements):
     return bool((requirements or {}).get('preferTools'))
 
-def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, estimated_tokens=0):
+def select_model(intent, complexity, thinking=DEFAULT_THINKING_LEVEL, route_mode='balanced', requirements=None, estimated_tokens=0):
     """Score ALL models across ALL providers globally, then rank.
 
     Previous behavior picked the best model per provider first, then
@@ -4106,7 +4110,7 @@ def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='
     all_candidates.sort(key=lambda item: (-item[0], item[1], item[2]))
     return [(pn, model) for _, pn, model in all_candidates[:MAX_PROVIDER_ATTEMPTS]], sorted(debug_scores, key=lambda item: item['score'], reverse=True), rejections
 
-def call_ollama(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM):
+def call_ollama(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL):
     url = base_url.rstrip('/') + '/api/chat'
     payload = {"model": model, "messages": messages, "stream": False}
     if thinking == ThinkingLevel.LOW:
@@ -4169,7 +4173,7 @@ def call_ollama(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
         logger.warning(f"Ollama {base_url} {model}: {err}")
         return False, err
 
-def call_openai_compat(base_url, model, messages, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, want_json=False):
+def call_openai_compat(base_url, model, messages, api_key='', provider_name='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, want_json=False):
     url = openai_chat_completions_url(base_url)
     payload = {"model": model, "messages": messages, "max_tokens": thinking_max_tokens(thinking)}
     if supports_reasoning:
@@ -4196,7 +4200,7 @@ def call_openai_compat(base_url, model, messages, api_key='', provider_name='', 
         return False, extract_http_error(e)
 
 
-def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinking=ThinkingLevel.MEDIUM, want_json=False, timeout_seconds=None):
+def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinking=DEFAULT_THINKING_LEVEL, want_json=False, timeout_seconds=None):
     if not os.path.exists(OPENCLAW_GATEWAY_HELPER):
         return False, f'Missing OpenClaw gateway helper: {OPENCLAW_GATEWAY_HELPER}'
 
@@ -4244,7 +4248,7 @@ def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinkin
 
 
 
-def call_codex_responses(base_url, model, messages, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, want_json=False):
+def call_codex_responses(base_url, model, messages, api_key='', provider_name='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, want_json=False):
     """Call OpenAI Codex Responses API at chatgpt.com/backend-api/codex/responses"""
     url = base_url.rstrip('/') + '/responses'
     
@@ -4308,7 +4312,7 @@ def call_codex_responses(base_url, model, messages, api_key='', provider_name=''
 
 
 
-def call_codex_completion(base_url, model, payload, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False, request_id=''):
+def call_codex_completion(base_url, model, payload, api_key='', provider_name='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, debug_mode=False, request_id=''):
     """Call OpenAI Codex Responses API with streaming SSE support"""
     url = base_url.rstrip('/') + '/responses'
     
@@ -4378,7 +4382,7 @@ def call_codex_completion(base_url, model, payload, api_key='', provider_name=''
 
 
 
-def call_anthropic(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, want_json=False):
+def call_anthropic(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, want_json=False):
     url = base_url.rstrip('/') + '/v1/messages'
     system_text = ''
     api_msgs = []
@@ -4422,7 +4426,7 @@ def call_anthropic(base_url, model, messages, api_key='', thinking=ThinkingLevel
         return False, extract_http_error(e)
 
 
-def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM, want_json=False):
+def call_google(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL, want_json=False):
     # Ensure base_url has /v1beta for Google API
     if 'generativelanguage.googleapis.com' in base_url and '/v1beta' not in base_url:
         base_url = base_url.rstrip('/') + '/v1beta'
@@ -4483,7 +4487,7 @@ def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
         return False, extract_http_error(e)
 
 
-def call_openai_compat_completion(base_url, model, payload, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False, request_id=''):
+def call_openai_compat_completion(base_url, model, payload, api_key='', provider_name='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, debug_mode=False, request_id=''):
     url = openai_chat_completions_url(base_url)
     proxied = build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=supports_reasoning, thinking=thinking)
     logger.info(f"[openai-compat] Sending to {provider_name} with tools: {bool(proxied.get('tools'))}")
@@ -4514,7 +4518,7 @@ def call_openai_compat_completion(base_url, model, payload, api_key='', provider
         return False, err
 
 
-def call_ollama_completion(base_url, model, payload, api_key='', thinking=ThinkingLevel.MEDIUM, provider_name='ollama', debug_mode=False, request_id=''):
+def call_ollama_completion(base_url, model, payload, api_key='', thinking=DEFAULT_THINKING_LEVEL, provider_name='ollama', debug_mode=False, request_id=''):
     url = base_url.rstrip('/') + '/api/chat'
     hdrs = {'Content-Type': 'application/json'}
     if api_key:
@@ -4608,7 +4612,7 @@ def call_ngc(base_url, model, payload, api_key='', request_id=''):
         return False, extract_http_error(e)
 
 
-def call_anthropic_completion(base_url, model, payload, api_key='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False, request_id='', provider_name='anthropic'):
+def call_anthropic_completion(base_url, model, payload, api_key='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, debug_mode=False, request_id='', provider_name='anthropic'):
     url = base_url.rstrip('/') + '/v1/messages'
     system_text, api_msgs = openai_messages_to_anthropic(payload.get('messages', []))
     request_payload = {'model': model, 'max_tokens': thinking_max_tokens(thinking), 'messages': api_msgs}
@@ -4642,14 +4646,14 @@ def call_anthropic_completion(base_url, model, payload, api_key='', thinking=Thi
         return False, err
 
 
-def call_google_completion(base_url, model, payload, api_key='', thinking=ThinkingLevel.MEDIUM, debug_mode=False, request_id=''):
+def call_google_completion(base_url, model, payload, api_key='', thinking=DEFAULT_THINKING_LEVEL, debug_mode=False, request_id=''):
     ok, text = call_google(base_url, model, payload.get('messages', []), api_key=api_key, thinking=thinking, want_json=payload.get('response_format', {}).get('type') == 'json_object')
     if not ok:
         return False, text
     return True, build_openai_completion('google', model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
 
 
-def stream_openai_compat_to_client(self, provider, model, payload, request_id, thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False):
+def stream_openai_compat_to_client(self, provider, model, payload, request_id, thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, debug_mode=False):
     url = openai_chat_completions_url(provider.base_url)
     proxied = build_openai_proxy_payload(payload, model, stream=True, supports_reasoning=supports_reasoning, thinking=thinking)
     hdrs = {'Content-Type': 'application/json'}
@@ -4684,7 +4688,7 @@ def stream_openai_compat_to_client(self, provider, model, payload, request_id, t
     return True
 
 
-def stream_ollama_to_client(self, provider, model, payload, request_id, thinking=ThinkingLevel.MEDIUM, debug_mode=False):
+def stream_ollama_to_client(self, provider, model, payload, request_id, thinking=DEFAULT_THINKING_LEVEL, debug_mode=False):
     url = provider.base_url.rstrip('/') + '/api/chat'
     hdrs = {'Content-Type': 'application/json'}
     if provider.api_key:
@@ -4743,7 +4747,7 @@ def stream_ollama_to_client(self, provider, model, payload, request_id, thinking
     return True
 
 
-def stream_google_to_client(self, provider, model, payload, request_id, thinking=ThinkingLevel.MEDIUM, debug_mode=False):
+def stream_google_to_client(self, provider, model, payload, request_id, thinking=DEFAULT_THINKING_LEVEL, debug_mode=False):
     """Stream Google Generative AI responses via SSE."""
     base_url = provider.base_url
     # Ensure base_url has /v1beta for Google API
@@ -5076,7 +5080,7 @@ def openai_to_google_response(result, request_model):
     }
 
 
-def prepare_route(messages, request_id='req-unknown', thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, want_json=False, streaming_mode=None, force_provider=None, requested_model=None):
+def prepare_route(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_LEVEL, route_mode='balanced', requirements=None, want_json=False, streaming_mode=None, force_provider=None, requested_model=None):
     normalized_messages = normalize_messages(messages)
     estimated_tokens = estimate_prompt_tokens(normalized_messages)
     user_text = latest_user_text(normalized_messages)
@@ -5207,7 +5211,7 @@ def latest_user_text(messages):
     return messages[-1].get('content', '') if messages else ''
 
 
-def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, want_json=False):
+def route_request(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_LEVEL, route_mode='balanced', requirements=None, want_json=False):
     requirements = requirements or {}
     normalized_messages, intent, complexity, estimated_tokens, chain = prepare_route(
         messages,
@@ -5479,7 +5483,7 @@ class Handler(BaseHTTPRequestHandler):
                 "disabled": sorted(DISABLED_PROVIDERS),
                 "disabledModels": sorted(DISABLED_MODELS),
                 "thinking": {
-                    "default": ThinkingLevel.MEDIUM.value,
+                    "default": DEFAULT_THINKING_LEVEL.value,
                     "accepted": [level.value for level in ThinkingLevel],
                     "routeModes": ["fast", "balanced", "deep", "best", "local-first", "local-strict", "realtime"],
                 },
