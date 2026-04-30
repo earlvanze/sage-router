@@ -1,0 +1,35 @@
+{
+  "profiles": {
+    "discord-public": {
+      "description": "Public Discord-facing responses. Quality-first. No tiny/free filler models.",
+      "route": "best",
+      "thinking": "high",
+      "requiresQuality": true,
+      "requiresReasoning": true,
+      "frontierOrReasoningTools": true,
+      "denyModels": ["*1.2b*", "*2b*", "*3b*", "*4b*", "*7b*", "*8b*", "*12b*", "*14b*", "*mini*", "*haiku*", "*flash-lite*", "*gemma-3n*", "*lfm-2.5*", "*laguna-xs*"],
+      "allowProviders": ["openai-codex", "openai", "github-copilot", "openrouter", "ollama", "ollama-cyber", "nvidia-nim"]
+    },
+    "frontier-large": {
+      "description": "Strict frontier/large-model-only routing.",
+      "route": "best",
+      "thinking": "high",
+      "requiresQuality": true,
+      "requiresReasoning": true,
+      "frontierLargeOnly": true
+    },
+    "fast-local": {
+      "description": "Low-latency local/LAN routing.",
+      "route": "local-first",
+      "thinking": "low"
+    },
+    "coding-max": {
+      "description": "High-thinking coding route.",
+      "route": "best",
+      "thinking": "high",
+      "requiresReasoning": true,
+      "qualitySensitive": true,
+      "denyModels": ["*mini*", "*haiku*", "*1.2b*", "*3b*", "*7b*", "*8b*"]
+    }
+  }
+}

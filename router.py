@@ -12,6 +12,7 @@ SAGE_ROUTER_HOME = os.path.expanduser(os.environ.get('SAGE_ROUTER_HOME', '~/.ope
 OPENCLAW_CONFIG = os.environ.get('SAGE_ROUTER_OPENCLAW_CONFIG', os.path.join(SAGE_ROUTER_HOME, 'openclaw.json'))
 OPENCLAW_DOTENV = os.environ.get('SAGE_ROUTER_OPENCLAW_DOTENV', os.path.join(SAGE_ROUTER_HOME, '.env'))
 PROVIDER_PROFILES_PATH = os.path.join(os.path.dirname(__file__), 'provider-profiles.json')
+ROUTER_PROFILES_PATH = os.path.join(os.path.dirname(__file__), 'router-profiles.json')
 OPENCLAW_GATEWAY_HELPER = os.path.join(os.path.dirname(__file__), 'openclaw_gateway_agent.mjs')
 SELF_PROVIDER_NAMES = {'smart-router', 'sage-router'}
 LOCAL_STRICT_PROXY_PROVIDER_NAMES = {'dario', 'openai-codex', 'grok-sso'}
@@ -1369,6 +1370,7 @@ def normalize_requirements(payload, thinking_level=ThinkingLevel.MEDIUM):
         'vision': vision_signal,
         'streaming': bool(explicit_streaming or (requested_stream and not has_tools)),
         'qualitySensitive': bool(req.get('qualitySensitive') or payload.get('requiresQuality') or payload_quality_sensitive_signal(payload)),
+        'frontierOrReasoningTools': bool(req.get('frontierOrReasoningTools') or payload.get('requiresFrontierOrReasoningTools')),
     }
 
 
@@ -1938,6 +1940,28 @@ def model_meets_requirements(provider, model, requirements, estimated_tokens):
     caps = model_capabilities(provider, model)
     if not caps['servable']:
         return False, 'not servable on host'
+    allow_providers = requirements.get('allowProviders') or []
+    deny_providers = requirements.get('denyProviders') or []
+    allow_models = requirements.get('allowModels') or []
+    deny_models = requirements.get('denyModels') or []
+    if allow_providers and provider.name not in allow_providers:
+        return False, 'provider not allowed by profile'
+    if deny_providers and provider.name in deny_providers:
+        return False, 'provider denied by profile'
+    model_key = f'{provider.name}/{model}'
+    if allow_models and not (_match_any_pattern(model, allow_models) or _match_any_pattern(model_key, allow_models)):
+        return False, 'model not allowed by profile'
+    if deny_models and (_match_any_pattern(model, deny_models) or _match_any_pattern(model_key, deny_models)):
+        return False, 'model denied by profile'
+    if requirements.get('frontierLargeOnly') and not model_is_frontier_large(model):
+        return False, 'requires frontier large model'
+    min_params = requirements.get('minParamsB')
+    if min_params is not None:
+        try:
+            if estimate_model_params_b(model) < float(min_params):
+                return False, f'requires >= {min_params}B params'
+        except Exception:
+            return False, 'invalid minParamsB profile requirement'
     if requirements.get('reasoning') and not caps['reasoning']:
         return False, 'requires reasoning'
     if requirements.get('longContext'):
@@ -1948,6 +1972,8 @@ def model_meets_requirements(provider, model, requirements, estimated_tokens):
         return False, 'json unsupported'
     if requirements.get('tools') and not caps['tools']:
         return False, 'tools unsupported'
+    if requirements.get('frontierOrReasoningTools') and not (model_is_frontier_large(model) or (caps['reasoning'] and caps['tools'])):
+        return False, 'requires frontier large model or reasoning+tools'
     if requirements.get('vision') and not caps['vision']:
         return False, 'vision unsupported'
     if requirements.get('document') and not caps['document']:
@@ -3588,6 +3614,165 @@ def model_quality_tier(model):
     return 'medium'
 
 
+ROUTER_PROFILE_CACHE = {'mtime': None, 'profiles': {}}
+
+
+def load_router_profiles():
+    try:
+        st = os.stat(ROUTER_PROFILES_PATH)
+        if ROUTER_PROFILE_CACHE.get('mtime') == st.st_mtime:
+            return ROUTER_PROFILE_CACHE.get('profiles') or {}
+        with open(ROUTER_PROFILES_PATH) as f:
+            data = json.load(f)
+        profiles = data.get('profiles', data) if isinstance(data, dict) else {}
+        if not isinstance(profiles, dict):
+            profiles = {}
+        ROUTER_PROFILE_CACHE.update({'mtime': st.st_mtime, 'profiles': profiles})
+        return profiles
+    except FileNotFoundError:
+        ROUTER_PROFILE_CACHE.update({'mtime': None, 'profiles': {}})
+        return {}
+    except Exception as e:
+        logger.warning(f'Failed to load router profiles: {e}')
+        return ROUTER_PROFILE_CACHE.get('profiles') or {}
+
+
+def resolve_router_profile_name(payload):
+    if not isinstance(payload, dict):
+        return None
+    for key in ('profile', 'routerProfile', 'sageRouterProfile'):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    model = str(payload.get('model') or '').strip()
+    if model.startswith('sage-router/'):
+        name = model.split('/', 1)[1]
+        if name and name != 'auto':
+            return name
+    elif model and '/' not in model and model not in PROVIDERS:
+        return model
+    return None
+
+
+def apply_router_profile(payload):
+    if not isinstance(payload, dict):
+        return None
+    profile_name = resolve_router_profile_name(payload)
+    if not profile_name:
+        return None
+    profile = load_router_profiles().get(profile_name)
+    if not isinstance(profile, dict):
+        return None
+    if profile.get('route'):
+        payload['route'] = profile.get('route')
+    if profile.get('thinking'):
+        payload['thinking'] = {'effort': str(profile.get('thinking'))}
+    req = payload.get('requirements')
+    if not isinstance(req, dict):
+        req = {}
+    for key in ('qualitySensitive', 'reasoning', 'tools', 'preferTools', 'json', 'vision', 'document', 'longContext', 'frontierOrReasoningTools'):
+        if key in profile:
+            req[key] = bool(profile.get(key))
+    if profile.get('requiresQuality'):
+        payload['requiresQuality'] = True
+        req['qualitySensitive'] = True
+    if profile.get('requiresReasoning'):
+        payload['requiresReasoning'] = True
+        req['reasoning'] = True
+    if profile.get('requiresTools'):
+        payload['requiresTools'] = True
+        req['tools'] = True
+    if profile.get('frontierLargeOnly'):
+        req['frontierLargeOnly'] = True
+    if profile.get('frontierOrReasoningTools'):
+        req['frontierOrReasoningTools'] = True
+    if profile.get('minParamsB') is not None:
+        req['minParamsB'] = profile.get('minParamsB')
+    for key in ('allowModels', 'denyModels', 'allowProviders', 'denyProviders'):
+        if profile.get(key):
+            req[key] = profile.get(key)
+    payload['requirements'] = req
+    if str(payload.get('model') or '').strip() in {profile_name, f'sage-router/{profile_name}'}:
+        payload['model'] = 'sage-router/auto'
+    return profile_name
+
+
+def _match_any_pattern(value, patterns):
+    if not patterns:
+        return False
+    value_l = str(value or '').lower()
+    import fnmatch
+    return any(fnmatch.fnmatch(value_l, str(p).lower()) or str(p).lower() in value_l for p in patterns)
+
+
+def estimate_model_params_b(model):
+    model_l = (model or '').lower()
+    import re
+    nums = [float(x) for x in re.findall(r'(?<![a-z0-9])(\d+(?:\.\d+)?)\s*b(?![a-z])', model_l)]
+    if nums:
+        return max(nums)
+    if any(h in model_l for h in ('405b', 'llama4-405b')):
+        return 405
+    if any(h in model_l for h in ('340b', 'nemotron-4-340b')):
+        return 340
+    if any(h in model_l for h in ('gpt-5', 'gpt-4.5', 'claude-opus', 'claude-sonnet-4', 'gemini-3', 'gemini-2.5-pro', 'hunter-alpha', 'healer-alpha', 'kimi-k2', 'glm-5', 'z1-ultra')):
+        return 999
+    return 0
+
+
+FRONTIER_LARGE_MODEL_HINTS = (
+    'gpt-5', 'gpt-4.5', 'claude-opus', 'claude-sonnet-4', 'claude-4',
+    'gemini-3', 'gemini-2.5-pro', 'gemini-pro',
+    'llama-3.1-405b', 'llama4-405b', '405b', '340b',
+    'nemotron-4-340b', 'hunter-alpha', 'healer-alpha',
+    'kimi-k2', 'kimi-k2.5', 'glm-5', 'z1-ultra',
+)
+
+
+def model_is_frontier_large(model):
+    model_l = (model or '').lower()
+    return any(hint in model_l for hint in FRONTIER_LARGE_MODEL_HINTS)
+
+
+def payload_discord_public_signal(payload):
+    if not isinstance(payload, dict):
+        return False
+    model = str(payload.get('model') or '').strip().lower()
+    if model in {'discord-public', 'sage-router/discord-public', 'frontier-public', 'sage-router/frontier-public'}:
+        return True
+    try:
+        haystack = json.dumps({k: payload.get(k) for k in ('metadata', 'agent', 'agentId', 'sessionKey', 'source', 'messages')}, default=str)[:16000].lower()
+    except Exception:
+        haystack = str(payload)[:16000].lower()
+    return 'discord-public' in haystack
+
+
+def apply_discord_public_route_profile(payload):
+    """Force public Discord traffic onto quality-first routing.
+
+    Public channels are user-visible product surfaces, so cheap/mini/local-small
+    models are not acceptable defaults.  This profile requires either a known
+    frontier/large model, or a model that supports both reasoning and tools,
+    then runs with high thinking and best route mode.
+    """
+    if not payload_discord_public_signal(payload):
+        return False
+    payload['thinking'] = {'effort': 'high'}
+    payload['route'] = 'best'
+    req = payload.get('requirements')
+    if not isinstance(req, dict):
+        req = {}
+    req.update({
+        'qualitySensitive': True,
+        'reasoning': True,
+        'frontierOrReasoningTools': True,
+    })
+    payload['requirements'] = req
+    payload['requiresQuality'] = True
+    payload['requiresReasoning'] = True
+    return True
+
+
 def score_provider_model(provider, model, intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='balanced', estimated_tokens=0, debug_scores=None, requirements=None):
     requirements = requirements or {}
     intent_key = intent.name
@@ -3696,6 +3881,28 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
     if requirements.get('qualitySensitive') and any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
         score -= 12
         contributions.append(('quality_sensitive_lightweight_penalty', -12))
+    if requirements.get('frontierOrReasoningTools'):
+        if model_is_frontier_large(model):
+            score += 100
+            contributions.append(('discord_public_frontier_large_bonus', 100))
+        elif model_capabilities(provider, model).get('reasoning') and model_capabilities(provider, model).get('tools'):
+            score += 70
+            contributions.append(('discord_public_reasoning_tools_bonus', 70))
+        else:
+            score -= 120
+            contributions.append(('discord_public_low_capability_penalty', -120))
+    if requirements.get('frontierLargeOnly') and model_is_frontier_large(model):
+        score += 120
+        contributions.append(('profile_frontier_large_only_bonus', 120))
+    if requirements.get('minParamsB') is not None:
+        try:
+            params_b = estimate_model_params_b(model)
+            if params_b >= float(requirements.get('minParamsB')):
+                bonus = min(80, params_b / 8)
+                score += bonus
+                contributions.append(('profile_min_params_bonus', round(bonus, 2)))
+        except Exception:
+            pass
     if is_nvidia_provider(provider) and (requirements.get('preferTools') or requirements.get('tools')):
         score -= 45
         contributions.append(('nvidia_tool_schema_leak_penalty', -45))
@@ -4656,6 +4863,8 @@ def write_openai_completion_as_sse(self, result, request_id):
 
 def handle_openai_chat_completions(self, payload, request_id, started, force_realtime=False):
     message_count = len(payload.get('messages', []) or [])
+    router_profile = apply_router_profile(payload)
+    discord_public_profile = apply_discord_public_route_profile(payload)
     thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning'))
     route_mode = normalize_route_mode(payload.get('route'))
     if force_realtime:
@@ -4667,7 +4876,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
     # Buffer provider responses and synthesize SSE for client streaming. This preserves fallback/empty-output detection even when OpenClaw streams with tools.
     want_stream = False
     debug_mode = normalize_debug_mode(payload)
-    logger.info(f"[{request_id}] Incoming /v1/chat/completions with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}, debug={debug_mode}")
+    logger.info(f"[{request_id}] Incoming /v1/chat/completions with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}, routerProfile={router_profile}, discordPublicProfile={discord_public_profile}, debug={debug_mode}")
 
     # Parse provider from model field (e.g., "openai-codex/gpt-5.5")
     _fp = payload.get('provider')
@@ -5115,6 +5324,9 @@ def handle_anthropic_messages(self, body, request_id, started):
         want_stream = anthropic_payload.get('stream', False)
         openai_payload = anthropic_to_openai_request(anthropic_payload)
         message_count = len(openai_payload.get('messages', []))
+        thinking = normalize_thinking(openai_payload.get('thinking') or openai_payload.get('reasoning'))
+        router_profile = apply_router_profile(openai_payload)
+        discord_public_profile = apply_discord_public_route_profile(openai_payload)
         thinking = normalize_thinking(openai_payload.get('thinking') or openai_payload.get('reasoning'))
         route_mode = normalize_route_mode(openai_payload.get('route'))
         requirements = normalize_requirements(openai_payload, thinking)

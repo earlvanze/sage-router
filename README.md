@@ -4,7 +4,7 @@
 
 One endpoint. Any provider. The router figures out the rest.
 
-[![ClawHub](https://img.shields.io/badge/ClawHub-v3.26.23-blue)](https://clawhub.ai/earlvanze/sage-router)
+[![ClawHub](https://img.shields.io/badge/ClawHub-v3.26.24-blue)](https://clawhub.ai/earlvanze/sage-router)
 [![GitHub](https://img.shields.io/badge/GitHub-earlvanze%2Fsage--router-black)](https://github.com/earlvanze/sage-router)
 
 ---
@@ -607,3 +607,31 @@ Built this because I was tired of:
 If you're running local AI infrastructure, Sage Router is the single endpoint that makes everything else just work.
 
 🦞
+
+
+## Router Profiles
+
+Sage Router supports named routing profiles for reusable policy bundles. Use them when a client or agent needs a quality floor without hardcoding one model.
+
+Request a profile with any of:
+
+```json
+{ "model": "sage-router/discord-public" }
+{ "model": "discord-public" }
+{ "profile": "discord-public" }
+{ "routerProfile": "coding-max" }
+```
+
+Profiles live in `router-profiles.json` and can set:
+
+- route mode: `fast`, `balanced`, `best`, `local-first`, `realtime`
+- thinking level: `low`, `medium`, `high`
+- requirements: quality, reasoning, tools, JSON, vision, documents, long context
+- constraints: provider/model allowlists and denylists, `minParamsB`, `frontierLargeOnly`, `frontierOrReasoningTools`
+
+Bundled profiles:
+
+- `discord-public` — public-channel quality profile, high thinking, quality/reasoning required, tiny/free filler models blocked
+- `frontier-large` — strict frontier/large-model-only routing
+- `fast-local` — low-latency local-first routing
+- `coding-max` — high-thinking coding route with weak model exclusions

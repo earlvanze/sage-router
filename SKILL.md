@@ -116,3 +116,24 @@ journalctl --user -u sage-router -f   # live logs
 - Mount host Dario credentials as `~/.dario:/root/.dario` for Anthropic-compatible Claude routing.
 - Enable llama.cpp classifier sidecar with `docker compose --profile classifier up -d` and `SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED=1`.
 - Production classifier flags: `SAGE_ROUTER_INTENT_CLASSIFIER_PROVIDER=llamacpp`, `SAGE_ROUTER_INTENT_CLASSIFIER_BASE_URL=http://llamacpp-classifier:8080`, `SAGE_ROUTER_INTENT_CLASSIFIER_MODEL=classifier`.
+
+## Router profiles
+
+Sage Router supports named routing profiles in `router-profiles.json` next to `router.py`.
+
+Request a profile with any of:
+- `model: "sage-router/<profile>"`
+- `model: "<profile>"`
+- top-level `profile`, `routerProfile`, or `sageRouterProfile`
+
+Profile fields currently supported:
+- `route`: `fast`, `balanced`, `best`, `local-first`, `realtime`
+- `thinking`: `low`, `medium`, `high`
+- capability/quality flags: `requiresQuality`, `requiresReasoning`, `requiresTools`, `frontierLargeOnly`, `frontierOrReasoningTools`, `qualitySensitive`, `reasoning`, `tools`, `preferTools`, `json`, `vision`, `document`, `longContext`
+- constraints: `allowProviders`, `denyProviders`, `allowModels`, `denyModels`, `minParamsB`
+
+Current profiles:
+- `discord-public`: public-facing quality profile. Forces best/high, reasoning, quality-sensitive, and blocks tiny/free filler models.
+- `frontier-large`: strict frontier-large-only routing.
+- `fast-local`: low-latency local-first routing.
+- `coding-max`: high-thinking code route with weak model exclusions.
