@@ -34,6 +34,20 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertEqual('', router.reject_visible_tool_call_leak(payload, 'tool_code\nmessage(action="send")', [{'id': 'call_1'}]))
 
 
+
+    def test_discord_public_profile_preserves_model_denies(self):
+        payload = {
+            'profile': 'discord-public',
+            'model': 'openai-codex/gpt-5.4-mini',
+            'messages': [{'role': 'user', 'content': 'discord-public test'}],
+            'tools': [{'type': 'function', 'function': {'name': 'exec', 'parameters': {'type': 'object'}}}],
+        }
+        self.assertEqual('discord-public', router.apply_router_profile(payload))
+        self.assertTrue(router.apply_discord_public_route_profile(payload))
+        req = router.normalize_requirements(payload, router.normalize_thinking(payload.get('thinking')))
+        self.assertIn('*mini*', req.get('denyModels', []))
+        self.assertFalse(router.model_meets_requirements(router.Provider('openai-codex', 'openai-codex-responses', '', '', ['gpt-5.4-mini']), 'gpt-5.4-mini', req, 100)[0])
+
     def test_detects_codex_inline_tool_leaks(self):
         noisy = '''I’ll pull the records.
 {"cmd":"cd /data/.openclaw/workspace-discord-public && find EARLCoin -maxdepth 4 -type f", "yieldMs":1000}

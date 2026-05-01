@@ -1362,7 +1362,7 @@ def normalize_requirements(payload, thinking_level=DEFAULT_THINKING_LEVEL):
     requested_stream = bool(payload.get('stream'))
     document_signal = bool(req.get('document') or payload.get('requiresDocumentParsing') or payload_document_signal(payload))
     vision_signal = bool(req.get('vision') or payload.get('requiresVision') or payload_vision_signal(payload))
-    return {
+    normalized = {
         'reasoning': bool(req.get('reasoning') or payload.get('requiresReasoning') or requires_reasoning),
         'json': bool(req.get('json') or payload.get('requiresJson')),
         'tools': bool(req.get('tools') or payload.get('requiresTools') or has_tools),
@@ -1373,8 +1373,18 @@ def normalize_requirements(payload, thinking_level=DEFAULT_THINKING_LEVEL):
         'streaming': bool(explicit_streaming or (requested_stream and not has_tools)),
         'qualitySensitive': bool(req.get('qualitySensitive') or payload.get('requiresQuality') or payload_quality_sensitive_signal(payload)),
         'frontierOrReasoningTools': bool(req.get('frontierOrReasoningTools') or payload.get('requiresFrontierOrReasoningTools')),
+        'frontierLargeOnly': bool(req.get('frontierLargeOnly') or payload.get('requiresFrontierLargeOnly')),
         'suppressToolCallContent': bool(req.get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')),
     }
+    # Preserve routing constraints injected by profiles.  Dropping these during
+    # normalization lets named profiles such as discord-public accidentally route
+    # to denied mini/filler models, which can surface malformed tool-call text.
+    for key in ('allowModels', 'denyModels', 'allowProviders', 'denyProviders'):
+        if req.get(key):
+            normalized[key] = req.get(key)
+    if req.get('minParamsB') is not None:
+        normalized['minParamsB'] = req.get('minParamsB')
+    return normalized
 
 
 def is_truthy(value):
