@@ -138,6 +138,10 @@ LAST_ROUTE_DEBUG = {
     'request_id': None,
     'intent': None,
     'complexity': None,
+    'workflowTier': None,
+    'workflowMode': None,
+    'recommendedAgents': [],
+    'workflow': {},
     'thinking': None,
     'routeMode': None,
     'requirements': {},
@@ -242,6 +246,8 @@ class Intent(Enum):
     CODE = auto(); ANALYSIS = auto(); CREATIVE = auto(); REALTIME = auto(); GENERAL = auto()
 class Complexity(Enum):
     SIMPLE = auto(); MEDIUM = auto(); COMPLEX = auto()
+class WorkflowTier(Enum):
+    S = auto(); M = auto(); L = auto(); XL = auto()
 class ThinkingLevel(Enum):
     LOW = 'low'; MEDIUM = 'medium'; HIGH = 'high'
 
@@ -2415,6 +2421,80 @@ def estimate_complexity(text):
     w = len(text.split())
     return Complexity.SIMPLE if w < 30 else (Complexity.COMPLEX if w > 200 else Complexity.MEDIUM)
 
+
+def classify_workflow_tier(text, intent=None, complexity=None, requirements=None):
+    raw = text or ''
+    low = raw.lower()
+    words = len(raw.split())
+    requirements = requirements or {}
+    score = 0
+    reasons = []
+
+    def add(points, reason):
+        nonlocal score
+        score += points
+        reasons.append(reason)
+
+    if words >= 30:
+        add(1, 'longer_prompt')
+    if words >= 120:
+        add(1, 'long_prompt')
+    if complexity == Complexity.MEDIUM:
+        add(1, 'router_medium_complexity')
+    elif complexity == Complexity.COMPLEX:
+        add(2, 'router_complex')
+    if intent in (Intent.CODE, Intent.ANALYSIS):
+        add(1, f'intent_{intent.name.lower()}')
+    if requirements.get('tools') or requirements.get('preferTools'):
+        add(1, 'tool_use')
+    if requirements.get('longContext'):
+        add(1, 'long_context')
+
+    keyword_groups = [
+        (1, 'multi_step', ['workflow', 'automation', 'integration', 'repo', 'code', 'api', 'service', 'database', 'test', 'build']),
+        (1, 'ambiguity', ['somehow', 'figure out', 'design', 'strategy', 'plan', 'investigate', 'research']),
+        (2, 'risk', ['security', 'secret', 'credential', 'auth', 'permission', 'payment', 'financial', 'bank', 'legal', 'contract', 'tenant', 'guest', 'reservation', 'property', 'production', 'deploy', 'migration', 'delete', 'destructive']),
+        (3, 'xl_scope', ['architecture', 'multi-system', 'platform', 'plugin', 'framework', 'all repos', 'company-wide', 'business-critical', 'launch', 'end-to-end']),
+    ]
+    for points, reason, terms in keyword_groups:
+        if any(term in low for term in terms):
+            add(points, reason)
+
+    if low.count(' and ') >= 2:
+        add(2, 'multiple_conjoined_tasks')
+
+    if score >= 7:
+        tier = WorkflowTier.XL
+    elif score >= 5:
+        tier = WorkflowTier.L
+    elif score >= 2:
+        tier = WorkflowTier.M
+    else:
+        tier = WorkflowTier.S
+
+    mode = {
+        WorkflowTier.S: 'direct-execute-verify',
+        WorkflowTier.M: 'preflight-execute-review',
+        WorkflowTier.L: 'clarify-plan-challenge-implement-review',
+        WorkflowTier.XL: 'multi-approach-plan-approval-specialist-fanout',
+    }[tier]
+    agents = {
+        WorkflowTier.S: [],
+        WorkflowTier.M: ['reuse-scanner', 'test-verifier', 'acceptance-reviewer'],
+        WorkflowTier.L: ['researcher', 'reuse-scanner', 'planner', 'plan-challenger', 'implementer', 'test-verifier', 'correctness-reviewer', 'quality-reviewer', 'acceptance-reviewer'],
+        WorkflowTier.XL: ['researcher', 'reuse-scanner', 'requirements-clarifier', 'planner', 'plan-challenger', 'implementer', 'test-verifier', 'correctness-reviewer', 'quality-reviewer', 'security-reviewer', 'acceptance-reviewer'],
+    }[tier]
+    return tier, mode, agents, {'score': score, 'reasons': reasons[:12]}
+
+def workflow_route_debug_fields(user_text, intent, complexity, requirements):
+    tier, mode, agents, meta = classify_workflow_tier(user_text, intent, complexity, requirements)
+    return {
+        'workflowTier': tier.name,
+        'workflowMode': mode,
+        'recommendedAgents': agents,
+        'workflow': meta,
+    }
+
 def pick_model(prov, prefer=None):
     if not prov.models: return ''
     if prefer:
@@ -3563,7 +3643,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         if ok:
             total_elapsed = time.time() - overall_started
             LAST_ROUTE_DEBUG.update({'selected': {'provider': pn, 'model': model}, 'status': 'ok', 'error': None, 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
-            append_route_event({'request_id': request_id, 'status': 'ok', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': bool(want_stream), 'requirements': requirements, 'selected': {'provider': pn, 'model': model}, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]]})
+            append_route_event({'request_id': request_id, 'status': 'ok', 'intent': intent.name, 'complexity': complexity.name, 'workflowTier': LAST_ROUTE_DEBUG.get('workflowTier'), 'workflowMode': LAST_ROUTE_DEBUG.get('workflowMode'), 'recommendedAgents': LAST_ROUTE_DEBUG.get('recommendedAgents'), 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': bool(want_stream), 'requirements': requirements, 'selected': {'provider': pn, 'model': model}, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]]})
             logger.info(f"[{request_id}] OK: {pn}/{model} (provider={elapsed:.2f}s, total={total_elapsed:.2f}s, stream={want_stream})")
             if client_wants_stream:
                 write_openai_completion_as_sse(self, result, request_id)
@@ -3575,7 +3655,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
 
     total_elapsed = time.time() - overall_started
     LAST_ROUTE_DEBUG.update({'selected': None, 'attempts': attempts[-12:], 'status': 'failed', 'error': 'All providers failed', 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
-    append_route_event({'request_id': request_id, 'status': 'failed', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': bool(want_stream), 'requirements': requirements, 'selected': None, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]], 'error': 'All providers failed'})
+    append_route_event({'request_id': request_id, 'status': 'failed', 'intent': intent.name, 'complexity': complexity.name, 'workflowTier': LAST_ROUTE_DEBUG.get('workflowTier'), 'workflowMode': LAST_ROUTE_DEBUG.get('workflowMode'), 'recommendedAgents': LAST_ROUTE_DEBUG.get('recommendedAgents'), 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': bool(want_stream), 'requirements': requirements, 'selected': None, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]], 'error': 'All providers failed'})
     self.write_json(503, {'error': 'All providers failed', 'request_id': request_id, 'attempts': attempts, 'choices': [{'message': {'content': 'Error: No providers available'}}]}, extra_headers={'X-Sage-Router-Request-Id': request_id})
 
 def google_to_openai_messages(payload):
@@ -3628,6 +3708,7 @@ def prepare_route(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
     intent, _ = classify_intent(user_text)
     complexity = estimate_complexity(user_text)
     requirements = requirements or {}
+    workflow_debug = workflow_route_debug_fields(user_text, intent, complexity, requirements)
     logger.info(f"[{request_id}] Intent: {intent.name}, Complexity: {complexity.name}, Thinking: {thinking.value}, Route: {route_mode}, JSON: {want_json}, EstTokens: {estimated_tokens}, ForceProvider: {force_provider or 'none'}")
     
     # If provider forced, build chain with only that provider's models
@@ -3643,7 +3724,7 @@ def prepare_route(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
                 if prov.api_type in ('google-generative-language', 'google-generative-ai'):
                     chain = [(force_provider, requested_model)]
                     logger.info(f"[{request_id}] Chain (Google passthrough): {chain}")
-                    LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': [{'provider': force_provider, 'model': requested_model, 'score': 100}], 'rejections': [], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider, 'passthrough': True})
+                    LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, **workflow_debug, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': [{'provider': force_provider, 'model': requested_model, 'score': 100}], 'rejections': [], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider, 'passthrough': True})
                     return normalized_messages, intent, complexity, estimated_tokens, chain
                 # Otherwise prepend requested model if not in list
                 all_models = [requested_model] + all_models
@@ -3654,11 +3735,11 @@ def prepare_route(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
             score_debug = [{'provider': force_provider, 'model': model, 'score': 100} for _, model in chain]
             rejections = []
             logger.info(f"[{request_id}] Chain (forced): {chain}")
-            LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug, 'rejections': [], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider})
+            LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, **workflow_debug, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug, 'rejections': [], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider})
             return normalized_messages, intent, complexity, estimated_tokens, chain
     
     chain, score_debug, rejections = select_model(intent, complexity, thinking, route_mode, requirements, estimated_tokens)
-    LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug[:12], 'rejections': rejections[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None})
+    LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, **workflow_debug, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug[:12], 'rejections': rejections[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None})
     logger.info(f"[{request_id}] Chain: {chain} (no mid-stream switching; each candidate tried sequentially until one succeeds)")
     return normalized_messages, intent, complexity, estimated_tokens, chain
 
@@ -3771,13 +3852,13 @@ def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
             total_elapsed = time.time() - overall_started
             logger.info(f"[{request_id}] OK: {pn}/{model} ({len(text)} chars, provider={elapsed:.2f}s, total={total_elapsed:.2f}s)")
             LAST_ROUTE_DEBUG.update({'selected': {'provider': pn, 'model': model}, 'status': 'ok', 'error': None, 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
-            append_route_event({'request_id': request_id, 'status': 'ok', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': False, 'requirements': requirements, 'selected': {'provider': pn, 'model': model}, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]]})
+            append_route_event({'request_id': request_id, 'status': 'ok', 'intent': intent.name, 'complexity': complexity.name, 'workflowTier': LAST_ROUTE_DEBUG.get('workflowTier'), 'workflowMode': LAST_ROUTE_DEBUG.get('workflowMode'), 'recommendedAgents': LAST_ROUTE_DEBUG.get('recommendedAgents'), 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': False, 'requirements': requirements, 'selected': {'provider': pn, 'model': model}, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]]})
             return {"id": f"chatcmpl-{int(time.time())}", "object": "chat.completion", "created": int(time.time()), "model": f"{pn}/{model}", "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 0, "completion_tokens": 0}}
         logger.warning(f"[{request_id}] Failed {pn}/{model} after {elapsed:.2f}s")
     total_elapsed = time.time() - overall_started
     logger.error(f"[{request_id}] All providers failed after {total_elapsed:.2f}s")
     LAST_ROUTE_DEBUG.update({'selected': None, 'attempts': attempts[-12:], 'status': 'failed', 'error': 'All providers failed', 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
-    append_route_event({'request_id': request_id, 'status': 'failed', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': False, 'requirements': requirements, 'selected': None, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]], 'error': 'All providers failed'})
+    append_route_event({'request_id': request_id, 'status': 'failed', 'intent': intent.name, 'complexity': complexity.name, 'workflowTier': LAST_ROUTE_DEBUG.get('workflowTier'), 'workflowMode': LAST_ROUTE_DEBUG.get('workflowMode'), 'recommendedAgents': LAST_ROUTE_DEBUG.get('recommendedAgents'), 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': False, 'requirements': requirements, 'selected': None, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]], 'error': 'All providers failed'})
     return {"error": "All providers failed", "request_id": request_id, "attempts": attempts, "choices": [{"message": {"content": "Error: No providers available"}}]}
 
 def openai_to_anthropic_response(openai_resp, request_model=None):
@@ -3937,6 +4018,10 @@ class Handler(BaseHTTPRequestHandler):
             headers['X-Sage-Router-Intent'] = LAST_ROUTE_DEBUG.get('intent')
         if LAST_ROUTE_DEBUG.get('routeMode'):
             headers['X-Sage-Router-Route-Mode'] = LAST_ROUTE_DEBUG.get('routeMode')
+        if LAST_ROUTE_DEBUG.get('workflowTier'):
+            headers['X-Sage-Workflow-Tier'] = LAST_ROUTE_DEBUG.get('workflowTier')
+        if LAST_ROUTE_DEBUG.get('workflowMode'):
+            headers['X-Sage-Workflow-Mode'] = LAST_ROUTE_DEBUG.get('workflowMode')
         return headers
 
     def write_json(self, status_code, payload, extra_headers=None):
