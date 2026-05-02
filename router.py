@@ -18,7 +18,7 @@ SELF_PROVIDER_NAMES = {'smart-router', 'sage-router'}
 LOCAL_STRICT_PROXY_PROVIDER_NAMES = {'dario', 'openai-codex', 'grok-sso'}
 LOCAL_STRICT_PROXY_API_TYPES = {'openclaw-gateway', 'openai-codex-responses'}
 LOCAL_STRICT_DECENTRALIZED_PROVIDER_NAMES = {'darkbloom'}
-SHOW_MODEL_PREFIX = True  # Show provider/model at start of response by default
+SHOW_MODEL_PREFIX = os.environ.get('SAGE_ROUTER_SHOW_MODEL_PREFIX', '').strip().lower() in {'1', 'true', 'yes', 'on'}  # Show provider/model at start of final text responses by default
 
 
 def load_env_file(path):
@@ -1723,7 +1723,10 @@ def maybe_prefix_debug_text(content, metadata, debug_mode=False, allow_prefix=Tr
 def build_openai_completion(provider_name, model, request_id, content='', tool_calls=None, finish_reason=None, usage=None, debug_mode=False, allow_debug_prefix=True, suppress_tool_call_content=False):
     metadata = build_router_metadata(provider_name, model, request_id)
     normalized_tool_calls = openai_tool_calls(tool_calls)
-    if suppress_tool_call_content and normalized_tool_calls:
+    if normalized_tool_calls:
+        # Never pair visible narration with structured tool calls. Some clients,
+        # including Discord delivery surfaces, can expose the text before tool
+        # execution, which looks like leaked internal scratch/tool narration.
         content = ''
     content_text = maybe_prefix_debug_text(content, metadata, debug_mode=debug_mode, allow_prefix=allow_debug_prefix and not normalized_tool_calls)
     if SHOW_MODEL_PREFIX and content_text and not normalized_tool_calls:
@@ -1797,18 +1800,35 @@ def openai_messages_to_ollama(messages):
     return converted
 
 
+def ollama_model_supports_native_thinking(model: str) -> bool:
+    model_l = (model or '').lower()
+    # Ollama exposes native reasoning in a separate message.thinking field for
+    # the qwen3.6 family. Keep this conservative so ordinary local models are
+    # not sent unsupported think flags.
+    return model_l.startswith('qwen3.6') or '/qwen3.6' in model_l
+
+
+def ollama_generation_options(thinking=DEFAULT_THINKING_LEVEL):
+    if thinking == ThinkingLevel.LOW:
+        return {'num_predict': 1024}
+    if thinking == ThinkingLevel.HIGH:
+        return {'num_predict': 4096}
+    return {'num_predict': 2048}
+
+
 def build_ollama_payload(model, payload, thinking=DEFAULT_THINKING_LEVEL, stream=False):
     ollama_payload = {
         'model': model,
         'messages': openai_messages_to_ollama(payload.get('messages', [])),
         'stream': bool(stream),
+        'options': ollama_generation_options(thinking),
     }
+    if ollama_model_supports_native_thinking(model):
+        # LOW is operational/exact-output mode. MEDIUM/HIGH allow native Ollama
+        # reasoning and give enough generation budget for thinking + final text.
+        ollama_payload['think'] = thinking != ThinkingLevel.LOW
     if payload.get('tools'):
         ollama_payload['tools'] = payload.get('tools')
-    if thinking == ThinkingLevel.LOW:
-        ollama_payload['options'] = {'num_predict': 1024}
-    elif thinking == ThinkingLevel.HIGH:
-        ollama_payload['options'] = {'num_predict': 4096}
     return ollama_payload
 
 
@@ -3750,7 +3770,7 @@ FRONTIER_LARGE_MODEL_HINTS = (
     'gemini-3', 'gemini-2.5-pro', 'gemini-pro',
     'llama-3.1-405b', 'llama4-405b', '405b', '340b',
     'nemotron-4-340b', 'hunter-alpha', 'healer-alpha',
-    'kimi-k2', 'kimi-k2.5', 'glm-5', 'z1-ultra',
+    'kimi-k2', 'kimi-k2.5', 'kimi-k2.6', 'glm-5', 'deepseek-v4', 'qwen3.5', 'qwen3.6', 'minimax-m2.7', 'mistral-large-3', 'z1-ultra',
 )
 
 
@@ -3790,8 +3810,24 @@ def apply_discord_public_route_profile(payload):
     req.update({
         'qualitySensitive': True,
         'reasoning': True,
-        'frontierOrReasoningTools': True,
+        'frontierLargeOnly': True,
+        'frontierOrReasoningTools': False,
         'suppressToolCallContent': True,
+        'allowModels': [
+            '*glm-5*',
+            '*kimi-k2*',
+            '*gpt-5*',
+            '*deepseek-v4*',
+            '*qwen3.[5-9]*',
+            '*minimax-m2.[7-9]*',
+            '*mistral-large-3*',
+        ],
+        'denyModels': [
+            '*1.2b*', '*2b*', '*3b*', '*4b*', '*7b*', '*8b*', '*12b*', '*14b*',
+            '*mini*', '*haiku*', '*flash-lite*', '*gemma-3n*', '*lfm-2.5*', '*laguna-xs*',
+            '*deepseek-r1*', '*deepseek-v3*', '*glm-4*', '*minimax-m2.5*', '*mistral-large-2*',
+            '*gemini*', '*claude*', '*llama*', '*nemotron*', '*trinity*', '*nemo*',
+        ],
     })
     payload['requirements'] = req
     payload['requiresQuality'] = True
@@ -4122,11 +4158,9 @@ def select_model(intent, complexity, thinking=DEFAULT_THINKING_LEVEL, route_mode
 
 def call_ollama(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL):
     url = base_url.rstrip('/') + '/api/chat'
-    payload = {"model": model, "messages": messages, "stream": False}
-    if thinking == ThinkingLevel.LOW:
-        payload["options"] = {"num_predict": 1024}
-    elif thinking == ThinkingLevel.HIGH:
-        payload["options"] = {"num_predict": 4096}
+    payload = {"model": model, "messages": messages, "stream": False, "options": ollama_generation_options(thinking)}
+    if ollama_model_supports_native_thinking(model):
+        payload["think"] = thinking != ThinkingLevel.LOW
 
     hdrs = {'Content-Type': 'application/json'}
     if api_key:

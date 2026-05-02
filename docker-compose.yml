@@ -27,13 +27,15 @@ services:
       - ${SAGE_ROUTER_OLLAMA_DIR:-./ollama}:/root/.ollama
       # Optional llama.cpp GGUF model cache for the classifier sidecar.
       - ${SAGE_ROUTER_MODELS_DIR:-./models}:/models
+      # Mount router source so local hotfixes survive container recreation even when image rebuild/pull is blocked.
+      - ./router.py:/app/router.py:ro
       # Optional: mount a custom provider-profiles.json
       # - ./provider-profiles.json:/app/provider-profiles.json:ro
     environment:
       PORT: "8788"
       SAGE_ROUTER_HOME: /config
       # SAGE_ROUTER_DISABLED_PROVIDERS: "openai-codex,some-other"
-      # SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS: "120"
+      SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS: "300"
       SAGE_ROUTER_BUNDLED_OLLAMA_AUTOSTART: "${SAGE_ROUTER_BUNDLED_OLLAMA_AUTOSTART:-1}"
       SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_ENABLED: "${SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_ENABLED:-1}"
       SAGE_ROUTER_OLLAMA_AUTO_PULL_PATTERNS: "${SAGE_ROUTER_OLLAMA_AUTO_PULL_PATTERNS:-:cloud}"

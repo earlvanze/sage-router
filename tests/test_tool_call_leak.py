@@ -48,6 +48,26 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertIn('*mini*', req.get('denyModels', []))
         self.assertFalse(router.model_meets_requirements(router.Provider('openai-codex', 'openai-codex-responses', '', '', ['gpt-5.4-mini']), 'gpt-5.4-mini', req, 100)[0])
 
+
+    def test_model_prefix_is_opt_in_by_default(self):
+        response = router.build_openai_completion('ollama', 'qwen3-coder-next:cloud', 'req1', 'hello')
+        content = response['choices'][0]['message']['content']
+        self.assertEqual('hello', content)
+        self.assertNotIn('[ollama/qwen3-coder-next:cloud]', content)
+
+    def test_structured_tool_calls_never_include_visible_narration(self):
+        response = router.build_openai_completion(
+            'ollama',
+            'qwen3-coder-next:cloud',
+            'req1',
+            'I will check this first.',
+            [{'function': {'name': 'message', 'arguments': {'action': 'read'}}}],
+        )
+        message = response['choices'][0]['message']
+        self.assertEqual('', message['content'])
+        self.assertEqual('tool_calls', response['choices'][0]['finish_reason'])
+        self.assertIn('tool_calls', message)
+
     def test_detects_codex_inline_tool_leaks(self):
         noisy = '''I’ll pull the records.
 {"cmd":"cd /data/.openclaw/workspace-discord-public && find EARLCoin -maxdepth 4 -type f", "yieldMs":1000}
