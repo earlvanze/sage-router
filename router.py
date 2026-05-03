@@ -1540,7 +1540,7 @@ def normalize_requirements(payload, thinking_level=DEFAULT_THINKING_LEVEL):
     # Preserve routing constraints injected by profiles.  Dropping these during
     # normalization lets named profiles such as discord-public accidentally route
     # to denied mini/filler models, which can surface malformed tool-call text.
-    for key in ('allowModels', 'denyModels', 'allowProviders', 'denyProviders'):
+    for key in ('allowModels', 'denyModels', 'allowProviders', 'denyProviders', 'fallbackProviders'):
         if req.get(key):
             normalized[key] = req.get(key)
     if req.get('minParamsB') is not None:
@@ -3894,7 +3894,7 @@ def apply_router_profile(payload):
         req['frontierOrReasoningTools'] = True
     if profile.get('minParamsB') is not None:
         req['minParamsB'] = profile.get('minParamsB')
-    for key in ('allowModels', 'denyModels', 'allowProviders', 'denyProviders'):
+    for key in ('allowModels', 'denyModels', 'allowProviders', 'denyProviders', 'fallbackProviders'):
         if profile.get(key):
             req[key] = profile.get(key)
     payload['requirements'] = req
@@ -3989,6 +3989,7 @@ def apply_discord_public_route_profile(payload):
             'openai-codex', 'openai', 'ollama', 'ollama-cloud', 'ollama-cyber',
             'nvidia', 'nvidia-nim', 'openrouter', 'google-vertex',
         ],
+        'fallbackProviders': ['google-vertex'],
         'denyModels': [
             '*1.2b*', '*2b*', '*3b*', '*4b*', '*7b*', '*8b*', '*12b*', '*14b*',
             '*mini*', '*haiku*', '*flash-lite*', '*gemma-3n*', '*lfm-2.5*', '*laguna-xs*',
@@ -4010,6 +4011,11 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
     provider_l = provider.name.lower()
     score = api_score
     contributions = [('api_base', round(api_score, 2))]
+
+    fallback_providers = requirements.get('fallbackProviders') or []
+    if provider.name in fallback_providers:
+        score -= 250
+        contributions.append(('profile_fallback_provider_penalty', -250))
 
     for idx, hint in enumerate(INTENT_MODEL_HINTS.get(intent_key, [])):
         if hint in model_l:
