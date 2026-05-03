@@ -121,6 +121,7 @@ DEFAULT_OPENAI_CODEX_MODELS = ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-min
 DEFAULT_NGC_MODELS = ['nemotron-tts', 'canary-asr', 'nemo-tts', 'nemo-asr', 'nvidia/tts', 'nvidia/asr']
 DEFAULT_ANTHROPIC_MODELS = ['claude-opus-4-6', 'claude-opus-4-5', 'claude-opus-4-1', 'claude-opus-4-0', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-sonnet-4-0', 'claude-haiku-4-5', 'claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest']
 DEFAULT_DARKBLOOM_MODELS = ['mlx-community/gemma-4-26b-a4b-it-8bit', 'qwen3.5-27b-claude-opus-8bit', 'mlx-community/Trinity-Mini-8bit', 'mlx-community/Qwen3.5-122B-A10B-8bit', 'mlx-community/MiniMax-M2.5-8bit']
+DEFAULT_CLOUDFLARE_WORKERS_AI_MODELS = ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/meta/llama-3.1-8b-instruct', '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', '@cf/qwen/qwq-32b', '@cf/qwen/qwen2.5-coder-32b-instruct', '@cf/mistral/mistral-small-3.1-24b-instruct']
 
 
 def extract_http_error(exc: Exception) -> str:
@@ -147,6 +148,7 @@ GATEWAY_PROVIDER_PROFILES = {
     'zai': ('openai-completions', ['z1-ultra', 'z1-pro', 'z1-mini'], {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 65536, 'input': ['text']}),
     'darkbloom': ('openai-completions', DEFAULT_DARKBLOOM_MODELS, {'reasoning': False, 'contextWindow': 131072, 'maxTokens': 16384, 'input': ['text']}),
     'github-copilot': ('openclaw-gateway', ['gpt-5.4', 'gpt-5.4-mini', 'claude-sonnet-4-5', 'gemini-2.5-pro'], {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}),
+    'cloudflare-workers-ai': ('cloudflare-workers-ai', DEFAULT_CLOUDFLARE_WORKERS_AI_MODELS, {'reasoning': False, 'contextWindow': 32768, 'maxTokens': 4096, 'input': ['text']}),
     'bedrock': ('openclaw-gateway', ['anthropic.claude-sonnet-4-5', 'anthropic.claude-haiku-4-5', 'amazon.nova-pro', 'amazon.nova-lite', 'meta.llama4-405b'], {'reasoning': True, 'contextWindow': 200000, 'maxTokens': 64000, 'input': ['text']}),
     'azure-openai': ('openclaw-gateway', ['gpt-5.4', 'gpt-5.4-mini', 'gpt-4o', 'gpt-4o-mini'], {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
 }
@@ -521,8 +523,12 @@ def infer_api_type(name, cfg, base_url):
             return 'google-generative-language'
         if api_type in {'google-vertex-ai', 'vertex-ai', 'vertex'}:
             return 'google-vertex-ai'
+        if api_type in {'cloudflare-workers-ai', 'cloudflare', 'workers-ai'}:
+            return 'cloudflare-workers-ai'
         return api_type
     host = (urllib.parse.urlparse(base_url or '').hostname or '').lower()
+    if 'api.cloudflare.com' in host or name in {'cloudflare', 'cloudflare-workers-ai', 'workers-ai'}:
+        return 'cloudflare-workers-ai'
     if 'aiplatform.googleapis.com' in host or name in {'google-vertex', 'vertex-ai', 'vertex'}:
         return 'google-vertex-ai'
     if 'generativelanguage.googleapis.com' in host or name == 'google':
@@ -549,6 +555,47 @@ def discover_anthropic_models():
     return None
 
 
+
+
+def cloudflare_workers_ai_base_url(base_url: str) -> str:
+    base = (base_url or '').strip().rstrip('/')
+    if base:
+        return base
+    account_id = os.environ.get('SAGE_ROUTER_CLOUDFLARE_ACCOUNT_ID') or os.environ.get('CLOUDFLARE_ACCOUNT_ID') or ''
+    if not account_id:
+        raise RuntimeError('Cloudflare Workers AI provider needs CLOUDFLARE_ACCOUNT_ID or baseUrl with /accounts/{id}/ai')
+    return f'https://api.cloudflare.com/client/v4/accounts/{account_id}/ai'
+
+
+def cloudflare_workers_ai_run_url(base_url: str, model: str) -> str:
+    base = cloudflare_workers_ai_base_url(base_url)
+    if '/run/' in base:
+        return base
+    return base.rstrip('/') + '/run/' + urllib.parse.quote(model, safe='@:/')
+
+
+def cloudflare_workers_ai_models_url(base_url: str) -> str:
+    return cloudflare_workers_ai_base_url(base_url).rstrip('/') + '/models/search'
+
+
+def discover_cloudflare_workers_ai_models(base_url, api_key=''):
+    if not api_key:
+        return DEFAULT_CLOUDFLARE_WORKERS_AI_MODELS
+    try:
+        req = urllib.request.Request(cloudflare_workers_ai_models_url(base_url), headers={'Authorization': f'Bearer {api_key}'})
+        with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+            payload = json.loads(resp.read())
+        result = payload.get('result') or []
+        models = []
+        for entry in result:
+            mid = entry.get('id') or entry.get('name') or ''
+            task = str(entry.get('task') or entry.get('task_name') or entry.get('type') or '').lower()
+            if mid and (not task or any(x in task for x in ('text generation', 'text-generation', 'chat', 'llm'))):
+                models.append(mid)
+        return dedupe_keep_order(models) or DEFAULT_CLOUDFLARE_WORKERS_AI_MODELS
+    except Exception as e:
+        logger.warning(f'Cloudflare Workers AI model discovery failed: {extract_http_error(e)}')
+        return DEFAULT_CLOUDFLARE_WORKERS_AI_MODELS
 
 def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b'=').decode('ascii')
@@ -1255,6 +1302,8 @@ def discover_provider_models(name, cfg, base_url, api_key, api_type):
         # Vertex AI does not expose a stable publisher-model discovery endpoint in all projects/regions.
         # Prefer configured Gemini model IDs; fall back to a small known-good set when none are configured.
         discovered = [] if configured else discover_google_vertex_models(base_url)
+    elif api_type == 'cloudflare-workers-ai':
+        discovered = [] if configured else discover_cloudflare_workers_ai_models(base_url, api_key)
     elif api_type == 'openai-completions':
         # Try OpenAI-style discovery for openai, github-copilot, xai, etc.
         if name == 'openrouter' or 'openrouter.ai' in (base_url or '').lower():
@@ -2061,7 +2110,7 @@ def provider_default_tools_support(provider):
 def model_capabilities(provider, model):
     meta = (provider.model_meta or {}).get(model, {})
     default_chat = is_chat_capable_model(provider, model)
-    default_json = provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages', 'google-generative-language', 'google-vertex-ai', 'openai-codex-responses'}
+    default_json = provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages', 'google-generative-language', 'google-vertex-ai', 'cloudflare-workers-ai', 'openai-codex-responses'}
     provider_tools_default = provider_default_tools_support(provider)
     if provider_tools_default is None and provider.api_type == 'ollama':
         default_tools = ollama_model_default_tools_support(model)
@@ -4672,6 +4721,72 @@ def call_google_vertex(base_url, model, messages, thinking=DEFAULT_THINKING_LEVE
         return False, extract_http_error(e)
 
 
+
+def build_cloudflare_workers_ai_payload(messages, thinking=DEFAULT_THINKING_LEVEL, want_json=False):
+    cf_messages = []
+    for msg in messages:
+        role = msg.get('role', 'user')
+        content = msg.get('content', '')
+        if not content:
+            continue
+        if role == 'developer':
+            role = 'system'
+        if role not in {'system', 'user', 'assistant'}:
+            content = f'[{str(role).upper()}]\n{content}'.strip()
+            role = 'user'
+        cf_messages.append({'role': role, 'content': content})
+    if not cf_messages:
+        cf_messages = [{'role': 'user', 'content': 'Hello'}]
+    payload = {'messages': cf_messages, 'max_tokens': thinking_max_tokens(thinking)}
+    if want_json:
+        payload['response_format'] = {'type': 'json_object'}
+    return payload
+
+
+def parse_cloudflare_workers_ai_text(result):
+    if isinstance(result, str):
+        return sanitize_visible_output(result)
+    if not isinstance(result, dict):
+        return ''
+    for key in ('response', 'text', 'output_text'):
+        if isinstance(result.get(key), str):
+            return sanitize_visible_output(result.get(key))
+    if isinstance(result.get('choices'), list) and result['choices']:
+        msg = result['choices'][0].get('message') or {}
+        if isinstance(msg.get('content'), str):
+            return sanitize_visible_output(msg.get('content'))
+    if isinstance(result.get('content'), list):
+        return sanitize_visible_output(''.join(part.get('text', '') for part in result['content'] if isinstance(part, dict)))
+    return ''
+
+
+def call_cloudflare_workers_ai(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL, want_json=False):
+    if not api_key:
+        return False, 'missing Cloudflare API token'
+    try:
+        payload = build_cloudflare_workers_ai_payload(messages, thinking=thinking, want_json=want_json)
+        req = urllib.request.Request(
+            cloudflare_workers_ai_run_url(base_url, model),
+            data=json.dumps(payload).encode(),
+            headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'},
+        )
+        with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+            body = json.loads(resp.read())
+        if isinstance(body, dict) and body.get('success') is False:
+            return False, json.dumps(body.get('errors') or body)[:500]
+        text = parse_cloudflare_workers_ai_text((body or {}).get('result', body) if isinstance(body, dict) else body)
+        return (True, text) if text else (False, json.dumps(body)[:500])
+    except Exception as e:
+        logger.warning(f'Cloudflare Workers AI {base_url} {model}: {extract_http_error(e)}')
+        return False, extract_http_error(e)
+
+
+def call_cloudflare_workers_ai_completion(base_url, model, payload, api_key='', thinking=DEFAULT_THINKING_LEVEL, debug_mode=False, request_id=''):
+    ok, text = call_cloudflare_workers_ai(base_url, model, payload.get('messages', []), api_key=api_key, thinking=thinking, want_json=payload.get('response_format', {}).get('type') == 'json_object')
+    if not ok:
+        return False, text
+    return True, build_openai_completion('cloudflare-workers-ai', model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
+
 def call_openai_compat_completion(base_url, model, payload, api_key='', provider_name='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, debug_mode=False, request_id=''):
     url = openai_chat_completions_url(base_url)
     proxied = build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=supports_reasoning, thinking=thinking)
@@ -5180,6 +5295,13 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
                     error_detail = 'streaming not implemented for Vertex AI bridge'
                 else:
                     ok, result = call_google_vertex_completion(prov.base_url, model, attempt_payload, thinking=thinking, debug_mode=debug_mode, request_id=request_id)
+                    if not ok:
+                        error_detail = result
+            elif prov.api_type == 'cloudflare-workers-ai':
+                if want_stream:
+                    error_detail = 'streaming not implemented for Cloudflare Workers AI bridge'
+                else:
+                    ok, result = call_cloudflare_workers_ai_completion(prov.base_url, model, attempt_payload, api_key=prov.api_key, thinking=thinking, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'openai-codex-responses':
