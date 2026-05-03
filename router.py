@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Sage Router - Dynamic provider discovery and routing"""
-import argparse, ipaddress, json, logging, math, os, re, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, base64, ipaddress, json, logging, math, os, re, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
 from dataclasses import dataclass
 from enum import Enum, auto
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -77,6 +77,10 @@ OLLAMA_ALLOW_THINK_FALSE_RETRY = os.environ.get('SAGE_ROUTER_OLLAMA_ALLOW_THINK_
 OPENAI_COMPAT_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENAI_TIMEOUT_SECONDS', '35'))
 ANTHROPIC_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_ANTHROPIC_TIMEOUT_SECONDS', '35'))
 GOOGLE_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_GOOGLE_TIMEOUT_SECONDS', '35'))
+GOOGLE_VERTEX_LOCATION = os.environ.get('SAGE_ROUTER_GOOGLE_VERTEX_LOCATION') or os.environ.get('GOOGLE_CLOUD_LOCATION') or os.environ.get('CLOUD_ML_REGION') or 'us-central1'
+GOOGLE_VERTEX_PROJECT = os.environ.get('SAGE_ROUTER_GOOGLE_VERTEX_PROJECT') or os.environ.get('GOOGLE_CLOUD_PROJECT') or os.environ.get('GCP_PROJECT') or ''
+GOOGLE_VERTEX_ADC_SCOPE = 'https://www.googleapis.com/auth/cloud-platform'
+GOOGLE_VERTEX_TOKEN_CACHE = {'access_token': '', 'expires_at': 0}
 OPENCLAW_GATEWAY_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENCLAW_TIMEOUT_SECONDS', '20'))
 OPENCLAW_GATEWAY_CODE_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENCLAW_CODE_TIMEOUT_SECONDS', '45'))
 OPENCLAW_GATEWAY_AGENT_ID = os.environ.get('SAGE_ROUTER_OPENCLAW_AGENT_ID', 'main')
@@ -138,6 +142,7 @@ GATEWAY_PROVIDER_PROFILES = {
     'anthropic': ('anthropic-messages', DEFAULT_ANTHROPIC_MODELS, {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 64000, 'input': ['text']}),
     'openai': ('openai-completions', ['gpt-5.4', 'gpt-5.4-mini', 'gpt-4o', 'gpt-4o-mini'], {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
     'google': ('google-generative-language', ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'], {'reasoning': False, 'contextWindow': 1000000, 'maxTokens': 65536, 'input': ['text', 'image']}),
+    'google-vertex': ('google-vertex-ai', ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'], {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 65536, 'input': ['text', 'image']}),
     'xai': ('openai-completions', ['grok-3', 'grok-3-mini', 'grok-2'], {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
     'zai': ('openai-completions', ['z1-ultra', 'z1-pro', 'z1-mini'], {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 65536, 'input': ['text']}),
     'darkbloom': ('openai-completions', DEFAULT_DARKBLOOM_MODELS, {'reasoning': False, 'contextWindow': 131072, 'maxTokens': 16384, 'input': ['text']}),
@@ -214,11 +219,11 @@ OLLAMA_MANIFEST_URLS = load_ollama_manifest_bindings('URL')
 OLLAMA_MANIFEST_FILES = load_ollama_manifest_bindings('FILE')
 
 INTENT_API_SCORES = {
-    'CODE': {'ollama': 60, 'openai-completions': 58, 'anthropic-messages': 48, 'google-generative-language': 44},
-    'ANALYSIS': {'ollama': 66, 'anthropic-messages': 58, 'openai-completions': 54, 'google-generative-language': 52},
-    'CREATIVE': {'anthropic-messages': 60, 'google-generative-language': 59, 'openai-completions': 55, 'ollama': 50},
-    'REALTIME': {'google-generative-language': 60, 'openai-completions': 60, 'anthropic-messages': 54, 'ollama': 48},
-    'GENERAL': {'anthropic-messages': 58, 'google-generative-language': 57, 'openai-completions': 56, 'ollama': 50},
+    'CODE': {'ollama': 60, 'openai-completions': 58, 'anthropic-messages': 48, 'google-generative-language': 44, 'google-vertex-ai': 44},
+    'ANALYSIS': {'ollama': 66, 'anthropic-messages': 58, 'openai-completions': 54, 'google-generative-language': 52, 'google-vertex-ai': 52},
+    'CREATIVE': {'anthropic-messages': 60, 'google-generative-language': 59, 'google-vertex-ai': 59, 'openai-completions': 55, 'ollama': 50},
+    'REALTIME': {'google-generative-language': 60, 'google-vertex-ai': 60, 'openai-completions': 60, 'anthropic-messages': 54, 'ollama': 48},
+    'GENERAL': {'anthropic-messages': 58, 'google-generative-language': 57, 'google-vertex-ai': 57, 'openai-completions': 56, 'ollama': 50},
 }
 
 INTENT_MODEL_HINTS = {
@@ -514,8 +519,12 @@ def infer_api_type(name, cfg, base_url):
         # Normalize google-generative-ai -> google-generative-language (OpenClaw schema enum)
         if api_type == 'google-generative-ai':
             return 'google-generative-language'
+        if api_type in {'google-vertex-ai', 'vertex-ai', 'vertex'}:
+            return 'google-vertex-ai'
         return api_type
     host = (urllib.parse.urlparse(base_url or '').hostname or '').lower()
+    if 'aiplatform.googleapis.com' in host or name in {'google-vertex', 'vertex-ai', 'vertex'}:
+        return 'google-vertex-ai'
     if 'generativelanguage.googleapis.com' in host or name == 'google':
         return 'google-generative-language'
     if 'x.ai' in host or name == 'xai':
@@ -539,6 +548,105 @@ def discover_anthropic_models():
         logger.debug(f'Dario model discovery failed: {extract_http_error(e)}')
     return None
 
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b'=').decode('ascii')
+
+
+def google_vertex_adc_credentials_path() -> str:
+    return os.path.expanduser(
+        os.environ.get('SAGE_ROUTER_GOOGLE_APPLICATION_CREDENTIALS')
+        or os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+        or os.path.join('~', '.config', 'gcloud', 'application_default_credentials.json')
+    )
+
+
+def google_vertex_access_token() -> str:
+    now = int(time.time())
+    cached = GOOGLE_VERTEX_TOKEN_CACHE
+    if cached.get('access_token') and int(cached.get('expires_at') or 0) - now > 120:
+        return cached['access_token']
+    path = google_vertex_adc_credentials_path()
+    with open(path) as f:
+        creds = json.load(f)
+    if creds.get('type') != 'service_account':
+        raise RuntimeError(f'Unsupported ADC credential type for Vertex provider: {creds.get("type") or "missing"}')
+    private_key = creds.get('private_key')
+    client_email = creds.get('client_email')
+    if not private_key or not client_email:
+        raise RuntimeError('ADC service account JSON is missing private_key/client_email')
+    header = {'alg': 'RS256', 'typ': 'JWT'}
+    claims = {
+        'iss': client_email,
+        'scope': GOOGLE_VERTEX_ADC_SCOPE,
+        'aud': 'https://oauth2.googleapis.com/token',
+        'iat': now,
+        'exp': now + 3600,
+    }
+    signing_input = (_b64url(json.dumps(header, separators=(',', ':')).encode()) + '.' + _b64url(json.dumps(claims, separators=(',', ':')).encode())).encode()
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding
+    key = serialization.load_pem_private_key(private_key.encode(), password=None)
+    signature = key.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
+    assertion = signing_input.decode() + '.' + _b64url(signature)
+    body = urllib.parse.urlencode({'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer', 'assertion': assertion}).encode()
+    req = urllib.request.Request('https://oauth2.googleapis.com/token', data=body, headers={'Content-Type': 'application/x-www-form-urlencoded'})
+    with urllib.request.urlopen(req, timeout=GOOGLE_TIMEOUT_SECONDS) as resp:
+        payload = json.loads(resp.read())
+    token = payload.get('access_token')
+    if not token:
+        raise RuntimeError('OAuth token response did not include access_token')
+    cached['access_token'] = token
+    cached['expires_at'] = now + int(payload.get('expires_in') or 3600)
+    return token
+
+
+def google_vertex_base_url(base_url: str) -> str:
+    base = (base_url or '').strip().rstrip('/')
+    if base:
+        return base
+    project = GOOGLE_VERTEX_PROJECT
+    if not project:
+        try:
+            with open(google_vertex_adc_credentials_path()) as f:
+                project = json.load(f).get('project_id') or ''
+        except Exception:
+            project = ''
+    if not project:
+        raise RuntimeError('Vertex provider needs GOOGLE_CLOUD_PROJECT or a service account project_id')
+    location = GOOGLE_VERTEX_LOCATION
+    return f'https://{location}-aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/publishers/google'
+
+
+def google_vertex_url(base_url: str, model: str, method: str = 'generateContent') -> str:
+    base = google_vertex_base_url(base_url)
+    if '/models/' in base:
+        return base + f':{method}'
+    return base.rstrip('/') + f'/models/{urllib.parse.quote(model, safe="")}:{method}'
+
+
+def discover_google_vertex_models(base_url):
+    configured_defaults = ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash']
+    try:
+        token = google_vertex_access_token()
+        url = google_vertex_base_url(base_url).rstrip('/') + '/models'
+        req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}'})
+        with urllib.request.urlopen(req, timeout=GOOGLE_TIMEOUT_SECONDS) as resp:
+            payload = json.loads(resp.read())
+        models = []
+        for entry in payload.get('publisherModels', []) or payload.get('models', []):
+            name = entry.get('name', '')
+            if '/models/' in name:
+                name = name.rsplit('/models/', 1)[1]
+            if name:
+                models.append(name)
+        if models:
+            logger.info(f'Discovered {len(models)} Vertex AI Gemini models via API')
+            return dedupe_keep_order(models)
+    except Exception as e:
+        logger.warning(f"Vertex AI model discovery {base_url or GOOGLE_VERTEX_PROJECT}: {extract_http_error(e)}")
+    return configured_defaults
 
 def discover_google_models(base_url, api_key):
     if not base_url or not api_key:
@@ -1143,6 +1251,10 @@ def discover_provider_models(name, cfg, base_url, api_key, api_type):
     discovered = []
     if api_type in ('google-generative-language', 'google-generative-ai'):
         discovered = discover_google_models(base_url, api_key)
+    elif api_type == 'google-vertex-ai':
+        # Vertex AI does not expose a stable publisher-model discovery endpoint in all projects/regions.
+        # Prefer configured Gemini model IDs; fall back to a small known-good set when none are configured.
+        discovered = [] if configured else discover_google_vertex_models(base_url)
     elif api_type == 'openai-completions':
         # Try OpenAI-style discovery for openai, github-copilot, xai, etc.
         if name == 'openrouter' or 'openrouter.ai' in (base_url or '').lower():
@@ -1949,7 +2061,7 @@ def provider_default_tools_support(provider):
 def model_capabilities(provider, model):
     meta = (provider.model_meta or {}).get(model, {})
     default_chat = is_chat_capable_model(provider, model)
-    default_json = provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages', 'google-generative-language', 'openai-codex-responses'}
+    default_json = provider.api_type in {'openai-completions', 'openclaw-gateway', 'anthropic-messages', 'google-generative-language', 'google-vertex-ai', 'openai-codex-responses'}
     provider_tools_default = provider_default_tools_support(provider)
     if provider_tools_default is None and provider.api_type == 'ollama':
         default_tools = ollama_model_default_tools_support(model)
@@ -1957,7 +2069,7 @@ def model_capabilities(provider, model):
         default_tools = nvidia_model_default_tools_support(model)
     else:
         default_tools = provider_tools_default
-    default_streaming = provider.api_type in {'openai-completions', 'ollama', 'google-generative-language', 'openai-codex-responses'}
+    default_streaming = provider.api_type in {'openai-completions', 'ollama', 'google-generative-language', 'google-vertex-ai', 'openai-codex-responses'}
     return {
         'chat': bool(meta.get('supportsChat', default_chat)),
         'servable': model_is_servable(provider, model),
@@ -3821,12 +3933,18 @@ def apply_discord_public_route_profile(payload):
             '*qwen3.[5-9]*',
             '*minimax-m2.[7-9]*',
             '*mistral-large-3*',
+            'google-vertex/gemini-3-flash-preview',
+            'google-vertex/gemini-2.5-pro',
+        ],
+        'allowProviders': [
+            'openai-codex', 'openai', 'ollama', 'ollama-cloud', 'ollama-cyber',
+            'nvidia', 'nvidia-nim', 'openrouter', 'google-vertex',
         ],
         'denyModels': [
             '*1.2b*', '*2b*', '*3b*', '*4b*', '*7b*', '*8b*', '*12b*', '*14b*',
             '*mini*', '*haiku*', '*flash-lite*', '*gemma-3n*', '*lfm-2.5*', '*laguna-xs*',
             '*deepseek-r1*', '*deepseek-v3*', '*glm-4*', '*minimax-m2.5*', '*mistral-large-2*',
-            '*gemini*', '*claude*', '*llama*', '*nemotron*', '*trinity*', '*nemo*',
+            '*claude*', '*llama*', '*nemotron*', '*trinity*', '*nemo*',
         ],
     })
     payload['requirements'] = req
@@ -4470,11 +4588,7 @@ def call_anthropic(base_url, model, messages, api_key='', thinking=DEFAULT_THINK
         return False, extract_http_error(e)
 
 
-def call_google(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL, want_json=False):
-    # Ensure base_url has /v1beta for Google API
-    if 'generativelanguage.googleapis.com' in base_url and '/v1beta' not in base_url:
-        base_url = base_url.rstrip('/') + '/v1beta'
-    url = base_url.rstrip('/') + f'/models/{urllib.parse.quote(model, safe="")}:generateContent'
+def build_google_generate_payload(messages, thinking=DEFAULT_THINKING_LEVEL, want_json=False):
     system_text = ''
     contents = []
     for msg in messages:
@@ -4514,7 +4628,20 @@ def call_google(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING
         payload['generationConfig']['responseMimeType'] = 'application/json'
     if system_text.strip():
         payload['systemInstruction'] = {'parts': [{'text': system_text.strip()}]}
+    return payload
 
+
+def parse_google_generate_text(result):
+    parts = result.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+    return sanitize_visible_output(''.join(part.get('text', '') for part in parts if isinstance(part, dict)))
+
+
+def call_google(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL, want_json=False):
+    # Ensure base_url has /v1beta for Google API
+    if 'generativelanguage.googleapis.com' in base_url and '/v1beta' not in base_url:
+        base_url = base_url.rstrip('/') + '/v1beta'
+    url = base_url.rstrip('/') + f'/models/{urllib.parse.quote(model, safe="")}:generateContent'
+    payload = build_google_generate_payload(messages, thinking=thinking, want_json=want_json)
     try:
         data = json.dumps(payload).encode()
         hdrs = {'Content-Type': 'application/json'}
@@ -4523,11 +4650,25 @@ def call_google(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING
         req = urllib.request.Request(url, data=data, headers=hdrs)
         with urllib.request.urlopen(req, timeout=GOOGLE_TIMEOUT_SECONDS) as resp:
             result = json.loads(resp.read())
-        parts = result.get('candidates', [{}])[0].get('content', {}).get('parts', [])
-        text = sanitize_visible_output(''.join(part.get('text', '') for part in parts if isinstance(part, dict)))
+        text = parse_google_generate_text(result)
         return (True, text) if text else (False, json.dumps(result)[:500])
     except Exception as e:
         logger.warning(f"Google {base_url} {model}: {extract_http_error(e)}")
+        return False, extract_http_error(e)
+
+
+def call_google_vertex(base_url, model, messages, thinking=DEFAULT_THINKING_LEVEL, want_json=False):
+    try:
+        token = google_vertex_access_token()
+        url = google_vertex_url(base_url, model, 'generateContent')
+        payload = build_google_generate_payload(messages, thinking=thinking, want_json=want_json)
+        req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {token}'})
+        with urllib.request.urlopen(req, timeout=GOOGLE_TIMEOUT_SECONDS) as resp:
+            result = json.loads(resp.read())
+        text = parse_google_generate_text(result)
+        return (True, text) if text else (False, json.dumps(result)[:500])
+    except Exception as e:
+        logger.warning(f"Vertex AI {base_url or GOOGLE_VERTEX_PROJECT} {model}: {extract_http_error(e)}")
         return False, extract_http_error(e)
 
 
@@ -4695,6 +4836,13 @@ def call_google_completion(base_url, model, payload, api_key='', thinking=DEFAUL
     if not ok:
         return False, text
     return True, build_openai_completion('google', model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
+
+
+def call_google_vertex_completion(base_url, model, payload, thinking=DEFAULT_THINKING_LEVEL, debug_mode=False, request_id=''):
+    ok, text = call_google_vertex(base_url, model, payload.get('messages', []), thinking=thinking, want_json=payload.get('response_format', {}).get('type') == 'json_object')
+    if not ok:
+        return False, text
+    return True, build_openai_completion('google-vertex', model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
 
 
 def stream_openai_compat_to_client(self, provider, model, payload, request_id, thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, debug_mode=False):
@@ -5025,6 +5173,13 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
                     ok = True
                 else:
                     ok, result = call_google_completion(prov.base_url, model, attempt_payload, api_key=prov.api_key, thinking=thinking, debug_mode=debug_mode, request_id=request_id)
+                    if not ok:
+                        error_detail = result
+            elif prov.api_type == 'google-vertex-ai':
+                if want_stream:
+                    error_detail = 'streaming not implemented for Vertex AI bridge'
+                else:
+                    ok, result = call_google_vertex_completion(prov.base_url, model, attempt_payload, thinking=thinking, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'openai-codex-responses':

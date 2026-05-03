@@ -48,7 +48,6 @@
         "*deepseek-r1*",
         "*deepseek-v3*",
         "*flash-lite*",
-        "*gemini*",
         "*gemma-3n*",
         "*glm-4*",
         "*haiku*",
@@ -70,7 +69,8 @@
         "ollama-cyber",
         "nvidia",
         "nvidia-nim",
-        "openrouter"
+        "openrouter",
+        "google-vertex"
       ],
       "suppressIntermediateToolText": true,
       "frontierLargeOnly": true,
@@ -84,7 +84,9 @@
         "*mistral-large-3*",
         "*qwen3.5:397b-cloud*",
         "*cogito-2.1:671b-cloud*",
-        "*devstral-2:123b-cloud*"
+        "*devstral-2:123b-cloud*",
+        "google-vertex/gemini-3-flash-preview",
+        "google-vertex/gemini-2.5-pro"
       ],
       "verbosity": "low",
       "maxPublicAnswerBullets": 3,
