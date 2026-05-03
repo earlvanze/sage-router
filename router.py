@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Sage Router - Dynamic provider discovery and routing"""
-import argparse, base64, ipaddress, json, logging, math, os, re, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, base64, hmac, ipaddress, json, logging, math, os, re, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
 from dataclasses import dataclass
 from enum import Enum, auto
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -109,6 +109,12 @@ SUPABASE_ROUTE_EVENTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_ROUTE_EVENTS_
 SUPABASE_ANALYTICS_SNAPSHOTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_ANALYTICS_SNAPSHOTS_TABLE', 'sage_router_analytics_snapshots')
 SUPABASE_MIRROR_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_MIRROR_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
 SUPABASE_AUTH_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_AUTH_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+CLIENT_API_KEYS = [
+    key.strip()
+    for key in (os.environ.get('SAGE_ROUTER_CLIENT_API_KEYS') or os.environ.get('SAGE_ROUTER_CLIENT_API_KEY') or '').split(',')
+    if key.strip()
+]
+CLIENT_AUTH_REQUIRED = os.environ.get('SAGE_ROUTER_CLIENT_AUTH_REQUIRED', '1' if CLIENT_API_KEYS else '0').strip().lower() in {'1', 'true', 'yes', 'on'}
 CORS_ORIGIN = os.environ.get('SAGE_ROUTER_CORS_ORIGIN', '*')
 CORS_ORIGINS = [o.strip() for o in CORS_ORIGIN.split(',') if o.strip()]
 LATENCY_EWMA_ALPHA = float(os.environ.get('SAGE_ROUTER_LATENCY_EWMA_ALPHA', '0.35'))
@@ -2896,14 +2902,35 @@ def supabase_user_for_bearer(token):
         return None
 
 
-def analytics_authorized(handler):
+def bearer_token(handler):
     auth = handler.headers.get('Authorization') or ''
-    bearer = auth[7:].strip() if auth.lower().startswith('bearer ') else ''
-    if ANALYTICS_TOKEN and bearer == ANALYTICS_TOKEN:
+    return auth[7:].strip() if auth.lower().startswith('bearer ') else ''
+
+
+def token_matches_any(token, allowed_tokens):
+    if not token:
+        return False
+    return any(hmac.compare_digest(token, allowed) for allowed in allowed_tokens if allowed)
+
+
+def analytics_authorized(handler):
+    bearer = bearer_token(handler)
+    if ANALYTICS_TOKEN and hmac.compare_digest(bearer, ANALYTICS_TOKEN):
         return True
     if supabase_user_for_bearer(bearer):
         return True
     return not ANALYTICS_TOKEN and not SUPABASE_AUTH_ENABLED
+
+
+def client_request_authorized(handler):
+    if not CLIENT_AUTH_REQUIRED:
+        return True
+    bearer = bearer_token(handler)
+    if token_matches_any(bearer, CLIENT_API_KEYS):
+        return True
+    if supabase_user_for_bearer(bearer):
+        return True
+    return False
 
 
 def get_latency_stat(intent_name, provider_name, model):
@@ -5925,6 +5952,15 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
+        model_endpoint = (
+            self.path in ['/v1/chat/completions', '/chat/completions', '/v1/messages', '/messages', '/v1/realtime', '/realtime']
+            or ':generateContent' in self.path
+            or ':streamGenerateContent' in self.path
+        )
+        if model_endpoint and not client_request_authorized(self):
+            self.write_json(401, {'error': 'unauthorized'})
+            return
+
         if self.path in ['/v1/chat/completions', '/chat/completions']:
             body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
             request_id = uuid.uuid4().hex[:8]
