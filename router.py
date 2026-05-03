@@ -128,6 +128,12 @@ DEFAULT_NGC_MODELS = ['nemotron-tts', 'canary-asr', 'nemo-tts', 'nemo-asr', 'nvi
 DEFAULT_ANTHROPIC_MODELS = ['claude-opus-4-6', 'claude-opus-4-5', 'claude-opus-4-1', 'claude-opus-4-0', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-sonnet-4-0', 'claude-haiku-4-5', 'claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest']
 DEFAULT_DARKBLOOM_MODELS = ['mlx-community/gemma-4-26b-a4b-it-8bit', 'qwen3.5-27b-claude-opus-8bit', 'mlx-community/Trinity-Mini-8bit', 'mlx-community/Qwen3.5-122B-A10B-8bit', 'mlx-community/MiniMax-M2.5-8bit']
 DEFAULT_CLOUDFLARE_WORKERS_AI_MODELS = ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/meta/llama-3.1-8b-instruct', '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', '@cf/qwen/qwq-32b', '@cf/qwen/qwen2.5-coder-32b-instruct', '@cf/mistral/mistral-small-3.1-24b-instruct']
+DEFAULT_OPENAI_MODELS = ['gpt-5.4', 'gpt-5.4-mini', 'gpt-4o', 'gpt-4o-mini']
+DEFAULT_OPENROUTER_MODELS = ['openai/gpt-5.4', 'anthropic/claude-sonnet-4.5', 'google/gemini-2.5-pro', 'x-ai/grok-4']
+DEFAULT_GOOGLE_MODELS = ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash']
+DEFAULT_XAI_MODELS = ['grok-4', 'grok-3', 'grok-3-mini', 'grok-2']
+DEFAULT_ZAI_MODELS = ['z1-ultra', 'z1-pro', 'z1-mini']
+DEFAULT_GITHUB_COPILOT_MODELS = ['gpt-5.4', 'gpt-5.4-mini', 'claude-sonnet-4-5', 'gemini-2.5-pro']
 
 
 def extract_http_error(exc: Exception) -> str:
@@ -147,13 +153,13 @@ GATEWAY_PROVIDER_PROFILES = {
     'openai-codex': ('openclaw-gateway', DEFAULT_OPENAI_CODEX_MODELS, {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}),
     'nvidia-ngc': ('https://api.ngc.nvidia.com', DEFAULT_NGC_MODELS, {'reasoning': False, 'contextWindow': 16384, 'maxTokens': 4096, 'input': ['text', 'audio'], 'output': ['text', 'audio']}),
     'anthropic': ('anthropic-messages', DEFAULT_ANTHROPIC_MODELS, {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 64000, 'input': ['text']}),
-    'openai': ('openai-completions', ['gpt-5.4', 'gpt-5.4-mini', 'gpt-4o', 'gpt-4o-mini'], {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
-    'google': ('google-generative-language', ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'], {'reasoning': False, 'contextWindow': 1000000, 'maxTokens': 65536, 'input': ['text', 'image']}),
-    'google-vertex': ('google-vertex-ai', ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'], {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 65536, 'input': ['text', 'image']}),
-    'xai': ('openai-completions', ['grok-3', 'grok-3-mini', 'grok-2'], {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
-    'zai': ('openai-completions', ['z1-ultra', 'z1-pro', 'z1-mini'], {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 65536, 'input': ['text']}),
+    'openai': ('openai-completions', DEFAULT_OPENAI_MODELS, {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
+    'google': ('google-generative-language', DEFAULT_GOOGLE_MODELS, {'reasoning': False, 'contextWindow': 1000000, 'maxTokens': 65536, 'input': ['text', 'image']}),
+    'google-vertex': ('google-vertex-ai', DEFAULT_GOOGLE_MODELS, {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 65536, 'input': ['text', 'image']}),
+    'xai': ('openai-completions', DEFAULT_XAI_MODELS, {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
+    'zai': ('openai-completions', DEFAULT_ZAI_MODELS, {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 65536, 'input': ['text']}),
     'darkbloom': ('openai-completions', DEFAULT_DARKBLOOM_MODELS, {'reasoning': False, 'contextWindow': 131072, 'maxTokens': 16384, 'input': ['text']}),
-    'github-copilot': ('openclaw-gateway', ['gpt-5.4', 'gpt-5.4-mini', 'claude-sonnet-4-5', 'gemini-2.5-pro'], {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}),
+    'github-copilot': ('openclaw-gateway', DEFAULT_GITHUB_COPILOT_MODELS, {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}),
     'cloudflare-workers-ai': ('cloudflare-workers-ai', DEFAULT_CLOUDFLARE_WORKERS_AI_MODELS, {'reasoning': False, 'contextWindow': 32768, 'maxTokens': 4096, 'input': ['text']}),
     'bedrock': ('openclaw-gateway', ['anthropic.claude-sonnet-4-5', 'anthropic.claude-haiku-4-5', 'amazon.nova-pro', 'amazon.nova-lite', 'meta.llama4-405b'], {'reasoning': True, 'contextWindow': 200000, 'maxTokens': 64000, 'input': ['text']}),
     'azure-openai': ('openclaw-gateway', ['gpt-5.4', 'gpt-5.4-mini', 'gpt-4o', 'gpt-4o-mini'], {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
@@ -2190,8 +2196,205 @@ def model_meets_requirements(provider, model, requirements, estimated_tokens):
         return False, 'streaming unsupported'
     return True, None
 
-def load_openclaw_providers():
+
+def comma_list_env(*names):
+    for name in names:
+        raw = os.environ.get(name, '')
+        if raw.strip():
+            return [x.strip() for x in raw.split(',') if x.strip()]
+    return []
+
+
+def env_first(*names):
+    for name in names:
+        value = os.environ.get(name, '')
+        if value.strip():
+            return value.strip()
+    return ''
+
+
+def model_meta_for_defaults(models, base_meta):
+    return {m: dict(base_meta) for m in dedupe_keep_order(models or [])}
+
+
+
+def read_openai_codex_oauth_token_from_file():
+    """Best-effort local/mounted OAuth token discovery for OpenClaw/Hermes style auth.
+
+    Hosted Cloud Run should prefer SAGE_ROUTER_OPENAI_CODEX_ACCESS_TOKEN from
+    Secret Manager. This fallback keeps parity with local OpenClaw/Hermes-style
+    auth if an auth profile file is deliberately mounted into the runtime.
+    """
+    import time
+    paths = comma_list_env('SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATHS', 'OPENAI_CODEX_AUTH_PROFILE_PATHS') or [
+        env_first('SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATH', 'OPENAI_CODEX_AUTH_PROFILE_PATH'),
+        '~/.openclaw/agents/main/agent/auth-profiles.json',
+        '~/.hermes/auth.json',
+    ]
+    now_ms = time.time() * 1000
+    for raw_path in [p for p in paths if p]:
+        path = os.path.expanduser(raw_path)
+        try:
+            with open(path) as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        profiles = data.get('profiles') if isinstance(data, dict) else None
+        if isinstance(profiles, dict):
+            for prof in profiles.values():
+                if not isinstance(prof, dict):
+                    continue
+                if prof.get('provider') == 'openai-codex' and prof.get('type') == 'oauth':
+                    if not prof.get('expires') or prof.get('expires', 0) > now_ms:
+                        token = prof.get('access') or prof.get('access_token') or ''
+                        if token:
+                            logger.info(f'Loaded openai-codex OAuth token from mounted auth profile {path}')
+                            return token
+        providers = data.get('providers') if isinstance(data, dict) else None
+        if isinstance(providers, dict):
+            for name, prof in providers.items():
+                if 'codex' not in str(name).lower() or not isinstance(prof, dict):
+                    continue
+                token = prof.get('access') or prof.get('access_token') or prof.get('token') or ''
+                expires = prof.get('expires') or prof.get('expires_at') or 0
+                if token and (not expires or float(expires) * (1000 if float(expires) < 10_000_000_000 else 1) > now_ms):
+                    logger.info(f'Loaded openai-codex OAuth token from mounted Hermes auth {path}')
+                    return token
+    return ''
+
+def load_hosted_secret_providers():
+    """Load Cloud Run/hosted provider credentials from environment/Secret Manager.
+
+    This lets Sage Router act as the security and billing boundary: clients pass
+    a Sage Router subscription key, while upstream provider tokens stay server-side.
+    All values are env-var backed so secrets can be wired through Cloud Run Secret
+    Manager without committing provider tokens to config.
+    """
     providers = {}
+
+    def add(name, api_type, base_url, api_key, models, meta, reasoning_models=None):
+        if not api_key and name not in {'google-vertex'}:
+            return
+        if name in DISABLED_PROVIDERS:
+            logger.info(f'Skipping disabled hosted provider {name}')
+            return
+        models = dedupe_keep_order(models or [])
+        merge_provider(providers, Provider(
+            name,
+            api_type,
+            base_url,
+            api_key,
+            models,
+            set(reasoning_models or [m for m in models if meta.get('reasoning')]),
+            model_meta_for_defaults(models, meta),
+        ))
+
+    add(
+        'openai',
+        'openai-completions',
+        env_first('SAGE_ROUTER_OPENAI_BASE_URL', 'OPENAI_BASE_URL') or 'https://api.openai.com/v1',
+        env_first('SAGE_ROUTER_OPENAI_API_KEY', 'OPENAI_API_KEY'),
+        comma_list_env('SAGE_ROUTER_OPENAI_MODELS') or DEFAULT_OPENAI_MODELS,
+        {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text'], 'supportsTools': True, 'supportsJson': True},
+    )
+    add(
+        'openrouter',
+        'openai-completions',
+        env_first('SAGE_ROUTER_OPENROUTER_BASE_URL', 'OPENROUTER_BASE_URL') or 'https://openrouter.ai/api/v1',
+        env_first('SAGE_ROUTER_OPENROUTER_API_KEY', 'OPENROUTER_API_KEY'),
+        comma_list_env('SAGE_ROUTER_OPENROUTER_MODELS') or DEFAULT_OPENROUTER_MODELS,
+        {'reasoning': True, 'contextWindow': 200000, 'maxTokens': 64000, 'input': ['text'], 'supportsTools': True, 'supportsJson': True},
+    )
+    add(
+        'anthropic',
+        'anthropic-messages',
+        env_first('SAGE_ROUTER_ANTHROPIC_BASE_URL', 'ANTHROPIC_BASE_URL') or 'https://api.anthropic.com',
+        env_first('SAGE_ROUTER_ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY'),
+        comma_list_env('SAGE_ROUTER_ANTHROPIC_MODELS') or DEFAULT_ANTHROPIC_MODELS,
+        {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 64000, 'input': ['text'], 'supportsTools': True, 'supportsJson': True},
+    )
+    add(
+        'google',
+        'google-generative-language',
+        env_first('SAGE_ROUTER_GOOGLE_BASE_URL', 'GOOGLE_GENERATIVE_LANGUAGE_BASE_URL') or 'https://generativelanguage.googleapis.com/v1beta',
+        env_first('SAGE_ROUTER_GOOGLE_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'),
+        comma_list_env('SAGE_ROUTER_GOOGLE_MODELS') or DEFAULT_GOOGLE_MODELS,
+        {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 65536, 'input': ['text', 'image'], 'supportsVision': True, 'supportsJson': True},
+    )
+    if env_first('SAGE_ROUTER_GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_APPLICATION_CREDENTIALS', 'SAGE_ROUTER_VERTEX_ENABLED'):
+        project = env_first('SAGE_ROUTER_VERTEX_PROJECT_ID', 'GOOGLE_CLOUD_PROJECT', 'GCP_PROJECT')
+        location = env_first('SAGE_ROUTER_VERTEX_LOCATION', 'GOOGLE_CLOUD_LOCATION', 'GOOGLE_CLOUD_REGION') or 'us-central1'
+        base = env_first('SAGE_ROUTER_VERTEX_BASE_URL')
+        if not base and project:
+            base = f'https://{location}-aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/publishers/google'
+        add(
+            'google-vertex',
+            'google-vertex-ai',
+            base,
+            'adc',
+            comma_list_env('SAGE_ROUTER_VERTEX_MODELS') or DEFAULT_GOOGLE_MODELS,
+            {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 65536, 'input': ['text', 'image'], 'supportsVision': True, 'supportsJson': True},
+        )
+    add(
+        'xai',
+        'openai-completions',
+        env_first('SAGE_ROUTER_XAI_BASE_URL', 'XAI_BASE_URL') or 'https://api.x.ai/v1',
+        env_first('SAGE_ROUTER_XAI_API_KEY', 'XAI_API_KEY'),
+        comma_list_env('SAGE_ROUTER_XAI_MODELS') or DEFAULT_XAI_MODELS,
+        {'reasoning': True, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text'], 'supportsTools': True, 'supportsJson': True},
+    )
+    add(
+        'zai',
+        'openai-completions',
+        env_first('SAGE_ROUTER_ZAI_BASE_URL', 'ZAI_BASE_URL') or 'https://api.z.ai/api/paas/v4',
+        env_first('SAGE_ROUTER_ZAI_API_KEY', 'ZAI_API_KEY'),
+        comma_list_env('SAGE_ROUTER_ZAI_MODELS') or DEFAULT_ZAI_MODELS,
+        {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 65536, 'input': ['text'], 'supportsTools': True, 'supportsJson': True},
+    )
+    add(
+        'ollama-cloud',
+        'ollama',
+        env_first('SAGE_ROUTER_OLLAMA_BASE_URL', 'OLLAMA_HOST') or 'https://ollama.com',
+        env_first('SAGE_ROUTER_OLLAMA_API_KEY', 'OLLAMA_API_KEY'),
+        comma_list_env('SAGE_ROUTER_OLLAMA_MODELS') or ollama_cloud_catalog_models()[:25],
+        {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text'], 'supportsTools': True, 'supportsJson': True},
+    )
+    cf_account = env_first('SAGE_ROUTER_CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_ACCOUNT_ID')
+
+    add(
+        'nvidia-nim',
+        'openai-completions',
+        env_first('SAGE_ROUTER_NVIDIA_BASE_URL', 'NVIDIA_BASE_URL') or 'https://integrate.api.nvidia.com/v1',
+        env_first('SAGE_ROUTER_NVIDIA_API_KEY', 'NVIDIA_API_KEY', 'NVIDIA_NIM_API_KEY'),
+        comma_list_env('SAGE_ROUTER_NVIDIA_MODELS') or DEFAULT_NGC_MODELS,
+        {'reasoning': False, 'contextWindow': 16384, 'maxTokens': 4096, 'input': ['text'], 'supportsTools': False, 'supportsJson': True},
+    )
+
+    cf_base = env_first('SAGE_ROUTER_CLOUDFLARE_BASE_URL') or (f'https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai' if cf_account else '')
+    if cf_base:
+        add(
+            'cloudflare-workers-ai',
+            'cloudflare-workers-ai',
+            cf_base,
+            env_first('SAGE_ROUTER_CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_API_TOKEN'),
+            comma_list_env('SAGE_ROUTER_CLOUDFLARE_MODELS') or DEFAULT_CLOUDFLARE_WORKERS_AI_MODELS,
+            {'reasoning': False, 'contextWindow': 32768, 'maxTokens': 4096, 'input': ['text'], 'supportsJson': True},
+        )
+    codex_token = env_first('SAGE_ROUTER_OPENAI_CODEX_ACCESS_TOKEN', 'SAGE_ROUTER_OPENAI_CODEX_OAUTH_TOKEN', 'OPENAI_CODEX_ACCESS_TOKEN', 'OPENAI_CODEX_OAUTH_TOKEN') or read_openai_codex_oauth_token_from_file()
+    add(
+        'openai-codex',
+        'openai-codex-responses',
+        env_first('SAGE_ROUTER_OPENAI_CODEX_BASE_URL', 'OPENAI_CODEX_BASE_URL') or 'https://chatgpt.com/backend-api/codex',
+        codex_token,
+        comma_list_env('SAGE_ROUTER_OPENAI_CODEX_MODELS') or DEFAULT_OPENAI_CODEX_MODELS,
+        {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text'], 'supportsTools': True, 'supportsJson': True},
+        reasoning_models=comma_list_env('SAGE_ROUTER_OPENAI_CODEX_MODELS') or DEFAULT_OPENAI_CODEX_MODELS,
+    )
+    return providers
+
+
+def load_openclaw_providers():
+    providers = load_hosted_secret_providers()
     try:
         with open(OPENCLAW_CONFIG) as f:
             config = json.load(f)
