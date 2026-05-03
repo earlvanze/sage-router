@@ -68,7 +68,7 @@ services:
     container_name: sage-router-llamacpp-classifier
     restart: unless-stopped
     ports:
-      - "${SAGE_ROUTER_CLASSIFIER_PORT:-8080}:8080"
+      - "${SAGE_ROUTER_CLASSIFIER_PORT:-18080}:8080"
     volumes:
       - ${SAGE_ROUTER_MODELS_DIR:-./models}:/models:ro
     command:
