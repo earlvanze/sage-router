@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 data/
 *.bak-*
+# Frontend
+web/node_modules/
+web/dist/

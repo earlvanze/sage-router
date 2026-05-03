@@ -1,10 +1,10 @@
 # Sage Router
 
-**The OpenRouter replacement that optimizes for performance, not cost.**
+**Local-first AI model routing for serious agents.**
 
 One endpoint. Any provider. The router figures out the rest.
 
-[![ClawHub](https://img.shields.io/badge/ClawHub-v3.15.0-blue)](https://clawhub.ai/earlvanze/sage-router)
+[![ClawHub](https://img.shields.io/badge/ClawHub-v3.26.25-blue)](https://clawhub.ai/earlvanze/sage-router)
 [![GitHub](https://img.shields.io/badge/GitHub-earlvanze%2Fsage--router-black)](https://github.com/earlvanze/sage-router)
 
 ---
@@ -13,12 +13,12 @@ One endpoint. Any provider. The router figures out the rest.
 
 Sage Router is a **local-first, self-hosted AI model gateway** that intelligently routes requests to the best available model based on intent, latency, and capability — not just price.
 
-Unlike OpenRouter, which optimizes for cost, Sage Router optimizes for **getting the job done**:
+Sage Router optimizes for **getting the job done**:
 
 - **Intent-based routing**: Code tasks go to coding models, creative tasks to creative models, reasoning tasks to reasoning models
 - **Automatic fallback**: If one provider fails or hits rate limits, it seamlessly tries the next
-- **Dynamic discovery**: New models from Ollama, Anthropic, OpenAI, Google, NVIDIA Cloud, and OpenClaw are auto-detected — no config updates needed
-- **Zero API lock-in**: Use any subscription you already have (Ollama, Claude, OpenAI, Gemini, GitHub Copilot)
+- **Dynamic discovery**: New models from Ollama, Anthropic, OpenAI, Google, NVIDIA NIM / NVIDIA Cloud, and OpenClaw are auto-detected — no config updates needed
+- **Zero API lock-in**: Use any subscription or key you already have (Ollama, Claude, OpenAI, Gemini, NVIDIA NIM, GitHub Copilot)
 - **Debuggable routing**: Surface the selected provider/model in headers, `/health`, or optional debug output
 
 ---
@@ -66,6 +66,25 @@ export ANTHROPIC_API_KEY=irrelevant
 
 ---
 
+## Integration Guides
+
+- [Codex CLI](docs/integrations/codex.md)
+- [Claude Code](docs/integrations/claude-code.md)
+- [OpenClaw](docs/integrations/openclaw.md)
+- [Hermes](docs/integrations/hermes.md)
+- [Pi agents](docs/integrations/pi.md)
+- [Cursor](docs/integrations/cursor.md)
+- [Aider](docs/integrations/aider.md)
+- [Continue](docs/integrations/continue.md)
+- [OpenHands](docs/integrations/openhands.md)
+- [Ollama and Ollama Cloud](docs/integrations/ollama.md)
+- [NVIDIA NIM / NVIDIA Cloud](docs/integrations/nvidia-nim.md)
+- [OpenAI-compatible clients](docs/integrations/openai-compatible.md)
+- [Anthropic-compatible clients](docs/integrations/anthropic-compatible.md)
+- [Harness fallback](docs/integrations/harness-fallback.md)
+
+---
+
 ## Supported API Formats
 
 | Endpoint | Format | Used By |
@@ -95,13 +114,86 @@ Request: "Refactor this Python function"
   → Intent: CODE, Complexity: MEDIUM
   → Route Mode: balanced
   → Selected Chain:
-    1. ollama/claude-3.5-sonnet:fast   (local, fast)
-    2. ollama/gpt-4o-mini:latest       (fallback)
-    3. anthropic/claude-sonnet-4-6     (if local fails)
-    4. openai/gpt-4o                   (last resort)
+    1. ollama/glm-5.1:cloud            (best score for CODE + available)
+    2. openai-codex/gpt-5.5            (fallback)
+    3. ollama/kimi-k2:cloud            (fallback)
+    4. openai/gpt-4.1                  (last resort)
 ```
 
 If the first model fails or times out, it automatically tries the next. No manual retry needed.
+
+### Model Selection Pseudocode
+
+The core selection path lives in `router.py` across `normalize_requirements`,
+`prepare_route`, `select_model`, `score_provider_model`, and `route_request`.
+In pseudocode:
+
+```text
+function route_request(payload):
+    messages = payload.messages
+    thinking = normalize_thinking(payload.reasoning / payload.thinking)
+    route_mode = payload.routeMode or "balanced"
+    requirements = normalize_requirements(payload)
+
+    latest_prompt = last user/developer message text
+    intent = classify_intent(latest_prompt)        # code, analysis, general, creative, etc.
+    complexity = estimate_complexity(latest_prompt)
+    estimated_tokens = estimate_prompt_tokens(messages)
+
+    if caller forced a provider/model:
+        candidate_chain = validate_forced_route_against_requirements()
+    else:
+        candidate_chain = []
+        rejected = []
+
+        for each provider in configured providers:
+            if provider is disabled: continue
+            if provider is Ollama: refresh discovered model list
+            if provider has no models or endpoint is unreachable: continue
+
+            for each model in provider.models:
+                if local-first mode and provider is approved decentralized infrastructure: allow
+                if local-first mode and provider endpoint is not LAN/Tailnet/local: reject
+                if local-first mode and provider is a known cloud/SSO proxy: reject
+                if local-first mode and model is an Ollama Cloud model: reject
+                if model is not chat-capable: reject
+                if model does not satisfy hard requirements
+                   such as JSON, tools, streaming, reasoning, or long context: reject
+
+                score = base score for intent + provider API type
+                score += model-name intent hints
+                score += / -= context-window fit
+                score += / -= provider/model family preferences
+                score += / -= route mode preference
+                         # fast, realtime, best, local-first, balanced
+                score += / -= thinking-level preference
+                         # high favors larger reasoning models, low favors lightweight models
+                score += / -= current health/cooldown signal
+                score += / -= empirical latency/success adjustment
+
+                if tools were supplied but not forced:
+                    score += soft bonus for models with tool support
+
+                candidate_chain.append((score, provider, model))
+
+        sort candidate_chain by score descending, then provider/model name for stability
+        candidate_chain = top MAX_PROVIDER_ATTEMPTS
+
+    for provider, model in candidate_chain:
+        response = call_provider(provider, model, payload)
+        if response has visible text or valid tool calls:
+            record successful route event
+            return response
+        record failure and try next candidate
+
+    record failed route event
+    return provider_failure_error
+```
+
+Hard filters happen before scoring, so an otherwise high-scoring model is never
+selected when it cannot satisfy explicit requirements like forced tool calling or
+JSON output. Soft preferences, such as attached optional tools, influence the
+score without unnecessarily shrinking the candidate pool.
 
 ---
 
@@ -158,6 +250,26 @@ Models are auto-discovered via `/api/tags`.
 ```
 
 Models are auto-discovered via `/v1/models`.
+
+
+### Darkbloom
+
+Darkbloom is OpenAI-compatible at `https://api.darkbloom.dev`. If `DARKBLOOM_API_KEY` is present in `~/.openclaw/.env` or the skill-local `.env`, Sage Router loads it automatically through the bundled `darkbloom` provider profile.
+
+```json
+{
+  "providers": {
+    "darkbloom": {
+      "baseUrl": "https://api.darkbloom.dev",
+      "apiKey": "${DARKBLOOM_API_KEY}",
+      "models": "auto-discover",
+      "api": "openai-completions"
+    }
+  }
+}
+```
+
+Models are auto-discovered via `/v1/models`. Chat requests route through `/v1/chat/completions`.
 
 ### Google Gemini
 
@@ -224,7 +336,7 @@ Sage Router can route through a local Grok SSO proxy instead of burning xAI API 
 
 See `provider-profiles.json` for the `grok-sso` template and `GROK_SSO.md` for setup.
 
-### NVIDIA Cloud
+### NVIDIA NIM / NVIDIA Cloud
 
 ```json
 {
@@ -245,7 +357,7 @@ See `provider-profiles.json` for the `grok-sso` template and `GROK_SSO.md` for s
 }
 ```
 
-Models are auto-discovered from NVIDIA Cloud when `NVIDIA_API_KEY` is present.
+Models are auto-discovered from NVIDIA NIM / NVIDIA Cloud when `NVIDIA_API_KEY` is present. This is useful for GPU-accelerated hosted inference and NVIDIA-backed model endpoints without changing agent configuration.
 
 ### OpenClaw Gateway
 
@@ -305,7 +417,7 @@ The classifier backend speaks OpenAI-compatible llama.cpp server API (`/v1/chat/
 | **Anthropic** | ✅ Via Dario | ✅ | ✅ | API key |
 | **OpenAI** | ✅ `/v1/models` | ✅ | ✅ | API key |
 | **GitHub Copilot** | ✅ `/v1/models` | ✅ | ✅ | Token |
-| **NVIDIA Cloud** | ✅ auto-discovery | ✅ | ✅ | API key |
+| **NVIDIA NIM / Cloud** | ✅ auto-discovery | ✅ | ✅ | API key |
 | **OpenClaw Gateway** | ✅ `/v1/models` | ✅ | ✅ | Gateway token |
 | **xAI/Grok (API)** | ✅ `/v1/models` | ✅ | ✅ | API key |
 | **xAI/Grok (SSO)** | ❌ SSO proxy | ❌ | ❌ | Cookie/SSO |
@@ -325,7 +437,7 @@ Control how Sage Router selects models:
 | `fast` | Prefer local models, minimize latency |
 | `balanced` | Balance capability and speed |
 | `best` | Always pick the best model for the task, regardless of latency |
-| `local-first` | Try truly local models before any cloud provider. Ollama models ending in `:cloud` are excluded even if the endpoint is localhost. |
+| `local-first` / `local-strict` | Local-strict mode. Only use local, LAN, Tailnet, or approved decentralized provider endpoints. Reject centralized Internet APIs such as OpenAI, Anthropic/Dario, Google, NVIDIA Cloud, Copilot, xAI/Grok SSO, OpenRouter, etc. Darkbloom is allowed as decentralized infrastructure. Ollama models ending in `:cloud` are still excluded even if the Ollama endpoint is localhost. |
 
 Set via request: `{"route": "fast"}` or header: `X-Route-Mode: fast`
 
@@ -401,29 +513,7 @@ That means stream-shaped responses work for client compatibility, but they may s
 
 ## Why Sage Router?
 
-### vs. OpenRouter
 
-| Feature | OpenRouter | Sage Router |
-|---------|-----------|-------------|
-| Cost optimization | ✅ | ❌ |
-| Performance optimization | ❌ | ✅ |
-| Self-hosted | ❌ | ✅ |
-| Dynamic model discovery | ❌ | ✅ |
-| Intent-based routing | ❌ | ✅ |
-| Subscription reuse | ❌ | ✅ |
-| Multi-format API | OpenAI only | OpenAI + Anthropic + Google |
-
-### vs. LiteLLM
-
-| Feature | LiteLLM | Sage Router |
-|---------|---------|-------------|
-| Drop-in proxy | ✅ | ✅ |
-| Model routing logic | Manual | Automatic (intent-based) |
-| Fallback chains | Manual | Automatic |
-| Configuration | YAML-heavy | Minimal JSON |
-| Local-first | ❌ | ✅ |
-
----
 
 ## Configuration
 
@@ -483,12 +573,20 @@ LOG_LEVEL=DEBUG python3 router.py
 
 ## Roadmap
 
-- [ ] Multi-modal support (vision models)
-- [ ] Tool/function calling proxy
+### Completed
+
+- [x] Multi-modal support (vision-capable model detection and image payload routing)
+- [x] Tool/function calling proxy (OpenAI, Ollama, and Anthropic-compatible tool-call normalization)
+- [x] Cloudflare Pages marketing site on `https://sagerouter.dev`
+- [x] Integration guides for major agent harnesses and SDK-compatible clients
+- [x] Waitlist capture into AOps Supabase
+
+### Next
+
 - [ ] Request/response caching
 - [ ] Usage analytics dashboard
 - [ ] Distributed deployment mode
-- [ ] CDN-hosted option (high-availability)
+- [ ] CDN-hosted option / hosted reliability layer
 - [ ] **Grok SSO Browser Extension** — Chrome extension to proxy SuperGrok web access via local OpenAI-compatible endpoint (blocked by anti-bot; needs extension architecture)
 
 ---
@@ -504,7 +602,6 @@ MIT — Use it, fork it, improve it. PRs welcome.
 Built this because I was tired of:
 - Switching API keys between coding agents
 - Burning Claude API credits on trivial tasks
-- Waiting for OpenRouter's cheapest option when I just needed an answer
 - Configuring new models in 3 different places
 
 If you're running local AI infrastructure, Sage Router is the single endpoint that makes everything else just work.
@@ -520,3 +617,30 @@ Sage Router emits advisory OpenClaw workflow metadata alongside routing decision
 - `/health` → `lastRoute.workflowTier`, `lastRoute.workflowMode`, `lastRoute.recommendedAgents`, `lastRoute.workflow`
 
 The router remains an advisor. OpenClaw agents/plugins own orchestration and specialist fan-out.
+
+## Router Profiles
+
+Sage Router supports named routing profiles for reusable policy bundles. Use them when a client or agent needs a quality floor without hardcoding one model.
+
+Request a profile with any of:
+
+```json
+{ "model": "sage-router/discord-public" }
+{ "model": "discord-public" }
+{ "profile": "discord-public" }
+{ "routerProfile": "coding-max" }
+```
+
+Profiles live in `router-profiles.json` and can set:
+
+- route mode: `fast`, `balanced`, `best`, `local-first`, `realtime`
+- thinking level: `low`, `medium`, `high`
+- requirements: quality, reasoning, tools, JSON, vision, documents, long context
+- constraints: provider/model allowlists and denylists, `minParamsB`, `frontierLargeOnly`, `frontierOrReasoningTools`, `suppressIntermediateToolText`
+
+Bundled profiles:
+
+- `discord-public` — public-channel quality profile, high thinking, quality/reasoning required, tiny/free filler models blocked, tool-call narration suppressed
+- `frontier-large` — strict frontier/large-model-only routing
+- `fast-local` — low-latency local-first routing
+- `coding-max` — high-thinking coding route with weak model exclusions

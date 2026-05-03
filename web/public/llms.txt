@@ -1,0 +1,42 @@
+# Sage Router
+
+Sage Router is an open-source, local-first AI model router and BYOK AI gateway for serious AI agents and developer tools. It gives agents a hot-swappable model layer: one endpoint that can switch or fail over between authorized providers and local/cloud models without rewiring the agent harness.
+
+Canonical site: https://sagerouter.dev/
+Repository: https://github.com/earlvanze/sage-router
+Docs: https://github.com/earlvanze/sage-router#readme
+
+## What Sage Router does
+
+- Automates AI model/provider selection.
+- Routes requests across the customer own authorized providers, subscriptions, API keys, and local models.
+- Supports OpenAI-compatible, Anthropic-compatible, and Google/Gemini-style endpoint patterns documented in the repo.
+- Supports local Ollama and Ollama Cloud today through Ollama running locally. Sage Router discovers available `:cloud` models, can auto-pull discovered cloud models, and routes between local Ollama, Ollama Cloud, NVIDIA NIM, and other cloud APIs according to policy and health.
+- Provides provider health, fallback, observability, and routing policy infrastructure for agents.
+
+## Compliance and custody
+
+Sage Router routes only across authorized provider access that customers already control. It does not grant unauthorized provider access. Provider credentials stay local by default.
+
+## Search intents this site answers
+
+- How to automate AI model selection.
+- How to route requests across OpenAI, Anthropic, Gemini, Ollama, BYOK-compatible endpoints, and local models.
+- Local-first BYOK model routing for AI agents.
+
+
+Integration guides:
+- Codex CLI: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/codex.md
+- Claude Code: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md
+- OpenClaw: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openclaw.md
+- Hermes: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/hermes.md
+- Pi agents: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/pi.md
+- Cursor: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/cursor.md
+- Aider: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/aider.md
+- Continue: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/continue.md
+- OpenHands: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openhands.md
+- Ollama/Ollama Cloud: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/ollama.md
+- NVIDIA NIM: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/nvidia-nim.md
+- OpenAI-compatible clients: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openai-compatible.md
+- Anthropic-compatible clients: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/anthropic-compatible.md
+- Harness fallback: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/harness-fallback.md

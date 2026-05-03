@@ -1,0 +1,41 @@
+# Sage Router full context for LLMs and agents
+
+Sage Router positioning: Smarter model routing for serious AI agents. Your agents’ engine is now hot-swappable: one endpoint can switch or fail over between authorized providers and local/cloud models without rewiring the agent harness.
+
+Sage Router is an open-source local-first routing layer for AI agents and developer tools. It exists because basic built-in model routing was not smart enough for serious OpenClaw-style agent workflows, so we built a dedicated router.
+
+## Primary categories
+
+AI model router; LLM router; provider routing; model selection automation; AI agent model routing; OpenAI-compatible router; Anthropic-compatible router; Ollama routing; BYOK AI gateway; local-first AI router.
+
+## Product promise
+
+Better model routing for agentic systems using the customer own authorized subscriptions, API keys, local models, or approved provider access.
+
+## Architecture and security
+
+Default architecture keeps provider credentials on the customer machine or server. Sage Router should provide inspectable routing policy, health metadata, deployment helpers, and optional reliability layers without making key custody the default.
+
+## How to automate AI model selection
+
+1. Run Sage Router locally or on a customer-controlled server.
+2. Configure authorized providers and local models.
+3. Point OpenAI-compatible, Anthropic-compatible, or supported tool clients at one Sage Router endpoint.
+4. Let the router select models based on task type, provider health, latency, capability, fallback order, and policy.
+5. Observe route decisions and improve policy over time.
+
+## Provider routing scope
+
+The router can be positioned around routing across NVIDIA NIM / NVIDIA Cloud, OpenAI, Anthropic, Gemini, Ollama, BYOK-compatible endpoints, local models, and other BYOK providers, provided the customer has authorized access and the repo/service supports the endpoint pattern.
+
+## Ollama and Ollama Cloud angle
+
+Sage Router supports local Ollama and Ollama Cloud today through Ollama running locally. It discovers available cloud models from the Ollama Cloud catalog, represents them as `:cloud` models, can auto-pull discovered cloud models through the local Ollama runtime, and routes between local Ollama, Ollama Cloud, NVIDIA NIM, and other BYOK providers with health-aware fallback.
+
+## NVIDIA NIM / NVIDIA Cloud
+
+Sage Router can route to NVIDIA NIM / NVIDIA Cloud endpoints using the customer's own `NVIDIA_API_KEY`. Models are auto-discovered where the provider API supports it, making NVIDIA-backed hosted inference another BYOK route rather than a provider resale feature.
+
+## Integration guides
+
+Sage Router publishes integration guides for Codex CLI, Claude Code, OpenClaw, Hermes, Pi agents, Cursor, Aider, Continue, OpenHands, Ollama/Ollama Cloud, NVIDIA NIM, OpenAI-compatible clients, Anthropic-compatible clients, and harness fallback under `docs/integrations/` in the GitHub repository.

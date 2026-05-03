@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Sage Router - Dynamic provider discovery and routing"""
-import argparse, json, logging, math, os, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, ipaddress, json, logging, math, os, re, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
 from dataclasses import dataclass
 from enum import Enum, auto
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -12,9 +12,13 @@ SAGE_ROUTER_HOME = os.path.expanduser(os.environ.get('SAGE_ROUTER_HOME', '~/.ope
 OPENCLAW_CONFIG = os.environ.get('SAGE_ROUTER_OPENCLAW_CONFIG', os.path.join(SAGE_ROUTER_HOME, 'openclaw.json'))
 OPENCLAW_DOTENV = os.environ.get('SAGE_ROUTER_OPENCLAW_DOTENV', os.path.join(SAGE_ROUTER_HOME, '.env'))
 PROVIDER_PROFILES_PATH = os.path.join(os.path.dirname(__file__), 'provider-profiles.json')
+ROUTER_PROFILES_PATH = os.path.join(os.path.dirname(__file__), 'router-profiles.json')
 OPENCLAW_GATEWAY_HELPER = os.path.join(os.path.dirname(__file__), 'openclaw_gateway_agent.mjs')
 SELF_PROVIDER_NAMES = {'smart-router', 'sage-router'}
-SHOW_MODEL_PREFIX = True  # Show provider/model at start of response by default
+LOCAL_STRICT_PROXY_PROVIDER_NAMES = {'dario', 'openai-codex', 'grok-sso'}
+LOCAL_STRICT_PROXY_API_TYPES = {'openclaw-gateway', 'openai-codex-responses'}
+LOCAL_STRICT_DECENTRALIZED_PROVIDER_NAMES = {'darkbloom'}
+SHOW_MODEL_PREFIX = os.environ.get('SAGE_ROUTER_SHOW_MODEL_PREFIX', '').strip().lower() in {'1', 'true', 'yes', 'on'}  # Show provider/model at start of final text responses by default
 
 
 def load_env_file(path):
@@ -39,6 +43,7 @@ def load_env_file(path):
 
 
 load_env_file(OPENCLAW_DOTENV)
+load_env_file(os.path.join(os.path.dirname(__file__), '.env'))
 
 # Backward compat: fall back to SMART_ROUTER_* env vars if SAGE_ROUTER_* not set
 import re as _re
@@ -63,6 +68,10 @@ DISABLED_PROVIDERS = {
     name.strip() for name in os.environ.get('SAGE_ROUTER_DISABLED_PROVIDERS', '').split(',')
     if name.strip()
 }
+DISABLED_MODELS = {
+    name.strip() for name in os.environ.get('SAGE_ROUTER_DISABLED_MODELS', '').split(',')
+    if name.strip()
+}
 OLLAMA_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS', '120'))
 OLLAMA_ALLOW_THINK_FALSE_RETRY = os.environ.get('SAGE_ROUTER_OLLAMA_ALLOW_THINK_FALSE_RETRY', '').strip().lower() in {'1', 'true', 'yes', 'on'}
 OPENAI_COMPAT_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENAI_TIMEOUT_SECONDS', '35'))
@@ -83,6 +92,21 @@ EMPTY_OUTPUT_COOLDOWN_SECONDS = int(os.environ.get('SAGE_ROUTER_EMPTY_OUTPUT_COO
 PROVIDER_HEALTH_CACHE = {}
 LATENCY_STATS_PATH = os.path.expanduser(os.environ.get('SAGE_ROUTER_LATENCY_STATS_PATH', '~/.cache/sage-router/latency-stats.json'))
 ROUTE_EVENTS_PATH = os.path.expanduser(os.environ.get('SAGE_ROUTER_ROUTE_EVENTS_PATH', '~/.cache/sage-router/route-events.jsonl'))
+ANALYTICS_TOKEN = os.environ.get('SAGE_ROUTER_ANALYTICS_TOKEN', '').strip()
+ANALYTICS_EVENT_LIMIT = int(os.environ.get('SAGE_ROUTER_ANALYTICS_EVENT_LIMIT', '10000'))
+FIRESTORE_PROJECT_ID = os.environ.get('SAGE_ROUTER_FIRESTORE_PROJECT_ID') or os.environ.get('GOOGLE_CLOUD_PROJECT') or os.environ.get('GCP_PROJECT')
+FIRESTORE_DATABASE = os.environ.get('SAGE_ROUTER_FIRESTORE_DATABASE', '(default)')
+FIRESTORE_ROUTE_EVENTS_COLLECTION = os.environ.get('SAGE_ROUTER_FIRESTORE_ROUTE_EVENTS_COLLECTION', 'sage_router_route_events')
+FIRESTORE_ENABLED = os.environ.get('SAGE_ROUTER_FIRESTORE_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+SUPABASE_URL = (os.environ.get('SAGE_ROUTER_SUPABASE_URL') or os.environ.get('PUBLIC_SUPABASE_URL') or os.environ.get('SUPABASE_URL') or '').rstrip('/')
+SUPABASE_ANON_KEY = os.environ.get('SAGE_ROUTER_SUPABASE_ANON_KEY') or os.environ.get('AOPS_SUPABASE_ANON_KEY') or os.environ.get('SUPABASE_ANON_KEY') or ''
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_SERVICE_ROLE') or os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or ''
+SUPABASE_ROUTE_EVENTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_ROUTE_EVENTS_TABLE', 'sage_router_route_events')
+SUPABASE_ANALYTICS_SNAPSHOTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_ANALYTICS_SNAPSHOTS_TABLE', 'sage_router_analytics_snapshots')
+SUPABASE_MIRROR_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_MIRROR_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+SUPABASE_AUTH_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_AUTH_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+CORS_ORIGIN = os.environ.get('SAGE_ROUTER_CORS_ORIGIN', '*')
+CORS_ORIGINS = [o.strip() for o in CORS_ORIGIN.split(',') if o.strip()]
 LATENCY_EWMA_ALPHA = float(os.environ.get('SAGE_ROUTER_LATENCY_EWMA_ALPHA', '0.35'))
 GENERAL_EMPIRICAL_EXPLORATION_BONUS = float(os.environ.get('SAGE_ROUTER_GENERAL_EXPLORATION_BONUS', '20'))
 GENERAL_EMPIRICAL_SUCCESS_EXPLORATION_CAP = float(os.environ.get('SAGE_ROUTER_GENERAL_SUCCESS_EXPLORATION_CAP', '8'))
@@ -92,6 +116,7 @@ GENERAL_EMPIRICAL_FAILURE_PENALTY = float(os.environ.get('SAGE_ROUTER_GENERAL_FA
 DEFAULT_OPENAI_CODEX_MODELS = ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.3-codex', 'gpt-5.3-codex-spark', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini', 'gpt-5.1']
 DEFAULT_NGC_MODELS = ['nemotron-tts', 'canary-asr', 'nemo-tts', 'nemo-asr', 'nvidia/tts', 'nvidia/asr']
 DEFAULT_ANTHROPIC_MODELS = ['claude-opus-4-6', 'claude-opus-4-5', 'claude-opus-4-1', 'claude-opus-4-0', 'claude-sonnet-4-6', 'claude-sonnet-4-5', 'claude-sonnet-4-0', 'claude-haiku-4-5', 'claude-3-7-sonnet-latest', 'claude-3-5-sonnet-latest']
+DEFAULT_DARKBLOOM_MODELS = ['mlx-community/gemma-4-26b-a4b-it-8bit', 'qwen3.5-27b-claude-opus-8bit', 'mlx-community/Trinity-Mini-8bit', 'mlx-community/Qwen3.5-122B-A10B-8bit', 'mlx-community/MiniMax-M2.5-8bit']
 
 
 def extract_http_error(exc: Exception) -> str:
@@ -115,6 +140,7 @@ GATEWAY_PROVIDER_PROFILES = {
     'google': ('google-generative-language', ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'], {'reasoning': False, 'contextWindow': 1000000, 'maxTokens': 65536, 'input': ['text', 'image']}),
     'xai': ('openai-completions', ['grok-3', 'grok-3-mini', 'grok-2'], {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
     'zai': ('openai-completions', ['z1-ultra', 'z1-pro', 'z1-mini'], {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 65536, 'input': ['text']}),
+    'darkbloom': ('openai-completions', DEFAULT_DARKBLOOM_MODELS, {'reasoning': False, 'contextWindow': 131072, 'maxTokens': 16384, 'input': ['text']}),
     'github-copilot': ('openclaw-gateway', ['gpt-5.4', 'gpt-5.4-mini', 'claude-sonnet-4-5', 'gemini-2.5-pro'], {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}),
     'bedrock': ('openclaw-gateway', ['anthropic.claude-sonnet-4-5', 'anthropic.claude-haiku-4-5', 'amazon.nova-pro', 'amazon.nova-lite', 'meta.llama4-405b'], {'reasoning': True, 'contextWindow': 200000, 'maxTokens': 64000, 'input': ['text']}),
     'azure-openai': ('openclaw-gateway', ['gpt-5.4', 'gpt-5.4-mini', 'gpt-4o', 'gpt-4o-mini'], {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
@@ -129,8 +155,23 @@ INTENT_CLASSIFIER_MODEL = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_MODEL', 
 INTENT_CLASSIFIER_TIMEOUT_SECONDS = float(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_TIMEOUT_SECONDS', '3'))
 INTENT_CLASSIFIER_MIN_CONFIDENCE = float(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_MIN_CONFIDENCE', '0.65'))
 INTENT_CLASSIFIER_MAX_PROMPT_CHARS = int(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_MAX_PROMPT_CHARS', '4000'))
+INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW = int(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW', '2'))
+# The intent model must never sit on the request path.  Keep routing heuristic-first,
+# and let the optional classifier warm a tiny cache for later similar turns only.
+INTENT_CLASSIFIER_ASYNC = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_ASYNC', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+INTENT_CLASSIFIER_CACHE_TTL_SECONDS = int(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_CACHE_TTL_SECONDS', '86400'))
+INTENT_CLASSIFIER_CACHE_MAX = int(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_CACHE_MAX', '512'))
+INTENT_CLASSIFIER_CACHE = {}
+INTENT_CLASSIFIER_CACHE_LOCK = threading.Lock()
 LATENCY_STATS_LOCK = threading.Lock()
 OLLAMA_MODEL_CACHE = {}
+OLLAMA_CLOUD_CATALOG_CACHE = {'checked_at': 0, 'models': []}
+OLLAMA_CLOUD_CATALOG_TTL_SECONDS = int(os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_TTL_SECONDS', '21600'))
+OLLAMA_CLOUD_CATALOG_URL = os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_URL', 'https://ollama.com/search?c=cloud')
+OLLAMA_CLOUD_CATALOG_MAX_LIBRARIES = int(os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_MAX_LIBRARIES', '200'))
+OLLAMA_CLOUD_CATALOG_MAX_PAGES = int(os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_MAX_PAGES', '8'))
+OLLAMA_CLOUD_CATALOG_ENABLED = os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+LOCAL_OLLAMA_CLOUD_AUTH_BLOCKS = {}
 MODEL_HEALTH_CACHE = {}
 TEMP_MODEL_BLOCKS = {}
 LAST_ROUTE_DEBUG = {
@@ -220,6 +261,24 @@ NVIDIA_NON_TOOL_MODEL_HINTS = [
     'tts', 'asr', 'canary', 'nemo-tts', 'nemo-asr', 'embed', 'embedding', 'rerank', 'ocr', 'vision', '-vl', ':vl', 'whisper'
 ]
 
+ANALYSIS_SIGNAL_TERMS = [
+    'analyze', 'analysis', 'evaluate', 'assess', 'compare', 'tradeoff', 'trade-off',
+    'why', 'how should', 'how can', 'what should', 'should we', 'can we', 'could we',
+    'root cause', 'diagnose', 'strategy', 'recommend', 'recommendation', 'decide',
+    'risk', 'failure mode', 'implication', 'forecast', 'predict', 'prioritize',
+    'optimize', 'improve', 'smarter', 'heuristic', 'architecture', 'routing',
+    'user experience', 'discord-public', 'public channel',
+]
+ANALYSIS_QUALITY_MODEL_HINTS = [
+    'opus', 'sonnet', 'gpt-5.5', 'gpt-5.4', 'gpt-5.3', 'gpt-5', 'o3',
+    'gemini-2.5-pro', 'gemini-3-pro', 'qwen3.5', 'qwen3:32b', 'qwen3:30b',
+    'kimi-k2', 'minimax-m2.7', 'glm-5', 'deepseek-v4',
+]
+WEAK_ANALYSIS_MODEL_HINTS = [
+    'mini', 'small', 'haiku', 'flash', 'flash-lite', 'lite', 'nano', 'tiny',
+    '0.5b', '1b', '3b', '7b', '8b', '12b', '14b', '16b',
+]
+
 # Known NON-chat families - dynamically extended from /api/tags.
 # A family is non-chat if it matches these patterns or is explicitly listed.
 NON_CHAT_FAMILY_PATTERNS = ['embed', 'bert', 'clip', 'vl', 'vision', 'ocr', 'asr', 'whisper', 'tts', 'sd', 'rerank']
@@ -251,6 +310,8 @@ class WorkflowTier(Enum):
 class ThinkingLevel(Enum):
     LOW = 'low'; MEDIUM = 'medium'; HIGH = 'high'
 
+DEFAULT_THINKING_LEVEL = ThinkingLevel.HIGH
+
 @dataclass
 class Provider:
     name: str; api_type: str; base_url: str; api_key: str; models: List[str]; reasoning_models: set[str] | None = None; model_meta: dict[str, dict[str, Any]] | None = None
@@ -276,9 +337,9 @@ def merge_provider(providers, provider):
     merged_meta.update(provider.model_meta or {})
     providers[provider.name] = Provider(
         provider.name,
-        existing.api_type or provider.api_type,
-        existing.base_url or provider.base_url,
-        existing.api_key or provider.api_key,
+        provider.api_type or existing.api_type,
+        provider.base_url or existing.base_url,
+        provider.api_key or existing.api_key,
         dedupe_keep_order((existing.models or []) + (provider.models or [])),
         set(existing.reasoning_models or set()) | set(provider.reasoning_models or set()),
         merged_meta,
@@ -300,6 +361,49 @@ def is_self_provider(name, base_url):
 def is_local_dario_endpoint(base_url):
     parsed = urllib.parse.urlparse(base_url or '')
     return parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == 3456
+
+
+def is_lan_or_tailnet_endpoint(base_url):
+    """True when the provider endpoint itself is local/LAN/Tailnet.
+
+    Used by route=local-first, which is intentionally local-strict: no
+    Internet API endpoints, even if they are otherwise healthy and cheap.
+    Allows loopback, RFC1918/private LAN, link-local, IPv6 ULA, and
+    Tailscale/CGNAT 100.64.0.0/10 addresses. Bare hostnames and .local/.lan
+    names are treated as local network names.
+    """
+    parsed = urllib.parse.urlparse(base_url or '')
+    host = (parsed.hostname or '').strip().lower().rstrip('.')
+    if not host:
+        return False
+    if host in {'localhost'}:
+        return True
+    if '.' not in host and ':' not in host:
+        return True
+    if host.endswith(('.local', '.lan', '.home', '.tailnet')):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    tailscale_cgnat = ip.version == 4 and ip in ipaddress.ip_network('100.64.0.0/10')
+    return bool(ip.is_loopback or ip.is_private or ip.is_link_local or tailscale_cgnat)
+
+
+def provider_allowed_in_local_first(provider):
+    if provider.name in LOCAL_STRICT_DECENTRALIZED_PROVIDER_NAMES:
+        return True
+    if provider.name in LOCAL_STRICT_PROXY_PROVIDER_NAMES:
+        return False
+    if provider.api_type in LOCAL_STRICT_PROXY_API_TYPES:
+        return False
+    return is_lan_or_tailnet_endpoint(provider.base_url)
+
+
+def local_first_rejection_reason(provider):
+    if provider.name in LOCAL_STRICT_PROXY_PROVIDER_NAMES or provider.api_type in LOCAL_STRICT_PROXY_API_TYPES:
+        return 'excluded by local-first (known cloud/SSO proxy provider)'
+    return 'excluded by local-first (endpoint is not LAN/Tailnet/local)'
 
 
 def should_route_anthropic_to_dario(name, api_type, base_url):
@@ -391,6 +495,25 @@ def ensure_dario_proxy_ready():
         return False
 
 
+
+def openai_chat_completions_url(base_url):
+    base = (base_url or '').rstrip('/')
+    host = (urllib.parse.urlparse(base).hostname or '').lower()
+    if 'githubcopilot.com' in host:
+        return base + '/chat/completions'
+    if base.endswith('/v1') or base.endswith('/api/v1'):
+        return base + '/chat/completions'
+    return base + '/v1/chat/completions'
+
+
+def add_openai_compat_headers(hdrs, provider_name=''):
+    if (provider_name or '').strip().lower() == 'github-copilot':
+        hdrs.setdefault('User-Agent', 'GitHubCopilotChat/0.35.0')
+        hdrs.setdefault('Editor-Version', 'vscode/1.107.0')
+        hdrs.setdefault('Editor-Plugin-Version', 'copilot-chat/0.35.0')
+        hdrs.setdefault('Copilot-Integration-Id', 'vscode-chat')
+    return hdrs
+
 def infer_api_type(name, cfg, base_url):
     api_type = cfg.get('api')
     if api_type:
@@ -473,6 +596,30 @@ def discover_openai_models(base_url, api_key):
         logger.debug(f"OpenAI model discovery {base_url}: {extract_http_error(e)}")
         return []
 
+
+
+def discover_darkbloom_models(base_url, api_key):
+    """Discover Darkbloom models via OpenAI-compatible /v1/models.
+
+    Darkbloom model IDs are mostly MLX community names, so do not apply the
+    OpenAI-specific GPT/chat/o-series filter used for api.openai.com.
+    """
+    if not base_url or not api_key:
+        return []
+    try:
+        root = base_url.rstrip('/')
+        url = root + '/v1/models'
+        hdrs = {'Authorization': f'Bearer {api_key}'}
+        req = urllib.request.Request(url, headers=hdrs)
+        with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+            payload = json.loads(resp.read())
+        models = [m.get('id', '') for m in payload.get('data', []) if m.get('id')]
+        if models:
+            logger.info(f'Discovered {len(models)} Darkbloom models via API')
+        return dedupe_keep_order(models)
+    except Exception as e:
+        logger.debug(f"Darkbloom model discovery {base_url}: {extract_http_error(e)}")
+        return []
 
 def discover_openrouter_models(base_url, api_key):
     """Discover OpenRouter models, optionally constrained to :free IDs."""
@@ -906,6 +1053,95 @@ def configured_model_id(model):
     return None
 
 
+def fetch_text_url(url, timeout=10):
+    req = urllib.request.Request(url, headers={'User-Agent': 'sage-router/ollama-cloud-discovery', 'Accept': 'text/html,application/json'})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read().decode('utf-8', errors='replace')
+
+
+def ollama_cloud_catalog_models(force=False):
+    """Discover Ollama Cloud catalog models from ollama.com.
+
+    The public cloud search page is currently server-rendered HTML.  We parse
+    library links from /search?c=cloud, then parse each library page for cloud
+    tag links such as /library/qwen3.5:cloud or /library/gemma4:31b-cloud.
+    """
+    if not OLLAMA_CLOUD_CATALOG_ENABLED:
+        return []
+    now = time.time()
+    if not force and OLLAMA_CLOUD_CATALOG_CACHE.get('models') and now - OLLAMA_CLOUD_CATALOG_CACHE.get('checked_at', 0) < OLLAMA_CLOUD_CATALOG_TTL_SECONDS:
+        return list(OLLAMA_CLOUD_CATALOG_CACHE.get('models') or [])
+    try:
+        libraries = []
+        parsed_catalog_url = urllib.parse.urlparse(OLLAMA_CLOUD_CATALOG_URL)
+        base_query = urllib.parse.parse_qs(parsed_catalog_url.query)
+        for page in range(1, max(1, OLLAMA_CLOUD_CATALOG_MAX_PAGES) + 1):
+            query = {k: v[:] for k, v in base_query.items()}
+            if page > 1:
+                query['p'] = [str(page)]
+            page_url = urllib.parse.urlunparse(parsed_catalog_url._replace(query=urllib.parse.urlencode(query, doseq=True)))
+            search_html = fetch_text_url(page_url, timeout=12)
+            before_count = len(libraries)
+            for match in _re.finditer(r'href=["\']/library/([a-zA-Z0-9_.-]+)["\']', search_html):
+                name = match.group(1).strip()
+                if name and name not in libraries:
+                    libraries.append(name)
+                    if len(libraries) >= max(1, OLLAMA_CLOUD_CATALOG_MAX_LIBRARIES):
+                        break
+            if len(libraries) >= max(1, OLLAMA_CLOUD_CATALOG_MAX_LIBRARIES):
+                break
+            # Stop after the first page that contributes no new library links.
+            if page > 1 and len(libraries) == before_count:
+                break
+        libraries = libraries[:max(1, OLLAMA_CLOUD_CATALOG_MAX_LIBRARIES)]
+        models = []
+        for name in libraries:
+            try:
+                lib_html = fetch_text_url(f'https://ollama.com/library/{urllib.parse.quote(name)}', timeout=12)
+            except Exception as e:
+                logger.debug(f'Ollama cloud library fetch failed for {name}: {extract_http_error(e)}')
+                models.append(f'{name}:cloud')
+                continue
+            tags = []
+            escaped = _re.escape(name)
+            for tag in _re.findall(r'href=["\']/library/' + escaped + r':([^"\']+)["\']', lib_html):
+                tag = urllib.parse.unquote(tag).strip()
+                if tag and ('cloud' in tag.lower()) and tag not in tags:
+                    tags.append(tag)
+            if not tags and 'cloud' in lib_html.lower():
+                tags = ['cloud']
+            for tag in tags:
+                models.append(f'{name}:{tag}')
+        models = dedupe_keep_order(m for m in models if m and is_cloud_ollama_model(m))
+        if models:
+            OLLAMA_CLOUD_CATALOG_CACHE.update({'checked_at': now, 'models': models})
+            logger.info(f'Discovered {len(models)} Ollama Cloud catalog models')
+            return models
+    except Exception as e:
+        logger.warning(f'Ollama cloud catalog discovery failed: {extract_http_error(e)}')
+    return list(OLLAMA_CLOUD_CATALOG_CACHE.get('models') or [])
+
+
+def ollama_cloud_model_meta(model: str):
+    model_l = (model or '').lower()
+    meta = {
+        'reasoning': any(x in model_l for x in ['deepseek', 'qwen', 'glm', 'nemotron', 'minimax', 'kimi', 'gemini', 'gemma']),
+        'contextWindow': 256000,
+        'maxTokens': 128000,
+        'input': ['text'],
+        'servable': True,
+        'supportsChat': True,
+        'supportsStreaming': True,
+        'supportsTools': not any(x in model_l for x in NON_CHAT_MODEL_HINTS),
+        'supportsJson': True,
+        'manifestReason': 'ollama-cloud-catalog',
+    }
+    if is_multimodal_model(model) or any(x in model_l for x in ['gemini', 'gemma4', 'qwen3.5', 'kimi-k2.5', 'kimi-k2.6', 'ministral', 'devstral']):
+        meta['input'] = ['text', 'image']
+        meta['supportsVision'] = True
+    return meta
+
+
 def discover_provider_models(name, cfg, base_url, api_key, api_type):
     raw_models = cfg.get('models', [])
     configured = [mid for mid in (configured_model_id(m) for m in raw_models) if mid] if isinstance(raw_models, list) else []
@@ -919,6 +1155,8 @@ def discover_provider_models(name, cfg, base_url, api_key, api_type):
             discovered = discover_openrouter_models(base_url, api_key)
             if OPENROUTER_FREE_ONLY:
                 configured = [m for m in configured if str(m).endswith(':free')]
+        elif name == 'darkbloom' or 'api.darkbloom.dev' in (base_url or '').lower():
+            discovered = discover_darkbloom_models(base_url, api_key)
         elif name == 'xai' or 'x.ai' in (base_url or '').lower():
             discovered = discover_xai_models(base_url, api_key)
         else:
@@ -926,6 +1164,8 @@ def discover_provider_models(name, cfg, base_url, api_key, api_type):
     elif api_type == 'openclaw-gateway':
         # For OpenClaw Gateway, try to discover models
         discovered = discover_openclaw_gateway_models(base_url, api_key)
+    elif api_type == 'ollama':
+        discovered = ollama_cloud_catalog_models()
     if discovered:
         # Configured models first (stable), then any discovered models not already listed
         return dedupe_keep_order(configured + discovered)
@@ -1014,10 +1254,8 @@ def load_router_profile_overlays(existing_providers):
         logger.warning(f'Failed to load provider profile overlays: {e}')
         return providers
 
-    requested = [item.strip() for item in os.environ.get('SAGE_ROUTER_PROFILE_OVERLAYS', 'grok-sso').split(',') if item.strip()]
+    requested = [item.strip() for item in os.environ.get('SAGE_ROUTER_PROFILE_OVERLAYS', 'grok-sso,darkbloom').split(',') if item.strip()]
     for name in requested:
-        if name in existing_providers:
-            continue
         cfg = profiles.get(name)
         if not isinstance(cfg, dict):
             continue
@@ -1043,10 +1281,65 @@ def load_router_profile_overlays(existing_providers):
 
 def normalize_route_mode(raw):
     value = str(raw or 'balanced').strip().lower()
+    aliases = {'deep': 'best', 'thorough': 'best', 'local-strict': 'local-first'}
+    value = aliases.get(value, value)
     return value if value in {'fast', 'balanced', 'best', 'local-first', 'realtime'} else 'balanced'
 
 
-def normalize_requirements(payload, thinking_level=ThinkingLevel.MEDIUM):
+def _content_blocks(payload):
+    blocks = []
+    if not isinstance(payload, dict):
+        return blocks
+    for msg in payload.get('messages') or []:
+        if isinstance(msg, dict):
+            content = msg.get('content')
+            if isinstance(content, list):
+                blocks.extend([b for b in content if isinstance(b, dict)])
+            elif isinstance(content, dict):
+                blocks.append(content)
+    return blocks
+
+
+def _payload_text(payload):
+    if not isinstance(payload, dict):
+        return ''
+    return ' '.join(normalize_content((m or {}).get('content', '')) for m in payload.get('messages') or [] if isinstance(m, dict))
+
+
+def payload_document_signal(payload):
+    text = _payload_text(payload).lower()
+    blocks = _content_blocks(payload)
+    filenames = ' '.join(str(b.get(k, '')) for b in blocks for k in ('filename', 'fileName', 'name', 'path', 'filePath', 'mime_type', 'mimeType', 'media_type', 'mediaType')).lower()
+    haystack = f'{text} {filenames}'
+    doc_markers = [
+        '.pdf', 'application/pdf', '<file ', '<media:', 'media attached', 'external_untrusted_content',
+        'document', 'report', 'informe', 'conclusiones', 'findings', 'clinical information',
+        'translate', 'summarize', 'extract', 'parse', 'ocr', 'mri', 'rm columna', 'resonancia',
+    ]
+    return any(marker in haystack for marker in doc_markers) or len(text) > 4000
+
+
+def payload_vision_signal(payload):
+    blocks = _content_blocks(payload)
+    for block in blocks:
+        btype = str(block.get('type') or '').lower()
+        mime = str(block.get('mime_type') or block.get('mimeType') or block.get('media_type') or block.get('mediaType') or '').lower()
+        if btype in {'image', 'image_url', 'input_image'} or mime.startswith('image/'):
+            return True
+    return False
+
+
+def payload_quality_sensitive_signal(payload):
+    if not isinstance(payload, dict):
+        return False
+    needles = ('discord-public', 'public channel', 'group chat', 'telegram', 'whatsapp', 'production', 'external')
+    try:
+        haystack = json.dumps({k: payload.get(k) for k in ('metadata', 'channel', 'surface', 'source', 'chat_type', 'messages')}, default=str)[:12000].lower()
+    except Exception:
+        haystack = str(payload)[:12000].lower()
+    return any(n in haystack for n in needles)
+
+def normalize_requirements(payload, thinking_level=DEFAULT_THINKING_LEVEL):
     req = payload.get('requirements') if isinstance(payload, dict) else None
     if not isinstance(req, dict):
         req = {}
@@ -1058,20 +1351,46 @@ def normalize_requirements(payload, thinking_level=ThinkingLevel.MEDIUM):
     tool_choice = payload.get('tool_choice')
     forced_tool_choice = bool(tool_choice and tool_choice not in ('auto', 'none'))
     has_tools = forced_tool_choice
-    # Check for reasoning/thinking requests
-    has_reasoning = bool(payload.get('thinking')) or bool(payload.get('reasoning'))
-    # If thinking level is HIGH, treat as requiring reasoning
-    requires_reasoning = has_reasoning or thinking_level == ThinkingLevel.HIGH
+    # Check for explicit reasoning requirements. Thinking levels are routing
+    # hints; they should not make a forced provider unusable unless the client
+    # explicitly requires reasoning-capable models.
+    raw_reasoning = payload.get('reasoning')
+    explicit_reasoning = bool(payload.get('requiresReasoning') or req.get('reasoning'))
+    if isinstance(raw_reasoning, dict):
+        effort = str(raw_reasoning.get('effort') or raw_reasoning.get('level') or '').lower()
+        explicit_reasoning = explicit_reasoning or effort in {'high', 'max', 'deep'}
+    elif isinstance(raw_reasoning, str):
+        explicit_reasoning = explicit_reasoning or raw_reasoning.lower() in {'high', 'max', 'deep'}
+    elif isinstance(raw_reasoning, bool):
+        explicit_reasoning = explicit_reasoning or raw_reasoning
+    requires_reasoning = explicit_reasoning
     explicit_streaming = bool(req.get('streaming') or payload.get('requiresStreaming'))
     requested_stream = bool(payload.get('stream'))
-    return {
+    document_signal = bool(req.get('document') or payload.get('requiresDocumentParsing') or payload_document_signal(payload))
+    vision_signal = bool(req.get('vision') or payload.get('requiresVision') or payload_vision_signal(payload))
+    normalized = {
         'reasoning': bool(req.get('reasoning') or payload.get('requiresReasoning') or requires_reasoning),
         'json': bool(req.get('json') or payload.get('requiresJson')),
         'tools': bool(req.get('tools') or payload.get('requiresTools') or has_tools),
         'preferTools': bool(payload.get('tools') and not (req.get('tools') or payload.get('requiresTools') or has_tools)),
-        'longContext': bool(req.get('longContext') or payload.get('requiresLongContext')),
+        'longContext': bool(req.get('longContext') or payload.get('requiresLongContext') or document_signal),
+        'document': document_signal,
+        'vision': vision_signal,
         'streaming': bool(explicit_streaming or (requested_stream and not has_tools)),
+        'qualitySensitive': bool(req.get('qualitySensitive') or payload.get('requiresQuality') or payload_quality_sensitive_signal(payload)),
+        'frontierOrReasoningTools': bool(req.get('frontierOrReasoningTools') or payload.get('requiresFrontierOrReasoningTools')),
+        'frontierLargeOnly': bool(req.get('frontierLargeOnly') or payload.get('requiresFrontierLargeOnly')),
+        'suppressToolCallContent': bool(req.get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')),
     }
+    # Preserve routing constraints injected by profiles.  Dropping these during
+    # normalization lets named profiles such as discord-public accidentally route
+    # to denied mini/filler models, which can surface malformed tool-call text.
+    for key in ('allowModels', 'denyModels', 'allowProviders', 'denyProviders'):
+        if req.get(key):
+            normalized[key] = req.get(key)
+    if req.get('minParamsB') is not None:
+        normalized['minParamsB'] = req.get('minParamsB')
+    return normalized
 
 
 def is_truthy(value):
@@ -1100,6 +1419,26 @@ def estimate_prompt_tokens(messages):
 def model_context_window(provider, model):
     meta = (provider.model_meta or {}).get(model, {})
     return int(meta.get('contextWindow') or 0)
+
+
+def model_disabled_reason(provider_name, model):
+    if not DISABLED_MODELS:
+        return None
+    model_s = str(model or '')
+    provider_s = str(provider_name or '')
+    candidates = {model_s}
+    if provider_s:
+        candidates.add(f'{provider_s}/{model_s}')
+        if provider_s.startswith('nvidia') or provider_s.endswith('-nim') or provider_s == 'nim':
+            candidates.add(f'nvidia/{model_s}')
+    for disabled in DISABLED_MODELS:
+        if disabled in candidates:
+            return 'disabled by SAGE_ROUTER_DISABLED_MODELS'
+        # Accept provider aliases such as nvidia/openai/gpt-oss-120b for a
+        # nvidia-nim provider whose actual model id is openai/gpt-oss-120b.
+        if '/' in disabled and disabled.endswith('/' + model_s):
+            return 'disabled by SAGE_ROUTER_DISABLED_MODELS'
+    return None
 
 
 def active_temp_model_block(provider_name, model):
@@ -1139,8 +1478,16 @@ def clear_temp_model_block(provider_name, model):
 
 
 def model_is_servable(provider, model):
+    if model_disabled_reason(provider.name, model):
+        return False
     if active_temp_model_block(provider.name, model):
         return False
+    if local_ollama_cloud_auth_blocked(provider, model):
+        return False
+    # Hosted Ollama Cloud models are servable through the remote Ollama API even
+    # when they are not present in the local /api/tags installed-model list.
+    if provider and provider.api_type == 'ollama' and is_cloud_ollama_model(model) and not is_local_ollama_provider(provider):
+        return True
     meta = (provider.model_meta or {}).get(model, {})
     return bool(meta.get('servable', True))
 
@@ -1174,7 +1521,60 @@ def provider_supports_reasoning(provider, model):
 
 def is_cloud_ollama_model(model: str):
     model_l = (model or '').strip().lower()
-    return model_l.endswith(':cloud')
+    if ':' not in model_l:
+        return False
+    tag = model_l.rsplit(':', 1)[1]
+    return tag == 'cloud' or tag.endswith('-cloud') or tag.endswith('_cloud')
+
+
+def is_local_ollama_provider(provider):
+    if not provider or provider.api_type != 'ollama':
+        return False
+    host = (urllib.parse.urlparse(provider.base_url or '').hostname or '').lower()
+    return host in {'127.0.0.1', 'localhost', '::1'}
+
+
+def is_local_cloud_ollama_model(provider, model: str):
+    return is_local_ollama_provider(provider) and is_cloud_ollama_model(model)
+
+
+def local_ollama_cloud_auth_blocked(provider, model: str):
+    if not is_local_cloud_ollama_model(provider, model):
+        return False
+    key = provider.name
+    until = float(LOCAL_OLLAMA_CLOUD_AUTH_BLOCKS.get(key, 0) or 0)
+    if until <= time.time():
+        LOCAL_OLLAMA_CLOUD_AUTH_BLOCKS.pop(key, None)
+        return False
+    return True
+
+
+def set_local_ollama_cloud_auth_block(provider_name, seconds=300):
+    if not provider_name:
+        return
+    LOCAL_OLLAMA_CLOUD_AUTH_BLOCKS[provider_name] = time.time() + max(30, int(seconds))
+    MODEL_HEALTH_CACHE.clear()
+
+
+def probe_local_ollama_cloud_auth(provider, model: str):
+    if not is_local_cloud_ollama_model(provider, model) or local_ollama_cloud_auth_blocked(provider, model):
+        return
+    if os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_AUTH_PREFLIGHT', '1').strip().lower() not in {'1', 'true', 'yes', 'on'}:
+        return
+    url = provider.base_url.rstrip('/') + '/api/chat'
+    payload = {'model': model, 'messages': [{'role': 'user', 'content': 'ping'}], 'stream': False, 'options': {'num_predict': 1}}
+    headers = {'Content-Type': 'application/json'}
+    if provider.api_key:
+        headers['Authorization'] = f'Bearer {provider.api_key}'
+    try:
+        req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers)
+        with urllib.request.urlopen(req, timeout=min(8, OLLAMA_TIMEOUT_SECONDS)) as resp:
+            resp.read(256)
+    except Exception as e:
+        err = extract_http_error(e)
+        if 'HTTP 401' in err:
+            set_local_ollama_cloud_auth_block(provider.name, seconds=int(os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_AUTH_COOLDOWN_SECONDS', '3600')))
+            logger.warning(f'Ollama Cloud auth preflight failed for local provider {provider.name}; suppressing local :cloud routing temporarily')
 
 # Detect if a model supports vision/multimodal based on name patterns
 VISION_MODEL_PATTERNS = ['vl', 'vision', 'qwen-vl', 'qwen_vl', 'llava', 'bakllava', 'moondream', 'minicpm-v', 'llama-vision', 'glm-4v', 'gpt-4o', 'gpt-4-turbo', 'claude-3-opus', 'claude-3-sonnet', 'claude-3.5', 'gemini-pro-vision', 'gemini-1.5', 'gpt-5.4', 'gpt-5.5']
@@ -1192,6 +1592,45 @@ def is_multimodal_model(model: str) -> bool:
         return True
     return False
 
+
+
+def looks_like_visible_tool_call(text: str) -> bool:
+    """Detect tool-call-shaped text that a non-tool model leaked visibly.
+
+    OpenClaw expects actual OpenAI-compatible tool_calls, not prose/code blocks
+    containing `tool_code` or `message(action=...)`. When a provider returns this
+    while tools were offered, treat the attempt as failed so routing can fall
+    through to a model with real tool-call support instead of posting the leak.
+    Keep this intentionally narrow to avoid rejecting legitimate discussion of
+    code samples.
+    """
+    raw = str(text or '').strip()
+    if not raw:
+        return False
+    lowered = raw.lower()
+    if 'tool_code' in lowered or '<tool_call' in lowered or '</tool_call>' in lowered:
+        return True
+    if re.search(r'(?m)^\s*(?:functions\.)?message\s*\(\s*action\s*=', raw):
+        return True
+    if re.search(r'(?m)^\s*(?:functions\.)?(?:exec|browser|web_fetch|web_search|read|pdf)\s*\(', raw):
+        return True
+    if re.search(r'(?m)^\s*```(?:tool_code|tool|json)?\s*\n\s*\{\s*["\'](?:tool|name|cmd|path|command)["\']', raw, re.IGNORECASE):
+        return True
+    if re.search(r'(?m)(?:^|\s)to\s*=\s*(?:exec|read|browser|message|web_search|web_fetch|pdf)\s*\{', raw, re.IGNORECASE):
+        return True
+    if re.search(r'(?s)\{\s*["\'](?:cmd|command)["\']\s*:\s*["\'][^"\']*(?:cd\s+|/|find\s+|ls\s+|python|bash|git)\b', raw, re.IGNORECASE):
+        return True
+    if re.search(r'(?s)\{\s*["\']path["\']\s*:\s*["\'](?:/|~|\./|[^"\']*/)[^"\']*["\']\s*\}', raw, re.IGNORECASE):
+        return True
+    return False
+
+
+def reject_visible_tool_call_leak(payload, text: str, tool_calls) -> str:
+    if not (payload or {}).get('tools') or tool_calls:
+        return ''
+    if looks_like_visible_tool_call(text):
+        return 'provider leaked tool call as visible text instead of structured tool_calls'
+    return ''
 
 def sanitize_visible_output(text: str):
     raw = text or ''
@@ -1242,6 +1681,36 @@ def normalize_tool_calls(tool_calls):
     return normalized
 
 
+def openai_tool_calls(tool_calls):
+    """Return OpenAI-compatible tool_calls with function.arguments as JSON strings.
+
+    Internally Sage Router normalizes tool arguments as dicts because Ollama
+    expects objects. OpenAI-compatible clients, including OpenClaw tool
+    validators, expect function.arguments to be a JSON object string. Returning
+    raw arrays/objects can cause empty/invalid tool invocation payloads.
+    """
+    converted = []
+    for tool_call in normalize_tool_calls(tool_calls):
+        function = tool_call.get('function') or {}
+        arguments = function.get('arguments')
+        if isinstance(arguments, str):
+            try:
+                parsed = json.loads(arguments) if arguments else {}
+            except Exception:
+                parsed = {}
+        else:
+            parsed = arguments if isinstance(arguments, dict) else {}
+        converted.append({
+            'id': tool_call.get('id') or f'call_{uuid.uuid4().hex[:24]}',
+            'type': 'function',
+            'function': {
+                'name': function.get('name') or 'tool',
+                'arguments': json.dumps(parsed, separators=(',', ':')),
+            },
+        })
+    return converted
+
+
 def build_router_metadata(provider_name, model, request_id=''):
     return {
         'provider': provider_name,
@@ -1257,9 +1726,14 @@ def maybe_prefix_debug_text(content, metadata, debug_mode=False, allow_prefix=Tr
     return text
 
 
-def build_openai_completion(provider_name, model, request_id, content='', tool_calls=None, finish_reason=None, usage=None, debug_mode=False, allow_debug_prefix=True):
+def build_openai_completion(provider_name, model, request_id, content='', tool_calls=None, finish_reason=None, usage=None, debug_mode=False, allow_debug_prefix=True, suppress_tool_call_content=False):
     metadata = build_router_metadata(provider_name, model, request_id)
-    normalized_tool_calls = normalize_tool_calls(tool_calls)
+    normalized_tool_calls = openai_tool_calls(tool_calls)
+    if normalized_tool_calls:
+        # Never pair visible narration with structured tool calls. Some clients,
+        # including Discord delivery surfaces, can expose the text before tool
+        # execution, which looks like leaked internal scratch/tool narration.
+        content = ''
     content_text = maybe_prefix_debug_text(content, metadata, debug_mode=debug_mode, allow_prefix=allow_debug_prefix and not normalized_tool_calls)
     if SHOW_MODEL_PREFIX and content_text and not normalized_tool_calls:
         content_text = '[' + provider_name + '/' + model + '] ' + content_text
@@ -1298,7 +1772,7 @@ def openai_completion_has_visible_output(result):
     return has_text or has_tools
 
 
-def build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=False, thinking=ThinkingLevel.MEDIUM):
+def build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=False, thinking=DEFAULT_THINKING_LEVEL):
     allowed_keys = [
         'messages', 'tools', 'tool_choice', 'parallel_tool_calls', 'response_format',
         'temperature', 'top_p', 'frequency_penalty', 'presence_penalty',
@@ -1332,18 +1806,35 @@ def openai_messages_to_ollama(messages):
     return converted
 
 
-def build_ollama_payload(model, payload, thinking=ThinkingLevel.MEDIUM, stream=False):
+def ollama_model_supports_native_thinking(model: str) -> bool:
+    model_l = (model or '').lower()
+    # Ollama exposes native reasoning in a separate message.thinking field for
+    # the qwen3.6 family. Keep this conservative so ordinary local models are
+    # not sent unsupported think flags.
+    return model_l.startswith('qwen3.6') or '/qwen3.6' in model_l
+
+
+def ollama_generation_options(thinking=DEFAULT_THINKING_LEVEL):
+    if thinking == ThinkingLevel.LOW:
+        return {'num_predict': 1024}
+    if thinking == ThinkingLevel.HIGH:
+        return {'num_predict': 4096}
+    return {'num_predict': 2048}
+
+
+def build_ollama_payload(model, payload, thinking=DEFAULT_THINKING_LEVEL, stream=False):
     ollama_payload = {
         'model': model,
         'messages': openai_messages_to_ollama(payload.get('messages', [])),
         'stream': bool(stream),
+        'options': ollama_generation_options(thinking),
     }
+    if ollama_model_supports_native_thinking(model):
+        # LOW is operational/exact-output mode. MEDIUM/HIGH allow native Ollama
+        # reasoning and give enough generation budget for thinking + final text.
+        ollama_payload['think'] = thinking != ThinkingLevel.LOW
     if payload.get('tools'):
         ollama_payload['tools'] = payload.get('tools')
-    if thinking == ThinkingLevel.LOW:
-        ollama_payload['options'] = {'num_predict': 1024}
-    elif thinking == ThinkingLevel.HIGH:
-        ollama_payload['options'] = {'num_predict': 4096}
     return ollama_payload
 
 
@@ -1381,10 +1872,14 @@ def openai_messages_to_anthropic(messages):
         if content:
             blocks.append({'type': 'text', 'text': content})
         for tool_call in normalize_tool_calls(msg.get('tool_calls')):
-            try:
-                tool_input = json.loads(tool_call['function']['arguments']) if tool_call['function']['arguments'] else {}
-            except Exception:
-                tool_input = {'raw_arguments': tool_call['function']['arguments']}
+            raw_arguments = tool_call['function'].get('arguments')
+            if isinstance(raw_arguments, dict):
+                tool_input = raw_arguments
+            else:
+                try:
+                    tool_input = json.loads(raw_arguments) if raw_arguments else {}
+                except Exception:
+                    tool_input = {'raw_arguments': raw_arguments}
             blocks.append({'type': 'tool_use', 'id': tool_call['id'], 'name': tool_call['function']['name'], 'input': tool_input})
         converted.append({'role': 'assistant' if role == 'assistant' else 'user', 'content': blocks or [{'type': 'text', 'text': ''}]})
     return '\n'.join(system_text).strip(), converted or [{'role': 'user', 'content': [{'type': 'text', 'text': 'Hello'}]}]
@@ -1398,7 +1893,7 @@ def parse_anthropic_response(body):
         if not isinstance(block, dict):
             continue
         if block.get('type') == 'text':
-            text_parts.append(block.get('text', ''))
+            text_parts.append(str(block.get('text', '')))
         elif block.get('type') == 'tool_use':
             tool_calls.append({
                 'id': block.get('id') or f'call_{uuid.uuid4().hex[:24]}',
@@ -1435,9 +1930,11 @@ def nvidia_model_default_tools_support(model: str):
     model_l = (model or '').strip().lower()
     if not model_l or any(hint in model_l for hint in NVIDIA_NON_TOOL_MODEL_HINTS):
         return False
-    # NVIDIA-hosted NIM/OpenAI-compatible LLMs commonly support tool calling;
-    # non-LLM/audio/embedding models are excluded above.
-    return any(hint in model_l for hint in NVIDIA_TOOL_MODEL_HINTS)
+    # Observed NVIDIA NIM chat models can leak OpenAI tool schemas as visible
+    # assistant text when tools are present, which is especially bad in public
+    # Discord channels.  Only allow NIM tool calling when a model is explicitly
+    # marked with tools=true in model_meta; the default must be conservative.
+    return False
 
 def provider_default_tools_support(provider):
     if provider.api_type == 'anthropic-messages':
@@ -1476,7 +1973,10 @@ def model_capabilities(provider, model):
         'json': bool(meta.get('supportsJson', default_json)),
         'tools': bool(meta.get('supportsTools', default_tools)),
         'streaming': bool(meta.get('supportsStreaming', default_streaming)),
-        'vision': bool(meta.get('supportsVision') or is_multimodal_model(model)),
+        'vision': bool(meta.get('supportsVision') or ('image' in (meta.get('input') or [])) or is_multimodal_model(model)),
+        # Document parsing here means extracted-text document work. Native binary PDF ingestion
+        # is still handled by OpenClaw/pdf tooling before it reaches this router.
+        'document': bool(meta.get('supportsDocument') or meta.get('supportsFiles') or default_chat),
         'ocr': bool(meta.get('supportsOcr') or is_ocr_model(model)),
         'longContext': model_context_window(provider, model),
         'manifestReason': meta.get('manifestReason'),
@@ -1487,6 +1987,28 @@ def model_meets_requirements(provider, model, requirements, estimated_tokens):
     caps = model_capabilities(provider, model)
     if not caps['servable']:
         return False, 'not servable on host'
+    allow_providers = requirements.get('allowProviders') or []
+    deny_providers = requirements.get('denyProviders') or []
+    allow_models = requirements.get('allowModels') or []
+    deny_models = requirements.get('denyModels') or []
+    if allow_providers and provider.name not in allow_providers:
+        return False, 'provider not allowed by profile'
+    if deny_providers and provider.name in deny_providers:
+        return False, 'provider denied by profile'
+    model_key = f'{provider.name}/{model}'
+    if allow_models and not (_match_any_pattern(model, allow_models) or _match_any_pattern(model_key, allow_models)):
+        return False, 'model not allowed by profile'
+    if deny_models and (_match_any_pattern(model, deny_models) or _match_any_pattern(model_key, deny_models)):
+        return False, 'model denied by profile'
+    if requirements.get('frontierLargeOnly') and not model_is_frontier_large(model):
+        return False, 'requires frontier large model'
+    min_params = requirements.get('minParamsB')
+    if min_params is not None:
+        try:
+            if estimate_model_params_b(model) < float(min_params):
+                return False, f'requires >= {min_params}B params'
+        except Exception:
+            return False, 'invalid minParamsB profile requirement'
     if requirements.get('reasoning') and not caps['reasoning']:
         return False, 'requires reasoning'
     if requirements.get('longContext'):
@@ -1497,6 +2019,12 @@ def model_meets_requirements(provider, model, requirements, estimated_tokens):
         return False, 'json unsupported'
     if requirements.get('tools') and not caps['tools']:
         return False, 'tools unsupported'
+    if requirements.get('frontierOrReasoningTools') and not (model_is_frontier_large(model) or (caps['reasoning'] and caps['tools'])):
+        return False, 'requires frontier large model or reasoning+tools'
+    if requirements.get('vision') and not caps['vision']:
+        return False, 'vision unsupported'
+    if requirements.get('document') and not caps['document']:
+        return False, 'document parsing unsupported'
     if requirements.get('streaming') and not caps['streaming']:
         return False, 'streaming unsupported'
     return True, None
@@ -1518,6 +2046,11 @@ def load_openclaw_providers():
             models = discover_provider_models(name, cfg, base_url, api_key, api_type)
             reasoning_models = discover_reasoning_models(cfg)
             model_meta = discover_model_meta(cfg)
+            if api_type == 'ollama':
+                cloud_models = [m for m in (models or []) if is_cloud_ollama_model(m)]
+                if cloud_models:
+                    model_meta = {**{m: ollama_cloud_model_meta(m) for m in cloud_models}, **(model_meta or {})}
+                    reasoning_models = set(reasoning_models or set()) | {m for m in cloud_models if model_meta.get(m, {}).get('reasoning')}
 
             if should_route_anthropic_to_dario(name, api_type, base_url):
                 ensure_dario_proxy_ready()
@@ -1643,6 +2176,11 @@ def load_openclaw_providers():
     except Exception as e:
         logger.error(f"Config load failed: {e}")
         providers['ollama'] = Provider('ollama', 'ollama', 'http://127.0.0.1:11434', '', ['qwen3.5:cloud', 'kimi-k2.5:cloud'], set(), {'qwen3.5:cloud': {'reasoning': False, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}, 'kimi-k2.5:cloud': {'reasoning': False, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}})
+        # Even without a local OpenClaw config (e.g. public Cloud Run demo),
+        # explicitly requested profile overlays should still be able to replace
+        # the fallback local Ollama provider.
+        for name, provider in load_router_profile_overlays(providers).items():
+            merge_provider(providers, provider)
     return providers
 
 PROVIDERS = load_openclaw_providers()
@@ -1659,7 +2197,13 @@ def normalize_content(content: Any) -> str:
             elif isinstance(block, dict):
                 block_type = block.get('type')
                 if block_type == 'text':
-                    parts.append(block.get('text', ''))
+                    parts.append(str(block.get('text', '')))
+                elif block_type in {'image', 'image_url', 'input_image'}:
+                    parts.append('[image attached]')
+                elif block_type in {'document', 'file', 'input_file'}:
+                    name = block.get('filename') or block.get('fileName') or block.get('name') or block.get('path') or block.get('filePath') or 'file'
+                    mime = block.get('mime_type') or block.get('mimeType') or block.get('media_type') or block.get('mediaType') or ''
+                    parts.append(f'[document attached: {name} {mime}]')
                 elif 'content' in block:
                     parts.append(normalize_content(block.get('content')))
         return ' '.join(part for part in parts if part).strip()
@@ -1681,6 +2225,71 @@ def normalize_messages(messages):
             'content': normalize_content(msg.get('content', '')),
         })
     return normalized
+
+
+def _safe_document_path(path_value):
+    path = os.path.abspath(os.path.expanduser(str(path_value or '').strip()))
+    allowed_roots = [
+        os.path.abspath(os.path.expanduser('~/.openclaw/media/inbound')),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')),
+    ]
+    if not any(path == root or path.startswith(root + os.sep) for root in allowed_roots):
+        return ''
+    if not os.path.isfile(path):
+        return ''
+    return path
+
+
+def extract_document_paths_from_content(content):
+    paths = []
+    if isinstance(content, list):
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            for key in ('path', 'filePath', 'filename', 'fileName'):
+                candidate = block.get(key)
+                safe = _safe_document_path(candidate) if candidate else ''
+                if safe:
+                    paths.append(safe)
+    text = normalize_content(content)
+    for match in re.findall(r'(/[^\s\]\)\}<>"\']+\.(?:pdf|txt|md))', text, flags=re.IGNORECASE):
+        safe = _safe_document_path(match)
+        if safe:
+            paths.append(safe)
+    return dedupe_keep_order(paths)
+
+
+def extract_document_text(path, max_chars=30000):
+    try:
+        lower = path.lower()
+        if lower.endswith('.pdf') and shutil.which('pdftotext'):
+            proc = subprocess.run(['pdftotext', '-layout', '-nopgbrk', path, '-'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=20)
+            if proc.returncode == 0 and proc.stdout.strip():
+                return proc.stdout[:max_chars]
+            logger.warning(f'pdftotext failed for {path}: {proc.stderr[:180]}')
+        if lower.endswith(('.txt', '.md')):
+            with open(path, 'r', encoding='utf-8', errors='replace') as f:
+                return f.read(max_chars)
+    except Exception as e:
+        logger.warning(f'document extraction failed for {path}: {e}')
+    return ''
+
+
+def enrich_document_messages(messages, max_chars_per_doc=30000):
+    enriched = []
+    for msg in messages or []:
+        if not isinstance(msg, dict):
+            continue
+        base = normalize_content(msg.get('content', ''))
+        additions = []
+        for path in extract_document_paths_from_content(msg.get('content', '')):
+            text = extract_document_text(path, max_chars=max_chars_per_doc)
+            if text.strip():
+                additions.append(f'\n\n[Extracted text from {os.path.basename(path)}]\n{text.strip()}')
+            else:
+                additions.append(f'\n\n[Document attached but text extraction failed: {os.path.basename(path)}]')
+        enriched.append({'role': msg.get('role', 'user'), 'content': (base + ''.join(additions)).strip()})
+    return enriched
 
 
 def load_latency_stats():
@@ -1710,16 +2319,436 @@ def save_latency_stats():
         logger.warning(f'Latency stats save failed: {e}')
 
 
+def sanitize_route_event(event):
+    """Keep analytics useful while explicitly excluding prompt/user content and credentials."""
+    allowed = {
+        'request_id', 'ts', 'status', 'intent', 'complexity', 'thinking', 'routeMode',
+        'estimatedTokens', 'json', 'stream', 'requirements', 'selected', 'attempts',
+        'totalElapsedMs', 'chain', 'error'
+    }
+    clean = {k: v for k, v in dict(event or {}).items() if k in allowed}
+    clean.setdefault('ts', int(time.time()))
+    return clean
+
+
 def append_route_event(event):
-    """Append one structured routing event for offline analysis."""
+    """Persist one structured routing event locally, then mirror durable telemetry async."""
     try:
         os.makedirs(os.path.dirname(ROUTE_EVENTS_PATH), exist_ok=True)
-        event = dict(event or {})
-        event.setdefault('ts', int(time.time()))
+        event = sanitize_route_event(event)
         with open(ROUTE_EVENTS_PATH, 'a') as f:
             f.write(json.dumps(event, sort_keys=True, separators=(',', ':')) + '\n')
     except Exception as e:
         logger.debug(f'Route event append failed: {e}')
+        event = sanitize_route_event(event)
+    mirror_route_event_async(event)
+
+
+def read_recent_route_events(limit=None):
+    """Read recent structured route events without retaining prompts or message bodies."""
+    limit = int(limit or ANALYTICS_EVENT_LIMIT)
+    events = []
+    try:
+        with open(ROUTE_EVENTS_PATH) as f:
+            lines = f.readlines()[-limit:]
+        for line in lines:
+            try:
+                event = json.loads(line)
+                if isinstance(event, dict):
+                    events.append(sanitize_route_event(event))
+            except Exception:
+                continue
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        logger.debug(f'Route events read failed: {e}')
+    return events
+
+
+def metadata_access_token():
+    try:
+        req = urllib.request.Request(
+            'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
+            headers={'Metadata-Flavor': 'Google'},
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            payload = json.loads(resp.read().decode('utf-8'))
+        return payload.get('access_token') or ''
+    except Exception as e:
+        logger.debug(f'GCP metadata token unavailable: {e}')
+        return ''
+
+
+def firestore_value(value):
+    if value is None:
+        return {'nullValue': None}
+    if isinstance(value, bool):
+        return {'booleanValue': value}
+    if isinstance(value, int) and not isinstance(value, bool):
+        return {'integerValue': str(value)}
+    if isinstance(value, float):
+        return {'doubleValue': value}
+    if isinstance(value, list):
+        return {'arrayValue': {'values': [firestore_value(v) for v in value]}}
+    if isinstance(value, dict):
+        return {'mapValue': {'fields': {str(k): firestore_value(v) for k, v in value.items()}}}
+    return {'stringValue': str(value)}
+
+
+def firestore_plain(value):
+    if not isinstance(value, dict):
+        return None
+    if 'stringValue' in value:
+        return value.get('stringValue')
+    if 'integerValue' in value:
+        try:
+            return int(value.get('integerValue'))
+        except Exception:
+            return value.get('integerValue')
+    if 'doubleValue' in value:
+        return float(value.get('doubleValue'))
+    if 'booleanValue' in value:
+        return bool(value.get('booleanValue'))
+    if 'nullValue' in value:
+        return None
+    if 'arrayValue' in value:
+        return [firestore_plain(v) for v in (value.get('arrayValue') or {}).get('values', [])]
+    if 'mapValue' in value:
+        return {k: firestore_plain(v) for k, v in ((value.get('mapValue') or {}).get('fields') or {}).items()}
+    return None
+
+
+def write_firestore_route_event(event):
+    if not (FIRESTORE_ENABLED and FIRESTORE_PROJECT_ID):
+        return False
+    token = metadata_access_token()
+    if not token:
+        return False
+    event = sanitize_route_event(event)
+    doc_id = urllib.parse.quote(str(event.get('request_id') or uuid.uuid4().hex), safe='')
+    database = urllib.parse.quote(FIRESTORE_DATABASE, safe='')
+    coll = urllib.parse.quote(FIRESTORE_ROUTE_EVENTS_COLLECTION, safe='')
+    url = f'https://firestore.googleapis.com/v1/projects/{FIRESTORE_PROJECT_ID}/databases/{database}/documents/{coll}/{doc_id}'
+    body = json.dumps({'fields': {k: firestore_value(v) for k, v in event.items()}}).encode('utf-8')
+    req = urllib.request.Request(url, data=body, method='PATCH', headers={
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+    })
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        resp.read(256)
+    return True
+
+
+def read_firestore_route_events(window_seconds=7 * 24 * 3600, limit=None):
+    if not (FIRESTORE_ENABLED and FIRESTORE_PROJECT_ID):
+        return []
+    token = metadata_access_token()
+    if not token:
+        return []
+    limit = int(limit or ANALYTICS_EVENT_LIMIT)
+    since = int(time.time()) - int(window_seconds or 0) if window_seconds else 0
+    database = urllib.parse.quote(FIRESTORE_DATABASE, safe='')
+    url = f'https://firestore.googleapis.com/v1/projects/{FIRESTORE_PROJECT_ID}/databases/{database}/documents:runQuery'
+    query = {
+        'structuredQuery': {
+            'from': [{'collectionId': FIRESTORE_ROUTE_EVENTS_COLLECTION}],
+            'where': {'fieldFilter': {'field': {'fieldPath': 'ts'}, 'op': 'GREATER_THAN_OR_EQUAL', 'value': {'integerValue': str(since)}}},
+            'orderBy': [{'field': {'fieldPath': 'ts'}, 'direction': 'DESCENDING'}],
+            'limit': limit,
+        }
+    }
+    req = urllib.request.Request(url, data=json.dumps(query).encode('utf-8'), headers={
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            payload = json.loads(resp.read().decode('utf-8'))
+        events = []
+        for row in payload if isinstance(payload, list) else []:
+            fields = ((row.get('document') or {}).get('fields') or {})
+            event = {k: firestore_plain(v) for k, v in fields.items()}
+            if event:
+                events.append(sanitize_route_event(event))
+        return list(reversed(events))
+    except Exception as e:
+        logger.debug(f'Firestore analytics read failed: {extract_http_error(e)}')
+        return []
+
+
+def supabase_request(path, method='GET', body=None, service=False, extra_headers=None, timeout=8):
+    key = SUPABASE_SERVICE_ROLE_KEY if service else SUPABASE_ANON_KEY
+    if not (SUPABASE_URL and key):
+        return None
+    headers = {'apikey': key, 'Authorization': f'Bearer {key}'}
+    if body is not None:
+        headers['Content-Type'] = 'application/json'
+        headers['Prefer'] = 'resolution=merge-duplicates,return=minimal'
+    if extra_headers:
+        headers.update(extra_headers)
+    data = json.dumps(body).encode('utf-8') if body is not None else None
+    req = urllib.request.Request(SUPABASE_URL.rstrip('/') + path, data=data, method=method, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        raw = resp.read()
+    if not raw:
+        return None
+    try:
+        return json.loads(raw.decode('utf-8'))
+    except Exception:
+        return raw.decode('utf-8', errors='replace')
+
+
+def write_supabase_route_event(event):
+    if not (SUPABASE_MIRROR_ENABLED and SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return False
+    event = sanitize_route_event(event)
+    selected = event.get('selected') or {}
+    row = {
+        'request_id': str(event.get('request_id') or uuid.uuid4().hex),
+        'event_ts': int(event.get('ts') or time.time()),
+        'status': event.get('status'),
+        'intent': event.get('intent'),
+        'complexity': event.get('complexity'),
+        'thinking': event.get('thinking'),
+        'route_mode': event.get('routeMode'),
+        'estimated_tokens': event.get('estimatedTokens'),
+        'selected_provider': selected.get('provider'),
+        'selected_model': selected.get('model'),
+        'total_elapsed_ms': event.get('totalElapsedMs'),
+        'attempt_count': len(event.get('attempts') or []),
+        'event': event,
+    }
+    supabase_request(f'/rest/v1/{SUPABASE_ROUTE_EVENTS_TABLE}', method='POST', body=row, service=True)
+    return True
+
+
+def write_supabase_analytics_snapshot(snapshot):
+    if not (SUPABASE_MIRROR_ENABLED and SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return False
+    row = {
+        'snapshot_id': f"{int(snapshot.get('generatedAt') or time.time())}-{int(snapshot.get('windowSeconds') or 0)}",
+        'generated_at_epoch': int(snapshot.get('generatedAt') or time.time()),
+        'window_seconds': int(snapshot.get('windowSeconds') or 0),
+        'events_analyzed': int(snapshot.get('eventsAnalyzed') or 0),
+        'snapshot': snapshot,
+    }
+    supabase_request(f'/rest/v1/{SUPABASE_ANALYTICS_SNAPSHOTS_TABLE}', method='POST', body=row, service=True)
+    return True
+
+
+def read_supabase_route_events(window_seconds=7 * 24 * 3600, limit=None):
+    if not (SUPABASE_MIRROR_ENABLED and SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return []
+    since = int(time.time()) - int(window_seconds or 0) if window_seconds else 0
+    limit = int(limit or ANALYTICS_EVENT_LIMIT)
+    path = f'/rest/v1/{SUPABASE_ROUTE_EVENTS_TABLE}?select=event&event_ts=gte.{since}&order=event_ts.desc&limit={limit}'
+    try:
+        rows = supabase_request(path, service=True, timeout=10) or []
+        events = [sanitize_route_event((r or {}).get('event') or {}) for r in rows if isinstance(r, dict)]
+        return list(reversed([e for e in events if e]))
+    except Exception as e:
+        logger.debug(f'Supabase analytics read failed: {extract_http_error(e)}')
+        return []
+
+
+def mirror_route_event_async(event):
+    def worker():
+        try:
+            write_firestore_route_event(event)
+        except Exception as e:
+            logger.debug(f'Firestore route event mirror failed: {extract_http_error(e)}')
+        try:
+            write_supabase_route_event(event)
+        except Exception as e:
+            logger.debug(f'Supabase route event mirror failed: {extract_http_error(e)}')
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def mirror_analytics_snapshot_async(snapshot):
+    def worker():
+        try:
+            write_supabase_analytics_snapshot(snapshot)
+        except Exception as e:
+            logger.debug(f'Supabase analytics snapshot mirror failed: {extract_http_error(e)}')
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def percentile(values, pct):
+    if not values:
+        return None
+    values = sorted(float(v) for v in values)
+    if len(values) == 1:
+        return round(values[0], 2)
+    pos = (len(values) - 1) * pct
+    lo = math.floor(pos)
+    hi = math.ceil(pos)
+    if lo == hi:
+        return round(values[int(pos)], 2)
+    return round(values[lo] + (values[hi] - values[lo]) * (pos - lo), 2)
+
+
+def build_analytics_snapshot(window_seconds=7 * 24 * 3600, event_limit=None):
+    """Build provider/model performance analytics for the paid observability layer."""
+    now = int(time.time())
+    since = now - int(window_seconds or 0) if window_seconds else 0
+    durable_events = read_firestore_route_events(window_seconds, event_limit)
+    source = 'firestore' if durable_events else 'local'
+    if not durable_events:
+        durable_events = read_supabase_route_events(window_seconds, event_limit)
+        source = 'supabase' if durable_events else 'local'
+    events = durable_events or [e for e in read_recent_route_events(event_limit) if int(e.get('ts', 0) or 0) >= since]
+    provider_rows = {}
+    model_rows = {}
+    intent_rows = {}
+
+    def row_for(table, key):
+        row = table.setdefault(key, {
+            'requests': 0,
+            'successes': 0,
+            'failures': 0,
+            'attempts': 0,
+            'attemptFailures': 0,
+            'latencies': [],
+            'lastSeenAt': 0,
+        })
+        return row
+
+    for event in events:
+        event = sanitize_route_event(event)
+        status_ok = event.get('status') == 'ok'
+        selected = event.get('selected') or {}
+        attempts = event.get('attempts') or []
+        intent = str(event.get('intent') or 'UNKNOWN')
+        total_ms = event.get('totalElapsedMs')
+        intent_row = row_for(intent_rows, intent)
+        intent_row['requests'] += 1
+        intent_row['successes' if status_ok else 'failures'] += 1
+        if isinstance(total_ms, (int, float)):
+            intent_row['latencies'].append(float(total_ms))
+        intent_row['lastSeenAt'] = max(intent_row['lastSeenAt'], int(event.get('ts', 0) or 0))
+
+        if selected:
+            provider = selected.get('provider') or 'unknown'
+            model = selected.get('model') or 'unknown'
+            for table, key in ((provider_rows, provider), (model_rows, f'{provider}/{model}')):
+                row = row_for(table, key)
+                row['requests'] += 1
+                row['successes' if status_ok else 'failures'] += 1
+                if isinstance(total_ms, (int, float)):
+                    row['latencies'].append(float(total_ms))
+                row['lastSeenAt'] = max(row['lastSeenAt'], int(event.get('ts', 0) or 0))
+
+        for attempt in attempts:
+            provider = attempt.get('provider') or 'unknown'
+            model = attempt.get('model') or 'unknown'
+            ok = bool(attempt.get('ok'))
+            elapsed = attempt.get('elapsedMs')
+            for table, key in ((provider_rows, provider), (model_rows, f'{provider}/{model}')):
+                row = row_for(table, key)
+                row['attempts'] += 1
+                if not ok:
+                    row['attemptFailures'] += 1
+                if isinstance(elapsed, (int, float)):
+                    row['latencies'].append(float(elapsed))
+
+    for intent, providers in (LATENCY_STATS.get('intents') or {}).items():
+        for provider, models in (providers or {}).items():
+            for model, stat in (models or {}).items():
+                key = f'{provider}/{model}'
+                for table, row_key in ((provider_rows, provider), (model_rows, key)):
+                    row = row_for(table, row_key)
+                    successes = int(stat.get('successes', 0) or 0)
+                    failures = int(stat.get('failures', 0) or 0)
+                    if row['requests'] == 0:
+                        row['successes'] += successes
+                        row['failures'] += failures
+                        row['requests'] += successes + failures
+                    ewma = stat.get('latency_ewma_ms')
+                    if isinstance(ewma, (int, float)):
+                        row['latencies'].append(float(ewma))
+                    row['lastSeenAt'] = max(row['lastSeenAt'], int(stat.get('updated_at', 0) or 0))
+
+    def finalize(table):
+        out = []
+        for key, row in table.items():
+            requests = int(row['requests'])
+            successes = int(row['successes'])
+            failures = int(row['failures'])
+            attempts = int(row['attempts'])
+            attempt_failures = int(row['attemptFailures'])
+            lats = row.pop('latencies', [])
+            success_rate = (successes / requests) if requests else None
+            attempt_failure_rate = (attempt_failures / attempts) if attempts else None
+            out.append({
+                'id': key,
+                'requests': requests,
+                'successes': successes,
+                'failures': failures,
+                'successRate': round(success_rate, 4) if success_rate is not None else None,
+                'attempts': attempts,
+                'attemptFailureRate': round(attempt_failure_rate, 4) if attempt_failure_rate is not None else None,
+                'p50Ms': percentile(lats, 0.50),
+                'p95Ms': percentile(lats, 0.95),
+                'avgMs': round(sum(lats) / len(lats), 2) if lats else None,
+                'lastSeenAt': row.get('lastSeenAt') or None,
+            })
+        return sorted(out, key=lambda x: (-(x.get('successRate') or 0), x.get('p50Ms') or 999999, -x.get('requests', 0)))
+
+    models = finalize(model_rows)
+    providers = finalize(provider_rows)
+    intents = finalize(intent_rows)
+    best_fast = [m for m in models if m.get('successRate') is not None and m.get('p50Ms') is not None][:10]
+    most_reliable = sorted(models, key=lambda x: (-(x.get('successRate') or 0), -(x.get('requests') or 0), x.get('p95Ms') or 999999))[:10]
+    degraded = sorted([m for m in models if (m.get('attemptFailureRate') or 0) > 0 or (m.get('successRate') is not None and m.get('successRate') < 0.95)], key=lambda x: (-(x.get('attemptFailureRate') or 0), x.get('successRate') or 0))[:10]
+
+    snapshot = {
+        'version': 2,
+        'generatedAt': now,
+        'windowSeconds': int(window_seconds or 0),
+        'eventsAnalyzed': len(events),
+        'source': source,
+        'privacy': {
+            'promptsStored': False,
+            'messageBodiesStored': False,
+            'containsProviderCredentials': False,
+        },
+        'providers': providers,
+        'models': models,
+        'intents': intents,
+        'recommendations': {
+            'fastestModels': best_fast,
+            'mostReliableModels': most_reliable,
+            'degradedModels': degraded,
+        },
+    }
+    mirror_analytics_snapshot_async(snapshot)
+    return snapshot
+
+
+def supabase_user_for_bearer(token):
+    if not (SUPABASE_AUTH_ENABLED and SUPABASE_URL and SUPABASE_ANON_KEY and token):
+        return None
+    try:
+        req = urllib.request.Request(SUPABASE_URL.rstrip('/') + '/auth/v1/user', headers={
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': f'Bearer {token}',
+        })
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            user = json.loads(resp.read().decode('utf-8'))
+        return user if isinstance(user, dict) and user.get('id') else None
+    except Exception as e:
+        logger.debug(f'Supabase auth validation failed: {extract_http_error(e)}')
+        return None
+
+
+def analytics_authorized(handler):
+    auth = handler.headers.get('Authorization') or ''
+    bearer = auth[7:].strip() if auth.lower().startswith('bearer ') else ''
+    if ANALYTICS_TOKEN and bearer == ANALYTICS_TOKEN:
+        return True
+    if supabase_user_for_bearer(bearer):
+        return True
+    return not ANALYTICS_TOKEN and not SUPABASE_AUTH_ENABLED
 
 
 def get_latency_stat(intent_name, provider_name, model):
@@ -1948,14 +2977,18 @@ def fetch_ollama_manifest(provider: Provider):
     return None, None
 
 
+def ollama_manifest_model_id(entry):
+    if not isinstance(entry, dict):
+        return ''
+    return (entry.get('id') or entry.get('model') or entry.get('name') or '').strip()
+
+
 def apply_ollama_manifest(provider: Provider, manifest):
     models = []
     meta = dict(provider.model_meta or {})
     servable_only = []
     for entry in manifest.get('models', []) or []:
-        if not isinstance(entry, dict):
-            continue
-        model_id = entry.get('id') or entry.get('model')
+        model_id = ollama_manifest_model_id(entry)
         if not model_id:
             continue
         servable = bool(entry.get('servable', True))
@@ -1969,6 +3002,10 @@ def apply_ollama_manifest(provider: Provider, manifest):
             'preferred': bool(entry.get('preferred', False)),
             'resident': bool(entry.get('resident', False)),
             'manifestReason': entry.get('reason'),
+            'supportsChat': entry.get('supportsChat', True),
+            'supportsTools': entry.get('supportsTools'),
+            'supportsJson': entry.get('supportsJson'),
+            'supportsStreaming': entry.get('supportsStreaming', True),
         }
         if servable:
             servable_only.append(model_id)
@@ -1984,12 +3021,17 @@ def fetch_ollama_models(provider: Provider):
         return cached['models']
 
     manifest, manifest_source = fetch_ollama_manifest(provider)
+    manifest_models = []
     if manifest:
-        models = apply_ollama_manifest(provider, manifest)
-        OLLAMA_MODEL_CACHE[provider.name] = {'checked_at': now, 'models': models, 'source': f'manifest:{manifest_source}'}
-        return models
+        manifest_models = apply_ollama_manifest(provider, manifest)
+    catalog_models = ollama_cloud_catalog_models()
+    if catalog_models:
+        meta = dict(provider.model_meta or {})
+        for model_name in catalog_models:
+            meta.setdefault(model_name, ollama_cloud_model_meta(model_name))
+        provider.model_meta = meta
 
-    models = []
+    tag_models = []
     try:
         url = provider.base_url.rstrip('/') + '/api/tags'
         req = urllib.request.Request(url, headers={'Content-Type': 'application/json'})
@@ -1998,31 +3040,43 @@ def fetch_ollama_models(provider: Provider):
         with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT_SECONDS) as resp:
             payload = json.loads(resp.read())
         for model in payload.get('models', []) or []:
-            model_name = model.get('name') or model.get('model')
+            model_name = (model.get('name') or model.get('model') or '').strip()
             if model_name:
-                models.append(model_name)
+                tag_models.append(model_name)
                 meta = dict(provider.model_meta or {})
                 details = model.get('details', {}) if isinstance(model.get('details'), dict) else {}
-                meta.setdefault(model_name, {
-                    'reasoning': False,
-                    'contextWindow': details.get('context_length'),
-                    'maxTokens': None,
-                    'input': ['text'],
-                    'servable': True,
-                    'preferred': False,
-                    'resident': False,
-                    'manifestReason': None,
-                    'family': details.get('family', ''),
-                    'families': details.get('families') or [],
+                existing = dict(meta.get(model_name) or {})
+                existing.update({
+                    'reasoning': bool(existing.get('reasoning', False)),
+                    'contextWindow': existing.get('contextWindow') or details.get('context_length'),
+                    'maxTokens': existing.get('maxTokens'),
+                    'input': existing.get('input') or ['text'],
+                    'servable': bool(existing.get('servable', True)),
+                    'preferred': bool(existing.get('preferred', False)),
+                    'resident': bool(existing.get('resident', False)),
+                    'manifestReason': existing.get('manifestReason'),
+                    'family': details.get('family', existing.get('family', '')),
+                    'families': details.get('families') or existing.get('families') or [],
                 })
+                meta[model_name] = existing
                 provider.model_meta = meta
     except Exception as e:
         logger.warning(f"Ollama model discovery {provider.name}: {extract_http_error(e)}")
-    models = dedupe_keep_order(models)
-    OLLAMA_MODEL_CACHE[provider.name] = {'checked_at': now, 'models': models, 'source': 'tags'}
-    if models:
-        provider.models = dedupe_keep_order((provider.models or []) + models)
-    return models
+    tag_models = dedupe_keep_order(tag_models)
+    first_local_cloud = next((m for m in tag_models if is_local_cloud_ollama_model(provider, m)), None)
+    if first_local_cloud:
+        probe_local_ollama_cloud_auth(provider, first_local_cloud)
+    known_models = dedupe_keep_order((provider.models or []) + manifest_models + catalog_models + tag_models)
+    if known_models:
+        provider.models = known_models
+    source = 'tags'
+    if manifest_models and tag_models:
+        source = f'manifest:{manifest_source}+tags'
+    elif manifest_models:
+        source = f'manifest:{manifest_source}'
+    # Cache installed/tagged models separately from configured/manifest-known models.
+    OLLAMA_MODEL_CACHE[provider.name] = {'checked_at': now, 'models': tag_models, 'known_models': known_models, 'source': source}
+    return tag_models
 
 
 def parse_error_meta(error_text: str):
@@ -2055,7 +3109,10 @@ def model_health_snapshot(provider: Provider, model: str, intent_name: str = 'GE
     models_present = True
     if provider.api_type == 'ollama':
         live_models = fetch_ollama_models(provider)
-        models_present = (model in live_models) if live_models else (model in (provider.models or []))
+        if is_cloud_ollama_model(model) and not is_local_ollama_provider(provider):
+            models_present = model in (provider.models or [])
+        else:
+            models_present = (model in live_models) if live_models else (model in (provider.models or []))
     if temp_block:
         models_present = False
         cooldown_until = max(cooldown_until, float(temp_block.get('until', 0) or 0))
@@ -2143,10 +3200,36 @@ OLLAMA_AUTO_PULL_PATTERNS = [
 OLLAMA_AUTO_PULL_INTERVAL_SECONDS = int(os.environ.get('SAGE_ROUTER_OLLAMA_AUTO_PULL_INTERVAL_SECONDS', '3600'))
 
 
+def ollama_pattern_matches(pattern: str, model: str):
+    pattern = (pattern or '').strip().lower()
+    model_l = (model or '').strip().lower()
+    if not pattern:
+        return False
+    if pattern in {'*', 'all'}:
+        return True
+    if pattern.endswith('*') and model_l.startswith(pattern[:-1]):
+        return True
+    if pattern.startswith('*') and model_l.endswith(pattern[1:]):
+        return True
+    return pattern in model_l
+
+
+def ollama_model_auto_pull_compatible(provider: Provider, model: str):
+    if not model or not model_is_servable(provider, model):
+        return False
+    if not is_chat_capable_model(provider, model):
+        return False
+    caps = model_capabilities(provider, model)
+    return bool(caps.get('chat') and caps.get('streaming', True))
+
+
 def ollama_auto_pull_new_models():
-    """Check all Ollama providers for models matching auto-pull patterns that
-    aren't yet available locally. Pull them in the background.
-    Only runs every OLLAMA_AUTO_PULL_INTERVAL_SECONDS to avoid excessive pulls."""
+    """Pull missing compatible Ollama models that match configured patterns.
+
+    Sources are merged from config, manifests, and live /api/tags.  This lets a
+    fresh Umbrel Ollama app with zero local tags still pull configured/known
+    compatible models instead of being invisible to routing.
+    """
     now = time.time()
     last_pull_check_key = '_last_auto_pull_check'
     if now - OLLAMA_MODEL_CACHE.get(last_pull_check_key, 0) < OLLAMA_AUTO_PULL_INTERVAL_SECONDS:
@@ -2157,42 +3240,41 @@ def ollama_auto_pull_new_models():
         return
 
     for provider in PROVIDERS.values():
-        if provider.api_type != 'ollama':
+        if provider.api_type != 'ollama' or provider.name in DISABLED_PROVIDERS:
             continue
-        # Get manifest models (cloud-only models that may not be in /api/tags yet)
         manifest, _ = fetch_ollama_manifest(provider)
         manifest_models = []
         if manifest:
-            manifest_models = [m.get('name', '') for m in manifest.get('models', []) if m.get('name')]
+            manifest_models = [ollama_manifest_model_id(m) for m in manifest.get('models', []) or []]
 
-        # Combine discovered + manifest models
-        all_known = set(dedupe_keep_order((provider.models or []) + manifest_models))
-
-        # Check which patterns have no matching model
-        for pattern in OLLAMA_AUTO_PULL_PATTERNS:
-            matching = [m for m in all_known if pattern in m]
-            if not matching:
-                # Pattern has no match yet - nothing to pull
+        cache = OLLAMA_MODEL_CACHE.get(provider.name, {})
+        available = set(fetch_ollama_models(provider))
+        all_known = dedupe_keep_order((provider.models or []) + cache.get('known_models', []) + manifest_models)
+        matching = []
+        for model in all_known:
+            if model in available:
                 continue
-            # Check if models matching pattern are actually available (not just known)
-            available = set(fetch_ollama_models(provider))
-            for model in matching:
-                if model not in available:
-                    logger.info(f'Auto-pulling new model: {model} (pattern: {pattern}, provider: {provider.name})')
-                    try:
-                        pull_url = provider.base_url.rstrip('/') + '/api/pull'
-                        data = json.dumps({'name': model, 'stream': False}).encode()
-                        req = urllib.request.Request(pull_url, data=data, headers={'Content-Type': 'application/json'})
-                        if provider.api_key:
-                            req.add_header('Authorization', f'Bearer {provider.api_key}')
-                        with urllib.request.urlopen(req, timeout=600) as resp:
-                            result = json.loads(resp.read())
-                        logger.info(f'Auto-pull complete: {model} -> {result.get("status", "ok")}')
-                        # Refresh model list after pull
-                        OLLAMA_MODEL_CACHE.pop(provider.name, None)
-                        fetch_ollama_models(provider)
-                    except Exception as e:
-                        logger.warning(f'Auto-pull failed for {model}: {extract_http_error(e)}')
+            if not ollama_model_auto_pull_compatible(provider, model):
+                continue
+            if any(ollama_pattern_matches(pattern, model) for pattern in OLLAMA_AUTO_PULL_PATTERNS):
+                matching.append(model)
+
+        for model in dedupe_keep_order(matching):
+            logger.info(f'Auto-pulling missing compatible Ollama model: {model} (provider={provider.name}, patterns={OLLAMA_AUTO_PULL_PATTERNS})')
+            try:
+                pull_url = provider.base_url.rstrip('/') + '/api/pull'
+                data = json.dumps({'name': model, 'stream': False}).encode()
+                req = urllib.request.Request(pull_url, data=data, headers={'Content-Type': 'application/json'})
+                if provider.api_key:
+                    req.add_header('Authorization', f'Bearer {provider.api_key}')
+                with urllib.request.urlopen(req, timeout=600) as resp:
+                    result = json.loads(resp.read())
+                logger.info(f'Auto-pull complete: {model} -> {result.get("status", "ok")}')
+                OLLAMA_MODEL_CACHE.pop(provider.name, None)
+                fetch_ollama_models(provider)
+                MODEL_HEALTH_CACHE.clear()
+            except Exception as e:
+                logger.warning(f'Auto-pull failed for {model}: {extract_http_error(e)}')
 
 
 def background_refresh_detect_families():
@@ -2294,21 +3376,25 @@ def classify_intent_with_local_model(text):
     if not INTENT_CLASSIFIER_ENABLED:
         return None, {}, {'enabled': False}
     provider = (INTENT_CLASSIFIER_PROVIDER or 'ollama').strip().lower()
+    # Small local classifiers are most valuable on vague requests. Keep the
+    # prompt deliberately label-only because tiny Qwen/llama.cpp models are
+    # more reliable at one-token classification than strict JSON.
     prompt = (
-        'Classify the request for AI model routing. Output JSON only with keys: '
-        'intent, complexity, confidence, needs_tools, needs_reasoning, needs_json.\n'
-        'Allowed intents: GENERAL, CODE, ANALYSIS, CREATIVE, REALTIME. '
-        'Allowed complexity: SIMPLE, MEDIUM, COMPLEX.\n'
+        'Classify this request for AI model routing.\n'
+        'Reply with exactly one label and no extra text.\n'
+        'Labels: GENERAL, CODE, ANALYSIS, CREATIVE, REALTIME.\n'
+        'Use CODE for programming/debugging/implementation.\n'
+        'Use REALTIME for current/latest/weather/price/news/time-sensitive facts.\n'
+        'Use CREATIVE for writing/story/brainstorm/design ideation.\n'
+        'Use ANALYSIS for compare/review/research/explain/why/how reasoning.\n'
+        'Use GENERAL for ordinary chat or unclear requests.\n'
         'Examples:\n'
-        'Request: Fix this Python bug.\n'
-        '{\"intent\":\"CODE\",\"complexity\":\"SIMPLE\",\"confidence\":0.95,\"needs_tools\":false,\"needs_reasoning\":false,\"needs_json\":false}\n'
-        'Request: Weather today in Paris?\n'
-        '{\"intent\":\"REALTIME\",\"complexity\":\"SIMPLE\",\"confidence\":0.95,\"needs_tools\":false,\"needs_reasoning\":false,\"needs_json\":false}\n'
-        'Request: Write a sci-fi story.\n'
-        '{\"intent\":\"CREATIVE\",\"complexity\":\"SIMPLE\",\"confidence\":0.95,\"needs_tools\":false,\"needs_reasoning\":false,\"needs_json\":false}\n'
-        'Request: Compare A vs B.\n'
-        '{\"intent\":\"ANALYSIS\",\"complexity\":\"MEDIUM\",\"confidence\":0.9,\"needs_tools\":false,\"needs_reasoning\":true,\"needs_json\":false}\n'
+        'Fix this Python bug => CODE\n'
+        'Weather today in Paris? => REALTIME\n'
+        'Write a sci-fi story => CREATIVE\n'
+        'Compare A vs B => ANALYSIS\n'
         f'Request: {text[:INTENT_CLASSIFIER_MAX_PROMPT_CHARS]}\n'
+        'Label:'
     )
     started = time.time()
     try:
@@ -2317,7 +3403,7 @@ def classify_intent_with_local_model(text):
                 'model': INTENT_CLASSIFIER_MODEL,
                 'messages': [{'role': 'user', 'content': prompt}],
                 'stream': False,
-                'options': {'num_predict': 96, 'temperature': 0, 'num_ctx': 4096},
+                'options': {'num_predict': 8, 'temperature': 0, 'num_ctx': 1024},
             }
             req = urllib.request.Request(
                 INTENT_CLASSIFIER_BASE_URL.rstrip('/') + '/api/chat',
@@ -2330,16 +3416,16 @@ def classify_intent_with_local_model(text):
         elif provider in {'llamacpp', 'llama.cpp', 'openai-compatible', 'openai_compatible'}:
             payload = {
                 'model': INTENT_CLASSIFIER_MODEL,
-                'messages': [{'role': 'system', 'content': 'Output valid JSON only.'}, {'role': 'user', 'content': prompt}],
+                'messages': [{'role': 'system', 'content': 'Reply with exactly one routing label.'}, {'role': 'user', 'content': prompt}],
                 'stream': False,
-                'max_tokens': 64,
+                'max_tokens': 8,
                 'temperature': 0,
             }
             headers = {'Content-Type': 'application/json'}
             if INTENT_CLASSIFIER_API_KEY:
                 headers['Authorization'] = f'Bearer {INTENT_CLASSIFIER_API_KEY}'
             req = urllib.request.Request(
-                INTENT_CLASSIFIER_BASE_URL.rstrip('/') + '/v1/chat/completions',
+                openai_chat_completions_url(INTENT_CLASSIFIER_BASE_URL),
                 data=json.dumps(payload).encode(),
                 headers=headers,
             )
@@ -2353,12 +3439,21 @@ def classify_intent_with_local_model(text):
         if cleaned.startswith('```'):
             cleaned = _re.sub(r'^```(?:json)?\s*', '', cleaned, flags=_re.IGNORECASE).strip()
             cleaned = _re.sub(r'\s*```$', '', cleaned).strip()
+        parsed = None
+        intent_name = ''
+        confidence = 0.9
         m = _re.search(r'\{.*\}', cleaned, flags=_re.DOTALL)
         if m:
-            cleaned = m.group(0)
-        parsed = json.loads(cleaned)
-        intent_name = str(parsed.get('intent') or '').strip().upper()
-        confidence = float(parsed.get('confidence') or 0)
+            try:
+                parsed = json.loads(m.group(0))
+                intent_name = str(parsed.get('intent') or '').strip().upper()
+                confidence = float(parsed.get('confidence') or confidence)
+            except Exception:
+                parsed = None
+        if not intent_name:
+            label_match = _re.search(r'\b(GENERAL|CODE|ANALYSIS|CREATIVE|REALTIME)\b', cleaned.upper())
+            if label_match:
+                intent_name = label_match.group(1)
         if intent_name in Intent.__members__ and confidence >= INTENT_CLASSIFIER_MIN_CONFIDENCE:
             scores = {i: 0 for i in Intent}
             scores[Intent[intent_name]] = max(1, int(confidence * 10))
@@ -2370,11 +3465,24 @@ def classify_intent_with_local_model(text):
                 'model': INTENT_CLASSIFIER_MODEL,
                 'confidence': confidence,
                 'elapsedMs': round((time.time() - started) * 1000.0, 2),
-                'raw': parsed,
+                'raw': parsed if parsed is not None else cleaned,
             }
-        return None, {}, {'enabled': True, 'used': False, 'provider': provider, 'model': INTENT_CLASSIFIER_MODEL, 'confidence': confidence, 'intent': intent_name, 'elapsedMs': round((time.time() - started) * 1000.0, 2), 'error': 'low confidence or invalid intent'}
+        return None, {}, {'enabled': True, 'used': False, 'provider': provider, 'model': INTENT_CLASSIFIER_MODEL, 'confidence': confidence, 'intent': intent_name, 'elapsedMs': round((time.time() - started) * 1000.0, 2), 'raw': cleaned[:200], 'error': 'low confidence or invalid intent'}
     except Exception as e:
         return None, {}, {'enabled': True, 'used': False, 'provider': provider, 'model': INTENT_CLASSIFIER_MODEL, 'elapsedMs': round((time.time() - started) * 1000.0, 2), 'error': extract_http_error(e)}
+
+
+def analysis_signal_score(text):
+    tl = (text or '').lower()
+    score = 0
+    for kw in ANALYSIS_SIGNAL_TERMS:
+        if kw in tl:
+            score += 2 if ' ' in kw or '-' in kw else 1
+    if '?' in tl and any(prefix in tl for prefix in ('can we', 'could we', 'should we', 'would it', 'do we', 'how ', 'why ', 'what would', 'what should')):
+        score += 2
+    if len(tl.split()) >= 40 and any(x in tl for x in ('because', 'but', 'however', 'tradeoff', 'risk', 'if ', 'when ')):
+        score += 2
+    return score
 
 
 def heuristic_intent_scores(text):
@@ -2382,8 +3490,9 @@ def heuristic_intent_scores(text):
     for kw in ['write','code','debug','fix','refactor','implement','function','bug','test','.py','.js']:
         if kw in tl: scores[Intent.CODE] += 1
     if '```' in text: scores[Intent.CODE] += 3
-    for kw in ['analyze','explain','compare','research','why','how does','review']:
+    for kw in ['analyze','explain','compare','research','why','how does','review','translate','summarize','summary','extract','parse','pdf','document','report','informe','conclusion','findings','medical report','mri','resonancia']:
         if kw in tl: scores[Intent.ANALYSIS] += 1
+    scores[Intent.ANALYSIS] += analysis_signal_score(text)
     for kw in ['create','brainstorm','imagine','design','story']:
         if kw in tl: scores[Intent.CREATIVE] += 2
     for kw in ['now','today','current','latest','price','weather']:
@@ -2391,35 +3500,126 @@ def heuristic_intent_scores(text):
     return scores
 
 
+def normalized_intent_pattern(text):
+    """Collapse a request into a stable cache key for similar routing intent.
+
+    Keep signal words, but strip volatile values so "fix foo.py line 41" and
+    "fix bar.ts line 98" reuse the same classifier hint.
+    """
+    t = (text or '').lower()[:INTENT_CLASSIFIER_MAX_PROMPT_CHARS]
+    t = _re.sub(r'```.*?```', ' <codeblock> ', t, flags=_re.DOTALL)
+    t = _re.sub(r'`[^`]*`', ' <inline> ', t)
+    t = _re.sub(r'https?://\S+', ' <url> ', t)
+    t = _re.sub(r'(?<!\w)[~/./-]*[\w.-]+/(?:[\w./-]+)', ' <path> ', t)
+    t = _re.sub(r'\b[\w.-]+\.(py|js|ts|tsx|jsx|json|md|yml|yaml|sh|sql|html|css)\b', ' <file> ', t)
+    t = _re.sub(r'\b[0-9a-f]{7,40}\b', ' <hash> ', t)
+    t = _re.sub(r'\b\d+(?:\.\d+)?\b', ' <num> ', t)
+    t = _re.sub(r'[^a-z0-9_<>{}:+#./-]+', ' ', t)
+    return _re.sub(r'\s+', ' ', t).strip()[:512]
+
+
+def _intent_cache_get(pattern):
+    if not pattern:
+        return None
+    now = time.time()
+    with INTENT_CLASSIFIER_CACHE_LOCK:
+        item = INTENT_CLASSIFIER_CACHE.get(pattern)
+        if not item:
+            return None
+        if now - item.get('ts', 0) > INTENT_CLASSIFIER_CACHE_TTL_SECONDS:
+            INTENT_CLASSIFIER_CACHE.pop(pattern, None)
+            return None
+        return dict(item)
+
+
+def _intent_cache_put(pattern, intent, scores, meta):
+    if not pattern or intent is None:
+        return
+    with INTENT_CLASSIFIER_CACHE_LOCK:
+        if len(INTENT_CLASSIFIER_CACHE) >= INTENT_CLASSIFIER_CACHE_MAX:
+            oldest = min(INTENT_CLASSIFIER_CACHE, key=lambda k: INTENT_CLASSIFIER_CACHE[k].get('ts', 0), default=None)
+            if oldest:
+                INTENT_CLASSIFIER_CACHE.pop(oldest, None)
+        INTENT_CLASSIFIER_CACHE[pattern] = {
+            'ts': time.time(),
+            'intent': intent.name,
+            'scores': {k.name: v for k, v in (scores or {}).items()},
+            'meta': dict(meta or {}),
+        }
+
+
+def _warm_intent_cache_async(text, pattern, heuristic_winner, heuristic_score):
+    def worker():
+        model_intent, model_scores, model_meta = classify_intent_with_local_model(text)
+        if model_intent is None:
+            return
+        if heuristic_score >= 2 and heuristic_winner != model_intent:
+            return
+        _intent_cache_put(pattern, model_intent, model_scores, model_meta)
+
+    thread = threading.Thread(target=worker, name='sage-router-intent-cache', daemon=True)
+    thread.start()
+
+
 def classify_intent(text):
-    model_intent, model_scores, model_meta = classify_intent_with_local_model(text)
     heuristic_scores = heuristic_intent_scores(text)
     heuristic_winner = max(heuristic_scores, key=heuristic_scores.get)
     heuristic_score = heuristic_scores.get(heuristic_winner, 0)
-    if model_intent is not None:
-        # Tiny local classifiers are useful for ambiguity, but should not override
-        # strong lexical evidence (e.g. a 0.5B model occasionally labels code as REALTIME).
-        if heuristic_score >= 2 and heuristic_winner != model_intent:
-            model_meta = dict(model_meta or {})
-            model_meta.update({
-                'used': False,
-                'overriddenByHeuristic': True,
-                'heuristicIntent': heuristic_winner.name,
-                'heuristicScore': heuristic_score,
-                'modelIntent': model_intent.name,
-            })
-            LAST_ROUTE_DEBUG['intentClassifier'] = model_meta
-            return heuristic_winner, heuristic_scores
-        LAST_ROUTE_DEBUG['intentClassifier'] = model_meta
-        return model_intent, model_scores
-    LAST_ROUTE_DEBUG['intentClassifier'] = model_meta
-    scores = heuristic_scores
-    m = max(scores, key=scores.get)
-    return (m if scores[m] > 0 else Intent.GENERAL), scores
+    heuristic_intent = heuristic_winner if heuristic_score > 0 else Intent.GENERAL
+
+    # Default path: deterministic heuristics only. This avoids adding a model
+    # round trip before the real response starts.
+    if not INTENT_CLASSIFIER_ENABLED:
+        LAST_ROUTE_DEBUG['intentClassifier'] = {'enabled': False, 'used': False}
+        return heuristic_intent, heuristic_scores
+
+    pattern = normalized_intent_pattern(text)
+    cached = _intent_cache_get(pattern)
+    if cached and heuristic_score < INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW:
+        intent_name = cached.get('intent')
+        if intent_name in Intent.__members__:
+            scores = {i: 0 for i in Intent}
+            for k, v in (cached.get('scores') or {}).items():
+                if k in Intent.__members__:
+                    scores[Intent[k]] = v
+            meta = dict(cached.get('meta') or {})
+            meta.update({'enabled': True, 'used': True, 'source': 'cache', 'pattern': pattern})
+            LAST_ROUTE_DEBUG['intentClassifier'] = meta
+            return Intent[intent_name], scores
+
+    meta = {
+        'enabled': True,
+        'used': False,
+        'source': 'heuristic',
+        'heuristicIntent': heuristic_intent.name,
+        'heuristicScore': heuristic_score,
+        'threshold': INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW,
+        'pattern': pattern,
+    }
+    if heuristic_score >= INTENT_CLASSIFIER_ONLY_IF_HEURISTIC_BELOW:
+        meta['skippedByHeuristic'] = True
+    elif INTENT_CLASSIFIER_ASYNC:
+        meta['asyncWarmupQueued'] = True
+        _warm_intent_cache_async(text, pattern, heuristic_winner, heuristic_score)
+    else:
+        # Synchronous mode remains available for explicit tests, but should not
+        # be enabled in normal operation.
+        model_intent, model_scores, model_meta = classify_intent_with_local_model(text)
+        if model_intent is not None:
+            _intent_cache_put(pattern, model_intent, model_scores, model_meta)
+        meta.update(model_meta or {})
+
+    LAST_ROUTE_DEBUG['intentClassifier'] = meta
+    return heuristic_intent, heuristic_scores
 
 def estimate_complexity(text):
     w = len(text.split())
-    return Complexity.SIMPLE if w < 30 else (Complexity.COMPLEX if w > 200 else Complexity.MEDIUM)
+    analysis_score = analysis_signal_score(text)
+    if w > 200 or analysis_score >= 6 or (analysis_score >= 4 and w >= 35):
+        return Complexity.COMPLEX
+    if w < 30 and analysis_score < 3:
+        return Complexity.SIMPLE
+    return Complexity.MEDIUM
 
 
 def classify_workflow_tier(text, intent=None, complexity=None, requirements=None):
@@ -2509,13 +3709,15 @@ def normalize_thinking(raw):
     if isinstance(raw, dict):
         raw = raw.get('effort') or raw.get('level') or raw.get('thinking')
     if raw is None:
-        return ThinkingLevel.MEDIUM
+        return DEFAULT_THINKING_LEVEL
     value = str(raw).strip().lower()
     if value in {'low', 'minimal'}:
         return ThinkingLevel.LOW
+    if value in {'medium', 'normal', 'default'}:
+        return ThinkingLevel.MEDIUM
     if value in {'high', 'max', 'deep'}:
         return ThinkingLevel.HIGH
-    return ThinkingLevel.MEDIUM
+    return DEFAULT_THINKING_LEVEL
 
 
 def thinking_max_tokens(level: ThinkingLevel):
@@ -2526,7 +3728,195 @@ def thinking_max_tokens(level: ThinkingLevel):
     return 8192
 
 
-def score_provider_model(provider, model, intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='balanced', estimated_tokens=0, debug_scores=None):
+def model_quality_tier(model):
+    model_l = (model or '').lower()
+    if any(h in model_l for h in WEAK_ANALYSIS_MODEL_HINTS) and not any(h in model_l for h in ('opus', 'sonnet', '-pro', ' pro')):
+        return 'weak'
+    if any(h in model_l for h in ANALYSIS_QUALITY_MODEL_HINTS):
+        return 'strong'
+    return 'medium'
+
+
+ROUTER_PROFILE_CACHE = {'mtime': None, 'profiles': {}}
+
+
+def load_router_profiles():
+    try:
+        st = os.stat(ROUTER_PROFILES_PATH)
+        if ROUTER_PROFILE_CACHE.get('mtime') == st.st_mtime:
+            return ROUTER_PROFILE_CACHE.get('profiles') or {}
+        with open(ROUTER_PROFILES_PATH) as f:
+            data = json.load(f)
+        profiles = data.get('profiles', data) if isinstance(data, dict) else {}
+        if not isinstance(profiles, dict):
+            profiles = {}
+        ROUTER_PROFILE_CACHE.update({'mtime': st.st_mtime, 'profiles': profiles})
+        return profiles
+    except FileNotFoundError:
+        ROUTER_PROFILE_CACHE.update({'mtime': None, 'profiles': {}})
+        return {}
+    except Exception as e:
+        logger.warning(f'Failed to load router profiles: {e}')
+        return ROUTER_PROFILE_CACHE.get('profiles') or {}
+
+
+def resolve_router_profile_name(payload):
+    if not isinstance(payload, dict):
+        return None
+    for key in ('profile', 'routerProfile', 'sageRouterProfile'):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    model = str(payload.get('model') or '').strip()
+    if model.startswith('sage-router/'):
+        name = model.split('/', 1)[1]
+        if name and name != 'auto':
+            return name
+    elif model and '/' not in model and model not in PROVIDERS:
+        return model
+    return None
+
+
+def apply_router_profile(payload):
+    if not isinstance(payload, dict):
+        return None
+    profile_name = resolve_router_profile_name(payload)
+    if not profile_name:
+        return None
+    profile = load_router_profiles().get(profile_name)
+    if not isinstance(profile, dict):
+        return None
+    if profile.get('route'):
+        payload['route'] = profile.get('route')
+    if profile.get('thinking'):
+        payload['thinking'] = {'effort': str(profile.get('thinking'))}
+    req = payload.get('requirements')
+    if not isinstance(req, dict):
+        req = {}
+    for key in ('qualitySensitive', 'reasoning', 'tools', 'preferTools', 'json', 'vision', 'document', 'longContext', 'frontierOrReasoningTools', 'suppressToolCallContent'):
+        if key in profile:
+            req[key] = bool(profile.get(key))
+    if profile.get('suppressIntermediateToolText'):
+        req['suppressToolCallContent'] = True
+    if profile.get('requiresQuality'):
+        payload['requiresQuality'] = True
+        req['qualitySensitive'] = True
+    if profile.get('requiresReasoning'):
+        payload['requiresReasoning'] = True
+        req['reasoning'] = True
+    if profile.get('requiresTools'):
+        payload['requiresTools'] = True
+        req['tools'] = True
+    if profile.get('frontierLargeOnly'):
+        req['frontierLargeOnly'] = True
+    if profile.get('frontierOrReasoningTools'):
+        req['frontierOrReasoningTools'] = True
+    if profile.get('minParamsB') is not None:
+        req['minParamsB'] = profile.get('minParamsB')
+    for key in ('allowModels', 'denyModels', 'allowProviders', 'denyProviders'):
+        if profile.get(key):
+            req[key] = profile.get(key)
+    payload['requirements'] = req
+    if str(payload.get('model') or '').strip() in {profile_name, f'sage-router/{profile_name}'}:
+        payload['model'] = 'sage-router/auto'
+    return profile_name
+
+
+def _match_any_pattern(value, patterns):
+    if not patterns:
+        return False
+    value_l = str(value or '').lower()
+    import fnmatch
+    return any(fnmatch.fnmatch(value_l, str(p).lower()) or str(p).lower() in value_l for p in patterns)
+
+
+def estimate_model_params_b(model):
+    model_l = (model or '').lower()
+    import re
+    nums = [float(x) for x in re.findall(r'(?<![a-z0-9])(\d+(?:\.\d+)?)\s*b(?![a-z])', model_l)]
+    if nums:
+        return max(nums)
+    if any(h in model_l for h in ('405b', 'llama4-405b')):
+        return 405
+    if any(h in model_l for h in ('340b', 'nemotron-4-340b')):
+        return 340
+    if any(h in model_l for h in ('gpt-5', 'gpt-4.5', 'claude-opus', 'claude-sonnet-4', 'gemini-3', 'gemini-2.5-pro', 'hunter-alpha', 'healer-alpha', 'kimi-k2', 'glm-5', 'z1-ultra')):
+        return 999
+    return 0
+
+
+FRONTIER_LARGE_MODEL_HINTS = (
+    'gpt-5', 'gpt-4.5', 'claude-opus', 'claude-sonnet-4', 'claude-4',
+    'gemini-3', 'gemini-2.5-pro', 'gemini-pro',
+    'llama-3.1-405b', 'llama4-405b', '405b', '340b',
+    'nemotron-4-340b', 'hunter-alpha', 'healer-alpha',
+    'kimi-k2', 'kimi-k2.5', 'kimi-k2.6', 'glm-5', 'deepseek-v4', 'qwen3.5', 'qwen3.6', 'minimax-m2.7', 'mistral-large-3', 'z1-ultra',
+)
+
+
+def model_is_frontier_large(model):
+    model_l = (model or '').lower()
+    return any(hint in model_l for hint in FRONTIER_LARGE_MODEL_HINTS)
+
+
+def payload_discord_public_signal(payload):
+    if not isinstance(payload, dict):
+        return False
+    model = str(payload.get('model') or '').strip().lower()
+    if model in {'discord-public', 'sage-router/discord-public', 'frontier-public', 'sage-router/frontier-public'}:
+        return True
+    try:
+        haystack = json.dumps({k: payload.get(k) for k in ('metadata', 'agent', 'agentId', 'sessionKey', 'source', 'messages')}, default=str)[:16000].lower()
+    except Exception:
+        haystack = str(payload)[:16000].lower()
+    return 'discord-public' in haystack
+
+
+def apply_discord_public_route_profile(payload):
+    """Force public Discord traffic onto quality-first routing.
+
+    Public channels are user-visible product surfaces, so cheap/mini/local-small
+    models are not acceptable defaults.  This profile requires either a known
+    frontier/large model, or a model that supports both reasoning and tools,
+    then runs with high thinking and best route mode.
+    """
+    if not payload_discord_public_signal(payload):
+        return False
+    payload['thinking'] = {'effort': 'high'}
+    payload['route'] = 'best'
+    req = payload.get('requirements')
+    if not isinstance(req, dict):
+        req = {}
+    req.update({
+        'qualitySensitive': True,
+        'reasoning': True,
+        'frontierLargeOnly': True,
+        'frontierOrReasoningTools': False,
+        'suppressToolCallContent': True,
+        'allowModels': [
+            '*glm-5*',
+            '*kimi-k2*',
+            '*gpt-5*',
+            '*deepseek-v4*',
+            '*qwen3.[5-9]*',
+            '*minimax-m2.[7-9]*',
+            '*mistral-large-3*',
+        ],
+        'denyModels': [
+            '*1.2b*', '*2b*', '*3b*', '*4b*', '*7b*', '*8b*', '*12b*', '*14b*',
+            '*mini*', '*haiku*', '*flash-lite*', '*gemma-3n*', '*lfm-2.5*', '*laguna-xs*',
+            '*deepseek-r1*', '*deepseek-v3*', '*glm-4*', '*minimax-m2.5*', '*mistral-large-2*',
+            '*gemini*', '*claude*', '*llama*', '*nemotron*', '*trinity*', '*nemo*',
+        ],
+    })
+    payload['requirements'] = req
+    payload['requiresQuality'] = True
+    payload['requiresReasoning'] = True
+    return True
+
+
+def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_THINKING_LEVEL, route_mode='balanced', estimated_tokens=0, debug_scores=None, requirements=None):
+    requirements = requirements or {}
     intent_key = intent.name
     api_score = INTENT_API_SCORES.get(intent_key, {}).get(provider.api_type, 40)
     model_l = model.lower()
@@ -2599,12 +3989,28 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
                 contributions.append(('user_pref_code_other_ollama_penalty', -8))
 
     if intent == Intent.ANALYSIS:
+        tier = model_quality_tier(model)
         if provider.api_type == 'ollama':
             score += 18
             contributions.append(('user_pref_analysis_ollama', 18))
         elif provider.name == 'openai-codex' or provider.api_type == 'openclaw-gateway':
             score -= 10
             contributions.append(('user_pref_analysis_not_gpt', -10))
+        if tier == 'strong':
+            score += 24
+            contributions.append(('analysis_strong_model_bonus', 24))
+        elif tier == 'weak':
+            score -= 32
+            contributions.append(('analysis_weak_model_penalty', -32))
+        if complexity == Complexity.COMPLEX and tier != 'strong':
+            score -= 16
+            contributions.append(('complex_analysis_non_strong_penalty', -16))
+        if requirements.get('qualitySensitive') and tier == 'strong':
+            score += 12
+            contributions.append(('quality_sensitive_strong_bonus', 12))
+        elif requirements.get('qualitySensitive') and tier == 'weak':
+            score -= 18
+            contributions.append(('quality_sensitive_weak_penalty', -18))
     if complexity == Complexity.COMPLEX and any(hint in model_l for hint in COMPLEX_MODEL_HINTS):
         score += 5
         contributions.append(('complex_model_bonus', 5))
@@ -2614,6 +4020,37 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
     if complexity == Complexity.SIMPLE and any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
         score += 2
         contributions.append(('lightweight_simple_bonus', 2))
+    if requirements.get('qualitySensitive') and any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
+        score -= 12
+        contributions.append(('quality_sensitive_lightweight_penalty', -12))
+    if requirements.get('frontierOrReasoningTools'):
+        if model_is_frontier_large(model):
+            score += 100
+            contributions.append(('discord_public_frontier_large_bonus', 100))
+        elif model_capabilities(provider, model).get('reasoning') and model_capabilities(provider, model).get('tools'):
+            score += 70
+            contributions.append(('discord_public_reasoning_tools_bonus', 70))
+        else:
+            score -= 120
+            contributions.append(('discord_public_low_capability_penalty', -120))
+    if requirements.get('frontierLargeOnly') and model_is_frontier_large(model):
+        score += 120
+        contributions.append(('profile_frontier_large_only_bonus', 120))
+    if requirements.get('minParamsB') is not None:
+        try:
+            params_b = estimate_model_params_b(model)
+            if params_b >= float(requirements.get('minParamsB')):
+                bonus = min(80, params_b / 8)
+                score += bonus
+                contributions.append(('profile_min_params_bonus', round(bonus, 2)))
+        except Exception:
+            pass
+    if is_nvidia_provider(provider) and (requirements.get('preferTools') or requirements.get('tools')):
+        score -= 45
+        contributions.append(('nvidia_tool_schema_leak_penalty', -45))
+    if is_nvidia_provider(provider) and requirements.get('qualitySensitive'):
+        score -= 25
+        contributions.append(('quality_sensitive_nvidia_penalty', -25))
     if intent == Intent.GENERAL and provider.api_type == 'ollama':
         score -= 1
         contributions.append(('general_ollama_penalty', -1))
@@ -2693,6 +4130,26 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
             score += 2
             contributions.append(('thinking_low_ollama_bonus', 2))
 
+    if requirements.get('document'):
+        if provider.api_type == 'google-generative-language':
+            score += 55
+            contributions.append(('document_google_bonus', 55))
+        elif provider.api_type in {'openai-completions', 'anthropic-messages'}:
+            score += 30
+            contributions.append(('document_frontier_bonus', 30))
+        elif provider.api_type == 'ollama':
+            score -= 35
+            contributions.append(('document_ollama_penalty', -35))
+        if any(h in model_l for h in ('gemini', 'gpt-5', 'gpt-4o', 'opus', 'sonnet', 'qwen', 'kimi', 'minimax')):
+            score += 10
+            contributions.append(('document_model_hint_bonus', 10))
+        if is_nvidia_provider(provider):
+            score -= 25
+            contributions.append(('document_nvidia_penalty', -25))
+        if any(h in model_l for h in ('nano', 'tiny', 'tts', 'asr', 'embed', 'clip', 'nemotron', '1b', '3b', '7b')):
+            score -= 35
+            contributions.append(('document_weak_model_penalty', -35))
+
     health = model_health_snapshot(provider, model, intent.name)
     health_delta = max(-60, min(40, (health.get('score', 0) - 50) * 0.6))
     score += health_delta
@@ -2725,7 +4182,7 @@ def score_provider_model(provider, model, intent, complexity, thinking=ThinkingL
 def payload_tools_soft_preference(requirements):
     return bool((requirements or {}).get('preferTools'))
 
-def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, estimated_tokens=0):
+def select_model(intent, complexity, thinking=DEFAULT_THINKING_LEVEL, route_mode='balanced', requirements=None, estimated_tokens=0):
     """Score ALL models across ALL providers globally, then rank.
 
     Previous behavior picked the best model per provider first, then
@@ -2741,9 +4198,16 @@ def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='
             continue
         if provider.api_type == 'ollama':
             fetch_ollama_models(provider)
+        if route_mode == 'local-first' and not provider_allowed_in_local_first(provider):
+            rejections.append({'provider': pn, 'model': '*', 'reason': local_first_rejection_reason(provider)})
+            continue
         if not provider.models or not provider_endpoint_reachable(provider):
             continue
         for model in dedupe_keep_order(provider.models):
+            disabled_reason = model_disabled_reason(provider.name, model)
+            if disabled_reason:
+                rejections.append({'provider': pn, 'model': model, 'reason': disabled_reason})
+                continue
             if route_mode == 'local-first' and provider.api_type == 'ollama' and is_cloud_ollama_model(model):
                 rejections.append({'provider': pn, 'model': model, 'reason': 'excluded by local-first (:cloud model)'})
                 continue
@@ -2754,14 +4218,17 @@ def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='
             if not ok_req:
                 rejections.append({'provider': pn, 'model': model, 'reason': reason})
                 continue
-            score = score_provider_model(provider, model, intent, complexity, thinking, route_mode, estimated_tokens, debug_scores)
+            score = score_provider_model(provider, model, intent, complexity, thinking, route_mode, estimated_tokens, debug_scores, requirements)
             if payload_tools_soft_preference(requirements) and model_capabilities(provider, model).get('tools'):
-                score += 120
+                bonus = 30 if intent in (Intent.ANALYSIS, Intent.CODE) or complexity == Complexity.COMPLEX or requirements.get('qualitySensitive') else 55
+                if model_quality_tier(model) == 'weak' and (intent == Intent.ANALYSIS or complexity == Complexity.COMPLEX or requirements.get('qualitySensitive')):
+                    bonus -= 20
+                score += bonus
                 if debug_scores is not None:
                     for entry in reversed(debug_scores):
                         if entry.get('provider') == provider.name and entry.get('model') == model:
                             entry['score'] = round(score, 2)
-                            entry.setdefault('contributions', []).append(('tools_soft_preference_bonus', 120))
+                            entry.setdefault('contributions', []).append(('tools_soft_preference_bonus', bonus))
                             break
             scored = (score, pn, model)
             all_candidates.append(scored)
@@ -2769,13 +4236,11 @@ def select_model(intent, complexity, thinking=ThinkingLevel.MEDIUM, route_mode='
     all_candidates.sort(key=lambda item: (-item[0], item[1], item[2]))
     return [(pn, model) for _, pn, model in all_candidates[:MAX_PROVIDER_ATTEMPTS]], sorted(debug_scores, key=lambda item: item['score'], reverse=True), rejections
 
-def call_ollama(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM):
+def call_ollama(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL):
     url = base_url.rstrip('/') + '/api/chat'
-    payload = {"model": model, "messages": messages, "stream": False}
-    if thinking == ThinkingLevel.LOW:
-        payload["options"] = {"num_predict": 1024}
-    elif thinking == ThinkingLevel.HIGH:
-        payload["options"] = {"num_predict": 4096}
+    payload = {"model": model, "messages": messages, "stream": False, "options": ollama_generation_options(thinking)}
+    if ollama_model_supports_native_thinking(model):
+        payload["think"] = thinking != ThinkingLevel.LOW
 
     hdrs = {'Content-Type': 'application/json'}
     if api_key:
@@ -2832,8 +4297,8 @@ def call_ollama(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
         logger.warning(f"Ollama {base_url} {model}: {err}")
         return False, err
 
-def call_openai_compat(base_url, model, messages, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, want_json=False):
-    url = base_url.rstrip('/') + '/v1/chat/completions'
+def call_openai_compat(base_url, model, messages, api_key='', provider_name='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, want_json=False):
+    url = openai_chat_completions_url(base_url)
     payload = {"model": model, "messages": messages, "max_tokens": thinking_max_tokens(thinking)}
     if supports_reasoning:
         payload["reasoning"] = {"effort": thinking.value}
@@ -2842,6 +4307,7 @@ def call_openai_compat(base_url, model, messages, api_key='', provider_name='', 
     try:
         data = json.dumps(payload).encode()
         hdrs = {'Content-Type': 'application/json'}
+        add_openai_compat_headers(hdrs, provider_name)
         if api_key:
             hdrs['Authorization'] = f'Bearer {api_key}'
         req = urllib.request.Request(url, data=data, headers=hdrs)
@@ -2858,7 +4324,7 @@ def call_openai_compat(base_url, model, messages, api_key='', provider_name='', 
         return False, extract_http_error(e)
 
 
-def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinking=ThinkingLevel.MEDIUM, want_json=False, timeout_seconds=None):
+def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinking=DEFAULT_THINKING_LEVEL, want_json=False, timeout_seconds=None):
     if not os.path.exists(OPENCLAW_GATEWAY_HELPER):
         return False, f'Missing OpenClaw gateway helper: {OPENCLAW_GATEWAY_HELPER}'
 
@@ -2906,7 +4372,7 @@ def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinkin
 
 
 
-def call_codex_responses(base_url, model, messages, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, want_json=False):
+def call_codex_responses(base_url, model, messages, api_key='', provider_name='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, want_json=False):
     """Call OpenAI Codex Responses API at chatgpt.com/backend-api/codex/responses"""
     url = base_url.rstrip('/') + '/responses'
     
@@ -2970,7 +4436,7 @@ def call_codex_responses(base_url, model, messages, api_key='', provider_name=''
 
 
 
-def call_codex_completion(base_url, model, payload, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False, request_id=''):
+def call_codex_completion(base_url, model, payload, api_key='', provider_name='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, debug_mode=False, request_id=''):
     """Call OpenAI Codex Responses API with streaming SSE support"""
     url = base_url.rstrip('/') + '/responses'
     
@@ -3023,10 +4489,16 @@ def call_codex_completion(base_url, model, payload, api_key='', provider_name=''
         
         text = sanitize_visible_output(''.join(full_text))
         if text:
+            leak_reason = reject_visible_tool_call_leak(payload, text, [])
+            if leak_reason:
+                logger.warning(f"Codex responses {provider_name or base_url} {model}: {leak_reason}")
+                return False, leak_reason
             return True, build_openai_completion(
                 provider_name or 'openai-codex', model, request_id, text, [],
                 'stop', {'prompt_tokens': 0, 'completion_tokens': 0},
-                debug_mode=debug_mode
+                debug_mode=debug_mode,
+                allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object',
+                suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText'))
             )
         return False, 'Empty Codex response'
     except Exception as e:
@@ -3034,7 +4506,7 @@ def call_codex_completion(base_url, model, payload, api_key='', provider_name=''
 
 
 
-def call_anthropic(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, want_json=False):
+def call_anthropic(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, want_json=False):
     url = base_url.rstrip('/') + '/v1/messages'
     system_text = ''
     api_msgs = []
@@ -3078,7 +4550,7 @@ def call_anthropic(base_url, model, messages, api_key='', thinking=ThinkingLevel
         return False, extract_http_error(e)
 
 
-def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.MEDIUM, want_json=False):
+def call_google(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL, want_json=False):
     # Ensure base_url has /v1beta for Google API
     if 'generativelanguage.googleapis.com' in base_url and '/v1beta' not in base_url:
         base_url = base_url.rstrip('/') + '/v1beta'
@@ -3139,13 +4611,14 @@ def call_google(base_url, model, messages, api_key='', thinking=ThinkingLevel.ME
         return False, extract_http_error(e)
 
 
-def call_openai_compat_completion(base_url, model, payload, api_key='', provider_name='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False, request_id=''):
-    url = base_url.rstrip('/') + '/v1/chat/completions'
+def call_openai_compat_completion(base_url, model, payload, api_key='', provider_name='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, debug_mode=False, request_id=''):
+    url = openai_chat_completions_url(base_url)
     proxied = build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=supports_reasoning, thinking=thinking)
     logger.info(f"[openai-compat] Sending to {provider_name} with tools: {bool(proxied.get('tools'))}")
     try:
         data = json.dumps(proxied).encode()
         hdrs = {'Content-Type': 'application/json'}
+        add_openai_compat_headers(hdrs, provider_name)
         if api_key:
             hdrs['Authorization'] = f'Bearer {api_key}'
         req = urllib.request.Request(url, data=data, headers=hdrs)
@@ -3157,15 +4630,19 @@ def call_openai_compat_completion(base_url, model, payload, api_key='', provider
         raw_tool_calls = message.get('tool_calls')
         logger.info(f"[openai-compat] Response tool_calls: {raw_tool_calls}")
         tool_calls = normalize_tool_calls(raw_tool_calls)
+        leak_reason = reject_visible_tool_call_leak(payload, text, tool_calls)
+        if leak_reason:
+            logger.warning(f"OpenAI-compat {provider_name or base_url} {model}: {leak_reason}")
+            return False, leak_reason
         finish_reason = choice.get('finish_reason') or ('tool_calls' if tool_calls else 'stop')
-        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, body.get('usage'), debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
+        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, body.get('usage'), debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
     except Exception as e:
         err = extract_http_error(e)
         logger.warning(f"OpenAI-compat {provider_name or base_url} {model}: {err}")
         return False, err
 
 
-def call_ollama_completion(base_url, model, payload, api_key='', thinking=ThinkingLevel.MEDIUM, provider_name='ollama', debug_mode=False, request_id=''):
+def call_ollama_completion(base_url, model, payload, api_key='', thinking=DEFAULT_THINKING_LEVEL, provider_name='ollama', debug_mode=False, request_id=''):
     url = base_url.rstrip('/') + '/api/chat'
     hdrs = {'Content-Type': 'application/json'}
     if api_key:
@@ -3181,10 +4658,19 @@ def call_ollama_completion(base_url, model, payload, api_key='', thinking=Thinki
         raw_tool_calls = message.get('tool_calls')
         logger.info(f"[ollama] Response tool_calls: {raw_tool_calls}")
         tool_calls = normalize_tool_calls(raw_tool_calls)
+        leak_reason = reject_visible_tool_call_leak(payload, text, tool_calls)
+        if leak_reason:
+            logger.warning(f"Ollama {base_url} {model}: {leak_reason}")
+            return False, leak_reason
         finish_reason = 'tool_calls' if tool_calls else (body.get('done_reason') or 'stop')
-        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
+        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
     except Exception as e:
         err = extract_http_error(e)
+        if is_cloud_ollama_model(model) and 'HTTP 401' in err:
+            prov = PROVIDERS.get(provider_name)
+            if prov and is_local_ollama_provider(prov):
+                set_local_ollama_cloud_auth_block(provider_name, seconds=int(os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_AUTH_COOLDOWN_SECONDS', '3600')))
+                logger.warning(f"Ollama Cloud auth unavailable for local provider {provider_name}; suppressing local :cloud routing temporarily")
         logger.warning(f"Ollama {base_url} {model}: {err}")
         return False, err
 
@@ -3233,7 +4719,7 @@ def call_ollama_ocr(base_url, model, payload, request_id):
 
 
 def call_ngc(base_url, model, payload, api_key='', request_id=''):
-    url = base_url.rstrip('/') + '/v1/chat/completions'
+    url = openai_chat_completions_url(base_url)
     messages = payload.get('messages', [])
     headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'}
     req_payload = {'model': model, 'messages': messages, 'max_tokens': 4096}
@@ -3250,7 +4736,7 @@ def call_ngc(base_url, model, payload, api_key='', request_id=''):
         return False, extract_http_error(e)
 
 
-def call_anthropic_completion(base_url, model, payload, api_key='', thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False, request_id='', provider_name='anthropic'):
+def call_anthropic_completion(base_url, model, payload, api_key='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, debug_mode=False, request_id='', provider_name='anthropic'):
     url = base_url.rstrip('/') + '/v1/messages'
     system_text, api_msgs = openai_messages_to_anthropic(payload.get('messages', []))
     request_payload = {'model': model, 'max_tokens': thinking_max_tokens(thinking), 'messages': api_msgs}
@@ -3277,24 +4763,25 @@ def call_anthropic_completion(base_url, model, payload, api_key='', thinking=Thi
             body = json.loads(resp.read())
         text, tool_calls, stop_reason, usage = parse_anthropic_response(body)
         finish_reason = 'tool_calls' if tool_calls or stop_reason == 'tool_use' else 'stop'
-        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, usage, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
+        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, usage, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
     except Exception as e:
         err = extract_http_error(e)
         logger.warning(f"Anthropic {base_url} {model}: {err}")
         return False, err
 
 
-def call_google_completion(base_url, model, payload, api_key='', thinking=ThinkingLevel.MEDIUM, debug_mode=False, request_id=''):
+def call_google_completion(base_url, model, payload, api_key='', thinking=DEFAULT_THINKING_LEVEL, debug_mode=False, request_id=''):
     ok, text = call_google(base_url, model, payload.get('messages', []), api_key=api_key, thinking=thinking, want_json=payload.get('response_format', {}).get('type') == 'json_object')
     if not ok:
         return False, text
-    return True, build_openai_completion('google', model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object')
+    return True, build_openai_completion('google', model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
 
 
-def stream_openai_compat_to_client(self, provider, model, payload, request_id, thinking=ThinkingLevel.MEDIUM, supports_reasoning=False, debug_mode=False):
-    url = provider.base_url.rstrip('/') + '/v1/chat/completions'
+def stream_openai_compat_to_client(self, provider, model, payload, request_id, thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, debug_mode=False):
+    url = openai_chat_completions_url(provider.base_url)
     proxied = build_openai_proxy_payload(payload, model, stream=True, supports_reasoning=supports_reasoning, thinking=thinking)
     hdrs = {'Content-Type': 'application/json'}
+    add_openai_compat_headers(hdrs, provider.name)
     if provider.api_key:
         hdrs['Authorization'] = f'Bearer {provider.api_key}'
     req = urllib.request.Request(url, data=json.dumps(proxied).encode(), headers=hdrs)
@@ -3325,7 +4812,7 @@ def stream_openai_compat_to_client(self, provider, model, payload, request_id, t
     return True
 
 
-def stream_ollama_to_client(self, provider, model, payload, request_id, thinking=ThinkingLevel.MEDIUM, debug_mode=False):
+def stream_ollama_to_client(self, provider, model, payload, request_id, thinking=DEFAULT_THINKING_LEVEL, debug_mode=False):
     url = provider.base_url.rstrip('/') + '/api/chat'
     hdrs = {'Content-Type': 'application/json'}
     if provider.api_key:
@@ -3384,7 +4871,7 @@ def stream_ollama_to_client(self, provider, model, payload, request_id, thinking
     return True
 
 
-def stream_google_to_client(self, provider, model, payload, request_id, thinking=ThinkingLevel.MEDIUM, debug_mode=False):
+def stream_google_to_client(self, provider, model, payload, request_id, thinking=DEFAULT_THINKING_LEVEL, debug_mode=False):
     """Stream Google Generative AI responses via SSE."""
     base_url = provider.base_url
     # Ensure base_url has /v1beta for Google API
@@ -3522,6 +5009,8 @@ def write_openai_completion_as_sse(self, result, request_id):
 
 def handle_openai_chat_completions(self, payload, request_id, started, force_realtime=False):
     message_count = len(payload.get('messages', []) or [])
+    router_profile = apply_router_profile(payload)
+    discord_public_profile = apply_discord_public_route_profile(payload)
     thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning'))
     route_mode = normalize_route_mode(payload.get('route'))
     if force_realtime:
@@ -3533,7 +5022,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
     # Buffer provider responses and synthesize SSE for client streaming. This preserves fallback/empty-output detection even when OpenClaw streams with tools.
     want_stream = False
     debug_mode = normalize_debug_mode(payload)
-    logger.info(f"[{request_id}] Incoming /v1/chat/completions with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}, debug={debug_mode}")
+    logger.info(f"[{request_id}] Incoming /v1/chat/completions with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}, routerProfile={router_profile}, discordPublicProfile={discord_public_profile}, debug={debug_mode}")
 
     # Parse provider from model field (e.g., "openai-codex/gpt-5.5")
     _fp = payload.get('provider')
@@ -3544,7 +5033,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         if not _fp and _pp in PROVIDERS and _pp not in DISABLED_PROVIDERS:
             _fp = _pp
         _rm = _parts[1]
-    _, intent, complexity, estimated_tokens, chain = prepare_route(
+    normalized_messages, intent, complexity, estimated_tokens, chain = prepare_route(
         payload.get('messages', []),
         request_id=request_id,
         thinking=thinking,
@@ -3556,14 +5045,28 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         requested_model=_rm,
     )
 
+    provider_payload = payload
+    # For document/text extraction requests, send provider-compatible text instead of raw
+    # attachment blocks. Native image/vision requests keep the original multimodal payload.
+    if requirements.get('document') and not requirements.get('vision'):
+        provider_payload = dict(payload)
+        provider_payload['messages'] = enrich_document_messages(payload.get('messages', []))
+
     attempts = []
     overall_started = time.time()
     for pn, model in chain:
         if pn in DISABLED_PROVIDERS or pn not in PROVIDERS:
             continue
         prov = PROVIDERS[pn]
+        if model_disabled_reason(pn, model):
+            continue
         supports_reasoning = provider_supports_reasoning(prov, model)
-        logger.info(f"[{request_id}] Trying {pn}/{model} (api={prov.api_type}, reasoning={supports_reasoning}, stream={want_stream}, tools={bool(payload.get('tools'))})")
+        attempt_payload = provider_payload
+        if provider_payload.get('tools') and not model_capabilities(prov, model).get('tools'):
+            attempt_payload = dict(provider_payload)
+            attempt_payload.pop('tools', None)
+            attempt_payload.pop('tool_choice', None)
+        logger.info(f"[{request_id}] Trying {pn}/{model} (api={prov.api_type}, reasoning={supports_reasoning}, stream={want_stream}, tools={bool(attempt_payload.get('tools'))})")
         started_attempt = time.time()
         ok = False
         result = None
@@ -3571,51 +5074,51 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         try:
             if prov.api_type == 'openai-completions':
                 if want_stream:
-                    stream_openai_compat_to_client(self, prov, model, payload, request_id, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode)
+                    stream_openai_compat_to_client(self, prov, model, attempt_payload, request_id, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode)
                     ok = True
                 else:
-                    ok, result = call_openai_compat_completion(prov.base_url, model, payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_openai_compat_completion(prov.base_url, model, attempt_payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'ollama':
                 if is_ocr_model(model):
-                    ok, result = call_ollama_ocr(prov.base_url, model, payload, request_id)
+                    ok, result = call_ollama_ocr(prov.base_url, model, attempt_payload, request_id)
                     if not ok:
                         error_detail = result
                 elif want_stream:
-                    stream_ollama_to_client(self, prov, model, payload, request_id, thinking=thinking, debug_mode=debug_mode)
+                    stream_ollama_to_client(self, prov, model, attempt_payload, request_id, thinking=thinking, debug_mode=debug_mode)
                     ok = True
                 else:
-                    ok, result = call_ollama_completion(prov.base_url, model, payload, api_key=prov.api_key, thinking=thinking, provider_name=pn, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_ollama_completion(prov.base_url, model, attempt_payload, api_key=prov.api_key, thinking=thinking, provider_name=pn, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'anthropic-messages':
                 if want_stream:
                     error_detail = 'streaming passthrough not implemented for anthropic bridge'
                 else:
-                    ok, result = call_anthropic_completion(prov.base_url, model, payload, api_key=prov.api_key, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id, provider_name=pn)
+                    ok, result = call_anthropic_completion(prov.base_url, model, attempt_payload, api_key=prov.api_key, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id, provider_name=pn)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'google-generative-language':
                 if want_stream:
-                    stream_google_to_client(self, prov, model, payload, request_id, thinking=thinking, debug_mode=debug_mode)
+                    stream_google_to_client(self, prov, model, attempt_payload, request_id, thinking=thinking, debug_mode=debug_mode)
                     ok = True
                 else:
-                    ok, result = call_google_completion(prov.base_url, model, payload, api_key=prov.api_key, thinking=thinking, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_google_completion(prov.base_url, model, attempt_payload, api_key=prov.api_key, thinking=thinking, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'openai-codex-responses':
                 if want_stream:
                     error_detail = 'streaming not implemented for Codex responses'
                 else:
-                    ok, result = call_codex_completion(prov.base_url, model, payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_codex_completion(prov.base_url, model, attempt_payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
             elif prov.api_type == 'openclaw-gateway':
-                if want_stream or payload.get('tools'):
+                if want_stream or attempt_payload.get('tools'):
                     error_detail = 'streaming/tool passthrough unsupported for openclaw gateway bridge'
                 else:
-                    ok_text, text = call_openclaw_gateway(model, payload.get('messages', []), pn, thinking, want_json)
+                    ok_text, text = call_openclaw_gateway(model, attempt_payload.get('messages', []), pn, thinking, want_json)
                     ok = ok_text
                     if ok:
                         result = build_openai_completion(pn, model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=not want_json)
@@ -3625,7 +5128,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
                 if want_stream:
                     error_detail = f'streaming passthrough unsupported for {prov.api_type}'
                 else:
-                    ok, result = call_openai_compat_completion(prov.base_url, model, payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+                    ok, result = call_openai_compat_completion(prov.base_url, model, attempt_payload, api_key=prov.api_key, provider_name=pn, thinking=thinking, supports_reasoning=supports_reasoning, debug_mode=debug_mode, request_id=request_id)
                     if not ok:
                         error_detail = result
         except Exception as e:
@@ -3701,7 +5204,7 @@ def openai_to_google_response(result, request_model):
     }
 
 
-def prepare_route(messages, request_id='req-unknown', thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, want_json=False, streaming_mode=None, force_provider=None, requested_model=None):
+def prepare_route(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_LEVEL, route_mode='balanced', requirements=None, want_json=False, streaming_mode=None, force_provider=None, requested_model=None):
     normalized_messages = normalize_messages(messages)
     estimated_tokens = estimate_prompt_tokens(normalized_messages)
     user_text = latest_user_text(normalized_messages)
@@ -3714,6 +5217,10 @@ def prepare_route(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
     # If provider forced, build chain with only that provider's models
     if force_provider and force_provider in PROVIDERS and force_provider not in DISABLED_PROVIDERS:
         prov = PROVIDERS[force_provider]
+        if route_mode == 'local-first' and not provider_allowed_in_local_first(prov):
+            rejections = [{'provider': force_provider, 'model': requested_model or '*', 'reason': local_first_rejection_reason(prov)}]
+            LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': [], 'scores': [], 'rejections': rejections[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': 'forced provider rejected by local-first', 'totalElapsedMs': None, 'forcedProvider': force_provider})
+            return normalized_messages, intent, complexity, estimated_tokens, []
         if prov.api_type == 'ollama':
             fetch_ollama_models(prov)
         if prov.models and provider_endpoint_reachable(prov):
@@ -3731,9 +5238,27 @@ def prepare_route(messages, request_id='req-unknown', thinking=ThinkingLevel.MED
             elif requested_model and requested_model in all_models:
                 # Move requested model to front if it exists
                 all_models = [requested_model] + [m for m in all_models if m != requested_model]
-            chain = [(force_provider, model) for model in all_models[:MAX_PROVIDER_ATTEMPTS]]
+            filtered_models = []
+            forced_rejections = []
+            for model in all_models:
+                disabled_reason = model_disabled_reason(prov.name, model)
+                if disabled_reason:
+                    forced_rejections.append({'provider': force_provider, 'model': model, 'reason': disabled_reason})
+                    continue
+                if route_mode == 'local-first' and prov.api_type == 'ollama' and is_cloud_ollama_model(model):
+                    forced_rejections.append({'provider': force_provider, 'model': model, 'reason': 'excluded by local-first (:cloud model)'})
+                    continue
+                if not is_chat_capable_model(prov, model):
+                    forced_rejections.append({'provider': force_provider, 'model': model, 'reason': 'not chat-capable'})
+                    continue
+                ok_req, reason = model_meets_requirements(prov, model, requirements, estimated_tokens)
+                if not ok_req:
+                    forced_rejections.append({'provider': force_provider, 'model': model, 'reason': reason})
+                    continue
+                filtered_models.append(model)
+            chain = [(force_provider, model) for model in filtered_models[:MAX_PROVIDER_ATTEMPTS]]
             score_debug = [{'provider': force_provider, 'model': model, 'score': 100} for _, model in chain]
-            rejections = []
+            rejections = forced_rejections
             logger.info(f"[{request_id}] Chain (forced): {chain}")
             LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, **workflow_debug, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug, 'rejections': [], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider})
             return normalized_messages, intent, complexity, estimated_tokens, chain
@@ -3811,7 +5336,7 @@ def latest_user_text(messages):
     return messages[-1].get('content', '') if messages else ''
 
 
-def route_request(messages, request_id='req-unknown', thinking=ThinkingLevel.MEDIUM, route_mode='balanced', requirements=None, want_json=False):
+def route_request(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_LEVEL, route_mode='balanced', requirements=None, want_json=False):
     requirements = requirements or {}
     normalized_messages, intent, complexity, estimated_tokens, chain = prepare_route(
         messages,
@@ -3902,7 +5427,7 @@ def anthropic_to_openai_request(anthropic_payload):
             for block in content:
                 if isinstance(block, dict):
                     if block.get('type') == 'text':
-                        parts.append(block.get('text', ''))
+                        parts.append(str(block.get('text', '')))
                     elif block.get('type') == 'tool_use':
                         parts.append(f'[Tool Use: {block.get("name", "unknown")}] {json.dumps(block.get("input", {}))}')
                     elif block.get('type') == 'tool_result':
@@ -3930,6 +5455,10 @@ def anthropic_to_openai_request(anthropic_payload):
         'max_tokens': anthropic_payload.get('max_tokens', 4096),
         'stream': False,
         'temperature': anthropic_payload.get('temperature', 1.0),
+        'route': anthropic_payload.get('route'),
+        'thinking': anthropic_payload.get('thinking'),
+        'reasoning': anthropic_payload.get('reasoning'),
+        'requirements': anthropic_payload.get('requirements'),
     }
 
 
@@ -3942,6 +5471,9 @@ def handle_anthropic_messages(self, body, request_id, started):
         want_stream = anthropic_payload.get('stream', False)
         openai_payload = anthropic_to_openai_request(anthropic_payload)
         message_count = len(openai_payload.get('messages', []))
+        thinking = normalize_thinking(openai_payload.get('thinking') or openai_payload.get('reasoning'))
+        router_profile = apply_router_profile(openai_payload)
+        discord_public_profile = apply_discord_public_route_profile(openai_payload)
         thinking = normalize_thinking(openai_payload.get('thinking') or openai_payload.get('reasoning'))
         route_mode = normalize_route_mode(openai_payload.get('route'))
         requirements = normalize_requirements(openai_payload, thinking)
@@ -4024,12 +5556,28 @@ class Handler(BaseHTTPRequestHandler):
             headers['X-Sage-Workflow-Mode'] = LAST_ROUTE_DEBUG.get('workflowMode')
         return headers
 
+    def send_cors_headers(self):
+        origin = self.headers.get('Origin') or ''
+        allow_origin = '*'
+        if CORS_ORIGINS and '*' not in CORS_ORIGINS:
+            allow_origin = origin if origin in CORS_ORIGINS else CORS_ORIGINS[0]
+        self.send_header('Access-Control-Allow-Origin', allow_origin)
+        self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Vary', 'Origin')
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_cors_headers()
+        self.end_headers()
+
     def write_json(self, status_code, payload, extra_headers=None):
         body = json.dumps(payload).encode()
         try:
             self.send_response(status_code)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(body)))
+            self.send_cors_headers()
             for key, value in (extra_headers or {}).items():
                 if value:
                     self.send_header(key, str(value))
@@ -4039,19 +5587,37 @@ class Handler(BaseHTTPRequestHandler):
             logger.warning("Client disconnected before response could be written")
 
     def do_GET(self):
-        if self.path == '/health':
+        if self.path in ('', '/'):
+            self.write_json(200, {
+                "name": "Sage Router",
+                "status": "ok",
+                "description": "Local-first AI model router with OpenAI, Anthropic, Ollama, NVIDIA NIM, and agent-harness compatible endpoints.",
+                "endpoints": {
+                    "health": "/health",
+                    "models": "/v1/models",
+                    "chatCompletions": "/v1/chat/completions",
+                    "anthropicMessages": "/v1/messages",
+                    "googleGenerateContent": "/v1beta/models/{model}:generateContent",
+                    "discovery": "/discovery",
+                    "analytics": "/analytics?days=7"
+                },
+                "docs": "https://sagerouter.dev",
+                "source": "https://github.com/earlvanze/sage-router"
+            })
+        elif self.path == '/health':
             self.write_json(200, {
                 "status": "ok",
                 "providers": available_provider_names(),
                 "configured": list(PROVIDERS.keys()),
                 "disabled": sorted(DISABLED_PROVIDERS),
+                "disabledModels": sorted(DISABLED_MODELS),
                 "thinking": {
-                    "default": ThinkingLevel.MEDIUM.value,
+                    "default": DEFAULT_THINKING_LEVEL.value,
                     "accepted": [level.value for level in ThinkingLevel],
-                    "routeModes": ["fast", "balanced", "best", "local-first", "realtime"],
+                    "routeModes": ["fast", "balanced", "deep", "best", "local-first", "local-strict", "realtime"],
                 },
                 "requirements": {
-                    "supportedKeys": ["reasoning", "json", "tools", "longContext", "streaming"]
+                    "supportedKeys": ["reasoning", "json", "tools", "longContext", "document", "vision", "streaming"]
                 },
                 "intentClassifier": {
                     "enabled": INTENT_CLASSIFIER_ENABLED,
@@ -4080,6 +5646,15 @@ class Handler(BaseHTTPRequestHandler):
                 "lastRoute": LAST_ROUTE_DEBUG,
                 "blocks": {key: {"until": info["until"], "reason": info["reason"]} for key, info in TEMP_MODEL_BLOCKS.items()},
             })
+        elif self.path.startswith('/analytics'):
+            if not analytics_authorized(self):
+                self.write_json(401, {'error': 'unauthorized'})
+                return
+            parsed = urllib.parse.urlparse(self.path)
+            qs = urllib.parse.parse_qs(parsed.query)
+            days = float((qs.get('days') or ['7'])[0] or 7)
+            limit = int((qs.get('limit') or [ANALYTICS_EVENT_LIMIT])[0] or ANALYTICS_EVENT_LIMIT)
+            self.write_json(200, build_analytics_snapshot(days * 24 * 3600, limit))
         elif self.path == '/admin/clear-blocks':
             count = len(TEMP_MODEL_BLOCKS)
             TEMP_MODEL_BLOCKS.clear()
@@ -4203,5 +5778,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--port',type=int,default=8788); args = parser.parse_args()
     ensure_background_refresh_started()
     server = ThreadingHTTPServer(('0.0.0.0', args.port), Handler)
-    logger.info(f"Router on :{args.port} | configured={list(PROVIDERS.keys())} | disabled={sorted(DISABLED_PROVIDERS)}")
+    logger.info(f"Router on :{args.port} | configured={list(PROVIDERS.keys())} | disabled={sorted(DISABLED_PROVIDERS)} disabledModels={sorted(DISABLED_MODELS)}")
     server.serve_forever()
