@@ -1,7 +1,35 @@
 {
   "profiles": {
-    "discord-public": {
-      "description": "Public Discord-facing responses. Strict approved frontier model families only.",
+    "frontier-large": {
+      "description": "Strict frontier/large-model-only routing.",
+      "route": "best",
+      "thinking": "high",
+      "requiresQuality": true,
+      "requiresReasoning": true,
+      "frontierLargeOnly": true
+    },
+    "fast-local": {
+      "description": "Low-latency local/LAN routing.",
+      "route": "local-first",
+      "thinking": "low"
+    },
+    "coding-max": {
+      "description": "High-thinking coding route.",
+      "route": "best",
+      "thinking": "high",
+      "requiresReasoning": true,
+      "qualitySensitive": true,
+      "denyModels": [
+        "*mini*",
+        "*haiku*",
+        "*1.2b*",
+        "*3b*",
+        "*7b*",
+        "*8b*"
+      ]
+    },
+    "frontier": {
+      "description": "Default high-quality frontier routing profile for local agents.",
       "route": "best",
       "thinking": "high",
       "requiresQuality": true,
@@ -66,34 +94,6 @@
         "preferBullets": "1-3 when useful",
         "expandOnlyWhenAsked": true
       }
-    },
-    "frontier-large": {
-      "description": "Strict frontier/large-model-only routing.",
-      "route": "best",
-      "thinking": "high",
-      "requiresQuality": true,
-      "requiresReasoning": true,
-      "frontierLargeOnly": true
-    },
-    "fast-local": {
-      "description": "Low-latency local/LAN routing.",
-      "route": "local-first",
-      "thinking": "low"
-    },
-    "coding-max": {
-      "description": "High-thinking coding route.",
-      "route": "best",
-      "thinking": "high",
-      "requiresReasoning": true,
-      "qualitySensitive": true,
-      "denyModels": [
-        "*mini*",
-        "*haiku*",
-        "*1.2b*",
-        "*3b*",
-        "*7b*",
-        "*8b*"
-      ]
     }
   }
 }
