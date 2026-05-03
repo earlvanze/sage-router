@@ -1,6 +1,8 @@
 # Hosted provider secrets for Cloud Run Sage Router
 
-Cloud Run Sage Router can now keep upstream provider credentials server-side. Client apps only send a Sage Router subscription key via `Authorization: Bearer <client-key>`.
+Cloud Run Sage Router can now keep upstream provider credentials server-side. Premium client apps can send only a Sage Router subscription key via `Authorization: Bearer <client-key>`.
+
+This does **not** deprecate pass-through user subscriptions. Bring-your-own-key/user-subscription routing remains supported and should stay available alongside hosted-provider routing. Hosted credentials are an additional managed-provider option, not a replacement.
 
 Create these Secret Manager secrets before deploy, using dedicated hosted-router credentials, not personal/local OpenClaw keys:
 
