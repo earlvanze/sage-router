@@ -84,6 +84,23 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
             router.reject_visible_tool_call_leak(payload, text, []),
         )
 
+
+    def test_sanitizes_reasoning_alias_blocks(self):
+        self.assertEqual('Final answer.', router.sanitize_visible_output('<think>private</think> Final answer.'))
+        self.assertEqual('Visible.', router.sanitize_visible_output('<thinking>private</thinking>Visible.'))
+        self.assertEqual('Done.', router.sanitize_visible_output('<analysis>secret chain</analysis>Done.'))
+        self.assertEqual('Answer only.', router.sanitize_visible_output('old scratch</reasoning>Answer only.'))
+
+    def test_sanitizes_visible_tool_invocation_blocks(self):
+        text = """Before.
+```tool_code
+{"cmd":"ls /tmp"}
+```
+After."""
+        self.assertEqual('Before.\nAfter.', router.sanitize_visible_output(text))
+        self.assertEqual('Final.', router.sanitize_visible_output('{\"cmd\":\"cd /tmp && ls\"}\nFinal.'))
+        self.assertEqual('Final.', router.sanitize_visible_output('functions.exec(command=\"ls\")\nFinal.'))
+
     def test_normalized_tool_arguments_stay_openai_compatible(self):
         call = {'function': {'name': 'message', 'arguments': {'action': 'send', 'message': 'hi'}}}
         converted = router.openai_tool_calls([call])

@@ -1800,15 +1800,39 @@ def reject_visible_tool_call_leak(payload, text: str, tool_calls) -> str:
     return ''
 
 def sanitize_visible_output(text: str):
+    """Remove provider-private reasoning/tool scratch from visible text.
+
+    Several upstreams return non-OpenAI fields correctly, but some local or
+    OpenAI-compatible models leak reasoning as literal <think>/<thinking> blocks
+    or emit tool invocations as prose/code instead of structured tool_calls. The
+    router must never pass those scratch channels through to end users.
+    """
     raw = text or ''
     if not raw:
         return ''
-    cleaned = _re.sub(r'<think>.*?</think>\s*', '', raw, flags=_re.IGNORECASE | _re.DOTALL)
-    if cleaned == raw and '</think>' in raw.lower():
-        cleaned = _re.split(r'</think>', raw, flags=_re.IGNORECASE)[-1]
-    cleaned = _re.sub(r'</?think>', '', cleaned, flags=_re.IGNORECASE)
+    cleaned = str(raw)
+
+    # Strip common reasoning/scratchpad blocks. Include aliases used by local
+    # reasoning models and OpenAI-compatible gateways.
+    for tag in ('think', 'thinking', 'reasoning', 'analysis', 'scratchpad'):
+        cleaned = _re.sub(rf'<{tag}\b[^>]*>.*?</{tag}>\s*', '', cleaned, flags=_re.IGNORECASE | _re.DOTALL)
+        if f'</{tag}>' in cleaned.lower():
+            cleaned = _re.split(rf'</{tag}>', cleaned, flags=_re.IGNORECASE)[-1]
+        cleaned = _re.sub(rf'</?{tag}\b[^>]*>', '', cleaned, flags=_re.IGNORECASE)
+
+    # Strip fenced/labelled tool-call scratch that should have been structured.
+    cleaned = _re.sub(r'```\s*(?:tool_code|tool_call|tool|tools)\b.*?```\s*', '', cleaned, flags=_re.IGNORECASE | _re.DOTALL)
+    cleaned = _re.sub(r'<tool_call\b[^>]*>.*?</tool_call>\s*', '', cleaned, flags=_re.IGNORECASE | _re.DOTALL)
+    cleaned = _re.sub(r'</?tool_call\b[^>]*>', '', cleaned, flags=_re.IGNORECASE)
+
+    # Remove standalone JSON-ish command/tool invocation lines. Keep this narrow
+    # and line-oriented so normal explanatory text about tools is preserved.
+    cleaned = _re.sub(r'(?m)^\s*(?:to\s*=\s*)?(?:functions\.)?(?:exec|read|browser|message|web_search|web_fetch|pdf)\s*(?:\(|\{).*$\n?', '', cleaned)
+    cleaned = _re.sub(r'(?m)^\s*tool_code\s*$\n?', '', cleaned, flags=_re.IGNORECASE)
+    cleaned = _re.sub(r'(?m)^\s*\{\s*["\'](?:cmd|command|path|tool|name)["\']\s*:\s*.*\}\s*$\n?', '', cleaned, flags=_re.IGNORECASE)
+
     cleaned = cleaned.strip()
-    return cleaned or raw.strip()
+    return cleaned
 
 
 def is_ocr_model(model: str) -> bool:
@@ -1820,7 +1844,7 @@ def is_ocr_model(model: str) -> bool:
 
 def normalize_tool_calls(tool_calls):
     normalized = []
-    logger.debug(f"normalize_tool_calls input: {tool_calls}")
+    logger.debug(f"normalize_tool_calls input count: {len(tool_calls or [])}")
     for idx, tool_call in enumerate(tool_calls or []):
         if not isinstance(tool_call, dict):
             logger.debug(f"Skipping non-dict tool_call: {tool_call}")
@@ -1843,8 +1867,8 @@ def normalize_tool_calls(tool_calls):
                 'arguments': arguments if isinstance(arguments, dict) else {},
             },
         })
-        logger.debug(f"Normalized tool call: name={name}, arguments={arguments}")
-    logger.debug(f"normalize_tool_calls output: {normalized}")
+        logger.debug(f"Normalized tool call: name={name}, has_arguments={bool(arguments)}")
+    logger.debug(f"normalize_tool_calls output count: {len(normalized)}")
     return normalized
 
 
@@ -5040,7 +5064,7 @@ def call_openai_compat_completion(base_url, model, payload, api_key='', provider
         message = choice.get('message') or {}
         text = sanitize_visible_output(message.get('content', '') or '')
         raw_tool_calls = message.get('tool_calls')
-        logger.info(f"[openai-compat] Response tool_calls: {raw_tool_calls}")
+        logger.info(f"[openai-compat] Response tool_calls: {len(raw_tool_calls or [])}")
         tool_calls = normalize_tool_calls(raw_tool_calls)
         leak_reason = reject_visible_tool_call_leak(payload, text, tool_calls)
         if leak_reason:
@@ -5068,7 +5092,7 @@ def call_ollama_completion(base_url, model, payload, api_key='', thinking=DEFAUL
         message = body.get('message', {}) or {}
         text = sanitize_visible_output(message.get('content', '') or '')
         raw_tool_calls = message.get('tool_calls')
-        logger.info(f"[ollama] Response tool_calls: {raw_tool_calls}")
+        logger.info(f"[ollama] Response tool_calls: {len(raw_tool_calls or [])}")
         tool_calls = normalize_tool_calls(raw_tool_calls)
         leak_reason = reject_visible_tool_call_leak(payload, text, tool_calls)
         if leak_reason:
