@@ -184,5 +184,43 @@ class SaaSAuthTests(unittest.TestCase):
             self.assertEqual(expected, handler.payload['error'])
 
 
+class AnalyticsModelConsolidationTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.old = {
+            'ROUTE_EVENTS_PATH': router.ROUTE_EVENTS_PATH,
+            'FIRESTORE_ENABLED': router.FIRESTORE_ENABLED,
+            'SUPABASE_MIRROR_ENABLED': router.SUPABASE_MIRROR_ENABLED,
+        }
+        router.ROUTE_EVENTS_PATH = os.path.join(self.tmp.name, 'route-events.jsonl')
+        router.FIRESTORE_ENABLED = False
+        router.SUPABASE_MIRROR_ENABLED = False
+
+    def tearDown(self):
+        router.ROUTE_EVENTS_PATH = self.old['ROUTE_EVENTS_PATH']
+        router.FIRESTORE_ENABLED = self.old['FIRESTORE_ENABLED']
+        router.SUPABASE_MIRROR_ENABLED = self.old['SUPABASE_MIRROR_ENABLED']
+        self.tmp.cleanup()
+
+    def test_analytics_consolidates_provider_prefixed_model_chains(self):
+        router.append_route_event({
+            'request_id': 'r1', 'status': 'ok', 'intent': 'GENERAL',
+            'selected': {'provider': 'openrouter', 'model': 'anthropic/claude-sonnet-4.5'},
+            'attempts': [{'provider': 'openrouter', 'model': 'anthropic/claude-sonnet-4.5', 'ok': True, 'elapsedMs': 100}],
+            'totalElapsedMs': 100,
+        })
+        router.append_route_event({
+            'request_id': 'r2', 'status': 'ok', 'intent': 'GENERAL',
+            'selected': {'provider': 'anthropic', 'model': 'claude-sonnet-4.5'},
+            'attempts': [{'provider': 'anthropic', 'model': 'claude-sonnet-4.5', 'ok': True, 'elapsedMs': 200}],
+            'totalElapsedMs': 200,
+        })
+        snapshot = router.build_analytics_snapshot(7 * 24 * 3600)
+        model_rows = {row['id']: row for row in snapshot['models']}
+        self.assertIn('claude-sonnet-4.5', model_rows)
+        self.assertEqual(2, model_rows['claude-sonnet-4.5']['requests'])
+        self.assertEqual(['anthropic', 'openrouter'], model_rows['claude-sonnet-4.5']['providers'])
+
+
 if __name__ == '__main__':
     unittest.main()

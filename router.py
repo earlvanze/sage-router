@@ -3014,6 +3014,41 @@ def percentile(values, pct):
     return round(values[lo] + (values[hi] - values[lo]) * (pos - lo), 2)
 
 
+ANALYTICS_MODEL_PREFIXES = {
+    'anthropic', 'claude', 'openai', 'google', 'gemini', 'vertex', 'openrouter',
+    'ollama', 'ollama-cloud', 'nvidia', 'nvidia-nim', 'cloudflare', 'workers-ai',
+    'xai', 'grok', 'zai', 'darkbloom', 'github', 'copilot', 'codex', 'models',
+}
+
+
+def analytics_model_id(provider, model):
+    """Return a stable display/grouping key for analytics model rows.
+
+    Providers often expose chain-like IDs such as
+    ``openrouter/anthropic/claude-...`` while another route records
+    ``anthropic/claude-...``.  For the analytics UI these are the same
+    underlying model, so strip transport/provider namespace segments and group
+    repeated models together.  Provider-level rows still preserve provider
+    reliability separately.
+    """
+    parts = [p.strip() for p in str(model or '').split('/') if p.strip()]
+    if not parts:
+        return 'unknown'
+    provider_names = {str(provider or '').strip().lower()}
+    provider_names.update(str(name).strip().lower() for name in (PROVIDERS.keys() if isinstance(PROVIDERS, dict) else []))
+    while len(parts) > 1:
+        head = parts[0].lower()
+        if head in ANALYTICS_MODEL_PREFIXES or head in provider_names:
+            parts.pop(0)
+            continue
+        break
+    return '/'.join(parts) or str(model or 'unknown')
+
+
+def provider_model_id(provider, model):
+    return f'{provider or "unknown"}/{model or "unknown"}'
+
+
 def build_analytics_snapshot(window_seconds=7 * 24 * 3600, event_limit=None, customer_id=None):
     """Build provider/model performance analytics for the paid observability layer."""
     now = int(time.time())
@@ -3039,6 +3074,8 @@ def build_analytics_snapshot(window_seconds=7 * 24 * 3600, event_limit=None, cus
             'attemptFailures': 0,
             'latencies': [],
             'lastSeenAt': 0,
+            'providers': set(),
+            'providerModels': set(),
         })
         return row
 
@@ -3059,8 +3096,11 @@ def build_analytics_snapshot(window_seconds=7 * 24 * 3600, event_limit=None, cus
         if selected:
             provider = selected.get('provider') or 'unknown'
             model = selected.get('model') or 'unknown'
-            for table, key in ((provider_rows, provider), (model_rows, f'{provider}/{model}')):
+            for table, key in ((provider_rows, provider), (model_rows, analytics_model_id(provider, model))):
                 row = row_for(table, key)
+                if table is model_rows:
+                    row['providers'].add(provider)
+                    row['providerModels'].add(provider_model_id(provider, model))
                 row['requests'] += 1
                 row['successes' if status_ok else 'failures'] += 1
                 if isinstance(total_ms, (int, float)):
@@ -3072,8 +3112,11 @@ def build_analytics_snapshot(window_seconds=7 * 24 * 3600, event_limit=None, cus
             model = attempt.get('model') or 'unknown'
             ok = bool(attempt.get('ok'))
             elapsed = attempt.get('elapsedMs')
-            for table, key in ((provider_rows, provider), (model_rows, f'{provider}/{model}')):
+            for table, key in ((provider_rows, provider), (model_rows, analytics_model_id(provider, model))):
                 row = row_for(table, key)
+                if table is model_rows:
+                    row['providers'].add(provider)
+                    row['providerModels'].add(provider_model_id(provider, model))
                 row['attempts'] += 1
                 if not ok:
                     row['attemptFailures'] += 1
@@ -3083,9 +3126,11 @@ def build_analytics_snapshot(window_seconds=7 * 24 * 3600, event_limit=None, cus
     for intent, providers in (LATENCY_STATS.get('intents') or {}).items():
         for provider, models in (providers or {}).items():
             for model, stat in (models or {}).items():
-                key = f'{provider}/{model}'
-                for table, row_key in ((provider_rows, provider), (model_rows, key)):
+                for table, row_key in ((provider_rows, provider), (model_rows, analytics_model_id(provider, model))):
                     row = row_for(table, row_key)
+                    if table is model_rows:
+                        row['providers'].add(provider)
+                        row['providerModels'].add(provider_model_id(provider, model))
                     successes = int(stat.get('successes', 0) or 0)
                     failures = int(stat.get('failures', 0) or 0)
                     if row['requests'] == 0:
@@ -3097,7 +3142,7 @@ def build_analytics_snapshot(window_seconds=7 * 24 * 3600, event_limit=None, cus
                         row['latencies'].append(float(ewma))
                     row['lastSeenAt'] = max(row['lastSeenAt'], int(stat.get('updated_at', 0) or 0))
 
-    def finalize(table):
+    def finalize(table, include_model_fields=False):
         out = []
         for key, row in table.items():
             requests = int(row['requests'])
@@ -3108,7 +3153,7 @@ def build_analytics_snapshot(window_seconds=7 * 24 * 3600, event_limit=None, cus
             lats = row.pop('latencies', [])
             success_rate = (successes / requests) if requests else None
             attempt_failure_rate = (attempt_failures / attempts) if attempts else None
-            out.append({
+            item = {
                 'id': key,
                 'requests': requests,
                 'successes': successes,
@@ -3120,10 +3165,14 @@ def build_analytics_snapshot(window_seconds=7 * 24 * 3600, event_limit=None, cus
                 'p95Ms': percentile(lats, 0.95),
                 'avgMs': round(sum(lats) / len(lats), 2) if lats else None,
                 'lastSeenAt': row.get('lastSeenAt') or None,
-            })
+            }
+            if include_model_fields:
+                item['providers'] = sorted(row.get('providers') or [])
+                item['providerModels'] = sorted(row.get('providerModels') or [])
+            out.append(item)
         return sorted(out, key=lambda x: (-(x.get('successRate') or 0), x.get('p50Ms') or 999999, -x.get('requests', 0)))
 
-    models = finalize(model_rows)
+    models = finalize(model_rows, include_model_fields=True)
     providers = finalize(provider_rows)
     intents = finalize(intent_rows)
     best_fast = [m for m in models if m.get('successRate') is not None and m.get('p50Ms') is not None][:10]
