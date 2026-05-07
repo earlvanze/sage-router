@@ -135,7 +135,7 @@ Profile fields currently supported:
 - constraints: `allowProviders`, `denyProviders`, `allowModels`, `denyModels`, `minParamsB`
 
 Current profiles:
-- `frontier`: default high-quality frontier routing profile. Forces best/high, reasoning, quality-sensitive, suppresses tool-call narration, and blocks tiny/free filler models.
+- `frontier`: default high-quality frontier routing profile. Forces best/high, quality-sensitive routing, suppresses tool-call narration, and blocks weak/tiny filler models without hard-pinning a brittle frontier allowlist.
 - `frontier-large`: strict frontier-large-only routing.
 - `fast-local`: low-latency local-first routing.
 - `coding-max`: high-thinking code route with weak model exclusions.

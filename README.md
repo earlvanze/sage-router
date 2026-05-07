@@ -631,7 +631,7 @@ Profiles live in `router-profiles.json` and can set:
 
 Bundled profiles:
 
-- `frontier` — public-channel quality profile, high thinking, quality/reasoning required, tiny/free filler models blocked, tool-call narration suppressed
+- `frontier` — default high-quality profile, high thinking, quality-sensitive routing, weak/tiny models blocked, tool-call narration suppressed
 - `frontier-large` — strict frontier/large-model-only routing
 - `fast-local` — low-latency local-first routing
 - `coding-max` — high-thinking coding route with weak model exclusions
