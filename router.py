@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Sage Router - Dynamic provider discovery and routing"""
-import argparse, base64, hmac, ipaddress, json, logging, math, os, re, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, base64, hashlib, hmac, ipaddress, json, logging, math, os, re, secrets, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
 from dataclasses import dataclass
 from enum import Enum, auto
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -107,6 +107,9 @@ SUPABASE_ANON_KEY = os.environ.get('SAGE_ROUTER_SUPABASE_ANON_KEY') or os.enviro
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_SERVICE_ROLE') or os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or ''
 SUPABASE_ROUTE_EVENTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_ROUTE_EVENTS_TABLE', 'sage_router_route_events')
 SUPABASE_ANALYTICS_SNAPSHOTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_ANALYTICS_SNAPSHOTS_TABLE', 'sage_router_analytics_snapshots')
+SUPABASE_CUSTOMERS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_CUSTOMERS_TABLE', 'sage_router_customers')
+SUPABASE_API_KEYS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_API_KEYS_TABLE', 'sage_router_api_keys')
+SUPABASE_PAYMENT_INTENTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_PAYMENT_INTENTS_TABLE', 'sage_router_payment_intents')
 SUPABASE_MIRROR_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_MIRROR_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
 SUPABASE_AUTH_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_AUTH_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
 CLIENT_API_KEYS = [
@@ -117,6 +120,20 @@ CLIENT_API_KEYS = [
 CLIENT_AUTH_REQUIRED = os.environ.get('SAGE_ROUTER_CLIENT_AUTH_REQUIRED', '1' if CLIENT_API_KEYS else '0').strip().lower() in {'1', 'true', 'yes', 'on'}
 CORS_ORIGIN = os.environ.get('SAGE_ROUTER_CORS_ORIGIN', '*')
 CORS_ORIGINS = [o.strip() for o in CORS_ORIGIN.split(',') if o.strip()]
+ROUTE_AUTH_CONTEXT = threading.local()
+CUSTOMER_STORE_PATH = os.path.expanduser(os.environ.get('SAGE_ROUTER_CUSTOMER_STORE_PATH', '~/.cache/sage-router/customers.json'))
+API_KEY_PREFIX = os.environ.get('SAGE_ROUTER_API_KEY_PREFIX', 'sk_sage_')
+API_KEY_HASH_PEPPER = os.environ.get('SAGE_ROUTER_API_KEY_HASH_PEPPER') or os.environ.get('SAGE_ROUTER_SIGNING_SECRET') or ''
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY') or os.environ.get('SAGE_ROUTER_STRIPE_SECRET_KEY') or ''
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET') or os.environ.get('SAGE_ROUTER_STRIPE_WEBHOOK_SECRET') or ''
+STRIPE_PRICE_ID = os.environ.get('SAGE_ROUTER_STRIPE_PRICE_ID') or os.environ.get('STRIPE_PRICE_ID') or ''
+PUBLIC_BASE_URL = (os.environ.get('SAGE_ROUTER_PUBLIC_BASE_URL') or 'https://sagerouter.dev').rstrip('/')
+API_BASE_URL = (os.environ.get('SAGE_ROUTER_API_BASE_URL') or '').rstrip('/')
+CRYPTO_PAYMENT_ADDRESS = os.environ.get('SAGE_ROUTER_CRYPTO_PAYMENT_ADDRESS', '').strip()
+CRYPTO_PAYMENT_ASSET = os.environ.get('SAGE_ROUTER_CRYPTO_PAYMENT_ASSET', 'USDC').strip()
+CRYPTO_PAYMENT_NETWORK = os.environ.get('SAGE_ROUTER_CRYPTO_PAYMENT_NETWORK', 'manual').strip()
+CRYPTO_PROCESSOR_URL = os.environ.get('SAGE_ROUTER_CRYPTO_PROCESSOR_URL', '').strip()
+CRYPTO_PROCESSOR_KEY = os.environ.get('SAGE_ROUTER_CRYPTO_PROCESSOR_KEY', '').strip()
 LATENCY_EWMA_ALPHA = float(os.environ.get('SAGE_ROUTER_LATENCY_EWMA_ALPHA', '0.35'))
 GENERAL_EMPIRICAL_EXPLORATION_BONUS = float(os.environ.get('SAGE_ROUTER_GENERAL_EXPLORATION_BONUS', '20'))
 GENERAL_EMPIRICAL_SUCCESS_EXPLORATION_CAP = float(os.environ.get('SAGE_ROUTER_GENERAL_SUCCESS_EXPLORATION_CAP', '8'))
@@ -2712,17 +2729,39 @@ def sanitize_route_event(event):
     allowed = {
         'request_id', 'ts', 'status', 'intent', 'complexity', 'thinking', 'routeMode',
         'estimatedTokens', 'json', 'stream', 'requirements', 'selected', 'attempts',
-        'totalElapsedMs', 'chain', 'error'
+        'totalElapsedMs', 'chain', 'error', 'customer_id', 'customer_plan', 'auth_type'
     }
     clean = {k: v for k, v in dict(event or {}).items() if k in allowed}
     clean.setdefault('ts', int(time.time()))
     return clean
 
 
+def route_auth_metadata_from_context(ctx):
+    ctx = ctx or {}
+    customer = ctx.get('customer') or {}
+    meta = {'auth_type': ctx.get('type') or 'unknown'}
+    if customer.get('id'):
+        meta['customer_id'] = customer.get('id')
+    if customer.get('plan'):
+        meta['customer_plan'] = customer.get('plan')
+    return meta
+
+
+def set_route_auth_context(ctx):
+    ROUTE_AUTH_CONTEXT.value = route_auth_metadata_from_context(ctx)
+
+
+def clear_route_auth_context():
+    ROUTE_AUTH_CONTEXT.value = {}
+
+
 def append_route_event(event):
     """Persist one structured routing event locally, then mirror durable telemetry async."""
     try:
         os.makedirs(os.path.dirname(ROUTE_EVENTS_PATH), exist_ok=True)
+        event = dict(event or {})
+        for key, value in (getattr(ROUTE_AUTH_CONTEXT, 'value', {}) or {}).items():
+            event.setdefault(key, value)
         event = sanitize_route_event(event)
         with open(ROUTE_EVENTS_PATH, 'a') as f:
             f.write(json.dumps(event, sort_keys=True, separators=(',', ':')) + '\n')
@@ -2975,7 +3014,7 @@ def percentile(values, pct):
     return round(values[lo] + (values[hi] - values[lo]) * (pos - lo), 2)
 
 
-def build_analytics_snapshot(window_seconds=7 * 24 * 3600, event_limit=None):
+def build_analytics_snapshot(window_seconds=7 * 24 * 3600, event_limit=None, customer_id=None):
     """Build provider/model performance analytics for the paid observability layer."""
     now = int(time.time())
     since = now - int(window_seconds or 0) if window_seconds else 0
@@ -2985,6 +3024,8 @@ def build_analytics_snapshot(window_seconds=7 * 24 * 3600, event_limit=None):
         durable_events = read_supabase_route_events(window_seconds, event_limit)
         source = 'supabase' if durable_events else 'local'
     events = durable_events or [e for e in read_recent_route_events(event_limit) if int(e.get('ts', 0) or 0) >= since]
+    if customer_id:
+        events = [e for e in events if str(e.get('customer_id') or '') == str(customer_id)]
     provider_rows = {}
     model_rows = {}
     intent_rows = {}
@@ -3095,6 +3136,7 @@ def build_analytics_snapshot(window_seconds=7 * 24 * 3600, event_limit=None):
         'windowSeconds': int(window_seconds or 0),
         'eventsAnalyzed': len(events),
         'source': source,
+        'scope': {'customer_id': str(customer_id)} if customer_id else {'customer_id': None},
         'privacy': {
             'promptsStored': False,
             'messageBodiesStored': False,
@@ -3134,6 +3176,304 @@ def bearer_token(handler):
     return auth[7:].strip() if auth.lower().startswith('bearer ') else ''
 
 
+def now_epoch():
+    return int(time.time())
+
+
+def local_customer_store():
+    try:
+        with open(CUSTOMER_STORE_PATH) as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            data.setdefault('customers', [])
+            data.setdefault('api_keys', [])
+            data.setdefault('payment_intents', [])
+            return data
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        logger.debug(f'Local customer store read failed: {e}')
+    return {'customers': [], 'api_keys': [], 'payment_intents': []}
+
+
+def write_local_customer_store(data):
+    os.makedirs(os.path.dirname(CUSTOMER_STORE_PATH), exist_ok=True)
+    tmp = CUSTOMER_STORE_PATH + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(data, f, indent=2, sort_keys=True)
+    os.replace(tmp, CUSTOMER_STORE_PATH)
+
+
+def customer_store_uses_supabase():
+    return bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
+
+
+def supabase_select(table, query, timeout=8):
+    return supabase_request(f'/rest/v1/{table}?{query}', service=True, timeout=timeout) or []
+
+
+def supabase_insert(table, row, timeout=8):
+    return supabase_request(
+        f'/rest/v1/{table}',
+        method='POST',
+        body=row,
+        service=True,
+        extra_headers={'Prefer': 'return=representation'},
+        timeout=timeout,
+    ) or []
+
+
+def supabase_patch(table, row_id, updates, timeout=8):
+    quoted = urllib.parse.quote(str(row_id), safe='')
+    return supabase_request(
+        f'/rest/v1/{table}?id=eq.{quoted}',
+        method='PATCH',
+        body=updates,
+        service=True,
+        extra_headers={'Prefer': 'return=representation'},
+        timeout=timeout,
+    ) or []
+
+
+def normalize_customer(row):
+    if not isinstance(row, dict):
+        return None
+    row = dict(row)
+    row.setdefault('plan', 'free')
+    row.setdefault('status', 'inactive')
+    row.setdefault('created_at_epoch', now_epoch())
+    row.setdefault('updated_at_epoch', row.get('created_at_epoch') or now_epoch())
+    return row
+
+
+def public_customer(row):
+    row = normalize_customer(row) or {}
+    return {
+        'id': row.get('id'),
+        'user_id': row.get('user_id'),
+        'email': row.get('email'),
+        'plan': row.get('plan') or 'free',
+        'status': row.get('status') or 'inactive',
+        'stripe_customer_id': row.get('stripe_customer_id') or '',
+        'stripe_subscription_id': row.get('stripe_subscription_id') or '',
+        'created_at_epoch': row.get('created_at_epoch'),
+        'updated_at_epoch': row.get('updated_at_epoch'),
+    }
+
+
+def customer_is_active(customer):
+    status = str((customer or {}).get('status') or '').lower()
+    plan = str((customer or {}).get('plan') or '').lower()
+    return status in {'active', 'trialing', 'manual', 'paid'} and plan not in {'', 'free', 'inactive'}
+
+
+def customer_for_user(user, create=True):
+    if not user or not user.get('id'):
+        return None
+    user_id = str(user.get('id'))
+    email = user.get('email') or ((user.get('user_metadata') or {}).get('email'))
+    if customer_store_uses_supabase():
+        quoted = urllib.parse.quote(user_id, safe='')
+        rows = supabase_select(SUPABASE_CUSTOMERS_TABLE, f'select=*&user_id=eq.{quoted}&limit=1')
+        if rows:
+            return normalize_customer(rows[0])
+        if not create:
+            return None
+        row = {
+            'id': uuid.uuid4().hex,
+            'user_id': user_id,
+            'email': email,
+            'plan': 'free',
+            'status': 'inactive',
+            'created_at_epoch': now_epoch(),
+            'updated_at_epoch': now_epoch(),
+        }
+        rows = supabase_insert(SUPABASE_CUSTOMERS_TABLE, row)
+        return normalize_customer(rows[0] if rows else row)
+
+    data = local_customer_store()
+    for row in data.get('customers', []):
+        if row.get('user_id') == user_id:
+            return normalize_customer(row)
+    if not create:
+        return None
+    row = {
+        'id': uuid.uuid4().hex,
+        'user_id': user_id,
+        'email': email,
+        'plan': 'free',
+        'status': 'inactive',
+        'created_at_epoch': now_epoch(),
+        'updated_at_epoch': now_epoch(),
+    }
+    data['customers'].append(row)
+    write_local_customer_store(data)
+    return normalize_customer(row)
+
+
+def api_key_hash(raw_key):
+    material = (API_KEY_HASH_PEPPER + raw_key).encode('utf-8')
+    return hashlib.sha256(material).hexdigest()
+
+
+def generate_api_key():
+    return API_KEY_PREFIX + secrets.token_urlsafe(32)
+
+
+def key_prefix(raw_key):
+    return raw_key[:16]
+
+
+def public_api_key(row):
+    return {
+        'id': row.get('id'),
+        'name': row.get('name') or '',
+        'prefix': row.get('prefix') or '',
+        'status': row.get('status') or 'active',
+        'plan': row.get('plan') or '',
+        'created_at_epoch': row.get('created_at_epoch'),
+        'last_used_at_epoch': row.get('last_used_at_epoch'),
+        'revoked_at_epoch': row.get('revoked_at_epoch'),
+    }
+
+
+def api_keys_for_customer(customer_id):
+    if customer_store_uses_supabase():
+        quoted = urllib.parse.quote(str(customer_id), safe='')
+        return supabase_select(SUPABASE_API_KEYS_TABLE, f'select=*&customer_id=eq.{quoted}&order=created_at_epoch.desc')
+    data = local_customer_store()
+    return [r for r in data.get('api_keys', []) if r.get('customer_id') == customer_id]
+
+
+def create_api_key_for_customer(customer, name='Default'):
+    raw_key = generate_api_key()
+    row = {
+        'id': uuid.uuid4().hex,
+        'customer_id': customer.get('id'),
+        'user_id': customer.get('user_id'),
+        'name': (name or 'Default')[:80],
+        'prefix': key_prefix(raw_key),
+        'api_key_hash': api_key_hash(raw_key),
+        'status': 'active',
+        'plan': customer.get('plan') or 'free',
+        'created_at_epoch': now_epoch(),
+        'last_used_at_epoch': None,
+        'revoked_at_epoch': None,
+    }
+    if customer_store_uses_supabase():
+        rows = supabase_insert(SUPABASE_API_KEYS_TABLE, row)
+        row = rows[0] if rows else row
+    else:
+        data = local_customer_store()
+        data['api_keys'].append(row)
+        write_local_customer_store(data)
+    return raw_key, row
+
+
+def revoke_api_key_for_customer(customer_id, key_id):
+    if customer_store_uses_supabase():
+        rows = supabase_select(
+            SUPABASE_API_KEYS_TABLE,
+            f'select=*&id=eq.{urllib.parse.quote(str(key_id), safe="")}&customer_id=eq.{urllib.parse.quote(str(customer_id), safe="")}&limit=1',
+        )
+        if not rows:
+            return None
+        updated = supabase_patch(SUPABASE_API_KEYS_TABLE, key_id, {
+            'status': 'revoked',
+            'revoked_at_epoch': now_epoch(),
+        })
+        return updated[0] if updated else {**rows[0], 'status': 'revoked', 'revoked_at_epoch': now_epoch()}
+    data = local_customer_store()
+    found = None
+    for row in data.get('api_keys', []):
+        if row.get('id') == key_id and row.get('customer_id') == customer_id:
+            row['status'] = 'revoked'
+            row['revoked_at_epoch'] = now_epoch()
+            found = row
+            break
+    if found:
+        write_local_customer_store(data)
+    return found
+
+
+def mark_api_key_used(key_id):
+    try:
+        if customer_store_uses_supabase():
+            supabase_patch(SUPABASE_API_KEYS_TABLE, key_id, {'last_used_at_epoch': now_epoch()}, timeout=4)
+        else:
+            data = local_customer_store()
+            for row in data.get('api_keys', []):
+                if row.get('id') == key_id:
+                    row['last_used_at_epoch'] = now_epoch()
+                    break
+            write_local_customer_store(data)
+    except Exception as e:
+        logger.debug(f'API key last-used update failed: {extract_http_error(e)}')
+
+
+def verify_generated_api_key(raw_key):
+    if not raw_key or not raw_key.startswith(API_KEY_PREFIX):
+        return None
+    digest = api_key_hash(raw_key)
+    rows = []
+    if customer_store_uses_supabase():
+        rows = supabase_select(SUPABASE_API_KEYS_TABLE, f'select=*&api_key_hash=eq.{urllib.parse.quote(digest, safe="")}&limit=1')
+    else:
+        rows = [r for r in local_customer_store().get('api_keys', []) if hmac.compare_digest(str(r.get('api_key_hash') or ''), digest)]
+    if not rows:
+        return None
+    key = rows[0]
+    if str(key.get('status') or '').lower() != 'active':
+        return None
+    customer = customer_by_id(key.get('customer_id'))
+    if not customer_is_active(customer):
+        return None
+    mark_api_key_used(key.get('id'))
+    return {'type': 'generated_key', 'key': key, 'customer': customer}
+
+
+def customer_by_id(customer_id):
+    if not customer_id:
+        return None
+    if customer_store_uses_supabase():
+        rows = supabase_select(SUPABASE_CUSTOMERS_TABLE, f'select=*&id=eq.{urllib.parse.quote(str(customer_id), safe="")}&limit=1')
+        return normalize_customer(rows[0]) if rows else None
+    for row in local_customer_store().get('customers', []):
+        if row.get('id') == customer_id:
+            return normalize_customer(row)
+    return None
+
+
+def customer_by_stripe_customer_id(stripe_customer_id):
+    if not stripe_customer_id:
+        return None
+    if customer_store_uses_supabase():
+        rows = supabase_select(SUPABASE_CUSTOMERS_TABLE, f'select=*&stripe_customer_id=eq.{urllib.parse.quote(str(stripe_customer_id), safe="")}&limit=1')
+        return normalize_customer(rows[0]) if rows else None
+    for row in local_customer_store().get('customers', []):
+        if row.get('stripe_customer_id') == stripe_customer_id:
+            return normalize_customer(row)
+    return None
+
+
+def update_customer(customer_id, updates):
+    updates = dict(updates or {})
+    updates['updated_at_epoch'] = now_epoch()
+    if customer_store_uses_supabase():
+        rows = supabase_patch(SUPABASE_CUSTOMERS_TABLE, customer_id, updates)
+        return normalize_customer(rows[0]) if rows else customer_by_id(customer_id)
+    data = local_customer_store()
+    found = None
+    for row in data.get('customers', []):
+        if row.get('id') == customer_id:
+            row.update(updates)
+            found = row
+            break
+    if found:
+        write_local_customer_store(data)
+    return normalize_customer(found)
+
+
 def token_matches_any(token, allowed_tokens):
     if not token:
         return False
@@ -3144,20 +3484,128 @@ def analytics_authorized(handler):
     bearer = bearer_token(handler)
     if ANALYTICS_TOKEN and hmac.compare_digest(bearer, ANALYTICS_TOKEN):
         return True
-    if supabase_user_for_bearer(bearer):
+    if token_matches_any(bearer, CLIENT_API_KEYS):
+        return True
+    generated = verify_generated_api_key(bearer)
+    if generated:
+        return True
+    user = supabase_user_for_bearer(bearer)
+    if user and customer_is_active(customer_for_user(user, create=False)):
         return True
     return not ANALYTICS_TOKEN and not SUPABASE_AUTH_ENABLED
 
 
-def client_request_authorized(handler):
+def client_auth_context(handler):
     if not CLIENT_AUTH_REQUIRED:
-        return True
+        return {'type': 'disabled'}
     bearer = bearer_token(handler)
     if token_matches_any(bearer, CLIENT_API_KEYS):
-        return True
-    if supabase_user_for_bearer(bearer):
-        return True
-    return False
+        return {'type': 'legacy_key'}
+    generated = verify_generated_api_key(bearer)
+    if generated:
+        return generated
+    return None
+
+
+def client_request_authorized(handler):
+    return bool(client_auth_context(handler))
+
+
+def read_json_body(handler):
+    length = int(handler.headers.get('Content-Length', 0) or 0)
+    raw = handler.rfile.read(length) if length else b'{}'
+    try:
+        return json.loads(raw or b'{}')
+    except Exception:
+        return {}
+
+
+def authenticated_user(handler):
+    user = supabase_user_for_bearer(bearer_token(handler))
+    return user if user and user.get('id') else None
+
+
+def require_user_customer(handler):
+    user = authenticated_user(handler)
+    if not user:
+        handler.write_json(401, {'error': 'unauthorized'})
+        return None, None
+    try:
+        customer = customer_for_user(user, create=True)
+    except Exception as e:
+        logger.warning(f'Customer lookup failed: {extract_http_error(e)}')
+        handler.write_json(502, {'error': 'customer_store_unavailable'})
+        return None, None
+    return user, customer
+
+
+def form_encode(fields):
+    return urllib.parse.urlencode({k: v for k, v in fields.items() if v is not None}).encode('utf-8')
+
+
+def stripe_request(path, fields, timeout=10):
+    if not STRIPE_SECRET_KEY:
+        return None
+    req = urllib.request.Request(
+        'https://api.stripe.com' + path,
+        data=form_encode(fields),
+        method='POST',
+        headers={
+            'Authorization': f'Bearer {STRIPE_SECRET_KEY}',
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode('utf-8'))
+
+
+def store_payment_intent(row):
+    row.setdefault('id', uuid.uuid4().hex)
+    row.setdefault('created_at_epoch', now_epoch())
+    row.setdefault('updated_at_epoch', now_epoch())
+    if customer_store_uses_supabase():
+        rows = supabase_insert(SUPABASE_PAYMENT_INTENTS_TABLE, row)
+        return rows[0] if rows else row
+    data = local_customer_store()
+    data['payment_intents'].append(row)
+    write_local_customer_store(data)
+    return row
+
+
+def payment_intent_for_customer(customer_id, intent_id):
+    if customer_store_uses_supabase():
+        rows = supabase_select(
+            SUPABASE_PAYMENT_INTENTS_TABLE,
+            f'select=*&id=eq.{urllib.parse.quote(str(intent_id), safe="")}&customer_id=eq.{urllib.parse.quote(str(customer_id), safe="")}&limit=1',
+        )
+        return rows[0] if rows else None
+    for row in local_customer_store().get('payment_intents', []):
+        if row.get('id') == intent_id and row.get('customer_id') == customer_id:
+            return row
+    return None
+
+
+def verify_stripe_signature(payload, signature_header, tolerance_seconds=300):
+    if not STRIPE_WEBHOOK_SECRET:
+        return False
+    parts = {}
+    for piece in (signature_header or '').split(','):
+        if '=' in piece:
+            k, v = piece.split('=', 1)
+            parts.setdefault(k, []).append(v)
+    timestamp = (parts.get('t') or [''])[0]
+    try:
+        timestamp_int = int(timestamp)
+    except Exception:
+        return False
+    if tolerance_seconds and abs(now_epoch() - timestamp_int) > int(tolerance_seconds):
+        return False
+    expected = hmac.new(
+        STRIPE_WEBHOOK_SECRET.encode('utf-8'),
+        f'{timestamp}.{payload.decode("utf-8", errors="replace")}'.encode('utf-8'),
+        hashlib.sha256,
+    ).hexdigest()
+    return any(hmac.compare_digest(expected, sig) for sig in parts.get('v1', []))
 
 
 def get_latency_stat(intent_name, provider_name, model):
@@ -6014,7 +6462,7 @@ class Handler(BaseHTTPRequestHandler):
         if CORS_ORIGINS and '*' not in CORS_ORIGINS:
             allow_origin = origin if origin in CORS_ORIGINS else CORS_ORIGINS[0]
         self.send_header('Access-Control-Allow-Origin', allow_origin)
-        self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type, Stripe-Signature')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Vary', 'Origin')
 
@@ -6051,7 +6499,12 @@ class Handler(BaseHTTPRequestHandler):
                     "anthropicMessages": "/v1/messages",
                     "googleGenerateContent": "/v1beta/models/{model}:generateContent",
                     "discovery": "/discovery",
-                    "analytics": "/analytics?days=7"
+                    "analytics": "/analytics?days=7",
+                    "account": "/account",
+                    "apiKeys": "/account/api-keys",
+                    "plan": "/account/plan",
+                    "stripeCheckout": "/billing/stripe/checkout",
+                    "cryptoPayment": "/billing/crypto/intent"
                 },
                 "docs": "https://sagerouter.dev",
                 "source": "https://github.com/earlvanze/sage-router"
@@ -6098,6 +6551,26 @@ class Handler(BaseHTTPRequestHandler):
                 "lastRoute": LAST_ROUTE_DEBUG,
                 "blocks": {key: {"until": info["until"], "reason": info["reason"]} for key, info in TEMP_MODEL_BLOCKS.items()},
             })
+        elif self.path == '/account':
+            _user, customer = require_user_customer(self)
+            if not customer:
+                return
+            self.write_json(200, {'customer': public_customer(customer)})
+        elif self.path == '/account/plan':
+            _user, customer = require_user_customer(self)
+            if not customer:
+                return
+            self.write_json(200, {
+                'plan': customer.get('plan') or 'free',
+                'status': customer.get('status') or 'inactive',
+                'routing_enabled': customer_is_active(customer),
+                'customer': public_customer(customer),
+            })
+        elif self.path == '/account/api-keys':
+            _user, customer = require_user_customer(self)
+            if not customer:
+                return
+            self.write_json(200, {'api_keys': [public_api_key(k) for k in api_keys_for_customer(customer.get('id'))]})
         elif self.path.startswith('/analytics'):
             if not analytics_authorized(self):
                 self.write_json(401, {'error': 'unauthorized'})
@@ -6107,6 +6580,32 @@ class Handler(BaseHTTPRequestHandler):
             days = float((qs.get('days') or ['7'])[0] or 7)
             limit = int((qs.get('limit') or [ANALYTICS_EVENT_LIMIT])[0] or ANALYTICS_EVENT_LIMIT)
             self.write_json(200, build_analytics_snapshot(days * 24 * 3600, limit))
+        elif self.path.startswith('/account/analytics'):
+            user = authenticated_user(self)
+            generated = verify_generated_api_key(bearer_token(self))
+            customer = customer_for_user(user, create=False) if user else (generated or {}).get('customer')
+            if not customer_is_active(customer):
+                self.write_json(401, {'error': 'unauthorized'})
+                return
+            parsed = urllib.parse.urlparse(self.path)
+            qs = urllib.parse.parse_qs(parsed.query)
+            days = float((qs.get('days') or ['7'])[0] or 7)
+            limit = int((qs.get('limit') or [ANALYTICS_EVENT_LIMIT])[0] or ANALYTICS_EVENT_LIMIT)
+            snapshot = build_analytics_snapshot(days * 24 * 3600, limit, customer_id=customer.get('id'))
+            snapshot['account'] = {'customer_id': customer.get('id'), 'plan': customer.get('plan'), 'status': customer.get('status')}
+            self.write_json(200, snapshot)
+        elif self.path.startswith('/billing/crypto/status'):
+            _user, customer = require_user_customer(self)
+            if not customer:
+                return
+            parsed = urllib.parse.urlparse(self.path)
+            qs = urllib.parse.parse_qs(parsed.query)
+            intent_id = (qs.get('id') or [''])[0]
+            intent = payment_intent_for_customer(customer.get('id'), intent_id) if intent_id else None
+            if not intent:
+                self.write_json(404, {'error': 'payment_intent_not_found'})
+                return
+            self.write_json(200, {'intent': intent})
         elif self.path == '/admin/clear-blocks':
             count = len(TEMP_MODEL_BLOCKS)
             TEMP_MODEL_BLOCKS.clear()
@@ -6179,61 +6678,183 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
+        if self.path == '/account/api-keys':
+            _user, customer = require_user_customer(self)
+            if not customer:
+                return
+            payload = read_json_body(self)
+            raw_key, row = create_api_key_for_customer(customer, payload.get('name') or 'Default')
+            self.write_json(201, {'api_key': public_api_key(row), 'key': raw_key})
+            return
+        if self.path.startswith('/account/api-keys/') and self.path.endswith('/revoke'):
+            _user, customer = require_user_customer(self)
+            if not customer:
+                return
+            key_id = self.path.split('/')[3]
+            row = revoke_api_key_for_customer(customer.get('id'), key_id)
+            if not row:
+                self.write_json(404, {'error': 'api_key_not_found'})
+                return
+            self.write_json(200, {'api_key': public_api_key(row)})
+            return
+        if self.path == '/billing/stripe/checkout':
+            _user, customer = require_user_customer(self)
+            if not customer:
+                return
+            if not (STRIPE_SECRET_KEY and STRIPE_PRICE_ID):
+                self.write_json(503, {'error': 'stripe_not_configured', 'required_env': ['STRIPE_SECRET_KEY or SAGE_ROUTER_STRIPE_SECRET_KEY', 'SAGE_ROUTER_STRIPE_PRICE_ID or STRIPE_PRICE_ID']})
+                return
+            try:
+                session = stripe_request('/v1/checkout/sessions', {
+                    'mode': 'subscription',
+                    'line_items[0][price]': STRIPE_PRICE_ID,
+                    'line_items[0][quantity]': '1',
+                    'success_url': f'{PUBLIC_BASE_URL}/analytics.html?checkout=success',
+                    'cancel_url': f'{PUBLIC_BASE_URL}/analytics.html?checkout=cancel',
+                    'client_reference_id': customer.get('id'),
+                    'customer_email': customer.get('email') or '',
+                    'metadata[customer_id]': customer.get('id'),
+                    'metadata[user_id]': customer.get('user_id'),
+                    'subscription_data[metadata][customer_id]': customer.get('id'),
+                    'subscription_data[metadata][user_id]': customer.get('user_id'),
+                })
+                self.write_json(200, {'checkout_url': session.get('url'), 'session_id': session.get('id')})
+            except Exception as e:
+                logger.warning(f'Stripe checkout failed: {extract_http_error(e)}')
+                self.write_json(502, {'error': 'stripe_checkout_failed'})
+            return
+        if self.path == '/billing/stripe/webhook':
+            length = int(self.headers.get('Content-Length', 0) or 0)
+            raw = self.rfile.read(length) if length else b'{}'
+            if not STRIPE_WEBHOOK_SECRET:
+                self.write_json(503, {'error': 'stripe_webhook_not_configured', 'required_env': ['STRIPE_WEBHOOK_SECRET or SAGE_ROUTER_STRIPE_WEBHOOK_SECRET']})
+                return
+            if not verify_stripe_signature(raw, self.headers.get('Stripe-Signature') or ''):
+                self.write_json(400, {'error': 'invalid_signature'})
+                return
+            try:
+                event = json.loads(raw or b'{}')
+            except Exception:
+                event = {}
+            event_type = event.get('type')
+            obj = ((event.get('data') or {}).get('object') or {}) if isinstance(event, dict) else {}
+            metadata = obj.get('metadata') or {}
+            customer_id = metadata.get('customer_id') or obj.get('client_reference_id')
+            if not customer_id:
+                existing = customer_by_stripe_customer_id(obj.get('customer'))
+                customer_id = (existing or {}).get('id')
+            if customer_id and event_type == 'checkout.session.completed':
+                update_customer(customer_id, {
+                    'plan': 'pro',
+                    'status': 'active',
+                    'stripe_customer_id': obj.get('customer') or '',
+                    'stripe_subscription_id': obj.get('subscription') or '',
+                })
+            elif customer_id and event_type in {'customer.subscription.updated', 'customer.subscription.created'}:
+                status = obj.get('status') or 'active'
+                update_customer(customer_id, {
+                    'plan': 'pro',
+                    'status': 'active' if status in {'active', 'trialing'} else status,
+                    'stripe_customer_id': obj.get('customer') or '',
+                    'stripe_subscription_id': obj.get('id') or '',
+                })
+            elif customer_id and event_type == 'customer.subscription.deleted':
+                update_customer(customer_id, {'status': 'inactive'})
+            store_payment_intent({'kind': 'stripe_webhook', 'status': 'received', 'event_type': event.get('type'), 'event_id': event.get('id')})
+            self.write_json(200, {'received': True})
+            return
+        if self.path == '/billing/crypto/intent':
+            _user, customer = require_user_customer(self)
+            if not customer:
+                return
+            if CRYPTO_PROCESSOR_URL and CRYPTO_PROCESSOR_KEY:
+                self.write_json(501, {'error': 'crypto_processor_not_implemented', 'message': 'Processor configuration is present, but this incremental build only supports manual crypto intents.'})
+                return
+            if not CRYPTO_PAYMENT_ADDRESS:
+                self.write_json(503, {'error': 'crypto_not_configured', 'required_env': ['SAGE_ROUTER_CRYPTO_PAYMENT_ADDRESS']})
+                return
+            payload = read_json_body(self)
+            intent = store_payment_intent({
+                'kind': 'crypto_manual',
+                'customer_id': customer.get('id'),
+                'user_id': customer.get('user_id'),
+                'status': 'pending_manual_review',
+                'asset': payload.get('asset') or CRYPTO_PAYMENT_ASSET,
+                'network': payload.get('network') or CRYPTO_PAYMENT_NETWORK,
+                'amount': payload.get('amount') or '',
+                'address': CRYPTO_PAYMENT_ADDRESS,
+                'metadata': {
+                    'settlement': 'manual',
+                    'automatic_settlement': False,
+                    'note': payload.get('note') or '',
+                },
+            })
+            self.write_json(201, {'intent': intent})
+            return
+
         model_endpoint = (
             self.path in ['/v1/chat/completions', '/chat/completions', '/v1/messages', '/messages', '/v1/realtime', '/realtime']
             or ':generateContent' in self.path
             or ':streamGenerateContent' in self.path
         )
-        if model_endpoint and not client_request_authorized(self):
-            self.write_json(401, {'error': 'unauthorized'})
-            return
+        auth_context = None
+        if model_endpoint:
+            auth_context = client_auth_context(self)
+            if not auth_context:
+                self.write_json(401, {'error': 'unauthorized'})
+                return
+            set_route_auth_context(auth_context)
 
-        if self.path in ['/v1/chat/completions', '/chat/completions']:
-            body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
-            request_id = uuid.uuid4().hex[:8]
-            started = time.time()
-            try:
-                payload = json.loads(body or b'{}')
-                handle_openai_chat_completions(self, payload, request_id, started)
-            except Exception as e:
-                logger.exception(f"[{request_id}] Request handling failed")
-                self.write_json(500, {"error": str(e)}, extra_headers={'X-Sage-Router-Request-Id': request_id})
-        elif self.path in ['/v1/messages', '/messages']:
-            body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
-            request_id = uuid.uuid4().hex[:8]
-            started = time.time()
-            handle_anthropic_messages(self, body, request_id, started)
-        elif self.path in ['/v1/realtime', '/realtime']:
-            # Ultra-low-latency realtime endpoint with aggressive streaming
-            body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
-            request_id = uuid.uuid4().hex[:8]
-            started = time.time()
-            try:
-                payload = json.loads(body or b'{}')
-                # Force realtime route mode and streaming
-                payload['route'] = 'realtime'
-                payload['stream'] = True
-                handle_openai_chat_completions(self, payload, request_id, started, force_realtime=True)
-            except Exception as e:
-                logger.exception(f"[{request_id}] Realtime request failed")
-                self.write_json(500, {"error": str(e)}, extra_headers={'X-Sage-Router-Request-Id': request_id})
-        elif ':generateContent' in self.path or ':streamGenerateContent' in self.path:
-            # Google Generative AI compat: /v1beta/models/{model}:generateContent
-            import re
-            match = re.match(r'.*/models/([^:]+):(generateContent|streamGenerateContent)', self.path)
-            if match:
+        try:
+            if self.path in ['/v1/chat/completions', '/chat/completions']:
                 body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
                 request_id = uuid.uuid4().hex[:8]
                 started = time.time()
-                model_name = match.group(1)
-                want_stream = match.group(2) == 'streamGenerateContent'
-                handle_google_generate(self, body, request_id, started, model_name, want_stream)
+                try:
+                    payload = json.loads(body or b'{}')
+                    handle_openai_chat_completions(self, payload, request_id, started)
+                except Exception as e:
+                    logger.exception(f"[{request_id}] Request handling failed")
+                    self.write_json(500, {"error": str(e)}, extra_headers={'X-Sage-Router-Request-Id': request_id})
+            elif self.path in ['/v1/messages', '/messages']:
+                body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+                request_id = uuid.uuid4().hex[:8]
+                started = time.time()
+                handle_anthropic_messages(self, body, request_id, started)
+            elif self.path in ['/v1/realtime', '/realtime']:
+                # Ultra-low-latency realtime endpoint with aggressive streaming
+                body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+                request_id = uuid.uuid4().hex[:8]
+                started = time.time()
+                try:
+                    payload = json.loads(body or b'{}')
+                    # Force realtime route mode and streaming
+                    payload['route'] = 'realtime'
+                    payload['stream'] = True
+                    handle_openai_chat_completions(self, payload, request_id, started, force_realtime=True)
+                except Exception as e:
+                    logger.exception(f"[{request_id}] Realtime request failed")
+                    self.write_json(500, {"error": str(e)}, extra_headers={'X-Sage-Router-Request-Id': request_id})
+            elif ':generateContent' in self.path or ':streamGenerateContent' in self.path:
+                # Google Generative AI compat: /v1beta/models/{model}:generateContent
+                import re
+                match = re.match(r'.*/models/([^:]+):(generateContent|streamGenerateContent)', self.path)
+                if match:
+                    body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+                    request_id = uuid.uuid4().hex[:8]
+                    started = time.time()
+                    model_name = match.group(1)
+                    want_stream = match.group(2) == 'streamGenerateContent'
+                    handle_google_generate(self, body, request_id, started, model_name, want_stream)
+                else:
+                    self.send_response(404)
+                    self.end_headers()
             else:
                 self.send_response(404)
                 self.end_headers()
-        else:
-            self.send_response(404)
-            self.end_headers()
+        finally:
+            if auth_context is not None:
+                clear_route_auth_context()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--port',type=int,default=8788); args = parser.parse_args()

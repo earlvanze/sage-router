@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+import json
+import os
+import tempfile
+import unittest
+from io import BytesIO
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+os.environ.setdefault('SAGE_ROUTER_DARIO_AUTOSTART', '0')
+os.environ.setdefault('SAGE_ROUTER_BUNDLED_OLLAMA_AUTOSTART', '0')
+os.environ.setdefault('SAGE_ROUTER_SUPABASE_AUTH_ENABLED', '0')
+
+import sys
+sys.path.insert(0, str(ROOT))
+import router  # noqa: E402
+
+
+class SaaSAuthTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.old = {
+            'CUSTOMER_STORE_PATH': router.CUSTOMER_STORE_PATH,
+            'SUPABASE_URL': router.SUPABASE_URL,
+            'SUPABASE_SERVICE_ROLE_KEY': router.SUPABASE_SERVICE_ROLE_KEY,
+            'CLIENT_API_KEYS': list(router.CLIENT_API_KEYS),
+            'CLIENT_AUTH_REQUIRED': router.CLIENT_AUTH_REQUIRED,
+            'STRIPE_SECRET_KEY': router.STRIPE_SECRET_KEY,
+            'STRIPE_PRICE_ID': router.STRIPE_PRICE_ID,
+            'CRYPTO_PAYMENT_ADDRESS': router.CRYPTO_PAYMENT_ADDRESS,
+            'supabase_user_for_bearer': router.supabase_user_for_bearer,
+            'ROUTE_EVENTS_PATH': router.ROUTE_EVENTS_PATH,
+            'FIRESTORE_ENABLED': router.FIRESTORE_ENABLED,
+            'SUPABASE_MIRROR_ENABLED': router.SUPABASE_MIRROR_ENABLED,
+        }
+        router.CUSTOMER_STORE_PATH = os.path.join(self.tmp.name, 'customers.json')
+        router.SUPABASE_URL = ''
+        router.SUPABASE_SERVICE_ROLE_KEY = ''
+        router.CLIENT_API_KEYS = []
+        router.CLIENT_AUTH_REQUIRED = True
+        router.STRIPE_SECRET_KEY = ''
+        router.STRIPE_PRICE_ID = ''
+        router.CRYPTO_PAYMENT_ADDRESS = ''
+        router.ROUTE_EVENTS_PATH = os.path.join(self.tmp.name, 'route-events.jsonl')
+        router.FIRESTORE_ENABLED = False
+        router.SUPABASE_MIRROR_ENABLED = False
+
+    def tearDown(self):
+        router.CUSTOMER_STORE_PATH = self.old['CUSTOMER_STORE_PATH']
+        router.SUPABASE_URL = self.old['SUPABASE_URL']
+        router.SUPABASE_SERVICE_ROLE_KEY = self.old['SUPABASE_SERVICE_ROLE_KEY']
+        router.CLIENT_API_KEYS = self.old['CLIENT_API_KEYS']
+        router.CLIENT_AUTH_REQUIRED = self.old['CLIENT_AUTH_REQUIRED']
+        router.STRIPE_SECRET_KEY = self.old['STRIPE_SECRET_KEY']
+        router.STRIPE_PRICE_ID = self.old['STRIPE_PRICE_ID']
+        router.CRYPTO_PAYMENT_ADDRESS = self.old['CRYPTO_PAYMENT_ADDRESS']
+        router.supabase_user_for_bearer = self.old['supabase_user_for_bearer']
+        router.ROUTE_EVENTS_PATH = self.old['ROUTE_EVENTS_PATH']
+        router.FIRESTORE_ENABLED = self.old['FIRESTORE_ENABLED']
+        router.SUPABASE_MIRROR_ENABLED = self.old['SUPABASE_MIRROR_ENABLED']
+        self.tmp.cleanup()
+
+    def active_customer(self):
+        customer = router.customer_for_user({'id': 'user-1', 'email': 'u@example.com'})
+        data = router.local_customer_store()
+        data['customers'][0]['plan'] = 'pro'
+        data['customers'][0]['status'] = 'active'
+        router.write_local_customer_store(data)
+        return router.customer_for_user({'id': 'user-1'}, create=False)
+
+    def test_generated_key_is_hashed_and_verifies_when_active(self):
+        customer = self.active_customer()
+        raw, row = router.create_api_key_for_customer(customer, 'prod')
+        self.assertNotIn(raw, json.dumps(router.local_customer_store()))
+        self.assertEqual(router.api_key_hash(raw), row['api_key_hash'])
+        ctx = router.verify_generated_api_key(raw)
+        self.assertEqual('generated_key', ctx['type'])
+        self.assertEqual(customer['id'], ctx['customer']['id'])
+
+    def test_revoked_and_inactive_generated_keys_do_not_authorize(self):
+        customer = self.active_customer()
+        raw, row = router.create_api_key_for_customer(customer, 'prod')
+        router.revoke_api_key_for_customer(customer['id'], row['id'])
+        self.assertIsNone(router.verify_generated_api_key(raw))
+
+        customer = router.customer_for_user({'id': 'user-2', 'email': 'u2@example.com'})
+        raw, _row = router.create_api_key_for_customer(customer, 'inactive')
+        self.assertIsNone(router.verify_generated_api_key(raw))
+
+
+    def test_route_events_are_scoped_to_generated_customer_keys(self):
+        customer = self.active_customer()
+        raw, _row = router.create_api_key_for_customer(customer, 'prod')
+        ctx = router.verify_generated_api_key(raw)
+        router.set_route_auth_context(ctx)
+        try:
+            router.append_route_event({
+                'request_id': 'r1',
+                'status': 'ok',
+                'intent': 'GENERAL',
+                'selected': {'provider': 'test', 'model': 'fast'},
+                'attempts': [{'provider': 'test', 'model': 'fast', 'ok': True, 'elapsedMs': 10}],
+                'totalElapsedMs': 10,
+            })
+        finally:
+            router.clear_route_auth_context()
+        router.append_route_event({
+            'request_id': 'r2',
+            'status': 'ok',
+            'intent': 'GENERAL',
+            'selected': {'provider': 'other', 'model': 'slow'},
+            'attempts': [],
+            'totalElapsedMs': 20,
+            'customer_id': 'other-customer',
+        })
+        snapshot = router.build_analytics_snapshot(7 * 24 * 3600, customer_id=customer['id'])
+        self.assertEqual(1, snapshot['eventsAnalyzed'])
+        self.assertEqual(customer['id'], snapshot['scope']['customer_id'])
+        self.assertIn('test', [p['id'] for p in snapshot['providers']])
+
+    def test_legacy_key_still_authorizes(self):
+        router.CLIENT_API_KEYS = ['legacy-key']
+
+        class H:
+            headers = {'Authorization': 'Bearer legacy-key'}
+
+        self.assertTrue(router.client_request_authorized(H()))
+
+    def test_arbitrary_supabase_jwt_is_not_paid_routing(self):
+        router.supabase_user_for_bearer = lambda token: {'id': 'user-1', 'email': 'u@example.com'}
+
+        class H:
+            headers = {'Authorization': 'Bearer valid-user-jwt'}
+
+        self.assertFalse(router.client_request_authorized(H()))
+
+
+    def test_stripe_signature_requires_current_timestamp(self):
+        secret = 'whsec_test'
+        router.STRIPE_WEBHOOK_SECRET = secret
+        payload = b'{"id":"evt_test"}'
+        fresh_ts = str(router.now_epoch())
+        fresh_sig = router.hmac.new(secret.encode(), f'{fresh_ts}.{payload.decode()}'.encode(), router.hashlib.sha256).hexdigest()
+        self.assertTrue(router.verify_stripe_signature(payload, f't={fresh_ts},v1={fresh_sig}'))
+
+        stale_ts = str(router.now_epoch() - 1000)
+        stale_sig = router.hmac.new(secret.encode(), f'{stale_ts}.{payload.decode()}'.encode(), router.hashlib.sha256).hexdigest()
+        self.assertFalse(router.verify_stripe_signature(payload, f't={stale_ts},v1={stale_sig}'))
+        self.assertFalse(router.verify_stripe_signature(payload, f't=not-a-time,v1={fresh_sig}'))
+
+    def test_stripe_crypto_missing_config_and_options_cors(self):
+        router.supabase_user_for_bearer = lambda token: {'id': 'user-1', 'email': 'u@example.com'}
+
+        class Dummy:
+            def __init__(self, path, body=b'{}'):
+                self.path = path
+                self.headers = {'Authorization': 'Bearer valid-user-jwt', 'Content-Length': str(len(body)), 'Origin': 'https://sagerouter.dev'}
+                self.rfile = BytesIO(body)
+                self.status = None
+                self.payload = None
+                self.sent_headers = {}
+            def send_response(self, status):
+                self.status = status
+            def send_header(self, key, value):
+                self.sent_headers[key] = value
+            def end_headers(self):
+                pass
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+            send_cors_headers = router.Handler.send_cors_headers
+
+        opt = Dummy('/account/api-keys')
+        router.Handler.do_OPTIONS(opt)
+        self.assertEqual(204, opt.status)
+        self.assertIn('Authorization', opt.sent_headers.get('Access-Control-Allow-Headers'))
+
+        for path, expected in (
+            ('/billing/stripe/checkout', 'stripe_not_configured'),
+            ('/billing/crypto/intent', 'crypto_not_configured'),
+        ):
+            handler = Dummy(path)
+            router.Handler.do_POST(handler)
+            self.assertEqual(expected, handler.payload['error'])
+
+
+if __name__ == '__main__':
+    unittest.main()

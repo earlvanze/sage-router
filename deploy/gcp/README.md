@@ -41,3 +41,20 @@ curl "$SERVICE_URL/health"
 ## Boundary
 
 Do not deploy local OpenClaw configs, customer provider credentials, `.env` files, Dario credentials, or OAuth cookies to Cloud Run. This Phase 2 deployment is a public demo / credibility deployment, not a hosted customer key-custody layer.
+
+## Self-Serve SaaS Readiness
+
+The router now includes incremental account, API key, billing, crypto, and private analytics endpoints. Production deploys need these env vars configured by name only:
+
+- Supabase Auth/REST: `SAGE_ROUTER_SUPABASE_URL`, `SAGE_ROUTER_SUPABASE_ANON_KEY`, `SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY`
+- SaaS table names if non-default: `SAGE_ROUTER_SUPABASE_CUSTOMERS_TABLE`, `SAGE_ROUTER_SUPABASE_API_KEYS_TABLE`, `SAGE_ROUTER_SUPABASE_PAYMENT_INTENTS_TABLE`
+- Generated key hashing: `SAGE_ROUTER_API_KEY_HASH_PEPPER` or `SAGE_ROUTER_SIGNING_SECRET`
+- Stripe: `STRIPE_SECRET_KEY` or `SAGE_ROUTER_STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` or `SAGE_ROUTER_STRIPE_WEBHOOK_SECRET`, `SAGE_ROUTER_STRIPE_PRICE_ID` or `STRIPE_PRICE_ID`
+- Public URLs: `SAGE_ROUTER_PUBLIC_BASE_URL`, `SAGE_ROUTER_API_BASE_URL`
+- Optional manual crypto flow: `SAGE_ROUTER_CRYPTO_PAYMENT_ADDRESS`, `SAGE_ROUTER_CRYPTO_PAYMENT_ASSET`, `SAGE_ROUTER_CRYPTO_PAYMENT_NETWORK`
+
+Apply `supabase/sage_router_saas.sql` before enabling self-serve account creation in production.
+
+If Supabase customer tables are not configured, the backend falls back to `SAGE_ROUTER_CUSTOMER_STORE_PATH` for local development and tests. That fallback is not a production persistence layer.
+
+Routing auth remains compatible with `SAGE_ROUTER_CLIENT_API_KEYS`. New self-serve API keys must be active and attached to an active paid/manual/trial customer before `/v1/chat/completions` or `/v1/messages` will route traffic. A valid Supabase user JWT can manage account APIs, but it is not treated as paid routing authorization by itself.

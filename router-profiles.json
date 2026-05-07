@@ -13,6 +13,22 @@
       "route": "local-first",
       "thinking": "low"
     },
+    "discord-public": {
+      "description": "High-quality public-channel routing that avoids tiny/filler models and suppresses visible tool-call narration.",
+      "route": "best",
+      "thinking": "high",
+      "requiresQuality": true,
+      "requiresReasoning": true,
+      "suppressIntermediateToolText": true,
+      "denyModels": [
+        "*mini*",
+        "*haiku*",
+        "*1.2b*",
+        "*3b*",
+        "*7b*",
+        "*8b*"
+      ]
+    },
     "coding-max": {
       "description": "High-thinking coding route.",
       "route": "best",
