@@ -8,6 +8,7 @@ env:
   - SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS (optional, default 120)
   - SAGE_ROUTER_OLLAMA_AUTO_PULL_PATTERNS (optional, default :cloud)
   - OPENCLAW_GATEWAY_TOKEN (optional: token for OpenClaw gateway agent bridge)
+  - SAGE_ROUTER_OPENCLAW_TIMEOUT_SECONDS (optional, default 90)
 ---
 
 # Sage Router
@@ -30,6 +31,7 @@ Rules:
 - skips the router's own `sage-router` provider entry to avoid recursion
 - resolves `${ENV_VAR}` values for `baseUrl` and `apiKey`
 - includes OpenClaw gateway `openai-codex` as a virtual provider when the auth profile exists
+- routes `openai-codex` through the OpenClaw gateway by default so it follows the active OpenClaw/Codex auth source; set `SAGE_ROUTER_OPENAI_CODEX_DIRECT_RESPONSES=1` only to force direct Codex Responses calls
 - recognizes Google Gemini providers from `generativelanguage.googleapis.com`
 - auto-discovers Google models when the provider exists but `models` is empty in `openclaw.json`
 - normalizes `anthropic` or Anthropic-hosted `anthropic-messages` providers onto the local Dario proxy at `localhost:3456`

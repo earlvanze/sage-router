@@ -5,8 +5,9 @@
       "route": "best",
       "thinking": "high",
       "requiresQuality": true,
-      "requiresReasoning": true,
-      "frontierLargeOnly": true
+      "requiresReasoning": false,
+      "frontierLargeOnly": true,
+      "reasoning": false
     },
     "fast-local": {
       "description": "Low-latency local/LAN routing.",
@@ -49,7 +50,7 @@
       "route": "best",
       "thinking": "high",
       "requiresQuality": true,
-      "requiresReasoning": true,
+      "requiresReasoning": false,
       "frontierOrReasoningTools": false,
       "denyModels": [
         "*1.2b*",
@@ -117,7 +118,8 @@
       },
       "fallbackProviders": [
         "google-vertex"
-      ]
+      ],
+      "reasoning": false
     }
   }
 }

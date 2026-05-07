@@ -81,7 +81,7 @@ GOOGLE_VERTEX_LOCATION = os.environ.get('SAGE_ROUTER_GOOGLE_VERTEX_LOCATION') or
 GOOGLE_VERTEX_PROJECT = os.environ.get('SAGE_ROUTER_GOOGLE_VERTEX_PROJECT') or os.environ.get('GOOGLE_CLOUD_PROJECT') or os.environ.get('GCP_PROJECT') or ''
 GOOGLE_VERTEX_ADC_SCOPE = 'https://www.googleapis.com/auth/cloud-platform'
 GOOGLE_VERTEX_TOKEN_CACHE = {'access_token': '', 'expires_at': 0}
-OPENCLAW_GATEWAY_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENCLAW_TIMEOUT_SECONDS', '20'))
+OPENCLAW_GATEWAY_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENCLAW_TIMEOUT_SECONDS', '90'))
 OPENCLAW_GATEWAY_CODE_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENCLAW_CODE_TIMEOUT_SECONDS', '45'))
 OPENCLAW_GATEWAY_AGENT_ID = os.environ.get('SAGE_ROUTER_OPENCLAW_AGENT_ID', 'main')
 REACHABILITY_TIMEOUT_SECONDS = float(os.environ.get('SAGE_ROUTER_REACHABILITY_TIMEOUT_SECONDS', '0.5'))
@@ -2421,15 +2421,27 @@ def load_hosted_secret_providers():
             comma_list_env('SAGE_ROUTER_CLOUDFLARE_MODELS') or DEFAULT_CLOUDFLARE_WORKERS_AI_MODELS,
             {'reasoning': False, 'contextWindow': 32768, 'maxTokens': 4096, 'input': ['text'], 'supportsJson': True},
         )
-    codex_token = env_first('SAGE_ROUTER_OPENAI_CODEX_ACCESS_TOKEN', 'SAGE_ROUTER_OPENAI_CODEX_OAUTH_TOKEN', 'OPENAI_CODEX_ACCESS_TOKEN', 'OPENAI_CODEX_OAUTH_TOKEN') or read_openai_codex_oauth_token_from_file()
+    codex_models = comma_list_env('SAGE_ROUTER_OPENAI_CODEX_MODELS') or DEFAULT_OPENAI_CODEX_MODELS
+    if os.environ.get('SAGE_ROUTER_OPENAI_CODEX_DIRECT_RESPONSES') == '1':
+        codex_token = env_first('SAGE_ROUTER_OPENAI_CODEX_ACCESS_TOKEN', 'SAGE_ROUTER_OPENAI_CODEX_OAUTH_TOKEN', 'OPENAI_CODEX_ACCESS_TOKEN', 'OPENAI_CODEX_OAUTH_TOKEN') or read_openai_codex_oauth_token_from_file()
+        codex_api_type = 'openai-codex-responses'
+        codex_base_url = env_first('SAGE_ROUTER_OPENAI_CODEX_BASE_URL', 'OPENAI_CODEX_BASE_URL') or 'https://chatgpt.com/backend-api/codex'
+        codex_api_key = codex_token
+    else:
+        # Prefer the OpenClaw agent bridge for ChatGPT/Codex auth.  Direct calls to
+        # chatgpt.com/backend-api/codex can reject otherwise-current OpenClaw tokens
+        # with token_expired, while the gateway follows OpenClaw's active auth source.
+        codex_api_type = 'openclaw-gateway'
+        codex_base_url = OPENCLAW_GATEWAY_BASE_URL
+        codex_api_key = ''
     add(
         'openai-codex',
-        'openai-codex-responses',
-        env_first('SAGE_ROUTER_OPENAI_CODEX_BASE_URL', 'OPENAI_CODEX_BASE_URL') or 'https://chatgpt.com/backend-api/codex',
-        codex_token,
-        comma_list_env('SAGE_ROUTER_OPENAI_CODEX_MODELS') or DEFAULT_OPENAI_CODEX_MODELS,
+        codex_api_type,
+        codex_base_url,
+        codex_api_key,
+        codex_models,
         {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text'], 'supportsTools': True, 'supportsJson': True},
-        reasoning_models=comma_list_env('SAGE_ROUTER_OPENAI_CODEX_MODELS') or DEFAULT_OPENAI_CODEX_MODELS,
+        reasoning_models=codex_models,
     )
     return providers
 
@@ -2448,6 +2460,10 @@ def load_openclaw_providers():
                 continue
             api_key = resolve_config_value(cfg.get('apiKey', '') or '')
             api_type = infer_api_type(name, cfg, base_url)
+            if name == 'openai-codex' and os.environ.get('SAGE_ROUTER_OPENAI_CODEX_DIRECT_RESPONSES') != '1':
+                api_type = 'openclaw-gateway'
+                base_url = OPENCLAW_GATEWAY_BASE_URL
+                api_key = ''
             models = discover_provider_models(name, cfg, base_url, api_key, api_type)
             reasoning_models = discover_reasoning_models(cfg)
             model_meta = discover_model_meta(cfg)
