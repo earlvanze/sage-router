@@ -123,3 +123,8 @@ npm run seo:index
 ```
 
 This supports the $10k MRR loop for SageRouter: free model-routing tools + dumb blogs + indexed utility pages + BYOK/BYOS Lite and routing-audit CTAs.
+
+Current credential default:
+
+- If `GIS_SERVICE_ACCOUNT_PATH` is not set, the script first tries the Google Drive service account configured in `~/.config/rclone/rclone.conf`, then falls back to `~/.gis/service_account.json`.
+- The service account email must be added as an owner/user for `sagerouter.dev` in Google Search Console before live submission works.
