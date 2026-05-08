@@ -46,13 +46,14 @@
       ]
     },
     "frontier": {
-      "description": "Default high-quality frontier routing profile for agents.",
+      "description": "Default high-quality frontier routing profile for agents. Strictly avoids small/filler models for cron/public/default agent work.",
       "route": "best",
       "thinking": "high",
       "requiresQuality": true,
       "qualitySensitive": true,
       "suppressIntermediateToolText": true,
       "denyModels": [
+        "*0.5b*",
         "*1.2b*",
         "*2b*",
         "*3b*",
@@ -61,13 +62,23 @@
         "*8b*",
         "*12b*",
         "*14b*",
-        "*mini*",
-        "*haiku*",
+        "*claude*",
+        "*deepseek-r1*",
+        "*deepseek-v3*",
         "*flash-lite*",
         "*gemma-3n*",
-        "*lfm-2.5*",
+        "*glm-4*",
+        "*haiku*",
         "*laguna-xs*",
-        "*nemo*"
+        "*lfm-2.5*",
+        "*llama*",
+        "*mini*",
+        "*minimax-m2.5*",
+        "*mistral-large-2*",
+        "*nemo*",
+        "*nemotron*",
+        "*qwen2*",
+        "*trinity*"
       ],
       "allowProviders": [
         "openai-codex",
@@ -80,6 +91,27 @@
         "openrouter",
         "google-vertex",
         "github-copilot"
+      ],
+      "requiresReasoning": true,
+      "frontierLargeOnly": true,
+      "allowModels": [
+        "*glm-5*",
+        "*kimi-k2*",
+        "*gpt-5*",
+        "*deepseek-v4*",
+        "*qwen3.5*",
+        "*qwen3.6*",
+        "*qwen3.[5-9]*",
+        "*minimax-m2.7*",
+        "*minimax-m2.[7-9]*",
+        "*mistral-large-3*",
+        "*cogito-2.1:671b-cloud*",
+        "*devstral-2:123b-cloud*",
+        "google-vertex/gemini-3-flash-preview",
+        "google-vertex/gemini-2.5-pro"
+      ],
+      "fallbackProviders": [
+        "google-vertex"
       ]
     }
   }
