@@ -2204,9 +2204,9 @@ def model_meets_requirements(provider, model, requirements, estimated_tokens):
     if deny_providers and provider.name in deny_providers:
         return False, 'provider denied by profile'
     model_key = f'{provider.name}/{model}'
-    if allow_models and not (_match_any_pattern(model, allow_models) or _match_any_pattern(model_key, allow_models)):
+    if allow_models and not _match_model_patterns(provider.name, model, allow_models):
         return False, 'model not allowed by profile'
-    if deny_models and (_match_any_pattern(model, deny_models) or _match_any_pattern(model_key, deny_models)):
+    if deny_models and _match_model_patterns(provider.name, model, deny_models):
         return False, 'model denied by profile'
     if requirements.get('frontierLargeOnly') and not model_is_frontier_large(model):
         return False, 'requires frontier large model'
@@ -4675,7 +4675,25 @@ def _match_any_pattern(value, patterns):
         return False
     value_l = str(value or '').lower()
     import fnmatch
-    return any(fnmatch.fnmatch(value_l, str(p).lower()) or str(p).lower() in value_l for p in patterns)
+    for pattern in patterns:
+        pattern_l = str(pattern or '').lower()
+        if not pattern_l:
+            continue
+        if any(ch in pattern_l for ch in '*?['):
+            if fnmatch.fnmatch(value_l, pattern_l):
+                return True
+        elif pattern_l == value_l or pattern_l in value_l:
+            return True
+    return False
+
+
+def _match_model_patterns(provider_name, model, patterns):
+    if not patterns:
+        return False
+    model_key = f'{provider_name}/{model}'
+    model_patterns = [p for p in patterns if '/' not in str(p or '')]
+    keyed_patterns = [p for p in patterns if '/' in str(p or '')]
+    return _match_any_pattern(model, model_patterns) or _match_any_pattern(model_key, keyed_patterns)
 
 
 def estimate_model_params_b(model):
@@ -4737,7 +4755,7 @@ def apply_discord_public_route_profile(payload):
         req = {}
     req.update({
         'qualitySensitive': True,
-        'reasoning': True,
+        'reasoning': False,
         'frontierLargeOnly': True,
         'frontierOrReasoningTools': False,
         'suppressToolCallContent': True,
@@ -4759,7 +4777,7 @@ def apply_discord_public_route_profile(payload):
         'fallbackProviders': ['google-vertex'],
         'denyModels': [
             '*1.2b*', '*2b*', '*3b*', '*4b*', '*7b*', '*8b*', '*12b*', '*14b*',
-            '*mini*', '*haiku*', '*flash-lite*', '*gemma-3n*', '*lfm-2.5*', '*laguna-xs*',
+            '*-mini*', 'mini-*', 'mini:*', '*haiku*', '*flash-lite*', '*gemma-3n*', '*lfm-2.5*', '*laguna-xs*',
             '*deepseek-r1*', '*deepseek-v3*', '*glm-4*', '*minimax-m2.5*', '*mistral-large-2*',
             '*claude*', '*llama*', '*nemotron*', '*trinity*', '*nemo*',
         ],

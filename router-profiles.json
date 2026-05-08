@@ -22,7 +22,9 @@
       "requiresReasoning": true,
       "suppressIntermediateToolText": true,
       "denyModels": [
-        "*mini*",
+        "*-mini*",
+        "mini-*",
+        "mini:*",
         "*haiku*",
         "*1.2b*",
         "*3b*",
@@ -37,7 +39,9 @@
       "requiresReasoning": true,
       "qualitySensitive": true,
       "denyModels": [
-        "*mini*",
+        "*-mini*",
+        "mini-*",
+        "mini:*",
         "*haiku*",
         "*1.2b*",
         "*3b*",
@@ -72,7 +76,9 @@
         "*laguna-xs*",
         "*lfm-2.5*",
         "*llama*",
-        "*mini*",
+        "*-mini*",
+        "mini-*",
+        "mini:*",
         "*minimax-m2.5*",
         "*mistral-large-2*",
         "*nemo*",
@@ -92,7 +98,8 @@
         "google-vertex",
         "github-copilot"
       ],
-      "requiresReasoning": true,
+      "requiresReasoning": false,
+      "reasoning": false,
       "frontierLargeOnly": true,
       "allowModels": [
         "*glm-5*",

@@ -45,8 +45,23 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertEqual('discord-public', router.apply_router_profile(payload))
         self.assertTrue(router.apply_discord_public_route_profile(payload))
         req = router.normalize_requirements(payload, router.normalize_thinking(payload.get('thinking')))
-        self.assertIn('*mini*', req.get('denyModels', []))
+        self.assertIn('*-mini*', req.get('denyModels', []))
         self.assertFalse(router.model_meets_requirements(router.Provider('openai-codex', 'openai-codex-responses', '', '', ['gpt-5.4-mini']), 'gpt-5.4-mini', req, 100)[0])
+
+    def test_profile_pattern_matching_does_not_treat_wildcards_as_substrings(self):
+        self.assertFalse(router._match_any_pattern('gemini-3-flash-preview', ['*-mini*', 'mini-*', 'mini:*']))
+        self.assertTrue(router._match_any_pattern('gpt-5.4-mini', ['*-mini*', 'mini-*', 'mini:*']))
+        self.assertTrue(router._match_model_patterns('google-vertex', 'gemini-2.5-pro', ['google-vertex/gemini-2.5-pro']))
+        self.assertFalse(router._match_model_patterns('ollama-cloud', 'gemini-2.5-pro:cloud', ['google-vertex/gemini-2.5-pro']))
+
+    def test_frontier_profile_allows_available_frontier_model_without_reasoning_flag(self):
+        payload = {'profile': 'frontier', 'model': 'sage-router/frontier', 'messages': [{'role': 'user', 'content': 'Say OK'}]}
+        self.assertEqual('frontier', router.apply_router_profile(payload))
+        req = router.normalize_requirements(payload, router.normalize_thinking(payload.get('thinking')))
+        provider = router.Provider('google-vertex', 'google', '', '', ['gemini-2.5-pro'])
+        ok, reason = router.model_meets_requirements(provider, 'gemini-2.5-pro', req, 100)
+        self.assertTrue(ok, reason)
+        self.assertFalse(req.get('reasoning'))
 
 
     def test_model_prefix_is_opt_in_by_default(self):
