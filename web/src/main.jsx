@@ -31,6 +31,7 @@ function App() {
           </a>
           <div className="navLinks">
             <a href="#how">How it works</a>
+            <a href="/model-routing-calculator.html">Calculator</a>
             <a href="#security">Security</a>
             <a href="#automation">Automation</a>
             <a href="#analytics">Analytics</a>
@@ -154,6 +155,33 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         </div>
       </section>
 
+
+      <section className="section calculatorPromo" id="calculator">
+        <div className="sectionHeader">
+          <p className="eyebrow">Free model routing tool</p>
+          <h2>Estimate whether a workflow should route, escalate, or stay human-reviewed.</h2>
+          <p>
+            The AI Model Routing Calculator turns a boring workflow into a routing score, monthly cost estimate,
+            escalation recommendation, and copyable audit brief. It runs entirely in the browser with no login,
+            no storage, and no network calls.
+          </p>
+          <p><a className="inlineLink" href="/model-routing-calculator.html">Open the free calculator →</a></p>
+        </div>
+        <div className="cards">
+          <article>
+            <h3>Spot model-cost leaks</h3>
+            <p>Compare current model spend against a cheaper routed path for high-volume, low-risk tasks.</p>
+          </article>
+          <article>
+            <h3>Set escalation rules</h3>
+            <p>Get a practical recommendation for when to use stronger models or route output to human review.</p>
+          </article>
+          <article>
+            <h3>Copy an audit brief</h3>
+            <p>Turn the result into a short brief for your team before you implement BYOK/BYOS routing.</p>
+          </article>
+        </div>
+      </section>
 
       <section className="section analytics" id="analytics">
         <div className="sectionHeader">
