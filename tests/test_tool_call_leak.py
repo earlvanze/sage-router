@@ -124,5 +124,25 @@ After."""
         self.assertEqual(json.loads(args)['action'], 'send')
 
 
+
+    def test_kimi_is_reasoning_and_tool_capable(self):
+        provider = router.Provider('ollama', 'ollama', 'http://127.0.0.1:11434', None, ['kimi-k2.6:cloud'], set(), {'kimi-k2.6:cloud': {'supportsTools': True, 'supportsJson': True, 'contextWindow': 256000}})
+        caps = router.model_capabilities(provider, 'kimi-k2.6:cloud')
+        self.assertTrue(caps['reasoning'])
+        self.assertTrue(caps['tools'])
+        self.assertEqual(256000, caps['longContext'])
+
+    def test_kimi_ollama_payload_preserves_tools_and_reasoning(self):
+        payload = {
+            'messages': [{'role': 'user', 'content': 'Use lookup'}],
+            'tools': [{'type': 'function', 'function': {'name': 'lookup', 'parameters': {'type': 'object'}}}],
+        }
+        built = router.build_ollama_payload('kimi-k2.6:cloud', payload, thinking=router.ThinkingLevel.HIGH)
+        self.assertTrue(built['think'])
+        self.assertIn('tools', built)
+        self.assertGreaterEqual(built['options']['num_predict'], 4096)
+        self.assertGreaterEqual(built['options']['num_ctx'], 65536)
+
+
 if __name__ == '__main__':
     unittest.main()

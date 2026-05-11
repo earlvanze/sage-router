@@ -293,6 +293,11 @@ NVIDIA_NON_TOOL_MODEL_HINTS = [
     'tts', 'asr', 'canary', 'nemo-tts', 'nemo-asr', 'embed', 'embedding', 'rerank', 'ocr', 'vision', '-vl', ':vl', 'whisper'
 ]
 
+
+def is_kimi_model(model: str) -> bool:
+    model_l = (model or '').lower()
+    return 'kimi' in model_l or 'moonshot' in model_l
+
 ANALYSIS_SIGNAL_TERMS = [
     'analyze', 'analysis', 'evaluate', 'assess', 'compare', 'tradeoff', 'trade-off',
     'why', 'how should', 'how can', 'what should', 'should we', 'can we', 'could we',
@@ -1694,7 +1699,7 @@ def is_chat_capable_model(provider, model):
 
 def provider_supports_reasoning(provider, model):
     if provider.api_type == 'ollama':
-        return False
+        return is_kimi_model(model) or ollama_model_supports_native_thinking(model)
     if provider.api_type in ('openclaw-gateway', 'openai-codex-responses'):
         return True
     if provider.api_type == 'anthropic-messages':
@@ -2019,7 +2024,7 @@ def ollama_model_supports_native_thinking(model: str) -> bool:
     # Ollama exposes native reasoning in a separate message.thinking field for
     # the qwen3.6 family. Keep this conservative so ordinary local models are
     # not sent unsupported think flags.
-    return model_l.startswith('qwen3.6') or '/qwen3.6' in model_l
+    return model_l.startswith('qwen3.6') or '/qwen3.6' in model_l or is_kimi_model(model)
 
 
 def ollama_generation_options(thinking=DEFAULT_THINKING_LEVEL):
@@ -2041,6 +2046,15 @@ def build_ollama_payload(model, payload, thinking=DEFAULT_THINKING_LEVEL, stream
         # LOW is operational/exact-output mode. MEDIUM/HIGH allow native Ollama
         # reasoning and give enough generation budget for thinking + final text.
         ollama_payload['think'] = thinking != ThinkingLevel.LOW
+        if is_kimi_model(model) and thinking != ThinkingLevel.LOW:
+            # Kimi can spend hundreds of tokens in message.thinking before final
+            # content. Keep enough budget so OpenAI-compatible callers do not see
+            # a reasoning-only/empty-content response.
+            opts = dict(ollama_payload.get('options') or {})
+            opts['num_predict'] = max(int(opts.get('num_predict') or 0), 4096)
+            # Ollama Cloud Kimi accepts larger contexts when explicitly set.
+            opts['num_ctx'] = max(int(opts.get('num_ctx') or 0), 65536)
+            ollama_payload['options'] = opts
     if payload.get('tools'):
         ollama_payload['tools'] = payload.get('tools')
     return ollama_payload
