@@ -127,6 +127,56 @@ API_KEY_HASH_PEPPER = os.environ.get('SAGE_ROUTER_API_KEY_HASH_PEPPER') or os.en
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY') or os.environ.get('SAGE_ROUTER_STRIPE_SECRET_KEY') or ''
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET') or os.environ.get('SAGE_ROUTER_STRIPE_WEBHOOK_SECRET') or ''
 STRIPE_PRICE_ID = os.environ.get('SAGE_ROUTER_STRIPE_PRICE_ID') or os.environ.get('STRIPE_PRICE_ID') or ''
+STRIPE_PRICE_IDS_RAW = os.environ.get('SAGE_ROUTER_STRIPE_PRICE_IDS', '').strip()
+PUBLIC_PLAN_CATALOG = {
+    'free': {
+        'name': 'Free',
+        'price': '$0/month',
+        'included': 'local/free providers only when available',
+        'features': ['local-first routing', 'manual provider keys', 'basic health and routing debug'],
+        'routingProfiles': ['local-first', 'fast-local'],
+    },
+    'lite': {
+        'name': 'Lite',
+        'price': '$6/month',
+        'quarterly': '$27/quarter',
+        'features': ['agent-native routing', 'API keys', 'usage analytics', 'standard fallback chains'],
+        'routingProfiles': ['eco', 'balanced', 'agentic'],
+    },
+    'pro': {
+        'name': 'Pro',
+        'price': '$30/month',
+        'quarterly': '$81/quarter',
+        'features': ['frontier routing', 'agentic tool-use preference', 'analytics snapshots', 'subscription failover'],
+        'routingProfiles': ['balanced', 'premium', 'frontier', 'agentic'],
+    },
+    'max': {
+        'name': 'Max',
+        'price': '$72/month',
+        'quarterly': '$216/quarter',
+        'features': ['highest quality routing', 'large/frontier model preference', 'priority fallback budget', 'team/automation use'],
+        'routingProfiles': ['premium', 'frontier', 'frontier-large', 'agentic'],
+    },
+    'metered': {
+        'name': 'Metered',
+        'price': 'usage-based',
+        'minimumPaymentUsd': 0.001,
+        'serverMarginPercent': 5,
+        'features': ['per-request cost attribution', 'wallet/x402-ready payment intents', 'free-tier fallback policy'],
+        'routingProfiles': ['eco', 'balanced', 'premium', 'agentic'],
+    },
+}
+PUBLIC_AGENT_NATIVE_FEATURES = {
+    'agenticAutoDetection': {
+        'description': 'Detects tool use and multi-step execution language, then prefers models with reliable tool-calling/autonomous task behavior.',
+        'signals': ['tools array', 'forced tool_choice', 'build/run/test/fix/debug/deploy/verify/edit/refactor keywords'],
+    },
+    'toolAwareRouting': {'description': 'Forced tool calls become hard requirements; ordinary tool arrays become soft preference unless the client explicitly requires tools.'},
+    'contextAwareRouting': {'description': 'Estimated prompt size and document/vision signals filter or boost capable long-context and multimodal models.'},
+    'sessionSafeFallback': {'description': 'Each request builds an ordered fallback chain and retries failed providers without mid-stream handoff.'},
+    'costAndPlanTelemetry': {'description': 'Route events include selected model, attempts, elapsed time, customer plan, and auth type for pricing analytics.'},
+    'freeTierFallbackPolicy': {'description': 'Eco/local/free profiles can be used for zero or low-balance workflows without blocking agent execution.'},
+}
 PUBLIC_BASE_URL = (os.environ.get('SAGE_ROUTER_PUBLIC_BASE_URL') or 'https://sagerouter.dev').rstrip('/')
 API_BASE_URL = (os.environ.get('SAGE_ROUTER_API_BASE_URL') or '').rstrip('/')
 CRYPTO_PAYMENT_ADDRESS = os.environ.get('SAGE_ROUTER_CRYPTO_PAYMENT_ADDRESS', '').strip()
@@ -1579,7 +1629,60 @@ def normalize_requirements(payload, thinking_level=DEFAULT_THINKING_LEVEL):
             normalized[key] = req.get(key)
     if req.get('minParamsB') is not None:
         normalized['minParamsB'] = req.get('minParamsB')
+    agentic_score, agentic_signals = payload_agentic_signal(payload)
+    if req.get('agentic') or payload.get('requiresAgentic') or agentic_score >= 2:
+        normalized['agentic'] = True
+        normalized['agenticScore'] = agentic_score
+        normalized['agenticSignals'] = agentic_signals[:8]
+        if not normalized.get('tools'):
+            normalized['preferTools'] = True
     return normalized
+
+
+def payload_agentic_signal(payload):
+    if not isinstance(payload, dict):
+        return 0, []
+    signals = []
+    if payload.get('tools'):
+        signals.append('tools')
+    tool_choice = payload.get('tool_choice')
+    if tool_choice and tool_choice not in ('auto', 'none'):
+        signals.append('forced_tool_choice')
+    try:
+        text = latest_user_text(normalize_messages(payload.get('messages', []))).lower()
+    except Exception:
+        text = json.dumps(payload.get('messages') or [], default=str).lower()[:12000]
+    keyword_groups = {
+        'file_ops': ('read file', 'write file', 'edit', 'patch', 'modify', 'rename', 'move', 'delete'),
+        'execution': ('run ', 'test', 'build', 'lint', 'deploy', 'install', 'compile', 'execute'),
+        'iteration': ('fix', 'debug', 'verify', 'validate', 'retry', 'regression', 'self-heal'),
+        'repo_ops': ('commit', 'branch', 'pull request', 'pr ', 'git ', 'merge', 'refactor'),
+        'autonomy': ('go ahead', 'do it', 'implement', 'ship', 'complete', 'end-to-end', 'multi-step'),
+    }
+    for label, needles in keyword_groups.items():
+        if any(n in text for n in needles):
+            signals.append(label)
+    return len(signals), signals
+
+
+def stripe_price_ids_by_plan():
+    mapping = {}
+    for part in STRIPE_PRICE_IDS_RAW.split(','):
+        if '=' in part:
+            plan, price_id = part.split('=', 1)
+            if plan.strip() and price_id.strip():
+                mapping[plan.strip().lower()] = price_id.strip()
+    if STRIPE_PRICE_ID:
+        mapping.setdefault('pro', STRIPE_PRICE_ID)
+    return mapping
+
+
+def public_plan_catalog():
+    plans = json.loads(json.dumps(PUBLIC_PLAN_CATALOG))
+    price_ids = stripe_price_ids_by_plan()
+    for name, plan in plans.items():
+        plan['stripeConfigured'] = bool(price_ids.get(name))
+    return plans
 
 
 def is_truthy(value):
@@ -4655,7 +4758,7 @@ def apply_router_profile(payload):
     req = payload.get('requirements')
     if not isinstance(req, dict):
         req = {}
-    for key in ('qualitySensitive', 'reasoning', 'tools', 'preferTools', 'json', 'vision', 'document', 'longContext', 'frontierOrReasoningTools', 'suppressToolCallContent'):
+    for key in ('qualitySensitive', 'reasoning', 'tools', 'preferTools', 'json', 'vision', 'document', 'longContext', 'frontierOrReasoningTools', 'suppressToolCallContent', 'agentic'):
         if key in profile:
             req[key] = bool(profile.get(key))
     if profile.get('suppressIntermediateToolText'):
@@ -4943,6 +5046,19 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
     if is_nvidia_provider(provider) and requirements.get('qualitySensitive'):
         score -= 25
         contributions.append(('quality_sensitive_nvidia_penalty', -25))
+    if requirements.get('agentic'):
+        if any(h in model_l for h in ('kimi-k2', 'codex', 'sonnet', 'opus', 'gpt-5', 'gpt-4o', 'claude')):
+            score += 28
+            contributions.append(('agentic_model_bonus', 28))
+        if model_capabilities(provider, model).get('tools'):
+            score += 20
+            contributions.append(('agentic_tool_capability_bonus', 20))
+        if any(h in model_l for h in ('nano', 'flash-lite', 'mini', 'haiku')) and complexity == Complexity.COMPLEX:
+            score -= 18
+            contributions.append(('agentic_complex_light_model_penalty', -18))
+        if provider.api_type in ('openclaw-gateway', 'openai-codex-responses') and intent == Intent.CODE:
+            score += 18
+            contributions.append(('agentic_code_gateway_bonus', 18))
     if intent == Intent.GENERAL and provider.api_type == 'ollama':
         score -= 1
         contributions.append(('general_ollama_penalty', -1))
@@ -6648,6 +6764,10 @@ class Handler(BaseHTTPRequestHandler):
                 "lastRoute": LAST_ROUTE_DEBUG,
                 "blocks": {key: {"until": info["until"], "reason": info["reason"]} for key, info in TEMP_MODEL_BLOCKS.items()},
             })
+        elif self.path in {'/pricing', '/plans'}:
+            self.write_json(200, {'plans': public_plan_catalog(), 'agentNativeFeatures': PUBLIC_AGENT_NATIVE_FEATURES})
+        elif self.path == '/features/agent-native':
+            self.write_json(200, {'agentNativeFeatures': PUBLIC_AGENT_NATIVE_FEATURES})
         elif self.path == '/account':
             _user, customer = require_user_customer(self)
             if not customer:
@@ -6662,6 +6782,7 @@ class Handler(BaseHTTPRequestHandler):
                 'status': customer.get('status') or 'inactive',
                 'routing_enabled': customer_is_active(customer),
                 'customer': public_customer(customer),
+                'plans': public_plan_catalog(),
             })
         elif self.path == '/account/api-keys':
             _user, customer = require_user_customer(self)
@@ -6798,13 +6919,17 @@ class Handler(BaseHTTPRequestHandler):
             _user, customer = require_user_customer(self)
             if not customer:
                 return
-            if not (STRIPE_SECRET_KEY and STRIPE_PRICE_ID):
-                self.write_json(503, {'error': 'stripe_not_configured', 'required_env': ['STRIPE_SECRET_KEY or SAGE_ROUTER_STRIPE_SECRET_KEY', 'SAGE_ROUTER_STRIPE_PRICE_ID or STRIPE_PRICE_ID']})
+            payload = read_json_body(self)
+            plan = str(payload.get('plan') or 'pro').strip().lower()
+            price_ids = stripe_price_ids_by_plan()
+            price_id = price_ids.get(plan)
+            if not (STRIPE_SECRET_KEY and price_id):
+                self.write_json(503, {'error': 'stripe_not_configured', 'plan': plan, 'required_env': ['STRIPE_SECRET_KEY or SAGE_ROUTER_STRIPE_SECRET_KEY', 'SAGE_ROUTER_STRIPE_PRICE_IDS=lite=price_x,pro=price_y,max=price_z or SAGE_ROUTER_STRIPE_PRICE_ID/STRIPE_PRICE_ID for pro']})
                 return
             try:
                 session = stripe_request('/v1/checkout/sessions', {
                     'mode': 'subscription',
-                    'line_items[0][price]': STRIPE_PRICE_ID,
+                    'line_items[0][price]': price_id,
                     'line_items[0][quantity]': '1',
                     'success_url': f'{PUBLIC_BASE_URL}/analytics.html?checkout=success',
                     'cancel_url': f'{PUBLIC_BASE_URL}/analytics.html?checkout=cancel',
@@ -6812,8 +6937,10 @@ class Handler(BaseHTTPRequestHandler):
                     'customer_email': customer.get('email') or '',
                     'metadata[customer_id]': customer.get('id'),
                     'metadata[user_id]': customer.get('user_id'),
+                    'metadata[plan]': plan,
                     'subscription_data[metadata][customer_id]': customer.get('id'),
                     'subscription_data[metadata][user_id]': customer.get('user_id'),
+                    'subscription_data[metadata][plan]': plan,
                 })
                 self.write_json(200, {'checkout_url': session.get('url'), 'session_id': session.get('id')})
             except Exception as e:
@@ -6842,7 +6969,7 @@ class Handler(BaseHTTPRequestHandler):
                 customer_id = (existing or {}).get('id')
             if customer_id and event_type == 'checkout.session.completed':
                 update_customer(customer_id, {
-                    'plan': 'pro',
+                    'plan': metadata.get('plan') or 'pro',
                     'status': 'active',
                     'stripe_customer_id': obj.get('customer') or '',
                     'stripe_subscription_id': obj.get('subscription') or '',
@@ -6850,7 +6977,7 @@ class Handler(BaseHTTPRequestHandler):
             elif customer_id and event_type in {'customer.subscription.updated', 'customer.subscription.created'}:
                 status = obj.get('status') or 'active'
                 update_customer(customer_id, {
-                    'plan': 'pro',
+                    'plan': metadata.get('plan') or 'pro',
                     'status': 'active' if status in {'active', 'trialing'} else status,
                     'stripe_customer_id': obj.get('customer') or '',
                     'stripe_subscription_id': obj.get('id') or '',

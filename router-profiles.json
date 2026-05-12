@@ -120,6 +120,98 @@
       "fallbackProviders": [
         "google-vertex"
       ]
+    },
+    "agentic": {
+      "description": "Agent-native profile. Prefer models with reliable tool use and autonomous multi-step execution behavior.",
+      "route": "best",
+      "thinking": "medium",
+      "agentic": true,
+      "preferTools": true,
+      "qualitySensitive": true,
+      "suppressIntermediateToolText": true,
+      "allowProviders": [
+        "openai-codex",
+        "openai",
+        "anthropic",
+        "dario",
+        "ollama-cloud",
+        "ollama-cyber",
+        "google-vertex",
+        "github-copilot"
+      ],
+      "allowModels": [
+        "*kimi-k2*",
+        "*codex*",
+        "*gpt-5*",
+        "*gpt-4o*",
+        "*claude*",
+        "*sonnet*",
+        "*opus*",
+        "*gemini-2.5-pro*",
+        "*gemini-3*"
+      ],
+      "denyModels": [
+        "*0.5b*",
+        "*1.2b*",
+        "*2b*",
+        "*3b*",
+        "*4b*",
+        "*7b*",
+        "*8b*",
+        "*flash-lite*",
+        "*nano*"
+      ]
+    },
+    "eco": {
+      "description": "Cost-first routing profile modeled after ClawRouter eco tiers. Prefer free/local/cheap models and keep fallback broad.",
+      "route": "local-first",
+      "thinking": "low",
+      "qualitySensitive": false,
+      "allowProviders": [
+        "ollama",
+        "ollama-cyber",
+        "darkbloom",
+        "ollama-cloud",
+        "google-vertex"
+      ],
+      "denyModels": [
+        "*opus*",
+        "*sonnet*",
+        "*gpt-5.5*",
+        "*gpt-5.4*",
+        "*o3*"
+      ]
+    },
+    "premium": {
+      "description": "Quality-first paid profile modeled after ClawRouter premium tiers.",
+      "route": "best",
+      "thinking": "high",
+      "qualitySensitive": true,
+      "allowModels": [
+        "*opus*",
+        "*sonnet*",
+        "*gpt-5*",
+        "*codex*",
+        "*kimi-k2*",
+        "*gemini-2.5-pro*",
+        "*gemini-3*",
+        "*grok-4*",
+        "*deepseek-v4*"
+      ],
+      "denyModels": [
+        "*0.5b*",
+        "*1.2b*",
+        "*2b*",
+        "*3b*",
+        "*4b*",
+        "*7b*",
+        "*8b*",
+        "*flash-lite*",
+        "*nano*",
+        "*-mini*",
+        "mini-*",
+        "mini:*"
+      ]
     }
   }
 }

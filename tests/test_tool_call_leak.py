@@ -64,6 +64,38 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertFalse(req.get('reasoning'))
 
 
+    def test_agentic_detection_promotes_multistep_execution(self):
+        payload = {
+            'messages': [{'role': 'user', 'content': 'Implement the fix, edit the file, run tests, and verify it works.'}],
+            'tools': [{'type': 'function', 'function': {'name': 'exec', 'parameters': {'type': 'object'}}}],
+        }
+        req = router.normalize_requirements(payload, router.ThinkingLevel.MEDIUM)
+        self.assertTrue(req.get('agentic'))
+        self.assertTrue(req.get('preferTools'))
+        self.assertGreaterEqual(req.get('agenticScore', 0), 2)
+        self.assertIn('execution', req.get('agenticSignals', []))
+
+    def test_pricing_catalog_exposes_clawrouter_style_plans(self):
+        plans = router.public_plan_catalog()
+        self.assertIn('free', plans)
+        self.assertIn('lite', plans)
+        self.assertIn('pro', plans)
+        self.assertIn('max', plans)
+        self.assertIn('metered', plans)
+        self.assertEqual('$6/month', plans['lite']['price'])
+        self.assertEqual(5, plans['metered']['serverMarginPercent'])
+
+    def test_stripe_price_ids_support_plan_mapping_and_pro_compat(self):
+        old_raw, old_single = router.STRIPE_PRICE_IDS_RAW, router.STRIPE_PRICE_ID
+        try:
+            router.STRIPE_PRICE_IDS_RAW = 'lite=price_lite,pro=price_pro,max=price_max'
+            router.STRIPE_PRICE_ID = 'price_legacy_pro'
+            self.assertEqual('price_lite', router.stripe_price_ids_by_plan()['lite'])
+            self.assertEqual('price_pro', router.stripe_price_ids_by_plan()['pro'])
+        finally:
+            router.STRIPE_PRICE_IDS_RAW, router.STRIPE_PRICE_ID = old_raw, old_single
+
+
     def test_model_prefix_is_opt_in_by_default(self):
         response = router.build_openai_completion('ollama', 'qwen3-coder-next:cloud', 'req1', 'hello')
         content = response['choices'][0]['message']['content']
