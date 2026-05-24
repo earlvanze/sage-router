@@ -1,31 +1,15 @@
-// OpenClaw Gateway agent bridge for Sage Router
-// Dynamically resolves the OpenClaw SDK from NODE_PATH or the global npm install.
-import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
+import { loadOpenClawGatewaySdk } from './openclaw_sdk_resolver.mjs';
 
-const require = createRequire(import.meta.url);
-let callGateway, GATEWAY_CLIENT_NAMES, GATEWAY_CLIENT_MODES;
+let callGateway, clientName, clientMode;
 try {
-  // Try global openclaw installation
-  const sdkBase = require.resolve('openclaw');
-  const callMod = require(require.resolve('openclaw/dist/call-BA3do6C0.js', { paths: [sdkBase] }));
-  const chanMod = require(require.resolve('openclaw/dist/message-channel-CBqCPFa_.js', { paths: [sdkBase] }));
-  callGateway = callMod.r;
-  GATEWAY_CLIENT_NAMES = chanMod.g;
-  GATEWAY_CLIENT_MODES = chanMod.h;
-} catch {
-  // Fallback: require from known paths
-  try {
-    const homeDir = process.env.HOME || '/home/umbrel';
-    const callMod = require(`${homeDir}/.nvm/versions/node/v25.8.1/lib/node_modules/openclaw/dist/call-BA3do6C0.js`);
-    const chanMod = require(`${homeDir}/.nvm/versions/node/v25.8.1/lib/node_modules/openclaw/dist/message-channel-CBqCPFa_.js`);
-    callGateway = callMod.r;
-    GATEWAY_CLIENT_NAMES = chanMod.g;
-    GATEWAY_CLIENT_MODES = chanMod.h;
-  } catch (e) {
-    console.error('Cannot load OpenClaw SDK. Ensure openclaw is installed globally.', e.message);
-    process.exit(1);
-  }
+  const sdk = await loadOpenClawGatewaySdk();
+  callGateway = sdk.callGateway;
+  clientName = sdk.clientName;
+  clientMode = sdk.clientMode;
+} catch (error) {
+  console.error('Cannot load OpenClaw SDK. Ensure openclaw is installed globally.', error instanceof Error ? error.message : String(error));
+  process.exit(1);
 }
 
 function readStdin() {
@@ -63,8 +47,8 @@ function buildRequest({ includeOverrides }) {
     params,
     expectFinal: true,
     timeoutMs: Number(input.timeoutMs) || 120000,
-    clientName: GATEWAY_CLIENT_NAMES.CLI,
-    mode: GATEWAY_CLIENT_MODES.CLI,
+    clientName,
+    mode: clientMode,
     ...(process.env.OPENCLAW_GATEWAY_TOKEN ? { token: process.env.OPENCLAW_GATEWAY_TOKEN } : {}),
   };
 }

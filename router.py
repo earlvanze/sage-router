@@ -2375,6 +2375,56 @@ def model_meta_for_defaults(models, base_meta):
     return {m: dict(base_meta) for m in dedupe_keep_order(models or [])}
 
 
+def load_openclaw_auth_access_token(provider_name):
+    """Return the current non-expired OpenClaw auth token for a provider."""
+    auth_path = os.path.expanduser('~/.openclaw/agents/main/agent/auth-profiles.json')
+    state_path = os.path.expanduser('~/.openclaw/agents/main/agent/auth-state.json')
+    try:
+        with open(auth_path) as af:
+            auth = json.load(af)
+    except Exception:
+        return ''
+
+    profiles = auth.get('profiles', {}) if isinstance(auth, dict) else {}
+    if not isinstance(profiles, dict):
+        return ''
+
+    state = {}
+    try:
+        with open(state_path) as sf:
+            state = json.load(sf)
+    except Exception:
+        state = {}
+
+    candidate_names = []
+    last_good = (state.get('lastGood') or {}).get(provider_name) if isinstance(state, dict) else None
+    if last_good:
+        candidate_names.append(last_good)
+    ordered = (state.get('order') or {}).get(provider_name, []) if isinstance(state, dict) else []
+    if isinstance(ordered, list):
+        candidate_names.extend(name for name in ordered if isinstance(name, str))
+    candidate_names.extend(
+        name for name, profile in profiles.items()
+        if isinstance(profile, dict) and profile.get('provider') == provider_name
+    )
+
+    now_ms = time.time() * 1000
+    for name in dedupe_keep_order(candidate_names):
+        profile = profiles.get(name)
+        if not isinstance(profile, dict):
+            continue
+        if profile.get('provider') != provider_name:
+            continue
+        expires = profile.get('expires')
+        if isinstance(expires, (int, float)) and expires <= now_ms:
+            continue
+        token = profile.get('access') or profile.get('access_token') or profile.get('apiKey') or ''
+        if token:
+            logger.info(f'Loaded OpenClaw auth token for {provider_name} from {name}')
+            return token
+    return ''
+
+
 
 def read_openai_codex_oauth_token_from_file():
     """Best-effort local/mounted OAuth token discovery for OpenClaw/Hermes style auth.
@@ -2383,13 +2433,15 @@ def read_openai_codex_oauth_token_from_file():
     Secret Manager. This fallback keeps parity with local OpenClaw/Hermes-style
     auth if an auth profile file is deliberately mounted into the runtime.
     """
-    import time
     paths = comma_list_env('SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATHS', 'OPENAI_CODEX_AUTH_PROFILE_PATHS') or [
         env_first('SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATH', 'OPENAI_CODEX_AUTH_PROFILE_PATH'),
         '~/.openclaw/agents/main/agent/auth-profiles.json',
         '~/.hermes/auth.json',
     ]
     now_ms = time.time() * 1000
+    openclaw_token = load_openclaw_auth_access_token('openai-codex')
+    if openclaw_token:
+        return openclaw_token
     for raw_path in [p for p in paths if p]:
         path = os.path.expanduser(raw_path)
         try:
@@ -2577,10 +2629,6 @@ def load_openclaw_providers():
                 continue
             api_key = resolve_config_value(cfg.get('apiKey', '') or '')
             api_type = infer_api_type(name, cfg, base_url)
-            if name == 'openai-codex' and os.environ.get('SAGE_ROUTER_OPENAI_CODEX_DIRECT_RESPONSES') != '1':
-                api_type = 'openclaw-gateway'
-                base_url = OPENCLAW_GATEWAY_BASE_URL
-                api_key = ''
             models = discover_provider_models(name, cfg, base_url, api_key, api_type)
             reasoning_models = discover_reasoning_models(cfg)
             model_meta = discover_model_meta(cfg)
@@ -2604,23 +2652,9 @@ def load_openclaw_providers():
                 logger.info(f'Normalized provider {name} -> {DARIO_PROVIDER_NAME} via local Dario proxy')
                 continue
 
-            # Inject OAuth token for openai-codex-responses from OpenClaw agent auth
-            if name == 'openai-codex' and api_type == 'openai-codex-responses' and not api_key:
-                import time
-                auth_path = os.path.expanduser('~/.openclaw/agents/main/agent/auth-profiles.json')
-                try:
-                    with open(auth_path) as af:
-                        auth = json.load(af)
-                    now_ms = time.time() * 1000
-                    for pname, prof in auth.get('profiles', {}).items():
-                        if prof.get('provider') == 'openai-codex' and prof.get('type') == 'oauth':
-                            if not prof.get('expires') or prof.get('expires', 0) > now_ms:
-                                api_key = prof.get('access', '')
-                                if api_key:
-                                    logger.info(f'Injected OAuth token for openai-codex from {pname}')
-                                    break
-                except Exception:
-                    pass
+            # Prefer OpenClaw's current auth profile over stale OPENAI_CODEX_API_KEY env values.
+            if name == 'openai-codex' and api_type == 'openai-codex-responses':
+                api_key = load_openclaw_auth_access_token('openai-codex') or api_key
             
             # Add multimodal metadata for GPT-5.4/5.5 which support vision
             multimodal_models = {'gpt-5.5', 'gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini'}
