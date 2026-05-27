@@ -2065,9 +2065,13 @@ def build_openai_completion(provider_name, model, request_id, content='', tool_c
         # including Discord delivery surfaces, can expose the text before tool
         # execution, which looks like leaked internal scratch/tool narration.
         content = ''
-    content_text = maybe_prefix_debug_text(content, metadata, debug_mode=debug_mode, allow_prefix=allow_debug_prefix and not normalized_tool_calls)
-    if SHOW_MODEL_PREFIX and content_text and not normalized_tool_calls:
+    # When SHOW_MODEL_PREFIX is on, the [provider/model] prefix provides
+    # the model identity. Only add the debug prefix when SHOW_MODEL_PREFIX is off.
+    if SHOW_MODEL_PREFIX and not normalized_tool_calls:
+        content_text = sanitize_visible_output(content or '')
         content_text = '[' + display_model_id(provider_name, model) + '] ' + content_text
+    else:
+        content_text = maybe_prefix_debug_text(content, metadata, debug_mode=debug_mode, allow_prefix=allow_debug_prefix and not normalized_tool_calls)
     message = {'role': 'assistant', 'content': content_text}
     if normalized_tool_calls:
         message['tool_calls'] = normalized_tool_calls
