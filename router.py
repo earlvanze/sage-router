@@ -20,6 +20,22 @@ LOCAL_STRICT_PROXY_API_TYPES = {'openclaw-gateway', 'openai-codex-responses'}
 LOCAL_STRICT_DECENTRALIZED_PROVIDER_NAMES = {'darkbloom'}
 SHOW_MODEL_PREFIX = os.environ.get('SAGE_ROUTER_SHOW_MODEL_PREFIX', '').strip().lower() in {'1', 'true', 'yes', 'on'}  # Show provider/model at start of final text responses by default
 
+# Provider name aliases: normalize ollama variants to just "ollama"
+_OLLAMA_PROVIDER_ALIASES = {'ollama-cloud', 'ollama-cyber', 'ollama-cyber-fast'}
+
+def display_model_id(provider_name, model):
+    """Normalize provider/model for user-facing display.
+    
+    Collapses ollama variants (ollama-cloud, ollama-cyber, etc.) into 'ollama'
+    and strips :cloud/:cloud suffixes that are routing implementation details,
+    so the same model always shows the same prefix regardless of which
+    ollama endpoint served it.
+    """
+    display_provider = 'ollama' if provider_name in _OLLAMA_PROVIDER_ALIASES else provider_name
+    # Strip :cloud and :cloud suffixes — they indicate routing mode, not a different model
+    display_model = model.removesuffix(':cloud').removesuffix('-cloud')
+    return f'{display_provider}/{display_model}'
+
 
 def load_env_file(path):
     try:
@@ -2051,7 +2067,7 @@ def build_openai_completion(provider_name, model, request_id, content='', tool_c
         content = ''
     content_text = maybe_prefix_debug_text(content, metadata, debug_mode=debug_mode, allow_prefix=allow_debug_prefix and not normalized_tool_calls)
     if SHOW_MODEL_PREFIX and content_text and not normalized_tool_calls:
-        content_text = '[' + provider_name + '/' + model + '] ' + content_text
+        content_text = '[' + display_model_id(provider_name, model) + '] ' + content_text
     message = {'role': 'assistant', 'content': content_text}
     if normalized_tool_calls:
         message['tool_calls'] = normalized_tool_calls
@@ -2060,7 +2076,7 @@ def build_openai_completion(provider_name, model, request_id, content='', tool_c
         'id': f'chatcmpl-{int(time.time())}',
         'object': 'chat.completion',
         'created': int(time.time()),
-        'model': f'{provider_name}/{model}',
+        'model': display_model_id(provider_name, model),
         'choices': [{
             'index': 0,
             'message': message,
@@ -5932,7 +5948,7 @@ def stream_openai_compat_to_client(self, provider, model, payload, request_id, t
         self.send_response(200)
         self.send_header('Content-Type', 'text/event-stream')
         self.send_header('Cache-Control', 'no-cache')
-        for key, value in self.routing_headers({'model': f'{provider.name}/{model}'}, request_id).items():
+        for key, value in self.routing_headers({'model': display_model_id(provider.name, model)}, request_id).items():
             if value:
                 self.send_header(key, str(value))
         self.end_headers()
@@ -5941,8 +5957,8 @@ def stream_openai_compat_to_client(self, provider, model, payload, request_id, t
                 'id': f'chatcmpl-{int(time.time())}',
                 'object': 'chat.completion.chunk',
                 'created': int(time.time()),
-                'model': f'{provider.name}/{model}',
-                'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': f'[sage-router {provider.name}/{model}]\n'}, 'finish_reason': None}],
+                'model': display_model_id(provider.name, model),
+                'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': f'[sage-router {display_model_id(provider.name, model)}]\n'}, 'finish_reason': None}],
             })
             self.wfile.write(f'data: {debug_chunk}\n\n'.encode())
             self.wfile.flush()
@@ -5973,7 +5989,7 @@ def stream_ollama_to_client(self, provider, model, payload, request_id, thinking
                 self.send_header(key, str(value))
         self.end_headers()
         if debug_mode and not payload.get('tools') and payload.get('response_format', {}).get('type') != 'json_object':
-            debug_chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': int(time.time()), 'model': router_model, 'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': f'[sage-router {provider.name}/{model}]\n'}, 'finish_reason': None}]})
+            debug_chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': int(time.time()), 'model': router_model, 'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': f'[sage-router {display_model_id(provider.name, model)}]\n'}, 'finish_reason': None}]})
             self.wfile.write(f'data: {debug_chunk}\n\n'.encode())
             self.wfile.flush()
             sent_role = True
@@ -6076,7 +6092,7 @@ def stream_google_to_client(self, provider, model, payload, request_id, thinking
             debug_chunk = json.dumps({
                 'id': chat_id, 'object': 'chat.completion.chunk', 'created': int(time.time()),
                 'model': router_model,
-                'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': f'[sage-router {provider.name}/{model}]\n'}, 'finish_reason': None}],
+                'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': f'[sage-router {display_model_id(provider.name, model)}]\n'}, 'finish_reason': None}],
             })
             self.wfile.write(f'data: {debug_chunk}\n\n'.encode())
             self.wfile.flush()
