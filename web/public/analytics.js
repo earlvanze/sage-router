@@ -1,6 +1,6 @@
 const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
-const SAGE_ROUTER_URL = window.SAGE_ROUTER_API_URL || 'https://api.sagerouter.dev';
+const SAGE_ROUTER_URL = 'https://sage-router-434058661374.us-central1.run.app';
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (id) => document.getElementById(id);
@@ -24,7 +24,7 @@ async function session() {
 
 async function fetchAnalytics(s) {
   const days = $('window-days')?.value || '7';
-  const res = await fetch(`${SAGE_ROUTER_URL}/account/analytics?days=${encodeURIComponent(days)}`, {
+  const res = await fetch(`${SAGE_ROUTER_URL}/analytics?days=${encodeURIComponent(days)}`, {
     headers: { Authorization: `Bearer ${s.access_token}` }
   });
   if (!res.ok) throw new Error(`Analytics API HTTP ${res.status}`);

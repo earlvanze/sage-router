@@ -45,55 +45,8 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertEqual('discord-public', router.apply_router_profile(payload))
         self.assertTrue(router.apply_discord_public_route_profile(payload))
         req = router.normalize_requirements(payload, router.normalize_thinking(payload.get('thinking')))
-        self.assertIn('*-mini*', req.get('denyModels', []))
+        self.assertIn('*mini*', req.get('denyModels', []))
         self.assertFalse(router.model_meets_requirements(router.Provider('openai-codex', 'openai-codex-responses', '', '', ['gpt-5.4-mini']), 'gpt-5.4-mini', req, 100)[0])
-
-    def test_profile_pattern_matching_does_not_treat_wildcards_as_substrings(self):
-        self.assertFalse(router._match_any_pattern('gemini-3-flash-preview', ['*-mini*', 'mini-*', 'mini:*']))
-        self.assertTrue(router._match_any_pattern('gpt-5.4-mini', ['*-mini*', 'mini-*', 'mini:*']))
-        self.assertTrue(router._match_model_patterns('google-vertex', 'gemini-2.5-pro', ['google-vertex/gemini-2.5-pro']))
-        self.assertFalse(router._match_model_patterns('ollama-cloud', 'gemini-2.5-pro:cloud', ['google-vertex/gemini-2.5-pro']))
-
-    def test_frontier_profile_allows_available_frontier_model_without_reasoning_flag(self):
-        payload = {'profile': 'frontier', 'model': 'sage-router/frontier', 'messages': [{'role': 'user', 'content': 'Say OK'}]}
-        self.assertEqual('frontier', router.apply_router_profile(payload))
-        req = router.normalize_requirements(payload, router.normalize_thinking(payload.get('thinking')))
-        provider = router.Provider('google-vertex', 'google', '', '', ['gemini-2.5-pro'])
-        ok, reason = router.model_meets_requirements(provider, 'gemini-2.5-pro', req, 100)
-        self.assertTrue(ok, reason)
-        self.assertFalse(req.get('reasoning'))
-
-
-    def test_agentic_detection_promotes_multistep_execution(self):
-        payload = {
-            'messages': [{'role': 'user', 'content': 'Implement the fix, edit the file, run tests, and verify it works.'}],
-            'tools': [{'type': 'function', 'function': {'name': 'exec', 'parameters': {'type': 'object'}}}],
-        }
-        req = router.normalize_requirements(payload, router.ThinkingLevel.MEDIUM)
-        self.assertTrue(req.get('agentic'))
-        self.assertTrue(req.get('preferTools'))
-        self.assertGreaterEqual(req.get('agenticScore', 0), 2)
-        self.assertIn('execution', req.get('agenticSignals', []))
-
-    def test_pricing_catalog_exposes_clawrouter_style_plans(self):
-        plans = router.public_plan_catalog()
-        self.assertIn('free', plans)
-        self.assertIn('lite', plans)
-        self.assertIn('pro', plans)
-        self.assertIn('max', plans)
-        self.assertIn('metered', plans)
-        self.assertEqual('$6/month', plans['lite']['price'])
-        self.assertEqual(5, plans['metered']['serverMarginPercent'])
-
-    def test_stripe_price_ids_support_plan_mapping_and_pro_compat(self):
-        old_raw, old_single = router.STRIPE_PRICE_IDS_RAW, router.STRIPE_PRICE_ID
-        try:
-            router.STRIPE_PRICE_IDS_RAW = 'lite=price_lite,pro=price_pro,max=price_max'
-            router.STRIPE_PRICE_ID = 'price_legacy_pro'
-            self.assertEqual('price_lite', router.stripe_price_ids_by_plan()['lite'])
-            self.assertEqual('price_pro', router.stripe_price_ids_by_plan()['pro'])
-        finally:
-            router.STRIPE_PRICE_IDS_RAW, router.STRIPE_PRICE_ID = old_raw, old_single
 
 
     def test_model_prefix_is_opt_in_by_default(self):
@@ -132,21 +85,18 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         )
 
 
-    def test_sanitizes_reasoning_alias_blocks(self):
-        self.assertEqual('Final answer.', router.sanitize_visible_output('<think>private</think> Final answer.'))
-        self.assertEqual('Visible.', router.sanitize_visible_output('<thinking>private</thinking>Visible.'))
-        self.assertEqual('Done.', router.sanitize_visible_output('<analysis>secret chain</analysis>Done.'))
-        self.assertEqual('Answer only.', router.sanitize_visible_output('old scratch</reasoning>Answer only.'))
+    def test_sanitizes_thinking_without_raw_fallback(self):
+        self.assertEqual('final answer', router.sanitize_visible_output('<think>private chain</think> final answer'))
+        self.assertEqual('', router.sanitize_visible_output('<think>private chain only</think>'))
+        self.assertEqual('', router.sanitize_visible_output('<think>unterminated private chain'))
 
-    def test_sanitizes_visible_tool_invocation_blocks(self):
-        text = """Before.
-```tool_code
-{"cmd":"ls /tmp"}
-```
-After."""
-        self.assertEqual('Before.\nAfter.', router.sanitize_visible_output(text))
-        self.assertEqual('Final.', router.sanitize_visible_output('{\"cmd\":\"cd /tmp && ls\"}\nFinal.'))
-        self.assertEqual('Final.', router.sanitize_visible_output('functions.exec(command=\"ls\")\nFinal.'))
+    def test_sanitizes_channel_tagged_analysis(self):
+        raw = '<|channel|>analysis<|message|>private reasoning<|channel|>final<|message|>public answer'
+        self.assertEqual('public answer', router.sanitize_visible_output(raw))
+
+    def test_detects_structured_json_tool_leaks(self):
+        leaked = '{"recipient_name":"functions.exec","parameters":{"command":"ls"}}'
+        self.assertTrue(router.looks_like_visible_tool_call(leaked))
 
     def test_normalized_tool_arguments_stay_openai_compatible(self):
         call = {'function': {'name': 'message', 'arguments': {'action': 'send', 'message': 'hi'}}}
@@ -154,26 +104,6 @@ After."""
         args = converted[0]['function']['arguments']
         self.assertIsInstance(args, str)
         self.assertEqual(json.loads(args)['action'], 'send')
-
-
-
-    def test_kimi_is_reasoning_and_tool_capable(self):
-        provider = router.Provider('ollama', 'ollama', 'http://127.0.0.1:11434', None, ['kimi-k2.6:cloud'], set(), {'kimi-k2.6:cloud': {'supportsTools': True, 'supportsJson': True, 'contextWindow': 256000}})
-        caps = router.model_capabilities(provider, 'kimi-k2.6:cloud')
-        self.assertTrue(caps['reasoning'])
-        self.assertTrue(caps['tools'])
-        self.assertEqual(256000, caps['longContext'])
-
-    def test_kimi_ollama_payload_preserves_tools_and_reasoning(self):
-        payload = {
-            'messages': [{'role': 'user', 'content': 'Use lookup'}],
-            'tools': [{'type': 'function', 'function': {'name': 'lookup', 'parameters': {'type': 'object'}}}],
-        }
-        built = router.build_ollama_payload('kimi-k2.6:cloud', payload, thinking=router.ThinkingLevel.HIGH)
-        self.assertTrue(built['think'])
-        self.assertIn('tools', built)
-        self.assertGreaterEqual(built['options']['num_predict'], 4096)
-        self.assertGreaterEqual(built['options']['num_ctx'], 65536)
 
 
 if __name__ == '__main__':

@@ -39,4 +39,3 @@ Sage Router can route to NVIDIA NIM / NVIDIA Cloud endpoints using the customer'
 ## Integration guides
 
 Sage Router publishes integration guides for Codex CLI, Claude Code, OpenClaw, Hermes, Pi agents, Cursor, Aider, Continue, OpenHands, Ollama/Ollama Cloud, NVIDIA NIM, OpenAI-compatible clients, Anthropic-compatible clients, and harness fallback under `docs/integrations/` in the GitHub repository.
-- AI Model Routing Calculator: https://sagerouter.dev/model-routing-calculator.html

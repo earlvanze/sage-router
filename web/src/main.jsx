@@ -31,13 +31,11 @@ function App() {
           </a>
           <div className="navLinks">
             <a href="#how">How it works</a>
-            <a href="/model-routing-calculator.html">Calculator</a>
             <a href="#security">Security</a>
             <a href="#automation">Automation</a>
             <a href="#analytics">Analytics</a>
-            <a href="#pricing">Pricing</a>
             <a href="/analytics.html">Dashboard</a>
-            <a href="/account.html">Account</a>
+            <a href="/login.html">Login</a>
             <a href="#docs">Guides</a>
             <a href="#waitlist">Waitlist</a>
             <a href="https://github.com/earlvanze/sage-router">GitHub</a>
@@ -60,11 +58,11 @@ function App() {
               <a className="button secondary" href="#waitlist">
                 Join waitlist
               </a>
-              <a className="button secondary" href="/account.html">
-                Start premium
-              </a>
               <a className="button secondary" href="/analytics.html">
                 View analytics dashboard
+              </a>
+              <a className="button secondary" href="/login.html">
+                Sign in
               </a>
             </div>
             <p className="complianceNote">
@@ -156,33 +154,6 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
       </section>
 
 
-      <section className="section calculatorPromo" id="calculator">
-        <div className="sectionHeader">
-          <p className="eyebrow">Free model routing tool</p>
-          <h2>Estimate whether a workflow should route, escalate, or stay human-reviewed.</h2>
-          <p>
-            The AI Model Routing Calculator turns a boring workflow into a routing score, monthly cost estimate,
-            escalation recommendation, and copyable audit brief. It runs entirely in the browser with no login,
-            no storage, and no network calls.
-          </p>
-          <p><a className="inlineLink" href="/model-routing-calculator.html">Open the free calculator →</a></p>
-        </div>
-        <div className="cards">
-          <article>
-            <h3>Spot model-cost leaks</h3>
-            <p>Compare current model spend against a cheaper routed path for high-volume, low-risk tasks.</p>
-          </article>
-          <article>
-            <h3>Set escalation rules</h3>
-            <p>Get a practical recommendation for when to use stronger models or route output to human review.</p>
-          </article>
-          <article>
-            <h3>Copy an audit brief</h3>
-            <p>Turn the result into a short brief for your team before you implement BYOK/BYOS routing.</p>
-          </article>
-        </div>
-      </section>
-
       <section className="section analytics" id="analytics">
         <div className="sectionHeader">
           <p className="eyebrow">Paid performance intelligence</p>
@@ -192,7 +163,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
             for live provider intelligence: latency trends, error rates, fallback frequency, best-model recommendations,
             and alerts when a provider degrades.
           </p>
-          <p><a className="inlineLink" href="/account.html">Create an account and generate an API key →</a></p>
+          <p><a className="inlineLink" href="/analytics.html">Open the private analytics dashboard →</a></p>
         </div>
         <div className="cards">
           <article>
@@ -206,32 +177,6 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <article>
             <h3>Routing recommendations</h3>
             <p>Turn telemetry into policy suggestions: default models, fallback order, budget caps, and providers to cancel.</p>
-          </article>
-        </div>
-      </section>
-
-      <section className="section pricing" id="pricing">
-        <div className="sectionHeader">
-          <p className="eyebrow">Self-serve premium</p>
-          <h2>Hosted routing control without provider lock-in.</h2>
-          <p>
-            Sign up, upgrade with Stripe or manual crypto instructions, generate hashed API keys, and use the private dashboard.
-            Bring-your-own-key and pass-through provider access remain supported for teams that keep model credentials in their own environment.
-          </p>
-          <p><a className="inlineLink" href="/account.html">Open account and billing →</a></p>
-        </div>
-        <div className="cards">
-          <article>
-            <h3>Free</h3>
-            <p>Local-first router, BYOK configuration, integrations, and manual deployment paths.</p>
-          </article>
-          <article>
-            <h3>Premium</h3>
-            <p>Generated Sage Router API keys, private account analytics, live routing intelligence, and hosted checkout flow.</p>
-          </article>
-          <article>
-            <h3>Team</h3>
-            <p>Manual onboarding for shared dashboards, audit requirements, custom provider policies, and deployment support.</p>
           </article>
         </div>
       </section>

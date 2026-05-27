@@ -315,15 +315,16 @@ INTENT_MODEL_HINTS = {
     'GENERAL': ['sonnet', 'gpt-4o', 'gpt-5', 'kimi', 'minimax', 'qwen', 'glm', 'opus'],
 }
 
-COMPLEX_MODEL_HINTS = ['opus', 'sonnet', 'gpt-5', 'o3', 'glm', 'qwen', 'kimi', 'deepseek']
-LIGHTWEIGHT_MODEL_HINTS = ['mini', 'small', 'haiku']
+COMPLEX_MODEL_HINTS = ['opus', 'sonnet', 'gpt-5', 'o3', 'glm-5', 'glm-4.', 'qwen3', 'qwen2.5', 'kimi-k2', 'deepseek-v4']
+LIGHTWEIGHT_MODEL_HINTS = ['-mini', 'mini/', ':mini', 'small', 'haiku']
 OLLAMA_FAMILY_HINTS = {
-    'qwen': {'bonus': 9, 'intents': {'CODE', 'ANALYSIS', 'GENERAL'}},
+    'qwen3.': {'bonus': 9, 'intents': {'CODE', 'ANALYSIS', 'GENERAL'}},
     'kimi': {'bonus': 8, 'intents': {'CODE', 'GENERAL', 'CREATIVE', 'REALTIME'}},
     'kimi-k2': {'bonus': 9, 'intents': {'CODE', 'GENERAL', 'CREATIVE', 'REALTIME', 'ANALYSIS'}},
-    'glm': {'bonus': 11, 'intents': {'CODE', 'ANALYSIS', 'GENERAL', 'REALTIME'}},
-    'minimax': {'bonus': 6, 'intents': {'CREATIVE', 'GENERAL'}},
-    'deepseek': {'bonus': 10, 'intents': {'CODE', 'ANALYSIS'}},
+    'glm-5': {'bonus': 11, 'intents': {'CODE', 'ANALYSIS', 'GENERAL', 'REALTIME'}},
+    'minimax-m2.7': {'bonus': 6, 'intents': {'CREATIVE', 'GENERAL', 'REALTIME'}},
+    'minimax-m2': {'bonus': 5, 'intents': {'CREATIVE', 'GENERAL'}},
+    'deepseek-v4': {'bonus': 10, 'intents': {'CODE', 'ANALYSIS'}},
     'llama': {'bonus': 5, 'intents': {'GENERAL', 'CREATIVE'}},
     'gptoss': {'bonus': 7, 'intents': {'CODE', 'GENERAL', 'ANALYSIS'}},
     'qwen3moe': {'bonus': 8, 'intents': {'CODE', 'GENERAL'}},
@@ -332,7 +333,7 @@ OLLAMA_FAMILY_HINTS = {
 
 
 OLLAMA_TOOL_MODEL_HINTS = [
-    'qwen3', 'qwen2.5', 'qwen2', 'kimi', 'minimax', 'glm-5', 'glm-4',
+    'qwen3.', 'qwen2.5', 'qwen2', 'kimi-k2', 'minimax-m2', 'glm-5',
     'gpt-oss', 'llama3.1', 'llama3.2', 'llama3.3', 'mistral', 'mixtral', 'nemotron'
 ]
 OLLAMA_NON_TOOL_MODEL_HINTS = ['embed', 'embedding', 'ocr', 'vision', '-vl', ':vl', 'whisper', 'tts']
@@ -358,11 +359,11 @@ ANALYSIS_SIGNAL_TERMS = [
 ]
 ANALYSIS_QUALITY_MODEL_HINTS = [
     'opus', 'sonnet', 'gpt-5.5', 'gpt-5.4', 'gpt-5.3', 'gpt-5', 'o3',
-    'gemini-2.5-pro', 'gemini-3-pro', 'qwen3.5', 'qwen3:32b', 'qwen3:30b',
-    'kimi-k2', 'minimax-m2.7', 'glm-5', 'deepseek-v4',
+    'gemini-2.5-pro', 'gemini-3-pro', 'qwen3.5', 'qwen3.6', 'qwen3:32b', 'qwen3:30b',
+    'kimi-k2', 'minimax-m2.7', 'glm-5', 'deepseek-v4', 'mistral-large-3',
 ]
 WEAK_ANALYSIS_MODEL_HINTS = [
-    'mini', 'small', 'haiku', 'flash', 'flash-lite', 'lite', 'nano', 'tiny',
+    '-mini', 'mini/', ':mini', 'small', 'haiku', 'flash-lite', 'lite', 'nano', 'tiny',
     '0.5b', '1b', '3b', '7b', '8b', '12b', '14b', '16b',
 ]
 
@@ -371,7 +372,7 @@ WEAK_ANALYSIS_MODEL_HINTS = [
 NON_CHAT_FAMILY_PATTERNS = ['embed', 'bert', 'clip', 'vl', 'vision', 'ocr', 'asr', 'whisper', 'tts', 'sd', 'rerank']
 NON_CHAT_MODEL_HINTS = [
     'embed', 'embedding', 'rerank', 'bge-', 'nomic-embed', 'whisper', 'tts', 'sdxl', 'stable-diffusion',
-    '-vl', ':vl', 'vision', 'ocr', 'asr', 'transcribe', 'glm-ocr'
+    'ocr-model', 'asr-model', 'transcribe',
 ]
 
 # Ollama model families that are NOT text-chat capable.
@@ -1801,8 +1802,6 @@ def is_chat_capable_model(provider, model):
 
 
 def provider_supports_reasoning(provider, model):
-    if provider.api_type == 'ollama':
-        return is_kimi_model(model) or ollama_model_supports_native_thinking(model)
     if provider.api_type in ('openclaw-gateway', 'openai-codex-responses'):
         return True
     if provider.api_type == 'anthropic-messages':
@@ -2134,8 +2133,8 @@ def ollama_generation_options(thinking=DEFAULT_THINKING_LEVEL):
     if thinking == ThinkingLevel.LOW:
         return {'num_predict': 1024}
     if thinking == ThinkingLevel.HIGH:
-        return {'num_predict': 4096}
-    return {'num_predict': 2048}
+        return {'num_predict': 16384}
+    return {'num_predict': 8192}
 
 
 def build_ollama_payload(model, payload, thinking=DEFAULT_THINKING_LEVEL, stream=False):
@@ -2149,13 +2148,15 @@ def build_ollama_payload(model, payload, thinking=DEFAULT_THINKING_LEVEL, stream
         # LOW is operational/exact-output mode. MEDIUM/HIGH allow native Ollama
         # reasoning and give enough generation budget for thinking + final text.
         ollama_payload['think'] = thinking != ThinkingLevel.LOW
-        if is_kimi_model(model) and thinking != ThinkingLevel.LOW:
-            # Kimi can spend hundreds of tokens in message.thinking before final
-            # content. Keep enough budget so OpenAI-compatible callers do not see
-            # a reasoning-only/empty-content response.
+        # Use separate thinking budget so reasoning tokens don't consume the
+        # content token budget. Models that think can easily spend 10-30K tokens
+        # in message.thinking before producing visible content.
+        if thinking != ThinkingLevel.LOW:
             opts = dict(ollama_payload.get('options') or {})
-            opts['num_predict'] = max(int(opts.get('num_predict') or 0), 4096)
-            # Ollama Cloud Kimi accepts larger contexts when explicitly set.
+            opts['num_predict_thinking'] = 32768
+            # Ensure total budget is large enough for both thinking + content
+            opts['num_predict'] = max(int(opts.get('num_predict') or 0), 8192)
+            # Ollama Cloud models accept larger contexts when explicitly set.
             opts['num_ctx'] = max(int(opts.get('num_ctx') or 0), 65536)
             ollama_payload['options'] = opts
     if payload.get('tools'):
@@ -4857,15 +4858,15 @@ def estimate_model_params_b(model):
         return 405
     if any(h in model_l for h in ('340b', 'nemotron-4-340b')):
         return 340
-    if any(h in model_l for h in ('gpt-5', 'gpt-4.5', 'claude-opus', 'claude-sonnet-4', 'gemini-3', 'gemini-2.5-pro', 'hunter-alpha', 'healer-alpha', 'kimi-k2', 'glm-5', 'z1-ultra')):
+    if any(h in model_l for h in ('gpt-5', 'gpt-4.5', 'claude-opus', 'claude-sonnet-4', 'claude-4', 'gemini-3', 'gemini-2.5-pro', 'hunter-alpha', 'healer-alpha', 'kimi-k2', 'glm-5', 'deepseek-v4', 'qwen3.5', 'qwen3.6', 'minimax-m2.7', 'mistral-large-3', 'z1-ultra')):
         return 999
     return 0
 
 
 FRONTIER_LARGE_MODEL_HINTS = (
     'gpt-5', 'gpt-4.5', 'claude-opus', 'claude-sonnet-4', 'claude-4',
-    'gemini-3', 'gemini-2.5-pro', 'gemini-pro',
-    'llama-3.1-405b', 'llama4-405b', '405b', '340b',
+    'gemini-3', 'gemini-2.5-pro',
+    'llama-3.1-405b', 'llama4-405b',
     'nemotron-4-340b', 'hunter-alpha', 'healer-alpha',
     'kimi-k2', 'kimi-k2.5', 'kimi-k2.6', 'glm-5', 'deepseek-v4', 'qwen3.5', 'qwen3.6', 'minimax-m2.7', 'mistral-large-3', 'z1-ultra',
 )
@@ -5001,7 +5002,7 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
                 score -= 8
                 contributions.append(('code_dario_haiku_penalty', -8))
         elif provider.api_type == 'ollama':
-            if 'glm-5.1' in model_l or model_l.startswith('glm-5:') or model_l == 'glm-5' or 'glm-5:cloud' in model_l:
+            if 'glm-5' in model_l:
                 score += 18
                 contributions.append(('user_pref_code_glm_bonus', 18))
                 if complexity == Complexity.COMPLEX:
@@ -5108,7 +5109,7 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
         if family_bonus:
             score += family_bonus
             contributions.append(('ollama_family_bonus', family_bonus))
-        if intent == Intent.CODE and ('glm-5.1' in model_l or model_l.startswith('glm-5:') or model_l == 'glm-5' or 'glm-5:cloud' in model_l):
+        if intent == Intent.CODE and 'glm-5' in model_l:
             score += 8
             contributions.append(('glm5_code_preference', 8))
         elif intent == Intent.CODE and 'kimi' in model_l:
@@ -5180,8 +5181,12 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
             score += 30
             contributions.append(('document_frontier_bonus', 30))
         elif provider.api_type == 'ollama':
-            score -= 35
-            contributions.append(('document_ollama_penalty', -35))
+            if model_is_frontier_large(model):
+                score += 10
+                contributions.append(('document_frontier_ollama_bonus', 10))
+            else:
+                score -= 20
+                contributions.append(('document_small_ollama_penalty', -20))
         if any(h in model_l for h in ('gemini', 'gpt-5', 'gpt-4o', 'opus', 'sonnet', 'qwen', 'kimi', 'minimax')):
             score += 10
             contributions.append(('document_model_hint_bonus', 10))
@@ -5304,16 +5309,16 @@ def call_ollama(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING
             return True, content
         # Some Ollama thinking-capable models can spend the whole budget in
         # message.thinking and return empty content with done_reason=length.
-        # Do not silently disable thinking by default. If the operator wants
-        # the old recovery behavior, allow it explicitly via env.
-        if thinking_text and OLLAMA_ALLOW_THINK_FALSE_RETRY:
+        # Always retry with think=false to recover usable content. This is
+        # cheaper than discarding the response entirely and re-routing.
+        if thinking_text:
             retry_payload = dict(payload)
             retry_payload['think'] = False
             retry_body = _post_chat(retry_payload)
             retry_message = retry_body.get('message', {}) or {}
             retry_content = sanitize_visible_output(retry_message.get('content', '') or '')
             if retry_content:
-                logger.info(f"Ollama {base_url} {model}: recovered empty-content thinking response with opt-in think=false retry")
+                logger.info(f"Ollama {base_url} {model}: recovered empty-content thinking response with think=false retry")
                 return True, retry_content
         if thinking_text:
             err = 'Ollama returned thinking-only output with empty visible content'
@@ -5324,7 +5329,7 @@ def call_ollama(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING
         return False, err
     except Exception as e:
         err = extract_http_error(e)
-        if 'timed out' in err.lower() and OLLAMA_ALLOW_THINK_FALSE_RETRY:
+        if 'timed out' in err.lower():
             try:
                 retry_payload = dict(payload)
                 retry_payload['think'] = False
@@ -5332,7 +5337,7 @@ def call_ollama(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING
                 retry_message = retry_body.get('message', {}) or {}
                 retry_content = sanitize_visible_output(retry_message.get('content', '') or '')
                 if retry_content:
-                    logger.info(f"Ollama {base_url} {model}: recovered timed-out response with opt-in think=false retry")
+                    logger.info(f"Ollama {base_url} {model}: recovered timed-out response with think=false retry")
                     return True, retry_content
             except Exception as retry_err:
                 err = extract_http_error(retry_err)
