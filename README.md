@@ -608,6 +608,15 @@ If you're running local AI infrastructure, Sage Router is the single endpoint th
 
 🦞
 
+### Workflow tier metadata
+
+Sage Router emits advisory OpenClaw workflow metadata alongside routing decisions:
+
+- `X-Sage-Workflow-Tier`: `S`, `M`, `L`, or `XL`
+- `X-Sage-Workflow-Mode`: recommended execution pattern
+- `/health` → `lastRoute.workflowTier`, `lastRoute.workflowMode`, `lastRoute.recommendedAgents`, `lastRoute.workflow`
+
+The router remains an advisor. OpenClaw agents/plugins own orchestration and specialist fan-out.
 
 ## Router Profiles
 
