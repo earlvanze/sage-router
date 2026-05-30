@@ -105,6 +105,22 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         self.assertIsInstance(args, str)
         self.assertEqual(json.loads(args)['action'], 'send')
 
+    def test_anthropic_max_tokens_maps_to_length_and_back(self):
+        self.assertEqual('length', router.anthropic_stop_reason_to_openai_finish_reason('max_tokens'))
+        self.assertEqual('max_tokens', router.openai_finish_reason_to_anthropic_stop_reason('length'))
+
+        response = router.build_openai_completion('dario', 'claude-sonnet-4', 'req1', 'partial', finish_reason='length')
+        anthropic = router.openai_to_anthropic_response(response, 'claude-sonnet-4')
+        self.assertEqual('max_tokens', anthropic['stop_reason'])
+
+    def test_anthropic_end_turn_still_maps_to_openai_stop(self):
+        self.assertEqual('stop', router.anthropic_stop_reason_to_openai_finish_reason('end_turn'))
+        self.assertEqual('end_turn', router.openai_finish_reason_to_anthropic_stop_reason('stop'))
+
+    def test_google_max_tokens_maps_to_length(self):
+        self.assertEqual('length', router.google_finish_reason_to_openai_finish_reason('MAX_TOKENS'))
+        self.assertEqual('stop', router.google_finish_reason_to_openai_finish_reason('STOP'))
+
 
 if __name__ == '__main__':
     unittest.main()

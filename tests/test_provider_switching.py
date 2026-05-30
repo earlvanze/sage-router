@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+import os
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+os.environ.setdefault('SAGE_ROUTER_DARIO_AUTOSTART', '0')
+os.environ.setdefault('SAGE_ROUTER_BUNDLED_OLLAMA_AUTOSTART', '0')
+
+import router  # noqa: E402
+
+
+class ProviderSwitchingTests(unittest.TestCase):
+    def setUp(self):
+        self.old_providers = router.PROVIDERS
+        self.old_disabled = set(router.DISABLED_PROVIDERS)
+        self.old_fetch_ollama_models = router.fetch_ollama_models
+        self.old_provider_endpoint_reachable = router.provider_endpoint_reachable
+        self.old_temp_blocks = dict(router.TEMP_MODEL_BLOCKS)
+        router.PROVIDERS = {
+            'ollama': router.Provider('ollama', 'ollama', 'http://ollama.invalid', '', ['glm-5']),
+            'openai-codex': router.Provider('openai-codex', 'openclaw-gateway', 'ws://gateway.invalid', '', ['gpt-5.5', 'gpt-5.4']),
+        }
+        router.DISABLED_PROVIDERS.clear()
+        router.fetch_ollama_models = lambda provider: provider.models
+        router.provider_endpoint_reachable = lambda provider: True
+        router.TEMP_MODEL_BLOCKS.clear()
+
+    def tearDown(self):
+        router.PROVIDERS = self.old_providers
+        router.DISABLED_PROVIDERS.clear()
+        router.DISABLED_PROVIDERS.update(self.old_disabled)
+        router.fetch_ollama_models = self.old_fetch_ollama_models
+        router.provider_endpoint_reachable = self.old_provider_endpoint_reachable
+        router.TEMP_MODEL_BLOCKS.clear()
+        router.TEMP_MODEL_BLOCKS.update(self.old_temp_blocks)
+
+    def test_stale_ollama_prefix_switches_to_provider_that_has_model(self):
+        provider, model = router.resolve_requested_provider_model({'model': 'ollama/gpt-5.5'})
+        self.assertEqual('openai-codex', provider)
+        self.assertEqual('gpt-5.5', model)
+
+    def test_stale_provider_field_switches_to_provider_that_has_model(self):
+        provider, model = router.resolve_requested_provider_model({'provider': 'ollama', 'model': 'gpt-5.5'})
+        self.assertEqual('openai-codex', provider)
+        self.assertEqual('gpt-5.5', model)
+
+    def test_valid_ollama_model_keeps_ollama_provider(self):
+        provider, model = router.resolve_requested_provider_model({'model': 'ollama/glm-5'})
+        self.assertEqual('ollama', provider)
+        self.assertEqual('glm-5', model)
+
+    def test_prepare_route_uses_inferred_provider_for_stale_forced_provider(self):
+        _messages, _intent, _complexity, _tokens, chain = router.prepare_route(
+            [{'role': 'user', 'content': 'hello'}],
+            request_id='test-provider-switch',
+            force_provider='ollama',
+            requested_model='gpt-5.5',
+        )
+        self.assertEqual([('openai-codex', 'gpt-5.5')], chain[:1])
+
+    def test_gpt_family_switches_to_openai_provider_even_if_catalog_is_incomplete(self):
+        router.PROVIDERS['openai-codex'].models = ['gpt-5.4']
+        provider, model = router.resolve_requested_provider_model({'model': 'ollama/gpt-5.5'})
+        self.assertEqual('openai-codex', provider)
+        self.assertEqual('gpt-5.5', model)
+
+        _messages, _intent, _complexity, _tokens, chain = router.prepare_route(
+            [{'role': 'user', 'content': 'hello'}],
+            request_id='test-provider-family-switch',
+            force_provider='ollama',
+            requested_model='gpt-5.5',
+        )
+        self.assertEqual([('openai-codex', 'gpt-5.5')], chain[:1])
+
+
+if __name__ == '__main__':
+    unittest.main()

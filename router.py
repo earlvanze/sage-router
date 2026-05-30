@@ -1785,6 +1785,144 @@ def clear_temp_model_block(provider_name, model):
     invalidate_model_health_cache(provider_name, model)
 
 
+REQUESTED_MODEL_PROVIDER_PREFERENCE = [
+    'openai-codex',
+    'openai',
+    'github-copilot',
+    'google-vertex',
+    'google',
+    DARIO_PROVIDER_NAME,
+    'anthropic',
+    'xai',
+    'grok-sso',
+    'mistral',
+    'groq',
+    'together',
+    'fireworks',
+    'openrouter',
+    'ollama',
+    'ollama-cloud',
+    'ollama-cyber',
+]
+
+
+def split_provider_model(model_value):
+    raw = str(model_value or '').strip()
+    if '/' not in raw:
+        return None, raw
+    provider_name, model = raw.split('/', 1)
+    return provider_name.strip() or None, model.strip()
+
+
+def requested_model_supported_by_provider(provider_name, model):
+    if not provider_name or not model:
+        return False
+    provider = PROVIDERS.get(provider_name)
+    if not provider or provider_name in DISABLED_PROVIDERS:
+        return False
+    if provider.api_type == 'ollama':
+        try:
+            fetch_ollama_models(provider)
+        except Exception:
+            pass
+    if active_temp_model_block(provider.name, model):
+        return False
+    if model not in (provider.models or []):
+        return False
+    if model_disabled_reason(provider.name, model):
+        return False
+    if not is_chat_capable_model(provider, model):
+        return False
+    return True
+
+
+def requested_model_family_provider_names(model):
+    model_l = str(model or '').strip().lower()
+    if not model_l:
+        return []
+    if model_l.startswith(('gpt-', 'o1', 'o3', 'o4')) or 'codex' in model_l:
+        return ['openai-codex', 'openai', 'github-copilot', 'azure-openai', 'openrouter']
+    if model_l.startswith('claude') or model_l.startswith('anthropic.'):
+        return [DARIO_PROVIDER_NAME, 'anthropic', 'bedrock', 'openrouter']
+    if model_l.startswith(('gemini-', 'gemma')):
+        return ['google-vertex', 'google', 'github-copilot', 'openrouter']
+    if model_l.startswith('grok'):
+        return ['xai', 'grok-sso', 'openrouter']
+    if model_l.startswith(('mistral', 'codestral', 'ministral')):
+        return ['mistral', 'openrouter']
+    return []
+
+
+def requested_model_family_supported_by_provider(provider_name, model):
+    if not provider_name or not model:
+        return False
+    provider = PROVIDERS.get(provider_name)
+    if not provider or provider_name in DISABLED_PROVIDERS:
+        return False
+    if provider.api_type == 'ollama':
+        return False
+    if provider_name not in requested_model_family_provider_names(model):
+        return False
+    if active_temp_model_block(provider.name, model):
+        return False
+    if model_disabled_reason(provider.name, model):
+        return False
+    if not is_chat_capable_model(provider, model):
+        return False
+    return provider_endpoint_reachable(provider)
+
+
+def requested_model_provider_rank(provider_name):
+    try:
+        return REQUESTED_MODEL_PROVIDER_PREFERENCE.index(provider_name)
+    except ValueError:
+        return len(REQUESTED_MODEL_PROVIDER_PREFERENCE)
+
+
+def infer_provider_for_requested_model(model, avoid_provider=None):
+    matches = []
+    for provider_name, provider in PROVIDERS.items():
+        if provider_name == avoid_provider or provider_name in DISABLED_PROVIDERS:
+            continue
+        if requested_model_supported_by_provider(provider_name, model):
+            matches.append(provider_name)
+    if not matches:
+        for provider_name, provider in PROVIDERS.items():
+            if provider_name == avoid_provider or provider_name in DISABLED_PROVIDERS:
+                continue
+            if requested_model_family_supported_by_provider(provider_name, model):
+                matches.append(provider_name)
+    if not matches:
+        return None
+    matches.sort(key=lambda name: (requested_model_provider_rank(name), name))
+    return matches[0]
+
+
+def resolve_requested_provider_model(payload):
+    requested_provider = payload.get('provider')
+    model_provider, requested_model = split_provider_model(payload.get('model'))
+    if model_provider and not requested_provider:
+        requested_provider = model_provider
+    if not requested_model:
+        return requested_provider, requested_model
+
+    if requested_provider and requested_model_supported_by_provider(requested_provider, requested_model):
+        return requested_provider, requested_model
+
+    inferred_provider = infer_provider_for_requested_model(requested_model, avoid_provider=requested_provider)
+    if inferred_provider:
+        if requested_provider and requested_provider != inferred_provider:
+            logger.info(
+                "Requested model %s belongs to %s, not stale provider %s; switching provider automatically",
+                requested_model,
+                inferred_provider,
+                requested_provider,
+            )
+        return inferred_provider, requested_model
+
+    return requested_provider, requested_model
+
+
 
 def model_is_servable(provider, model):
     if model_disabled_reason(provider.name, model):
@@ -2253,6 +2391,37 @@ def parse_anthropic_response(body):
         'prompt_tokens': ((body.get('usage') or {}).get('input_tokens') or 0),
         'completion_tokens': ((body.get('usage') or {}).get('output_tokens') or 0),
     }
+
+
+def anthropic_stop_reason_to_openai_finish_reason(stop_reason, has_tool_calls=False):
+    reason = str(stop_reason or '').strip().lower()
+    if has_tool_calls or reason == 'tool_use':
+        return 'tool_calls'
+    if reason == 'max_tokens':
+        return 'length'
+    if reason in ('end_turn', 'stop_sequence', 'stop'):
+        return 'stop'
+    return reason or 'stop'
+
+
+def openai_finish_reason_to_anthropic_stop_reason(finish_reason):
+    reason = str(finish_reason or '').strip().lower()
+    if reason in ('length', 'max_tokens'):
+        return 'max_tokens'
+    if reason in ('tool_calls', 'function_call', 'tool_use'):
+        return 'tool_use'
+    if reason == 'stop_sequence':
+        return 'stop_sequence'
+    return 'end_turn'
+
+
+def google_finish_reason_to_openai_finish_reason(finish_reason):
+    reason = str(finish_reason or '').strip().upper()
+    if reason == 'MAX_TOKENS':
+        return 'length'
+    if reason in ('SAFETY', 'RECITATION', 'BLOCKLIST', 'PROHIBITED_CONTENT', 'SPII'):
+        return 'content_filter'
+    return 'stop'
 
 
 
@@ -5918,7 +6087,7 @@ def call_anthropic_completion(base_url, model, payload, api_key='', thinking=DEF
         with urllib.request.urlopen(req, timeout=ANTHROPIC_TIMEOUT_SECONDS) as resp:
             body = json.loads(resp.read())
         text, tool_calls, stop_reason, usage = parse_anthropic_response(body)
-        finish_reason = 'tool_calls' if tool_calls or stop_reason == 'tool_use' else 'stop'
+        finish_reason = anthropic_stop_reason_to_openai_finish_reason(stop_reason, bool(tool_calls))
         return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, usage, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
     except Exception as e:
         err = extract_http_error(e)
@@ -5926,18 +6095,36 @@ def call_anthropic_completion(base_url, model, payload, api_key='', thinking=DEF
         return False, err
 
 
-def call_google_completion(base_url, model, payload, api_key='', thinking=DEFAULT_THINKING_LEVEL, debug_mode=False, request_id=''):
-    ok, text = call_google(base_url, model, payload.get('messages', []), api_key=api_key, thinking=thinking, want_json=payload.get('response_format', {}).get('type') == 'json_object')
-    if not ok:
-        return False, text
-    return True, build_openai_completion('google', model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
+def call_google_completion(base_url, model, payload, api_key='', thinking=DEFAULT_THINKING_LEVEL, debug_mode=False, request_id='', provider_name='google'):
+    if 'generativelanguage.googleapis.com' in base_url and '/v1beta' not in base_url:
+        base_url = base_url.rstrip('/') + '/v1beta'
+    url = base_url.rstrip('/') + f'/models/{urllib.parse.quote(model, safe="")}:generateContent'
+    body_payload = build_google_generate_payload(payload.get('messages', []), thinking=thinking, want_json=payload.get('response_format', {}).get('type') == 'json_object')
+    try:
+        data = json.dumps(body_payload).encode()
+        hdrs = {'Content-Type': 'application/json'}
+        if api_key:
+            hdrs['x-goog-api-key'] = api_key
+        req = urllib.request.Request(url, data=data, headers=hdrs)
+        with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+            body = json.loads(resp.read())
+        text = parse_google_generate_text(body)
+        if not text:
+            return False, json.dumps(body)[:500]
+        candidate = (body.get('candidates') or [{}])[0] or {}
+        finish_reason = google_finish_reason_to_openai_finish_reason(candidate.get('finishReason'))
+        return True, build_openai_completion(provider_name, model, request_id, text, [], finish_reason, {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
+    except Exception as e:
+        err = extract_http_error(e)
+        logger.warning(f"Google {base_url} {model}: {err}")
+        return False, err
 
 
-def call_google_vertex_completion(base_url, model, payload, thinking=DEFAULT_THINKING_LEVEL, debug_mode=False, request_id=''):
+def call_google_vertex_completion(base_url, model, payload, thinking=DEFAULT_THINKING_LEVEL, debug_mode=False, request_id='', provider_name='google-vertex'):
     ok, text = call_google_vertex(base_url, model, payload.get('messages', []), thinking=thinking, want_json=payload.get('response_format', {}).get('type') == 'json_object')
     if not ok:
         return False, text
-    return True, build_openai_completion('google-vertex', model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
+    return True, build_openai_completion(provider_name, model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
 
 
 def stream_openai_compat_to_client(self, provider, model, payload, request_id, thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, debug_mode=False):
@@ -6187,15 +6374,10 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
     debug_mode = normalize_debug_mode(payload)
     logger.info(f"[{request_id}] Incoming /v1/chat/completions with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}, routerProfile={router_profile}, discordPublicProfile={discord_public_profile}, debug={debug_mode}")
 
-    # Parse provider from model field (e.g., "openai-codex/gpt-5.5")
-    _fp = payload.get('provider')
-    _rm = payload.get('model')
-    if '/' in str(_rm):
-        _parts = str(_rm).split('/', 1)
-        _pp = _parts[0]
-        if not _fp and _pp in PROVIDERS and _pp not in DISABLED_PROVIDERS:
-            _fp = _pp
-        _rm = _parts[1]
+    # Resolve model switches across providers. If the client carries a stale
+    # provider prefix, e.g. ollama/gpt-5.5, prefer the provider that actually
+    # advertises the requested model instead of cooling down the stale provider.
+    _fp, _rm = resolve_requested_provider_model(payload)
     normalized_messages, intent, complexity, estimated_tokens, chain = prepare_route(
         payload.get('messages', []),
         request_id=request_id,
@@ -6389,6 +6571,18 @@ def prepare_route(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_
     complexity = estimate_complexity(user_text)
     requirements = requirements or {}
     logger.info(f"[{request_id}] Intent: {intent.name}, Complexity: {complexity.name}, Thinking: {thinking.value}, Route: {route_mode}, JSON: {want_json}, EstTokens: {estimated_tokens}, ForceProvider: {force_provider or 'none'}")
+
+    if requested_model:
+        if force_provider and not requested_model_supported_by_provider(force_provider, requested_model):
+            inferred_provider = infer_provider_for_requested_model(requested_model, avoid_provider=force_provider)
+            if inferred_provider:
+                logger.info(f"[{request_id}] Requested model {requested_model} is served by {inferred_provider}, not {force_provider}; switching forced provider")
+                force_provider = inferred_provider
+        elif not force_provider:
+            inferred_provider = infer_provider_for_requested_model(requested_model)
+            if inferred_provider:
+                logger.info(f"[{request_id}] Inferred provider {inferred_provider} for requested model {requested_model}")
+                force_provider = inferred_provider
     
     # If provider forced, build chain with only that provider's models
     if force_provider and force_provider in PROVIDERS and force_provider not in DISABLED_PROVIDERS:
@@ -6409,8 +6603,11 @@ def prepare_route(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_
                     logger.info(f"[{request_id}] Chain (Google passthrough): {chain}")
                     LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': [{'provider': force_provider, 'model': requested_model, 'score': 100}], 'rejections': [], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider, 'passthrough': True})
                     return normalized_messages, intent, complexity, estimated_tokens, chain
-                # Otherwise prepend requested model if not in list
-                all_models = [requested_model] + all_models
+                # Do not send impossible model IDs to Ollama. A stale prefix
+                # like ollama/gpt-5.5 should fall through to valid candidates
+                # instead of cooling down the Ollama lane for model_not_found.
+                if prov.api_type != 'ollama':
+                    all_models = [requested_model] + all_models
             elif requested_model and requested_model in all_models:
                 # Move requested model to front if it exists
                 all_models = [requested_model] + [m for m in all_models if m != requested_model]
@@ -6512,7 +6709,7 @@ def latest_user_text(messages):
     return messages[-1].get('content', '') if messages else ''
 
 
-def route_request(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_LEVEL, route_mode='balanced', requirements=None, want_json=False):
+def route_request(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_LEVEL, route_mode='balanced', requirements=None, want_json=False, force_provider=None, requested_model=None):
     requirements = requirements or {}
     normalized_messages, intent, complexity, estimated_tokens, chain = prepare_route(
         messages,
@@ -6522,9 +6719,16 @@ def route_request(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_
         requirements=requirements,
         want_json=want_json,
         streaming_mode='buffered-wrapper' if requirements.get('streaming') else 'disabled',
+        force_provider=force_provider,
+        requested_model=requested_model,
     )
     overall_started = time.time()
     attempts = []
+    provider_payload = {
+        'messages': normalized_messages,
+        'response_format': {'type': 'json_object'} if want_json else {},
+        'requirements': requirements,
+    }
     for pn, model in chain:
         if pn in DISABLED_PROVIDERS:
             continue
@@ -6534,27 +6738,49 @@ def route_request(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_
         supports_reasoning = provider_supports_reasoning(prov, model)
         logger.info(f"[{request_id}] Trying {pn}/{model} (api={prov.api_type}, reasoning={supports_reasoning})")
         started = time.time()
+        ok = False
+        result = None
+        error_detail = None
         if prov.api_type == 'ollama':
-            ok, text = call_ollama(prov.base_url, model, normalized_messages, prov.api_key, thinking)
+            ok, result = call_ollama_completion(prov.base_url, model, provider_payload, prov.api_key, thinking, provider_name=pn, request_id=request_id)
         elif prov.api_type == 'openclaw-gateway':
             gateway_timeout = OPENCLAW_GATEWAY_CODE_TIMEOUT_SECONDS if intent == Intent.CODE else OPENCLAW_GATEWAY_TIMEOUT_SECONDS
-            ok, text = call_openclaw_gateway(model, normalized_messages, pn, thinking, want_json, gateway_timeout)
+            ok_text, text = call_openclaw_gateway(model, normalized_messages, pn, thinking, want_json, gateway_timeout)
+            ok = ok_text
+            if ok:
+                result = build_openai_completion(pn, model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0})
+            else:
+                error_detail = text
         elif prov.api_type == 'anthropic-messages':
-            ok, text = call_anthropic(prov.base_url, model, normalized_messages, prov.api_key, thinking, supports_reasoning, want_json)
+            ok, result = call_anthropic_completion(prov.base_url, model, provider_payload, prov.api_key, thinking, supports_reasoning, request_id=request_id, provider_name=pn)
         elif prov.api_type == 'google-generative-language':
-            ok, text = call_google(prov.base_url, model, normalized_messages, prov.api_key, thinking, want_json)
+            ok, result = call_google_completion(prov.base_url, model, provider_payload, prov.api_key, thinking, request_id=request_id, provider_name=pn)
+        elif prov.api_type == 'google-vertex-ai':
+            ok, result = call_google_vertex_completion(prov.base_url, model, provider_payload, thinking, request_id=request_id, provider_name=pn)
+        elif prov.api_type == 'cloudflare-workers-ai':
+            ok, result = call_cloudflare_workers_ai_completion(prov.base_url, model, provider_payload, prov.api_key, thinking, request_id=request_id)
+        elif prov.api_type == 'openai-codex-responses':
+            ok, result = call_codex_completion(prov.base_url, model, provider_payload, prov.api_key, pn, thinking, supports_reasoning, request_id=request_id)
         else:
-            ok, text = call_openai_compat(prov.base_url, model, normalized_messages, prov.api_key, pn, thinking, supports_reasoning, want_json)
+            ok, result = call_openai_compat_completion(prov.base_url, model, provider_payload, prov.api_key, pn, thinking, supports_reasoning, request_id=request_id)
+        if not ok:
+            error_detail = error_detail or result
+        if ok and not openai_completion_has_visible_output(result):
+            ok = False
+            error_detail = 'empty visible content'
         elapsed = time.time() - started
-        record_latency_outcome(intent.name, pn, model, elapsed, ok, '' if ok else text)
-        attempts.append({'provider': pn, 'model': model, 'ok': ok, 'elapsedMs': round(elapsed * 1000.0, 2), 'detail': '' if ok else str(text)[:240]})
+        record_latency_outcome(intent.name, pn, model, elapsed, ok, '' if ok else error_detail or '')
+        attempts.append({'provider': pn, 'model': model, 'ok': ok, 'elapsedMs': round(elapsed * 1000.0, 2), 'detail': '' if ok else str(error_detail or '')[:240]})
         LAST_ROUTE_DEBUG['attempts'] = attempts[-12:]
         if ok:
             total_elapsed = time.time() - overall_started
+            choice = (result.get('choices') or [{}])[0] or {}
+            message = choice.get('message') or {}
+            text = message.get('content') or ''
             logger.info(f"[{request_id}] OK: {pn}/{model} ({len(text)} chars, provider={elapsed:.2f}s, total={total_elapsed:.2f}s)")
             LAST_ROUTE_DEBUG.update({'selected': {'provider': pn, 'model': model}, 'status': 'ok', 'error': None, 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
             append_route_event({'request_id': request_id, 'status': 'ok', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': False, 'requirements': requirements, 'selected': {'provider': pn, 'model': model}, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]]})
-            return {"id": f"chatcmpl-{int(time.time())}", "object": "chat.completion", "created": int(time.time()), "model": f"{pn}/{model}", "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}], "usage": {"prompt_tokens": 0, "completion_tokens": 0}}
+            return result
         logger.warning(f"[{request_id}] Failed {pn}/{model} after {elapsed:.2f}s")
     total_elapsed = time.time() - overall_started
     logger.error(f"[{request_id}] All providers failed after {total_elapsed:.2f}s")
@@ -6575,7 +6801,7 @@ def openai_to_anthropic_response(openai_resp, request_model=None):
         'role': 'assistant',
         'content': [{'type': 'text', 'text': content_text}],
         'model': model,
-        'stop_reason': 'end_turn' if finish_reason == 'stop' else finish_reason,
+        'stop_reason': openai_finish_reason_to_anthropic_stop_reason(finish_reason),
         'stop_sequence': None,
         'usage': {
             'input_tokens': usage.get('prompt_tokens', 0),
@@ -6655,7 +6881,8 @@ def handle_anthropic_messages(self, body, request_id, started):
         requirements = normalize_requirements(openai_payload, thinking)
         want_json = False
         logger.info(f"[{request_id}] Incoming /v1/messages (Anthropic compat) with {message_count} messages, model={request_model}, thinking={thinking.value}, route={route_mode}, stream={want_stream}")
-        result = route_request(openai_payload.get('messages', []), request_id=request_id, thinking=thinking, route_mode=route_mode, requirements=requirements, want_json=want_json)
+        _fp, _rm = resolve_requested_provider_model(openai_payload)
+        result = route_request(openai_payload.get('messages', []), request_id=request_id, thinking=thinking, route_mode=route_mode, requirements=requirements, want_json=want_json, force_provider=_fp, requested_model=_rm)
         if isinstance(result, dict) and result.get('error'):
             # Error response - translate to Anthropic error format
             self.write_json(503, {
@@ -6665,6 +6892,8 @@ def handle_anthropic_messages(self, body, request_id, started):
         elif want_stream:
             # Anthropic SSE streaming format
             content_text = result.get('choices', [{}])[0].get('message', {}).get('content', '') or ''
+            finish_reason = (result.get('choices') or [{}])[0].get('finish_reason', 'stop')
+            stop_reason = openai_finish_reason_to_anthropic_stop_reason(finish_reason)
             model = result.get('model', request_model or 'sage-router/auto')
             msg_id = f'msg_{uuid.uuid4().hex[:24]}'
             usage = result.get('usage', {})
@@ -6678,7 +6907,7 @@ def handle_anthropic_messages(self, body, request_id, started):
             # content_block_stop
             sse_events.append(f'event: content_block_stop\ndata: {json.dumps({"type":"content_block_stop","index":0})}')
             # message_delta
-            sse_events.append(f'event: message_delta\ndata: {json.dumps({"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":None},"usage":{"output_tokens":usage.get("completion_tokens",len(content_text)//4)}})}')
+            sse_events.append(f'event: message_delta\ndata: {json.dumps({"type":"message_delta","delta":{"stop_reason":stop_reason,"stop_sequence":None},"usage":{"output_tokens":usage.get("completion_tokens",len(content_text)//4)}})}')
             # message_stop
             sse_events.append(f'event: message_stop\ndata: {json.dumps({"type":"message_stop"})}')
             sse_body = '\n\n'.join(sse_events) + '\n\n'
