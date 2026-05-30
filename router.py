@@ -100,6 +100,9 @@ GOOGLE_VERTEX_TOKEN_CACHE = {'access_token': '', 'expires_at': 0}
 OPENCLAW_GATEWAY_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENCLAW_TIMEOUT_SECONDS', '90'))
 OPENCLAW_GATEWAY_CODE_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENCLAW_CODE_TIMEOUT_SECONDS', '45'))
 OPENCLAW_GATEWAY_AGENT_ID = os.environ.get('SAGE_ROUTER_OPENCLAW_AGENT_ID', 'main')
+AUDIO_STT_PROVIDER = os.environ.get('SAGE_ROUTER_AUDIO_STT_PROVIDER', 'openai').strip() or 'openai'
+AUDIO_TTS_PROVIDER = os.environ.get('SAGE_ROUTER_AUDIO_TTS_PROVIDER', 'openai').strip() or 'openai'
+AUDIO_PROXY_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_AUDIO_PROXY_TIMEOUT_SECONDS', '120'))
 REACHABILITY_TIMEOUT_SECONDS = float(os.environ.get('SAGE_ROUTER_REACHABILITY_TIMEOUT_SECONDS', '0.5'))
 REACHABILITY_TTL_SECONDS = int(os.environ.get('SAGE_ROUTER_REACHABILITY_TTL_SECONDS', '120'))
 OLLAMA_MODEL_REFRESH_TTL_SECONDS = int(os.environ.get('SAGE_ROUTER_OLLAMA_MODEL_REFRESH_TTL_SECONDS', '300'))
@@ -5741,6 +5744,115 @@ def call_codex_completion(base_url, model, payload, api_key='', provider_name=''
         return False, extract_http_error(e)
 
 
+def audio_endpoint_kind(path):
+    clean_path = urllib.parse.urlparse(path or '').path
+    if clean_path in {'/v1/audio/transcriptions', '/audio/transcriptions'}:
+        return 'stt'
+    if clean_path in {'/v1/audio/speech', '/audio/speech'}:
+        return 'tts'
+    return ''
+
+
+def audio_proxy_provider(kind):
+    provider_name = AUDIO_TTS_PROVIDER if kind == 'tts' else AUDIO_STT_PROVIDER
+    provider = PROVIDERS.get(provider_name)
+    if not provider and provider_name == 'openrouter':
+        provider = Provider(
+            'openrouter',
+            'openai-completions',
+            env_first('SAGE_ROUTER_OPENROUTER_BASE_URL', 'OPENROUTER_BASE_URL') or 'https://openrouter.ai/api/v1',
+            env_first('SAGE_ROUTER_OPENROUTER_API_KEY', 'OPENROUTER_API_KEY'),
+            [],
+        )
+    if not provider:
+        return None, f'audio_{kind}_provider_not_configured'
+    if provider.api_type not in {'openai-completions'}:
+        return None, f'audio_{kind}_provider_not_openai_compatible'
+    if not provider.base_url:
+        return None, f'audio_{kind}_provider_missing_base_url'
+    if not provider.api_key:
+        return None, f'audio_{kind}_provider_missing_api_key'
+    return provider, ''
+
+
+def upstream_audio_url(provider, kind):
+    base = (provider.base_url or '').rstrip('/')
+    suffix = '/audio/speech' if kind == 'tts' else '/audio/transcriptions'
+    if base.endswith('/v1') or base.endswith('/api/v1'):
+        return base + suffix
+    return base + '/v1' + suffix
+
+
+def proxy_audio_request(handler, kind, body, request_id):
+    provider, error = audio_proxy_provider(kind)
+    if error:
+        handler.write_json(503, {'error': error}, extra_headers={'X-Sage-Router-Request-Id': request_id})
+        return
+
+    content_type = handler.headers.get('Content-Type') or 'application/octet-stream'
+    headers = {
+        'Authorization': f'Bearer {provider.api_key}',
+        'Content-Type': content_type,
+        'User-Agent': 'sage-router/audio-proxy',
+    }
+    if provider.name == 'openrouter':
+        headers.setdefault('HTTP-Referer', 'https://sagerouter.dev')
+        headers.setdefault('X-OpenRouter-Title', 'Sage Router')
+    accept = handler.headers.get('Accept')
+    if accept:
+        headers['Accept'] = accept
+    url = upstream_audio_url(provider, kind)
+    started = time.time()
+    try:
+        req = urllib.request.Request(url, data=body, headers=headers, method='POST')
+        with urllib.request.urlopen(req, timeout=AUDIO_PROXY_TIMEOUT_SECONDS) as resp:
+            if kind == 'tts':
+                # Stream TTS audio to the client using chunked transfer encoding
+                handler.stream_binary_response(
+                    resp,
+                    extra_headers={
+                        'X-Sage-Router-Request-Id': request_id,
+                        'X-Sage-Router-Provider': provider.name,
+                        'X-Sage-Router-Audio-Kind': kind,
+                    },
+                )
+            else:
+                # STT returns JSON — buffer and send
+                resp_body = resp.read()
+                resp_type = resp.headers.get('Content-Type') or 'application/json'
+                handler.write_binary(
+                    resp.status,
+                    resp_body,
+                    resp_type,
+                    {
+                        'X-Sage-Router-Request-Id': request_id,
+                        'X-Sage-Router-Provider': provider.name,
+                        'X-Sage-Router-Audio-Kind': kind,
+                    },
+                )
+            logger.info(f'[{request_id}] Proxied audio {kind} via {provider.name} in {round((time.time() - started) * 1000, 2)}ms')
+    except urllib.error.HTTPError as e:
+        err_body = e.read()
+        handler.write_binary(
+            e.code,
+            err_body,
+            e.headers.get('Content-Type') or 'application/json',
+            {
+                'X-Sage-Router-Request-Id': request_id,
+                'X-Sage-Router-Provider': provider.name,
+                'X-Sage-Router-Audio-Kind': kind,
+            },
+        )
+        logger.warning(f'[{request_id}] Audio {kind} proxy {provider.name} failed: HTTP {e.code}')
+    except Exception as e:
+        logger.warning(f'[{request_id}] Audio {kind} proxy {provider.name} failed: {extract_http_error(e)}')
+        handler.write_json(
+            502,
+            {'error': 'audio_proxy_failed', 'provider': provider.name, 'detail': extract_http_error(e)},
+            extra_headers={'X-Sage-Router-Request-Id': request_id},
+        )
+
+
 
 def call_anthropic(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, want_json=False):
     url = base_url.rstrip('/') + '/v1/messages'
@@ -6987,6 +7099,44 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             logger.warning("Client disconnected before response could be written")
 
+    def write_binary(self, status_code, body, content_type, extra_headers=None):
+        try:
+            self.send_response(status_code)
+            self.send_header('Content-Type', content_type or 'application/octet-stream')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_cors_headers()
+            for key, value in (extra_headers or {}).items():
+                if value:
+                    self.send_header(key, str(value))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            logger.warning("Client disconnected before binary response could be written")
+
+    def stream_binary_response(self, resp, extra_headers=None):
+        try:
+            resp_type = resp.headers.get('Content-Type') or 'application/octet-stream'
+            self.send_response(resp.status)
+            self.send_header('Content-Type', resp_type)
+            self.send_header('Transfer-Encoding', 'chunked')
+            self.send_cors_headers()
+            for key, value in (extra_headers or {}).items():
+                if value:
+                    self.send_header(key, str(value))
+            self.end_headers()
+            while True:
+                chunk = resp.read(8192)
+                if not chunk:
+                    break
+                self.wfile.write(f'{len(chunk):x}\r\n'.encode())
+                self.wfile.write(chunk)
+                self.wfile.write(b'\r\n')
+                self.wfile.flush()
+            self.wfile.write(b'0\r\n\r\n')
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            logger.warning("Client disconnected during audio streaming")
+
     def do_GET(self):
         if self.path in ('', '/'):
             self.write_json(200, {
@@ -6997,6 +7147,8 @@ class Handler(BaseHTTPRequestHandler):
                     "health": "/health",
                     "models": "/v1/models",
                     "chatCompletions": "/v1/chat/completions",
+                    "audioTranscriptions": "/v1/audio/transcriptions",
+                    "audioSpeech": "/v1/audio/speech",
                     "anthropicMessages": "/v1/messages",
                     "googleGenerateContent": "/v1beta/models/{model}:generateContent",
                     "discovery": "/discovery",
@@ -7024,6 +7176,14 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 "requirements": {
                     "supportedKeys": ["reasoning", "json", "tools", "longContext", "document", "vision", "streaming"]
+                },
+                "audio": {
+                    "sttProvider": AUDIO_STT_PROVIDER,
+                    "sttConfigured": audio_proxy_provider('stt')[1] == '',
+                    "ttsProvider": AUDIO_TTS_PROVIDER,
+                    "ttsConfigured": audio_proxy_provider('tts')[1] == '',
+                    "endpoints": ["/v1/audio/transcriptions", "/v1/audio/speech"],
+                    "timeoutSeconds": AUDIO_PROXY_TIMEOUT_SECONDS,
                 },
                 "intentClassifier": {
                     "enabled": INTENT_CLASSIFIER_ENABLED,
@@ -7304,8 +7464,10 @@ class Handler(BaseHTTPRequestHandler):
             self.write_json(201, {'intent': intent})
             return
 
+        audio_kind = audio_endpoint_kind(self.path)
         model_endpoint = (
             self.path in ['/v1/chat/completions', '/chat/completions', '/v1/messages', '/messages', '/v1/realtime', '/realtime']
+            or bool(audio_kind)
             or ':generateContent' in self.path
             or ':streamGenerateContent' in self.path
         )
@@ -7347,6 +7509,14 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     logger.exception(f"[{request_id}] Realtime request failed")
                     self.write_json(500, {"error": str(e)}, extra_headers={'X-Sage-Router-Request-Id': request_id})
+            elif audio_kind:
+                content_length = self.headers.get('Content-Length')
+                if not content_length or int(content_length) <= 0:
+                    self.write_json(411, {'error': 'content_length_required', 'detail': 'Audio endpoints require a valid Content-Length header'})
+                    return
+                body = self.rfile.read(int(content_length))
+                request_id = uuid.uuid4().hex[:8]
+                proxy_audio_request(self, audio_kind, body, request_id)
             elif ':generateContent' in self.path or ':streamGenerateContent' in self.path:
                 # Google Generative AI compat: /v1beta/models/{model}:generateContent
                 import re

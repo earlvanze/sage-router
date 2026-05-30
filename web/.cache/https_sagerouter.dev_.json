@@ -1,0 +1,18 @@
+{
+  "https://sagerouter.dev/llms.txt": {
+    "status": "Discovered - currently not indexed",
+    "lastCheckedAt": "2026-05-13T23:24:30.166Z"
+  },
+  "https://sagerouter.dev/": {
+    "status": "Submitted and indexed",
+    "lastCheckedAt": "2026-05-13T23:24:30.368Z"
+  },
+  "https://sagerouter.dev/model-routing-calculator.html": {
+    "status": "URL is unknown to Google",
+    "lastCheckedAt": "2026-05-13T23:24:30.427Z"
+  },
+  "https://sagerouter.dev/llms-full.txt": {
+    "status": "Discovered - currently not indexed",
+    "lastCheckedAt": "2026-05-13T23:24:30.531Z"
+  }
+}
