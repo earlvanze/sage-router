@@ -2735,12 +2735,14 @@ def load_openclaw_auth_access_token(provider_name):
     # openai-codex shares OAuth tokens with openai (ChatGPT) profiles.
     # auth-profiles.json stores them under provider=openai with type=oauth
     # and fields like chatgptPlanType/accountId that indicate ChatGPT/Codex access.
+    # Skip profile names containing '@' to avoid PII in logs and error messages.
     if provider_name == 'openai-codex':
         candidate_names.extend(
             name for name, profile in profiles.items()
             if isinstance(profile, dict)
             and profile.get('provider') == 'openai'
             and profile.get('type') == 'oauth'
+            and '@' not in name
         )
 
     now_ms = time.time() * 1000
@@ -4276,6 +4278,8 @@ def general_empirical_adjustment(provider, model):
     if not stat:
         if provider.api_type == 'openclaw-gateway':
             return -4.0, 'cold-gateway'
+        # openai-codex-responses is a direct external API, not the recursive
+        # gateway — apply the same exploration bonus as other cold models.
         if provider_stats:
             return -2.0, 'provider-known,cold-model'
         return GENERAL_EMPIRICAL_EXPLORATION_BONUS, 'cold'
@@ -5341,12 +5345,11 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
         contributions.append(('anthropic_reasoning_bias', 4))
     # openclaw-gateway is recursive (routes through this router), so it gets
     # a fixed low base score - only used as a fallback, never preferred.
+    # openai-codex-responses is a direct external API, so it does NOT get the
+    # gateway penalty — it competes on its own merits like plain openai.
     if provider.api_type == 'openclaw-gateway':
         score = min(score, 40)
         contributions.append(('openclaw_gateway_recursive_cap', min(0, 40 - score)))
-    # OpenAI-compat / non-recursive external APIs keep their score as-is.
-    # The openclaw-gateway penalty below handles the rest.
-    if provider.api_type == 'openclaw-gateway':
         score -= 4
         contributions.append(('openclaw_gateway_penalty', -4))
 
@@ -5811,48 +5814,36 @@ def call_codex_responses(base_url, model, messages, api_key='', provider_name=''
         "stream": True,
     }
     
-    # Forward tools from the incoming OpenAI Chat Completions payload.
-    # The Responses API uses the same tool definition schema.
-    if any(isinstance(m, dict) and m.get('tools') for m in messages):
-        # Tools may be attached to individual messages in some client formats
-        for m in messages:
-            if isinstance(m, dict) and m.get('tools'):
-                payload.setdefault('tools', []).extend(m['tools'])
-    
+    # Convert Chat Completions tools to Responses API schema (top-level name/parameters).
+    raw_tools = []
+    for m in messages:
+        if isinstance(m, dict) and m.get('tools'):
+            raw_tools.extend(m['tools'])
+    converted = responses_tool_definitions(raw_tools)
+    if converted:
+        payload['tools'] = converted
+        tool_choice = responses_tool_choice(payload.get('tool_choice'))
+        if tool_choice is not None:
+            payload['tool_choice'] = tool_choice
+
     # Add reasoning effort if supported
     if supports_reasoning and thinking == ThinkingLevel.HIGH:
         payload["reasoning"] = {"effort": "high"}
-    
+
     try:
         data = json.dumps(payload).encode()
         hdrs = {'Content-Type': 'application/json'}
         if api_key:
             hdrs['Authorization'] = f'Bearer {api_key}'
         req = urllib.request.Request(url, data=data, headers=hdrs)
-        
-        # Handle streaming response
-        full_text = []
-        event_type = None
+
+        # Handle streaming response (text + function_call items as tool_calls)
         with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
-            for line in resp:
-                line = line.decode().strip()
-                if line.startswith('event: '):
-                    event_type = line[6:].strip()
-                elif line.startswith('data: ') and event_type == 'response.output_text.delta':
-                    try:
-                        delta_data = json.loads(line[6:])
-                        if delta_data.get('type') == 'response.output_text.delta':
-                            full_text.append(delta_data.get('delta', ''))
-                    except Exception:
-                        pass
-                elif line == 'data: [DONE]':
-                    break
-                elif line.startswith('event: ') and not line.startswith('event: data'):
-                    continue
-        
-        text = sanitize_visible_output(''.join(full_text))
-        if text:
-            return True, text
+            text, tool_calls = parse_responses_stream(resp)
+
+        text = sanitize_visible_output(text)
+        if text or tool_calls:
+            return True, {'text': text, 'tool_calls': tool_calls}
         return False, 'Empty Codex response'
     except Exception as e:
         logger.warning(f"Codex responses {provider_name or base_url} {model}: {extract_http_error(e)}")
