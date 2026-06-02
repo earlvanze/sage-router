@@ -105,6 +105,64 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         self.assertIsInstance(args, str)
         self.assertEqual(json.loads(args)['action'], 'send')
 
+    def test_responses_tool_definition_converts_chat_completion_function_schema(self):
+        converted = router.responses_tool_definition({
+            'type': 'function',
+            'function': {
+                'name': 'lookup_record',
+                'description': 'Look up a record.',
+                'parameters': {'type': 'object', 'properties': {'id': {'type': 'string'}}},
+                'strict': True,
+            },
+        })
+        self.assertEqual({
+            'type': 'function',
+            'name': 'lookup_record',
+            'description': 'Look up a record.',
+            'parameters': {'type': 'object', 'properties': {'id': {'type': 'string'}}},
+            'strict': True,
+        }, converted)
+
+    def test_responses_tool_choice_converts_named_function_choice(self):
+        self.assertEqual(
+            {'type': 'function', 'name': 'lookup_record'},
+            router.responses_tool_choice({'type': 'function', 'function': {'name': 'lookup_record'}}),
+        )
+        self.assertEqual('required', router.responses_tool_choice('required'))
+        self.assertIsNone(router.responses_tool_choice('auto'))
+
+    def test_parse_responses_stream_returns_function_calls(self):
+        lines = [
+            b'event: response.output_item.added\n',
+            b'data: {"type":"response.output_item.added","item":{"id":"fc_1","type":"function_call","call_id":"call_1","name":"lookup_record","arguments":""}}\n',
+            b'event: response.function_call_arguments.delta\n',
+            b'data: {"type":"response.function_call_arguments.delta","item_id":"fc_1","delta":"{\\"id\\":"}\n',
+            b'event: response.function_call_arguments.done\n',
+            b'data: {"type":"response.function_call_arguments.done","item_id":"fc_1","arguments":"{\\"id\\":\\"abc\\"}"}\n',
+            b'data: [DONE]\n',
+        ]
+        text, tool_calls = router.parse_responses_stream(lines)
+        self.assertEqual('', text)
+        self.assertEqual('call_1', tool_calls[0]['id'])
+        self.assertEqual('lookup_record', tool_calls[0]['function']['name'])
+        self.assertEqual('{"id":"abc"}', tool_calls[0]['function']['arguments'])
+
+    def test_direct_codex_scoring_is_not_capped_as_recursive_gateway(self):
+        debug_scores = []
+        provider = router.Provider('openai-codex', 'openai-codex-responses', 'https://codex.example/v1', 'token', ['gpt-5-codex'])
+        router.score_provider_model(
+            provider,
+            'gpt-5-codex',
+            router.Intent.CODE,
+            router.Complexity.SIMPLE,
+            debug_scores=debug_scores,
+            requirements={'agentic': True},
+        )
+        contributions = [name for name, _ in debug_scores[0]['contributions']]
+        self.assertNotIn('openclaw_gateway_recursive_cap', contributions)
+        self.assertNotIn('openclaw_gateway_penalty', contributions)
+        self.assertIn('agentic_code_codex_bonus', contributions)
+
     def test_anthropic_max_tokens_maps_to_length_and_back(self):
         self.assertEqual('length', router.anthropic_stop_reason_to_openai_finish_reason('max_tokens'))
         self.assertEqual('max_tokens', router.openai_finish_reason_to_anthropic_stop_reason('length'))

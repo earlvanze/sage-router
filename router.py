@@ -2183,6 +2183,134 @@ def openai_tool_calls(tool_calls):
     return converted
 
 
+def responses_tool_definition(tool):
+    """Convert Chat Completions tool definitions to Responses API tools."""
+    if not isinstance(tool, dict):
+        return None
+    tool_type = tool.get('type')
+    if tool_type != 'function':
+        return dict(tool)
+    function = tool.get('function')
+    if isinstance(function, dict):
+        converted = {'type': 'function'}
+        for key in ('name', 'description', 'parameters', 'strict'):
+            if key in function:
+                converted[key] = function[key]
+        return converted if converted.get('name') else None
+    converted = dict(tool)
+    return converted if converted.get('name') else None
+
+
+def responses_tool_definitions(tools):
+    converted = []
+    for tool in tools or []:
+        converted_tool = responses_tool_definition(tool)
+        if converted_tool:
+            converted.append(converted_tool)
+    return converted
+
+
+def responses_tool_choice(tool_choice):
+    if tool_choice in (None, 'auto'):
+        return None
+    if isinstance(tool_choice, str) and tool_choice in {'none', 'required'}:
+        return tool_choice
+    if isinstance(tool_choice, dict) and tool_choice.get('type') == 'function':
+        fn_name = (tool_choice.get('function') or {}).get('name') or tool_choice.get('name')
+        if fn_name:
+            return {'type': 'function', 'name': fn_name}
+    return tool_choice
+
+
+def responses_function_call_tool_call(item):
+    if not isinstance(item, dict) or item.get('type') != 'function_call':
+        return None
+    name = item.get('name')
+    if not name:
+        return None
+    arguments = item.get('arguments') or ''
+    return {
+        'id': item.get('call_id') or item.get('id') or f'call_{uuid.uuid4().hex[:24]}',
+        'type': 'function',
+        'function': {
+            'name': name,
+            'arguments': arguments,
+        },
+    }
+
+
+def parse_responses_stream(resp):
+    full_text = []
+    tool_items = {}
+    tool_order = []
+    event_type = None
+    completed_body = None
+
+    def remember_tool_item(item):
+        call = responses_function_call_tool_call(item)
+        if not call:
+            return
+        item_id = item.get('id') or item.get('call_id') or call['id']
+        if item_id not in tool_order:
+            tool_order.append(item_id)
+        existing = tool_items.get(item_id) or {}
+        existing.update(call)
+        tool_items[item_id] = existing
+
+    for raw_line in resp:
+        line = raw_line.decode().strip() if isinstance(raw_line, bytes) else str(raw_line).strip()
+        if line.startswith('event: '):
+            event_type = line[6:].strip()
+            continue
+        if line == 'data: [DONE]':
+            break
+        if not line.startswith('data: '):
+            continue
+        try:
+            data = json.loads(line[6:])
+        except Exception:
+            continue
+        data_type = data.get('type') or event_type
+        if data_type == 'response.output_text.delta':
+            full_text.append(data.get('delta', ''))
+        elif data_type in {'response.output_item.added', 'response.output_item.done'}:
+            remember_tool_item(data.get('item') or {})
+        elif data_type == 'response.function_call_arguments.delta':
+            item_id = data.get('item_id')
+            if not item_id:
+                continue
+            if item_id not in tool_order:
+                tool_order.append(item_id)
+            existing = tool_items.setdefault(item_id, {
+                'id': data.get('call_id') or item_id,
+                'type': 'function',
+                'function': {'name': data.get('name') or 'tool', 'arguments': ''},
+            })
+            existing_function = existing.setdefault('function', {})
+            existing_function['arguments'] = (existing_function.get('arguments') or '') + (data.get('delta') or '')
+        elif data_type == 'response.function_call_arguments.done':
+            item_id = data.get('item_id')
+            if not item_id:
+                continue
+            if item_id not in tool_order:
+                tool_order.append(item_id)
+            existing = tool_items.setdefault(item_id, {
+                'id': data.get('call_id') or item_id,
+                'type': 'function',
+                'function': {'name': data.get('name') or 'tool', 'arguments': ''},
+            })
+            existing.setdefault('function', {})['arguments'] = data.get('arguments') or ''
+        elif data_type == 'response.completed':
+            completed_body = data.get('response') or {}
+
+    if isinstance(completed_body, dict):
+        for item in completed_body.get('output') or []:
+            remember_tool_item(item)
+
+    tool_calls = [tool_items[item_id] for item_id in tool_order if item_id in tool_items]
+    return ''.join(full_text), tool_calls
+
+
 def build_router_metadata(provider_name, model, request_id=''):
     return {
         'provider': provider_name,
@@ -2632,7 +2760,7 @@ def load_openclaw_auth_access_token(provider_name):
             continue
         token = profile.get('access') or profile.get('access_token') or profile.get('apiKey') or ''
         if token:
-            logger.info(f'Loaded OpenClaw auth token for {provider_name} from {name}')
+            logger.info(f'Loaded OpenClaw auth token for {provider_name} from profile {masked_auth_profile_name(name)}')
             return token
     return ''
 
@@ -4146,7 +4274,7 @@ def general_empirical_adjustment(provider, model):
     stat = get_latency_stat('GENERAL', provider_name, model)
     provider_stats = get_intent_provider_stats('GENERAL', provider_name)
     if not stat:
-        if provider.api_type in ('openclaw-gateway', 'openai-codex-responses'):
+        if provider.api_type == 'openclaw-gateway':
             return -4.0, 'cold-gateway'
         if provider_stats:
             return -2.0, 'provider-known,cold-model'
@@ -5213,12 +5341,12 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
         contributions.append(('anthropic_reasoning_bias', 4))
     # openclaw-gateway is recursive (routes through this router), so it gets
     # a fixed low base score - only used as a fallback, never preferred.
-    if provider.api_type in ('openclaw-gateway', 'openai-codex-responses'):
+    if provider.api_type == 'openclaw-gateway':
         score = min(score, 40)
         contributions.append(('openclaw_gateway_recursive_cap', min(0, 40 - score)))
     # OpenAI-compat / non-recursive external APIs keep their score as-is.
     # The openclaw-gateway penalty below handles the rest.
-    if provider.api_type in ('openclaw-gateway', 'openai-codex-responses'):
+    if provider.api_type == 'openclaw-gateway':
         score -= 4
         contributions.append(('openclaw_gateway_penalty', -4))
 
@@ -5333,7 +5461,8 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
             contributions.append(('agentic_complex_light_model_penalty', -18))
         if provider.api_type in ('openclaw-gateway', 'openai-codex-responses') and intent == Intent.CODE:
             score += 18
-            contributions.append(('agentic_code_gateway_bonus', 18))
+            contribution_name = 'agentic_code_codex_bonus' if provider.api_type == 'openai-codex-responses' else 'agentic_code_gateway_bonus'
+            contributions.append((contribution_name, 18))
     if intent == Intent.GENERAL and provider.api_type == 'ollama':
         score -= 1
         contributions.append(('general_ollama_penalty', -1))
@@ -5406,7 +5535,7 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
         if any(hint in model_l for hint in COMPLEX_MODEL_HINTS):
             score -= 4
             contributions.append(('thinking_low_complex_penalty', -4))
-        if provider.api_type in ('openclaw-gateway', 'openai-codex-responses'):
+        if provider.api_type == 'openclaw-gateway':
             score -= 6
             contributions.append(('thinking_low_gateway_penalty', -6))
         if provider.api_type == 'ollama':
@@ -5754,26 +5883,14 @@ def call_codex_completion(base_url, model, payload, api_key='', provider_name=''
         "stream": True,
     }
     
-    # Forward tools from the incoming OpenAI Chat Completions payload.
-    # The Responses API uses the same tool definition schema.
-    tools = payload.get('tools')
+    tools = responses_tool_definitions(payload.get('tools'))
     if tools:
         req_payload['tools'] = tools
-        tool_choice = payload.get('tool_choice')
-        if tool_choice == 'none':
-            req_payload['tool_choice'] = 'none'
-        elif tool_choice == 'required':
-            req_payload['tool_choice'] = 'required'
-        elif isinstance(tool_choice, dict) and tool_choice.get('type') == 'function':
-            # Convert Chat Completions format {"type":"function","function":{"name":"x"}}
-            # to Responses API format {"type":"function","name":"x"}
-            fn_name = (tool_choice.get('function') or {}).get('name')
-            if fn_name:
-                req_payload['tool_choice'] = {'type': 'function', 'name': fn_name}
-        elif tool_choice == 'auto' or tool_choice is None:
-            pass  # default is auto
-        else:
+        tool_choice = responses_tool_choice(payload.get('tool_choice'))
+        if tool_choice is not None:
             req_payload['tool_choice'] = tool_choice
+        if 'parallel_tool_calls' in payload:
+            req_payload['parallel_tool_calls'] = bool(payload.get('parallel_tool_calls'))
     
     if supports_reasoning and thinking == ThinkingLevel.HIGH:
         req_payload["reasoning"] = {"effort": "high"}
@@ -5786,32 +5903,18 @@ def call_codex_completion(base_url, model, payload, api_key='', provider_name=''
         
         req = urllib.request.Request(url, data=data, headers=hdrs)
         
-        full_text = []
-        event_type = None
         with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
-            for line in resp:
-                line = line.decode().strip()
-                if line.startswith('event: '):
-                    event_type = line[6:].strip()
-                elif line.startswith('data: ') and event_type == 'response.output_text.delta':
-                    try:
-                        delta_data = json.loads(line[6:])
-                        if delta_data.get('type') == 'response.output_text.delta':
-                            full_text.append(delta_data.get('delta', ''))
-                    except Exception:
-                        pass
-                elif line == 'data: [DONE]':
-                    break
+            text, tool_calls = parse_responses_stream(resp)
         
-        text = sanitize_visible_output(''.join(full_text))
-        if text:
-            leak_reason = reject_visible_tool_call_leak(payload, text, [])
+        text = sanitize_visible_output(text)
+        if text or tool_calls:
+            leak_reason = reject_visible_tool_call_leak(payload, text, tool_calls)
             if leak_reason:
                 logger.warning(f"Codex responses {provider_name or base_url} {model}: {leak_reason}")
                 return False, leak_reason
             return True, build_openai_completion(
-                provider_name or 'openai-codex', model, request_id, text, [],
-                'stop', {'prompt_tokens': 0, 'completion_tokens': 0},
+                provider_name or 'openai-codex', model, request_id, text, tool_calls,
+                None, {'prompt_tokens': 0, 'completion_tokens': 0},
                 debug_mode=debug_mode,
                 allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object',
                 suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText'))
