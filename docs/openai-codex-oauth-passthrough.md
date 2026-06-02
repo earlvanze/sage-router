@@ -1,3 +1,5 @@
+> **Update (v3.27.0):** OpenClaw now writes the Codex OAuth token to `OPENAI_CODEX_API_KEY` in `~/.openclaw/.env`. Sage Router reads that env var **first**, then falls back to the auth-profiles file at runtime. The `openclaw-gateway` bridge is only used when no token is present at all. See [Use Sage Router with OpenClaw](integrations/openclaw.md) for the precedence list.
+
 # OpenAI Codex OAuth Token Passthrough
 
 ## Architecture Overview

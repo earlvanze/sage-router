@@ -14,11 +14,18 @@ os.environ.setdefault('SAGE_ROUTER_SUPABASE_AUTH_ENABLED', '0')
 import sys
 sys.path.insert(0, str(ROOT))
 import router  # noqa: E402
+# Tests in this module exercise the hosted billing tier. The router
+# does not collect user identities by default, so opt in here.
+os.environ.setdefault('SAGE_ROUTER_BILLING_ENABLED', '1')
+
 
 
 class SaaSAuthTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
+        # Hosted billing tier is required to look up a customer for a user.
+        self._billing_env = os.environ.get('SAGE_ROUTER_BILLING_ENABLED')
+        os.environ['SAGE_ROUTER_BILLING_ENABLED'] = '1'
         self.old = {
             'CUSTOMER_STORE_PATH': router.CUSTOMER_STORE_PATH,
             'SUPABASE_URL': router.SUPABASE_URL,
@@ -58,6 +65,10 @@ class SaaSAuthTests(unittest.TestCase):
         router.ROUTE_EVENTS_PATH = self.old['ROUTE_EVENTS_PATH']
         router.FIRESTORE_ENABLED = self.old['FIRESTORE_ENABLED']
         router.SUPABASE_MIRROR_ENABLED = self.old['SUPABASE_MIRROR_ENABLED']
+        if self._billing_env is None:
+            os.environ.pop('SAGE_ROUTER_BILLING_ENABLED', None)
+        else:
+            os.environ['SAGE_ROUTER_BILLING_ENABLED'] = self._billing_env
         self.tmp.cleanup()
 
     def active_customer(self):
@@ -187,6 +198,8 @@ class SaaSAuthTests(unittest.TestCase):
 class AnalyticsModelConsolidationTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
+        self._billing_env = os.environ.get('SAGE_ROUTER_BILLING_ENABLED')
+        os.environ['SAGE_ROUTER_BILLING_ENABLED'] = '1'
         self.old = {
             'ROUTE_EVENTS_PATH': router.ROUTE_EVENTS_PATH,
             'FIRESTORE_ENABLED': router.FIRESTORE_ENABLED,
@@ -200,6 +213,10 @@ class AnalyticsModelConsolidationTests(unittest.TestCase):
         router.ROUTE_EVENTS_PATH = self.old['ROUTE_EVENTS_PATH']
         router.FIRESTORE_ENABLED = self.old['FIRESTORE_ENABLED']
         router.SUPABASE_MIRROR_ENABLED = self.old['SUPABASE_MIRROR_ENABLED']
+        if self._billing_env is None:
+            os.environ.pop('SAGE_ROUTER_BILLING_ENABLED', None)
+        else:
+            os.environ['SAGE_ROUTER_BILLING_ENABLED'] = self._billing_env
         self.tmp.cleanup()
 
     def test_analytics_consolidates_provider_prefixed_model_chains(self):

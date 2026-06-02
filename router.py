@@ -129,8 +129,13 @@ SUPABASE_ANALYTICS_SNAPSHOTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_ANALYT
 SUPABASE_CUSTOMERS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_CUSTOMERS_TABLE', 'sage_router_customers')
 SUPABASE_API_KEYS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_API_KEYS_TABLE', 'sage_router_api_keys')
 SUPABASE_PAYMENT_INTENTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_PAYMENT_INTENTS_TABLE', 'sage_router_payment_intents')
-SUPABASE_MIRROR_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_MIRROR_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
-SUPABASE_AUTH_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_AUTH_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+# Off by default — no remote mirroring of analytics/customers/keys. The
+# router should keep its work local; enable only when the operator runs a
+# hosted tier that needs the Supabase mirror.
+SUPABASE_MIRROR_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_MIRROR_ENABLED', '0').strip().lower() in {'1', 'true', 'yes', 'on'}
+# Off by default — the router does not collect user identities. Enable only
+# when running the hosted billing/tenancy tier that requires Supabase Auth.
+SUPABASE_AUTH_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_AUTH_ENABLED', '0').strip().lower() in {'1', 'true', 'yes', 'on'}
 CLIENT_API_KEYS = [
     key.strip()
     for key in (os.environ.get('SAGE_ROUTER_CLIENT_API_KEYS') or os.environ.get('SAGE_ROUTER_CLIENT_API_KEY') or '').split(',')
@@ -3903,6 +3908,10 @@ def customer_is_active(customer):
 
 def customer_for_user(user, create=True):
     if not user or not user.get('id'):
+        return None
+    # Router does not collect user identities unless the operator has
+    # explicitly enabled the hosted billing tier.
+    if not (SUPABASE_AUTH_ENABLED or os.environ.get('SAGE_ROUTER_BILLING_ENABLED', '0').strip().lower() in {'1', 'true', 'yes', 'on'}):
         return None
     user_id = str(user.get('id'))
     email = user.get('email') or ((user.get('user_metadata') or {}).get('email'))
