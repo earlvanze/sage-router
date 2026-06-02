@@ -2863,8 +2863,12 @@ def load_hosted_secret_providers():
     providers = {}
 
     def add(name, api_type, base_url, api_key, models, meta, reasoning_models=None):
-        if not api_key and name not in {'google-vertex'}:
-            return
+        # openai-codex may ride the openclaw-gateway bridge with an empty
+        # router-side key (the gateway supplies its own credential), so
+        # let that one case through the early-return.
+        if not api_key and not (name == 'openai-codex' and api_type == 'openclaw-gateway'):
+            if name not in {'google-vertex'}:
+                return
         if name in DISABLED_PROVIDERS:
             logger.info(f'Skipping disabled hosted provider {name}')
             return
@@ -5889,8 +5893,8 @@ def chat_messages_to_responses_input(messages):
         # Codex models (gpt-5.4/5.5) by emitting input_image items for image
         # blocks rather than str()'ing the whole list (which would lose the
         # base64 URL).
-        emitted_any_block = False
         if isinstance(content, list):
+            parts = []
             for block in content:
                 if not isinstance(block, dict):
                     continue
@@ -5902,14 +5906,19 @@ def chat_messages_to_responses_input(messages):
                     else:
                         url = image_payload
                     if url:
-                        items.append({'type': 'input_image', 'image_url': url})
-                        emitted_any_block = True
+                        parts.append({'type': 'input_image', 'image_url': url})
                 elif btype == 'text':
                     text_val = block.get('text', '')
                     if text_val:
-                        items.append({'role': role, 'content': [{'type': 'input_text', 'text': text_val}]})
-                        emitted_any_block = True
-            if emitted_any_block:
+                        parts.append({'type': 'input_text', 'text': text_val})
+                else:
+                    fallback_text = normalize_content(block)
+                    if fallback_text:
+                        parts.append({'type': 'input_text', 'text': fallback_text})
+            if parts:
+                # Single input message whose content mixes text + image parts
+                # — matches the OpenAI Responses API schema.
+                items.append({'role': role, 'content': parts})
                 continue
         # Flatten block content (text + vision/file markers) to a string the
         # model can see, instead of str()'ing the list (which would produce a
@@ -7383,6 +7392,24 @@ class Handler(BaseHTTPRequestHandler):
             logger.warning("Client disconnected during audio streaming")
 
     def do_GET(self):
+        # Serve the bundled config dashboard when the browser hits the
+        # root URL with an Accept: text/html header (Umbrel launches the
+        # app at path: "" and expects the dashboard to come up).  Programmatic
+        # clients that send Accept: application/json still get the JSON
+        # root descriptor below.
+        if self.path in ('', '/') and 'text/html' in (self.headers.get('Accept') or ''):
+            try:
+                with open(os.path.join(os.path.dirname(__file__), 'web', 'dashboard', 'index.html'), 'rb') as f:
+                    body = f.read()
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/html; charset=utf-8')
+                self.send_header('Content-Length', str(len(body)))
+                self.send_cors_headers()
+                self.end_headers()
+                self.wfile.write(body)
+            except OSError:
+                self.write_json(500, {'error': 'dashboard_not_found'})
+            return
         if self.path in ('', '/'):
             self.write_json(200, {
                 "name": "Sage Router",
@@ -7398,6 +7425,7 @@ class Handler(BaseHTTPRequestHandler):
                     "googleGenerateContent": "/v1beta/models/{model}:generateContent",
                     "discovery": "/discovery",
                     "analytics": "/analytics?days=7",
+                    "dashboard": "/dashboard",
                     "account": "/account",
                     "apiKeys": "/account/api-keys",
                     "plan": "/account/plan",
@@ -7457,6 +7485,19 @@ class Handler(BaseHTTPRequestHandler):
                 "lastRoute": LAST_ROUTE_DEBUG,
                 "blocks": {key: {"until": info["until"], "reason": info["reason"]} for key, info in TEMP_MODEL_BLOCKS.items()},
             })
+        elif self.path == '/dashboard':
+            try:
+                with open(os.path.join(os.path.dirname(__file__), 'web', 'dashboard', 'index.html'), 'rb') as f:
+                    body = f.read()
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/html; charset=utf-8')
+                self.send_header('Content-Length', str(len(body)))
+                self.send_cors_headers()
+                self.end_headers()
+                self.wfile.write(body)
+            except OSError:
+                self.write_json(500, {'error': 'dashboard_not_found'})
+            return
         elif self.path in {'/pricing', '/plans'}:
             self.write_json(200, {'plans': public_plan_catalog(), 'agentNativeFeatures': PUBLIC_AGENT_NATIVE_FEATURES})
         elif self.path == '/features/agent-native':
