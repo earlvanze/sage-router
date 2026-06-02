@@ -5854,13 +5854,16 @@ def chat_messages_to_responses_input(messages):
             continue
         role = msg.get('role', 'user')
         content = msg.get('content', '')
-        if role == 'system':
-            # System messages are passed via instructions, not input items.
+        # system / developer are instruction-like roles — call_codex_completion
+        # folds them into the Responses `instructions` field instead of
+        # emitting them as input items (matches the OpenAI Responses API spec).
+        if role in {'system', 'developer'}:
             continue
         if role == 'assistant':
             # Emit text content as a message item
-            if content and isinstance(content, str):
-                items.append({'role': 'assistant', 'content': content})
+            assistant_text = normalize_content(content)
+            if assistant_text:
+                items.append({'role': 'assistant', 'content': assistant_text})
             # Emit each tool_call as a function_call item
             for tc in (msg.get('tool_calls') or []):
                 if not isinstance(tc, dict):
@@ -5908,7 +5911,13 @@ def chat_messages_to_responses_input(messages):
                         emitted_any_block = True
             if emitted_any_block:
                 continue
-        items.append({'role': role, 'content': content if isinstance(content, str) else str(content)})
+        # Flatten block content (text + vision/file markers) to a string the
+        # model can see, instead of str()'ing the list (which would produce a
+        # Python repr like "[{'type': 'text', 'text': 'hi'}]").
+        normalized = normalize_content(content)
+        if normalized:
+            items.append({'role': role, 'content': normalized})
+
     return items
 
 
@@ -5917,11 +5926,15 @@ def call_codex_completion(base_url, model, payload, api_key='', provider_name=''
     url = base_url.rstrip('/') + '/responses'
     
     messages = payload.get('messages', [])
-    instructions = "You are a helpful assistant."
+    instruction_parts = []
     for msg in messages:
-        if isinstance(msg, dict) and msg.get('role') == 'system':
-            content = msg.get('content', '')
-            instructions = content if isinstance(content, str) else str(content)
+        if not isinstance(msg, dict):
+            continue
+        if msg.get('role') in {'system', 'developer'}:
+            text = normalize_content(msg.get('content', ''))
+            if text:
+                instruction_parts.append(text)
+    instructions = '\n\n'.join(instruction_parts) if instruction_parts else 'You are a helpful assistant.'
     input_msgs = chat_messages_to_responses_input(messages) or [{'role': 'user', 'content': ''}]
     
     req_payload = {
@@ -7576,6 +7589,28 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
+        if self.path == '/api/restart':
+            # Restart the router process. Only honored in environments where
+            # SAGE_ROUTER_ALLOW_RESTART=1 (set by the Umbrel/Cyber compose
+            # so the bundled supervisor can pick the process back up). We
+            # do NOT os.execv from inside a request thread, so the actual
+            # exit happens in a daemon thread a moment later; the response
+            # is sent first so the dashboard can poll /health for recovery.
+            from configparser import RawConfigParser
+            from os import _exit, getpid, getenv
+            from threading import Thread
+            if not (os.environ.get('SAGE_ROUTER_ALLOW_RESTART') or '').strip():
+                self.write_json(403, {'error': 'restart_disabled', 'detail': 'SAGE_ROUTER_ALLOW_RESTART is not set'})
+                return
+            self.write_json(202, {'status': 'restarting', 'pid': getpid()})
+            def _die():
+                try:
+                    time.sleep(0.5)
+                    _exit(0)
+                except Exception:
+                    pass
+            Thread(target=_die, daemon=True).start()
+            return
         if self.path == '/account/api-keys':
             _user, customer = require_user_customer(self)
             if not customer:

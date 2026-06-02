@@ -94,9 +94,25 @@
   </div>
   <script>
     const API = window.location.origin;
-    async function api(path) {
-      const r = await fetch(API + path).catch(e => ({ok: false, status: 0, json: async () => ({error: e.message})}));
-      return r.ok ? r.json() : {error: `HTTP ${r.status}`};
+    // HTML-escape any API/config value before injecting it into innerHTML so
+    // a crafted provider name / model id / profile label from a config or
+    // upstream response can't execute script in the dashboard origin.
+    function escapeHtml(value) {
+      return String(value == null ? '' : value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+    async function api(path, opts) {
+      try {
+        const r = await fetch(API + path, opts);
+        const body = await r.json().catch(() => ({}));
+        return r.ok ? body : {error: `HTTP ${r.status}`, status: r.status, body};
+      } catch (e) {
+        return {error: e.message || String(e)};
+      }
     }
     async function loadAll() {
       document.getElementById('statusText').textContent = 'Loading...';
@@ -107,44 +123,57 @@
       const ok = info.status === 'ok';
       document.getElementById('statusDot').style.background = ok ? 'var(--success)' : 'var(--danger)';
       document.getElementById('statusText').textContent = ok ? 'Healthy' : 'Error';
-      // Providers
+      // Providers — escape any value originating from the API/config.
       const provs = Object.entries(info.providers || {});
       document.getElementById('providers').innerHTML = provs.map(([name, p]) => {
-        const healthy = p.healthy !== false;
-        return `<div class="provider"><span class="provider-name">${name}</span><span class="provider-status ${healthy ? 'healthy' : 'unhealthy'}">${healthy ? '✓ healthy' : '✗ down'}</span></div>`;
+        const healthy = p && p.healthy !== false;
+        return `<div class="provider"><span class="provider-name">${escapeHtml(name)}</span><span class="provider-status ${healthy ? 'healthy' : 'unhealthy'}">${healthy ? '✓ healthy' : '✗ down'}</span></div>`;
       }).join('') || '<div style="color:#888">No providers configured</div>';
-      // Models
-      const modelList = models.data || [];
+      // Models — escape provider name and per-model tag text.
+      const modelList = (models && models.data) || [];
       const grouped = {};
       modelList.forEach(m => {
+        if (!m || typeof m.id !== 'string') return;
         const prov = m.id.split('/')[0] || 'unknown';
         if (!grouped[prov]) grouped[prov] = [];
         grouped[prov].push(m.id);
       });
       document.getElementById('models').innerHTML = Object.entries(grouped).map(([prov, ids]) =>
-        `<div style="margin-bottom:8px"><strong>${prov}</strong> (${ids.length})<div class="models">${ids.slice(0,12).map(id => `<span class="model-tag">${id.split('/').pop()}</span>`).join('')}${ids.length > 12 ? `<span class="model-tag">+${ids.length-12} more</span>` : ''}</div></div>`
+        `<div style="margin-bottom:8px"><strong>${escapeHtml(prov)}</strong> (${ids.length})<div class="models">${ids.slice(0,12).map(id => `<span class="model-tag">${escapeHtml(id.split('/').pop())}</span>`).join('')}${ids.length > 12 ? `<span class="model-tag">+${ids.length-12} more</span>` : ''}</div></div>`
       ).join('') || '<div style="color:#888">No models available</div>';
-      // Analytics
-      const a = analytics;
+      // Analytics — escape label and per-provider key.
+      const a = analytics || {};
       const rows = [];
       if (a.total_requests) rows.push(['Total Requests', a.total_requests]);
       if (a.total_tokens) rows.push(['Total Tokens', a.total_tokens.toLocaleString()]);
       if (a.total_cost) rows.push(['Total Cost', `$${Number(a.total_cost).toFixed(4)}`]);
       if (a.avg_latency_ms) rows.push(['Avg Latency', `${Math.round(a.avg_latency_ms)}ms`]);
-      if (a.by_provider) Object.entries(a.by_provider).forEach(([k,v]) => rows.push([k, `${v.requests || v} reqs`]));
+      if (a.by_provider && typeof a.by_provider === 'object') {
+        Object.entries(a.by_provider).forEach(([k,v]) => {
+          const val = v && typeof v === 'object' ? (v.requests || v.count || 0) : v;
+          rows.push([k, `${val} reqs`]);
+        });
+      }
       document.getElementById('analytics').innerHTML = rows.map(([l,v]) =>
-        `<div class="analytics-row"><span>${l}</span><span style="color:var(--accent)">${v}</span></div>`
+        `<div class="analytics-row"><span>${escapeHtml(l)}</span><span style="color:var(--accent)">${escapeHtml(v)}</span></div>`
       ).join('') || '<div style="color:#888">No analytics data</div>';
-      // Profile
+      // Profile — escape before injecting into HTML.
       const profile = info.router_profile || info.activeProfile || 'default';
-      document.getElementById('profile').innerHTML = `<div class="stat"><span class="stat-label">Active Profile</span><span class="stat-value">${profile}</span></div>`;
+      document.getElementById('profile').innerHTML = `<div class="stat"><span class="stat-label">Active Profile</span><span class="stat-value">${escapeHtml(profile)}</span></div>`;
     }
     async function healthCheck() {
       document.getElementById('actions').innerHTML = '<span style="color:var(--warning)">Running health check...</span>';
       const h = await api('/health');
-      document.getElementById('health').innerHTML = Object.entries(h.providers || h).map(([k,v]) =>
-        `<div class="stat"><span class="stat-label">${k}</span><span class="stat-value" style="color:${v.healthy !== false ? 'var(--success)' : 'var(--danger)'}">${v.healthy !== false ? '✓' : '✗'} ${v.latency_ms ? Math.round(v.latency_ms)+'ms' : ''}</span></div>`
-      ).join('') || '<div style="color:#888">No health data</div>';
+      if (h && h.error) {
+        document.getElementById('health').innerHTML = `<div style="color:var(--danger)">Health check failed: ${escapeHtml(h.error)}</div>`;
+        document.getElementById('actions').innerHTML = `<span style="color:var(--danger)">${escapeHtml(h.error)}</span>`;
+        return;
+      }
+      const entries = (h && (h.providers || h)) || {};
+      document.getElementById('health').innerHTML = Object.entries(entries).map(([k,v]) => {
+        const healthy = v && v.healthy !== false;
+        return `<div class="stat"><span class="stat-label">${escapeHtml(k)}</span><span class="stat-value" style="color:${healthy ? 'var(--success)' : 'var(--danger)'}">${healthy ? '✓' : '✗'} ${v && v.latency_ms ? Math.round(v.latency_ms)+'ms' : ''}</span></div>`;
+      }).join('') || '<div style="color:#888">No health data</div>';
       document.getElementById('actions').innerHTML = '<span style="color:var(--success)">Health check complete</span>';
     }
     async function refreshModels() {
@@ -153,8 +182,31 @@
       document.getElementById('actions').innerHTML = '<span style="color:var(--success)">Models refreshed</span>';
     }
     async function restartRouter() {
-      document.getElementById('actions').innerHTML = '<span style="color:var(--warning)">Restarting...</span>';
-      setTimeout(() => location.reload(), 3000);
+      const actions = document.getElementById('actions');
+      actions.innerHTML = '<span style="color:var(--warning)">Restarting...</span>';
+      try {
+        const r = await fetch(API + '/api/restart', {method: 'POST'});
+        if (!r.ok && r.status !== 202) {
+          const body = await r.json().catch(() => ({}));
+          actions.innerHTML = `<span style="color:var(--danger)">Restart failed: ${escapeHtml(body.error || ('HTTP ' + r.status))}</span>`;
+          return;
+        }
+        // Server is restarting; reload the page once the new process is
+        // likely ready. Bounded to a few attempts so we never spin forever.
+        let attempts = 0;
+        const poll = async () => {
+          attempts += 1;
+          try {
+            const h = await fetch(API + '/health', {cache: 'no-store'});
+            if (h.ok) { location.reload(); return; }
+          } catch (_) { /* not ready yet */ }
+          if (attempts < 20) setTimeout(poll, 1500);
+          else { actions.innerHTML = '<span style="color:var(--warning)">Restart pending — please refresh manually.</span>'; }
+        };
+        setTimeout(poll, 1500);
+      } catch (e) {
+        actions.innerHTML = `<span style="color:var(--danger)">Restart failed: ${escapeHtml(e.message || String(e))}</span>`;
+      }
     }
     loadAll().catch(() => document.getElementById('statusText').textContent = 'Connection failed');
   </script>
