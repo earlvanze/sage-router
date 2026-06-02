@@ -73,6 +73,10 @@ services:
       # New in 1.0.0: openai-codex default is now openai-codex-responses
       # (direct chatgpt.com/backend-api/codex). The /config mount above
       # provides the OAuth token from auth-profiles.json automatically.
+      # Also pass OPENAI_CODEX_API_KEY from the host env so the router
+      # picks it up as the first-choice token source.
+      OPENAI_CODEX_API_KEY: ${OPENAI_CODEX_API_KEY:-}
+      SAGE_ROUTER_ALLOW_RESTART: "1"
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8788/health')"]
       interval: 30s

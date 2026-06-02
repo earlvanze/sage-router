@@ -18,7 +18,11 @@ services:
     environment:
       - PORT=8788
       - SAGE_ROUTER_HOME=/config
+      - SAGE_ROUTER_ALLOW_RESTART=1
       - SAGE_ROUTER_DARIO_AUTOSTART=0
       - SAGE_ROUTER_BUNDLED_OLLAMA_AUTOSTART=0
       - SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS=300
+      # Pass the OpenAI Codex OAuth token from the host OpenClaw env so
+      # the router can use it directly without file-mount discovery.
+      - OPENAI_CODEX_API_KEY=${OPENAI_CODEX_API_KEY:-}
     container_name: sage-router_server_1

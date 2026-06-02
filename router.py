@@ -2978,7 +2978,7 @@ def load_hosted_secret_providers():
     # OpenClaw Codex OAuth: openai-codex is now provider=openai, type=oauth in auth-profiles.
     # Direct calls to chatgpt.com/backend-api/codex with the OAuth token — no gateway needed.
     codex_base_url = env_first('SAGE_ROUTER_OPENAI_CODEX_BASE_URL', 'OPENAI_CODEX_BASE_URL') or 'https://chatgpt.com/backend-api/codex'
-    codex_api_key = env_first('SAGE_ROUTER_OPENAI_CODEX_ACCESS_TOKEN', 'SAGE_ROUTER_OPENAI_CODEX_OAUTH_TOKEN', 'OPENAI_CODEX_ACCESS_TOKEN', 'OPENAI_CODEX_OAUTH_TOKEN') or read_openai_codex_oauth_token_from_file()
+    codex_api_key = env_first('SAGE_ROUTER_OPENAI_CODEX_ACCESS_TOKEN', 'SAGE_ROUTER_OPENAI_CODEX_OAUTH_TOKEN', 'OPENAI_CODEX_API_KEY', 'OPENAI_CODEX_ACCESS_TOKEN', 'OPENAI_CODEX_OAUTH_TOKEN') or read_openai_codex_oauth_token_from_file()
     if codex_api_key:
         # Direct OAuth: send the token as Bearer to chatgpt.com/backend-api/codex.
         add(
