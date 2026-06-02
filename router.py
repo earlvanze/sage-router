@@ -5682,6 +5682,14 @@ def call_codex_responses(base_url, model, messages, api_key='', provider_name=''
         "stream": True,
     }
     
+    # Forward tools from the incoming OpenAI Chat Completions payload.
+    # The Responses API uses the same tool definition schema.
+    if any(isinstance(m, dict) and m.get('tools') for m in messages):
+        # Tools may be attached to individual messages in some client formats
+        for m in messages:
+            if isinstance(m, dict) and m.get('tools'):
+                payload.setdefault('tools', []).extend(m['tools'])
+    
     # Add reasoning effort if supported
     if supports_reasoning and thinking == ThinkingLevel.HIGH:
         payload["reasoning"] = {"effort": "high"}
@@ -5745,6 +5753,27 @@ def call_codex_completion(base_url, model, payload, api_key='', provider_name=''
         "store": False,
         "stream": True,
     }
+    
+    # Forward tools from the incoming OpenAI Chat Completions payload.
+    # The Responses API uses the same tool definition schema.
+    tools = payload.get('tools')
+    if tools:
+        req_payload['tools'] = tools
+        tool_choice = payload.get('tool_choice')
+        if tool_choice == 'none':
+            req_payload['tool_choice'] = 'none'
+        elif tool_choice == 'required':
+            req_payload['tool_choice'] = 'required'
+        elif isinstance(tool_choice, dict) and tool_choice.get('type') == 'function':
+            # Convert Chat Completions format {"type":"function","function":{"name":"x"}}
+            # to Responses API format {"type":"function","name":"x"}
+            fn_name = (tool_choice.get('function') or {}).get('name')
+            if fn_name:
+                req_payload['tool_choice'] = {'type': 'function', 'name': fn_name}
+        elif tool_choice == 'auto' or tool_choice is None:
+            pass  # default is auto
+        else:
+            req_payload['tool_choice'] = tool_choice
     
     if supports_reasoning and thinking == ThinkingLevel.HIGH:
         req_payload["reasoning"] = {"effort": "high"}
