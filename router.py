@@ -2946,16 +2946,29 @@ def load_openclaw_providers():
             elif api_type == 'openai-codex-responses':
                 # openai-codex: direct responses via chatgpt.com/backend-api/codex with OAuth
                 codex_gw_token = load_openclaw_auth_access_token('openai-codex')
-                merge_provider(providers, Provider(
-                    provider_name,
-                    'openai-codex-responses',
-                    env_first('SAGE_ROUTER_OPENAI_CODEX_BASE_URL', 'OPENAI_CODEX_BASE_URL') or 'https://chatgpt.com/backend-api/codex',
-                    codex_gw_token,
-                    dedupe_keep_order(gw_models),
-                    set(gw_models),
-                    {m: dict(default_meta) for m in gw_models},
-                ))
-                logger.info(f'Auto-created gateway provider {provider_name} (openai-codex-responses) with {len(gw_models)} models')
+                if codex_gw_token:
+                    merge_provider(providers, Provider(
+                        provider_name,
+                        'openai-codex-responses',
+                        env_first('SAGE_ROUTER_OPENAI_CODEX_BASE_URL', 'OPENAI_CODEX_BASE_URL') or 'https://chatgpt.com/backend-api/codex',
+                        codex_gw_token,
+                        dedupe_keep_order(gw_models),
+                        set(gw_models),
+                        {m: dict(default_meta) for m in gw_models},
+                    ))
+                    logger.info(f'Auto-created gateway provider {provider_name} (openai-codex-responses) with {len(gw_models)} models')
+                else:
+                    # No OAuth token available; fall back to openclaw-gateway bridge
+                    merge_provider(providers, Provider(
+                        provider_name,
+                        'openclaw-gateway',
+                        OPENCLAW_GATEWAY_BASE_URL,
+                        '',
+                        dedupe_keep_order(gw_models),
+                        set(gw_models),
+                        {m: dict(default_meta) for m in gw_models},
+                    ))
+                    logger.info(f'Auto-created gateway provider {provider_name} (openclaw-gateway fallback) with {len(gw_models)} models')
             else:
                 # Other providers (xai, zai, openai) - route via gateway
                 merge_provider(providers, Provider(
