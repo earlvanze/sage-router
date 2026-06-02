@@ -2747,14 +2747,12 @@ def load_openclaw_auth_access_token(provider_name):
     # openai-codex shares OAuth tokens with openai (ChatGPT) profiles.
     # auth-profiles.json stores them under provider=openai with type=oauth
     # and fields like chatgptPlanType/accountId that indicate ChatGPT/Codex access.
-    # Skip profile names containing '@' to avoid PII in logs and error messages.
     if provider_name == 'openai-codex':
         candidate_names.extend(
             name for name, profile in profiles.items()
             if isinstance(profile, dict)
             and profile.get('provider') == 'openai'
             and profile.get('type') == 'oauth'
-            and '@' not in name
         )
 
     now_ms = time.time() * 1000
