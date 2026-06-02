@@ -5803,20 +5803,63 @@ def call_openclaw_gateway(model, messages, provider_name='openai-codex', thinkin
 
 
 
-def call_codex_responses(base_url, model, messages, api_key='', provider_name='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, want_json=False):
-    """Call OpenAI Codex Responses API at chatgpt.com/backend-api/codex/responses"""
-    url = base_url.rstrip('/') + '/responses'
-    
-    # Build instructions and input from messages
-    instructions = "You are a helpful assistant."
-    input_msgs = []
+def chat_messages_to_responses_input(messages):
+    """Convert OpenAI Chat Completions messages to Responses API input items.
+
+    Handles assistant tool_calls -> function_call items and tool role messages
+    -> function_call_output items, so the Codex model can see the tool result
+    on the next turn.
+    """
+    items = []
     for msg in messages:
+        if not isinstance(msg, dict):
+            continue
         role = msg.get('role', 'user')
         content = msg.get('content', '')
         if role == 'system':
+            # System messages are passed via instructions, not input items.
+            continue
+        if role == 'assistant':
+            # Emit text content as a message item
+            if content and isinstance(content, str):
+                items.append({'role': 'assistant', 'content': content})
+            # Emit each tool_call as a function_call item
+            for tc in (msg.get('tool_calls') or []):
+                if not isinstance(tc, dict):
+                    continue
+                fn = tc.get('function') or {}
+                args = fn.get('arguments') or ''
+                items.append({
+                    'type': 'function_call',
+                    'call_id': tc.get('id') or '',
+                    'name': fn.get('name') or '',
+                    'arguments': args if isinstance(args, str) else json.dumps(args, separators=(',', ':')),
+                })
+            continue
+        if role == 'tool':
+            # Tool result -> function_call_output item
+            items.append({
+                'type': 'function_call_output',
+                'call_id': msg.get('tool_call_id') or '',
+                'output': content if isinstance(content, str) else json.dumps(content, separators=(',', ':')),
+            })
+            continue
+        # user / developer / etc.
+        items.append({'role': role, 'content': content if isinstance(content, str) else str(content)})
+    return items
+
+
+def call_codex_responses(base_url, model, messages, api_key='', provider_name='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, want_json=False):
+    """Call OpenAI Codex Responses API at chatgpt.com/backend-api/codex/responses"""
+    url = base_url.rstrip('/') + '/responses'
+
+    # Build instructions and input from messages
+    instructions = "You are a helpful assistant."
+    for msg in messages:
+        if isinstance(msg, dict) and msg.get('role') == 'system':
+            content = msg.get('content', '')
             instructions = content if isinstance(content, str) else str(content)
-        else:
-            input_msgs.append({"role": role, "content": content})
+    input_msgs = chat_messages_to_responses_input(messages) or [{'role': 'user', 'content': ''}]
     
     payload = {
         "model": model,
@@ -5869,14 +5912,11 @@ def call_codex_completion(base_url, model, payload, api_key='', provider_name=''
     
     messages = payload.get('messages', [])
     instructions = "You are a helpful assistant."
-    input_msgs = []
     for msg in messages:
-        role = msg.get('role', 'user')
-        content = msg.get('content', '')
-        if role == 'system':
+        if isinstance(msg, dict) and msg.get('role') == 'system':
+            content = msg.get('content', '')
             instructions = content if isinstance(content, str) else str(content)
-        else:
-            input_msgs.append({"role": role, "content": content})
+    input_msgs = chat_messages_to_responses_input(messages) or [{'role': 'user', 'content': ''}]
     
     req_payload = {
         "model": model,
