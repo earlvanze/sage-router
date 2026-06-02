@@ -1,0 +1,32 @@
+manifestVersion: 1.1
+id: sage-router
+name: Sage Router
+tagline: Intelligent multi-provider AI router with OpenClaw Codex OAuth
+icon: https://raw.githubusercontent.com/earlvanze/sage-router/master/umbrel/icon.svg
+category: ai
+version: "1.0.0"
+description: >-
+  Sage Router is a dynamic multi-provider AI router that discovers available
+  LLM providers (Ollama, OpenAI, Anthropic, Google, OpenRouter, and more) and
+  routes requests intelligently based on model capabilities, intent, cost, and
+  health. Features OpenClaw Codex OAuth for direct access to
+  chatgpt.com/backend-api/codex, automatic provider discovery from OpenClaw
+  auth profiles, intent-aware routing, streaming SSE, subscription/billing
+  integration, and a built-in dashboard.
+developer: Earl Co
+website: https://github.com/earlvanze/sage-router
+repo: https://github.com/earlvanze/sage-router
+support: https://github.com/earlvanze/sage-router/issues
+port: 8788
+gallery:
+  - 1.jpg
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+releaseNotes: >-
+  Initial Umbrel app store release. OpenClaw Codex OAuth now routes directly
+  to chatgpt.com/backend-api/codex using the OpenAI OAuth token from
+  auth-profiles — no gateway subprocess needed.
+dependencies: []
+submitter: Earl Co
+submission: https://github.com/earlvanze/sage-router
