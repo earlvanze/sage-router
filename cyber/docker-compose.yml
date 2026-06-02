@@ -49,9 +49,12 @@ services:
       - "11434:11434"
       - "3456:3456"
     volumes:
-      # OpenClaw config — read-only. Provides auth-profiles.json for Codex OAuth
-      # token discovery (load_openclaw_auth_access_token('openai-codex')).
+      # OpenClaw config is mounted at both /config (SAGE_ROUTER_HOME) and
+      # /root/.openclaw (the default discovery path) so Codex OAuth token
+      # loading finds auth-profiles.json without requiring
+      # SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATHS.
       - ./config/openclaw:/config:ro
+      - ./config/openclaw:/root/.openclaw:ro
       # Bundled Ollama model cache
       - sage-router-ollama:/root/.ollama
       # Optional llama.cpp GGUF cache for the intent classifier sidecar

@@ -131,7 +131,7 @@
       if (a.total_tokens) rows.push(['Total Tokens', a.total_tokens.toLocaleString()]);
       if (a.total_cost) rows.push(['Total Cost', `$${Number(a.total_cost).toFixed(4)}`]);
       if (a.avg_latency_ms) rows.push(['Avg Latency', `${Math.round(a.avg_latency_ms)}ms`]);
-      if (a.by_provider) Object.entries(a.by_provider).forEach(([k,v]) => rows.push([k, `${v.requests || v} reqs`]);
+      if (a.by_provider) Object.entries(a.by_provider).forEach(([k,v]) => rows.push([k, `${v.requests || v} reqs`]));
       document.getElementById('analytics').innerHTML = rows.map(([l,v]) =>
         `<div class="analytics-row"><span>${l}</span><span style="color:var(--accent)">${v}</span></div>`
       ).join('') || '<div style="color:#888">No analytics data</div>';

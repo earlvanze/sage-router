@@ -2070,6 +2070,8 @@ def looks_like_visible_tool_call(text: str) -> bool:
         return True
     if re.search(r'(?s)\{\s*["\']path["\']\s*:\s*["\'](?:/|~|\./|[^"\']*/)[^"\']*["\']\s*\}', raw, re.IGNORECASE):
         return True
+    if re.search(r'(?s)\{\s*["\']recipient_name["\']\s*:\s*["\']functions\.[a-z_]+["\']\s*,\s*["\']parameters["\']', raw):
+        return True
     return False
 
 
@@ -2099,7 +2101,21 @@ def sanitize_visible_output(text: str):
         cleaned = _re.sub(rf'<{tag}\b[^>]*>.*?</{tag}>\s*', '', cleaned, flags=_re.IGNORECASE | _re.DOTALL)
         if f'</{tag}>' in cleaned.lower():
             cleaned = _re.split(rf'</{tag}>', cleaned, flags=_re.IGNORECASE)[-1]
+        # Drop any orphan opening tag of a reasoning block (e.g. an unterminated
+        # <think>private chain) so private reasoning is never surfaced to users.
+        cleaned = _re.sub(rf'<{tag}\b[^>]*>.*\Z', '', cleaned, flags=_re.IGNORECASE | _re.DOTALL)
         cleaned = _re.sub(rf'</?{tag}\b[^>]*>', '', cleaned, flags=_re.IGNORECASE)
+
+    # Strip OpenAI Responses-style <|channel|>...<|message|> tags.  Anything in
+    # the 'analysis' / 'commentary' / 'scratchpad' channels is private; the
+    # 'final' / 'assistant' channel is the user-visible part.
+    channel_block = re.compile(
+        r'<\|channel\|>\s*(?:analysis|commentary|scratchpad|thinking|reasoning|internal)\s*<\|message\|>.*?(?=<\|channel\|>|<\|end\|>|\Z)',
+        _re.IGNORECASE | _re.DOTALL,
+    )
+    cleaned = channel_block.sub('', cleaned)
+    cleaned = _re.sub(r'<\|channel\|>\s*(?:final|assistant|output)\s*<\|message\|>', '', cleaned, flags=_re.IGNORECASE)
+    cleaned = _re.sub(r'<\|/?(channel|message|end)\s*\|>', '', cleaned, flags=_re.IGNORECASE)
 
     # Strip fenced/labelled tool-call scratch that should have been structured.
     cleaned = _re.sub(r'```\s*(?:tool_code|tool_call|tool|tools)\b.*?```\s*', '', cleaned, flags=_re.IGNORECASE | _re.DOTALL)
@@ -2957,18 +2973,33 @@ def load_hosted_secret_providers():
     codex_models = comma_list_env('SAGE_ROUTER_OPENAI_CODEX_MODELS') or DEFAULT_OPENAI_CODEX_MODELS
     # OpenClaw Codex OAuth: openai-codex is now provider=openai, type=oauth in auth-profiles.
     # Direct calls to chatgpt.com/backend-api/codex with the OAuth token — no gateway needed.
-    codex_api_type = 'openai-codex-responses'
     codex_base_url = env_first('SAGE_ROUTER_OPENAI_CODEX_BASE_URL', 'OPENAI_CODEX_BASE_URL') or 'https://chatgpt.com/backend-api/codex'
     codex_api_key = env_first('SAGE_ROUTER_OPENAI_CODEX_ACCESS_TOKEN', 'SAGE_ROUTER_OPENAI_CODEX_OAUTH_TOKEN', 'OPENAI_CODEX_ACCESS_TOKEN', 'OPENAI_CODEX_OAUTH_TOKEN') or read_openai_codex_oauth_token_from_file()
-    add(
-        'openai-codex',
-        codex_api_type,
-        codex_base_url,
-        codex_api_key,
-        codex_models,
-        {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text'], 'supportsTools': True, 'supportsJson': True},
-        reasoning_models=codex_models,
-    )
+    if codex_api_key:
+        # Direct OAuth: send the token as Bearer to chatgpt.com/backend-api/codex.
+        add(
+            'openai-codex',
+            'openai-codex-responses',
+            codex_base_url,
+            codex_api_key,
+            codex_models,
+            {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text'], 'supportsTools': True, 'supportsJson': True},
+            reasoning_models=codex_models,
+        )
+    else:
+        # No OAuth token in this environment. Fall back to the OpenClaw gateway
+        # bridge so that the model list still resolves. load_openclaw_providers
+        # will overwrite this entry with a real direct-Codex provider as soon
+        # as an auth profile is mounted.
+        add(
+            'openai-codex',
+            'openclaw-gateway',
+            OPENCLAW_GATEWAY_BASE_URL,
+            '',
+            codex_models,
+            {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']},
+            reasoning_models=codex_models,
+        )
     return providers
 
 
@@ -5289,13 +5320,17 @@ def apply_discord_public_route_profile(payload):
     req = payload.get('requirements')
     if not isinstance(req, dict):
         req = {}
+    existing_denies = list(req.get('denyModels') or [])
+    existing_allows = list(req.get('allowModels') or [])
+    existing_providers = list(req.get('allowProviders') or [])
+    existing_fallbacks = list(req.get('fallbackProviders') or [])
     req.update({
         'qualitySensitive': True,
         'reasoning': False,
         'frontierLargeOnly': True,
         'frontierOrReasoningTools': False,
         'suppressToolCallContent': True,
-        'allowModels': [
+        'allowModels': dedupe_keep_order(existing_allows + [
             '*glm-5*',
             '*kimi-k2*',
             '*gpt-5*',
@@ -5305,18 +5340,21 @@ def apply_discord_public_route_profile(payload):
             '*mistral-large-3*',
             'google-vertex/gemini-3-flash-preview',
             'google-vertex/gemini-2.5-pro',
-        ],
-        'allowProviders': [
+        ]),
+        'allowProviders': dedupe_keep_order(existing_providers + [
             'openai-codex', 'openai', 'ollama', 'ollama-cloud', 'ollama-cyber',
             'nvidia', 'nvidia-nim', 'openrouter', 'google-vertex',
-        ],
-        'fallbackProviders': ['google-vertex'],
-        'denyModels': [
+        ]),
+        'fallbackProviders': dedupe_keep_order(existing_fallbacks + ['google-vertex']),
+        # Merge instead of replace so the named profile's existing denyModels
+        # (e.g. router-profiles.json's '*mini*') are preserved alongside the
+        # discord-public hardcoded list.
+        'denyModels': dedupe_keep_order(existing_denies + [
             '*1.2b*', '*2b*', '*3b*', '*4b*', '*7b*', '*8b*', '*12b*', '*14b*',
             '*-mini*', 'mini-*', 'mini:*', '*haiku*', '*flash-lite*', '*gemma-3n*', '*lfm-2.5*', '*laguna-xs*',
             '*deepseek-r1*', '*deepseek-v3*', '*glm-4*', '*minimax-m2.5*', '*mistral-large-2*',
             '*claude*', '*llama*', '*nemotron*', '*trinity*', '*nemo*',
-        ],
+        ]),
     })
     payload['requirements'] = req
     payload['requiresQuality'] = True
@@ -5844,66 +5882,34 @@ def chat_messages_to_responses_input(messages):
                 'output': content if isinstance(content, str) else json.dumps(content, separators=(',', ':')),
             })
             continue
-        # user / developer / etc.
+        # user / developer / etc. — preserve multimodal content for vision-capable
+        # Codex models (gpt-5.4/5.5) by emitting input_image items for image
+        # blocks rather than str()'ing the whole list (which would lose the
+        # base64 URL).
+        emitted_any_block = False
+        if isinstance(content, list):
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                btype = block.get('type')
+                if btype in ('image', 'image_url', 'input_image'):
+                    image_payload = block.get('image_url') if btype == 'image_url' else block
+                    if isinstance(image_payload, dict):
+                        url = image_payload.get('url') or image_payload.get('image_url')
+                    else:
+                        url = image_payload
+                    if url:
+                        items.append({'type': 'input_image', 'image_url': url})
+                        emitted_any_block = True
+                elif btype == 'text':
+                    text_val = block.get('text', '')
+                    if text_val:
+                        items.append({'role': role, 'content': [{'type': 'input_text', 'text': text_val}]})
+                        emitted_any_block = True
+            if emitted_any_block:
+                continue
         items.append({'role': role, 'content': content if isinstance(content, str) else str(content)})
     return items
-
-
-def call_codex_responses(base_url, model, messages, api_key='', provider_name='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, want_json=False):
-    """Call OpenAI Codex Responses API at chatgpt.com/backend-api/codex/responses"""
-    url = base_url.rstrip('/') + '/responses'
-
-    # Build instructions and input from messages
-    instructions = "You are a helpful assistant."
-    for msg in messages:
-        if isinstance(msg, dict) and msg.get('role') == 'system':
-            content = msg.get('content', '')
-            instructions = content if isinstance(content, str) else str(content)
-    input_msgs = chat_messages_to_responses_input(messages) or [{'role': 'user', 'content': ''}]
-    
-    payload = {
-        "model": model,
-        "instructions": instructions,
-        "input": input_msgs or [{"role": "user", "content": ""}],
-        "store": False,
-        "stream": True,
-    }
-    
-    # Convert Chat Completions tools to Responses API schema (top-level name/parameters).
-    raw_tools = []
-    for m in messages:
-        if isinstance(m, dict) and m.get('tools'):
-            raw_tools.extend(m['tools'])
-    converted = responses_tool_definitions(raw_tools)
-    if converted:
-        payload['tools'] = converted
-        tool_choice = responses_tool_choice(payload.get('tool_choice'))
-        if tool_choice is not None:
-            payload['tool_choice'] = tool_choice
-
-    # Add reasoning effort if supported
-    if supports_reasoning and thinking == ThinkingLevel.HIGH:
-        payload["reasoning"] = {"effort": "high"}
-
-    try:
-        data = json.dumps(payload).encode()
-        hdrs = {'Content-Type': 'application/json'}
-        if api_key:
-            hdrs['Authorization'] = f'Bearer {api_key}'
-        req = urllib.request.Request(url, data=data, headers=hdrs)
-
-        # Handle streaming response (text + function_call items as tool_calls)
-        with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
-            text, tool_calls = parse_responses_stream(resp)
-
-        text = sanitize_visible_output(text)
-        if text or tool_calls:
-            return True, {'text': text, 'tool_calls': tool_calls}
-        return False, 'Empty Codex response'
-    except Exception as e:
-        logger.warning(f"Codex responses {provider_name or base_url} {model}: {extract_http_error(e)}")
-        return False, extract_http_error(e)
-
 
 
 def call_codex_completion(base_url, model, payload, api_key='', provider_name='', thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, debug_mode=False, request_id=''):
