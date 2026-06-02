@@ -236,7 +236,7 @@ def extract_http_error(exc: Exception) -> str:
 # Auth-profile-based gateway providers: auto-created when matching profile exists
 # Maps auth profile provider name -> (api_type, default_models, default_meta)
 GATEWAY_PROVIDER_PROFILES = {
-    'openai-codex': ('openclaw-gateway', DEFAULT_OPENAI_CODEX_MODELS, {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}),
+    'openai-codex': ('openai-codex-responses', DEFAULT_OPENAI_CODEX_MODELS, {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}),
     'nvidia-ngc': ('https://api.ngc.nvidia.com', DEFAULT_NGC_MODELS, {'reasoning': False, 'contextWindow': 16384, 'maxTokens': 4096, 'input': ['text', 'audio'], 'output': ['text', 'audio']}),
     'anthropic': ('anthropic-messages', DEFAULT_ANTHROPIC_MODELS, {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 64000, 'input': ['text']}),
     'openai': ('openai-completions', DEFAULT_OPENAI_MODELS, {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
@@ -2569,7 +2569,11 @@ def model_meta_for_defaults(models, base_meta):
 
 
 def load_openclaw_auth_access_token(provider_name):
-    """Return the current non-expired OpenClaw auth token for a provider."""
+    """Return the current non-expired OpenClaw auth token for a provider.
+
+    For openai-codex, also searches openai OAuth profiles since ChatGPT/Codex
+    uses the same OpenAI OAuth token (auth-profiles stores them under provider=openai).
+    """
     auth_path = os.path.expanduser('~/.openclaw/agents/main/agent/auth-profiles.json')
     state_path = os.path.expanduser('~/.openclaw/agents/main/agent/auth-state.json')
     try:
@@ -2600,14 +2604,29 @@ def load_openclaw_auth_access_token(provider_name):
         name for name, profile in profiles.items()
         if isinstance(profile, dict) and profile.get('provider') == provider_name
     )
+    # openai-codex shares OAuth tokens with openai (ChatGPT) profiles.
+    # auth-profiles.json stores them under provider=openai with type=oauth
+    # and fields like chatgptPlanType/accountId that indicate ChatGPT/Codex access.
+    if provider_name == 'openai-codex':
+        candidate_names.extend(
+            name for name, profile in profiles.items()
+            if isinstance(profile, dict)
+            and profile.get('provider') == 'openai'
+            and profile.get('type') == 'oauth'
+        )
 
     now_ms = time.time() * 1000
     for name in dedupe_keep_order(candidate_names):
         profile = profiles.get(name)
         if not isinstance(profile, dict):
             continue
-        if profile.get('provider') != provider_name:
-            continue
+        prof_provider = profile.get('provider')
+        if prof_provider != provider_name:
+            # For openai-codex, also accept provider=openai OAuth profiles
+            if provider_name == 'openai-codex' and prof_provider == 'openai' and profile.get('type') == 'oauth':
+                pass
+            else:
+                continue
         expires = profile.get('expires')
         if isinstance(expires, (int, float)) and expires <= now_ms:
             continue
@@ -2625,6 +2644,9 @@ def read_openai_codex_oauth_token_from_file():
     Hosted Cloud Run should prefer SAGE_ROUTER_OPENAI_CODEX_ACCESS_TOKEN from
     Secret Manager. This fallback keeps parity with local OpenClaw/Hermes-style
     auth if an auth profile file is deliberately mounted into the runtime.
+
+    For openai-codex, also searches openai OAuth profiles since ChatGPT/Codex
+    uses the same OpenAI OAuth token (auth-profiles stores them under provider=openai).
     """
     paths = comma_list_env('SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATHS', 'OPENAI_CODEX_AUTH_PROFILE_PATHS') or [
         env_first('SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATH', 'OPENAI_CODEX_AUTH_PROFILE_PATH'),
@@ -2652,6 +2674,13 @@ def read_openai_codex_oauth_token_from_file():
                         token = prof.get('access') or prof.get('access_token') or ''
                         if token:
                             logger.info(f'Loaded openai-codex OAuth token from mounted auth profile {path}')
+                            return token
+                # Also match provider=openai OAuth profiles (ChatGPT tokens work for Codex)
+                if prof.get('provider') == 'openai' and prof.get('type') == 'oauth':
+                    if not prof.get('expires') or prof.get('expires', 0) > now_ms:
+                        token = prof.get('access') or prof.get('access_token') or ''
+                        if token:
+                            logger.info(f'Loaded openai-codex OAuth token from openai ChatGPT profile in {path}')
                             return token
         providers = data.get('providers') if isinstance(data, dict) else None
         if isinstance(providers, dict):
@@ -2784,18 +2813,11 @@ def load_hosted_secret_providers():
             {'reasoning': False, 'contextWindow': 32768, 'maxTokens': 4096, 'input': ['text'], 'supportsJson': True},
         )
     codex_models = comma_list_env('SAGE_ROUTER_OPENAI_CODEX_MODELS') or DEFAULT_OPENAI_CODEX_MODELS
-    if os.environ.get('SAGE_ROUTER_OPENAI_CODEX_DIRECT_RESPONSES') == '1':
-        codex_token = env_first('SAGE_ROUTER_OPENAI_CODEX_ACCESS_TOKEN', 'SAGE_ROUTER_OPENAI_CODEX_OAUTH_TOKEN', 'OPENAI_CODEX_ACCESS_TOKEN', 'OPENAI_CODEX_OAUTH_TOKEN') or read_openai_codex_oauth_token_from_file()
-        codex_api_type = 'openai-codex-responses'
-        codex_base_url = env_first('SAGE_ROUTER_OPENAI_CODEX_BASE_URL', 'OPENAI_CODEX_BASE_URL') or 'https://chatgpt.com/backend-api/codex'
-        codex_api_key = codex_token
-    else:
-        # Prefer the OpenClaw agent bridge for ChatGPT/Codex auth.  Direct calls to
-        # chatgpt.com/backend-api/codex can reject otherwise-current OpenClaw tokens
-        # with token_expired, while the gateway follows OpenClaw's active auth source.
-        codex_api_type = 'openclaw-gateway'
-        codex_base_url = OPENCLAW_GATEWAY_BASE_URL
-        codex_api_key = ''
+    # OpenClaw Codex OAuth: openai-codex is now provider=openai, type=oauth in auth-profiles.
+    # Direct calls to chatgpt.com/backend-api/codex with the OAuth token — no gateway needed.
+    codex_api_type = 'openai-codex-responses'
+    codex_base_url = env_first('SAGE_ROUTER_OPENAI_CODEX_BASE_URL', 'OPENAI_CODEX_BASE_URL') or 'https://chatgpt.com/backend-api/codex'
+    codex_api_key = env_first('SAGE_ROUTER_OPENAI_CODEX_ACCESS_TOKEN', 'SAGE_ROUTER_OPENAI_CODEX_OAUTH_TOKEN', 'OPENAI_CODEX_ACCESS_TOKEN', 'OPENAI_CODEX_OAUTH_TOKEN') or read_openai_codex_oauth_token_from_file()
     add(
         'openai-codex',
         codex_api_type,
@@ -2921,6 +2943,19 @@ def load_openclaw_providers():
                     ))
                     logger.info(f'Auto-created gateway provider {provider_name} (google via gateway) with {len(gw_models)} models')
                 # If key exists, it would have been loaded as a regular provider
+            elif api_type == 'openai-codex-responses':
+                # openai-codex: direct responses via chatgpt.com/backend-api/codex with OAuth
+                codex_gw_token = load_openclaw_auth_access_token('openai-codex')
+                merge_provider(providers, Provider(
+                    provider_name,
+                    'openai-codex-responses',
+                    env_first('SAGE_ROUTER_OPENAI_CODEX_BASE_URL', 'OPENAI_CODEX_BASE_URL') or 'https://chatgpt.com/backend-api/codex',
+                    codex_gw_token,
+                    dedupe_keep_order(gw_models),
+                    set(gw_models),
+                    {m: dict(default_meta) for m in gw_models},
+                ))
+                logger.info(f'Auto-created gateway provider {provider_name} (openai-codex-responses) with {len(gw_models)} models')
             else:
                 # Other providers (xai, zai, openai) - route via gateway
                 merge_provider(providers, Provider(
@@ -6721,8 +6756,11 @@ def prepare_route(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_
                 if prov.api_type != 'ollama':
                     all_models = [requested_model] + all_models
             elif requested_model and requested_model in all_models:
-                # Move requested model to front if it exists
-                all_models = [requested_model] + [m for m in all_models if m != requested_model]
+                # Honor explicit provider/model requests exactly. If that
+                # precise model fails at runtime, outer fallback layers can
+                # choose a different provider; do not fan out across sibling
+                # models on the same provider first.
+                all_models = [requested_model]
             filtered_models = []
             forced_rejections = []
             for model in all_models:
