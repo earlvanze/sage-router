@@ -2254,7 +2254,19 @@ def parse_responses_stream(resp):
         if item_id not in tool_order:
             tool_order.append(item_id)
         existing = tool_items.get(item_id) or {}
-        existing.update(call)
+        # Deep-merge: shallow update would overwrite nested function/arguments
+        # and drop bytes already accumulated by response.function_call_arguments.delta.
+        existing['id'] = call.get('id', existing.get('id', item_id))
+        existing['type'] = call.get('type', existing.get('type', 'function'))
+        existing_fn = existing.setdefault('function', {})
+        call_fn = call.get('function') or {}
+        if call_fn.get('name') and not existing_fn.get('name'):
+            existing_fn['name'] = call_fn['name']
+        if call_fn.get('arguments'):
+            # New event has full arguments — use them, but only if we have
+            # nothing accumulated (delta events append below).
+            if not existing_fn.get('arguments'):
+                existing_fn['arguments'] = call_fn['arguments']
         tool_items[item_id] = existing
 
     for raw_line in resp:
@@ -2762,7 +2774,9 @@ def load_openclaw_auth_access_token(provider_name):
             continue
         token = profile.get('access') or profile.get('access_token') or profile.get('apiKey') or ''
         if token:
-            logger.info(f'Loaded OpenClaw auth token for {provider_name} from profile {masked_auth_profile_name(name)}')
+            # Avoid logging email-bearing profile names (PII).
+            safe_label = '<email-profile>' if '@' in name else name
+            logger.info(f'Loaded OpenClaw auth token for {provider_name} from {safe_label}')
             return token
     return ''
 
