@@ -1,41 +1,82 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
+    <!-- Background gradient: deep midnight to indigo -->
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1a1a2e"/>
-      <stop offset="100%" style="stop-color:#16213e"/>
+      <stop offset="0%" stop-color="#0a0e27"/>
+      <stop offset="50%" stop-color="#1a1a3e"/>
+      <stop offset="100%" stop-color="#2d1b69"/>
     </linearGradient>
-    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#00d2ff"/>
-      <stop offset="100%" style="stop-color:#7b2ff7"/>
+    <!-- Routing network gradient: cyan to violet -->
+    <linearGradient id="net" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00e5ff"/>
+      <stop offset="50%" stop-color="#7c4dff"/>
+      <stop offset="100%" stop-color="#ff4dff"/>
     </linearGradient>
-    <linearGradient id="inner" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#00e5ff"/>
-      <stop offset="50%" style="stop-color:#7c4dff"/>
-      <stop offset="100%" style="stop-color:#e040fb"/>
+    <!-- Sage/green accent for center -->
+    <linearGradient id="sage" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00ffa3"/>
+      <stop offset="100%" stop-color="#00d2ff"/>
     </linearGradient>
+    <!-- Glow filter -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
-  <!-- Background rounded rect -->
-  <rect x="8" y="8" width="496" height="496" rx="96" ry="96" fill="url(#bg)"/>
-  <!-- Outer ring -->
-  <circle cx="256" cy="256" r="180" fill="none" stroke="url(#glow)" stroke-width="12" opacity="0.6"/>
-  <!-- Inner hexagonal routing symbol -->
-  <polygon points="256,100 376,178 376,334 256,412 136,334 136,178" fill="none" stroke="url(#inner)" stroke-width="16" stroke-linejoin="round" opacity="0.9"/>
-  <!-- Center node -->
-  <circle cx="256" cy="256" r="36" fill="url(#inner)" opacity="0.95"/>
-  <!-- Routing paths from center to vertices -->
-  <line x1="256" y1="256" x2="256" y2="110" stroke="url(#glow)" stroke-width="6" opacity="0.7"/>
-  <line x1="256" y1="256" x2="370" y2="184" stroke="url(#glow)" stroke-width="6" opacity="0.7"/>
-  <line x1="256" y1="256" x2="370" y2="328" stroke="url(#glow)" stroke-width="6" opacity="0.7"/>
-  <line x1="256" y1="256" x2="256" y2="402" stroke="url(#glow)" stroke-width="6" opacity="0.7"/>
-  <line x1="256" y1="256" x2="142" y2="328" stroke="url(#glow)" stroke-width="6" opacity="0.7"/>
-  <line x1="256" y1="256" x2="142" y2="184" stroke="url(#glow)" stroke-width="6" opacity="0.7"/>
-  <!-- Vertex nodes (provider endpoints) -->
-  <circle cx="256" cy="100" r="18" fill="#00e5ff" opacity="0.9"/>
-  <circle cx="376" cy="178" r="18" fill="#7c4dff" opacity="0.9"/>
-  <circle cx="376" cy="334" r="18" fill="#e040fb" opacity="0.9"/>
-  <circle cx="256" cy="412" r="18" fill="#7c4dff" opacity="0.9"/>
-  <circle cx="136" cy="334" r="18" fill="#00e5ff" opacity="0.9"/>
-  <circle cx="136" cy="178" r="18" fill="#e040fb" opacity="0.9"/>
-  <!-- "S" letter in center -->
-  <text x="256" y="272" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="700" fill="white" text-anchor="middle" opacity="0.95">S</text>
+
+  <!-- Background with rounded corners (iOS app icon style) -->
+  <rect width="1024" height="1024" rx="220" ry="220" fill="url(#bg)"/>
+
+  <!-- Subtle radial highlight at top -->
+  <ellipse cx="512" cy="200" rx="600" ry="300" fill="url(#net)" opacity="0.06"/>
+
+  <!-- Outer routing ring (dashed) -->
+  <circle cx="512" cy="540" r="340" fill="none" stroke="url(#net)" stroke-width="6" stroke-dasharray="4 16" opacity="0.4"/>
+
+  <!-- Hexagonal routing mesh -->
+  <g filter="url(#glow)">
+    <!-- Hexagon outline -->
+    <polygon points="512,260 752,395 752,615 512,750 272,615 272,395" fill="none" stroke="url(#net)" stroke-width="14" stroke-linejoin="round" opacity="0.9"/>
+
+    <!-- Inner hexagon (smaller) -->
+    <polygon points="512,340 668,432 668,590 512,672 356,590 356,432" fill="none" stroke="url(#net)" stroke-width="6" stroke-linejoin="round" opacity="0.5"/>
+
+    <!-- Routing paths from center to each hex vertex -->
+    <line x1="512" y1="540" x2="512" y2="270" stroke="url(#net)" stroke-width="8" opacity="0.8"/>
+    <line x1="512" y1="540" x2="748" y2="400" stroke="url(#net)" stroke-width="8" opacity="0.8"/>
+    <line x1="512" y1="540" x2="748" y2="610" stroke="url(#net)" stroke-width="8" opacity="0.8"/>
+    <line x1="512" y1="540" x2="512" y2="740" stroke="url(#net)" stroke-width="8" opacity="0.8"/>
+    <line x1="512" y1="540" x2="276" y2="610" stroke="url(#net)" stroke-width="8" opacity="0.8"/>
+    <line x1="512" y1="540" x2="276" y2="400" stroke="url(#net)" stroke-width="8" opacity="0.8"/>
+
+    <!-- Vertex nodes (provider endpoints) -->
+    <circle cx="512" cy="270" r="28" fill="#00e5ff"/>
+    <circle cx="748" cy="400" r="28" fill="#7c4dff"/>
+    <circle cx="748" cy="610" r="28" fill="#ff4dff"/>
+    <circle cx="512" cy="740" r="28" fill="#7c4dff"/>
+    <circle cx="276" cy="610" r="28" fill="#00e5ff"/>
+    <circle cx="276" cy="400" r="28" fill="#ff4dff"/>
+
+    <!-- Vertex node cores -->
+    <circle cx="512" cy="270" r="14" fill="#ffffff" opacity="0.9"/>
+    <circle cx="748" cy="400" r="14" fill="#ffffff" opacity="0.9"/>
+    <circle cx="748" cy="610" r="14" fill="#ffffff" opacity="0.9"/>
+    <circle cx="512" cy="740" r="14" fill="#ffffff" opacity="0.9"/>
+    <circle cx="276" cy="610" r="14" fill="#ffffff" opacity="0.9"/>
+    <circle cx="276" cy="400" r="14" fill="#ffffff" opacity="0.9"/>
+
+    <!-- Central hub (sage/green - represents the router itself) -->
+    <circle cx="512" cy="540" r="64" fill="url(#sage)"/>
+    <circle cx="512" cy="540" r="44" fill="#0a0e27"/>
+  </g>
+
+  <!-- Sage "S" mark in center hub -->
+  <text x="512" y="540" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="80" font-weight="800" fill="url(#sage)" text-anchor="middle" dominant-baseline="central" letter-spacing="-2">S</text>
+
+  <!-- Brand name "sage" below the hex -->
+  <text x="512" y="880" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="64" font-weight="600" fill="#ffffff" text-anchor="middle" letter-spacing="6" opacity="0.95">SAGE</text>
+  <text x="512" y="938" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="400" fill="#7c4dff" text-anchor="middle" letter-spacing="14" opacity="0.85">ROUTER</text>
 </svg>
