@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sage Router — Config Dashboard</title>
+  <style>
+    :root {
+      --bg: #0d1b2a;
+      --card: #1b2838;
+      --border: #2a3f5f;
+      --accent: #00b4d8;
+      --text: #e0e0e0;
+      --success: #4caf50;
+      --warning: #ffc107;
+      --danger: #e63946;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid var(--border); }
+    .header h1 { font-size: 24px; color: var(--accent); }
+    .header .status { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+    .status-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .card h2 { font-size: 16px; color: var(--accent); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .provider { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; margin: 4px 0; border-radius: 6px; background: rgba(255,255,255,0.03); }
+    .provider:hover { background: rgba(0,180,216,0.1); }
+    .provider-name { font-weight: 600; font-size: 14px; }
+    .provider-status { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+    .provider-status.healthy { background: rgba(76,175,80,0.2); color: var(--success); }
+    .provider-status.unhealthy { background: rgba(230,57,70,0.2); color: var(--danger); }
+    .provider-status.unknown { background: rgba(255,193,7,0.2); color: var(--warning); }
+    .stat { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .stat:last-child { border: none; }
+    .stat-label { color: #888; font-size: 13px; }
+    .stat-value { font-weight: 600; font-size: 14px; }
+    .toggle { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #444; border-radius: 24px; transition: .3s; }
+    .toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .3s; }
+    .toggle input:checked + .toggle-slider { background: var(--accent); }
+    .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: .2s; }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-primary:hover { background: #0096c7; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { background: #c1121f; }
+    .models { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .model-tag { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(0,180,216,0.15); color: var(--accent); }
+    #analytics { max-height: 300px; overflow-y: auto; }
+    .analytics-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; }
+    .refresh-btn { background: none; border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🔮 Sage Router</h1>
+    <div class="status">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">Connecting...</span>
+      <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+    </div>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <h2>Providers</h2>
+      <div id="providers"></div>
+    </div>
+    <div class="card">
+      <h2>Health</h2>
+      <div id="health"></div>
+    </div>
+    <div class="card">
+      <h2>Models</h2>
+      <div id="models"></div>
+    </div>
+    <div class="card">
+      <h2>Analytics (7d)</h2>
+      <div id="analytics"></div>
+    </div>
+    <div class="card">
+      <h2>Routing Profile</h2>
+      <div id="profile"></div>
+    </div>
+    <div class="card">
+      <h2>Quick Actions</h2>
+      <button class="btn btn-primary" onclick="healthCheck()" style="margin:4px">🔄 Health Check All</button>
+      <button class="btn btn-primary" onclick="refreshModels()" style="margin:4px">📋 Refresh Models</button>
+      <button class="btn btn-danger" onclick="if(confirm('Restart router?')) restartRouter()" style="margin:4px">♻️ Restart</button>
+      <div id="actions" style="margin-top:12px"></div>
+    </div>
+  </div>
+  <script>
+    const API = window.location.origin;
+    async function api(path) {
+      const r = await fetch(API + path).catch(e => ({ok: false, status: 0, json: async () => ({error: e.message})}));
+      return r.ok ? r.json() : {error: `HTTP ${r.status}`};
+    }
+    async function loadAll() {
+      document.getElementById('statusText').textContent = 'Loading...';
+      const [info, models, analytics] = await Promise.all([
+        api('/'), api('/v1/models'), api('/analytics?days=7').catch(() => ({}))
+      ]);
+      // Status
+      const ok = info.status === 'ok';
+      document.getElementById('statusDot').style.background = ok ? 'var(--success)' : 'var(--danger)';
+      document.getElementById('statusText').textContent = ok ? 'Healthy' : 'Error';
+      // Providers
+      const provs = Object.entries(info.providers || {});
+      document.getElementById('providers').innerHTML = provs.map(([name, p]) => {
+        const healthy = p.healthy !== false;
+        return `<div class="provider"><span class="provider-name">${name}</span><span class="provider-status ${healthy ? 'healthy' : 'unhealthy'}">${healthy ? '✓ healthy' : '✗ down'}</span></div>`;
+      }).join('') || '<div style="color:#888">No providers configured</div>';
+      // Models
+      const modelList = models.data || [];
+      const grouped = {};
+      modelList.forEach(m => {
+        const prov = m.id.split('/')[0] || 'unknown';
+        if (!grouped[prov]) grouped[prov] = [];
+        grouped[prov].push(m.id);
+      });
+      document.getElementById('models').innerHTML = Object.entries(grouped).map(([prov, ids]) =>
+        `<div style="margin-bottom:8px"><strong>${prov}</strong> (${ids.length})<div class="models">${ids.slice(0,12).map(id => `<span class="model-tag">${id.split('/').pop()}</span>`).join('')}${ids.length > 12 ? `<span class="model-tag">+${ids.length-12} more</span>` : ''}</div></div>`
+      ).join('') || '<div style="color:#888">No models available</div>';
+      // Analytics
+      const a = analytics;
+      const rows = [];
+      if (a.total_requests) rows.push(['Total Requests', a.total_requests]);
+      if (a.total_tokens) rows.push(['Total Tokens', a.total_tokens.toLocaleString()]);
+      if (a.total_cost) rows.push(['Total Cost', `$${Number(a.total_cost).toFixed(4)}`]);
+      if (a.avg_latency_ms) rows.push(['Avg Latency', `${Math.round(a.avg_latency_ms)}ms`]);
+      if (a.by_provider) Object.entries(a.by_provider).forEach(([k,v]) => rows.push([k, `${v.requests || v} reqs`]);
+      document.getElementById('analytics').innerHTML = rows.map(([l,v]) =>
+        `<div class="analytics-row"><span>${l}</span><span style="color:var(--accent)">${v}</span></div>`
+      ).join('') || '<div style="color:#888">No analytics data</div>';
+      // Profile
+      const profile = info.router_profile || info.activeProfile || 'default';
+      document.getElementById('profile').innerHTML = `<div class="stat"><span class="stat-label">Active Profile</span><span class="stat-value">${profile}</span></div>`;
+    }
+    async function healthCheck() {
+      document.getElementById('actions').innerHTML = '<span style="color:var(--warning)">Running health check...</span>';
+      const h = await api('/health');
+      document.getElementById('health').innerHTML = Object.entries(h.providers || h).map(([k,v]) =>
+        `<div class="stat"><span class="stat-label">${k}</span><span class="stat-value" style="color:${v.healthy !== false ? 'var(--success)' : 'var(--danger)'}">${v.healthy !== false ? '✓' : '✗'} ${v.latency_ms ? Math.round(v.latency_ms)+'ms' : ''}</span></div>`
+      ).join('') || '<div style="color:#888">No health data</div>';
+      document.getElementById('actions').innerHTML = '<span style="color:var(--success)">Health check complete</span>';
+    }
+    async function refreshModels() {
+      document.getElementById('actions').innerHTML = '<span style="color:var(--warning)">Refreshing models...</span>';
+      await loadAll();
+      document.getElementById('actions').innerHTML = '<span style="color:var(--success)">Models refreshed</span>';
+    }
+    async function restartRouter() {
+      document.getElementById('actions').innerHTML = '<span style="color:var(--warning)">Restarting...</span>';
+      setTimeout(() => location.reload(), 3000);
+    }
+    loadAll().catch(() => document.getElementById('statusText').textContent = 'Connection failed');
+  </script>
+</body>
+</html>
