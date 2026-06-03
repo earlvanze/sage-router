@@ -3,26 +3,37 @@ version: "3.7"
 services:
   app_proxy:
     environment:
-      APP_HOST: sage-router_server_1
+      APP_HOST: sage-router
       APP_PORT: 8788
+      PROXY_AUTH_ADD: 'false'
+    container_name: sage-router_app_proxy_1
 
-  server:
+  sage-router:
     image: ghcr.io/earlvanze/sage-router:latest
+    container_name: sage-router
     restart: unless-stopped
     volumes:
-      - ${APP_DATA_DIR}/data:/config:ro
-      - ${APP_DATA_DIR}/dario:/root/.dario
-      # Mount OpenClaw auth profiles so Codex OAuth token discovery works.
-      # Copy/link your host ~/.openclaw into ${APP_DATA_DIR}/openclaw on first install.
-      - ${APP_DATA_DIR}/openclaw:/root/.openclaw:ro
+      - /home/umbrel/.openclaw:/config:ro
+      - /home/umbrel/.dario:/root/.dario
+      - sage-router-ollama:/root/.ollama
+      - sage-router-models:/models
     environment:
-      - PORT=8788
-      - SAGE_ROUTER_HOME=/config
-      - SAGE_ROUTER_ALLOW_RESTART=1
-      - SAGE_ROUTER_DARIO_AUTOSTART=0
-      - SAGE_ROUTER_BUNDLED_OLLAMA_AUTOSTART=0
-      - SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS=300
-      # Pass the OpenAI Codex OAuth token from the host OpenClaw env so
-      # the router can use it directly without file-mount discovery.
-      - OPENAI_CODEX_API_KEY=${OPENAI_CODEX_API_KEY:-}
-    container_name: sage-router_server_1
+      PORT: '8788'
+      SAGE_ROUTER_HOME: /config
+      SAGE_ROUTER_API_KEY: ${SAGE_ROUTER_API_KEY:-local}
+      SAGE_ROUTER_DISABLED_PROVIDERS: >-
+        ollama-cloud,anthropic,dario,openrouter,openai,openai-codex,nvidia-nim,darkbloom,ollama,ollama-cyber
+      SAGE_ROUTER_DISABLED_MODELS: kimi-k2-thinking
+      SAGE_ROUTER_PROFILE_OVERLAYS: ''
+      SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS: '300'
+      SAGE_ROUTER_BUNDLED_OLLAMA_AUTOSTART: '1'
+      SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_ENABLED: '0'
+      SAGE_ROUTER_OLLAMA_AUTO_PULL_PATTERNS: ''
+      SAGE_ROUTER_OPENROUTER_FREE_ONLY: '1'
+      SAGE_ROUTER_DARIO_AUTOSTART: '1'
+      SAGE_ROUTER_DARIO_BASE_URL: http://127.0.0.1:3456
+      SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED: '0'
+
+volumes:
+  sage-router-ollama: null
+  sage-router-models: null

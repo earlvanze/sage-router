@@ -4,7 +4,7 @@ name: Sage Router
 tagline: Intelligent multi-provider AI router with OpenClaw Codex OAuth
 icon: https://raw.githubusercontent.com/earlvanze/sage-router/master/umbrel/icon.svg
 category: ai
-version: "1.0.1"
+version: "1.0.2"
 port: 8788
 description: >-
   Sage Router is a dynamic multi-provider AI router that discovers available
@@ -42,19 +42,15 @@ path: ""
 defaultUsername: ""
 defaultPassword: ""
 releaseNotes: >-
-  Initial Umbrel Community App Store release.
+  1.0.2 — Umbrel reliability release.
 
 
-  - OpenClaw Codex OAuth routes directly to chatgpt.com/backend-api/codex
-    using the OpenAI OAuth token from auth-profiles (no gateway subprocess)
-  - Auto-discovers providers from OpenClaw auth-profiles.json
-  - Tool/function calling support: translates Chat Completions tool schema
-    to Responses API format and parses function_call output items
-  - Built-in dashboard at port 8788 with provider health, latency, and
-    live routing visualization
-  - Streaming SSE for chat and code completions
-  - Subscription/billing integration via Stripe (free/lite/pro/max/metered)
-  - Dario proxy for Claude/Anthropic routing (autostartable on first request)
-  - OpenRouter free-tier preferred by default
-  - Ollama Cloud catalog auto-discovery
+  - Uses the stable Docker service name (`sage-router`) for app-proxy routing
+  - Mounts the host OpenClaw config directly from `/home/umbrel/.openclaw`
+  - Disables providers and overlays that produced 401/402/429/503 failures in
+    the verified Umbrel runtime
+  - Disables Ollama Cloud catalog/autopull and the overloaded
+    `kimi-k2-thinking` model
+  - Verified from OpenClaw and Remnic containers with repeated health, model,
+    and chat completion requests returning HTTP 200
 dependencies: []

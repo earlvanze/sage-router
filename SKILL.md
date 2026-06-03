@@ -1,7 +1,7 @@
 ---
 name: sage-router
 description: Local-first AI model routing for serious agents. One endpoint. Any provider. The router figures out the rest.
-version: 3.27.0
+version: 4.155.0
 env:
   - SAGE_ROUTER_HOME (required: path to sage-router repo)
   - SAGE_ROUTER_DISABLED_PROVIDERS (optional: comma-separated provider names to suppress)
@@ -77,6 +77,7 @@ Intent is detected by keyword matching on the latest user message. Complexity is
 - Empirical latency memory is persisted at `~/.cache/sage-router/latency-stats.json` by default.
 - When the OpenClaw gateway model-set path is unhealthy, the helper falls back to running without provider/model overrides instead of failing hard.
 - If any provider starts misbehaving, suppress it with `SAGE_ROUTER_DISABLED_PROVIDERS` instead of editing the router.
+- For reliable Umbrel/OpenClaw/Remnic use, point clients at `http://sage-router:8788/v1` on `umbrel_main_network`, set unauthenticated Ollama auto-pull patterns to empty, and keep quota-bound providers disabled until credentials are healthy.
 - GitHub workflows now include CI syntax checks and CodeQL analysis for Python + JavaScript.
 - See `BRANCH_PROTECTION.md` for the exact required-check setup on GitHub.
 - `provider-profiles.json` includes a `grok-sso` template for the OpenClaw xAI auth plugin's local SuperGrok-backed proxy.
