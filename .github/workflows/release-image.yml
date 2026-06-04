@@ -9,7 +9,7 @@ on:
       tag:
         description: 'Image tag (e.g. v3.28.0)'
         required: true
-        default: 'v3.28.0'
+        default: 'latest'
 
 permissions:
   contents: read
@@ -27,7 +27,12 @@ jobs:
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             echo "value=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
           else
-            echo "value=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+            # Use the tag from the workflow_dispatch input, default to 'latest'
+            INPUT_TAG="${{ github.event.inputs.tag }}"
+            if [[ -z "$INPUT_TAG" ]]; then
+              INPUT_TAG="latest"
+            fi
+            echo "value=${INPUT_TAG}" >> $GITHUB_OUTPUT
           fi
 
       - name: Set up Docker Buildx
@@ -45,7 +50,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: |
-            ghcr.io/earlvanze/sage-router:${{ steps.tag.outputs.value }}
-            ghcr.io/earlvanze/sage-router:latest
+          tags: ghcr.io/earlvanze/sage-router:${{ steps.tag.outputs.value }}
           provenance: false
