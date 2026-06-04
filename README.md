@@ -4,7 +4,7 @@
 
 One endpoint. Any provider. The router figures out the rest.
 
-[![ClawHub](https://img.shields.io/badge/ClawHub-v3.27.0-blue)](https://clawhub.ai/earlvanze/sage-router)
+[![ClawHub](https://img.shields.io/badge/ClawHub-v3.28.0-blue)](https://clawhub.ai/earlvanze/sage-router)
 [![GitHub](https://img.shields.io/badge/GitHub-earlvanze%2Fsage--router-black)](https://github.com/earlvanze/sage-router)
 
 ---
