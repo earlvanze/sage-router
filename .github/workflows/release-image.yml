@@ -50,5 +50,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/earlvanze/sage-router:${{ steps.tag.outputs.value }}
+          tags: ghcr.io/earlvanze/sage-router-public:${{ steps.tag.outputs.value }}
           provenance: false
