@@ -5241,9 +5241,16 @@ def apply_router_profile(payload):
         req['frontierOrReasoningTools'] = True
     if profile.get('minParamsB') is not None:
         req['minParamsB'] = profile.get('minParamsB')
-    for key in ('allowModels', 'denyModels', 'allowProviders', 'denyProviders', 'fallbackProviders'):
+    for key in ('allowModels', 'denyModels', 'denyProviders'):
         if profile.get(key):
             req[key] = profile.get(key)
+    # Merge allowProviders + fallbackProviders so fallbacks are allowed (with score penalty)
+    allow = list(profile.get('allowProviders') or [])
+    fallbacks = list(profile.get('fallbackProviders') or [])
+    if allow or fallbacks:
+        req['allowProviders'] = dedupe_keep_order(allow + fallbacks)
+    if fallbacks:
+        req['fallbackProviders'] = fallbacks
     payload['requirements'] = req
     if str(payload.get('model') or '').strip() in {profile_name, f'sage-router/{profile_name}'}:
         payload['model'] = 'sage-router/auto'
