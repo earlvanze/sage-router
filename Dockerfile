@@ -18,6 +18,7 @@ WORKDIR /app
 COPY router.py provider-profiles.json openclaw_gateway_agent.mjs requirements.txt ./
 COPY scripts ./scripts
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY web/dashboard ./web/dashboard/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh /app/router.py /usr/local/bin/ollama
 
 EXPOSE 8788 11434 3456

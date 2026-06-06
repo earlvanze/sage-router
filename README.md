@@ -4,6 +4,7 @@
 
 One endpoint. Any provider. The router figures out the rest.
 
+[![Umbrel](https://img.shields.io/badge/Umbrel-1.0.3-purple)](https://github.com/getumbrel/umbrel-apps/pull/5720)
 [![ClawHub](https://img.shields.io/badge/ClawHub-v3.28.0-blue)](https://clawhub.ai/earlvanze/sage-router)
 [![GitHub](https://img.shields.io/badge/GitHub-earlvanze%2Fsage--router-black)](https://github.com/earlvanze/sage-router)
 
@@ -40,6 +41,17 @@ cd sage-router
 pip install -r requirements.txt  # if any
 python3 router.py --port 8788
 ```
+
+### Umbrel (Home Server)
+
+Install from the [Umbrel App Store](https://github.com/getumbrel/umbrel-apps/pull/5720) or add the personal repo:
+
+```yaml
+# In umbrel.yaml → appRepositories
+- https://github.com/earlvanze/umbrel-personal-apps
+```
+
+The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.0` and auto-mounts your `~/.openclaw` config for Codex OAuth token discovery. The built-in config dashboard is accessible from the Umbrel app tile.
 
 ### Configure Your Tools
 
@@ -85,6 +97,45 @@ export ANTHROPIC_API_KEY=irrelevant
 
 ---
 
+
+## OpenClaw Codex OAuth
+
+Sage Router connects directly to `chatgpt.com/backend-api/codex` using the same OpenAI OAuth token stored in your OpenClaw `auth-profiles.json`. No API key needed — it reads the current ChatGPT session JWT from `~/.openclaw/agents/main/agent/auth-profiles.json` and refreshes it on each request.
+
+To use:
+
+```bash
+# Force a request through the Codex backend
+curl http://localhost:8788/v1/chat/completions \
+  -H "Authorization: Bearer local" \
+  -d '{"model":"openai-codex/gpt-5.5","messages":[{"role":"user","content":"Hello"}]}'
+```
+
+The `openai-codex` provider is enabled by default. Models: `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-pro`.
+
+Key env vars:
+- `SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATH` — path to `auth-profiles.json` (default: `~/.openclaw/agents/main/agent/auth-profiles.json`)
+- `OPENAI_CODEX_API_KEY` — fallback JWT token (used if auth-profiles is unavailable)
+
+## Config Dashboard
+
+Sage Router ships a built-in web dashboard at the root URL (`/`). Open it in a browser to see:
+
+- Provider health status and latency
+- Available models per provider
+- Usage analytics
+- Provider enable/disable toggles
+- API key management
+
+For programmatic clients (sending `Accept: application/json`), the root URL returns the JSON API descriptor instead. The dashboard is also available at `/dashboard`.
+
+### outputProviderPrefix
+
+Enable `SAGE_ROUTER_SHOW_MODEL_PREFIX=1` to prefix every chat response with `[provider/model]` so you can see which model answered:
+
+```
+[openai-codex/gpt-5.5] Here is the response...
+```
 ## Supported API Formats
 
 | Endpoint | Format | Used By |
@@ -374,13 +425,29 @@ Models are auto-discovered from NVIDIA NIM / NVIDIA Cloud when `NVIDIA_API_KEY` 
 ```
 
 Models are auto-discovered via the gateway's `/v1/models` endpoint.
-```
 
+
+### OpenClaw Codex OAuth
+
+No config needed — Sage Router reads your ChatGPT OAuth JWT from `~/.openclaw/agents/main/agent/auth-profiles.json` automatically. Models: `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-pro`.
+
+Force via model name: `"model": "openai-codex/gpt-5.5"`.
 ---
 
 ## Docker / Production deployment
+The pre-built image is available at `ghcr.io/earlvanze/sage-router-public` (public). It bundles Sage Router plus Dario and the config dashboard.
 
-The Docker image bundles Sage Router plus Dario for Anthropic-compatible Claude requests. Dario credentials are read from `~/.dario`, mounted into the container at `/root/.dario`.
+Mount your OpenClaw config so Codex OAuth tokens and provider profiles are available:
+
+```bash
+docker run -p 8788:8788 \
+  -v ~/.openclaw:/config:ro \
+  -v ~/.openclaw:/root/.openclaw:ro \
+  -v ~/.dario:/root/.dario \
+  ghcr.io/earlvanze/sage-router-public:v3.28.0
+```
+
+Or build from source:
 
 ```bash
 # Router only, with Dario available for Anthropic-compatible requests
@@ -419,6 +486,7 @@ The classifier backend speaks OpenAI-compatible llama.cpp server API (`/v1/chat/
 | **GitHub Copilot** | ✅ `/v1/models` | ✅ | ✅ | Token |
 | **NVIDIA NIM / Cloud** | ✅ auto-discovery | ✅ | ✅ | API key |
 | **OpenClaw Gateway** | ✅ `/v1/models` | ✅ | ✅ | Gateway token |
+| **OpenClaw Codex OAuth** | ✅ auto-profile | ✅ | ✅ | ChatGPT JWT (auth-profiles) |
 | **xAI/Grok (API)** | ✅ `/v1/models` | ✅ | ✅ | API key |
 | **xAI/Grok (SSO)** | ❌ SSO proxy | ❌ | ❌ | Cookie/SSO |
 
@@ -513,7 +581,9 @@ That means stream-shaped responses work for client compatibility, but they may s
 
 ## Why Sage Router?
 
+Sage Router was built because switching API keys between coding agents is tedious, burning Claude API credits on trivial tasks is wasteful, and configuring models in 3 different places is fragile.
 
+With OpenClaw Codex OAuth, you get ChatGPT Pro/Codex access through your existing session token — no API key, no gateway subprocess, no stale tokens. The router reads the JWT directly from your OpenClaw auth profile and sends it to `chatgpt.com/backend-api/codex`.
 
 ## Configuration
 
@@ -527,14 +597,16 @@ GEMINI_API_KEY=AIza...
 NVIDIA_API_KEY=nvapi-...
 OLLAMA_HOST=http://localhost:11434
 
+# OpenClaw Codex OAuth (chatgpt.com/backend-api/codex)
+SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATH=~/.openclaw/agents/main/agent/auth-profiles.json
+OPENAI_CODEX_API_KEY=              # fallback JWT, auto-refreshed from auth-profiles
+
 # Router behavior
 SAGE_ROUTER_DEFAULT_MODE=balanced
 SAGE_ROUTER_TIMEOUT=60
+SAGE_ROUTER_SHOW_MODEL_PREFIX=1   # prefix responses with [provider/model]
+SAGE_ROUTER_DISABLED_PROVIDERS=    # comma-separated: ollama-cloud,anthropic,...
 ```
-
-### OpenClaw Config (`~/.openclaw/openclaw.json`)
-
-```json
 {
   "models": {
     "providers": {
@@ -580,6 +652,9 @@ LOG_LEVEL=DEBUG python3 router.py
 - [x] Cloudflare Pages marketing site on `https://sagerouter.dev`
 - [x] Integration guides for major agent harnesses and SDK-compatible clients
 - [x] Waitlist capture into AOps Supabase
+- [x] OpenClaw Codex OAuth passthrough (chatgpt.com/backend-api/codex)
+- [x] Umbrel App Store packaging (v1.0.3)
+- [x] Built-in config dashboard with provider health, toggles, and analytics
 
 ### Next
 
