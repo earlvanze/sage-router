@@ -465,7 +465,7 @@ def is_self_provider(name, base_url):
     if name in SELF_PROVIDER_NAMES:
         return True
     parsed = urllib.parse.urlparse(base_url or '')
-    return parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == 8788
+    return parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == 8787
 
 
 def is_local_dario_endpoint(base_url):
@@ -5198,7 +5198,7 @@ def resolve_router_profile_name(payload):
     model = str(payload.get('model') or '').strip()
     if model.startswith('sage-router/'):
         name = model.split('/', 1)[1]
-        if name and name != 'auto':
+        if name:
             return name
     elif model and '/' not in model and model not in PROVIDERS:
         return model
@@ -7856,7 +7856,7 @@ class Handler(BaseHTTPRequestHandler):
                 clear_route_auth_context()
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(); parser.add_argument('--port',type=int,default=8788); args = parser.parse_args()
+    parser = argparse.ArgumentParser(); parser.add_argument('--port',type=int,default=8787); args = parser.parse_args()
     ensure_background_refresh_started()
     server = ThreadingHTTPServer(('0.0.0.0', args.port), Handler)
     logger.info(f"Router on :{args.port} | configured={list(PROVIDERS.keys())} | disabled={sorted(DISABLED_PROVIDERS)} disabledModels={sorted(DISABLED_MODELS)}")
