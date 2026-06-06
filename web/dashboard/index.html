@@ -31,16 +31,11 @@
     .provider-status { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
     .provider-status.healthy { background: rgba(76,175,80,0.2); color: var(--success); }
     .provider-status.unhealthy { background: rgba(230,57,70,0.2); color: var(--danger); }
-    .provider-status.unknown { background: rgba(255,193,7,0.2); color: var(--warning); }
+    .provider-status.disabled { background: rgba(255,255,255,0.05); color: #666; }
     .stat { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
     .stat:last-child { border: none; }
     .stat-label { color: #888; font-size: 13px; }
     .stat-value { font-weight: 600; font-size: 14px; }
-    .toggle { position: relative; display: inline-block; width: 44px; height: 24px; }
-    .toggle input { opacity: 0; width: 0; height: 0; }
-    .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #444; border-radius: 24px; transition: .3s; }
-    .toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .3s; }
-    .toggle input:checked + .toggle-slider { background: var(--accent); }
     .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: .2s; }
     .btn-primary { background: var(--accent); color: #000; }
     .btn-primary:hover { background: #0096c7; }
@@ -52,6 +47,7 @@
     .analytics-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; }
     .refresh-btn { background: none; border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
     .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .disabled-list { color: #666; font-size: 12px; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -88,60 +84,89 @@
       <h2>Quick Actions</h2>
       <button class="btn btn-primary" onclick="healthCheck()" style="margin:4px">🔄 Health Check All</button>
       <button class="btn btn-primary" onclick="refreshModels()" style="margin:4px">📋 Refresh Models</button>
-      <button class="btn btn-danger" onclick="if(confirm('Restart router?')) restartRouter()" style="margin:4px">♻️ Restart</button>
-      <div id="actions" style="margin-top:12px"></div>
+      <button class="btn btn-danger" onclick="if(confirm('Restart router? This drops in-flight requests.'))restartRouter()" style="margin:4px">⛔ Restart Router</button>
+      <div id="actions" style="margin-top:8px"></div>
     </div>
   </div>
   <script>
     const API = window.location.origin;
-    // HTML-escape any API/config value before injecting it into innerHTML so
-    // a crafted provider name / model id / profile label from a config or
-    // upstream response can't execute script in the dashboard origin.
-    function escapeHtml(value) {
-      return String(value == null ? '' : value)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
-    }
-    async function api(path, opts) {
-      try {
-        const r = await fetch(API + path, opts);
-        const body = await r.json().catch(() => ({}));
-        return r.ok ? body : {error: `HTTP ${r.status}`, status: r.status, body};
-      } catch (e) {
-        return {error: e.message || String(e)};
-      }
+    function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    async function api(path, opts = {}) {
+      const r = await fetch(API + path, opts);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
     }
     async function loadAll() {
       document.getElementById('statusText').textContent = 'Loading...';
-      const [info, models, analytics] = await Promise.all([
-        api('/'), api('/v1/models'), api('/analytics?days=7').catch(() => ({}))
+      const [health, modelsResp, analytics] = await Promise.all([
+        api('/health').catch(() => ({})),
+        api('/v1/models').catch(() => ({})),
+        api('/analytics?days=7').catch(() => ({}))
       ]);
       // Status
-      const ok = info.status === 'ok';
+      const ok = health.status === 'ok';
       document.getElementById('statusDot').style.background = ok ? 'var(--success)' : 'var(--danger)';
       document.getElementById('statusText').textContent = ok ? 'Healthy' : 'Error';
-      // Providers — escape any value originating from the API/config.
-      const provs = Object.entries(info.providers || {});
-      document.getElementById('providers').innerHTML = provs.map(([name, p]) => {
-        const healthy = p && p.healthy !== false;
-        return `<div class="provider"><span class="provider-name">${escapeHtml(name)}</span><span class="provider-status ${healthy ? 'healthy' : 'unhealthy'}">${healthy ? '✓ healthy' : '✗ down'}</span></div>`;
-      }).join('') || '<div style="color:#888">No providers configured</div>';
-      // Models — escape provider name and per-model tag text.
-      const modelList = (models && models.data) || [];
-      const grouped = {};
+      // Providers — from /health which has configured[] and disabled[]
+      const configured = health.configured || health.providers || [];
+      const disabled = health.disabled || [];
+      let provHtml = '';
+      // Configured providers
+      if (Array.isArray(configured)) {
+        configured.forEach(p => {
+          const name = typeof p === 'string' ? p : (p.name || p.id || '?');
+          const h = (health.reasoningCapabilities && health.reasoningCapabilities[name]) || {};
+          const reachable = h.reachable !== false;
+          provHtml += `<div class="provider"><span class="provider-name">${escapeHtml(name)}</span><span class="provider-status ${reachable ? 'healthy' : 'unhealthy'}">${reachable ? '✓ healthy' : '✗ down'}</span></div>`;
+          // Show models for this provider from reasoningCapabilities
+          const provModels = h.models || [];
+          if (provModels.length) {
+            provHtml += `<div class="models">${provModels.slice(0,16).map(m => `<span class="model-tag">${escapeHtml(typeof m === 'string' ? m : m.id || m.name || '?')}</span>`).join('')}${provModels.length > 16 ? `<span class="model-tag">+${provModels.length-16} more</span>` : ''}</div>`;
+          }
+        });
+      }
+      if (!provHtml) provHtml = '<div style="color:#888">No providers configured</div>';
+      // Disabled providers
+      if (disabled.length) {
+        provHtml += `<div class="disabled-list">Disabled: ${disabled.map(escapeHtml).join(', ')}</div>`;
+      }
+      document.getElementById('providers').innerHTML = provHtml;
+      // Models — parse Google-format response {"models": [{name:"models/gemini-...", displayName:"..."}]}
+      const modelList = (modelsResp && modelsResp.models) || [];
+      const byPrefix = {};
       modelList.forEach(m => {
-        if (!m || typeof m.id !== 'string') return;
-        const prov = m.id.split('/')[0] || 'unknown';
-        if (!grouped[prov]) grouped[prov] = [];
-        grouped[prov].push(m.id);
+        const raw = m.displayName || (m.name || '').replace('models/', '');
+        const prefix = raw.includes('/') ? raw.split('/')[0] : 'other';
+        if (!byPrefix[prefix]) byPrefix[prefix] = [];
+        byPrefix[prefix].push(raw);
       });
-      document.getElementById('models').innerHTML = Object.entries(grouped).map(([prov, ids]) =>
-        `<div style="margin-bottom:8px"><strong>${escapeHtml(prov)}</strong> (${ids.length})<div class="models">${ids.slice(0,12).map(id => `<span class="model-tag">${escapeHtml(id.split('/').pop())}</span>`).join('')}${ids.length > 12 ? `<span class="model-tag">+${ids.length-12} more</span>` : ''}</div></div>`
-      ).join('') || '<div style="color:#888">No models available</div>';
-      // Analytics — escape label and per-provider key.
+      let modelsHtml = '';
+      if (Object.keys(byPrefix).length) {
+        modelsHtml = Object.entries(byPrefix).map(([prov, ids]) =>
+          `<div style="margin-bottom:8px"><strong>${escapeHtml(prov)}</strong> (${ids.length})<div class="models">${ids.slice(0,12).map(id => `<span class="model-tag">${escapeHtml(id.includes('/') ? id.split('/').pop() : id)}</span>`).join('')}${ids.length > 12 ? `<span class="model-tag">+${ids.length-12} more</span>` : ''}</div></div>`
+        ).join('');
+      } else {
+        modelsHtml = '<div style="color:#888">No models discovered</div>';
+      }
+      document.getElementById('models').innerHTML = modelsHtml;
+      // Health details
+      const hEntries = health.reasoningCapabilities || {};
+      let healthHtml = '';
+      Object.entries(hEntries).forEach(([name, info]) => {
+        const reachable = info.reachable !== false;
+        const api = info.api || '';
+        const count = (info.models || []).length;
+        healthHtml += `<div class="stat"><span class="stat-label">${escapeHtml(name)} ${api ? '(' + escapeHtml(api) + ')' : ''}</span><span class="stat-value" style="color:${reachable ? 'var(--success)' : 'var(--danger)'}">${reachable ? '✓' : '✗'} ${count} models</span></div>`;
+      });
+      if (health.thinking) {
+        healthHtml += `<div class="stat"><span class="stat-label">Default thinking</span><span class="stat-value">${escapeHtml(health.thinking.default || '?')}</span></div>`;
+        healthHtml += `<div class="stat"><span class="stat-label">Route modes</span><span class="stat-value">${(health.thinking.routeModes||[]).map(escapeHtml).join(', ')}</span></div>`;
+      }
+      if (health.dario) {
+        healthHtml += `<div class="stat"><span class="stat-label">Dario (Anthropic)</span><span class="stat-value" style="color:${health.dario.reachable ? 'var(--success)' : 'var(--danger)'}">${health.dario.reachable ? '✓' : '✗'} ${health.dario.autostart ? 'auto' : 'manual'}</span></div>`;
+      }
+      document.getElementById('health').innerHTML = healthHtml || '<div style="color:#888">No health data</div>';
+      // Analytics
       const a = analytics || {};
       const rows = [];
       if (a.total_requests) rows.push(['Total Requests', a.total_requests]);
@@ -157,23 +182,19 @@
       document.getElementById('analytics').innerHTML = rows.map(([l,v]) =>
         `<div class="analytics-row"><span>${escapeHtml(l)}</span><span style="color:var(--accent)">${escapeHtml(v)}</span></div>`
       ).join('') || '<div style="color:#888">No analytics data</div>';
-      // Profile — escape before injecting into HTML.
-      const profile = info.router_profile || info.activeProfile || 'default';
-      document.getElementById('profile').innerHTML = `<div class="stat"><span class="stat-label">Active Profile</span><span class="stat-value">${escapeHtml(profile)}</span></div>`;
+      // Profile
+      const profile = health.router_profile || health.activeProfile || 'default';
+      document.getElementById('profile').innerHTML = `<div class="stat"><span class="stat-label">Active Profile</span><span class="stat-value">${escapeHtml(profile)}</span></div><div class="stat"><span class="stat-label">Intent Classifier</span><span class="stat-value">${health.intentClassifier && health.intentClassifier.enabled ? '✓ on' : '✗ off'}</span></div>`;
     }
     async function healthCheck() {
       document.getElementById('actions').innerHTML = '<span style="color:var(--warning)">Running health check...</span>';
-      const h = await api('/health');
-      if (h && h.error) {
-        document.getElementById('health').innerHTML = `<div style="color:var(--danger)">Health check failed: ${escapeHtml(h.error)}</div>`;
-        document.getElementById('actions').innerHTML = `<span style="color:var(--danger)">${escapeHtml(h.error)}</span>`;
+      const h = await api('/health').catch(() => null);
+      if (!h || h.error) {
+        document.getElementById('health').innerHTML = `<div style="color:var(--danger)">Health check failed</div>`;
+        document.getElementById('actions').innerHTML = '<span style="color:var(--danger)">Failed</span>';
         return;
       }
-      const entries = (h && (h.providers || h)) || {};
-      document.getElementById('health').innerHTML = Object.entries(entries).map(([k,v]) => {
-        const healthy = v && v.healthy !== false;
-        return `<div class="stat"><span class="stat-label">${escapeHtml(k)}</span><span class="stat-value" style="color:${healthy ? 'var(--success)' : 'var(--danger)'}">${healthy ? '✓' : '✗'} ${v && v.latency_ms ? Math.round(v.latency_ms)+'ms' : ''}</span></div>`;
-      }).join('') || '<div style="color:#888">No health data</div>';
+      await loadAll();
       document.getElementById('actions').innerHTML = '<span style="color:var(--success)">Health check complete</span>';
     }
     async function refreshModels() {
@@ -186,20 +207,18 @@
       actions.innerHTML = '<span style="color:var(--warning)">Restarting...</span>';
       try {
         const r = await fetch(API + '/api/restart', {method: 'POST'});
-        if (!r.ok && r.status !== 202) {
+        if (!r.ok && r.status !== 202 && r.status !== 403) {
           const body = await r.json().catch(() => ({}));
           actions.innerHTML = `<span style="color:var(--danger)">Restart failed: ${escapeHtml(body.error || ('HTTP ' + r.status))}</span>`;
           return;
         }
-        // Server is restarting; reload the page once the new process is
-        // likely ready. Bounded to a few attempts so we never spin forever.
         let attempts = 0;
         const poll = async () => {
           attempts += 1;
           try {
             const h = await fetch(API + '/health', {cache: 'no-store'});
             if (h.ok) { location.reload(); return; }
-          } catch (_) { /* not ready yet */ }
+          } catch (_) {}
           if (attempts < 20) setTimeout(poll, 1500);
           else { actions.innerHTML = '<span style="color:var(--warning)">Restart pending — please refresh manually.</span>'; }
         };
