@@ -63,7 +63,7 @@
       "frontierLargeOnly": true,
       "suppressIntermediateToolText": true,
       "denyModels": [
-        "*mini*", "*haiku*", "*1.2b*", "*3b*", "*7b*", "*8b*",
+        "*-mini*", "*:mini*", "*mini/*", "*haiku*", "*1.2b*", "*3b*", "*7b*", "*8b*",
         "*flash-lite*", "*nano*", "*nemo*"
       ]
     },
@@ -87,7 +87,7 @@
       "requiresReasoning": true,
       "qualitySensitive": true,
       "denyModels": [
-        "*mini*",
+        "*-mini*", "*:mini*", "*mini/*",
         "*haiku*",
         "*1.2b*",
         "*3b*",
@@ -104,7 +104,7 @@
       "frontierOrReasoningTools": true,
       "suppressIntermediateToolText": true,
       "denyModels": [
-        "*mini*",
+        "*-mini*", "*:mini*", "*mini/*",
         "*haiku*",
         "*1.2b*",
         "*3b*",
