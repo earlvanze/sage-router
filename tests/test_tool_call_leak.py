@@ -45,7 +45,7 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertEqual('discord-public', router.apply_router_profile(payload))
         self.assertTrue(router.apply_discord_public_route_profile(payload))
         req = router.normalize_requirements(payload, router.normalize_thinking(payload.get('thinking')))
-        self.assertIn('*mini*', req.get('denyModels', []))
+        self.assertIn('*-mini*', req.get('denyModels', []))
         self.assertFalse(router.model_meets_requirements(router.Provider('openai-codex', 'openai-codex-responses', '', '', ['gpt-5.4-mini']), 'gpt-5.4-mini', req, 100)[0])
 
 

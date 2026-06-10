@@ -80,7 +80,6 @@ Intent is detected by keyword matching on the latest user message. Complexity is
 - For reliable Umbrel/OpenClaw/Remnic use, point clients at `http://sage-router:8788/v1` on `umbrel_main_network`, set unauthenticated Ollama auto-pull patterns to empty, and keep quota-bound providers disabled until credentials are healthy.
 - GitHub workflows now include CI syntax checks and CodeQL analysis for Python + JavaScript.
 - See `BRANCH_PROTECTION.md` for the exact required-check setup on GitHub.
-- `provider-profiles.json` includes a `grok-sso` template for the OpenClaw xAI auth plugin's local SuperGrok-backed proxy.
 
 ## Install
 

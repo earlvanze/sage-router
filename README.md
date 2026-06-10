@@ -374,19 +374,6 @@ Models are auto-discovered via Copilot's `/v1/models`.
 ```
 Models are auto-discovered via `/v1/models`. Supports tool calling, streaming, and passthrough.
 
-**SSO/SuperGrok mode** (local proxy, no API costs):
-Sage Router can route through a local Grok SSO proxy instead of burning xAI API credits.
-
-- local proxy provider: `grok-sso`
-- typical base URL: `http://127.0.0.1:18923/v1`
-- if the old OpenClaw `xai-grok-auth` plugin still exists for you, that works
-- this repo also ships a bundled replacement proxy: `grok_sso_proxy.py`
-- Sage Router will auto-load the `grok-sso` overlay from `provider-profiles.json` only when the local proxy `/health` reports `ready: true`
-- SSO mode is chat-only and intentionally **does not support OpenAI-style tool calling or streaming**
-- xAI API-key mode keeps tool support
-
-See `provider-profiles.json` for the `grok-sso` template and `GROK_SSO.md` for setup.
-
 ### NVIDIA NIM / NVIDIA Cloud
 
 ```json
@@ -505,7 +492,7 @@ Control how Sage Router selects models:
 | `fast` | Prefer local models, minimize latency |
 | `balanced` | Balance capability and speed |
 | `best` | Always pick the best model for the task, regardless of latency |
-| `local-first` / `local-strict` | Local-strict mode. Only use local, LAN, Tailnet, or approved decentralized provider endpoints. Reject centralized Internet APIs such as OpenAI, Anthropic/Dario, Google, NVIDIA Cloud, Copilot, xAI/Grok SSO, OpenRouter, etc. Darkbloom is allowed as decentralized infrastructure. Ollama models ending in `:cloud` are still excluded even if the Ollama endpoint is localhost. |
+| `local-first` / `local-strict` | Local-strict mode. Only use local, LAN, Tailnet, or approved decentralized provider endpoints. Reject centralized Internet APIs such as OpenAI, Anthropic/Dario, Google, NVIDIA Cloud, Copilot, OpenRouter, etc. Darkbloom is allowed as decentralized infrastructure. Ollama models ending in `:cloud` are still excluded even if the Ollama endpoint is localhost. |
 
 Set via request: `{"route": "fast"}` or header: `X-Route-Mode: fast`
 
@@ -662,7 +649,6 @@ LOG_LEVEL=DEBUG python3 router.py
 - [ ] Usage analytics dashboard
 - [ ] Distributed deployment mode
 - [ ] CDN-hosted option / hosted reliability layer
-- [ ] **Grok SSO Browser Extension** — Chrome extension to proxy SuperGrok web access via local OpenAI-compatible endpoint (blocked by anti-bot; needs extension architecture)
 
 ---
 

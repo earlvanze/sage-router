@@ -9,7 +9,7 @@ PROVIDERS = [k for k in PROVIDER_PROFILES if not k.startswith('_')]
 PROVIDERS.append('ollama')
 MODEL_BY_PROVIDER = {
     'openai': 'gpt-4o-mini', 'anthropic': 'claude-sonnet-4', 'google': 'gemini-2.5-flash',
-    'xai': 'grok-3-mini', 'grok-sso': 'grok-3-mini', 'perplexity': 'sonar',
+    'xai': 'grok-3-mini', 'perplexity': 'sonar',
     'groq': 'llama-3.3-70b-versatile', 'together': 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
     'fireworks': 'accounts/fireworks/models/llama-v3p1-8b-instruct', 'mistral': 'mistral-small-latest',
     'cohere': 'command-r', 'azure-openai': 'gpt-4o', 'github-copilot': 'gpt-4o-copilot',

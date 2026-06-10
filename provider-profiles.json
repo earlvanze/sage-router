@@ -80,30 +80,7 @@
         "id": "grok-2-vision",
         "name": "Grok 2 Vision"
       }
-    ],
-    "_note": "Standard xAI API key path. Alternative: install the OpenClaw xai-grok-auth plugin to expose a local grok-sso OpenAI-compatible proxy backed by a SuperGrok subscription"
-  },
-  "grok-sso": {
-    "baseUrl": "http://127.0.0.1:18923/v1",
-    "apiKey": "local",
-    "api": "openai-completions",
-    "models": [
-      {
-        "id": "grok-3",
-        "name": "Grok 3 (SuperGrok SSO)",
-        "supportsTools": false,
-        "supportsStreaming": false,
-        "manifestReason": "Local Grok SSO proxy backed by browser/session cookies"
-      },
-      {
-        "id": "grok-3-mini",
-        "name": "Grok 3 Mini (SuperGrok SSO)",
-        "supportsTools": false,
-        "supportsStreaming": false,
-        "manifestReason": "Local Grok SSO proxy backed by browser/session cookies"
-      }
-    ],
-    "_note": "Requires a local Grok SSO proxy at http://127.0.0.1:18923. The old OpenClaw xai-grok-auth plugin can satisfy this, or you can run the bundled grok_sso_proxy.py replacement. SSO mode is chat-only and intentionally disables OpenAI-style tool calling and streaming."
+    ]
   },
   "perplexity": {
     "baseUrl": "https://api.perplexity.ai",

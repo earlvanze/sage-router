@@ -21,6 +21,7 @@ class ProviderSwitchingTests(unittest.TestCase):
         self.old_temp_blocks = dict(router.TEMP_MODEL_BLOCKS)
         router.PROVIDERS = {
             'ollama': router.Provider('ollama', 'ollama', 'http://ollama.invalid', '', ['glm-5']),
+            'ollama-cloud': router.Provider('ollama-cloud', 'ollama', 'https://ollama.com', 'test-key', ['glm-5.1:cloud']),
             'openai-codex': router.Provider('openai-codex', 'openclaw-gateway', 'ws://gateway.invalid', '', ['gpt-5.5', 'gpt-5.4']),
         }
         router.DISABLED_PROVIDERS.clear()
@@ -51,6 +52,11 @@ class ProviderSwitchingTests(unittest.TestCase):
         provider, model = router.resolve_requested_provider_model({'model': 'ollama/glm-5'})
         self.assertEqual('ollama', provider)
         self.assertEqual('glm-5', model)
+
+    def test_ollama_cloud_model_switches_to_hosted_provider(self):
+        provider, model = router.resolve_requested_provider_model({'model': 'ollama/glm-5.1:cloud'})
+        self.assertEqual('ollama-cloud', provider)
+        self.assertEqual('glm-5.1:cloud', model)
 
     def test_prepare_route_uses_inferred_provider_for_stale_forced_provider(self):
         _messages, _intent, _complexity, _tokens, chain = router.prepare_route(

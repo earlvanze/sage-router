@@ -15,7 +15,7 @@ PROVIDER_PROFILES_PATH = os.path.join(os.path.dirname(__file__), 'provider-profi
 ROUTER_PROFILES_PATH = os.path.join(os.path.dirname(__file__), 'router-profiles.json')
 OPENCLAW_GATEWAY_HELPER = os.path.join(os.path.dirname(__file__), 'openclaw_gateway_agent.mjs')
 SELF_PROVIDER_NAMES = {'smart-router', 'sage-router'}
-LOCAL_STRICT_PROXY_PROVIDER_NAMES = {'dario', 'openai-codex', 'grok-sso'}
+LOCAL_STRICT_PROXY_PROVIDER_NAMES = {'dario', 'openai-codex'}
 LOCAL_STRICT_PROXY_API_TYPES = {'openclaw-gateway', 'openai-codex-responses'}
 LOCAL_STRICT_DECENTRALIZED_PROVIDER_NAMES = {'darkbloom'}
 SHOW_MODEL_PREFIX = os.environ.get('SAGE_ROUTER_SHOW_MODEL_PREFIX', '').strip().lower() in {'1', 'true', 'yes', 'on'}  # Show provider/model at start of final text responses by default
@@ -1478,35 +1478,6 @@ def discover_model_meta(cfg):
     return meta
 
 
-def grok_sso_proxy_health_url(base_url):
-    parsed = urllib.parse.urlparse(base_url or '')
-    if not parsed.scheme or not parsed.netloc:
-        return ''
-    path = parsed.path or ''
-    if path.endswith('/v1'):
-        path = path[:-3]
-    elif path.endswith('/v1/'):
-        path = path[:-4]
-    path = path.rstrip('/')
-    return urllib.parse.urlunparse((parsed.scheme, parsed.netloc, (path or '') + '/health', '', '', ''))
-
-
-def grok_sso_proxy_ready(base_url):
-    health_url = grok_sso_proxy_health_url(base_url)
-    if not health_url:
-        return False, 'missing health URL'
-    try:
-        req = urllib.request.Request(health_url)
-        with urllib.request.urlopen(req, timeout=1.5) as resp:
-            payload = json.load(resp)
-        if payload.get('ready'):
-            return True, None
-        reason = payload.get('missingRequiredCookies') or payload.get('notes') or 'proxy not ready'
-        return False, reason
-    except Exception as e:
-        return False, str(e)
-
-
 def load_router_profile_overlays(existing_providers):
     providers = {}
     try:
@@ -1518,7 +1489,7 @@ def load_router_profile_overlays(existing_providers):
         logger.warning(f'Failed to load provider profile overlays: {e}')
         return providers
 
-    requested = [item.strip() for item in os.environ.get('SAGE_ROUTER_PROFILE_OVERLAYS', 'grok-sso,darkbloom').split(',') if item.strip()]
+    requested = [item.strip() for item in os.environ.get('SAGE_ROUTER_PROFILE_OVERLAYS', 'darkbloom').split(',') if item.strip()]
     for name in requested:
         cfg = profiles.get(name)
         if not isinstance(cfg, dict):
@@ -1528,13 +1499,6 @@ def load_router_profile_overlays(existing_providers):
         api_type = infer_api_type(name, cfg, base_url)
         models = discover_provider_models(name, cfg, base_url, api_key, api_type)
         if not models:
-            continue
-        if name == 'grok-sso' and not base_url:
-            continue
-        if name == 'grok-sso':
-            ready, reason = grok_sso_proxy_ready(base_url)
-            if not ready:
-                logger.info(f'Skipped grok-sso overlay because local proxy is not ready: {reason}')
             continue
         reasoning_models = discover_reasoning_models(cfg)
         model_meta = discover_model_meta(cfg)
@@ -1802,7 +1766,6 @@ REQUESTED_MODEL_PROVIDER_PREFERENCE = [
     DARIO_PROVIDER_NAME,
     'anthropic',
     'xai',
-    'grok-sso',
     'mistral',
     'groq',
     'together',
@@ -1855,7 +1818,7 @@ def requested_model_family_provider_names(model):
     if model_l.startswith(('gemini-', 'gemma')):
         return ['google-vertex', 'google', 'github-copilot', 'openrouter']
     if model_l.startswith('grok'):
-        return ['xai', 'grok-sso', 'openrouter']
+        return ['xai', 'openrouter']
     if model_l.startswith(('mistral', 'codestral', 'ministral')):
         return ['mistral', 'openrouter']
     return []
@@ -1913,6 +1876,19 @@ def resolve_requested_provider_model(payload):
         requested_provider = model_provider
     if not requested_model:
         return requested_provider, requested_model
+
+    if (
+        requested_provider == 'ollama'
+        and is_cloud_ollama_model(requested_model)
+        and 'ollama-cloud' in PROVIDERS
+        and 'ollama-cloud' not in DISABLED_PROVIDERS
+        and requested_model_supported_by_provider('ollama-cloud', requested_model)
+    ):
+        logger.info(
+            "Requested Ollama Cloud model %s will be served by hosted ollama-cloud provider",
+            requested_model,
+        )
+        return 'ollama-cloud', requested_model
 
     if requested_provider and requested_model_supported_by_provider(requested_provider, requested_model):
         return requested_provider, requested_model
