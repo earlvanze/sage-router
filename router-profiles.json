@@ -6,8 +6,12 @@
       "thinking": "high",
       "requiresQuality": true,
       "requiresReasoning": true,
-      "allowProviders": ["openai-codex"],
-      "fallbackProviders": ["openai", "google", "ollama"],
+      "allowProviders": [
+        "ollama-cloud"
+      ],
+      "fallbackProviders": [
+        "ollama"
+      ],
       "frontierLargeOnly": true,
       "suppressIntermediateToolText": true
     },
@@ -17,8 +21,12 @@
       "thinking": "high",
       "requiresQuality": true,
       "requiresReasoning": true,
-      "allowProviders": ["openai-codex"],
-      "fallbackProviders": ["openai", "google"],
+      "allowProviders": [
+        "ollama-cloud"
+      ],
+      "fallbackProviders": [
+        "ollama-cyber"
+      ],
       "frontierLargeOnly": true,
       "suppressIntermediateToolText": true,
       "allowModels": [
@@ -58,8 +66,12 @@
       "requiresQuality": true,
       "requiresReasoning": true,
       "preferTools": true,
-      "allowProviders": ["openai-codex"],
-      "fallbackProviders": ["openai", "google"],
+      "allowProviders": [
+        "ollama-cloud"
+      ],
+      "fallbackProviders": [
+        "ollama-cyber"
+      ],
       "frontierLargeOnly": true,
       "suppressIntermediateToolText": true,
       "denyModels": [
