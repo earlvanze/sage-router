@@ -465,7 +465,7 @@ def is_self_provider(name, base_url):
     if name in SELF_PROVIDER_NAMES:
         return True
     parsed = urllib.parse.urlparse(base_url or '')
-    return parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port == 8787
+    return parsed.hostname in {'127.0.0.1', 'localhost'} and parsed.port in {8787, 8788, 8790}
 
 
 def is_local_dario_endpoint(base_url):
@@ -2988,8 +2988,82 @@ def load_hosted_secret_providers():
     return providers
 
 
+def merge_harness_discovered_providers(providers):
+    harness_discovery_requested = any(
+        os.environ.get(key)
+        for key in ('SAGE_ROUTER_CONFIG_SOURCE', 'APP_DATA_DIR', 'OPENCLAW_CONFIG', 'HERMES_CONFIG', 'PI_CONFIG', 'CODEX_CONFIG')
+    )
+    if not harness_discovery_requested:
+        return
+
+    try:
+        from harness_discovery import load_harness_agnostic_providers
+    except Exception as e:
+        logger.debug(f'Harness discovery unavailable: {e}')
+        return
+
+    try:
+        discovered = load_harness_agnostic_providers(
+            sage_router_home=SAGE_ROUTER_HOME,
+            app_data_dir=os.environ.get('APP_DATA_DIR') or SAGE_ROUTER_HOME,
+        )
+    except Exception as e:
+        logger.debug(f'Harness discovery failed: {e}')
+        return
+
+    for name, cfg in discovered.items():
+        if name in DISABLED_PROVIDERS:
+            logger.info(f'Skipping disabled harness provider {name}')
+            continue
+        base_url = resolve_config_value(cfg.get('base_url') or cfg.get('baseUrl') or '')
+        if is_self_provider(name, base_url):
+            continue
+        api_key = resolve_config_value(
+            cfg.get('api_key') or cfg.get('apiKey') or cfg.get('oauth_access_token') or ''
+        )
+        router_cfg = {
+            'baseUrl': base_url,
+            'apiKey': api_key,
+            'api': cfg.get('api_type') or cfg.get('api') or '',
+            'models': cfg.get('models') or [],
+        }
+        api_type = infer_api_type(name, router_cfg, base_url)
+        models = discover_provider_models(name, router_cfg, base_url, api_key, api_type) or router_cfg['models']
+        reasoning_models = discover_reasoning_models(router_cfg)
+        model_meta = discover_model_meta(router_cfg)
+
+        if should_route_anthropic_to_dario(name, api_type, base_url):
+            ensure_dario_proxy_ready()
+            merge_provider(providers, Provider(
+                DARIO_PROVIDER_NAME,
+                'anthropic-messages',
+                DARIO_LOCAL_BASE_URL,
+                DARIO_LOCAL_API_KEY,
+                dedupe_keep_order(models or DEFAULT_ANTHROPIC_MODELS),
+                set(models or DEFAULT_ANTHROPIC_MODELS),
+                {m: {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 64000, 'input': ['text']} for m in dedupe_keep_order(models or DEFAULT_ANTHROPIC_MODELS)},
+            ))
+            logger.info(f'Normalized harness provider {name} -> {DARIO_PROVIDER_NAME} via local Dario proxy')
+            continue
+
+        if name == 'openai-codex' and api_type == 'openai-codex-responses':
+            api_key = load_openclaw_auth_access_token('openai-codex') or api_key
+
+        merge_provider(providers, Provider(
+            name,
+            api_type,
+            base_url,
+            api_key,
+            models,
+            reasoning_models,
+            model_meta,
+        ))
+        logger.info(f"Loaded harness provider {name} from {cfg.get('harness', 'unknown')}:{cfg.get('source_path', '')}")
+
+
 def load_openclaw_providers():
     providers = load_hosted_secret_providers()
+    merge_harness_discovered_providers(providers)
     try:
         with open(OPENCLAW_CONFIG) as f:
             config = json.load(f)
@@ -7839,7 +7913,7 @@ class Handler(BaseHTTPRequestHandler):
                 clear_route_auth_context()
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(); parser.add_argument('--port',type=int,default=8787); args = parser.parse_args()
+    parser = argparse.ArgumentParser(); parser.add_argument('--port',type=int,default=8790); args = parser.parse_args()
     ensure_background_refresh_started()
     server = ThreadingHTTPServer(('0.0.0.0', args.port), Handler)
     logger.info(f"Router on :{args.port} | configured={list(PROVIDERS.keys())} | disabled={sorted(DISABLED_PROVIDERS)} disabledModels={sorted(DISABLED_MODELS)}")

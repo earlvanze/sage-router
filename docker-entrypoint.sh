@@ -28,6 +28,6 @@ if [ "$#" -ge 1 ] && [ "$1" = "python3" ]; then
       exec "$@"
     fi
   done
-  exec "$@" --port "${PORT:-8788}"
+  exec "$@" --port "${PORT:-8790}"
 fi
 exec "$@"

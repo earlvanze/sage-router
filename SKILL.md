@@ -13,7 +13,7 @@ env:
 
 # Sage Router
 
-HTTP server on `:8788` that routes chat requests to the optimal provider based on intent classification.
+HTTP server on `:8790` that routes chat requests to the optimal provider based on intent classification.
 
 ## Endpoints
 
@@ -21,7 +21,7 @@ HTTP server on `:8788` that routes chat requests to the optimal provider based o
 - `POST /v1/messages` — Anthropic Messages API compatible; translates to/from OpenAI format internally
 - `GET /health` — Provider status, model lists, routing debug
 
-Any Anthropic-compatible tool (Cursor, Aider, Claude Code, Zed, Continue, OpenHands) can point at `http://localhost:8788` as the API base URL. Both streaming and non-streaming are supported.
+Any Anthropic-compatible tool (Cursor, Aider, Claude Code, Zed, Continue, OpenHands) can point at `http://localhost:8790` as the API base URL. Both streaming and non-streaming are supported.
 
 ## Active Providers
 
@@ -77,7 +77,7 @@ Intent is detected by keyword matching on the latest user message. Complexity is
 - Empirical latency memory is persisted at `~/.cache/sage-router/latency-stats.json` by default.
 - When the OpenClaw gateway model-set path is unhealthy, the helper falls back to running without provider/model overrides instead of failing hard.
 - If any provider starts misbehaving, suppress it with `SAGE_ROUTER_DISABLED_PROVIDERS` instead of editing the router.
-- For reliable Umbrel/OpenClaw/Remnic use, point clients at `http://sage-router:8788/v1` on `umbrel_main_network`, set unauthenticated Ollama auto-pull patterns to empty, and keep quota-bound providers disabled until credentials are healthy.
+- For reliable Umbrel/OpenClaw/Remnic use, point clients at `http://sage-router:8790/v1` on `umbrel_main_network`, set unauthenticated Ollama auto-pull patterns to empty, and keep quota-bound providers disabled until credentials are healthy.
 - GitHub workflows now include CI syntax checks and CodeQL analysis for Python + JavaScript.
 - See `BRANCH_PROTECTION.md` for the exact required-check setup on GitHub.
 

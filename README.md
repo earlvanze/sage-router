@@ -5,7 +5,7 @@
 One endpoint. Any provider. The router figures out the rest.
 
 [![Umbrel](https://img.shields.io/badge/Umbrel-1.0.3-purple)](https://github.com/getumbrel/umbrel-apps/pull/5720)
-[![ClawHub](https://img.shields.io/badge/ClawHub-v3.28.0-blue)](https://clawhub.ai/earlvanze/sage-router)
+[![ClawHub](https://img.shields.io/badge/ClawHub-v3.28.2-blue)](https://clawhub.ai/earlvanze/sage-router)
 [![GitHub](https://img.shields.io/badge/GitHub-earlvanze%2Fsage--router-black)](https://github.com/earlvanze/sage-router)
 
 ---
@@ -39,7 +39,7 @@ openclaw skill configure sage-router
 git clone https://github.com/earlvanze/sage-router.git
 cd sage-router
 pip install -r requirements.txt  # if any
-python3 router.py --port 8788
+python3 router.py --port 8790
 ```
 
 ### Umbrel (Home Server)
@@ -51,28 +51,28 @@ Install from the [Umbrel App Store](https://github.com/getumbrel/umbrel-apps/pul
 - https://github.com/earlvanze/umbrel-personal-apps
 ```
 
-The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.0` and auto-mounts your `~/.openclaw` config for Codex OAuth token discovery. The built-in config dashboard is accessible from the Umbrel app tile.
+The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.2` and stores its config under the app data directory. The built-in config dashboard is accessible from the Umbrel app tile.
 
 ### Configure Your Tools
 
 Point any OpenAI-compatible tool at Sage Router:
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:8788/v1
+export OPENAI_BASE_URL=http://localhost:8790/v1
 export OPENAI_API_KEY=irrelevant  # Sage Router uses your configured provider auth
 ```
 
 Or for Gemini CLI:
 
 ```bash
-export GOOGLE_GEMINI_BASE_URL=http://localhost:8788
+export GOOGLE_GEMINI_BASE_URL=http://localhost:8790
 export GEMINI_API_KEY=routed
 ```
 
 Or for Anthropic tools:
 
 ```bash
-export ANTHROPIC_BASE_URL=http://localhost:8788
+export ANTHROPIC_BASE_URL=http://localhost:8790
 export ANTHROPIC_API_KEY=irrelevant
 ```
 
@@ -106,7 +106,7 @@ To use:
 
 ```bash
 # Force a request through the Codex backend
-curl http://localhost:8788/v1/chat/completions \
+curl http://localhost:8790/v1/chat/completions \
   -H "Authorization: Bearer local" \
   -d '{"model":"openai-codex/gpt-5.5","messages":[{"role":"user","content":"Hello"}]}'
 ```
@@ -403,7 +403,7 @@ Models are auto-discovered from NVIDIA NIM / NVIDIA Cloud when `NVIDIA_API_KEY` 
 {
   "providers": {
     "openai-codex": {
-      "baseUrl": "http://127.0.0.1:8788",
+      "baseUrl": "http://127.0.0.1:8790",
       "models": ["auto-discover"],
       "api": "openclaw-gateway"
     }
@@ -427,11 +427,11 @@ The pre-built image is available at `ghcr.io/earlvanze/sage-router-public` (publ
 Mount your OpenClaw config so Codex OAuth tokens and provider profiles are available:
 
 ```bash
-docker run -p 8788:8788 \
+docker run -p 8790:8790 \
   -v ~/.openclaw:/config:ro \
   -v ~/.openclaw:/root/.openclaw:ro \
   -v ~/.dario:/root/.dario \
-  ghcr.io/earlvanze/sage-router-public:v3.28.0
+  ghcr.io/earlvanze/sage-router-public:v3.28.2
 ```
 
 Or build from source:
@@ -540,7 +540,7 @@ Current behavior:
 ## Health Endpoint
 
 ```bash
-curl http://localhost:8788/health
+curl http://localhost:8790/health
 ```
 
 Returns:
@@ -619,7 +619,7 @@ SAGE_ROUTER_DISABLED_PROVIDERS=    # comma-separated: ollama-cloud,anthropic,...
 
 ```bash
 # Run locally
-python3 router.py --port 8788
+python3 router.py --port 8790
 
 # Run tests
 pytest tests/
