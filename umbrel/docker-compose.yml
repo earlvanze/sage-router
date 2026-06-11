@@ -9,7 +9,7 @@ services:
     container_name: sage-router_app_proxy_1
 
   sage-router:
-    image: ghcr.io/earlvanze/sage-router-public:v3.28.0@sha256:5c4f6773bf8c81a9df991e8f71cbb724e0b4e9c7c476044de6f607d6744b30be
+    image: ghcr.io/earlvanze/sage-router-public:v3.28.2@sha256:a4400a4dfa136067c394b6b2f99d8c5aee7c2373086eb66a2e0a871357cb7040
     container_name: sage-router
     restart: on-failure
     volumes:
