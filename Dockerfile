@@ -1,10 +1,12 @@
 FROM node:22-bookworm-slim
 
 ENV PYTHONUNBUFFERED=1 \
+    HOME=/config \
     PORT=8790 \
     SAGE_ROUTER_HOME=/config \
+    DARIO_HOME=/config/dario \
     OLLAMA_HOST=0.0.0.0:11434 \
-    OLLAMA_MODELS=/root/.ollama/models
+    OLLAMA_MODELS=/config/ollama/models
 
 ARG OLLAMA_DOWNLOAD_URL=https://github.com/ollama/ollama/releases/latest/download/ollama-linux-amd64.tar.zst
 

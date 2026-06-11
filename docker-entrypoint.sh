@@ -2,7 +2,7 @@
 set -eu
 
 # Keep mounted config paths predictable for the bundled router, bundled Ollama, and Dario proxy.
-mkdir -p "${SAGE_ROUTER_HOME:-/config}" /root/.dario "${OLLAMA_MODELS:-/root/.ollama/models}"
+mkdir -p "${SAGE_ROUTER_HOME:-/config}" "${DARIO_HOME:-/config/dario}" "${OLLAMA_MODELS:-/config/ollama/models}"
 
 ollama_ready() {
   curl -fsS --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 2>&1
