@@ -3,38 +3,35 @@ version: "3.7"
 services:
   app_proxy:
     environment:
-      APP_HOST: sage-router
+      APP_HOST: sage-router_app_1
       APP_PORT: 8790
-      PROXY_AUTH_ADD: 'false'
-    container_name: sage-router_app_proxy_1
 
-  sage-router:
+  app:
     image: ghcr.io/earlvanze/sage-router-public:v3.28.2@sha256:a4400a4dfa136067c394b6b2f99d8c5aee7c2373086eb66a2e0a871357cb7040
-    container_name: sage-router
     restart: on-failure
+    # not working rootless yet; bundled runtimes still expect root-owned state
+    #user: "1000:1000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ${APP_DATA_DIR}/data:/config
-      - ${APP_DATA_DIR}/data/dario:/root/.dario
-      - ${APP_DATA_DIR}/data/ollama:/root/.ollama
-      - ${APP_DATA_DIR}/data/models:/models
     environment:
-      PORT: '8790'
+      PORT: "8790"
       APP_DATA_DIR: /config
       SAGE_ROUTER_HOME: /config
       SAGE_ROUTER_CONFIG_SOURCE: auto
-      SAGE_ROUTER_API_KEY: ${SAGE_ROUTER_API_KEY:-local}
+      SAGE_ROUTER_API_KEY: ${APP_SAGE_ROUTER_API_KEY:-local}
       SAGE_ROUTER_DISABLED_PROVIDERS: >-
-        ollama-cloud,anthropic,dario,openrouter,openai,nvidia-nim,darkbloom,ollama,ollama-cyber
+        ollama-cloud,anthropic,dario,openrouter,nvidia-nim,darkbloom,ollama-cyber
       SAGE_ROUTER_DISABLED_MODELS: kimi-k2-thinking
-      SAGE_ROUTER_PROFILE_OVERLAYS: ''
-      SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS: '300'
-      SAGE_ROUTER_BUNDLED_OLLAMA_AUTOSTART: '1'
-      SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_ENABLED: '0'
-      SAGE_ROUTER_OLLAMA_AUTO_PULL_PATTERNS: ''
-      SAGE_ROUTER_OPENROUTER_FREE_ONLY: '1'
-      SAGE_ROUTER_DARIO_AUTOSTART: '1'
-      SAGE_ROUTER_DARIO_BASE_URL: http://127.0.0.1:3456
-      SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED: '0'
-      OPENAI_CODEX_API_KEY: ${OPENAI_CODEX_API_KEY:-}
+      SAGE_ROUTER_PROFILE_OVERLAYS: ""
+      SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS: "300"
+      SAGE_ROUTER_BUNDLED_OLLAMA_AUTOSTART: "0"
+      SAGE_ROUTER_OLLAMA_CLOUD_CATALOG_ENABLED: "0"
+      SAGE_ROUTER_OLLAMA_AUTO_PULL_PATTERNS: ""
+      OLLAMA_HOST: "http://host.docker.internal:11434"
+      SAGE_ROUTER_OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+      OPENAI_CODEX_API_KEY: ${APP_SAGE_ROUTER_OPENAI_CODEX_API_KEY:-}
       SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATH: /config/agents/main/agent/auth-profiles.json
-      SAGE_ROUTER_SHOW_MODEL_PREFIX: '1'
+      SAGE_ROUTER_SHOW_MODEL_PREFIX: "1"
+      SAGE_ROUTER_ALLOW_RESTART: "1"
