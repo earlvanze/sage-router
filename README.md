@@ -696,3 +696,7 @@ Bundled profiles:
 - `frontier-large` — strict frontier/large-model-only routing
 - `fast-local` — low-latency local-first routing
 - `coding-max` — high-thinking coding route with weak model exclusions
+
+## Download History
+
+[![Download History](https://skill-history.com/chart/earlvanze/sage-router.svg)](https://skill-history.com/earlvanze/sage-router)
