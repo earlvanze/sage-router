@@ -2320,6 +2320,307 @@ def parse_responses_stream(resp):
     return ''.join(full_text), tool_calls
 
 
+def responses_content_to_chat_content(content):
+    """Convert Responses message content blocks to Chat Completions content."""
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return normalize_content(content)
+
+    chat_parts = []
+    text_parts = []
+    has_structured_part = False
+    for block in content:
+        if isinstance(block, str):
+            text_parts.append(block)
+            chat_parts.append({'type': 'text', 'text': block})
+            continue
+        if not isinstance(block, dict):
+            text = normalize_content(block)
+            if text:
+                text_parts.append(text)
+                chat_parts.append({'type': 'text', 'text': text})
+            continue
+        block_type = block.get('type')
+        if block_type in {'input_text', 'output_text', 'text'}:
+            text = block.get('text') or ''
+            if text:
+                text_parts.append(text)
+                chat_parts.append({'type': 'text', 'text': text})
+        elif block_type in {'input_image', 'image_url'}:
+            image_url = block.get('image_url') or block.get('url')
+            if isinstance(image_url, dict):
+                image_url = image_url.get('url') or image_url.get('image_url')
+            if image_url:
+                has_structured_part = True
+                chat_parts.append({'type': 'image_url', 'image_url': {'url': image_url}})
+        else:
+            text = block.get('text') or normalize_content(block)
+            if text:
+                text_parts.append(text)
+                chat_parts.append({'type': 'text', 'text': text})
+
+    if has_structured_part:
+        return chat_parts
+    return '\n'.join(text_parts)
+
+
+def responses_input_to_chat_messages(input_value, instructions=None):
+    messages = []
+    if instructions:
+        messages.append({'role': 'system', 'content': normalize_content(instructions)})
+    if isinstance(input_value, str):
+        messages.append({'role': 'user', 'content': input_value})
+        return messages
+    if isinstance(input_value, dict):
+        input_items = [input_value]
+    else:
+        input_items = input_value or []
+
+    for item in input_items:
+        if isinstance(item, str):
+            messages.append({'role': 'user', 'content': item})
+            continue
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get('type')
+        if item_type == 'function_call_output':
+            messages.append({
+                'role': 'tool',
+                'tool_call_id': item.get('call_id') or item.get('id') or '',
+                'content': normalize_content(item.get('output') or ''),
+            })
+            continue
+        if item_type == 'function_call':
+            call_id = item.get('call_id') or item.get('id') or f'call_{uuid.uuid4().hex[:24]}'
+            arguments = item.get('arguments') or ''
+            if not isinstance(arguments, str):
+                arguments = json.dumps(arguments, separators=(',', ':'))
+            messages.append({
+                'role': 'assistant',
+                'content': '',
+                'tool_calls': [{
+                    'id': call_id,
+                    'type': 'function',
+                    'function': {'name': item.get('name') or 'tool', 'arguments': arguments},
+                }],
+            })
+            continue
+        if item_type and item_type != 'message' and 'role' not in item:
+            continue
+        role = item.get('role') or 'user'
+        if role == 'developer':
+            role = 'system'
+        content = responses_content_to_chat_content(item.get('content', ''))
+        if content or role in {'assistant', 'tool'}:
+            messages.append({'role': role, 'content': content})
+
+    return messages or [{'role': 'user', 'content': ''}]
+
+
+def responses_tool_to_chat_tool(tool):
+    if not isinstance(tool, dict):
+        return None
+    if tool.get('type') == 'function' and isinstance(tool.get('function'), dict):
+        return tool
+    if tool.get('type') == 'function':
+        fn = {
+            'name': tool.get('name') or 'tool',
+            'description': tool.get('description') or '',
+            'parameters': tool.get('parameters') or {'type': 'object', 'properties': {}},
+        }
+        if 'strict' in tool:
+            fn['strict'] = tool.get('strict')
+        return {'type': 'function', 'function': fn}
+    if tool.get('name'):
+        return {
+            'type': 'function',
+            'function': {
+                'name': tool.get('name'),
+                'description': tool.get('description') or '',
+                'parameters': tool.get('parameters') or {'type': 'object', 'properties': {}},
+            },
+        }
+    return None
+
+
+def responses_tools_to_chat_tools(tools):
+    converted = []
+    for tool in tools or []:
+        converted_tool = responses_tool_to_chat_tool(tool)
+        if converted_tool:
+            converted.append(converted_tool)
+    return converted
+
+
+def responses_tool_choice_to_chat(tool_choice):
+    if tool_choice in (None, 'auto', 'none', 'required'):
+        return tool_choice
+    if isinstance(tool_choice, dict) and tool_choice.get('type') == 'function':
+        name = tool_choice.get('name') or (tool_choice.get('function') or {}).get('name')
+        if name:
+            return {'type': 'function', 'function': {'name': name}}
+    return tool_choice
+
+
+def responses_payload_to_chat_payload(payload):
+    chat_payload = {
+        'model': payload.get('model') or 'sage-router/auto',
+        'messages': responses_input_to_chat_messages(payload.get('input', []), payload.get('instructions')),
+        'stream': False,
+    }
+    copy_keys = (
+        'temperature', 'top_p', 'stop', 'route', 'thinking', 'reasoning',
+        'requirements', 'response_format', 'metadata', 'parallel_tool_calls',
+        'debug', 'debugMode', 'sageRouterProfile', 'routerProfile', 'profile',
+    )
+    for key in copy_keys:
+        if key in payload:
+            chat_payload[key] = payload[key]
+    if payload.get('max_output_tokens') is not None:
+        chat_payload['max_tokens'] = payload.get('max_output_tokens')
+    elif payload.get('max_tokens') is not None:
+        chat_payload['max_tokens'] = payload.get('max_tokens')
+    tools = responses_tools_to_chat_tools(payload.get('tools'))
+    if tools:
+        chat_payload['tools'] = tools
+    if 'tool_choice' in payload:
+        chat_payload['tool_choice'] = responses_tool_choice_to_chat(payload.get('tool_choice'))
+    text_format = ((payload.get('text') or {}).get('format') or {})
+    if text_format.get('type') in {'json_object', 'json_schema'}:
+        chat_payload['response_format'] = text_format
+    return chat_payload
+
+
+def openai_chat_completion_to_responses(result, request_payload, request_id):
+    response_id = f"resp_{uuid.uuid4().hex[:24]}"
+    created = int(result.get('created') or time.time())
+    model = result.get('model') or request_payload.get('model') or 'sage-router/auto'
+    choice = (result.get('choices') or [{}])[0] or {}
+    message = choice.get('message') or {}
+    content = message.get('content') or ''
+    output = []
+    output_text = ''
+    if content:
+        output_text = content
+        output.append({
+            'id': f"msg_{uuid.uuid4().hex[:24]}",
+            'type': 'message',
+            'status': 'completed',
+            'role': 'assistant',
+            'content': [{'type': 'output_text', 'text': content, 'annotations': []}],
+        })
+    for tool_call in message.get('tool_calls') or []:
+        fn = tool_call.get('function') or {}
+        arguments = fn.get('arguments') or ''
+        if not isinstance(arguments, str):
+            arguments = json.dumps(arguments, separators=(',', ':'))
+        output.append({
+            'id': f"fc_{uuid.uuid4().hex[:24]}",
+            'type': 'function_call',
+            'status': 'completed',
+            'call_id': tool_call.get('id') or f"call_{uuid.uuid4().hex[:24]}",
+            'name': fn.get('name') or 'tool',
+            'arguments': arguments,
+        })
+
+    usage = result.get('usage') or {}
+    input_tokens = int(usage.get('prompt_tokens') or usage.get('input_tokens') or 0)
+    output_tokens = int(usage.get('completion_tokens') or usage.get('output_tokens') or 0)
+    return {
+        'id': response_id,
+        'object': 'response',
+        'created_at': created,
+        'status': 'completed',
+        'error': None,
+        'incomplete_details': None,
+        'instructions': request_payload.get('instructions'),
+        'max_output_tokens': request_payload.get('max_output_tokens'),
+        'model': model,
+        'output': output,
+        'output_text': output_text,
+        'parallel_tool_calls': bool(request_payload.get('parallel_tool_calls', True)),
+        'previous_response_id': request_payload.get('previous_response_id'),
+        'reasoning': request_payload.get('reasoning'),
+        'request_id': request_id,
+        'store': bool(request_payload.get('store', False)),
+        'temperature': request_payload.get('temperature'),
+        'text': request_payload.get('text') or {'format': {'type': 'text'}},
+        'tool_choice': request_payload.get('tool_choice', 'auto'),
+        'tools': request_payload.get('tools') or [],
+        'top_p': request_payload.get('top_p'),
+        'truncation': request_payload.get('truncation'),
+        'usage': {
+            'input_tokens': input_tokens,
+            'input_tokens_details': {'cached_tokens': int(usage.get('cached_tokens') or 0)},
+            'output_tokens': output_tokens,
+            'output_tokens_details': {'reasoning_tokens': int(usage.get('reasoning_tokens') or 0)},
+            'total_tokens': int(usage.get('total_tokens') or (input_tokens + output_tokens)),
+        },
+    }
+
+
+def write_responses_as_sse(self, response, request_id, extra_headers=None):
+    def write_event(event_name, data):
+        payload = dict(data)
+        payload.setdefault('type', event_name)
+        self.wfile.write(f"event: {event_name}\ndata: {json.dumps(payload)}\n\n".encode())
+
+    self.send_response(200)
+    self.send_header('Content-Type', 'text/event-stream')
+    self.send_header('Cache-Control', 'no-cache')
+    self.send_cors_headers()
+    for key, value in (extra_headers or {}).items():
+        if value:
+            self.send_header(key, str(value))
+    self.end_headers()
+    created = dict(response)
+    created['status'] = 'in_progress'
+    created['output'] = []
+    write_event('response.created', {'response': created})
+    for output_index, item in enumerate(response.get('output') or []):
+        write_event('response.output_item.added', {'output_index': output_index, 'item': item})
+        if item.get('type') == 'message':
+            for content_index, part in enumerate(item.get('content') or []):
+                write_event('response.content_part.added', {
+                    'item_id': item.get('id'),
+                    'output_index': output_index,
+                    'content_index': content_index,
+                    'part': part,
+                })
+                if part.get('type') == 'output_text' and part.get('text'):
+                    write_event('response.output_text.delta', {
+                        'item_id': item.get('id'),
+                        'output_index': output_index,
+                        'content_index': content_index,
+                        'delta': part.get('text') or '',
+                    })
+                    write_event('response.output_text.done', {
+                        'item_id': item.get('id'),
+                        'output_index': output_index,
+                        'content_index': content_index,
+                        'text': part.get('text') or '',
+                    })
+                write_event('response.content_part.done', {
+                    'item_id': item.get('id'),
+                    'output_index': output_index,
+                    'content_index': content_index,
+                    'part': part,
+                })
+        elif item.get('type') == 'function_call':
+            write_event('response.function_call_arguments.done', {
+                'item_id': item.get('id'),
+                'output_index': output_index,
+                'call_id': item.get('call_id'),
+                'name': item.get('name'),
+                'arguments': item.get('arguments') or '',
+            })
+        write_event('response.output_item.done', {'output_index': output_index, 'item': item})
+    write_event('response.completed', {'response': response})
+    self.wfile.write(b'data: [DONE]\n\n')
+    self.wfile.flush()
+
+
 def build_router_metadata(provider_name, model, request_id=''):
     return {
         'provider': provider_name,
@@ -6786,7 +7087,7 @@ def write_openai_completion_as_sse(self, result, request_id):
     self.wfile.write(b'data: [DONE]\n\n')
     self.wfile.flush()
 
-def handle_openai_chat_completions(self, payload, request_id, started, force_realtime=False):
+def handle_openai_chat_completions(self, payload, request_id, started, force_realtime=False, return_result=False):
     message_count = len(payload.get('messages', []) or [])
     router_profile = apply_router_profile(payload)
     discord_public_profile = apply_discord_public_route_profile(payload)
@@ -6936,6 +7237,8 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
             LAST_ROUTE_DEBUG.update({'selected': {'provider': pn, 'model': model}, 'status': 'ok', 'error': None, 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
             append_route_event({'request_id': request_id, 'status': 'ok', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': bool(want_stream), 'requirements': requirements, 'selected': {'provider': pn, 'model': model}, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]]})
             logger.info(f"[{request_id}] OK: {pn}/{model} (provider={elapsed:.2f}s, total={total_elapsed:.2f}s, stream={want_stream})")
+            if return_result:
+                return 200, result, self.routing_headers(result, request_id)
             if client_wants_stream:
                 write_openai_completion_as_sse(self, result, request_id)
                 return
@@ -6947,7 +7250,33 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
     total_elapsed = time.time() - overall_started
     LAST_ROUTE_DEBUG.update({'selected': None, 'attempts': attempts[-12:], 'status': 'failed', 'error': 'All providers failed', 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
     append_route_event({'request_id': request_id, 'status': 'failed', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': bool(want_stream), 'requirements': requirements, 'selected': None, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]], 'error': 'All providers failed'})
-    self.write_json(503, {'error': 'All providers failed', 'request_id': request_id, 'attempts': attempts, 'choices': [{'message': {'content': 'Error: No providers available'}}]}, extra_headers={'X-Sage-Router-Request-Id': request_id})
+    failure = {'error': 'All providers failed', 'request_id': request_id, 'attempts': attempts, 'choices': [{'message': {'content': 'Error: No providers available'}}]}
+    headers = {'X-Sage-Router-Request-Id': request_id}
+    if return_result:
+        return 503, failure, headers
+    self.write_json(503, failure, extra_headers=headers)
+
+
+def handle_openai_responses(self, payload, request_id, started):
+    chat_payload = responses_payload_to_chat_payload(payload)
+    logger.info(f"[{request_id}] Incoming /v1/responses with {len(chat_payload.get('messages') or [])} messages, model={chat_payload.get('model')}, stream={bool(payload.get('stream'))}")
+    status, chat_result, headers = handle_openai_chat_completions(self, chat_payload, request_id, started, return_result=True)
+    if status >= 400:
+        self.write_json(status, {
+            'error': {
+                'type': 'api_error',
+                'message': chat_result.get('error') or 'Sage Router request failed',
+            },
+            'request_id': request_id,
+            'attempts': chat_result.get('attempts') or [],
+        }, extra_headers=headers)
+        return
+    response = openai_chat_completion_to_responses(chat_result, payload, request_id)
+    if payload.get('stream'):
+        write_responses_as_sse(self, response, request_id, extra_headers=headers)
+    else:
+        self.write_json(200, response, extra_headers=headers)
+    logger.info(f"[{request_id}] Responses compat responded in {time.time() - started:.2f}s")
 
 def google_to_openai_messages(payload):
     """Convert Google Generative AI request format to OpenAI messages format."""
@@ -7484,6 +7813,7 @@ class Handler(BaseHTTPRequestHandler):
                 "endpoints": {
                     "health": "/health",
                     "models": "/v1/models",
+                    "responses": "/v1/responses",
                     "chatCompletions": "/v1/chat/completions",
                     "audioTranscriptions": "/v1/audio/transcriptions",
                     "audioSpeech": "/v1/audio/speech",
@@ -7840,7 +8170,7 @@ class Handler(BaseHTTPRequestHandler):
 
         audio_kind = audio_endpoint_kind(self.path)
         model_endpoint = (
-            self.path in ['/v1/chat/completions', '/chat/completions', '/v1/messages', '/messages', '/v1/realtime', '/realtime']
+            self.path in ['/v1/responses', '/responses', '/v1/chat/completions', '/chat/completions', '/v1/messages', '/messages', '/v1/realtime', '/realtime']
             or bool(audio_kind)
             or ':generateContent' in self.path
             or ':streamGenerateContent' in self.path
@@ -7854,7 +8184,17 @@ class Handler(BaseHTTPRequestHandler):
             set_route_auth_context(auth_context)
 
         try:
-            if self.path in ['/v1/chat/completions', '/chat/completions']:
+            if self.path in ['/v1/responses', '/responses']:
+                body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+                request_id = uuid.uuid4().hex[:8]
+                started = time.time()
+                try:
+                    payload = json.loads(body or b'{}')
+                    handle_openai_responses(self, payload, request_id, started)
+                except Exception as e:
+                    logger.exception(f"[{request_id}] Responses request handling failed")
+                    self.write_json(500, {"error": str(e)}, extra_headers={'X-Sage-Router-Request-Id': request_id})
+            elif self.path in ['/v1/chat/completions', '/chat/completions']:
                 body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
                 request_id = uuid.uuid4().hex[:8]
                 started = time.time()

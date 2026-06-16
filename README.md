@@ -5,7 +5,7 @@
 One endpoint. Any provider. The router figures out the rest.
 
 [![Umbrel](https://img.shields.io/badge/Umbrel-1.0.3-purple)](https://github.com/getumbrel/umbrel-apps/pull/5720)
-[![ClawHub](https://img.shields.io/badge/ClawHub-v3.28.2-blue)](https://clawhub.ai/earlvanze/sage-router)
+[![ClawHub](https://img.shields.io/badge/ClawHub-v4.157.0-blue)](https://clawhub.ai/earlvanze/sage-router)
 [![GitHub](https://img.shields.io/badge/GitHub-earlvanze%2Fsage--router-black)](https://github.com/earlvanze/sage-router)
 
 ---
@@ -140,6 +140,7 @@ Enable `SAGE_ROUTER_SHOW_MODEL_PREFIX=1` to prefix every chat response with `[pr
 
 | Endpoint | Format | Used By |
 |----------|--------|---------|
+| `POST /v1/responses` | OpenAI Responses | Codex CLI custom providers |
 | `POST /v1/chat/completions` | OpenAI | OpenAI SDK, Aider, Continue, Zed |
 | `POST /v1/messages` | Anthropic | Cursor, Claude Code, Claude Desktop |
 | `POST /v1beta/models/{model}:generateContent` | Google | Gemini CLI |

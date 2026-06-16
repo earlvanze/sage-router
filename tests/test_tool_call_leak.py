@@ -147,6 +147,47 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         self.assertEqual('lookup_record', tool_calls[0]['function']['name'])
         self.assertEqual('{"id":"abc"}', tool_calls[0]['function']['arguments'])
 
+    def test_responses_input_to_chat_messages_drops_non_message_items(self):
+        messages = router.responses_input_to_chat_messages([
+            {'type': 'web_search_call', 'id': 'ws_1', 'status': 'completed'},
+            {'type': 'message', 'role': 'user', 'content': [{'type': 'input_text', 'text': 'hello'}]},
+            {'type': 'function_call', 'call_id': 'call_1', 'name': 'lookup_record', 'arguments': '{"id":"abc"}'},
+            {'type': 'function_call_output', 'call_id': 'call_1', 'output': 'record'},
+        ], instructions='be brief')
+        self.assertEqual('system', messages[0]['role'])
+        self.assertEqual('user', messages[1]['role'])
+        self.assertEqual('hello', messages[1]['content'])
+        self.assertEqual('assistant', messages[2]['role'])
+        self.assertEqual('lookup_record', messages[2]['tool_calls'][0]['function']['name'])
+        self.assertEqual('tool', messages[3]['role'])
+        self.assertEqual('call_1', messages[3]['tool_call_id'])
+
+    def test_responses_tool_schema_converts_to_chat_schema(self):
+        converted = router.responses_tools_to_chat_tools([{
+            'type': 'function',
+            'name': 'lookup_record',
+            'description': 'Look up a record.',
+            'parameters': {'type': 'object', 'properties': {'id': {'type': 'string'}}},
+            'strict': True,
+        }])
+        self.assertEqual('function', converted[0]['type'])
+        self.assertEqual('lookup_record', converted[0]['function']['name'])
+        self.assertTrue(converted[0]['function']['strict'])
+
+    def test_chat_completion_translates_to_responses_output(self):
+        chat = router.build_openai_completion(
+            'ollama',
+            'qwen3',
+            'req1',
+            'hello',
+            [{'id': 'call_1', 'function': {'name': 'lookup_record', 'arguments': '{"id":"abc"}'}}],
+        )
+        response = router.openai_chat_completion_to_responses(chat, {'model': 'sage-router/frontier'}, 'req1')
+        self.assertEqual('response', response['object'])
+        self.assertEqual('ollama/qwen3', response['model'])
+        self.assertEqual('function_call', response['output'][0]['type'])
+        self.assertEqual('lookup_record', response['output'][0]['name'])
+
     def test_direct_codex_scoring_is_not_capped_as_recursive_gateway(self):
         debug_scores = []
         provider = router.Provider('openai-codex', 'openai-codex-responses', 'https://codex.example/v1', 'token', ['gpt-5-codex'])

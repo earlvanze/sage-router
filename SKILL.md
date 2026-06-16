@@ -1,7 +1,7 @@
 ---
 name: sage-router
 description: Local-first AI model routing for serious agents. One endpoint. Any provider. The router figures out the rest.
-version: 4.156.0
+version: 4.157.0
 env:
   - SAGE_ROUTER_HOME (required: path to sage-router repo)
   - SAGE_ROUTER_DISABLED_PROVIDERS (optional: comma-separated provider names to suppress)
@@ -18,6 +18,7 @@ HTTP server on `:8790` that routes chat requests to the optimal provider based o
 ## Endpoints
 
 - `POST /v1/chat/completions` — OpenAI-compatible; routes automatically
+- `POST /v1/responses` — OpenAI Responses API compatible; supports Codex custom provider traffic
 - `POST /v1/messages` — Anthropic Messages API compatible; translates to/from OpenAI format internally
 - `GET /health` — Provider status, model lists, routing debug
 
@@ -68,6 +69,7 @@ Intent is detected by keyword matching on the latest user message. Complexity is
 
 - `GET /health` — JSON with reachable providers, configured providers, and disabled providers
 - `POST /v1/chat/completions` — OpenAI-compatible; routes automatically
+- `POST /v1/responses` — OpenAI Responses API compatible; translates to/from Chat Completions internally
 
 ## Notes
 
