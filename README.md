@@ -51,7 +51,7 @@ Install from the [Umbrel App Store](https://github.com/getumbrel/umbrel-apps/pul
 - https://github.com/earlvanze/umbrel-personal-apps
 ```
 
-The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.2` and stores its config under the app data directory. The built-in config dashboard is accessible from the Umbrel app tile.
+The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.4` and stores its config under the app data directory. The built-in config dashboard is accessible from the Umbrel app tile.
 
 ### Configure Your Tools
 
@@ -75,6 +75,32 @@ Or for Anthropic tools:
 export ANTHROPIC_BASE_URL=http://localhost:8790
 export ANTHROPIC_API_KEY=irrelevant
 ```
+
+### Codex CLI on port 8790
+
+Codex CLI can use Sage Router through the OpenAI Responses-compatible endpoint. Add the provider to `~/.codex/config.toml`:
+
+```toml
+[model_providers.sage-router]
+name = "Sage Router"
+base_url = "http://127.0.0.1:8790/v1/"
+wire_api = "responses"
+```
+
+Then create `~/.codex/sage-router.config.toml`:
+
+```toml
+model_provider = "sage-router"
+model = "sage-router/frontier"
+```
+
+Run Codex with:
+
+```bash
+codex --profile sage-router
+```
+
+The `sage-router/frontier` model name selects the bundled `frontier` routing profile from `router-profiles.json`.
 
 ---
 
@@ -432,8 +458,11 @@ docker run -p 8790:8790 \
   -v ~/.openclaw:/config:ro \
   -v ~/.openclaw:/root/.openclaw:ro \
   -v ~/.dario:/root/.dario \
-  ghcr.io/earlvanze/sage-router-public:v3.28.2
+  -v sage-router-ollama:/root/.ollama \
+  ghcr.io/earlvanze/sage-router-public:v3.28.4
 ```
+
+`/config` may be mounted read-only. Runtime state for bundled Dario and Ollama belongs in writable locations such as `/root/.dario` and `/root/.ollama`; the Docker image defaults keep that state out of `/config`.
 
 Or build from source:
 
