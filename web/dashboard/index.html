@@ -48,6 +48,13 @@
     .refresh-btn { background: none; border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
     .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
     .disabled-list { color: #666; font-size: 12px; margin-top: 8px; }
+    .setup-card { grid-column: 1 / -1; display: none; }
+    .setup-card.active { display: block; }
+    .setup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .setup-step { border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; background: rgba(255,255,255,0.025); }
+    .setup-step h3 { font-size: 14px; color: var(--text); margin-bottom: 8px; }
+    .setup-step p { color: #a9b8c8; font-size: 13px; line-height: 1.45; margin-bottom: 8px; }
+    .setup-step code { display: block; overflow-wrap: anywhere; color: var(--accent); font-size: 12px; line-height: 1.45; }
   </style>
 </head>
 <body>
@@ -60,6 +67,27 @@
     </div>
   </div>
   <div class="grid">
+    <div class="card setup-card" id="setupCard">
+      <h2>First-run setup</h2>
+      <div class="setup-grid">
+        <div class="setup-step">
+          <h3>Default local route</h3>
+          <p>On Umbrel, the app data template points Sage Router at a host Ollama service. Install or start Ollama, then refresh this dashboard.</p>
+          <code>/config/openclaw/openclaw.json</code>
+        </div>
+        <div class="setup-step">
+          <h3>Import harness config</h3>
+          <p>Copy supported provider config into Sage Router app data. For Codex subscription auth, use official Codex/OpenClaw sign-in and import the resulting auth profile.</p>
+          <code>/config/openclaw/agents/main/agent/auth-profiles.json</code>
+          <code>/config/agents/main/agent/auth-profiles.json</code>
+        </div>
+        <div class="setup-step">
+          <h3>Client endpoint</h3>
+          <p>Point OpenAI-compatible clients at the app URL. No model API key is required unless client auth is explicitly enabled in the environment.</p>
+          <code>http://sage-router:8790/v1</code>
+        </div>
+      </div>
+    </div>
     <div class="card">
       <h2>Providers</h2>
       <div id="providers"></div>
@@ -149,6 +177,11 @@
         modelsHtml = '<div style="color:#888">No models discovered</div>';
       }
       document.getElementById('models').innerHTML = modelsHtml;
+      const setupCard = document.getElementById('setupCard');
+      if (setupCard) {
+        const configuredCount = Array.isArray(configured) ? configured.length : Object.keys(configured || {}).length;
+        setupCard.classList.toggle('active', configuredCount === 0 || modelList.length === 0);
+      }
       // Health details
       const hEntries = health.reasoningCapabilities || {};
       let healthHtml = '';

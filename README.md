@@ -51,7 +51,7 @@ Install from the [Umbrel App Store](https://github.com/getumbrel/umbrel-apps/pul
 - https://github.com/earlvanze/umbrel-personal-apps
 ```
 
-The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.4` and stores its config under the app data directory. The built-in config dashboard is accessible from the Umbrel app tile.
+The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.5` and stores its config under the app data directory. The built-in config dashboard is accessible from the Umbrel app tile.
 
 ### Configure Your Tools
 
@@ -126,7 +126,9 @@ The `sage-router/frontier` model name selects the bundled `frontier` routing pro
 
 ## OpenClaw Codex OAuth
 
-Sage Router connects directly to `chatgpt.com/backend-api/codex` using the same OpenAI OAuth token stored in your OpenClaw `auth-profiles.json`. No API key needed — it reads the current ChatGPT session JWT from `~/.openclaw/agents/main/agent/auth-profiles.json` and refreshes it on each request.
+Sage Router connects directly to `chatgpt.com/backend-api/codex` using the same OpenAI OAuth token stored in your OpenClaw `auth-profiles.json`. No API key needed when an auth profile is present — it reads the current ChatGPT session JWT from `~/.openclaw/agents/main/agent/auth-profiles.json` and refreshes it on each request.
+
+Sage Router intentionally does not implement its own `auth.openai.com/codex/device` OAuth route. Use the official Codex/OpenClaw sign-in flow, then import the resulting OpenClaw auth profile or pass an access token through environment.
 
 To use:
 
@@ -141,7 +143,8 @@ The `openai-codex` provider is enabled by default. Models: `gpt-5.5`, `gpt-5.4`,
 
 Key env vars:
 - `SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATH` — path to `auth-profiles.json` (default: `~/.openclaw/agents/main/agent/auth-profiles.json`)
-- `OPENAI_CODEX_API_KEY` — fallback JWT token (used if auth-profiles is unavailable)
+- `SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATHS` — comma-separated auth profile paths, useful for container app-data layouts
+- `OPENAI_CODEX_API_KEY`, `OPENAI_CODEX_ACCESS_TOKEN`, or `CODEX_ACCESS_TOKEN` — fallback OAuth access token (used if auth-profiles is unavailable)
 
 ## Config Dashboard
 
@@ -459,7 +462,7 @@ docker run -p 8790:8790 \
   -v ~/.openclaw:/root/.openclaw:ro \
   -v ~/.dario:/root/.dario \
   -v sage-router-ollama:/root/.ollama \
-  ghcr.io/earlvanze/sage-router-public:v3.28.4
+  ghcr.io/earlvanze/sage-router-public:v3.28.5
 ```
 
 `/config` may be mounted read-only. Runtime state for bundled Dario and Ollama belongs in writable locations such as `/root/.dario` and `/root/.ollama`; the Docker image defaults keep that state out of `/config`.
@@ -616,7 +619,7 @@ OLLAMA_HOST=http://localhost:11434
 
 # OpenClaw Codex OAuth (chatgpt.com/backend-api/codex)
 SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATH=~/.openclaw/agents/main/agent/auth-profiles.json
-OPENAI_CODEX_API_KEY=              # fallback JWT, auto-refreshed from auth-profiles
+CODEX_ACCESS_TOKEN=                # fallback OAuth access token when no auth profile is mounted
 
 # Router behavior
 SAGE_ROUTER_DEFAULT_MODE=balanced
