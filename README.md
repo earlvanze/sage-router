@@ -51,7 +51,7 @@ Install from the [Umbrel App Store](https://github.com/getumbrel/umbrel-apps/pul
 - https://github.com/earlvanze/umbrel-personal-apps
 ```
 
-The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.6` and stores its config under the app data directory. The built-in config dashboard is accessible from the Umbrel app tile.
+The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.7` and stores its config under the app data directory. The built-in config dashboard is accessible from the Umbrel app tile.
 
 ### Configure Your Tools
 
@@ -454,18 +454,18 @@ Force via model name: `"model": "openai-codex/gpt-5.5"`.
 ## Docker / Production deployment
 The pre-built image is available at `ghcr.io/earlvanze/sage-router-public` (public). It bundles Sage Router plus Dario and the config dashboard.
 
-Mount your OpenClaw config so Codex OAuth tokens and provider profiles are available:
+Mount an app-owned config directory and add provider or Codex credentials from the dashboard:
 
 ```bash
 docker run -p 8790:8790 \
-  -v ~/.openclaw:/config:ro \
-  -v ~/.openclaw:/root/.openclaw:ro \
-  -v ~/.dario:/root/.dario \
+  -v sage-router-config:/config \
   -v sage-router-ollama:/root/.ollama \
-  ghcr.io/earlvanze/sage-router-public:v3.28.6
+  ghcr.io/earlvanze/sage-router-public:v3.28.7
 ```
 
-`/config` may be mounted read-only. Runtime state for bundled Dario and Ollama belongs in writable locations such as `/root/.dario` and `/root/.ollama`; the Docker image defaults keep that state out of `/config`.
+Provider credentials and imported Codex auth JSON are written under `/config`.
+Do not mount another app's private state or a host user's home directory for
+auth; copy/import compatible config through the Sage Router setup flow instead.
 
 Or build from source:
 

@@ -11,6 +11,18 @@ logger = logging.getLogger("router")
 SAGE_ROUTER_HOME = os.path.expanduser(os.environ.get('SAGE_ROUTER_HOME', '~/.openclaw'))
 OPENCLAW_CONFIG = os.environ.get('SAGE_ROUTER_OPENCLAW_CONFIG', os.path.join(SAGE_ROUTER_HOME, 'openclaw.json'))
 OPENCLAW_DOTENV = os.environ.get('SAGE_ROUTER_OPENCLAW_DOTENV', os.path.join(SAGE_ROUTER_HOME, '.env'))
+APP_PROVIDER_CONFIG = os.environ.get(
+    'SAGE_ROUTER_APP_PROVIDER_CONFIG',
+    os.path.join(SAGE_ROUTER_HOME, 'openclaw', 'openclaw.json'),
+)
+APP_CODEX_AUTH_JSON = os.environ.get(
+    'SAGE_ROUTER_CODEX_AUTH_JSON',
+    os.path.join(SAGE_ROUTER_HOME, '.codex', 'auth.json'),
+)
+APP_CODEX_AUTH_PROFILE = os.environ.get(
+    'SAGE_ROUTER_CODEX_AUTH_PROFILE',
+    os.path.join(SAGE_ROUTER_HOME, 'agents', 'main', 'agent', 'auth-profiles.json'),
+)
 PROVIDER_PROFILES_PATH = os.path.join(os.path.dirname(__file__), 'provider-profiles.json')
 ROUTER_PROFILES_PATH = os.path.join(os.path.dirname(__file__), 'router-profiles.json')
 OPENCLAW_GATEWAY_HELPER = os.path.join(os.path.dirname(__file__), 'openclaw_gateway_agent.mjs')
@@ -79,6 +91,7 @@ DARIO_SERVICE_NAME = os.environ.get('SAGE_ROUTER_DARIO_SERVICE', 'dario.service'
 DARIO_AUTOSTART = os.environ.get('SAGE_ROUTER_DARIO_AUTOSTART', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
 DARIO_PROCESS = None
 OPENCLAW_GATEWAY_BASE_URL = os.environ.get('SAGE_ROUTER_OPENCLAW_GATEWAY_URL', 'ws://127.0.0.1:18789')
+OPENAI_CODEX_GATEWAY_FALLBACK = os.environ.get('SAGE_ROUTER_OPENAI_CODEX_GATEWAY_FALLBACK', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
 # Auth-profile-based gateway providers: defined after DEFAULT constants below
 DISABLED_PROVIDERS = {
     name.strip() for name in os.environ.get('SAGE_ROUTER_DISABLED_PROVIDERS', '').split(',')
@@ -3002,6 +3015,90 @@ def env_first(*names):
     return ''
 
 
+def atomic_write_json(path, payload, mode=0o600):
+    path = os.path.expanduser(path)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp_path = f'{path}.tmp-{os.getpid()}-{secrets.token_hex(4)}'
+    with open(tmp_path, 'w') as f:
+        json.dump(payload, f, indent=2)
+        f.write('\n')
+    os.chmod(tmp_path, mode)
+    os.replace(tmp_path, path)
+
+
+def openai_codex_auth_candidate_paths():
+    env_paths = comma_list_env(
+        'SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATHS',
+        'OPENAI_CODEX_AUTH_PROFILE_PATHS',
+    )
+    if not env_paths:
+        env_paths = [env_first('SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATH', 'OPENAI_CODEX_AUTH_PROFILE_PATH')]
+    defaults = [
+        APP_CODEX_AUTH_PROFILE,
+        os.path.join(SAGE_ROUTER_HOME, 'openclaw', 'agents', 'main', 'agent', 'auth-profiles.json'),
+        APP_CODEX_AUTH_JSON,
+        os.path.join(SAGE_ROUTER_HOME, 'codex', 'auth.json'),
+        os.path.join(SAGE_ROUTER_HOME, 'openai-codex', 'auth.json'),
+        '~/.openclaw/agents/main/agent/auth-profiles.json',
+        '~/.hermes/auth.json',
+    ]
+    return dedupe_keep_order([os.path.expanduser(p) for p in env_paths + defaults if p])
+
+
+def token_not_expired(expires, now_ms):
+    if not expires:
+        return True
+    try:
+        expires_f = float(expires)
+    except (TypeError, ValueError):
+        return True
+    if expires_f < 10_000_000_000:
+        expires_f *= 1000
+    return expires_f > now_ms
+
+
+def extract_openai_codex_token_from_auth_data(data, provider_name='openai-codex'):
+    if not isinstance(data, dict):
+        return ''
+    now_ms = time.time() * 1000
+    profiles = data.get('profiles')
+    if isinstance(profiles, dict):
+        for prof in profiles.values():
+            if not isinstance(prof, dict):
+                continue
+            prof_provider = prof.get('provider')
+            provider_matches = prof_provider == provider_name
+            if provider_name == 'openai-codex':
+                provider_matches = provider_matches or (prof_provider == 'openai' and prof.get('type') == 'oauth')
+            if provider_matches and token_not_expired(prof.get('expires'), now_ms):
+                token = prof.get('access') or prof.get('access_token') or prof.get('apiKey') or ''
+                if token:
+                    return token
+    providers = data.get('providers')
+    if isinstance(providers, dict):
+        for name, prof in providers.items():
+            if not isinstance(prof, dict):
+                continue
+            name_l = str(name).lower()
+            if provider_name != 'openai-codex' and provider_name not in name_l:
+                continue
+            if provider_name == 'openai-codex' and 'codex' not in name_l and 'openai' not in name_l:
+                continue
+            if token_not_expired(prof.get('expires') or prof.get('expires_at'), now_ms):
+                token = prof.get('access') or prof.get('access_token') or prof.get('token') or ''
+                if token:
+                    return token
+    tokens = data.get('tokens')
+    if isinstance(tokens, dict):
+        token = tokens.get('access_token') or tokens.get('access') or ''
+        if token and token_not_expired(tokens.get('expires_at') or tokens.get('expires'), now_ms):
+            return token
+    token = data.get('access_token') or data.get('access') or ''
+    if token and token_not_expired(data.get('expires_at') or data.get('expires'), now_ms):
+        return token
+    return ''
+
+
 def model_meta_for_defaults(models, base_meta):
     return {m: dict(base_meta) for m in dedupe_keep_order(models or [])}
 
@@ -3014,6 +3111,16 @@ def load_openclaw_auth_access_token(provider_name):
     """
     auth_path = os.path.expanduser('~/.openclaw/agents/main/agent/auth-profiles.json')
     state_path = os.path.expanduser('~/.openclaw/agents/main/agent/auth-state.json')
+    if provider_name == 'openai-codex':
+        for candidate in openai_codex_auth_candidate_paths():
+            try:
+                with open(candidate) as cf:
+                    token = extract_openai_codex_token_from_auth_data(json.load(cf), provider_name)
+                if token:
+                    logger.info(f'Loaded openai-codex OAuth token from configured auth path {candidate}')
+                    return token
+            except Exception:
+                continue
     try:
         with open(auth_path) as af:
             auth = json.load(af)
@@ -3088,57 +3195,20 @@ def read_openai_codex_oauth_token_from_file():
     For openai-codex, also searches openai OAuth profiles since ChatGPT/Codex
     uses the same OpenAI OAuth token (auth-profiles stores them under provider=openai).
     """
-    paths = comma_list_env('SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATHS', 'OPENAI_CODEX_AUTH_PROFILE_PATHS') or [
-        env_first('SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATH', 'OPENAI_CODEX_AUTH_PROFILE_PATH'),
-        '~/.openclaw/agents/main/agent/auth-profiles.json',
-        '~/.hermes/auth.json',
-    ]
-    now_ms = time.time() * 1000
     openclaw_token = load_openclaw_auth_access_token('openai-codex')
     if openclaw_token:
         return openclaw_token
-    for raw_path in [p for p in paths if p]:
+    for raw_path in openai_codex_auth_candidate_paths():
         path = os.path.expanduser(raw_path)
         try:
             with open(path) as f:
                 data = json.load(f)
         except Exception:
             continue
-        profiles = data.get('profiles') if isinstance(data, dict) else None
-        if isinstance(profiles, dict):
-            for prof in profiles.values():
-                if not isinstance(prof, dict):
-                    continue
-                if prof.get('provider') == 'openai-codex' and prof.get('type') == 'oauth':
-                    if not prof.get('expires') or prof.get('expires', 0) > now_ms:
-                        token = prof.get('access') or prof.get('access_token') or ''
-                        if token:
-                            logger.info(f'Loaded openai-codex OAuth token from mounted auth profile {path}')
-                            return token
-                # Also match provider=openai OAuth profiles (ChatGPT tokens work for Codex)
-                if prof.get('provider') == 'openai' and prof.get('type') == 'oauth':
-                    if not prof.get('expires') or prof.get('expires', 0) > now_ms:
-                        token = prof.get('access') or prof.get('access_token') or ''
-                        if token:
-                            logger.info(f'Loaded openai-codex OAuth token from openai ChatGPT profile in {path}')
-                            return token
-        providers = data.get('providers') if isinstance(data, dict) else None
-        if isinstance(providers, dict):
-            for name, prof in providers.items():
-                if 'codex' not in str(name).lower() or not isinstance(prof, dict):
-                    continue
-                token = prof.get('access') or prof.get('access_token') or prof.get('token') or ''
-                expires = prof.get('expires') or prof.get('expires_at') or 0
-                if token and (not expires or float(expires) * (1000 if float(expires) < 10_000_000_000 else 1) > now_ms):
-                    logger.info(f'Loaded openai-codex OAuth token from mounted Hermes auth {path}')
-                    return token
-        # Codex CLI auth.json shape: {"auth_mode":"chatgpt","tokens":{"access_token":...}}.
-        tokens = data.get('tokens') if isinstance(data, dict) else None
-        if isinstance(tokens, dict):
-            token = tokens.get('access_token') or tokens.get('access') or ''
-            if token:
-                logger.info(f'Loaded openai-codex OAuth token from Codex auth file {path}')
-                return token
+        token = extract_openai_codex_token_from_auth_data(data, 'openai-codex')
+        if token:
+            logger.info(f'Loaded openai-codex OAuth token from app-owned auth file {path}')
+            return token
     return ''
 
 def load_hosted_secret_providers():
@@ -3286,7 +3356,7 @@ def load_hosted_secret_providers():
             {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text'], 'supportsTools': True, 'supportsJson': True},
             reasoning_models=codex_models,
         )
-    else:
+    elif OPENAI_CODEX_GATEWAY_FALLBACK:
         # No OAuth token in this environment. Fall back to the OpenClaw gateway
         # bridge so that the model list still resolves. load_openclaw_providers
         # will overwrite this entry with a real direct-Codex provider as soon
@@ -3300,6 +3370,8 @@ def load_hosted_secret_providers():
             {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']},
             reasoning_models=codex_models,
         )
+    else:
+        logger.info('Skipping openai-codex gateway fallback because SAGE_ROUTER_OPENAI_CODEX_GATEWAY_FALLBACK is off')
     return providers
 
 
@@ -3504,7 +3576,7 @@ def load_openclaw_providers():
                         {m: dict(default_meta) for m in gw_models},
                     ))
                     logger.info(f'Auto-created gateway provider {provider_name} (openai-codex-responses) with {len(gw_models)} models')
-                else:
+                elif OPENAI_CODEX_GATEWAY_FALLBACK:
                     # No OAuth token available; fall back to openclaw-gateway bridge
                     merge_provider(providers, Provider(
                         provider_name,
@@ -3516,6 +3588,8 @@ def load_openclaw_providers():
                         {m: dict(default_meta) for m in gw_models},
                     ))
                     logger.info(f'Auto-created gateway provider {provider_name} (openclaw-gateway fallback) with {len(gw_models)} models')
+                else:
+                    logger.info(f'Skipping gateway fallback for {provider_name}; OAuth token not configured')
             else:
                 # Other providers (xai, zai, openai) - route via gateway
                 merge_provider(providers, Provider(
@@ -4526,6 +4600,145 @@ def read_json_body(handler):
         return json.loads(raw or b'{}')
     except Exception:
         return {}
+
+
+def parse_model_list(value):
+    if isinstance(value, list):
+        return dedupe_keep_order([str(v).strip() for v in value if str(v).strip()])
+    if isinstance(value, str):
+        parts = re.split(r'[\n,]+', value)
+        return dedupe_keep_order([p.strip() for p in parts if p.strip()])
+    return []
+
+
+def default_base_url_for_api(api_type):
+    return {
+        'ollama': 'http://host.docker.internal:11434',
+        'openai-completions': 'https://api.openai.com/v1',
+        'anthropic-messages': 'https://api.anthropic.com',
+        'google-generative-language': 'https://generativelanguage.googleapis.com/v1beta',
+        'openai-codex-responses': 'https://chatgpt.com/backend-api/codex',
+        'cloudflare-workers-ai': '',
+    }.get(api_type, '')
+
+
+def setup_state_payload():
+    return {
+        'status': 'ok',
+        'paths': {
+            'providerConfig': APP_PROVIDER_CONFIG,
+            'codexAuthJson': APP_CODEX_AUTH_JSON,
+            'codexAuthProfile': APP_CODEX_AUTH_PROFILE,
+        },
+        'providers': sorted(PROVIDERS.keys()),
+        'disabled': sorted(DISABLED_PROVIDERS),
+        'codexConfigured': bool(read_openai_codex_oauth_token_from_file()),
+        'clientAuthRequired': CLIENT_AUTH_REQUIRED,
+        'port': int(os.environ.get('PORT') or os.environ.get('APP_PORT') or 8790),
+    }
+
+
+def reload_configured_providers():
+    global PROVIDERS
+    PROVIDERS = load_openclaw_providers()
+    MODEL_HEALTH_CACHE.clear()
+    PROVIDER_HEALTH_CACHE.clear()
+    return PROVIDERS
+
+
+def save_setup_provider(payload):
+    provider_name = str(payload.get('name') or '').strip().lower()
+    if not provider_name:
+        provider_name = str(payload.get('provider') or payload.get('kind') or '').strip().lower()
+    provider_name = re.sub(r'[^a-z0-9_.-]+', '-', provider_name).strip('-')
+    if not provider_name:
+        raise ValueError('provider_name_required')
+    if provider_name in SELF_PROVIDER_NAMES:
+        raise ValueError('self_provider_not_allowed')
+
+    api_type = str(payload.get('api') or payload.get('apiType') or payload.get('kind') or '').strip()
+    api_aliases = {
+        'openai': 'openai-completions',
+        'openai-compatible': 'openai-completions',
+        'anthropic': 'anthropic-messages',
+        'google': 'google-generative-language',
+        'codex': 'openai-codex-responses',
+    }
+    api_type = api_aliases.get(api_type, api_type) or infer_api_type(provider_name, {}, '')
+    base_url = str(payload.get('baseUrl') or payload.get('base_url') or default_base_url_for_api(api_type)).strip()
+    api_key = str(payload.get('apiKey') or payload.get('api_key') or payload.get('token') or '').strip()
+    models = parse_model_list(payload.get('models'))
+
+    try:
+        with open(APP_PROVIDER_CONFIG) as f:
+            config = json.load(f)
+    except Exception:
+        config = {}
+    if not isinstance(config, dict):
+        config = {}
+    config.setdefault('models', {}).setdefault('providers', {})
+    provider_cfg = {
+        'baseUrl': base_url,
+        'api': api_type,
+        'models': models,
+    }
+    if api_key:
+        provider_cfg['apiKey'] = api_key
+    config['models']['providers'][provider_name] = provider_cfg
+    atomic_write_json(APP_PROVIDER_CONFIG, config)
+    reload_configured_providers()
+    return {
+        'status': 'saved',
+        'provider': provider_name,
+        'api': api_type,
+        'models': len(models),
+        'configured': sorted(PROVIDERS.keys()),
+    }
+
+
+def save_codex_setup_auth(payload):
+    auth_json = payload.get('authJson') or payload.get('auth_json')
+    auth_profile_json = payload.get('authProfileJson') or payload.get('auth_profile_json')
+    access_token = str(payload.get('accessToken') or payload.get('access_token') or payload.get('token') or '').strip()
+
+    if isinstance(auth_json, str) and auth_json.strip():
+        auth_json = json.loads(auth_json)
+    if isinstance(auth_profile_json, str) and auth_profile_json.strip():
+        auth_profile_json = json.loads(auth_profile_json)
+
+    if isinstance(auth_json, dict):
+        if not extract_openai_codex_token_from_auth_data(auth_json, 'openai-codex'):
+            raise ValueError('codex_access_token_not_found')
+        atomic_write_json(APP_CODEX_AUTH_JSON, auth_json)
+        target = APP_CODEX_AUTH_JSON
+    elif isinstance(auth_profile_json, dict):
+        if not extract_openai_codex_token_from_auth_data(auth_profile_json, 'openai-codex'):
+            raise ValueError('codex_access_token_not_found')
+        atomic_write_json(APP_CODEX_AUTH_PROFILE, auth_profile_json)
+        target = APP_CODEX_AUTH_PROFILE
+    elif access_token:
+        profile = {
+            'profiles': {
+                'sage-router-codex': {
+                    'provider': 'openai-codex',
+                    'type': 'oauth',
+                    'access': access_token,
+                    'expires': 0,
+                }
+            }
+        }
+        atomic_write_json(APP_CODEX_AUTH_PROFILE, profile)
+        target = APP_CODEX_AUTH_PROFILE
+    else:
+        raise ValueError('codex_auth_required')
+
+    reload_configured_providers()
+    return {
+        'status': 'saved',
+        'target': target,
+        'codexConfigured': bool(read_openai_codex_oauth_token_from_file()),
+        'configured': sorted(PROVIDERS.keys()),
+    }
 
 
 def authenticated_user(handler):
@@ -7902,6 +8115,8 @@ class Handler(BaseHTTPRequestHandler):
                 "lastRoute": LAST_ROUTE_DEBUG,
                 "blocks": {key: {"until": info["until"], "reason": info["reason"]} for key, info in TEMP_MODEL_BLOCKS.items()},
             })
+        elif self.path == '/setup/state':
+            self.write_json(200, setup_state_payload())
         elif self.path == '/dashboard':
             try:
                 with open(os.path.join(os.path.dirname(__file__), 'web', 'dashboard', 'index.html'), 'rb') as f:
@@ -8047,6 +8262,26 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
+        if self.path == '/setup/provider':
+            try:
+                self.write_json(200, save_setup_provider(read_json_body(self)))
+            except ValueError as e:
+                self.write_json(400, {'error': str(e)})
+            except Exception as e:
+                logger.exception('Provider setup failed')
+                self.write_json(500, {'error': 'provider_setup_failed', 'detail': str(e)})
+            return
+        if self.path == '/setup/codex-auth':
+            try:
+                self.write_json(200, save_codex_setup_auth(read_json_body(self)))
+            except json.JSONDecodeError:
+                self.write_json(400, {'error': 'invalid_json'})
+            except ValueError as e:
+                self.write_json(400, {'error': str(e)})
+            except Exception as e:
+                logger.exception('Codex auth setup failed')
+                self.write_json(500, {'error': 'codex_auth_setup_failed', 'detail': str(e)})
+            return
         if self.path == '/api/restart':
             # Restart the router process. Only honored in environments where
             # SAGE_ROUTER_ALLOW_RESTART=1 (set by the Umbrel/Cyber compose

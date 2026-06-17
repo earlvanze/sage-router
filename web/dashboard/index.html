@@ -55,6 +55,12 @@
     .setup-step h3 { font-size: 14px; color: var(--text); margin-bottom: 8px; }
     .setup-step p { color: #a9b8c8; font-size: 13px; line-height: 1.45; margin-bottom: 8px; }
     .setup-step code { display: block; overflow-wrap: anywhere; color: var(--accent); font-size: 12px; line-height: 1.45; }
+    .field { display: grid; gap: 5px; margin-bottom: 10px; }
+    .field label { color: #a9b8c8; font-size: 12px; }
+    .field input, .field select, .field textarea { width: 100%; background: #101c2a; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font: inherit; font-size: 13px; }
+    .field textarea { min-height: 94px; resize: vertical; }
+    .setup-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+    .muted { color: #8898a8; font-size: 12px; line-height: 1.4; }
   </style>
 </head>
 <body>
@@ -71,20 +77,58 @@
       <h2>First-run setup</h2>
       <div class="setup-grid">
         <div class="setup-step">
-          <h3>Default local route</h3>
-          <p>On Umbrel, the app data template points Sage Router at a host Ollama service. Install or start Ollama, then refresh this dashboard.</p>
-          <code>/config/openclaw/openclaw.json</code>
+          <h3>Add provider</h3>
+          <div class="field">
+            <label for="providerKind">Provider type</label>
+            <select id="providerKind" onchange="applyProviderDefaults()">
+              <option value="ollama">Ollama</option>
+              <option value="openai-completions">OpenAI compatible</option>
+              <option value="anthropic-messages">Anthropic</option>
+              <option value="google-generative-language">Google Gemini</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="providerName">Provider name</label>
+            <input id="providerName" value="ollama" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="providerBaseUrl">Base URL</label>
+            <input id="providerBaseUrl" value="http://host.docker.internal:11434" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="providerApiKey">API key or token</label>
+            <input id="providerApiKey" type="password" autocomplete="new-password">
+          </div>
+          <div class="field">
+            <label for="providerModels">Models</label>
+            <textarea id="providerModels" placeholder="Leave blank for provider discovery, or enter one model per line"></textarea>
+          </div>
+          <div class="setup-actions">
+            <button class="btn btn-primary" onclick="saveProvider()">Save provider</button>
+            <span class="muted" id="providerSetupStatus"></span>
+          </div>
         </div>
         <div class="setup-step">
-          <h3>Import harness config</h3>
-          <p>Copy supported provider config into Sage Router app data. For Codex subscription auth, use official Codex/OpenClaw sign-in and import the resulting auth profile.</p>
-          <code>/config/openclaw/agents/main/agent/auth-profiles.json</code>
-          <code>/config/agents/main/agent/auth-profiles.json</code>
+          <h3>Codex auth</h3>
+          <div class="field">
+            <label for="codexToken">Access token</label>
+            <input id="codexToken" type="password" autocomplete="new-password">
+          </div>
+          <div class="field">
+            <label for="codexAuthJson">Codex auth JSON</label>
+            <textarea id="codexAuthJson" placeholder='Paste auth.json or auth-profiles.json content'></textarea>
+          </div>
+          <div class="setup-actions">
+            <button class="btn btn-primary" onclick="saveCodexAuth()">Save Codex auth</button>
+            <span class="muted" id="codexSetupStatus"></span>
+          </div>
         </div>
         <div class="setup-step">
           <h3>Client endpoint</h3>
-          <p>Point OpenAI-compatible clients at the app URL. No model API key is required unless client auth is explicitly enabled in the environment.</p>
+          <p>Point OpenAI-compatible clients at the app URL. Provider credentials are stored only in this app's data directory.</p>
           <code>http://sage-router:8790/v1</code>
+          <code id="setupProviderPath"></code>
+          <code id="setupCodexPath"></code>
         </div>
       </div>
     </div>
@@ -118,18 +162,82 @@
   </div>
   <script>
     const API = window.location.origin;
+    const providerDefaults = {
+      'ollama': {name: 'ollama', baseUrl: 'http://host.docker.internal:11434'},
+      'openai-completions': {name: 'openai', baseUrl: 'https://api.openai.com/v1'},
+      'anthropic-messages': {name: 'anthropic', baseUrl: 'https://api.anthropic.com'},
+      'google-generative-language': {name: 'google', baseUrl: 'https://generativelanguage.googleapis.com/v1beta'}
+    };
     function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
     async function api(path, opts = {}) {
       const r = await fetch(API + path, opts);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     }
+    function applyProviderDefaults() {
+      const kind = document.getElementById('providerKind').value;
+      const defaults = providerDefaults[kind] || {};
+      document.getElementById('providerName').value = defaults.name || '';
+      document.getElementById('providerBaseUrl').value = defaults.baseUrl || '';
+    }
+    async function postJson(path, payload) {
+      const r = await fetch(API + path, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+      return body;
+    }
+    async function saveProvider() {
+      const status = document.getElementById('providerSetupStatus');
+      status.textContent = 'Saving...';
+      try {
+        await postJson('/setup/provider', {
+          name: document.getElementById('providerName').value,
+          api: document.getElementById('providerKind').value,
+          baseUrl: document.getElementById('providerBaseUrl').value,
+          apiKey: document.getElementById('providerApiKey').value,
+          models: document.getElementById('providerModels').value
+        });
+        document.getElementById('providerApiKey').value = '';
+        status.textContent = 'Saved';
+        await loadAll();
+      } catch (e) {
+        status.textContent = `Failed: ${e.message || e}`;
+      }
+    }
+    async function saveCodexAuth() {
+      const status = document.getElementById('codexSetupStatus');
+      const token = document.getElementById('codexToken').value.trim();
+      const rawJson = document.getElementById('codexAuthJson').value.trim();
+      const payload = {};
+      status.textContent = 'Saving...';
+      try {
+        if (rawJson) {
+          const parsed = JSON.parse(rawJson);
+          if (parsed && parsed.profiles) payload.authProfileJson = parsed;
+          else payload.authJson = parsed;
+        } else {
+          payload.accessToken = token;
+        }
+        await postJson('/setup/codex-auth', payload);
+        document.getElementById('codexToken').value = '';
+        document.getElementById('codexAuthJson').value = '';
+        status.textContent = 'Saved';
+        await loadAll();
+      } catch (e) {
+        status.textContent = `Failed: ${e.message || e}`;
+      }
+    }
     async function loadAll() {
       document.getElementById('statusText').textContent = 'Loading...';
-      const [health, modelsResp, analytics] = await Promise.all([
+      const [health, modelsResp, analytics, setup] = await Promise.all([
         api('/health').catch(() => ({})),
         api('/v1/models').catch(() => ({})),
-        api('/analytics?days=7').catch(() => ({}))
+        api('/analytics?days=7').catch(() => ({})),
+        api('/setup/state').catch(() => ({}))
       ]);
       // Status
       const ok = health.status === 'ok';
@@ -181,6 +289,9 @@
       if (setupCard) {
         const configuredCount = Array.isArray(configured) ? configured.length : Object.keys(configured || {}).length;
         setupCard.classList.toggle('active', configuredCount === 0 || modelList.length === 0);
+        const paths = setup.paths || {};
+        document.getElementById('setupProviderPath').textContent = paths.providerConfig || '';
+        document.getElementById('setupCodexPath').textContent = paths.codexAuthJson || paths.codexAuthProfile || '';
       }
       // Health details
       const hEntries = health.reasoningCapabilities || {};
