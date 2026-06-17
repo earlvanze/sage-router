@@ -1,7 +1,7 @@
 ---
 name: sage-router
 description: Local-first AI model routing for serious agents. One endpoint. Any provider. The router figures out the rest.
-version: 4.157.1
+version: 4.157.2
 env:
   - SAGE_ROUTER_HOME (required: path to sage-router repo)
   - SAGE_ROUTER_DISABLED_PROVIDERS (optional: comma-separated provider names to suppress)
@@ -26,12 +26,15 @@ Any Anthropic-compatible tool (Cursor, Aider, Claude Code, Zed, Continue, OpenHa
 
 ## Active Providers
 
-Providers are discovered from `~/.openclaw/openclaw.json` at startup.
+Providers are discovered from app-owned or harness config at startup. For
+Umbrel and Docker installs, write provider config under the mounted app config
+directory, usually `/config/openclaw/openclaw.json`. For local OpenClaw installs,
+`~/.openclaw/openclaw.json` remains supported.
 
 Rules:
 - skips the router's own `sage-router` provider entry to avoid recursion
 - resolves `${ENV_VAR}` values for `baseUrl` and `apiKey`
-- includes OpenClaw gateway `openai-codex` as a virtual provider when the auth profile exists
+- includes `openai-codex` only when a token or imported app-owned auth JSON exists, unless an explicit gateway fallback is enabled
 - recognizes Google Gemini providers from `generativelanguage.googleapis.com`
 - auto-discovers Google models when the provider exists but `models` is empty in `openclaw.json`
 - normalizes `anthropic` or Anthropic-hosted `anthropic-messages` providers onto the local Dario proxy at `localhost:3456`
@@ -50,7 +53,7 @@ The router does **not** perform mid-stream switching. Once a request is sent to 
 Flow:
 - detect intent from the latest user message
 - estimate complexity from prompt length
-- score every reachable (provider, model) pair globally — not per-provider — from `openclaw.json`
+- score every reachable (provider, model) pair globally — not per-provider — from the discovered provider config
 - in `local-first`, operate as local-strict: reject centralized Internet API providers and only allow local/LAN/Tailnet endpoints plus approved decentralized providers such as Darkbloom, with Ollama `:cloud` models excluded
 - for `GENERAL`, blend static heuristics with persisted empirical latency stats by provider and model
 - rank candidates by API type, model-name hints, complexity, and measured latency
@@ -116,7 +119,7 @@ journalctl --user -u sage-router -f   # live logs
 ## Docker production notes
 
 - Docker image includes Node, Python, Sage Router, and `@askalf/dario`.
-- Mount host Dario credentials as `~/.dario:/root/.dario` for Anthropic-compatible Claude routing.
+- Mount an app-owned config directory at `/config` and use the dashboard setup flow for provider config or Codex auth JSON imports.
 - Enable llama.cpp classifier sidecar with `docker compose --profile classifier up -d` and `SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED=1`.
 - Production classifier flags: `SAGE_ROUTER_INTENT_CLASSIFIER_PROVIDER=llamacpp`, `SAGE_ROUTER_INTENT_CLASSIFIER_BASE_URL=http://llamacpp-classifier:8080`, `SAGE_ROUTER_INTENT_CLASSIFIER_MODEL=classifier`.
 
