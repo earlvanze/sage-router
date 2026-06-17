@@ -4,8 +4,8 @@
 
 One endpoint. Any provider. The router figures out the rest.
 
-[![Umbrel](https://img.shields.io/badge/Umbrel-1.0.3-purple)](https://github.com/getumbrel/umbrel-apps/pull/5720)
-[![ClawHub](https://img.shields.io/badge/ClawHub-v4.157.0-blue)](https://clawhub.ai/earlvanze/sage-router)
+[![Umbrel](https://img.shields.io/badge/Umbrel-1.0.4-purple)](https://github.com/getumbrel/umbrel-apps/pull/5720)
+[![ClawHub](https://img.shields.io/badge/ClawHub-v4.157.1-blue)](https://clawhub.ai/earlvanze/sage-router)
 [![GitHub](https://img.shields.io/badge/GitHub-earlvanze%2Fsage--router-black)](https://github.com/earlvanze/sage-router)
 
 ---
@@ -51,7 +51,7 @@ Install from the [Umbrel App Store](https://github.com/getumbrel/umbrel-apps/pul
 - https://github.com/earlvanze/umbrel-personal-apps
 ```
 
-The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.5` and stores its config under the app data directory. The built-in config dashboard is accessible from the Umbrel app tile.
+The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.6` and stores its config under the app data directory. The built-in config dashboard is accessible from the Umbrel app tile.
 
 ### Configure Your Tools
 
@@ -462,7 +462,7 @@ docker run -p 8790:8790 \
   -v ~/.openclaw:/root/.openclaw:ro \
   -v ~/.dario:/root/.dario \
   -v sage-router-ollama:/root/.ollama \
-  ghcr.io/earlvanze/sage-router-public:v3.28.5
+  ghcr.io/earlvanze/sage-router-public:v3.28.6
 ```
 
 `/config` may be mounted read-only. Runtime state for bundled Dario and Ollama belongs in writable locations such as `/root/.dario` and `/root/.ollama`; the Docker image defaults keep that state out of `/config`.
@@ -673,7 +673,7 @@ LOG_LEVEL=DEBUG python3 router.py
 - [x] Integration guides for major agent harnesses and SDK-compatible clients
 - [x] Waitlist capture into AOps Supabase
 - [x] OpenClaw Codex OAuth passthrough (chatgpt.com/backend-api/codex)
-- [x] Umbrel App Store packaging (v1.0.3)
+- [x] Umbrel App Store packaging (v1.0.4)
 - [x] Built-in config dashboard with provider health, toggles, and analytics
 
 ### Next
