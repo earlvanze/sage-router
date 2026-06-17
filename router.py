@@ -5702,6 +5702,11 @@ def apply_discord_public_route_profile(payload):
     existing_allows = list(req.get('allowModels') or [])
     existing_providers = list(req.get('allowProviders') or [])
     existing_fallbacks = list(req.get('fallbackProviders') or [])
+    provider_allow = existing_providers or [
+        'ollama-cloud', 'openai-codex', 'openai', 'ollama-cyber',
+        'nvidia', 'nvidia-nim', 'openrouter', 'google-vertex',
+    ]
+    provider_fallbacks = existing_fallbacks or ['google-vertex']
     req.update({
         'qualitySensitive': True,
         'reasoning': False,
@@ -5719,11 +5724,8 @@ def apply_discord_public_route_profile(payload):
             'google-vertex/gemini-3-flash-preview',
             'google-vertex/gemini-2.5-pro',
         ]),
-        'allowProviders': dedupe_keep_order(existing_providers + [
-            'openai-codex', 'openai', 'ollama', 'ollama-cloud', 'ollama-cyber',
-            'nvidia', 'nvidia-nim', 'openrouter', 'google-vertex',
-        ]),
-        'fallbackProviders': dedupe_keep_order(existing_fallbacks + ['google-vertex']),
+        'allowProviders': dedupe_keep_order(provider_allow),
+        'fallbackProviders': dedupe_keep_order(provider_fallbacks),
         # Merge instead of replace so the named profile's existing denyModels
         # (e.g. router-profiles.json's '*mini*') are preserved alongside the
         # discord-public hardcoded list.

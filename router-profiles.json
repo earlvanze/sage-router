@@ -114,6 +114,12 @@
       "requiresQuality": true,
       "requiresReasoning": true,
       "frontierOrReasoningTools": true,
+      "allowProviders": [
+        "ollama-cloud"
+      ],
+      "fallbackProviders": [
+        "ollama-cyber"
+      ],
       "suppressIntermediateToolText": true,
       "denyModels": [
         "*-mini*", "*:mini*", "*mini/*",
