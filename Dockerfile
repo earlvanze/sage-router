@@ -17,7 +17,7 @@ RUN apt-get update \
     && curl -fsSL "$OLLAMA_DOWNLOAD_URL" | tar --zstd -x -C /usr/local
 
 WORKDIR /app
-COPY router.py harness_discovery.py router-profiles.json provider-profiles.json openclaw_gateway_agent.mjs requirements.txt ./
+COPY router.py harness_discovery.py router-profiles.json provider-profiles.json openclaw_gateway_agent.mjs openclaw_sdk_resolver.mjs requirements.txt ./
 COPY scripts ./scripts
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY web/dashboard ./web/dashboard/

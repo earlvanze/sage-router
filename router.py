@@ -3132,6 +3132,13 @@ def read_openai_codex_oauth_token_from_file():
                 if token and (not expires or float(expires) * (1000 if float(expires) < 10_000_000_000 else 1) > now_ms):
                     logger.info(f'Loaded openai-codex OAuth token from mounted Hermes auth {path}')
                     return token
+        # Codex CLI auth.json shape: {"auth_mode":"chatgpt","tokens":{"access_token":...}}.
+        tokens = data.get('tokens') if isinstance(data, dict) else None
+        if isinstance(tokens, dict):
+            token = tokens.get('access_token') or tokens.get('access') or ''
+            if token:
+                logger.info(f'Loaded openai-codex OAuth token from Codex auth file {path}')
+                return token
     return ''
 
 def load_hosted_secret_providers():
@@ -7360,7 +7367,12 @@ def prepare_route(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_
             return normalized_messages, intent, complexity, estimated_tokens, []
         if prov.api_type == 'ollama':
             fetch_ollama_models(prov)
-        if prov.models and provider_endpoint_reachable(prov):
+        # Explicit provider/model requests should be attempted directly. A
+        # lightweight reachability probe can be stale or insufficient for
+        # OAuth-backed providers such as openai-codex, and falling back here
+        # makes a hard request like openai-codex/gpt-5.5 silently route to an
+        # unrelated model.
+        if prov.models and (provider_endpoint_reachable(prov) or requested_model):
             # Build chain, prioritizing the requested model if specified
             all_models = dedupe_keep_order(prov.models)
             if requested_model and requested_model not in all_models:
