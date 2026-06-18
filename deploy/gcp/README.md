@@ -43,7 +43,7 @@ The `tech-mvp` OpenClaw agent used Sage Router as a frontier profile with an Ope
 
 ```json
 {
-  "baseUrl": "http://localhost:8788/v1",
+  "baseUrl": "http://localhost:8790/v1",
   "apiKey": "local",
   "api": "openai-completions",
   "models": [

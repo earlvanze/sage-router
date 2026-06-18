@@ -5,7 +5,7 @@ Continue can point at Sage Router as an OpenAI-compatible model provider.
 Use this endpoint:
 
 ```text
-http://localhost:8788/v1
+http://localhost:8790/v1
 ```
 
 Use this API key placeholder:

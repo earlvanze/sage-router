@@ -3,7 +3,7 @@
 OpenHands can route through Sage Router when configured with an OpenAI-compatible endpoint.
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:8788/v1
+export OPENAI_BASE_URL=http://localhost:8790/v1
 export OPENAI_API_KEY=local-router
 ```
 

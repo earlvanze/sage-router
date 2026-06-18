@@ -8,7 +8,7 @@ services:
     env_file:
       - .env
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:${SAGE_ROUTER_EDGE_PORT:-8790}/edge/health"]
+      test: ["CMD", "python3", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/edge/health' % os.environ.get('SAGE_ROUTER_EDGE_PORT', '8790'), timeout=5)"]
       interval: 30s
       timeout: 5s
       retries: 3

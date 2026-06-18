@@ -5,7 +5,7 @@ Pi agents can route through Sage Router when they support an OpenAI-compatible b
 ## Environment
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:8788/v1
+export OPENAI_BASE_URL=http://localhost:8790/v1
 export OPENAI_API_KEY=local-router
 ```
 

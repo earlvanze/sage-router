@@ -7,19 +7,19 @@ openclaw skill add sage-router --from clawhub
 openclaw skill configure sage-router
 ```
 
-Start Sage Router on port `8788`.
+Start Sage Router on port `8790`.
 
 OpenAI-compatible tools:
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:8788/v1
+export OPENAI_BASE_URL=http://localhost:8790/v1
 export OPENAI_API_KEY=local-router
 ```
 
 Anthropic-compatible tools:
 
 ```bash
-export ANTHROPIC_BASE_URL=http://localhost:8788
+export ANTHROPIC_BASE_URL=http://localhost:8790
 export ANTHROPIC_API_KEY=local-router
 ```
 

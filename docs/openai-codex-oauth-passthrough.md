@@ -47,7 +47,7 @@ Add `openai-codex` as a provider with `api: "openai-codex-responses"`:
       "ollama": { ... },
       "sage-router": { ... },
       "openai-codex": {
-        "baseUrl": "http://127.0.0.1:8788",
+        "baseUrl": "http://127.0.0.1:8790",
         "api": "openai-codex-responses",
         "models": [
           { "id": "gpt-5.5", "name": "gpt-5.5", "reasoning": true, "input": ["text"] },
@@ -122,7 +122,7 @@ DEFAULT_OPENAI_CODEX_MODELS = [
 ```
 Client Request
     ↓
-Sage Router (localhost:8788)
+Sage Router (localhost:8790)
     ↓
 Model Selection: openai-codex/gpt-5.5
     ↓

@@ -7,7 +7,7 @@ version: '3.8'
 # Internal service-to-service URLs (all resolve via this compose's default network):
 #   openclaw        -> http://openclaw:18789  (gateway WebSocket)
 #                       http://openclaw:18790  (HTTP / REST API)
-#   sage-router     -> http://sage-router:8788
+#   sage-router     -> http://sage-router:8790
 #   openclawfice    -> http://openclawfice:3333
 #   ollama bundled  -> http://sage-router:11434 (only used if SAGE_ROUTER_BUNDLED_OLLAMA_AUTOSTART=1)
 
@@ -34,7 +34,7 @@ services:
       OPENCLAW_STATE_DIR: /home/umbrel/.openclaw
       # Tell OpenClaw's gateway agent where to find sage-router so it can
       # call out to chatgpt.com/backend-api/codex via sage-router's OAuth bridge.
-      SAGE_ROUTER_URL: http://sage-router:8788
+      SAGE_ROUTER_URL: http://sage-router:8790
 
   # ─── Sage Router ──────────────────────────────────────────────────
   # Pre-built image (no longer builds from source) — pin to a specific image
@@ -44,7 +44,7 @@ services:
     container_name: cyber_sage_router
     restart: unless-stopped
     ports:
-      - "8788:8788"
+      - "8790:8790"
       # Only expose bundled Ollama externally if SAGE_ROUTER_BUNDLED_OLLAMA_AUTOSTART=1
       - "11434:11434"
       - "3456:3456"
@@ -60,7 +60,7 @@ services:
       # Optional llama.cpp GGUF cache for the intent classifier sidecar
       - sage-router-models:/models
     environment:
-      PORT: "8788"
+      PORT: "8790"
       SAGE_ROUTER_HOME: /config
       SAGE_ROUTER_API_KEY: local
       SAGE_ROUTER_BUNDLED_OLLAMA_AUTOSTART: "1"
@@ -78,7 +78,7 @@ services:
       OPENAI_CODEX_API_KEY: ${OPENAI_CODEX_API_KEY:-}
       SAGE_ROUTER_ALLOW_RESTART: "1"
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8788/health')"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8790/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -99,7 +99,7 @@ services:
       # Use the compose service names so openclawfice can reach each over
       # the default compose network without going through the host.
       NEXT_PUBLIC_OPENCLAW_URL: http://openclaw:18790
-      NEXT_PUBLIC_SAGE_ROUTER_URL: http://sage-router:8788
+      NEXT_PUBLIC_SAGE_ROUTER_URL: http://sage-router:8790
       NODE_ENV: production
       PORT: "3333"
       HOSTNAME: "0.0.0.0"

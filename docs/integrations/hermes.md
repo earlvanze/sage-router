@@ -4,12 +4,12 @@ Hermes-style operator agents can use Sage Router as the stable model endpoint be
 
 ## Recommended shape
 
-- Point OpenAI-compatible Hermes calls at `http://localhost:8788/v1`.
+- Point OpenAI-compatible Hermes calls at `http://localhost:8790/v1`.
 - Keep the visible operator workflow unchanged.
 - Let Sage Router choose the right route for status, review, escalation, and long-running agent work.
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:8788/v1
+export OPENAI_BASE_URL=http://localhost:8790/v1
 export OPENAI_API_KEY=local-router
 ```
 

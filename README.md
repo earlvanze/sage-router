@@ -55,7 +55,7 @@ The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.7` and stores it
 
 ### Tailnet Edge Endpoint
 
-For a CDN-style private endpoint across multiple Sage Router installs, deploy the Tailnet edge proxy:
+For a CDN-style endpoint across multiple Sage Router installs, deploy the Tailnet edge proxy:
 
 ```bash
 cd deploy/tailnet-edge
@@ -64,15 +64,15 @@ docker compose up -d --build
 tailscale serve --bg --https=443 http://127.0.0.1:8790
 ```
 
-The edge health-checks each configured Tailnet upstream, routes OpenAI-compatible traffic to a healthy Sage Router node, and keeps provider credentials on the private routers. See [deploy/tailnet-edge](deploy/tailnet-edge/README.md) for Google Cloud VM bootstrap and public monetization notes.
+The edge health-checks each configured Tailnet upstream, routes OpenAI-compatible traffic to the lowest-latency healthy Sage Router node, and keeps provider credentials on the private routers. Use Tailscale Funnel to expose the edge publicly on HTTPS 443, then put `api.sagerouter.dev` in front of that verified Funnel hostname. See [deploy/tailnet-edge](deploy/tailnet-edge/README.md) for Google Cloud VM bootstrap and public monetization notes.
 
 ### sagerouter.dev Deployment Map
 
 The current public deployment is intentionally split:
 
 - `https://sagerouter.dev` and `https://www.sagerouter.dev` are static Cloudflare Pages (`sage-router-web`). They host marketing/docs/account UI only.
-- `https://api.sagerouter.dev` points at the Google-hosted Sage Router API service. This is the public API/control-plane surface, not the static site.
-- Tailnet Edge is a private reliability layer for routing to healthy Sage Router installs on a Tailnet. Keep it separate from public DNS until billing, rate limits, abuse controls, and customer API key issuance are in front of it.
+- `https://api.sagerouter.dev` currently points at the Google-hosted Sage Router API service. It can be moved to a verified Tailnet Edge/Funnel origin once that origin passes `/edge/health`, `/health`, `/v1/models`, and chat completion checks.
+- Tailnet Edge is the reliability layer for routing to healthy Sage Router installs on a Tailnet. Keep customer auth, billing, rate limits, abuse controls, and customer API key issuance in front of it before public monetization.
 
 For the existing GCP deployment notes, see [deploy/gcp](deploy/gcp/README.md). For the privacy-preserving relay design where customer credentials stay on the user's machine, see [docs/cloud-tunnel](docs/cloud-tunnel/README.md).
 

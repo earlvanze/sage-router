@@ -76,10 +76,10 @@ function App() {
               <span></span><span></span><span></span>
             </div>
             <pre>{`# run the local router
-python3 router.py --port 8788
+python3 router.py --port 8790
 
 # connect an OpenAI-compatible tool
-export OPENAI_BASE_URL=http://localhost:8788/v1
+export OPENAI_BASE_URL=http://localhost:8790/v1
 export OPENAI_API_KEY=local-router
 
 # Sage Router selects a route

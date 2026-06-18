@@ -3,7 +3,7 @@
 Sage Router exposes an Anthropic Messages-compatible endpoint for tools that use Claude-style requests.
 
 ```bash
-export ANTHROPIC_BASE_URL=http://localhost:8788
+export ANTHROPIC_BASE_URL=http://localhost:8790
 export ANTHROPIC_API_KEY=local-router
 ```
 

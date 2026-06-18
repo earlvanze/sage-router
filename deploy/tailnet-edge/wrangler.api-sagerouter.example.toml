@@ -1,0 +1,12 @@
+name = "sage-router-api-edge"
+main = "cloudflare-api-worker.js"
+compatibility_date = "2026-06-18"
+
+routes = [
+  { pattern = "api.sagerouter.dev/*", zone_name = "sagerouter.dev" }
+]
+
+[vars]
+# Set this to the verified public Tailscale Funnel hostname.
+# Example: SAGE_ROUTER_EDGE_ORIGIN = "https://sage-router-edge.talpa-stargazer.ts.net"
+SAGE_ROUTER_EDGE_ORIGIN = "https://sage-router-edge.example.ts.net"

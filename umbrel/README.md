@@ -41,7 +41,7 @@ gateway bridge so existing setups continue to work.
 
 ## Built-in dashboard
 
-The dashboard at port 8788 (Umbrel forwards it automatically) shows:
+The dashboard at port 8790 (Umbrel forwards it automatically) shows:
 
 - Live provider list with model counts and capability flags
 - Per-provider health and recent request history

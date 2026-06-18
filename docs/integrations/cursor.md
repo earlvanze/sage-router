@@ -5,14 +5,14 @@ Cursor can use Sage Router through OpenAI-compatible or Anthropic-compatible set
 ## OpenAI-compatible endpoint
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:8788/v1
+export OPENAI_BASE_URL=http://localhost:8790/v1
 export OPENAI_API_KEY=local-router
 ```
 
 ## Anthropic-compatible endpoint
 
 ```bash
-export ANTHROPIC_BASE_URL=http://localhost:8788
+export ANTHROPIC_BASE_URL=http://localhost:8790
 export ANTHROPIC_API_KEY=local-router
 ```
 

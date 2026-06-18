@@ -20,7 +20,7 @@ docker push registry.connect.cloudflare.com/your-account/sage-router:latest
 wrangler containers deploy sage-router --image registry.connect.cloudflare.com/your-account/sage-router:latest
 ```
 
-Then configure `PORT=8788` and mount `~/.openclaw` via a secrets volume or Workers KV for `openclaw.json`.
+Then configure `PORT=8790` and mount `~/.openclaw` via a secrets volume or Workers KV for `openclaw.json`.
 
 ---
 
@@ -32,12 +32,12 @@ Run the container on a home/lightsail VPS, expose via `cloudflared tunnel`:
 # On your host
 docker run -d --restart=always \
   --name sage-router \
-  -p 127.0.0.1:8788:8788 \
+  -p 127.0.0.1:8790:8790 \
   -v ~/.openclaw:/config:ro \
   sage-router:test
 
 # Cloudflare Tunnel (zero-config, no open ports)
-cloudflared tunnel --url http://localhost:8788
+cloudflared tunnel --url http://localhost:8790
 # Copy the returned https://xxx.trycloudflare.com URL
 # Use that as OPENAI_BASE_URL in your AI tools
 ```
@@ -70,13 +70,13 @@ Traditional VPS deployment with automatic TLS:
 # On your VPS
 docker run -d --restart=always \
   --name sage-router \
-  -p 127.0.0.1:8788:8788 \
+  -p 127.0.0.1:8790:8790 \
   -v ~/.openclaw:/config:ro \
   sage-router:test
 
 # Caddyfile
 # sage-router.example.com {
-#   reverse_proxy localhost:8788
+#   reverse_proxy localhost:8790
 # }
 ```
 
@@ -90,7 +90,7 @@ If you have the image published to `ghcr.io`:
 docker pull ghcr.io/earlvanze/sage-router:latest
 docker run -d --restart=always \
   --name sage-router \
-  -p 8788:8788 \
+  -p 8790:8790 \
   -v ~/.openclaw:/config:ro \
   ghcr.io/earlvanze/sage-router:latest
 ```

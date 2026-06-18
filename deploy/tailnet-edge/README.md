@@ -1,6 +1,6 @@
 # Sage Router Tailnet Edge
 
-This deploys a CDN-style Tailnet edge endpoint for Sage Router. It runs a small Caddy reverse proxy on a stable Tailnet node, health-checks multiple private Sage Router installations, and routes OpenAI-compatible traffic to whichever upstream is healthy.
+This deploys a CDN-style Tailnet edge endpoint for Sage Router. It runs a small reverse proxy on a stable Tailnet node, health-checks multiple private Sage Router installations, tracks probe latency, and routes OpenAI-compatible traffic to the lowest-latency healthy upstream.
 
 The edge does not hold provider credentials. Clients authenticate to the edge with `SAGE_ROUTER_EDGE_TOKEN`; the edge injects `SAGE_ROUTER_BACKEND_TOKEN` when it calls private Sage Router nodes.
 
@@ -8,9 +8,9 @@ The edge does not hold provider credentials. Clients authenticate to the edge wi
 
 ```text
 Codex / OpenClaw / API client
-  -> https://sage-router-edge.<tailnet>.ts.net/v1/...
+  -> https://sage-router-edge.<tailnet>.ts.net/v1/... or https://api.sagerouter.dev/v1/...
   -> sage-router-tailnet-edge
-  -> healthy Sage Router node over Tailnet
+  -> lowest-latency healthy Sage Router node over Tailnet
   -> user's configured providers
 ```
 
@@ -22,9 +22,9 @@ The current `sagerouter.dev` setup has separate responsibilities:
 
 - `sagerouter.dev` / `www.sagerouter.dev`: Cloudflare Pages static site (`sage-router-web`).
 - `api.sagerouter.dev`: Google-hosted Sage Router API service.
-- Tailnet Edge: private failover endpoint for routing to one of several Tailnet-local Sage Router installs.
+- Tailnet Edge: private failover endpoint for routing to the fastest healthy Tailnet-local Sage Router install.
 
-Do not replace `api.sagerouter.dev` with Tailnet Edge directly. If you want to test public routing, introduce a separate hostname first, for example `edge.sagerouter.dev` or `tailnet-api.sagerouter.dev`, then put customer auth, billing, rate limits, and abuse controls in front of the edge before offering it outside the Tailnet.
+Before replacing `api.sagerouter.dev`, publish the edge through Tailscale Funnel, verify `/edge/health`, `/health`, `/v1/models`, and a small chat completion, then update DNS. Keep customer auth, billing, rate limits, and abuse controls in front of the edge before offering it outside the Tailnet.
 
 For hosted relay/control-plane work where provider credentials stay on the user's machine, use the Cloudflare Worker/Durable Object tunnel design in `docs/cloud-tunnel/README.md` as the product direction. Tailnet Edge is the operational failover primitive, not the customer-facing key-custody boundary.
 
@@ -39,7 +39,7 @@ Edit `.env`:
 
 ```dotenv
 SAGE_ROUTER_EDGE_PORT=8790
-SAGE_ROUTER_UPSTREAMS=http://cyber.example.ts.net:8790,http://umbrel.example.ts.net:8788
+SAGE_ROUTER_UPSTREAMS=http://cyber.example.ts.net:8790,http://umbrel.example.ts.net:8790
 SAGE_ROUTER_EDGE_TOKEN=replace-with-client-facing-token
 SAGE_ROUTER_BACKEND_TOKEN=local
 ```
@@ -64,7 +64,7 @@ curl http://127.0.0.1:8790/v1/chat/completions \
 
 ## Publish inside the Tailnet
 
-On a Linux Tailnet node, expose the local edge through Tailscale Serve:
+On a Tailnet node, expose the local edge privately through Tailscale Serve:
 
 ```bash
 tailscale serve --bg --https=443 http://127.0.0.1:8790
@@ -77,6 +77,32 @@ export OPENAI_BASE_URL=https://sage-router-edge.example.ts.net/v1
 export OPENAI_API_KEY=replace-with-client-facing-token
 ```
 
+## Publish publicly with Funnel
+
+After Serve works, enable Tailscale Funnel for the same local edge target:
+
+```bash
+tailscale funnel --bg --https=443 http://127.0.0.1:8790
+```
+
+Funnel exposes the node's `*.ts.net` HTTPS name publicly. Verify the Funnel hostname before putting `api.sagerouter.dev` in front of it:
+
+```bash
+curl https://sage-router-edge.example.ts.net/edge/health
+curl https://sage-router-edge.example.ts.net/v1/models -H "Authorization: Bearer replace-with-client-facing-token"
+```
+
+Do not CNAME `api.sagerouter.dev` directly to a Funnel hostname unless you have confirmed TLS/SNI behavior for that custom hostname. The safer public cutover is a Cloudflare Worker route on `api.sagerouter.dev/*` that fetches the verified Funnel origin:
+
+```bash
+cd deploy/tailnet-edge
+cp wrangler.api-sagerouter.example.toml wrangler.toml
+# Edit SAGE_ROUTER_EDGE_ORIGIN to the verified https://*.ts.net Funnel URL.
+npx wrangler deploy --config wrangler.toml
+```
+
+Cloudflare can then provide DNS, proxying, WAF, cache rules for cacheable non-streaming paths, and optional Load Balancing if you later expose multiple public edge origins. The Tailnet Edge process still performs the application-aware lowest-latency selection among private Sage Router installs.
+
 ## Google Cloud VM bootstrap
 
 Use `cloud-init-gcp.yaml.example` when creating or replacing a small Google Cloud VM. Replace:
@@ -85,7 +111,7 @@ Use `cloud-init-gcp.yaml.example` when creating or replacing a small Google Clou
 - `REPLACE_WITH_EDGE_TOKEN`
 - the example upstream hostnames
 
-Google Cloud accepts cloud-init user data through `gcloud compute instances create --metadata-from-file user-data=cloud-init-gcp.yaml` or the equivalent console field. The VM needs only Docker, Tailscale, outbound Tailnet access, and enough CPU/RAM for Caddy.
+Google Cloud accepts cloud-init user data through `gcloud compute instances create --metadata-from-file user-data=cloud-init-gcp.yaml` or the equivalent console field. The VM needs only Docker, Tailscale, outbound Tailnet access, and enough CPU/RAM for the edge proxy.
 
 If you are recovering the existing `sagerouter.dev` infrastructure, authenticate `gcloud` first and inspect the known Cloud Run project before changing DNS:
 
@@ -99,7 +125,7 @@ gcloud app domain-mappings list
 
 ## Operations
 
-- `SAGE_ROUTER_LB_POLICY=first` keeps traffic sticky to the first healthy upstream in the configured list. Use `round_robin` when you want active distribution.
-- `/edge/health` reports the edge process health. Upstream health is handled by Caddy active checks against `SAGE_ROUTER_HEALTH_PATH`.
+- `/edge/health` reports the selected upstream and last probe latency/error for every configured upstream.
+- Upstream health probes use `SAGE_ROUTER_HEALTH_PATH`, `SAGE_ROUTER_HEALTH_INTERVAL_SECONDS`, and `SAGE_ROUTER_HEALTH_TIMEOUT_SECONDS`.
 - Keep the edge token separate from backend router tokens so you can rotate customer/client access without reconfiguring private Sage Router installs.
 - Do not mount `.openclaw`, provider keys, OAuth profiles, or billing secrets into the edge container.

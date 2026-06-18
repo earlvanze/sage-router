@@ -14,7 +14,7 @@ Sage Router now mirrors the useful agent-native pieces from BlockRunAI/ClawRoute
 Public endpoint:
 
 ```bash
-curl http://localhost:8788/features/agent-native
+curl http://localhost:8790/features/agent-native
 ```
 
 ## Routing profiles
@@ -36,13 +36,13 @@ The public catalog uses the ClawRouter-style plan ladder:
 Public endpoint:
 
 ```bash
-curl http://localhost:8788/pricing
+curl http://localhost:8790/pricing
 ```
 
 Stripe checkout accepts a plan:
 
 ```bash
-curl -X POST http://localhost:8788/billing/stripe/checkout \
+curl -X POST http://localhost:8790/billing/stripe/checkout \
   -H "Authorization: Bearer $SUPABASE_USER_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"plan":"pro"}'

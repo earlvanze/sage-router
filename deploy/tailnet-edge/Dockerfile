@@ -1,9 +1,6 @@
-FROM caddy:2-alpine
+FROM python:3.12-alpine
 
-RUN apk add --no-cache curl
+COPY edge_proxy.py /usr/local/bin/sage-router-edge
+RUN chmod +x /usr/local/bin/sage-router-edge
 
-COPY entrypoint.sh /usr/local/bin/sage-router-edge-entrypoint
-RUN chmod +x /usr/local/bin/sage-router-edge-entrypoint
-
-ENTRYPOINT ["/usr/local/bin/sage-router-edge-entrypoint"]
-CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+CMD ["sage-router-edge"]

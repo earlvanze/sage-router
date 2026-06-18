@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const relayUrl = process.env.SAGE_TUNNEL_URL;
 const token = process.env.SAGE_TUNNEL_TOKEN;
-const localBase = (process.env.SAGE_TUNNEL_LOCAL_BASE_URL || 'http://127.0.0.1:8788').replace(/\/$/, '');
+const localBase = (process.env.SAGE_TUNNEL_LOCAL_BASE_URL || 'http://127.0.0.1:8790').replace(/\/$/, '');
 const localAuth = process.env.SAGE_TUNNEL_LOCAL_AUTH || '';
 
 if (!relayUrl || !token) {

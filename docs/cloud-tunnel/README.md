@@ -40,7 +40,7 @@ npx wrangler deploy
 ```bash
 SAGE_TUNNEL_URL=wss://sage-ai-tunnel.<account>.workers.dev/tunnel/connect \
 SAGE_TUNNEL_TOKEN='<same secret>' \
-SAGE_TUNNEL_LOCAL_BASE_URL=http://127.0.0.1:8788 \
+SAGE_TUNNEL_LOCAL_BASE_URL=http://127.0.0.1:8790 \
 node scripts/sage_tunnel_connector.mjs
 ```
 

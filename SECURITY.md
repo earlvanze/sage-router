@@ -57,7 +57,7 @@ Credentials are held in memory and used as `Authorization: Bearer …` headers. 
 
 - The host running Sage Router is trusted. Anyone with shell access can read the env / auth-profiles.json.
 - The Docker network between Sage Router and bundled providers (Ollama, OpenClaw) is trusted; nothing leaves the host unless you tunnel it.
-- Untrusted clients should put a reverse proxy in front of port `8788` and supply `SAGE_ROUTER_CLIENT_API_KEYS`.
+- Untrusted clients should put a reverse proxy in front of port `8790` and supply `SAGE_ROUTER_CLIENT_API_KEYS`.
 
 ## Reporting issues
 

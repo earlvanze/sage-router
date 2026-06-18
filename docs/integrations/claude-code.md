@@ -2,10 +2,10 @@
 
 Claude Code and Anthropic-compatible clients can talk to Sage Router through the Anthropic Messages endpoint.
 
-Start Sage Router on port `8788`, then export:
+Start Sage Router on port `8790`, then export:
 
 ```bash
-export ANTHROPIC_BASE_URL=http://localhost:8788
+export ANTHROPIC_BASE_URL=http://localhost:8790
 export ANTHROPIC_API_KEY=local-router
 ```
 
