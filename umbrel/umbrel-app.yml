@@ -38,7 +38,8 @@ support: https://github.com/earlvanze/sage-router/issues
 submission: https://github.com/getumbrel/umbrel-apps/pull/5720
 gallery: []
 releaseNotes: ""
-dependencies: []
+dependencies:
+  - ollama
 path: ""
 defaultUsername: ""
 defaultPassword: ""
