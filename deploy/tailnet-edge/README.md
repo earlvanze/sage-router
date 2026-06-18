@@ -16,6 +16,18 @@ Codex / OpenClaw / API client
 
 Use this for private Tailnet resiliency first. For public monetization, put billing, rate limits, abuse controls, and customer API key issuance in front of this endpoint before enabling Tailscale Funnel or a public DNS proxy.
 
+## Relationship to sagerouter.dev
+
+The current `sagerouter.dev` setup has separate responsibilities:
+
+- `sagerouter.dev` / `www.sagerouter.dev`: Cloudflare Pages static site (`sage-router-web`).
+- `api.sagerouter.dev`: Google-hosted Sage Router API service.
+- Tailnet Edge: private failover endpoint for routing to one of several Tailnet-local Sage Router installs.
+
+Do not replace `api.sagerouter.dev` with Tailnet Edge directly. If you want to test public routing, introduce a separate hostname first, for example `edge.sagerouter.dev` or `tailnet-api.sagerouter.dev`, then put customer auth, billing, rate limits, and abuse controls in front of the edge before offering it outside the Tailnet.
+
+For hosted relay/control-plane work where provider credentials stay on the user's machine, use the Cloudflare Worker/Durable Object tunnel design in `docs/cloud-tunnel/README.md` as the product direction. Tailnet Edge is the operational failover primitive, not the customer-facing key-custody boundary.
+
 ## Configure
 
 ```bash
@@ -74,6 +86,16 @@ Use `cloud-init-gcp.yaml.example` when creating or replacing a small Google Clou
 - the example upstream hostnames
 
 Google Cloud accepts cloud-init user data through `gcloud compute instances create --metadata-from-file user-data=cloud-init-gcp.yaml` or the equivalent console field. The VM needs only Docker, Tailscale, outbound Tailnet access, and enough CPU/RAM for Caddy.
+
+If you are recovering the existing `sagerouter.dev` infrastructure, authenticate `gcloud` first and inspect the known Cloud Run project before changing DNS:
+
+```bash
+gcloud auth login
+gcloud config set project sage-router-demo-20260428
+gcloud run services list --region us-central1
+gcloud run domain-mappings list --region us-central1
+gcloud app domain-mappings list
+```
 
 ## Operations
 

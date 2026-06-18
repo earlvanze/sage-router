@@ -18,6 +18,7 @@ This deployment is for a public Phase 2 demo of Sage Router on Google Cloud Run.
 - Region: `us-central1`
 - Service: `sage-router`
 - URL: `https://sage-router-434058661374.us-central1.run.app`
+- Public API DNS: `https://api.sagerouter.dev`
 - Verified endpoints: `/`, `/health`, `/v1/models`
 - Runtime boundary: Dario binary and Ollama daemon are present. Dario requires user-provided auth before Anthropic-compatible provider traffic can use it. Ollama requires user-provided Ollama Cloud auth/config for cloud inference; no local model weights are bundled.
 
@@ -37,6 +38,37 @@ The script enables required APIs, creates an Artifact Registry Docker repo if ne
 SERVICE_URL=$(gcloud run services describe sage-router --region us-central1 --format 'value(status.url)')
 curl "$SERVICE_URL/health"
 ```
+
+The `tech-mvp` OpenClaw agent used Sage Router as a frontier profile with an OpenAI-compatible config like:
+
+```json
+{
+  "baseUrl": "http://localhost:8788/v1",
+  "apiKey": "local",
+  "api": "openai-completions",
+  "models": [
+    { "id": "auto", "name": "Sage Router" },
+    { "id": "frontier", "name": "Sage Router Frontier" }
+  ]
+}
+```
+
+Use that pattern as a harness-agnostic smoke test: point an agent at `/v1`, select `frontier`, and verify `/health`, `/v1/models`, and one small chat completion before promoting DNS or a new container image.
+
+## Recover existing infrastructure
+
+`api.sagerouter.dev` is already wired to a Google-hosted service. Before changing Cloudflare DNS or replacing the service, authenticate `gcloud` and inspect the known project:
+
+```bash
+gcloud auth login
+gcloud config set project sage-router-demo-20260428
+gcloud run services list --region us-central1
+gcloud run services describe sage-router --region us-central1
+gcloud run domain-mappings list --region us-central1
+gcloud app domain-mappings list
+```
+
+Cloudflare Pages remains the static site for `sagerouter.dev`; do not deploy router runtime config or provider credentials to Pages.
 
 ## Boundary
 

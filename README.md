@@ -66,6 +66,16 @@ tailscale serve --bg --https=443 http://127.0.0.1:8790
 
 The edge health-checks each configured Tailnet upstream, routes OpenAI-compatible traffic to a healthy Sage Router node, and keeps provider credentials on the private routers. See [deploy/tailnet-edge](deploy/tailnet-edge/README.md) for Google Cloud VM bootstrap and public monetization notes.
 
+### sagerouter.dev Deployment Map
+
+The current public deployment is intentionally split:
+
+- `https://sagerouter.dev` and `https://www.sagerouter.dev` are static Cloudflare Pages (`sage-router-web`). They host marketing/docs/account UI only.
+- `https://api.sagerouter.dev` points at the Google-hosted Sage Router API service. This is the public API/control-plane surface, not the static site.
+- Tailnet Edge is a private reliability layer for routing to healthy Sage Router installs on a Tailnet. Keep it separate from public DNS until billing, rate limits, abuse controls, and customer API key issuance are in front of it.
+
+For the existing GCP deployment notes, see [deploy/gcp](deploy/gcp/README.md). For the privacy-preserving relay design where customer credentials stay on the user's machine, see [docs/cloud-tunnel](docs/cloud-tunnel/README.md).
+
 ### Configure Your Tools
 
 Point any OpenAI-compatible tool at Sage Router:
