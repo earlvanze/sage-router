@@ -1,0 +1,16 @@
+#cloud-config
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - git
+runcmd:
+  - ['sh', '-c', 'curl -fsSL https://tailscale.com/install.sh | sh']
+  - ['tailscale', 'up', '--auth-key=REPLACE_WITH_TS_AUTHKEY', '--hostname=sage-router-edge-gcp', '--ssh']
+  - ['sh', '-c', 'curl -fsSL https://get.docker.com | sh']
+  - ['git', 'clone', 'https://github.com/earlvanze/sage-router.git', '/opt/sage-router']
+  - ['sh', '-c', 'cd /opt/sage-router/deploy/tailnet-edge && cp .env.example .env']
+  - ['sh', '-c', 'cd /opt/sage-router/deploy/tailnet-edge && sed -i "s#SAGE_ROUTER_UPSTREAMS=.*#SAGE_ROUTER_UPSTREAMS=http://cyber.example.ts.net:8790,http://umbrel.example.ts.net:8788#" .env']
+  - ['sh', '-c', 'cd /opt/sage-router/deploy/tailnet-edge && sed -i "s#SAGE_ROUTER_EDGE_TOKEN=.*#SAGE_ROUTER_EDGE_TOKEN=REPLACE_WITH_EDGE_TOKEN#" .env']
+  - ['sh', '-c', 'cd /opt/sage-router/deploy/tailnet-edge && docker compose up -d --build']
+  - ['tailscale', 'serve', '--bg', '--https=443', 'http://127.0.0.1:8790']

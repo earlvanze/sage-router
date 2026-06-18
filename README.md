@@ -53,6 +53,19 @@ Install from the [Umbrel App Store](https://github.com/getumbrel/umbrel-apps/pul
 
 The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.7` and stores its config under the app data directory. The built-in config dashboard is accessible from the Umbrel app tile.
 
+### Tailnet Edge Endpoint
+
+For a CDN-style private endpoint across multiple Sage Router installs, deploy the Tailnet edge proxy:
+
+```bash
+cd deploy/tailnet-edge
+cp .env.example .env
+docker compose up -d --build
+tailscale serve --bg --https=443 http://127.0.0.1:8790
+```
+
+The edge health-checks each configured Tailnet upstream, routes OpenAI-compatible traffic to a healthy Sage Router node, and keeps provider credentials on the private routers. See [deploy/tailnet-edge](deploy/tailnet-edge/README.md) for Google Cloud VM bootstrap and public monetization notes.
+
 ### Configure Your Tools
 
 Point any OpenAI-compatible tool at Sage Router:

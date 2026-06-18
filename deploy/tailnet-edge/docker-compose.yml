@@ -1,0 +1,14 @@
+services:
+  sage-router-tailnet-edge:
+    build: .
+    image: sage-router-tailnet-edge:latest
+    container_name: sage-router-tailnet-edge
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:${SAGE_ROUTER_EDGE_PORT:-8790}/edge/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
