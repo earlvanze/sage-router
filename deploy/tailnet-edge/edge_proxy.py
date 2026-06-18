@@ -21,6 +21,7 @@ REQUEST_TIMEOUT = float(os.environ.get(
     os.environ.get("SAGE_ROUTER_REQUEST_CONNECT_TIMEOUT_SECONDS", "120"),
 ))
 READ_CHUNK_SIZE = int(os.environ.get("SAGE_ROUTER_EDGE_READ_CHUNK_SIZE", "65536"))
+RETRY_STATUSES = {401, 429, 502, 503, 504}
 
 HOP_BY_HOP_HEADERS = {
     "connection",
@@ -135,6 +136,11 @@ def health_loop():
 
 
 def choose_upstream():
+    upstreams = healthy_upstreams()
+    return upstreams[0] if upstreams else None
+
+
+def healthy_upstreams():
     snapshots = []
     for upstream in UPSTREAMS:
         snap = upstream.snapshot()
@@ -142,8 +148,8 @@ def choose_upstream():
             snapshots.append((snap["latency_ms"] if snap["latency_ms"] is not None else 999999, upstream))
     if snapshots:
         snapshots.sort(key=lambda item: item[0])
-        return snapshots[0][1]
-    return None
+        return [upstream for _, upstream in snapshots]
+    return []
 
 
 class EdgeHandler(BaseHTTPRequestHandler):
@@ -183,8 +189,8 @@ class EdgeHandler(BaseHTTPRequestHandler):
         if not self._authorized():
             self._json(401, {"error": "unauthorized"})
             return
-        upstream = choose_upstream()
-        if not upstream:
+        upstreams = healthy_upstreams()
+        if not upstreams:
             self._json(503, {"error": "no healthy sage-router upstreams"})
             return
 
@@ -193,44 +199,67 @@ class EdgeHandler(BaseHTTPRequestHandler):
         if content_length:
             body = self.rfile.read(int(content_length))
 
-        headers = {}
+        base_headers = {}
         for key, value in self.headers.items():
             lower = key.lower()
             if lower in HOP_BY_HOP_HEADERS or lower == "host":
                 continue
-            headers[key] = value
-        headers["Host"] = upstream.hostport
-        headers["X-Sage-Router-Edge"] = "tailnet-lowest-latency"
-        headers["X-Sage-Router-Selected-Upstream"] = upstream.raw_url
-        if BACKEND_TOKEN:
-            headers["Authorization"] = f"Bearer {BACKEND_TOKEN}"
+            base_headers[key] = value
 
-        conn = None
-        try:
-            conn = upstream.connection(timeout=REQUEST_TIMEOUT)
-            conn.request(self.command, upstream.target_path(self.path), body=body, headers=headers)
-            resp = conn.getresponse()
-            self.close_connection = True
-            self.send_response(resp.status, resp.reason)
-            for key, value in resp.getheaders():
-                if key.lower() in HOP_BY_HOP_HEADERS:
+        attempts = []
+        for index, upstream in enumerate(upstreams):
+            headers = dict(base_headers)
+            headers["Host"] = upstream.hostport
+            headers["X-Sage-Router-Edge"] = "tailnet-lowest-latency"
+            headers["X-Sage-Router-Selected-Upstream"] = upstream.raw_url
+            if BACKEND_TOKEN:
+                headers["Authorization"] = f"Bearer {BACKEND_TOKEN}"
+
+            conn = None
+            try:
+                conn = upstream.connection(timeout=REQUEST_TIMEOUT)
+                conn.request(self.command, upstream.target_path(self.path), body=body, headers=headers)
+                resp = conn.getresponse()
+                if resp.status in RETRY_STATUSES and index < len(upstreams) - 1:
+                    detail = resp.read(4096).decode("utf-8", errors="replace")
+                    attempts.append({
+                        "upstream": upstream.raw_url,
+                        "status": resp.status,
+                        "detail": detail[:500],
+                    })
+                    conn.close()
                     continue
-                self.send_header(key, value)
-            self.send_header("X-Sage-Router-Edge", "tailnet-lowest-latency")
-            self.send_header("X-Sage-Router-Upstream", upstream.raw_url)
-            self.send_header("Connection", "close")
-            self.end_headers()
-            while True:
-                chunk = resp.read(READ_CHUNK_SIZE)
-                if not chunk:
-                    break
-                self.wfile.write(chunk)
-                self.wfile.flush()
-        except Exception as exc:
-            self._json(502, {"error": "upstream proxy failed", "upstream": upstream.raw_url, "detail": str(exc)})
-        finally:
-            if conn:
-                conn.close()
+
+                self.close_connection = True
+                self.send_response(resp.status, resp.reason)
+                for key, value in resp.getheaders():
+                    if key.lower() in HOP_BY_HOP_HEADERS:
+                        continue
+                    self.send_header(key, value)
+                self.send_header("X-Sage-Router-Edge", "tailnet-lowest-latency")
+                self.send_header("X-Sage-Router-Upstream", upstream.raw_url)
+                if attempts:
+                    self.send_header("X-Sage-Router-Retry-Count", str(len(attempts)))
+                self.send_header("Connection", "close")
+                self.end_headers()
+                while True:
+                    chunk = resp.read(READ_CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+                return
+            except Exception as exc:
+                attempts.append({
+                    "upstream": upstream.raw_url,
+                    "status": 0,
+                    "detail": str(exc)[:500],
+                })
+            finally:
+                if conn:
+                    conn.close()
+
+        self._json(502, {"error": "all sage-router upstreams failed", "attempts": attempts})
 
     def do_GET(self):
         self._proxy()
