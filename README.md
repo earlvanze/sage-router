@@ -71,8 +71,25 @@ The edge health-checks each configured Tailnet upstream, routes OpenAI-compatibl
 The current public deployment is intentionally split:
 
 - `https://sagerouter.dev` and `https://www.sagerouter.dev` are static Cloudflare Pages (`sage-router-web`). They host marketing/docs/account UI only.
+- `https://app.sagerouter.dev` is reserved for the hosted dashboard and login surface. Supabase Auth redirect allow-list entries should include this host before moving the dashboard there.
 - `https://api.sagerouter.dev` is a Cloudflare-proxied GCP edge VM. The edge health-checks Tailnet Sage Router installs plus the Google-hosted Sage Router API origin, then routes to the lowest-latency healthy backend.
-- Tailnet Edge is the reliability layer for routing to healthy Sage Router installs on a Tailnet. Keep customer auth, billing, rate limits, abuse controls, and customer API key issuance in front of it before public monetization.
+- Tailnet Edge is the reliability layer for routing to healthy Sage Router installs on a Tailnet. Keep customer auth, billing, rate limits, abuse controls, and customer API key issuance in front of it before public monetization. `api.sagerouter.dev` should stay API-only and accept user-issued API keys or validated Supabase user tokens; browser login belongs on `app.sagerouter.dev`.
+
+### Hosted Auth
+
+The hosted web app uses Supabase Auth. GitHub login requires a GitHub OAuth App, not repository permissions:
+
+- Homepage URL: `https://app.sagerouter.dev`
+- Authorization callback URL: `https://awtangrlqqsdpksarhwo.supabase.co/auth/v1/callback`
+
+After creating the GitHub OAuth App and generating a client secret, enable it in Supabase without opening the dashboard:
+
+```bash
+SUPABASE_ACCESS_TOKEN=... \
+SAGEROUTER_GITHUB_CLIENT_ID=... \
+SAGEROUTER_GITHUB_CLIENT_SECRET=... \
+scripts/configure_supabase_github_auth.sh
+```
 
 For the existing GCP deployment notes, see [deploy/gcp](deploy/gcp/README.md). For the privacy-preserving relay design where customer credentials stay on the user's machine, see [docs/cloud-tunnel](docs/cloud-tunnel/README.md).
 
