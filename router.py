@@ -92,6 +92,17 @@ DARIO_AUTOSTART = os.environ.get('SAGE_ROUTER_DARIO_AUTOSTART', '1').strip().low
 DARIO_PROCESS = None
 OPENCLAW_GATEWAY_BASE_URL = os.environ.get('SAGE_ROUTER_OPENCLAW_GATEWAY_URL', 'ws://127.0.0.1:18789')
 OPENAI_CODEX_GATEWAY_FALLBACK = os.environ.get('SAGE_ROUTER_OPENAI_CODEX_GATEWAY_FALLBACK', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+OPENAI_CODEX_OAUTH_ENABLED = os.environ.get('SAGE_ROUTER_CODEX_OAUTH_ENABLED', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
+OPENAI_CODEX_OAUTH_AUTH_BASE_URL = os.environ.get('SAGE_ROUTER_CODEX_OAUTH_AUTH_BASE_URL', 'https://auth.openai.com').strip().rstrip('/')
+OPENAI_CODEX_OAUTH_CLIENT_ID = os.environ.get('SAGE_ROUTER_CODEX_OAUTH_CLIENT_ID', 'app_EMoamEEZ73f0CkXaXp7hrann').strip()
+OPENAI_CODEX_OAUTH_ORIGINATOR = os.environ.get('SAGE_ROUTER_CODEX_OAUTH_ORIGINATOR', 'sage-router').strip() or 'sage-router'
+OPENAI_CODEX_OAUTH_TIMEOUT_MS = int(os.environ.get('SAGE_ROUTER_CODEX_OAUTH_TIMEOUT_MS', str(15 * 60 * 1000)))
+OPENAI_CODEX_OAUTH_DEFAULT_INTERVAL_MS = int(os.environ.get('SAGE_ROUTER_CODEX_OAUTH_INTERVAL_MS', '5000'))
+OPENAI_CODEX_OAUTH_MIN_INTERVAL_MS = 1000
+OPENAI_CODEX_OAUTH_REFRESH_SKEW_MS = int(os.environ.get('SAGE_ROUTER_CODEX_OAUTH_REFRESH_SKEW_MS', str(5 * 60 * 1000)))
+OPENAI_CODEX_OAUTH_HTTP_TIMEOUT_SECONDS = float(os.environ.get('SAGE_ROUTER_CODEX_OAUTH_HTTP_TIMEOUT_SECONDS', '30'))
+OPENAI_CODEX_OAUTH_SESSIONS = {}
+OPENAI_CODEX_OAUTH_LOCK = threading.Lock()
 # Auth-profile-based gateway providers: defined after DEFAULT constants below
 DISABLED_PROVIDERS = {
     name.strip() for name in os.environ.get('SAGE_ROUTER_DISABLED_PROVIDERS', '').split(',')
@@ -359,6 +370,7 @@ OLLAMA_FAMILY_HINTS = {
     'kimi': {'bonus': 8, 'intents': {'CODE', 'GENERAL', 'CREATIVE', 'REALTIME'}},
     'kimi-k2': {'bonus': 9, 'intents': {'CODE', 'GENERAL', 'CREATIVE', 'REALTIME', 'ANALYSIS'}},
     'glm-5': {'bonus': 11, 'intents': {'CODE', 'ANALYSIS', 'GENERAL', 'REALTIME'}},
+    'minimax-m3': {'bonus': 7, 'intents': {'CREATIVE', 'GENERAL', 'REALTIME'}},
     'minimax-m2.7': {'bonus': 6, 'intents': {'CREATIVE', 'GENERAL', 'REALTIME'}},
     'minimax-m2': {'bonus': 5, 'intents': {'CREATIVE', 'GENERAL'}},
     'deepseek-v4': {'bonus': 10, 'intents': {'CODE', 'ANALYSIS'}},
@@ -370,7 +382,7 @@ OLLAMA_FAMILY_HINTS = {
 
 
 OLLAMA_TOOL_MODEL_HINTS = [
-    'qwen3.', 'qwen2.5', 'qwen2', 'kimi-k2', 'minimax-m2', 'glm-5',
+    'qwen3.', 'qwen2.5', 'qwen2', 'kimi-k2', 'minimax-m3', 'minimax-m2', 'glm-5',
     'gpt-oss', 'llama3.1', 'llama3.2', 'llama3.3', 'mistral', 'mixtral', 'nemotron'
 ]
 OLLAMA_NON_TOOL_MODEL_HINTS = ['embed', 'embedding', 'ocr', 'vision', '-vl', ':vl', 'whisper', 'tts']
@@ -397,7 +409,7 @@ ANALYSIS_SIGNAL_TERMS = [
 ANALYSIS_QUALITY_MODEL_HINTS = [
     'opus', 'sonnet', 'gpt-5.5', 'gpt-5.4', 'gpt-5.3', 'gpt-5', 'o3',
     'gemini-2.5-pro', 'gemini-3-pro', 'qwen3.5', 'qwen3.6', 'qwen3:32b', 'qwen3:30b',
-    'kimi-k2', 'minimax-m2.7', 'glm-5', 'deepseek-v4', 'mistral-large-3',
+    'kimi-k2', 'minimax-m3', 'minimax-m2.7', 'glm-5', 'deepseek-v4', 'mistral-large-3',
 ]
 WEAK_ANALYSIS_MODEL_HINTS = [
     '-mini', 'mini/', ':mini', 'small', 'haiku', 'flash-lite', 'lite', 'nano', 'tiny',
@@ -3026,6 +3038,220 @@ def atomic_write_json(path, payload, mode=0o600):
     os.replace(tmp_path, path)
 
 
+def parse_json_object(text):
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def sanitize_oauth_error_text(value):
+    text = str(value or '')
+    text = re.sub(r'\x1b\[[\x20-\x3f]*[\x40-\x7e]', '', text)
+    text = re.sub(r'[\x00-\x1f\x7f-\x9f]+', ' ', text)
+    return re.sub(r'\s+', ' ', text).strip()[:300]
+
+
+def oauth_headers(content_type):
+    return {
+        'Content-Type': content_type,
+        'User-Agent': f'{OPENAI_CODEX_OAUTH_ORIGINATOR}/sage-router',
+        'originator': OPENAI_CODEX_OAUTH_ORIGINATOR,
+    }
+
+
+def post_oauth_request(url, headers, body):
+    if isinstance(body, str):
+        body = body.encode()
+    req = urllib.request.Request(url, data=body, headers=headers, method='POST')
+    try:
+        with urllib.request.urlopen(req, timeout=OPENAI_CODEX_OAUTH_HTTP_TIMEOUT_SECONDS) as resp:
+            return resp.getcode(), resp.read().decode('utf-8', errors='replace')
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode('utf-8', errors='replace')
+
+
+def parse_positive_ms(value, default_ms):
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return default_ms
+    if not math.isfinite(seconds) or seconds <= 0:
+        return default_ms
+    return max(OPENAI_CODEX_OAUTH_MIN_INTERVAL_MS, int(seconds * 1000))
+
+
+def jwt_payload(token):
+    if not isinstance(token, str) or token.count('.') < 2:
+        return {}
+    try:
+        payload = token.split('.')[1]
+        payload += '=' * (-len(payload) % 4)
+        decoded = base64.urlsafe_b64decode(payload.encode())
+        data = json.loads(decoded.decode('utf-8'))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def resolve_oauth_expires_at_ms(access_token='', expires_in=None):
+    try:
+        seconds = float(expires_in)
+        if math.isfinite(seconds) and seconds > 0:
+            return int(time.time() * 1000 + seconds * 1000)
+    except (TypeError, ValueError):
+        pass
+    exp = jwt_payload(access_token).get('exp')
+    try:
+        exp_f = float(exp)
+        if math.isfinite(exp_f) and exp_f > 0:
+            return int(exp_f * 1000)
+    except (TypeError, ValueError):
+        pass
+    return int(time.time() * 1000)
+
+
+def resolve_oauth_account_id(access_token):
+    payload = jwt_payload(access_token)
+    for key in ('https://api.openai.com/auth/account_id', 'account_id', 'accountId', 'sub'):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ''
+
+
+def codex_credentials_from_auth_data(data):
+    if not isinstance(data, dict):
+        return {}
+    profiles = data.get('profiles')
+    if isinstance(profiles, dict):
+        for prof in profiles.values():
+            if not isinstance(prof, dict):
+                continue
+            prof_provider = prof.get('provider')
+            if prof_provider not in {'openai', 'openai-codex'}:
+                continue
+            if prof_provider == 'openai' and prof.get('type') != 'oauth':
+                continue
+            access = prof.get('access') or prof.get('access_token') or prof.get('apiKey') or ''
+            refresh = prof.get('refresh') or prof.get('refresh_token') or ''
+            if access or refresh:
+                return {'access': access, 'refresh': refresh, 'expires': prof.get('expires') or prof.get('expires_at')}
+    tokens = data.get('tokens')
+    if isinstance(tokens, dict):
+        access = tokens.get('access_token') or tokens.get('access') or ''
+        refresh = tokens.get('refresh_token') or tokens.get('refresh') or ''
+        if access or refresh:
+            return {'access': access, 'refresh': refresh, 'expires': tokens.get('expires_at') or tokens.get('expires')}
+    access = data.get('access_token') or data.get('access') or ''
+    refresh = data.get('refresh_token') or data.get('refresh') or ''
+    if access or refresh:
+        return {'access': access, 'refresh': refresh, 'expires': data.get('expires_at') or data.get('expires')}
+    return {}
+
+
+def codex_auth_needs_refresh(expires):
+    if not expires:
+        return False
+    try:
+        expires_f = float(expires)
+    except (TypeError, ValueError):
+        return False
+    if expires_f < 10_000_000_000:
+        expires_f *= 1000
+    return expires_f <= time.time() * 1000 + OPENAI_CODEX_OAUTH_REFRESH_SKEW_MS
+
+
+def codex_auth_json_payload(tokens):
+    payload = {
+        'auth_mode': 'chatgpt',
+        'tokens': {
+            'access_token': tokens['access'],
+            'refresh_token': tokens['refresh'],
+            'expires_at': tokens['expires'],
+        },
+        'last_refresh': int(time.time() * 1000),
+    }
+    account_id = tokens.get('accountId') or resolve_oauth_account_id(tokens.get('access', ''))
+    if account_id:
+        payload['tokens']['account_id'] = account_id
+    if tokens.get('id_token'):
+        payload['tokens']['id_token'] = tokens['id_token']
+    return payload
+
+
+def codex_auth_profile_payload(tokens):
+    account_id = tokens.get('accountId') or resolve_oauth_account_id(tokens.get('access', ''))
+    profile = {
+        'provider': 'openai',
+        'type': 'oauth',
+        'access': tokens['access'],
+        'refresh': tokens['refresh'],
+        'expires': tokens['expires'],
+    }
+    if account_id:
+        profile['accountId'] = account_id
+    return {'profiles': {'sage-router-codex': profile}}
+
+
+def save_openai_codex_oauth_tokens(tokens):
+    if not tokens.get('access') or not tokens.get('refresh'):
+        raise ValueError('codex_tokens_missing')
+    atomic_write_json(APP_CODEX_AUTH_JSON, codex_auth_json_payload(tokens))
+    atomic_write_json(APP_CODEX_AUTH_PROFILE, codex_auth_profile_payload(tokens))
+    reload_configured_providers()
+    return {
+        'status': 'saved',
+        'target': APP_CODEX_AUTH_JSON,
+        'codexConfigured': True,
+        'configured': sorted(PROVIDERS.keys()),
+    }
+
+
+def refresh_openai_codex_oauth_token(refresh_token):
+    body = urllib.parse.urlencode({
+        'grant_type': 'refresh_token',
+        'refresh_token': refresh_token,
+        'client_id': OPENAI_CODEX_OAUTH_CLIENT_ID,
+    })
+    status, text = post_oauth_request(
+        f'{OPENAI_CODEX_OAUTH_AUTH_BASE_URL}/oauth/token',
+        oauth_headers('application/x-www-form-urlencoded'),
+        body,
+    )
+    data = parse_json_object(text)
+    if status < 200 or status >= 300:
+        error = data.get('error_description') or data.get('error') or text
+        raise ValueError(f'codex_token_refresh_failed: {sanitize_oauth_error_text(error)}')
+    access = str(data.get('access_token') or '').strip()
+    refresh = str(data.get('refresh_token') or refresh_token or '').strip()
+    if not access or not refresh:
+        raise ValueError('codex_token_refresh_missing_fields')
+    return {
+        'access': access,
+        'refresh': refresh,
+        'expires': resolve_oauth_expires_at_ms(access, data.get('expires_in')),
+        'accountId': resolve_oauth_account_id(access),
+        'id_token': data.get('id_token') if isinstance(data.get('id_token'), str) else '',
+    }
+
+
+def refresh_app_owned_codex_auth_if_needed(path, data):
+    path = os.path.expanduser(path)
+    app_paths = {os.path.expanduser(APP_CODEX_AUTH_JSON), os.path.expanduser(APP_CODEX_AUTH_PROFILE)}
+    if path not in app_paths:
+        return data
+    creds = codex_credentials_from_auth_data(data)
+    refresh = str(creds.get('refresh') or '').strip()
+    if not refresh or not codex_auth_needs_refresh(creds.get('expires')):
+        return data
+    with OPENAI_CODEX_OAUTH_LOCK:
+        tokens = refresh_openai_codex_oauth_token(refresh)
+        save_openai_codex_oauth_tokens(tokens)
+        return codex_auth_json_payload(tokens) if path.endswith('auth.json') else codex_auth_profile_payload(tokens)
+
+
 def openai_codex_auth_candidate_paths():
     env_paths = comma_list_env(
         'SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATHS',
@@ -3115,7 +3341,8 @@ def load_openclaw_auth_access_token(provider_name):
         for candidate in openai_codex_auth_candidate_paths():
             try:
                 with open(candidate) as cf:
-                    token = extract_openai_codex_token_from_auth_data(json.load(cf), provider_name)
+                    data = refresh_app_owned_codex_auth_if_needed(candidate, json.load(cf))
+                    token = extract_openai_codex_token_from_auth_data(data, provider_name)
                 if token:
                     logger.info(f'Loaded openai-codex OAuth token from configured auth path {candidate}')
                     return token
@@ -3202,7 +3429,7 @@ def read_openai_codex_oauth_token_from_file():
         path = os.path.expanduser(raw_path)
         try:
             with open(path) as f:
-                data = json.load(f)
+                data = refresh_app_owned_codex_auth_if_needed(path, json.load(f))
         except Exception:
             continue
         token = extract_openai_codex_token_from_auth_data(data, 'openai-codex')
@@ -4633,6 +4860,7 @@ def setup_state_payload():
         'providers': sorted(PROVIDERS.keys()),
         'disabled': sorted(DISABLED_PROVIDERS),
         'codexConfigured': bool(read_openai_codex_oauth_token_from_file()),
+        'codexOAuthAvailable': OPENAI_CODEX_OAUTH_ENABLED,
         'clientAuthRequired': CLIENT_AUTH_REQUIRED,
         'port': int(os.environ.get('PORT') or os.environ.get('APP_PORT') or 8790),
     }
@@ -4739,6 +4967,150 @@ def save_codex_setup_auth(payload):
         'codexConfigured': bool(read_openai_codex_oauth_token_from_file()),
         'configured': sorted(PROVIDERS.keys()),
     }
+
+
+def cleanup_codex_oauth_sessions(now_ms=None):
+    now_ms = now_ms or int(time.time() * 1000)
+    expired = [
+        sid for sid, session in OPENAI_CODEX_OAUTH_SESSIONS.items()
+        if not isinstance(session, dict) or session.get('expiresAt', 0) <= now_ms
+    ]
+    for sid in expired:
+        OPENAI_CODEX_OAUTH_SESSIONS.pop(sid, None)
+
+
+def ensure_codex_oauth_enabled():
+    if not OPENAI_CODEX_OAUTH_ENABLED:
+        raise ValueError('codex_oauth_disabled')
+    if not OPENAI_CODEX_OAUTH_AUTH_BASE_URL or not OPENAI_CODEX_OAUTH_CLIENT_ID:
+        raise ValueError('codex_oauth_not_configured')
+
+
+def start_codex_oauth_session():
+    ensure_codex_oauth_enabled()
+    status, text = post_oauth_request(
+        f'{OPENAI_CODEX_OAUTH_AUTH_BASE_URL}/api/accounts/deviceauth/usercode',
+        oauth_headers('application/json'),
+        json.dumps({'client_id': OPENAI_CODEX_OAUTH_CLIENT_ID}),
+    )
+    data = parse_json_object(text)
+    if status == 404:
+        raise ValueError('codex_device_auth_unavailable')
+    if status < 200 or status >= 300:
+        error = data.get('error_description') or data.get('error') or text
+        raise ValueError(f'codex_device_code_failed: {sanitize_oauth_error_text(error)}')
+
+    device_auth_id = str(data.get('device_auth_id') or '').strip()
+    user_code = str(data.get('user_code') or data.get('usercode') or '').strip()
+    if not device_auth_id or not user_code:
+        raise ValueError('codex_device_code_missing_fields')
+
+    now_ms = int(time.time() * 1000)
+    interval_ms = parse_positive_ms(data.get('interval'), OPENAI_CODEX_OAUTH_DEFAULT_INTERVAL_MS)
+    expires_at = now_ms + OPENAI_CODEX_OAUTH_TIMEOUT_MS
+    session_id = secrets.token_urlsafe(24)
+    with OPENAI_CODEX_OAUTH_LOCK:
+        cleanup_codex_oauth_sessions(now_ms)
+        OPENAI_CODEX_OAUTH_SESSIONS[session_id] = {
+            'deviceAuthId': device_auth_id,
+            'userCode': user_code,
+            'expiresAt': expires_at,
+            'intervalMs': interval_ms,
+            'nextPollAt': 0,
+        }
+    return {
+        'status': 'waiting',
+        'sessionId': session_id,
+        'userCode': user_code,
+        'verificationUrl': f'{OPENAI_CODEX_OAUTH_AUTH_BASE_URL}/codex/device',
+        'expiresInMs': OPENAI_CODEX_OAUTH_TIMEOUT_MS,
+        'intervalMs': interval_ms,
+    }
+
+
+def exchange_codex_device_authorization(authorization_code, code_verifier):
+    body = urllib.parse.urlencode({
+        'grant_type': 'authorization_code',
+        'code': authorization_code,
+        'redirect_uri': f'{OPENAI_CODEX_OAUTH_AUTH_BASE_URL}/deviceauth/callback',
+        'client_id': OPENAI_CODEX_OAUTH_CLIENT_ID,
+        'code_verifier': code_verifier,
+    })
+    status, text = post_oauth_request(
+        f'{OPENAI_CODEX_OAUTH_AUTH_BASE_URL}/oauth/token',
+        oauth_headers('application/x-www-form-urlencoded'),
+        body,
+    )
+    data = parse_json_object(text)
+    if status < 200 or status >= 300:
+        error = data.get('error_description') or data.get('error') or text
+        raise ValueError(f'codex_token_exchange_failed: {sanitize_oauth_error_text(error)}')
+    access = str(data.get('access_token') or '').strip()
+    refresh = str(data.get('refresh_token') or '').strip()
+    if not access or not refresh:
+        raise ValueError('codex_token_exchange_missing_fields')
+    return {
+        'access': access,
+        'refresh': refresh,
+        'expires': resolve_oauth_expires_at_ms(access, data.get('expires_in')),
+        'accountId': resolve_oauth_account_id(access),
+        'id_token': data.get('id_token') if isinstance(data.get('id_token'), str) else '',
+    }
+
+
+def poll_codex_oauth_session(payload):
+    ensure_codex_oauth_enabled()
+    session_id = str(payload.get('sessionId') or payload.get('session_id') or '').strip()
+    if not session_id:
+        raise ValueError('codex_oauth_session_required')
+    now_ms = int(time.time() * 1000)
+    with OPENAI_CODEX_OAUTH_LOCK:
+        cleanup_codex_oauth_sessions(now_ms)
+        session = OPENAI_CODEX_OAUTH_SESSIONS.get(session_id)
+        if not session:
+            raise ValueError('codex_oauth_session_expired')
+        retry_after = int(session.get('nextPollAt', 0) - now_ms)
+        if retry_after > 0:
+            return {'status': 'waiting', 'retryAfterMs': retry_after, 'intervalMs': session.get('intervalMs', OPENAI_CODEX_OAUTH_DEFAULT_INTERVAL_MS)}
+        session['nextPollAt'] = now_ms + int(session.get('intervalMs') or OPENAI_CODEX_OAUTH_DEFAULT_INTERVAL_MS)
+        device_auth_id = session['deviceAuthId']
+        user_code = session['userCode']
+        interval_ms = int(session.get('intervalMs') or OPENAI_CODEX_OAUTH_DEFAULT_INTERVAL_MS)
+
+    status, text = post_oauth_request(
+        f'{OPENAI_CODEX_OAUTH_AUTH_BASE_URL}/api/accounts/deviceauth/token',
+        oauth_headers('application/json'),
+        json.dumps({'device_auth_id': device_auth_id, 'user_code': user_code}),
+    )
+    data = parse_json_object(text)
+    if status in {403, 404}:
+        return {'status': 'waiting', 'retryAfterMs': interval_ms, 'intervalMs': interval_ms}
+    if status < 200 or status >= 300:
+        error = data.get('error_description') or data.get('error') or text
+        raise ValueError(f'codex_device_authorization_failed: {sanitize_oauth_error_text(error)}')
+
+    authorization_code = str(data.get('authorization_code') or '').strip()
+    code_verifier = str(data.get('code_verifier') or '').strip()
+    if not authorization_code or not code_verifier:
+        raise ValueError('codex_device_authorization_missing_fields')
+
+    tokens = exchange_codex_device_authorization(authorization_code, code_verifier)
+    with OPENAI_CODEX_OAUTH_LOCK:
+        OPENAI_CODEX_OAUTH_SESSIONS.pop(session_id, None)
+    saved = save_openai_codex_oauth_tokens(tokens)
+    return {
+        'status': 'saved',
+        'codexConfigured': saved['codexConfigured'],
+        'configured': saved['configured'],
+    }
+
+
+def cancel_codex_oauth_session(payload):
+    session_id = str(payload.get('sessionId') or payload.get('session_id') or '').strip()
+    with OPENAI_CODEX_OAUTH_LOCK:
+        if session_id:
+            OPENAI_CODEX_OAUTH_SESSIONS.pop(session_id, None)
+    return {'status': 'cancelled'}
 
 
 def authenticated_user(handler):
@@ -5871,7 +6243,7 @@ def estimate_model_params_b(model):
         return 405
     if any(h in model_l for h in ('340b', 'nemotron-4-340b')):
         return 340
-    if any(h in model_l for h in ('gpt-5', 'gpt-4.5', 'claude-opus', 'claude-sonnet-4', 'claude-4', 'gemini-3', 'gemini-2.5-pro', 'hunter-alpha', 'healer-alpha', 'kimi-k2', 'glm-5', 'deepseek-v4', 'qwen3.5', 'qwen3.6', 'minimax-m2.7', 'mistral-large-3', 'z1-ultra')):
+    if any(h in model_l for h in ('gpt-5', 'gpt-4.5', 'claude-opus', 'claude-sonnet-4', 'claude-4', 'gemini-3', 'gemini-2.5-pro', 'hunter-alpha', 'healer-alpha', 'kimi-k2', 'glm-5', 'deepseek-v4', 'qwen3.5', 'qwen3.6', 'minimax-m3', 'minimax-m2.7', 'mistral-large-3', 'z1-ultra')):
         return 999
     return 0
 
@@ -5881,7 +6253,7 @@ FRONTIER_LARGE_MODEL_HINTS = (
     'gemini-3', 'gemini-2.5-pro',
     'llama-3.1-405b', 'llama4-405b',
     'nemotron-4-340b', 'hunter-alpha', 'healer-alpha',
-    'kimi-k2', 'kimi-k2.5', 'kimi-k2.6', 'glm-5', 'deepseek-v4', 'qwen3.5', 'qwen3.6', 'minimax-m2.7', 'mistral-large-3', 'z1-ultra',
+    'kimi-k2', 'kimi-k2.5', 'kimi-k2.6', 'glm-5', 'deepseek-v4', 'qwen3.5', 'qwen3.6', 'minimax-m3', 'minimax-m2.7', 'mistral-large-3', 'z1-ultra',
 )
 
 
@@ -5939,6 +6311,7 @@ def apply_discord_public_route_profile(payload):
             '*gpt-5*',
             '*deepseek-v4*',
             '*qwen3.[5-9]*',
+            '*minimax-m3*',
             '*minimax-m2.[7-9]*',
             '*mistral-large-3*',
             'google-vertex/gemini-3-flash-preview',
@@ -8281,6 +8654,30 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 logger.exception('Codex auth setup failed')
                 self.write_json(500, {'error': 'codex_auth_setup_failed', 'detail': str(e)})
+            return
+        if self.path == '/setup/codex-oauth/start':
+            try:
+                self.write_json(200, start_codex_oauth_session())
+            except ValueError as e:
+                self.write_json(400, {'error': str(e)})
+            except Exception as e:
+                logger.exception('Codex OAuth start failed')
+                self.write_json(500, {'error': 'codex_oauth_start_failed', 'detail': str(e)})
+            return
+        if self.path == '/setup/codex-oauth/poll':
+            try:
+                self.write_json(200, poll_codex_oauth_session(read_json_body(self)))
+            except ValueError as e:
+                self.write_json(400, {'error': str(e)})
+            except Exception as e:
+                logger.exception('Codex OAuth poll failed')
+                self.write_json(500, {'error': 'codex_oauth_poll_failed', 'detail': str(e)})
+            return
+        if self.path == '/setup/codex-oauth/cancel':
+            try:
+                self.write_json(200, cancel_codex_oauth_session(read_json_body(self)))
+            except Exception:
+                self.write_json(200, {'status': 'cancelled'})
             return
         if self.path == '/api/restart':
             # Restart the router process. Only honored in environments where
