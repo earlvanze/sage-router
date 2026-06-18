@@ -16,7 +16,10 @@ BACKEND_TOKEN = os.environ.get("SAGE_ROUTER_BACKEND_TOKEN", "local")
 HEALTH_PATH = os.environ.get("SAGE_ROUTER_HEALTH_PATH", "/health")
 HEALTH_INTERVAL = float(os.environ.get("SAGE_ROUTER_HEALTH_INTERVAL_SECONDS", os.environ.get("SAGE_ROUTER_HEALTH_INTERVAL", "10").rstrip("s")))
 HEALTH_TIMEOUT = float(os.environ.get("SAGE_ROUTER_HEALTH_TIMEOUT_SECONDS", os.environ.get("SAGE_ROUTER_HEALTH_TIMEOUT", "3").rstrip("s")))
-REQUEST_CONNECT_TIMEOUT = float(os.environ.get("SAGE_ROUTER_REQUEST_CONNECT_TIMEOUT_SECONDS", "5"))
+REQUEST_TIMEOUT = float(os.environ.get(
+    "SAGE_ROUTER_REQUEST_TIMEOUT_SECONDS",
+    os.environ.get("SAGE_ROUTER_REQUEST_CONNECT_TIMEOUT_SECONDS", "120"),
+))
 READ_CHUNK_SIZE = int(os.environ.get("SAGE_ROUTER_EDGE_READ_CHUNK_SIZE", "65536"))
 
 HOP_BY_HOP_HEADERS = {
@@ -204,7 +207,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
 
         conn = None
         try:
-            conn = upstream.connection(timeout=REQUEST_CONNECT_TIMEOUT)
+            conn = upstream.connection(timeout=REQUEST_TIMEOUT)
             conn.request(self.command, upstream.target_path(self.path), body=body, headers=headers)
             resp = conn.getresponse()
             self.close_connection = True

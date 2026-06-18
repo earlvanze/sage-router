@@ -153,5 +153,6 @@ gcloud app domain-mappings list
 
 - `/edge/health` reports the selected upstream and last probe latency/error for every configured upstream.
 - Upstream health probes use `SAGE_ROUTER_HEALTH_PATH`, `SAGE_ROUTER_HEALTH_INTERVAL_SECONDS`, and `SAGE_ROUTER_HEALTH_TIMEOUT_SECONDS`.
+- Proxied request timeout uses `SAGE_ROUTER_REQUEST_TIMEOUT_SECONDS` and defaults to 120 seconds so slower frontier/model fallback attempts can complete.
 - Keep the edge token separate from backend router tokens so you can rotate customer/client access without reconfiguring private Sage Router installs.
 - Do not mount `.openclaw`, provider keys, OAuth profiles, or billing secrets into the edge container.
