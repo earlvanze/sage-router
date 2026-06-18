@@ -2,7 +2,7 @@
 
 This deploys a CDN-style Tailnet edge endpoint for Sage Router. It runs a small reverse proxy on a stable Tailnet node, health-checks multiple private Sage Router installations, tracks probe latency, and routes OpenAI-compatible traffic to the lowest-latency healthy upstream.
 
-The edge does not hold provider credentials. Clients authenticate to the edge with `SAGE_ROUTER_EDGE_TOKEN`; the edge injects `SAGE_ROUTER_BACKEND_TOKEN` when it calls private Sage Router nodes.
+The edge does not hold provider credentials. In private mode, clients authenticate to the edge with `SAGE_ROUTER_EDGE_TOKEN`; the edge injects `SAGE_ROUTER_BACKEND_TOKEN` when it calls private Sage Router nodes. In public SaaS mode, set `SAGE_ROUTER_EDGE_AUTH_MODE=supabase` so `/v1/*` model routes require an active generated `sk_sage_*` customer API key while account and billing UI routes require a valid Supabase user JWT.
 
 ## Architecture
 
@@ -14,7 +14,7 @@ Codex / OpenClaw / API client
   -> user's configured providers
 ```
 
-Use this for private Tailnet resiliency first. For public monetization, put billing, rate limits, abuse controls, and customer API key issuance in front of this endpoint before enabling Tailscale Funnel or a public DNS proxy.
+Use this for private Tailnet resiliency first. For public monetization, enable Supabase edge auth, keep billing and customer API key issuance on the hosted control-plane router, and add rate limits and abuse controls before enabling Tailscale Funnel or a public DNS proxy.
 
 ## Relationship to sagerouter.dev
 
@@ -46,6 +46,27 @@ SAGE_ROUTER_BACKEND_TOKEN=local
 
 Prefer MagicDNS names or stable Tailnet IPs. Include every Sage Router install that should be eligible for failover.
 
+For the public `api.sagerouter.dev` mode, keep a private edge token for emergency/admin use and enable Supabase-backed customer auth:
+
+```dotenv
+SAGE_ROUTER_EDGE_AUTH_MODE=supabase
+SAGE_ROUTER_EDGE_TOKEN=replace-with-private-admin-token
+SAGE_ROUTER_BACKEND_TOKEN=local
+SAGE_ROUTER_SUPABASE_URL=https://awtangrlqqsdpksarhwo.supabase.co
+SAGE_ROUTER_SUPABASE_ANON_KEY=...
+SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY=...
+SAGE_ROUTER_API_KEY_HASH_PEPPER=...
+SAGE_ROUTER_CORS_ORIGIN=https://app.sagerouter.dev,https://sagerouter.dev,https://www.sagerouter.dev
+```
+
+If browser account or billing requests go through the edge, route them to the hosted control-plane Sage Router instance rather than a random private model router:
+
+```dotenv
+SAGE_ROUTER_CONTROL_PLANE_UPSTREAM=https://sage-router-hosted.example.run.app
+```
+
+With that split, `/account*` and supported `/billing/*` UI endpoints preserve the user's Supabase JWT and use the control-plane origin, while `/v1/*` model routes validate a generated customer API key and inject only `SAGE_ROUTER_BACKEND_TOKEN` into private Tailnet routers.
+
 ## Run
 
 ```bash
@@ -60,6 +81,13 @@ curl http://127.0.0.1:8790/v1/chat/completions \
   -H "Authorization: Bearer replace-with-client-facing-token" \
   -H "Content-Type: application/json" \
   -d '{"model":"sage-router/frontier","messages":[{"role":"user","content":"hello"}]}'
+```
+
+In Supabase auth mode, use a generated customer key from the account dashboard instead of the private edge token:
+
+```bash
+curl https://api.sagerouter.dev/v1/models \
+  -H "Authorization: Bearer sk_sage_..."
 ```
 
 ## Publish inside the Tailnet
@@ -152,6 +180,7 @@ gcloud app domain-mappings list
 ## Operations
 
 - `/edge/health` reports the selected upstream and last probe latency/error for every configured upstream.
+- In `SAGE_ROUTER_EDGE_AUTH_MODE=supabase`, `/edge/health` remains public but all proxied routes fail closed unless the request has a private edge token, a valid generated customer API key, or a valid Supabase user JWT for account/billing UI paths.
 - Upstream health probes use `SAGE_ROUTER_HEALTH_PATH`, `SAGE_ROUTER_HEALTH_INTERVAL_SECONDS`, and `SAGE_ROUTER_HEALTH_TIMEOUT_SECONDS`.
 - Proxied request timeout uses `SAGE_ROUTER_REQUEST_TIMEOUT_SECONDS` and defaults to 120 seconds so slower frontier/model fallback attempts can complete.
 - Proxied requests retry the next healthy upstream on backend `401`, `429`, `502`, `503`, or `504`; responses include `X-Sage-Router-Retry-Count` when a retry was needed.

@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
+import hashlib
+import hmac
 import json
 import os
 import ssl
 import threading
 import time
+import urllib.parse
+import urllib.request
 from http.client import HTTPConnection, HTTPSConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
@@ -11,8 +15,10 @@ from urllib.parse import urlsplit
 
 EDGE_PORT = int(os.environ.get("SAGE_ROUTER_EDGE_PORT", "8790"))
 UPSTREAMS_RAW = os.environ.get("SAGE_ROUTER_UPSTREAMS", "")
+CONTROL_PLANE_UPSTREAM_RAW = os.environ.get("SAGE_ROUTER_CONTROL_PLANE_UPSTREAM", "").strip()
 EDGE_TOKEN = os.environ.get("SAGE_ROUTER_EDGE_TOKEN", "")
 BACKEND_TOKEN = os.environ.get("SAGE_ROUTER_BACKEND_TOKEN", "local")
+EDGE_AUTH_MODE = os.environ.get("SAGE_ROUTER_EDGE_AUTH_MODE", "shared-token").strip().lower()
 HEALTH_PATH = os.environ.get("SAGE_ROUTER_HEALTH_PATH", "/health")
 HEALTH_INTERVAL = float(os.environ.get("SAGE_ROUTER_HEALTH_INTERVAL_SECONDS", os.environ.get("SAGE_ROUTER_HEALTH_INTERVAL", "10").rstrip("s")))
 HEALTH_TIMEOUT = float(os.environ.get("SAGE_ROUTER_HEALTH_TIMEOUT_SECONDS", os.environ.get("SAGE_ROUTER_HEALTH_TIMEOUT", "3").rstrip("s")))
@@ -22,6 +28,37 @@ REQUEST_TIMEOUT = float(os.environ.get(
 ))
 READ_CHUNK_SIZE = int(os.environ.get("SAGE_ROUTER_EDGE_READ_CHUNK_SIZE", "65536"))
 RETRY_STATUSES = {401, 429, 502, 503, 504}
+SUPABASE_URL = (os.environ.get("SAGE_ROUTER_SUPABASE_URL") or os.environ.get("SUPABASE_URL") or "").rstrip("/")
+SUPABASE_ANON_KEY = (
+    os.environ.get("SAGE_ROUTER_SUPABASE_ANON_KEY")
+    or os.environ.get("AOPS_SUPABASE_ANON_KEY")
+    or os.environ.get("SUPABASE_ANON_KEY")
+    or ""
+)
+SUPABASE_SERVICE_ROLE_KEY = (
+    os.environ.get("SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY")
+    or os.environ.get("SUPABASE_SERVICE_ROLE")
+    or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    or ""
+)
+SUPABASE_CUSTOMERS_TABLE = os.environ.get("SAGE_ROUTER_SUPABASE_CUSTOMERS_TABLE", "sage_router_customers")
+SUPABASE_API_KEYS_TABLE = os.environ.get("SAGE_ROUTER_SUPABASE_API_KEYS_TABLE", "sage_router_api_keys")
+API_KEY_PREFIX = os.environ.get("SAGE_ROUTER_API_KEY_PREFIX", "sk_sage_")
+API_KEY_HASH_PEPPER = os.environ.get("SAGE_ROUTER_API_KEY_HASH_PEPPER") or os.environ.get("SAGE_ROUTER_SIGNING_SECRET") or ""
+AUTH_CACHE_TTL_SECONDS = float(os.environ.get("SAGE_ROUTER_EDGE_AUTH_CACHE_SECONDS", "30"))
+CORS_ORIGIN = os.environ.get("SAGE_ROUTER_CORS_ORIGIN", "https://app.sagerouter.dev,https://sagerouter.dev,https://www.sagerouter.dev")
+CORS_ORIGINS = [origin.strip() for origin in CORS_ORIGIN.split(",") if origin.strip()]
+
+PUBLIC_PATHS = {"/edge/health"}
+USER_JWT_PREFIXES = (
+    "/account",
+    "/billing/stripe/checkout",
+    "/billing/crypto/intent",
+    "/billing/crypto/status",
+)
+PUBLIC_SIGNED_BACKEND_PREFIXES = (
+    "/billing/stripe/webhook",
+)
 
 HOP_BY_HOP_HEADERS = {
     "connection",
@@ -33,6 +70,9 @@ HOP_BY_HOP_HEADERS = {
     "transfer-encoding",
     "upgrade",
 }
+
+AUTH_CACHE = {}
+AUTH_CACHE_LOCK = threading.Lock()
 
 
 class Upstream:
@@ -98,6 +138,145 @@ def parse_upstreams(raw):
 
 
 UPSTREAMS = parse_upstreams(UPSTREAMS_RAW)
+CONTROL_PLANE_UPSTREAM = Upstream(CONTROL_PLANE_UPSTREAM_RAW) if CONTROL_PLANE_UPSTREAM_RAW else None
+
+
+def bearer_token(headers):
+    auth = headers.get("Authorization", "") or ""
+    return auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+
+
+def token_matches(token, allowed):
+    return bool(token and allowed and hmac.compare_digest(token, allowed))
+
+
+def api_key_hash(raw_key):
+    return hashlib.sha256((API_KEY_HASH_PEPPER + raw_key).encode("utf-8")).hexdigest()
+
+
+def customer_is_active(customer):
+    status = str((customer or {}).get("status") or "").lower()
+    plan = str((customer or {}).get("plan") or "").lower()
+    return status in {"active", "trialing", "manual", "paid"} and plan not in {"", "free", "inactive"}
+
+
+def supabase_headers(service=False, token=None):
+    key = SUPABASE_SERVICE_ROLE_KEY if service else SUPABASE_ANON_KEY
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {token or key}",
+        "Accept": "application/json",
+    }
+    return headers
+
+
+def supabase_get_json(path, service=False, token=None, timeout=6):
+    req = urllib.request.Request(SUPABASE_URL.rstrip("/") + path, headers=supabase_headers(service=service, token=token))
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def supabase_patch_json(path, payload, timeout=4):
+    data = json.dumps(payload).encode("utf-8")
+    headers = supabase_headers(service=True)
+    headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(SUPABASE_URL.rstrip("/") + path, data=data, method="PATCH", headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        resp.read(4096)
+
+
+def cache_get(key):
+    now = time.time()
+    with AUTH_CACHE_LOCK:
+        item = AUTH_CACHE.get(key)
+        if item and item[0] > now:
+            return item[1]
+        if item:
+            AUTH_CACHE.pop(key, None)
+    return None
+
+
+def cache_set(key, value):
+    if AUTH_CACHE_TTL_SECONDS <= 0:
+        return value
+    with AUTH_CACHE_LOCK:
+        AUTH_CACHE[key] = (time.time() + AUTH_CACHE_TTL_SECONDS, value)
+    return value
+
+
+def supabase_auth_configured(require_service=False):
+    if not (SUPABASE_URL and SUPABASE_ANON_KEY):
+        return False
+    return bool(SUPABASE_SERVICE_ROLE_KEY) if require_service else True
+
+
+def verify_supabase_user_jwt(token):
+    if not token or not supabase_auth_configured():
+        return None
+    cache_key = f"user:{hashlib.sha256(token.encode('utf-8')).hexdigest()}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        user = supabase_get_json("/auth/v1/user", service=False, token=token)
+        if isinstance(user, dict) and user.get("id"):
+            return cache_set(cache_key, {"type": "supabase_user", "user_id": user.get("id"), "preserve_authorization": True})
+    except Exception as exc:
+        print(f"supabase user auth failed: {exc}", flush=True)
+    return cache_set(cache_key, False)
+
+
+def verify_supabase_generated_key(token):
+    if not token or not token.startswith(API_KEY_PREFIX) or not supabase_auth_configured(require_service=True):
+        return None
+    digest = api_key_hash(token)
+    cache_key = f"api-key:{digest}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        quoted_digest = urllib.parse.quote(digest, safe="")
+        key_rows = supabase_get_json(
+            f"/rest/v1/{SUPABASE_API_KEYS_TABLE}?select=*&api_key_hash=eq.{quoted_digest}&status=eq.active&limit=1",
+            service=True,
+        )
+        if not key_rows:
+            return cache_set(cache_key, False)
+        key = key_rows[0]
+        quoted_customer_id = urllib.parse.quote(str(key.get("customer_id") or ""), safe="")
+        customer_rows = supabase_get_json(
+            f"/rest/v1/{SUPABASE_CUSTOMERS_TABLE}?select=*&id=eq.{quoted_customer_id}&limit=1",
+            service=True,
+        )
+        customer = customer_rows[0] if customer_rows else None
+        if not customer_is_active(customer):
+            return cache_set(cache_key, False)
+        key_id = urllib.parse.quote(str(key.get("id") or ""), safe="")
+        if key_id:
+            try:
+                supabase_patch_json(f"/rest/v1/{SUPABASE_API_KEYS_TABLE}?id=eq.{key_id}", {"last_used_at_epoch": int(time.time())})
+            except Exception as exc:
+                print(f"supabase last-used update failed: {exc}", flush=True)
+        return cache_set(cache_key, {
+            "type": "generated_key",
+            "customer_id": customer.get("id"),
+            "user_id": customer.get("user_id"),
+            "plan": customer.get("plan"),
+            "preserve_authorization": False,
+        })
+    except Exception as exc:
+        print(f"supabase api key auth failed: {exc}", flush=True)
+        return cache_set(cache_key, False)
+
+
+def is_user_jwt_path(path):
+    clean_path = urlsplit(path).path
+    return any(clean_path == prefix or clean_path.startswith(prefix + "/") for prefix in USER_JWT_PREFIXES)
+
+
+def is_public_signed_backend_path(path):
+    clean_path = urlsplit(path).path
+    return any(clean_path == prefix or clean_path.startswith(prefix + "/") for prefix in PUBLIC_SIGNED_BACKEND_PREFIXES)
 
 
 def check_upstream(upstream):
@@ -126,7 +305,7 @@ def check_upstream(upstream):
 def health_loop():
     while True:
         threads = []
-        for upstream in UPSTREAMS:
+        for upstream in UPSTREAMS + ([CONTROL_PLANE_UPSTREAM] if CONTROL_PLANE_UPSTREAM else []):
             thread = threading.Thread(target=check_upstream, args=(upstream,), daemon=True)
             thread.start()
             threads.append(thread)
@@ -152,6 +331,13 @@ def healthy_upstreams():
     return []
 
 
+def control_plane_upstreams():
+    if not CONTROL_PLANE_UPSTREAM:
+        return None
+    snap = CONTROL_PLANE_UPSTREAM.snapshot()
+    return [CONTROL_PLANE_UPSTREAM] if snap["healthy"] else []
+
+
 class EdgeHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "sage-router-tailnet-edge"
@@ -165,31 +351,85 @@ class EdgeHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self._cors_headers()
         self.end_headers()
         self.wfile.write(body)
 
-    def _authorized(self):
-        if not EDGE_TOKEN:
-            return True
-        return self.headers.get("Authorization", "") == f"Bearer {EDGE_TOKEN}"
+    def _cors_headers(self):
+        origin = self.headers.get("Origin") or ""
+        if "*" in CORS_ORIGINS:
+            self.send_header("Access-Control-Allow-Origin", "*")
+        elif origin and origin in CORS_ORIGINS:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+        self.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Authorization,Content-Type,Stripe-Signature,X-Requested-With")
+        self.send_header("Access-Control-Max-Age", "600")
+
+    def _auth_context(self):
+        clean_path = urlsplit(self.path).path
+        if clean_path in PUBLIC_PATHS:
+            return {"type": "public", "preserve_authorization": True}
+
+        token = bearer_token(self.headers)
+        if token_matches(token, EDGE_TOKEN):
+            return {"type": "edge_token", "preserve_authorization": False}
+
+        if is_public_signed_backend_path(self.path):
+            return {"type": "public_signed_backend", "preserve_authorization": False}
+
+        if EDGE_AUTH_MODE in {"", "shared-token", "token", "legacy"}:
+            if not EDGE_TOKEN:
+                return {"type": "disabled", "preserve_authorization": True}
+            return None
+
+        if EDGE_AUTH_MODE in {"supabase", "saas"}:
+            if is_user_jwt_path(self.path):
+                return verify_supabase_user_jwt(token)
+            return verify_supabase_generated_key(token)
+
+        if EDGE_AUTH_MODE in {"disabled", "off"}:
+            return {"type": "disabled", "preserve_authorization": True}
+
+        return None
 
     def _edge_health(self):
         upstreams = [upstream.snapshot() for upstream in UPSTREAMS]
+        control_plane = CONTROL_PLANE_UPSTREAM.snapshot() if CONTROL_PLANE_UPSTREAM else None
         fastest = choose_upstream()
         self._json(200, {
             "status": "ok" if fastest else "degraded",
             "selected": fastest.raw_url if fastest else None,
             "upstreams": upstreams,
+            "controlPlane": control_plane,
+            "authMode": EDGE_AUTH_MODE,
         })
 
     def _proxy(self):
-        if self.path == "/edge/health" and self.command == "GET":
+        if urlsplit(self.path).path == "/edge/health" and self.command == "GET":
             self._edge_health()
             return
-        if not self._authorized():
+        if self.command == "OPTIONS":
+            self.send_response(204)
+            self._cors_headers()
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        auth_context = self._auth_context()
+        if not auth_context:
             self._json(401, {"error": "unauthorized"})
             return
-        upstreams = healthy_upstreams()
+        if (
+            EDGE_AUTH_MODE in {"supabase", "saas"}
+            and auth_context.get("type") not in {"edge_token", "public_signed_backend"}
+            and not supabase_auth_configured(require_service=not is_user_jwt_path(self.path))
+        ):
+            self._json(503, {"error": "edge_auth_not_configured"})
+            return
+
+        upstreams = control_plane_upstreams() if is_user_jwt_path(self.path) or is_public_signed_backend_path(self.path) else None
+        if upstreams is None:
+            upstreams = healthy_upstreams()
         if not upstreams:
             self._json(503, {"error": "no healthy sage-router upstreams"})
             return
@@ -212,7 +452,12 @@ class EdgeHandler(BaseHTTPRequestHandler):
             headers["Host"] = upstream.hostport
             headers["X-Sage-Router-Edge"] = "tailnet-lowest-latency"
             headers["X-Sage-Router-Selected-Upstream"] = upstream.raw_url
-            if BACKEND_TOKEN:
+            headers["X-Sage-Router-Edge-Auth-Type"] = str(auth_context.get("type") or "")
+            if auth_context.get("customer_id"):
+                headers["X-Sage-Router-Customer-Id"] = str(auth_context.get("customer_id"))
+            if auth_context.get("user_id"):
+                headers["X-Sage-Router-User-Id"] = str(auth_context.get("user_id"))
+            if BACKEND_TOKEN and not auth_context.get("preserve_authorization"):
                 headers["Authorization"] = f"Bearer {BACKEND_TOKEN}"
 
             conn = None
@@ -241,6 +486,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
                 if attempts:
                     self.send_header("X-Sage-Router-Retry-Count", str(len(attempts)))
                 self.send_header("Connection", "close")
+                self._cors_headers()
                 self.end_headers()
                 while True:
                     chunk = resp.read(READ_CHUNK_SIZE)
@@ -281,7 +527,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    for upstream in UPSTREAMS:
+    for upstream in UPSTREAMS + ([CONTROL_PLANE_UPSTREAM] if CONTROL_PLANE_UPSTREAM else []):
         check_upstream(upstream)
     threading.Thread(target=health_loop, daemon=True).start()
     server = ThreadingHTTPServer(("0.0.0.0", EDGE_PORT), EdgeHandler)

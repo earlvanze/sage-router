@@ -73,7 +73,7 @@ The current public deployment is intentionally split:
 - `https://sagerouter.dev` and `https://www.sagerouter.dev` are static Cloudflare Pages (`sage-router-web`). They host marketing/docs/account UI only.
 - `https://app.sagerouter.dev` is reserved for the hosted dashboard and login surface. Supabase Auth redirect allow-list entries should include this host before moving the dashboard there.
 - `https://api.sagerouter.dev` is a Cloudflare-proxied GCP edge VM. The edge health-checks Tailnet Sage Router installs plus the Google-hosted Sage Router API origin, then routes to the lowest-latency healthy backend.
-- Tailnet Edge is the reliability layer for routing to healthy Sage Router installs on a Tailnet. Keep customer auth, billing, rate limits, abuse controls, and customer API key issuance in front of it before public monetization. `api.sagerouter.dev` should stay API-only and accept user-issued API keys or validated Supabase user tokens; browser login belongs on `app.sagerouter.dev`.
+- Tailnet Edge is the reliability layer for routing to healthy Sage Router installs on a Tailnet. In public mode, set `SAGE_ROUTER_EDGE_AUTH_MODE=supabase`: `/v1/*` accepts active generated `sk_sage_*` customer API keys, while account/billing UI requests preserve Supabase user JWTs and should be pinned to a hosted control-plane origin with `SAGE_ROUTER_CONTROL_PLANE_UPSTREAM`. Browser login belongs on `app.sagerouter.dev`; `api.sagerouter.dev` should remain API-only and rate-limited before monetization.
 
 ### Hosted Auth
 
