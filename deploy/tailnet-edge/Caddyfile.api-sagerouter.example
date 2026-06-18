@@ -1,0 +1,12 @@
+{
+    email admin@sagerouter.dev
+}
+
+api.sagerouter.dev {
+    # Bind only to the cloud VM interface so Tailscale Serve/Funnel can keep
+    # using the Tailnet interface on :443.
+    bind 10.128.0.2
+
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8790
+}

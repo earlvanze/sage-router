@@ -7,6 +7,20 @@ routes = [
 ]
 
 [vars]
-# Set this to the verified public Tailscale Funnel hostname.
-# Example: SAGE_ROUTER_EDGE_ORIGIN = "https://sage-router-edge.talpa-stargazer.ts.net"
-SAGE_ROUTER_EDGE_ORIGIN = "https://sage-router-edge.example.ts.net"
+# JSON origin pool. The Worker health-checks every origin and proxies each
+# request to the lowest-latency healthy origin.
+SAGE_ROUTER_ORIGINS = """
+[
+  {
+    "name": "tailnet-edge-gcp",
+    "url": "https://sage-router-edge-gcp.talpa-stargazer.ts.net",
+    "healthPath": "/edge/health"
+  },
+  {
+    "name": "google-hosted-ghs",
+    "url": "https://sage-router-434058661374.us-central1.run.app",
+    "healthPath": "/health"
+  }
+]
+"""
+SAGE_ROUTER_ORIGIN_CACHE_SECONDS = "8"

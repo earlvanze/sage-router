@@ -21,10 +21,10 @@ Use this for private Tailnet resiliency first. For public monetization, put bill
 The current `sagerouter.dev` setup has separate responsibilities:
 
 - `sagerouter.dev` / `www.sagerouter.dev`: Cloudflare Pages static site (`sage-router-web`).
-- `api.sagerouter.dev`: Google-hosted Sage Router API service.
-- Tailnet Edge: private failover endpoint for routing to the fastest healthy Tailnet-local Sage Router install.
+- `api.sagerouter.dev`: Cloudflare-proxied GCP edge VM that routes to the fastest healthy Sage Router origin.
+- Tailnet Edge: failover endpoint for routing to the fastest healthy Tailnet-local Sage Router install, with the Google-hosted API service available as a public fallback origin.
 
-Before replacing `api.sagerouter.dev`, publish the edge through Tailscale Funnel, verify `/edge/health`, `/health`, `/v1/models`, and a small chat completion, then update DNS. Keep customer auth, billing, rate limits, and abuse controls in front of the edge before offering it outside the Tailnet.
+Before replacing or moving `api.sagerouter.dev`, verify `/edge/health`, `/health`, `/v1/models`, and a small chat completion from the target edge, then update DNS. Keep customer auth, billing, rate limits, and abuse controls in front of the edge before offering it outside the Tailnet.
 
 For hosted relay/control-plane work where provider credentials stay on the user's machine, use the Cloudflare Worker/Durable Object tunnel design in `docs/cloud-tunnel/README.md` as the product direction. Tailnet Edge is the operational failover primitive, not the customer-facing key-custody boundary.
 
@@ -92,16 +92,42 @@ curl https://sage-router-edge.example.ts.net/edge/health
 curl https://sage-router-edge.example.ts.net/v1/models -H "Authorization: Bearer replace-with-client-facing-token"
 ```
 
-Do not CNAME `api.sagerouter.dev` directly to a Funnel hostname unless you have confirmed TLS/SNI behavior for that custom hostname. The safer public cutover is a Cloudflare Worker route on `api.sagerouter.dev/*` that fetches the verified Funnel origin:
+Do not CNAME `api.sagerouter.dev` directly to a Funnel hostname unless you have confirmed TLS/SNI behavior for that custom hostname. The safer public cutover is a Cloudflare Worker route on `api.sagerouter.dev/*` that health-checks a pool of public origins and fetches the lowest-latency healthy one:
 
 ```bash
 cd deploy/tailnet-edge
 cp wrangler.api-sagerouter.example.toml wrangler.toml
-# Edit SAGE_ROUTER_EDGE_ORIGIN to the verified https://*.ts.net Funnel URL.
+# Edit SAGE_ROUTER_ORIGINS to include the verified https://*.ts.net Funnel URL
+# and the current Google-hosted API origin.
 npx wrangler deploy --config wrangler.toml
 ```
 
-Cloudflare can then provide DNS, proxying, WAF, cache rules for cacheable non-streaming paths, and optional Load Balancing if you later expose multiple public edge origins. The Tailnet Edge process still performs the application-aware lowest-latency selection among private Sage Router installs.
+The Worker exposes `GET /edge/health` on `api.sagerouter.dev` so you can see which public origin it selected. Cloudflare can then provide DNS, proxying, WAF, cache rules for cacheable non-streaming paths, and optional Load Balancing if you later expose multiple public edge origins. The Tailnet Edge process still performs the application-aware lowest-latency selection among private Sage Router installs.
+
+## Publish publicly with a cloud VM origin
+
+The current `api.sagerouter.dev` endpoint uses this path:
+
+```text
+Cloudflare proxy
+  -> GCP VM public IP
+  -> Caddy on the VM cloud interface
+  -> sage-router-tailnet-edge on 127.0.0.1:8790
+  -> lowest-latency healthy Tailnet or Google-hosted Sage Router origin
+```
+
+This keeps Tailscale Serve/Funnel available on the Tailnet interface while Caddy terminates `api.sagerouter.dev` on the VM's GCP interface. Copy `Caddyfile.api-sagerouter.example`, change the `bind` address to the VM's internal cloud-interface IP, and run Caddy with host networking:
+
+```bash
+docker run -d --name sage-router-public-caddy --restart unless-stopped \
+  --network host \
+  -v "$PWD/Caddyfile.api-sagerouter.example:/etc/caddy/Caddyfile:ro" \
+  -v sage-router-caddy-data:/data \
+  -v sage-router-caddy-config:/config \
+  caddy:2-alpine
+```
+
+Set `api.sagerouter.dev` to an unproxied `A` record first so Caddy can obtain a public certificate, verify `https://api.sagerouter.dev/edge/health`, then enable Cloudflare proxying on the same record.
 
 ## Google Cloud VM bootstrap
 

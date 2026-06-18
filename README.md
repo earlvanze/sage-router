@@ -64,14 +64,14 @@ docker compose up -d --build
 tailscale serve --bg --https=443 http://127.0.0.1:8790
 ```
 
-The edge health-checks each configured Tailnet upstream, routes OpenAI-compatible traffic to the lowest-latency healthy Sage Router node, and keeps provider credentials on the private routers. Use Tailscale Funnel to expose the edge publicly on HTTPS 443, then put `api.sagerouter.dev` in front of that verified Funnel hostname. See [deploy/tailnet-edge](deploy/tailnet-edge/README.md) for Google Cloud VM bootstrap and public monetization notes.
+The edge health-checks each configured Tailnet upstream, routes OpenAI-compatible traffic to the lowest-latency healthy Sage Router node, and keeps provider credentials on the private routers. Publish it privately with Tailscale Serve/Funnel, or front a stable cloud VM edge with Cloudflare for a CDN-style public endpoint. See [deploy/tailnet-edge](deploy/tailnet-edge/README.md) for Google Cloud VM bootstrap and public monetization notes.
 
 ### sagerouter.dev Deployment Map
 
 The current public deployment is intentionally split:
 
 - `https://sagerouter.dev` and `https://www.sagerouter.dev` are static Cloudflare Pages (`sage-router-web`). They host marketing/docs/account UI only.
-- `https://api.sagerouter.dev` currently points at the Google-hosted Sage Router API service. It can be moved to a verified Tailnet Edge/Funnel origin once that origin passes `/edge/health`, `/health`, `/v1/models`, and chat completion checks.
+- `https://api.sagerouter.dev` is a Cloudflare-proxied GCP edge VM. The edge health-checks Tailnet Sage Router installs plus the Google-hosted Sage Router API origin, then routes to the lowest-latency healthy backend.
 - Tailnet Edge is the reliability layer for routing to healthy Sage Router installs on a Tailnet. Keep customer auth, billing, rate limits, abuse controls, and customer API key issuance in front of it before public monetization.
 
 For the existing GCP deployment notes, see [deploy/gcp](deploy/gcp/README.md). For the privacy-preserving relay design where customer credentials stay on the user's machine, see [docs/cloud-tunnel](docs/cloud-tunnel/README.md).

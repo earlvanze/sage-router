@@ -174,7 +174,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
         })
 
     def _proxy(self):
-        if self.path in {"/edge/health", "/health"} and self.command == "GET":
+        if self.path == "/edge/health" and self.command == "GET":
             self._edge_health()
             return
         if not self._authorized():

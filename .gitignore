@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 data/
 *.bak-*
+.wrangler/
 # Frontend
 web/node_modules/
 web/dist/
