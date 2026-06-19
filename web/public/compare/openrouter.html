@@ -46,6 +46,7 @@
       <div class="navLinks">
         <a href="/">Home</a>
         <a href="/model-routing-calculator">Calculator</a>
+        <a href="/pricing">Pricing</a>
         <a href="/managed-access">Managed Access</a>
         <a href="/status">Status</a>
         <a href="/account.html">Account</a>
@@ -60,7 +61,8 @@
         <h1>Sage Router vs OpenRouter</h1>
         <p class="lead">OpenRouter is useful when you want one hosted marketplace-style API. Sage Router is built for teams and agents that want one endpoint too, but with local-first control, BYOK routing, private provider credentials, Ollama support, health-aware fallback, and an optional hosted account layer.</p>
         <div class="actions">
-          <a class="button primary" href="/account.html">Create hosted API key</a>
+          <a class="button primary" href="/account.html?plan=pro">Create hosted API key</a>
+          <a class="button secondary" href="/pricing">Compare plans</a>
           <a class="button secondary" href="https://github.com/earlvanze/sage-router">Run locally</a>
           <a class="button secondary" href="/status">View public edge status</a>
           <a class="button secondary" href="/model-routing-calculator">Estimate routing savings</a>
@@ -143,6 +145,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       <span>&copy; Sage Router</span>
       <a href="/">Home</a>
       <a href="/account.html">Account</a>
+      <a href="/pricing">Pricing</a>
       <a href="/status">Status</a>
       <a href="/model-routing-calculator">Calculator</a>
       <a href="/managed-access">Managed Access</a>
@@ -152,5 +155,66 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       <a href="https://github.com/earlvanze/sage-router">GitHub</a>
     </footer>
   </div>
+  <script>
+    function trackOpenRouterComparisonEvent(event, data = {}) {
+      const payload = JSON.stringify({
+        event,
+        plan: data.plan || null,
+        sourcePage: window.location.href,
+        target: data.target || null,
+        metadata: {
+          source: 'compare-openrouter',
+          button: data.button || null
+        }
+      });
+      try {
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          if (navigator.sendBeacon('/api/funnel-event', blob)) return;
+        }
+      } catch {}
+      fetch('/api/funnel-event', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: payload,
+        keepalive: true,
+        credentials: 'omit'
+      }).catch(() => {});
+    }
+
+    document.querySelectorAll('a[href]').forEach((link) => {
+      const href = link.getAttribute('href') || '';
+      const button = link.textContent.trim().slice(0, 60);
+      const planMatch = href.match(/\/account\.html\?plan=(lite|pro|max)\b/);
+      if (planMatch) {
+        link.addEventListener('click', () => trackOpenRouterComparisonEvent('openrouter_compare_checkout_clicked', {
+          plan: planMatch[1],
+          target: href,
+          button
+        }));
+      } else if (href === '/account.html') {
+        link.addEventListener('click', () => trackOpenRouterComparisonEvent('openrouter_compare_account_clicked', {
+          target: href,
+          button
+        }));
+      } else if (href === '/pricing') {
+        link.addEventListener('click', () => trackOpenRouterComparisonEvent('openrouter_compare_pricing_clicked', {
+          target: href,
+          button
+        }));
+      } else if (href === '/model-routing-calculator') {
+        link.addEventListener('click', () => trackOpenRouterComparisonEvent('openrouter_compare_calculator_clicked', {
+          target: href,
+          button
+        }));
+      } else if (href === '/managed-access' || href.includes('interest=managed-access')) {
+        link.addEventListener('click', () => trackOpenRouterComparisonEvent('openrouter_compare_managed_access_clicked', {
+          plan: 'max',
+          target: href,
+          button
+        }));
+      }
+    });
+  </script>
 </body>
 </html>

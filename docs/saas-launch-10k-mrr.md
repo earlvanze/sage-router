@@ -106,10 +106,11 @@ claim, or runtime feature flag.
   hosted API key or request implementation support. The calculator should
   recommend Lite, Pro, or Max from the workflow profile and send the prospect
   into preselected checkout with `/account.html?plan=...`.
-- Capture pre-signup CTA intent from the calculator and pricing pages through
-  the privacy-safe `/api/funnel-event` path. Store only event, plan, sanitized
-  source/target URL, and small allowlisted metadata buckets; do not store
-  prompts, workflow text, emails, API keys, or provider credentials.
+- Capture pre-signup CTA intent from the calculator, pricing, and OpenRouter
+  comparison pages through the privacy-safe `/api/funnel-event` path. Store
+  only event, plan, sanitized source/target URL, and small allowlisted metadata
+  buckets; do not store prompts, workflow text, emails, API keys, or provider
+  credentials.
 - Capture signed-in checkout and billing intent from the account page through
   the same privacy-safe path, including plan selection, Stripe checkout clicks
   and returns, Stripe portal clicks and returns, and crypto/manual payment

@@ -38,8 +38,9 @@ Suggested Cloudflare Pages settings:
 
 The waitlist form posts to `/api/waitlist`, a Cloudflare Pages Function that inserts into Supabase table `sage_router_waitlist` and falls back to `funnel_leads` for older AOps schemas. `GET /api/waitlist` is a non-mutating health check used by `scripts/check_sagerouter_launch_readiness.sh`. The managed-access intake posts `interest=managed-access` plus allowlisted qualification buckets for private-beta demand measurement while public managed provider access stays disabled. Set both `SAGEROUTER_TURNSTILE_SECRET_KEY` and `SAGEROUTER_TURNSTILE_SITE_KEY` in Cloudflare Pages to require Cloudflare Turnstile on waitlist submissions; the health check fails if the secret is enabled without a public site key.
 
-The calculator and pricing pages send anonymous pre-signup CTA intent to
-`/api/funnel-event`, backed by Supabase table `sage_router_funnel_events`.
+The calculator, pricing, and OpenRouter comparison pages send anonymous
+pre-signup CTA intent to `/api/funnel-event`, backed by Supabase table
+`sage_router_funnel_events`.
 `GET /api/funnel-event` is a non-mutating health check. The function only
 accepts allowlisted event names, plans, sanitized URLs, and metadata buckets so
 the operator launch funnel can count demand without storing prompts, workflow
