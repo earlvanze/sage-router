@@ -15,6 +15,7 @@ const host = (url) => {
 };
 const fmtLatency = (value) => Number.isFinite(Number(value)) ? `${Math.round(Number(value))} ms` : '--';
 const fmtNumber = (value) => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '';
+const fmtBool = (value) => value ? 'enabled' : 'disabled';
 const relTime = (epochSeconds) => {
   const epoch = Number(epochSeconds);
   if (!Number.isFinite(epoch) || epoch <= 0) return 'not checked yet';
@@ -76,6 +77,67 @@ function renderPlans(pricing = {}) {
   }).join('');
 }
 
+function renderControls(health = {}) {
+  const upstreams = health.upstreams || [];
+  const healthyCount = upstreams.filter(row => row.healthy).length;
+  const controlPlane = health.controlPlane || {};
+  const enforcement = health.enforcement || {};
+  const authMode = health.authMode || 'unknown';
+  const cacheSeconds = Number(enforcement.apiKeyAuthCacheSeconds);
+  const immediateRevocation = Number.isFinite(cacheSeconds) && cacheSeconds === 0;
+  const rateLimitWindow = Number(enforcement.rateLimitWindowSeconds);
+  const rows = [
+    {
+      title: 'Failover policy',
+      value: healthyCount >= 2 ? 'multi-upstream' : (healthyCount === 1 ? 'single upstream' : 'no healthy upstreams'),
+      badge: healthyCount >= 2 ? 'active' : 'limited',
+      state: healthyCount >= 2 ? 'good' : 'warn',
+      meta: `${healthyCount}/${upstreams.length} healthy backends; requests use the lowest-latency healthy route.`,
+    },
+    {
+      title: 'Control plane',
+      value: controlPlane.healthy ? 'healthy' : 'unavailable',
+      badge: fmtLatency(controlPlane.latency_ms),
+      state: controlPlane.healthy ? 'good' : 'bad',
+      meta: `${host(controlPlane.url || 'unknown')} · checked ${relTime(controlPlane.last_checked)}`,
+    },
+    {
+      title: 'Customer auth',
+      value: authMode,
+      badge: enforcement.apiKeyPrefix || 'API keys',
+      state: authMode === 'supabase' ? 'good' : 'warn',
+      meta: 'Generated customer keys are validated before model traffic is proxied.',
+    },
+    {
+      title: 'Rate limits',
+      value: fmtBool(enforcement.rateLimitEnabled),
+      badge: Number.isFinite(rateLimitWindow) ? `${rateLimitWindow}s window` : 'window unknown',
+      state: enforcement.rateLimitEnabled ? 'good' : 'warn',
+      meta: 'Public generated-key traffic is throttled at the edge.',
+    },
+    {
+      title: 'Durable quotas',
+      value: fmtBool(enforcement.quotaEnabled),
+      badge: enforcement.quotaEnabled ? 'Supabase counted' : 'not enforced',
+      state: enforcement.quotaEnabled ? 'good' : 'warn',
+      meta: 'Monthly usage is counted outside the edge process for subscription enforcement.',
+    },
+    {
+      title: 'Key revocation',
+      value: immediateRevocation ? 'immediate' : `${Number.isFinite(cacheSeconds) ? cacheSeconds : '?'}s cache`,
+      badge: immediateRevocation ? 'zero cache' : 'cached',
+      state: immediateRevocation ? 'good' : 'warn',
+      meta: 'Revoked generated keys are rechecked before the next model request.',
+    },
+  ];
+
+  $('controls').innerHTML = rows.map(row => `<article class="upstream">
+    <div class="row"><div class="host">${esc(row.title)}: ${esc(row.value)}</div>${badge(row.badge, row.state)}</div>
+    <div class="meta">${esc(row.meta)}</div>
+  </article>`).join('');
+  set('resilience-summary', `${healthyCount}/${upstreams.length} upstreams are healthy; control plane ${controlPlane.healthy ? 'healthy' : 'not healthy'}; auth mode ${authMode}.`);
+}
+
 async function fetchJson(path) {
   const res = await fetch(`${sageRouterUrl}${path}`, { cache: 'no-store' });
   const data = await res.json().catch(() => ({}));
@@ -95,6 +157,7 @@ async function refreshStatus() {
     if (pricing.apiBaseUrl) sageRouterUrl = pricing.apiBaseUrl;
     const selectedRow = renderUpstreams(health);
     renderPlans(pricing);
+    renderControls(health);
     const healthyCount = (health.upstreams || []).filter(row => row.healthy).length;
     const totalCount = (health.upstreams || []).length;
     const ok = health.status === 'ok' && healthyCount > 0;
@@ -116,6 +179,8 @@ async function refreshStatus() {
     set('kpi-latency', '--');
     $('upstreams').innerHTML = '<p class="muted">Could not load upstream health.</p>';
     $('plans').innerHTML = '<p class="muted">Could not load hosted plan metadata.</p>';
+    $('controls').innerHTML = '<p class="muted">Could not load edge enforcement controls.</p>';
+    set('resilience-summary', 'Edge enforcement metadata is unavailable.');
   }
 }
 

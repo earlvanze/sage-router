@@ -40,7 +40,7 @@
     .badge.bad{border-color:rgba(255,159,159,.35);background:rgba(255,159,159,.10);color:#ffd7d7}
     .badge.warn{border-color:rgba(243,201,105,.35);background:rgba(243,201,105,.12);color:#ffe7a3}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-    .upstreams,.plans{display:grid;gap:10px}
+    .upstreams,.plans,.controls{display:grid;gap:10px}
     .upstream,.planCard{padding:14px;box-shadow:none;background:rgba(255,255,255,.035)}
     .row{display:flex;justify-content:space-between;gap:14px;align-items:center}
     .host{font-weight:900;overflow-wrap:anywhere}
@@ -88,6 +88,11 @@
         <h2>Hosted Plans</h2>
         <div id="plans" class="plans"></div>
       </div>
+    </section>
+    <section class="panel">
+      <h2>Reliability Controls</h2>
+      <p id="resilience-summary" class="muted">Loading edge enforcement and failover posture.</p>
+      <div id="controls" class="controls"></div>
     </section>
     <section class="panel">
       <h2>Endpoint</h2>
