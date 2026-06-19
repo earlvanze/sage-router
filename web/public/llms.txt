@@ -4,7 +4,7 @@ Sage Router is an open-source, local-first AI model router and BYOK AI gateway f
 
 Canonical site: https://sagerouter.dev/
 OpenRouter comparison: https://sagerouter.dev/compare/openrouter
-Hosted pricing: https://sagerouter.dev/pricing.html
+Hosted pricing: https://sagerouter.dev/pricing
 Repository: https://github.com/earlvanze/sage-router
 Docs: https://github.com/earlvanze/sage-router#readme
 

@@ -179,14 +179,14 @@ check_marketing_comparison_page() {
 
 check_marketing_pricing_page() {
   local page_code sitemap_code
-  page_code="$(http_code_follow "${MARKETING_BASE%/}/pricing.html")"
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/pricing")"
   if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router Hosted Pricing" /tmp/sage-router-readiness-body; then
     page_code="200:unexpected-body"
   fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
-  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/pricing.html" /tmp/sage-router-readiness-body; then
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/pricing" /tmp/sage-router-readiness-body; then
     sitemap_code="200:missing-pricing-url"
   fi
   rm -f /tmp/sage-router-readiness-body

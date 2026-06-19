@@ -114,7 +114,7 @@ Hosted plan limits are exposed from `/pricing` and enforced at the public edge:
 | Max | $72/month | 200,000/month | 600/minute |
 
 Customer-facing hosted pricing and plan positioning are published at
-`https://sagerouter.dev/pricing.html`. The launch math and $10k MRR operating
+`https://sagerouter.dev/pricing`. The launch math and $10k MRR operating
 plan live in [docs/saas-launch-10k-mrr.md](docs/saas-launch-10k-mrr.md).
 
 ### Hosted Auth
