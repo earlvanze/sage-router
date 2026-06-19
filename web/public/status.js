@@ -16,6 +16,13 @@ const host = (url) => {
 const fmtLatency = (value) => Number.isFinite(Number(value)) ? `${Math.round(Number(value))} ms` : '--';
 const fmtNumber = (value) => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '';
 const fmtBool = (value) => value ? 'enabled' : 'disabled';
+const originKind = (url = '') => {
+  const name = host(url).toLowerCase();
+  if (name.endsWith('.ts.net')) return 'tailnet';
+  if (name.includes('run.app')) return 'cloud fallback';
+  if (name.includes('sagerouter.dev')) return 'public edge';
+  return 'custom';
+};
 const relTime = (epochSeconds) => {
   const epoch = Number(epochSeconds);
   if (!Number.isFinite(epoch) || epoch <= 0) return 'not checked yet';
@@ -75,6 +82,46 @@ function renderPlans(pricing = {}) {
       <div class="meta">${esc(plan.price || '')}${limitText ? ` · ${esc(limitText)}` : ''}</div>
     </article>`;
   }).join('');
+}
+
+function renderReliabilityEvidence(health = {}) {
+  const upstreams = health.upstreams || [];
+  const healthy = upstreams.filter(row => row.healthy);
+  const tailnetCount = healthy.filter(row => originKind(row.url) === 'tailnet').length;
+  const cloudCount = healthy.filter(row => originKind(row.url) === 'cloud fallback').length;
+  const selected = upstreams.find(row => row.url === health.selected) || {};
+  const selectedKind = originKind(selected.url || health.selected || '');
+  const multiOrigin = tailnetCount > 0 && cloudCount > 0;
+  const multiHost = healthy.length >= 2;
+  const status = multiOrigin && multiHost ? 'resilient' : (multiHost ? 'partial' : 'limited');
+  const cards = [
+    {
+      title: 'Healthy backends',
+      value: `${healthy.length}/${upstreams.length}`,
+      badge: multiHost ? 'failover ready' : 'limited',
+      state: multiHost ? 'good' : 'warn',
+      meta: 'The public edge selects the lowest-latency healthy backend before proxying model traffic.',
+    },
+    {
+      title: 'Origin mix',
+      value: `${tailnetCount} Tailnet · ${cloudCount} cloud`,
+      badge: multiOrigin ? 'hybrid' : 'single class',
+      state: multiOrigin ? 'good' : 'warn',
+      meta: 'Tailnet installs provide private capacity; the Cloud Run origin remains available as hosted fallback.',
+    },
+    {
+      title: 'Current route',
+      value: host(selected.url || health.selected || '--'),
+      badge: selectedKind,
+      state: selected.healthy ? 'good' : 'warn',
+      meta: `${fmtLatency(selected.latency_ms)} selected latency; checked ${relTime(selected.last_checked)}.`,
+    },
+  ];
+  $('reliability-evidence').innerHTML = cards.map(row => `<article class="upstream">
+    <div class="row"><div class="host">${esc(row.title)}: ${esc(row.value)}</div>${badge(row.badge, row.state)}</div>
+    <div class="meta">${esc(row.meta)}</div>
+  </article>`).join('');
+  set('reliability-summary', `${status === 'resilient' ? 'Hybrid failover is active' : 'Failover is limited'}: ${healthy.length}/${upstreams.length} healthy backends, ${tailnetCount} Tailnet origin${tailnetCount === 1 ? '' : 's'}, and ${cloudCount} cloud fallback origin${cloudCount === 1 ? '' : 's'}.`);
 }
 
 function renderControls(health = {}) {
@@ -157,6 +204,7 @@ async function refreshStatus() {
     if (pricing.apiBaseUrl) sageRouterUrl = pricing.apiBaseUrl;
     const selectedRow = renderUpstreams(health);
     renderPlans(pricing);
+    renderReliabilityEvidence(health);
     renderControls(health);
     const healthyCount = (health.upstreams || []).filter(row => row.healthy).length;
     const totalCount = (health.upstreams || []).length;
@@ -179,6 +227,8 @@ async function refreshStatus() {
     set('kpi-latency', '--');
     $('upstreams').innerHTML = '<p class="muted">Could not load upstream health.</p>';
     $('plans').innerHTML = '<p class="muted">Could not load hosted plan metadata.</p>';
+    $('reliability-evidence').innerHTML = '<p class="muted">Could not load failover evidence.</p>';
+    set('reliability-summary', 'Public failover evidence is unavailable.');
     $('controls').innerHTML = '<p class="muted">Could not load edge enforcement controls.</p>';
     set('resilience-summary', 'Edge enforcement metadata is unavailable.');
   }

@@ -304,7 +304,7 @@ check_stripe_webhook_guard() {
 }
 
 check_hosted_onboarding_pages() {
-  local login_code account_code analytics_code manifest_code
+  local login_code account_code analytics_code manifest_code status_code status_js_code
   login_code="$(http_code_follow "${APP_BASE%/}/login.html")"
   if [[ "$login_code" == "200" ]] && ! grep -q "Login · Sage Router" /tmp/sage-router-readiness-body; then
     login_code="200:unexpected-body"
@@ -323,6 +323,21 @@ check_hosted_onboarding_pages() {
   analytics_code="$(http_code_follow "${APP_BASE%/}/analytics.html")"
   if [[ "$analytics_code" == "200" ]] && ! grep -q "Router analytics that prove the best route" /tmp/sage-router-readiness-body; then
     analytics_code="200:unexpected-body"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  status_code="$(http_code_follow "${APP_BASE%/}/status")"
+  if [[ "$status_code" == "200" ]] && ! grep -q "CDN-style reliability evidence" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-reliability-evidence"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  status_js_code="$(http_code_follow "${APP_BASE%/}/status.js")"
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "renderReliabilityEvidence" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-reliability-renderer"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "cloud fallback" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-cloud-fallback-evidence"
   fi
   rm -f /tmp/sage-router-readiness-body
 
@@ -346,10 +361,10 @@ check_hosted_onboarding_pages() {
   fi
   rm -f /tmp/sage-router-readiness-body
 
-  if [[ "$login_code" == "200" && "$account_code" == "200" && "$analytics_code" == "200" && "$analytics_js_code" == "200" && "$account_js_code" == "200" && "$manifest_code" == "200" ]]; then
-    pass "hosted login, account, API-key verification, analytics, and GitHub auth callback pages are live"
+  if [[ "$login_code" == "200" && "$account_code" == "200" && "$analytics_code" == "200" && "$status_code" == "200" && "$status_js_code" == "200" && "$analytics_js_code" == "200" && "$account_js_code" == "200" && "$manifest_code" == "200" ]]; then
+    pass "hosted login, account, API-key verification, analytics, reliability status, and GitHub auth callback pages are live"
   else
-    fail "hosted onboarding pages incomplete: login=${login_code} account=${account_code} account.js=${account_js_code} analytics=${analytics_code} analytics.js=${analytics_js_code} github-app-manifest=${manifest_code}"
+    fail "hosted onboarding pages incomplete: login=${login_code} account=${account_code} account.js=${account_js_code} analytics=${analytics_code} analytics.js=${analytics_js_code} status=${status_code} status.js=${status_js_code} github-app-manifest=${manifest_code}"
   fi
 }
 

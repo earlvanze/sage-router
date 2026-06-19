@@ -40,7 +40,8 @@
     .badge.bad{border-color:rgba(255,159,159,.35);background:rgba(255,159,159,.10);color:#ffd7d7}
     .badge.warn{border-color:rgba(243,201,105,.35);background:rgba(243,201,105,.12);color:#ffe7a3}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-    .upstreams,.plans,.controls{display:grid;gap:10px}
+    .upstreams,.plans,.controls,.evidenceGrid{display:grid;gap:10px}
+    .evidenceGrid{grid-template-columns:repeat(3,minmax(0,1fr))}
     .upstream,.planCard{padding:14px;box-shadow:none;background:rgba(255,255,255,.035)}
     .row{display:flex;justify-content:space-between;gap:14px;align-items:center}
     .host{font-weight:900;overflow-wrap:anywhere}
@@ -50,7 +51,7 @@
     .btn{min-height:42px;border:0;border-radius:8px;padding:0 15px;background:linear-gradient(135deg,var(--brand),#48c97f);color:#04150d;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
     .btn.secondary{background:rgba(255,255,255,.045);color:var(--text);border:1px solid var(--border)}
     code{color:#d9f8e6}
-    @media(max-width:900px){.links{display:none}.hero,.grid2,.kpis{grid-template-columns:1fr}h1{font-size:2.8rem}}
+    @media(max-width:900px){.links{display:none}.hero,.grid2,.kpis,.evidenceGrid{grid-template-columns:1fr}h1{font-size:2.8rem}}
   </style>
 </head>
 <body>
@@ -78,6 +79,11 @@
       <div class="kpi"><div id="kpi-auth" class="value">--</div><div class="label">Auth mode</div></div>
       <div class="kpi"><div id="kpi-selected" class="value">--</div><div class="label">Selected upstream</div></div>
       <div class="kpi"><div id="kpi-latency" class="value">--</div><div class="label">Selected latency</div></div>
+    </section>
+    <section class="panel">
+      <h2>CDN-style reliability evidence</h2>
+      <p id="reliability-summary" class="muted">Loading public failover and cloud fallback posture.</p>
+      <div id="reliability-evidence" class="evidenceGrid"></div>
     </section>
     <section class="grid2">
       <div class="panel">
