@@ -164,6 +164,42 @@ function renderBottlenecks(rows = []) {
   </table>`;
 }
 
+function eventLabel(name) {
+  return String(name || 'unknown')
+    .replace(/^openrouter_compare_/, 'openrouter ')
+    .replace(/_/g, ' ');
+}
+
+function sortedEntries(counts = {}) {
+  return Object.entries(counts || {})
+    .filter(([, count]) => asNumber(count) > 0)
+    .sort((a, b) => asNumber(b[1]) - asNumber(a[1]) || String(a[0]).localeCompare(String(b[0])));
+}
+
+function renderMarketingIntent(marketingIntent = {}) {
+  const eventRows = sortedEntries(marketingIntent.events);
+  const planRows = sortedEntries(marketingIntent.plans);
+  if (!eventRows.length && !planRows.length) {
+    $('marketing-intent-breakdown').innerHTML = '<div class="empty">No anonymous marketing CTA intent events in this window.</div>';
+    return;
+  }
+  const eventsTable = eventRows.length ? `<div>
+    <h3>Events</h3>
+    <table>
+      <thead><tr><th>Event</th><th>Clicks</th></tr></thead>
+      <tbody>${eventRows.map(([name, count]) => `<tr><td><span class="pill">${esc(eventLabel(name))}</span></td><td>${integer(count)}</td></tr>`).join('')}</tbody>
+    </table>
+  </div>` : '<div class="empty">No event breakdown returned.</div>';
+  const plansTable = planRows.length ? `<div>
+    <h3>Plans</h3>
+    <table>
+      <thead><tr><th>Plan</th><th>Clicks</th></tr></thead>
+      <tbody>${planRows.map(([name, count]) => `<tr><td><span class="pill">${esc(name)}</span></td><td>${integer(count)}</td></tr>`).join('')}</tbody>
+    </table>
+  </div>` : '<div class="empty">No plan breakdown returned.</div>';
+  $('marketing-intent-breakdown').innerHTML = `<div class="grid2">${eventsTable}${plansTable}</div>`;
+}
+
 function renderFunnel(data) {
   const stages = data.stages || {};
   const rates = data.rates || {};
@@ -196,6 +232,7 @@ function renderFunnel(data) {
   privacyEl.className = privacy.containsEmails === false && privacy.containsApiKeys === false ? 'pill good' : 'pill bad';
 
   renderBottlenecks(data.bottlenecks || []);
+  renderMarketingIntent(marketingIntent);
   renderPlanMix(mrr.byPlan || {});
   $('dashboard').classList.remove('hidden');
 }

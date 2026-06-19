@@ -163,8 +163,10 @@ claim, or runtime feature flag.
 - Track the funnel from waitlist to signup, generated key, first routed request,
   paid conversion, and retained paid account through the operator-only
   `/analytics/funnel` endpoint.
-- Include anonymous `marketingIntentEvents` in `/analytics/funnel` so the
-  operator can see whether pricing/calculator demand exists before signup.
+- Include anonymous `marketingIntentEvents` plus event/plan breakdowns in
+  `/analytics/funnel` and the private launch-funnel dashboard so the operator
+  can see whether pricing, calculator, and OpenRouter comparison demand exists
+  before signup.
 - Keep `app.sagerouter.dev/account.html` aligned with the same activation
   funnel: signed-in account, paid routing, generated key, public-edge
   `/v1/models` verification, and server-recorded first routed usage.

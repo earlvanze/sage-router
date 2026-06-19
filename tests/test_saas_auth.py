@@ -657,11 +657,12 @@ class SaaSAuthTests(unittest.TestCase):
             },
         }, None)
         router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
-            'total': 4,
+            'total': 5,
             'events': {
                 'calculator_checkout_clicked': 2,
                 'pricing_checkout_clicked': 1,
                 'managed_access_interest_clicked': 1,
+                'openrouter_compare_checkout_clicked': 1,
             },
             'plans': {
                 'pro': 3,
@@ -688,8 +689,9 @@ class SaaSAuthTests(unittest.TestCase):
         snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
 
         self.assertEqual(3, snapshot['stages']['waitlistLeads'])
-        self.assertEqual(4, snapshot['stages']['marketingIntentEvents'])
+        self.assertEqual(5, snapshot['stages']['marketingIntentEvents'])
         self.assertEqual(2, snapshot['marketingIntent']['events']['calculator_checkout_clicked'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['openrouter_compare_checkout_clicked'])
         self.assertEqual(3, snapshot['marketingIntent']['plans']['pro'])
         self.assertEqual(2, snapshot['stages']['managedAccessBetaInterest'])
         self.assertEqual(2, snapshot['waitlistInterest']['managedAccess'])
