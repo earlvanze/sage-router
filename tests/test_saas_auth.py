@@ -235,6 +235,51 @@ class SaaSAuthTests(unittest.TestCase):
             captured['fields']['cancel_url'],
         )
 
+    def test_stripe_billing_portal_uses_existing_customer(self):
+        router.STRIPE_SECRET_KEY = 'sk_test'
+        router.supabase_user_for_bearer = lambda token: {'id': 'user-1', 'email': 'u@example.com'}
+        customer = router.customer_for_user({'id': 'user-1', 'email': 'u@example.com'})
+        router.update_customer(customer['id'], {'stripe_customer_id': 'cus_existing'})
+        captured = {}
+        router.stripe_request = lambda path, fields, timeout=10: captured.update({'path': path, 'fields': fields}) or {'id': 'bps_test', 'url': 'https://billing.test'}
+
+        class Dummy:
+            path = '/billing/stripe/portal'
+            headers = {'Authorization': 'Bearer valid-user-jwt', 'Content-Length': '2'}
+            rfile = BytesIO(b'{}')
+            status = None
+            payload = None
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+        self.assertEqual(200, handler.status)
+        self.assertEqual('/v1/billing_portal/sessions', captured['path'])
+        self.assertEqual('cus_existing', captured['fields']['customer'])
+        self.assertEqual('https://app.sagerouter.dev/account.html?billing=portal', captured['fields']['return_url'])
+        self.assertEqual('https://billing.test', handler.payload['portal_url'])
+
+    def test_stripe_billing_portal_requires_existing_customer(self):
+        router.STRIPE_SECRET_KEY = 'sk_test'
+        router.supabase_user_for_bearer = lambda token: {'id': 'user-1', 'email': 'u@example.com'}
+
+        class Dummy:
+            path = '/billing/stripe/portal'
+            headers = {'Authorization': 'Bearer valid-user-jwt', 'Content-Length': '2'}
+            rfile = BytesIO(b'{}')
+            status = None
+            payload = None
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+        self.assertEqual(409, handler.status)
+        self.assertEqual('stripe_customer_missing', handler.payload['error'])
+
     def test_stripe_webhook_duplicate_event_is_ignored(self):
         router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
         customer = router.customer_for_user({'id': 'user-1', 'email': 'u@example.com'})
@@ -311,6 +356,7 @@ class SaaSAuthTests(unittest.TestCase):
 
         for path, expected in (
             ('/billing/stripe/checkout', 'stripe_not_configured'),
+            ('/billing/stripe/portal', 'stripe_not_configured'),
             ('/billing/crypto/intent', 'crypto_not_configured'),
         ):
             handler = Dummy(path)
@@ -324,6 +370,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('https://api.sagerouter.dev/v1', metadata['openaiBaseUrl'])
         self.assertEqual('https://api.sagerouter.dev', metadata['anthropicBaseUrl'])
         self.assertEqual('/billing/stripe/checkout', metadata['checkoutPath'])
+        self.assertEqual('/billing/stripe/portal', metadata['billingPortalPath'])
         self.assertEqual('sk_sage_', metadata['apiKeyPrefix'])
 
     def test_public_plan_catalog_exposes_edge_limits(self):

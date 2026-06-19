@@ -26,7 +26,7 @@ const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
 
 let selectedPlan = 'pro';
 let currentRawKey = '';
-let checkoutReturnHandled = false;
+let billingReturnHandled = false;
 
 function applyLaunchMetadata(data) {
   if (!data) return;
@@ -146,20 +146,26 @@ async function refresh() {
   }
 }
 
-function handleCheckoutReturn() {
-  if (checkoutReturnHandled) return;
-  checkoutReturnHandled = true;
+function handleBillingReturn() {
+  if (billingReturnHandled) return;
+  billingReturnHandled = true;
   const params = new URLSearchParams(window.location.search || '');
   const state = params.get('checkout');
-  if (!state) return;
-  const plan = (params.get('plan') || selectedPlan || 'pro').toLowerCase();
-  if (DEFAULT_PLAN_ORDER.includes(plan)) selectedPlan = plan;
-  if (state === 'success') {
-    set('billing-status', `Stripe checkout returned for ${selectedPlan}. Activation can take a moment while the webhook confirms the subscription.`);
-    setTimeout(() => refresh(), 3000);
-    setTimeout(() => refresh(), 10000);
-  } else if (state === 'cancel') {
-    set('billing-status', `Checkout cancelled. ${selectedPlan} is still selected.`);
+  const billing = params.get('billing');
+  if (!state && !billing) return;
+  if (state) {
+    const plan = (params.get('plan') || selectedPlan || 'pro').toLowerCase();
+    if (DEFAULT_PLAN_ORDER.includes(plan)) selectedPlan = plan;
+    if (state === 'success') {
+      set('billing-status', `Stripe checkout returned for ${selectedPlan}. Activation can take a moment while the webhook confirms the subscription.`);
+      setTimeout(() => refresh(), 3000);
+      setTimeout(() => refresh(), 10000);
+    } else if (state === 'cancel') {
+      set('billing-status', `Checkout cancelled. ${selectedPlan} is still selected.`);
+    }
+  } else if (billing === 'portal') {
+    set('billing-status', 'Returned from Stripe billing management.');
+    setTimeout(() => refresh(), 1500);
   }
   const cleanUrl = `${window.location.origin}${window.location.pathname}`;
   window.history.replaceState({}, document.title, cleanUrl);
@@ -285,6 +291,16 @@ async function stripeCheckout() {
   }
 }
 
+async function billingPortal() {
+  try {
+    set('billing-status', 'Opening Stripe billing management...');
+    const data = await api('/billing/stripe/portal', { method: 'POST', body: '{}' });
+    if (data.portal_url) window.location.href = data.portal_url;
+  } catch (error) {
+    set('billing-status', `${error.message}. Complete Stripe checkout before opening billing management.`);
+  }
+}
+
 async function cryptoIntent() {
   try {
     set('crypto-status', 'Creating manual payment intent...');
@@ -302,6 +318,7 @@ $('password-login')?.addEventListener('click', passwordLogin);
 $('magic-login')?.addEventListener('click', magicLogin);
 $('create-key')?.addEventListener('click', createKey);
 $('stripe-checkout')?.addEventListener('click', stripeCheckout);
+$('stripe-portal')?.addEventListener('click', billingPortal);
 $('crypto-intent')?.addEventListener('click', cryptoIntent);
 $('sign-out')?.addEventListener('click', async () => { await sb.auth.signOut(); refresh(); });
 $('plans')?.addEventListener('click', (event) => {
@@ -329,5 +346,5 @@ document.addEventListener('click', async (event) => {
 });
 sb.auth.onAuthStateChange(() => refresh());
 refresh();
-handleCheckoutReturn();
+handleBillingReturn();
 applyAuthSettings();

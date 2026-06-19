@@ -18,6 +18,15 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("sb.auth.signUp", js)
         self.assertIn("emailRedirectTo: `${window.location.origin}/account.html`", js)
 
+    def test_account_page_has_stripe_billing_management(self):
+        html = self.read_public("account.html")
+        js = self.read_public("account.js")
+        self.assertIn('id="stripe-portal"', html)
+        self.assertIn("Manage billing", html)
+        self.assertIn("api('/billing/stripe/portal'", js)
+        self.assertIn("params.get('billing')", js)
+        self.assertIn("billing === 'portal'", js)
+
     def test_login_page_has_explicit_email_signup(self):
         html = self.read_public("login.html")
         js = self.read_public("auth.js")

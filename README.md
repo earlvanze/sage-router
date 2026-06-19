@@ -80,7 +80,7 @@ The current public deployment is intentionally split:
 The hosted account page at `https://app.sagerouter.dev/account.html` is the customer onboarding surface:
 
 1. Create an account or sign in with email, magic link, or an enabled Supabase OAuth provider.
-2. Choose Lite, Pro, or Max. Stripe checkout posts the selected plan to `/billing/stripe/checkout`; crypto/manual settlement stays available for accounts that are not ready for Stripe.
+2. Choose Lite, Pro, or Max. Stripe checkout posts the selected plan to `/billing/stripe/checkout`; after checkout links a Stripe customer, the account page opens `/billing/stripe/portal` for self-service billing, payment-method changes, cancellation, and subscription management. Crypto/manual settlement stays available for accounts that are not ready for Stripe.
 3. Generate an `sk_sage_*` API key and use the copyable OpenAI-compatible quickstart.
 
 API keys created before checkout are stored, but the account page marks routing as blocked until the customer is active, trialing, or manually enabled; the edge enforces the same rule before proxying `/v1/*` traffic. Revoked keys and inactive accounts are rechecked against Supabase by default on every generated-key request.
@@ -158,7 +158,7 @@ scripts/apply_supabase_quota_schema.sh
 scripts/check_sagerouter_launch_readiness.sh
 ```
 
-Stripe checkout reuses an existing `stripe_customer_id` when a customer is already linked, and Stripe webhook retries are idempotent by `event_id`. Apply `supabase/migrations/20260619034200_stripe_webhook_idempotency.sql` anywhere the SaaS tables already exist so duplicate signed webhook deliveries cannot create duplicate payment event rows.
+Stripe checkout reuses an existing `stripe_customer_id` when a customer is already linked, the account page exposes Stripe's customer billing portal after checkout, and Stripe webhook retries are idempotent by `event_id`. Apply `supabase/migrations/20260619034200_stripe_webhook_idempotency.sql` anywhere the SaaS tables already exist so duplicate signed webhook deliveries cannot create duplicate payment event rows.
 
 For the existing GCP deployment notes, see [deploy/gcp](deploy/gcp/README.md). For the privacy-preserving relay design where customer credentials stay on the user's machine, see [docs/cloud-tunnel](docs/cloud-tunnel/README.md).
 

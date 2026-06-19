@@ -1759,6 +1759,7 @@ def public_launch_metadata():
         'accountUrl': f"{PUBLIC_BASE_URL}/account.html",
         'loginUrl': f"{PUBLIC_BASE_URL}/login.html",
         'checkoutPath': '/billing/stripe/checkout',
+        'billingPortalPath': '/billing/stripe/portal',
         'apiKeyPrefix': API_KEY_PREFIX,
         'recommendedModel': 'sage-router/frontier',
     }
@@ -8540,6 +8541,7 @@ class Handler(BaseHTTPRequestHandler):
                     "apiKeys": "/account/api-keys",
                     "plan": "/account/plan",
                     "stripeCheckout": "/billing/stripe/checkout",
+                    "stripeBillingPortal": "/billing/stripe/portal",
                     "cryptoPayment": "/billing/crypto/intent"
                 },
                 "docs": "https://sagerouter.dev",
@@ -8862,6 +8864,27 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 logger.warning(f'Stripe checkout failed: {extract_http_error(e)}')
                 self.write_json(502, {'error': 'stripe_checkout_failed'})
+            return
+        if self.path == '/billing/stripe/portal':
+            _user, customer = require_user_customer(self)
+            if not customer:
+                return
+            stripe_customer_id = str(customer.get('stripe_customer_id') or '').strip()
+            if not STRIPE_SECRET_KEY:
+                self.write_json(503, {'error': 'stripe_not_configured', 'required_env': ['STRIPE_SECRET_KEY or SAGE_ROUTER_STRIPE_SECRET_KEY']})
+                return
+            if not stripe_customer_id:
+                self.write_json(409, {'error': 'stripe_customer_missing', 'message': 'Complete Stripe checkout before opening the billing portal.'})
+                return
+            try:
+                session = stripe_request('/v1/billing_portal/sessions', {
+                    'customer': stripe_customer_id,
+                    'return_url': f'{PUBLIC_BASE_URL}/account.html?billing=portal',
+                })
+                self.write_json(200, {'portal_url': session.get('url'), 'session_id': session.get('id')})
+            except Exception as e:
+                logger.warning(f'Stripe billing portal failed: {extract_http_error(e)}')
+                self.write_json(502, {'error': 'stripe_portal_failed'})
             return
         if self.path == '/billing/stripe/webhook':
             length = int(self.headers.get('Content-Length', 0) or 0)
