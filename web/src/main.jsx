@@ -145,6 +145,7 @@ function App() {
             <a href="/compare/openrouter">Compare</a>
             <a href="/model-routing-calculator">Calculator</a>
             <a href="/pricing">Pricing</a>
+            <a href="/security">Security</a>
             <a href="/status">Status</a>
             <a href="/analytics.html">Dashboard</a>
             <a href="/login.html">Login</a>
@@ -184,6 +185,9 @@ function App() {
               </a>
               <a className="button secondary" href="/pricing">
                 View pricing
+              </a>
+              <a className="button secondary" href="/security">
+                Review security
               </a>
               <a className="button secondary" href="/login.html">
                 Sign in
@@ -451,6 +455,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/pricing">Pricing</a>
         <a href="/compare/openrouter">Compare OpenRouter</a>
         <a href="/model-routing-calculator">Calculator</a>
+        <a href="/security">Security</a>
         <a href="/status">Status</a>
         <a href="/terms">Terms</a>
         <a href="/privacy">Privacy</a>

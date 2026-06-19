@@ -77,8 +77,8 @@ authorization, billing, quota, and abuse-control checks are explicitly enabled.
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
 - Keep `/pricing`, `/status`, `/account.html`, `/login.html`, `/api/waitlist`,
   `/compare/openrouter`, `/model-routing-calculator`, `/terms`, `/privacy`,
-  `/acceptable-use`, `/provider-resale-terms`, and `/margin-policy` in the
-  readiness gate.
+  `/security`, `/acceptable-use`, `/provider-resale-terms`, and
+  `/margin-policy` in the readiness gate.
 - Keep the public pricing, calculator, legal, provider-resale, and margin-policy
   pages in sitemap and LLM discovery.
 - Use the calculator as the lightweight qualification path before signup:

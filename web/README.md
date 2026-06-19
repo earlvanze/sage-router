@@ -67,6 +67,7 @@ Next recommended additions after MVP:
 - Dedicated `/compare/openrouter` page for OpenRouter-alternative acquisition traffic.
 - Keep the hosted pricing page aligned with `/pricing` API metadata and the account checkout plans.
 - Keep the model routing calculator in navigation, sitemap, LLM discovery, and readiness checks.
+- Keep the public `/security` trust page in navigation, sitemap, LLM discovery, and readiness checks whenever hosted edge authentication copy changes.
 - Dedicated docs pages for OpenAI-compatible, Anthropic-compatible, Ollama, Gemini, Cursor, Aider, Continue, Codex CLI, Claude Code, and OpenHands setup.
 - Expand JSON-LD once final production docs URLs, logo/social image, and hosted beta URLs are stable.
 - Real case-study/benchmark pages targeting `automate model selection`, `agent model router`, and `BYOK LLM gateway` searches.

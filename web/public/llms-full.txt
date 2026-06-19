@@ -22,6 +22,7 @@ Managed provider access is a future/private-beta path, not an active public plan
 
 ## Hosted legal and compliance
 
+Security: https://sagerouter.dev/security
 Terms: https://sagerouter.dev/terms
 Privacy: https://sagerouter.dev/privacy
 Acceptable Use: https://sagerouter.dev/acceptable-use
@@ -35,6 +36,8 @@ Managed provider access, if introduced, must be limited to provider access Sage 
 ## Architecture and security
 
 Default architecture keeps provider credentials on the customer machine or server. Sage Router should provide inspectable routing policy, health metadata, deployment helpers, and optional reliability layers without making key custody the default.
+
+The hosted public edge is API-only. `https://api.sagerouter.dev/v1/*` and `/v1beta/*` model routes require active generated `sk_sage_*` customer API keys, account and billing UI routes require Supabase user sessions on the hosted control plane, and global analytics/admin/setup routes require the private operator token. Anonymous model and analytics requests should fail closed with onboarding guidance, not provider access. Customer dashboards use `/account/analytics` scoped to the signed-in account.
 
 ## Sage Router vs OpenRouter
 

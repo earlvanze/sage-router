@@ -462,7 +462,19 @@ check_model_routing_calculator() {
 }
 
 check_legal_pages() {
-  local terms_code privacy_code acceptable_code sitemap_code
+  local security_code terms_code privacy_code acceptable_code sitemap_code
+  security_code="$(http_code_follow "${MARKETING_BASE%/}/security")"
+  if [[ "$security_code" == "200" ]] && ! grep -q "Sage Router Security" /tmp/sage-router-readiness-body; then
+    security_code="200:unexpected-body"
+  fi
+  if [[ "$security_code" == "200" ]] && ! grep -q "hosted public API edge" /tmp/sage-router-readiness-body; then
+    security_code="200:missing-public-edge-boundary"
+  fi
+  if [[ "$security_code" == "200" ]] && ! grep -q "active generated" /tmp/sage-router-readiness-body; then
+    security_code="200:missing-generated-key-boundary"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
   terms_code="$(http_code_follow "${MARKETING_BASE%/}/terms")"
   if [[ "$terms_code" == "200" ]] && ! grep -q "Sage Router Terms" /tmp/sage-router-readiness-body; then
     terms_code="200:unexpected-body"
@@ -495,17 +507,18 @@ check_legal_pages() {
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
   if [[ "$sitemap_code" == "200" ]] &&
-      { ! grep -q "${MARKETING_BASE%/}/terms" /tmp/sage-router-readiness-body ||
+      { ! grep -q "${MARKETING_BASE%/}/security" /tmp/sage-router-readiness-body ||
+        ! grep -q "${MARKETING_BASE%/}/terms" /tmp/sage-router-readiness-body ||
         ! grep -q "${MARKETING_BASE%/}/privacy" /tmp/sage-router-readiness-body ||
         ! grep -q "${MARKETING_BASE%/}/acceptable-use" /tmp/sage-router-readiness-body; }; then
     sitemap_code="200:missing-legal-url"
   fi
   rm -f /tmp/sage-router-readiness-body
 
-  if [[ "$terms_code" == "200" && "$privacy_code" == "200" && "$acceptable_code" == "200" && "$sitemap_code" == "200" ]]; then
-    pass "marketing terms, privacy, and acceptable-use pages are live and in sitemap"
+  if [[ "$security_code" == "200" && "$terms_code" == "200" && "$privacy_code" == "200" && "$acceptable_code" == "200" && "$sitemap_code" == "200" ]]; then
+    pass "marketing security, terms, privacy, and acceptable-use pages are live and in sitemap"
   else
-    fail "marketing legal pages incomplete: terms=${terms_code} privacy=${privacy_code} acceptable-use=${acceptable_code} sitemap=${sitemap_code}"
+    fail "marketing legal pages incomplete: security=${security_code} terms=${terms_code} privacy=${privacy_code} acceptable-use=${acceptable_code} sitemap=${sitemap_code}"
   fi
 }
 
