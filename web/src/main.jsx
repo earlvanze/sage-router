@@ -143,6 +143,7 @@ function App() {
             <a href="#automation">Automation</a>
             <a href="#analytics">Analytics</a>
             <a href="/compare/openrouter">Compare</a>
+            <a href="/quickstart">Quickstart</a>
             <a href="/models">Models</a>
             <a href="/model-routing-calculator">Calculator</a>
             <a href="/pricing">Pricing</a>
@@ -180,6 +181,9 @@ function App() {
               </a>
               <a className="button secondary" href="/compare/openrouter">
                 Compare OpenRouter
+              </a>
+              <a className="button secondary" href="/quickstart">
+                Read quickstart
               </a>
               <a className="button secondary" href="/models">
                 Browse models

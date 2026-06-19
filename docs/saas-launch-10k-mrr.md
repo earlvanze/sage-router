@@ -36,7 +36,7 @@ single buyer type.
 | --- | ---: | --- |
 | Visitor to waitlist/signup | 5% | `sagerouter.dev`, `/pricing`, `/compare/openrouter` |
 | Signup to generated key | 60% | `app.sagerouter.dev/account.html` |
-| Generated key to first routed request | 50% | OpenAI-compatible quickstart |
+| Generated key to first routed request | 50% | `/quickstart` OpenAI-compatible setup |
 | Trial/free to paid | 15% | Stripe checkout and plan gating |
 | Paid logo retention | 85% monthly | usage quotas, status, analytics, fallback value |
 
@@ -75,14 +75,17 @@ authorization, billing, quota, and abuse-control checks are explicitly enabled.
 ## Near-term launch checklist
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
-- Keep `/pricing`, `/status`, `/account.html`, `/login.html`, `/api/waitlist`,
-  `/models`, `/compare/openrouter`, `/model-routing-calculator`, `/terms`,
+- Keep `/pricing`, `/quickstart`, `/status`, `/account.html`, `/login.html`,
+  `/api/waitlist`, `/models`, `/compare/openrouter`, `/model-routing-calculator`, `/terms`,
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
 - Keep the public pricing, calculator, legal, provider-resale, and margin-policy
   pages in sitemap and LLM discovery.
 - Keep public model discovery at `/models` and `/model-catalog`, while live
   `/v1/models` stays authenticated with generated `sk_sage_*` keys.
+- Keep `/quickstart` as the first hosted API request path with
+  `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, `sage-router/frontier`,
+  curl, JavaScript, Python, Codex, and 401/402/429/503 troubleshooting.
 - Use the calculator as the lightweight qualification path before signup:
   prospects estimate savings, review points, and fallback gaps, then create a
   hosted API key or request implementation support.

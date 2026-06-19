@@ -53,6 +53,7 @@ The MVP treats discoverability as first-class. Current static assets include:
 - Keyword coverage for AI model router, LLM router, provider routing, model selection automation, AI agent model routing, OpenAI-compatible router, Anthropic-compatible router, Ollama routing, BYOK AI gateway, local-first AI router, and OpenRouter alternative.
 - Structured page sections for automation, BYOK routing, OpenRouter comparison, and Ollama/Ollama Cloud roadmap language.
 - Dedicated hosted pricing page at `/pricing` with plan limits, compliance-safe positioning, and $10k MRR launch math.
+- Dedicated API quickstart page at `/quickstart` with hosted `sk_sage_*` key setup, `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, `sage-router/frontier`, curl, JavaScript, Python, Codex, and error troubleshooting.
 - No-login model routing calculator at `/model-routing-calculator` for acquisition and workflow qualification.
 - FAQ content intended for snippets and LLM ingestion.
 - JSON-LD SoftwareApplication and FAQPage schema in index.html.
@@ -66,6 +67,7 @@ Next recommended additions after MVP:
 
 - Dedicated `/compare/openrouter` page for OpenRouter-alternative acquisition traffic.
 - Keep the hosted pricing page aligned with `/pricing` API metadata and the account checkout plans.
+- Keep `/quickstart` aligned with the hosted account page and public edge error guidance.
 - Keep the model routing calculator in navigation, sitemap, LLM discovery, and readiness checks.
 - Keep the public `/security` trust page in navigation, sitemap, LLM discovery, and readiness checks whenever hosted edge authentication copy changes.
 - Dedicated docs pages for OpenAI-compatible, Anthropic-compatible, Ollama, Gemini, Cursor, Aider, Continue, Codex CLI, Claude Code, and OpenHands setup.
