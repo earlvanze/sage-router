@@ -83,6 +83,8 @@ The hosted account page at `https://app.sagerouter.dev/account.html` is the cust
 2. Choose Lite, Pro, or Max. Stripe checkout posts the selected plan to `/billing/stripe/checkout`; crypto/manual settlement stays available for accounts that are not ready for Stripe.
 3. Generate an `sk_sage_*` API key and use the copyable OpenAI-compatible quickstart.
 
+API keys created before checkout are stored, but the account page marks routing as blocked until the customer is active, trialing, or manually enabled; the edge enforces the same rule before proxying `/v1/*` traffic.
+
 Programmatic clients should call the API edge directly:
 
 ```bash

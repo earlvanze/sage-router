@@ -111,6 +111,25 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIsNone(router.verify_generated_api_key(raw))
 
 
+    def test_public_api_key_uses_effective_customer_plan_and_routing_state(self):
+        customer = router.customer_for_user({'id': 'user-2', 'email': 'u2@example.com'})
+        _raw, row = router.create_api_key_for_customer(customer, 'prepaid')
+        inactive_public = router.public_api_key(row, customer)
+        self.assertEqual('free', inactive_public['plan'])
+        self.assertFalse(inactive_public['routing_enabled'])
+        self.assertEqual('inactive', inactive_public['customer_status'])
+
+        data = router.local_customer_store()
+        data['customers'][0]['plan'] = 'max'
+        data['customers'][0]['status'] = 'active'
+        router.write_local_customer_store(data)
+        active_customer = router.customer_for_user({'id': 'user-2'}, create=False)
+        active_public = router.public_api_key(row, active_customer)
+        self.assertEqual('max', active_public['plan'])
+        self.assertEqual('free', active_public['key_plan'])
+        self.assertTrue(active_public['routing_enabled'])
+
+
     def test_route_events_are_scoped_to_generated_customer_keys(self):
         customer = self.active_customer()
         raw, _row = router.create_api_key_for_customer(customer, 'prod')

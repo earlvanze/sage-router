@@ -155,7 +155,10 @@ function renderPlans(plans, currentPlan) {
 
 function renderKeys(keys) {
   if (!keys.length) return '<p class="muted">No API keys yet.</p>';
-  return `<table><thead><tr><th>Name</th><th>Prefix</th><th>Status</th><th>Plan</th><th></th></tr></thead><tbody>${keys.map(k => `<tr><td>${esc(k.name)}</td><td><span class="pill">${esc(k.prefix)}</span></td><td>${esc(k.status)}</td><td>${esc(k.plan || 'free')}</td><td><button class="btn ghost" data-revoke="${esc(k.id)}">Revoke</button></td></tr>`).join('')}</tbody></table>`;
+  return `<table><thead><tr><th>Name</th><th>Prefix</th><th>Status</th><th>Plan</th><th>Routing</th><th></th></tr></thead><tbody>${keys.map(k => {
+    const routing = k.routing_enabled ? 'Ready' : 'Blocked';
+    return `<tr><td>${esc(k.name)}</td><td><span class="pill">${esc(k.prefix)}</span></td><td>${esc(k.status)}</td><td>${esc(k.plan || 'free')}</td><td>${esc(routing)}</td><td><button class="btn ghost" data-revoke="${esc(k.id)}">Revoke</button></td></tr>`;
+  }).join('')}</tbody></table>`;
 }
 
 async function oauthLogin(provider) {

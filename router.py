@@ -4698,13 +4698,19 @@ def key_prefix(raw_key):
     return raw_key[:16]
 
 
-def public_api_key(row):
+def public_api_key(row, customer=None):
+    customer = normalize_customer(customer) if customer else None
+    effective_plan = (customer or {}).get('plan') or row.get('plan') or ''
+    customer_status = (customer or {}).get('status') or ''
     return {
         'id': row.get('id'),
         'name': row.get('name') or '',
         'prefix': row.get('prefix') or '',
         'status': row.get('status') or 'active',
-        'plan': row.get('plan') or '',
+        'plan': effective_plan,
+        'key_plan': row.get('plan') or '',
+        'customer_status': customer_status,
+        'routing_enabled': bool(customer_is_active(customer)),
         'created_at_epoch': row.get('created_at_epoch'),
         'last_used_at_epoch': row.get('last_used_at_epoch'),
         'revoked_at_epoch': row.get('revoked_at_epoch'),
@@ -8593,7 +8599,7 @@ class Handler(BaseHTTPRequestHandler):
             _user, customer = require_user_customer(self)
             if not customer:
                 return
-            self.write_json(200, {'api_keys': [public_api_key(k) for k in api_keys_for_customer(customer.get('id'))]})
+            self.write_json(200, {'api_keys': [public_api_key(k, customer) for k in api_keys_for_customer(customer.get('id'))]})
         elif self.path.startswith('/analytics'):
             if not analytics_authorized(self):
                 self.write_json(401, {'error': 'unauthorized'})
@@ -8773,7 +8779,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             payload = read_json_body(self)
             raw_key, row = create_api_key_for_customer(customer, payload.get('name') or 'Default')
-            self.write_json(201, {'api_key': public_api_key(row), 'key': raw_key})
+            self.write_json(201, {'api_key': public_api_key(row, customer), 'key': raw_key})
             return
         if self.path.startswith('/account/api-keys/') and self.path.endswith('/revoke'):
             _user, customer = require_user_customer(self)
@@ -8784,7 +8790,7 @@ class Handler(BaseHTTPRequestHandler):
             if not row:
                 self.write_json(404, {'error': 'api_key_not_found'})
                 return
-            self.write_json(200, {'api_key': public_api_key(row)})
+            self.write_json(200, {'api_key': public_api_key(row, customer)})
             return
         if self.path == '/billing/stripe/checkout':
             _user, customer = require_user_customer(self)
