@@ -60,6 +60,8 @@ SAGE_ROUTER_CORS_ORIGIN=https://app.sagerouter.dev,https://sagerouter.dev,https:
 SAGE_ROUTER_EDGE_RATE_LIMIT_ENABLED=1
 SAGE_ROUTER_EDGE_RATE_LIMIT_WINDOW_SECONDS=60
 SAGE_ROUTER_EDGE_RATE_LIMITS=trial=30,lite=60,pro=180,max=600,manual=600,paid=180,active=180,default=60
+SAGE_ROUTER_EDGE_AUTH_CACHE_SECONDS=30
+SAGE_ROUTER_EDGE_API_KEY_AUTH_CACHE_SECONDS=0
 SAGE_ROUTER_EDGE_QUOTA_ENABLED=1
 SAGE_ROUTER_EDGE_MONTHLY_QUOTAS=trial=1000,lite=10000,pro=50000,max=200000,paid=50000,active=50000,default=0
 ```
@@ -72,7 +74,7 @@ SAGE_ROUTER_CONTROL_PLANE_UPSTREAM=https://sage-router-hosted.example.run.app
 
 With that split, public metadata (`/pricing`, `/plans`, and `/features/agent-native`), `/account*`, and supported `/billing/*` UI endpoints use the control-plane origin. Account and billing UI endpoints preserve the user's Supabase JWT, while `/v1/*` model routes validate a generated customer API key and inject only `SAGE_ROUTER_BACKEND_TOKEN` into private Tailnet routers.
 
-The edge enforces an in-memory fixed-window rate limit for generated customer API keys and Supabase user-JWT account/billing requests. Limits are keyed by generated key/customer or user id, grouped by the first path segment (`/v1`, `/account`, `/billing`), and return `429` with `Retry-After` plus `X-RateLimit-*` headers when exceeded. The private `SAGE_ROUTER_EDGE_TOKEN` remains exempt for emergency/admin operations.
+The edge enforces an in-memory fixed-window rate limit for generated customer API keys and Supabase user-JWT account/billing requests. Limits are keyed by generated key/customer or user id, grouped by the first path segment (`/v1`, `/account`, `/billing`), and return `429` with `Retry-After` plus `X-RateLimit-*` headers when exceeded. Supabase user JWT validation uses `SAGE_ROUTER_EDGE_AUTH_CACHE_SECONDS`; generated `sk_sage_*` API keys use `SAGE_ROUTER_EDGE_API_KEY_AUTH_CACHE_SECONDS`, which defaults to `0` so revoked keys and inactive accounts are rechecked on the next request. The private `SAGE_ROUTER_EDGE_TOKEN` remains exempt for emergency/admin operations.
 
 Monthly SaaS quotas are optional and durable in Supabase. From the repository root, run `scripts/apply_supabase_quota_schema.sh` to apply `supabase/migrations/20260619021500_sage_router_usage_quotas.sql`, then set `SAGE_ROUTER_EDGE_QUOTA_ENABLED=1`. Generated customer API keys on `/v1/*` call the `sage_router_increment_usage` RPC before proxying and receive `X-Quota-*` headers. A plan limit of `0` means no monthly cap for that plan/status; omitted plans fall back to `default`.
 

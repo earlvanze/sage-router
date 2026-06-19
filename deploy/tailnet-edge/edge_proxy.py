@@ -47,6 +47,7 @@ SUPABASE_USAGE_RPC = os.environ.get("SAGE_ROUTER_SUPABASE_USAGE_RPC", "sage_rout
 API_KEY_PREFIX = os.environ.get("SAGE_ROUTER_API_KEY_PREFIX", "sk_sage_")
 API_KEY_HASH_PEPPER = os.environ.get("SAGE_ROUTER_API_KEY_HASH_PEPPER") or os.environ.get("SAGE_ROUTER_SIGNING_SECRET") or ""
 AUTH_CACHE_TTL_SECONDS = float(os.environ.get("SAGE_ROUTER_EDGE_AUTH_CACHE_SECONDS", "30"))
+API_KEY_AUTH_CACHE_TTL_SECONDS = float(os.environ.get("SAGE_ROUTER_EDGE_API_KEY_AUTH_CACHE_SECONDS", "0"))
 CORS_ORIGIN = os.environ.get("SAGE_ROUTER_CORS_ORIGIN", "https://app.sagerouter.dev,https://sagerouter.dev,https://www.sagerouter.dev")
 CORS_ORIGINS = [origin.strip() for origin in CORS_ORIGIN.split(",") if origin.strip()]
 RATE_LIMIT_ENABLED = os.environ.get("SAGE_ROUTER_EDGE_RATE_LIMIT_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
@@ -413,12 +414,17 @@ def cache_get(key):
     return None
 
 
-def cache_set(key, value):
-    if AUTH_CACHE_TTL_SECONDS <= 0:
+def cache_set(key, value, ttl_seconds=None):
+    ttl_seconds = AUTH_CACHE_TTL_SECONDS if ttl_seconds is None else ttl_seconds
+    if ttl_seconds <= 0:
         return value
     with AUTH_CACHE_LOCK:
-        AUTH_CACHE[key] = (time.time() + AUTH_CACHE_TTL_SECONDS, value)
+        AUTH_CACHE[key] = (time.time() + ttl_seconds, value)
     return value
+
+
+def cache_api_key_auth(cache_key, value):
+    return cache_set(cache_key, value, API_KEY_AUTH_CACHE_TTL_SECONDS)
 
 
 def supabase_auth_configured(require_service=False):
@@ -448,9 +454,10 @@ def verify_supabase_generated_key(token):
         return None
     digest = api_key_hash(token)
     cache_key = f"api-key:{digest}"
-    cached = cache_get(cache_key)
-    if cached is not None:
-        return cached
+    if API_KEY_AUTH_CACHE_TTL_SECONDS > 0:
+        cached = cache_get(cache_key)
+        if cached is not None:
+            return cached
     try:
         quoted_digest = urllib.parse.quote(digest, safe="")
         key_rows = supabase_get_json(
@@ -458,7 +465,7 @@ def verify_supabase_generated_key(token):
             service=True,
         )
         if not key_rows:
-            return cache_set(cache_key, False)
+            return cache_api_key_auth(cache_key, False)
         key = key_rows[0]
         quoted_customer_id = urllib.parse.quote(str(key.get("customer_id") or ""), safe="")
         customer_rows = supabase_get_json(
@@ -467,14 +474,14 @@ def verify_supabase_generated_key(token):
         )
         customer = customer_rows[0] if customer_rows else None
         if not customer_is_active(customer):
-            return cache_set(cache_key, False)
+            return cache_api_key_auth(cache_key, False)
         key_id = urllib.parse.quote(str(key.get("id") or ""), safe="")
         if key_id:
             try:
                 supabase_patch_json(f"/rest/v1/{SUPABASE_API_KEYS_TABLE}?id=eq.{key_id}", {"last_used_at_epoch": int(time.time())})
             except Exception as exc:
                 print(f"supabase last-used update failed: {exc}", flush=True)
-        return cache_set(cache_key, {
+        return cache_api_key_auth(cache_key, {
             "type": "generated_key",
             "key_id": key.get("id"),
             "customer_id": customer.get("id"),
@@ -485,7 +492,7 @@ def verify_supabase_generated_key(token):
         })
     except Exception as exc:
         print(f"supabase api key auth failed: {exc}", flush=True)
-        return cache_set(cache_key, False)
+        return cache_api_key_auth(cache_key, False)
 
 
 def is_user_jwt_path(path):

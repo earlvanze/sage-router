@@ -83,6 +83,43 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertFalse(ctx["preserve_authorization"])
         self.assertEqual(1, len(patches))
 
+    def test_generated_api_key_auth_rechecks_by_default_for_revocation(self):
+        raw_key = "sk_sage_test_key"
+        digest = hashlib.sha256(("pepper" + raw_key).encode("utf-8")).hexdigest()
+        active = True
+        key_lookups = 0
+
+        def fake_get(path, service=False, token=None, timeout=6):
+            nonlocal key_lookups
+            self.assertTrue(service)
+            if self.edge.SUPABASE_API_KEYS_TABLE in path:
+                key_lookups += 1
+                self.assertIn(digest, path)
+                if not active:
+                    return []
+                return [{
+                    "id": "key-1",
+                    "customer_id": "customer-1",
+                    "status": "active",
+                    "api_key_hash": digest,
+                }]
+            if self.edge.SUPABASE_CUSTOMERS_TABLE in path:
+                return [{
+                    "id": "customer-1",
+                    "user_id": "user-1",
+                    "plan": "pro",
+                    "status": "active",
+                }]
+            return []
+
+        self.edge.supabase_get_json = fake_get
+        self.edge.supabase_patch_json = lambda *_args, **_kwargs: None
+
+        self.assertEqual("generated_key", self.edge.verify_supabase_generated_key(raw_key)["type"])
+        active = False
+        self.assertFalse(self.edge.verify_supabase_generated_key(raw_key))
+        self.assertEqual(2, key_lookups)
+
     def test_generated_api_key_rejects_free_or_inactive_customer(self):
         self.edge.supabase_get_json = lambda path, **_kwargs: (
             [{"id": "key-1", "customer_id": "customer-1", "status": "active"}]
