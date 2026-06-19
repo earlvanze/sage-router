@@ -51,6 +51,11 @@ AUTH_CACHE_TTL_SECONDS = float(os.environ.get("SAGE_ROUTER_EDGE_AUTH_CACHE_SECON
 API_KEY_AUTH_CACHE_TTL_SECONDS = float(os.environ.get("SAGE_ROUTER_EDGE_API_KEY_AUTH_CACHE_SECONDS", "0"))
 CORS_ORIGIN = os.environ.get("SAGE_ROUTER_CORS_ORIGIN", "https://app.sagerouter.dev,https://sagerouter.dev,https://www.sagerouter.dev")
 CORS_ORIGINS = [origin.strip() for origin in CORS_ORIGIN.split(",") if origin.strip()]
+ACCOUNT_URL = os.environ.get("SAGE_ROUTER_ACCOUNT_URL", "https://app.sagerouter.dev/account.html")
+LOGIN_URL = os.environ.get("SAGE_ROUTER_LOGIN_URL", "https://app.sagerouter.dev/login.html")
+PRICING_URL = os.environ.get("SAGE_ROUTER_PRICING_URL", "https://sagerouter.dev/pricing")
+STATUS_URL = os.environ.get("SAGE_ROUTER_STATUS_URL", "https://app.sagerouter.dev/status")
+API_BASE_URL = os.environ.get("SAGE_ROUTER_PUBLIC_API_BASE_URL", "https://api.sagerouter.dev")
 RATE_LIMIT_ENABLED = os.environ.get("SAGE_ROUTER_EDGE_RATE_LIMIT_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
 RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("SAGE_ROUTER_EDGE_RATE_LIMIT_WINDOW_SECONDS", "60"))
 RATE_LIMITS_RAW = os.environ.get(
@@ -544,6 +549,40 @@ def outbound_bearer_token(path, auth_context):
     return BACKEND_TOKEN
 
 
+def edge_error_payload(error, path, message=None, **extra):
+    payload = {"error": error}
+    if message:
+        payload["message"] = message
+    if is_generated_api_key_path(path):
+        payload["accountUrl"] = ACCOUNT_URL
+        payload["pricingUrl"] = PRICING_URL
+        payload["statusUrl"] = STATUS_URL
+        payload["openaiBaseUrl"] = API_BASE_URL.rstrip("/") + "/v1"
+        payload["apiKeyPrefix"] = API_KEY_PREFIX
+    elif is_user_jwt_path(path):
+        payload["loginUrl"] = LOGIN_URL
+        payload["accountUrl"] = ACCOUNT_URL
+    if extra:
+        payload.update({key: value for key, value in extra.items() if value is not None})
+    return payload
+
+
+def edge_error_headers(error, path):
+    headers = {}
+    if is_generated_api_key_path(path):
+        headers["Link"] = (
+            f'<{ACCOUNT_URL}>; rel="account", '
+            f'<{PRICING_URL}>; rel="pricing", '
+            f'<{STATUS_URL}>; rel="status"'
+        )
+    if error == "unauthorized" and is_generated_api_key_path(path):
+        headers["WWW-Authenticate"] = (
+            'Bearer realm="Sage Router", error="invalid_token", '
+            'error_description="Use an active Sage Router API key from app.sagerouter.dev/account.html"'
+        )
+    return headers
+
+
 def check_upstream(upstream):
     started = time.perf_counter()
     conn = None
@@ -689,18 +728,31 @@ class EdgeHandler(BaseHTTPRequestHandler):
             return
         auth_context = self._auth_context()
         if not auth_context:
-            self._json(401, {"error": "unauthorized"})
+            self._json(
+                401,
+                edge_error_payload(
+                    "unauthorized",
+                    self.path,
+                    "Use an active Sage Router API key for model API routes, or sign in for account routes.",
+                ),
+                edge_error_headers("unauthorized", self.path),
+            )
             return
         if (
             EDGE_AUTH_MODE in {"supabase", "saas"}
             and auth_context.get("type") not in {"edge_token", "public_control_plane", "public_signed_backend"}
             and not supabase_auth_configured(require_service=not is_user_jwt_path(self.path))
         ):
-            self._json(503, {"error": "edge_auth_not_configured"})
+            self._json(
+                503,
+                edge_error_payload("edge_auth_not_configured", self.path),
+                edge_error_headers("edge_auth_not_configured", self.path),
+            )
             return
         allowed, rate_state = check_rate_limit(auth_context, self.path)
         if not allowed:
-            self._json(429, {"error": "rate_limited"}, {
+            self._json(429, edge_error_payload("rate_limited", self.path), {
+                **edge_error_headers("rate_limited", self.path),
                 "Retry-After": rate_state["retry_after"],
                 "X-RateLimit-Limit": rate_state["limit"],
                 "X-RateLimit-Remaining": rate_state["remaining"],
@@ -710,14 +762,23 @@ class EdgeHandler(BaseHTTPRequestHandler):
         quota_allowed, quota_state = check_usage_quota(auth_context, self.path)
         if not quota_allowed:
             status = 503 if quota_state and str(quota_state.get("error") or "").startswith("edge_quota_") else 402
-            self._json(status, {"error": (quota_state or {}).get("error") or "quota_exceeded"}, quota_headers(quota_state))
+            error = (quota_state or {}).get("error") or "quota_exceeded"
+            self._json(
+                status,
+                edge_error_payload(error, self.path, quota=quota_state.get("quota") if quota_state else None),
+                {**edge_error_headers(error, self.path), **quota_headers(quota_state)},
+            )
             return
 
         upstreams = control_plane_upstreams() if should_use_control_plane(self.path) else None
         if upstreams is None:
             upstreams = healthy_upstreams()
         if not upstreams:
-            self._json(503, {"error": "no healthy sage-router upstreams"})
+            self._json(
+                503,
+                edge_error_payload("no healthy sage-router upstreams", self.path),
+                edge_error_headers("no healthy sage-router upstreams", self.path),
+            )
             return
 
         body = None

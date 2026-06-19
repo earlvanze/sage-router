@@ -192,7 +192,7 @@ gcloud app domain-mappings list
 ## Operations
 
 - `/edge/health` reports the selected upstream and last probe latency/error for every configured upstream.
-- In `SAGE_ROUTER_EDGE_AUTH_MODE=supabase`, `/edge/health` remains public but all proxied routes fail closed unless the request has a private edge token, a valid generated customer API key for model API paths, or a valid Supabase user JWT for account/billing UI paths.
+- In `SAGE_ROUTER_EDGE_AUTH_MODE=supabase`, `/edge/health` remains public but all proxied routes fail closed unless the request has a private edge token, a valid generated customer API key for model API paths, or a valid Supabase user JWT for account/billing UI paths. Anonymous `/v1/*` failures include setup-safe account, pricing, status, OpenAI base URL, and API-key-prefix guidance, plus a `WWW-Authenticate` challenge, so customers can debug onboarding without exposing provider credentials.
 - Public SaaS traffic is rate-limited by `SAGE_ROUTER_EDGE_RATE_LIMITS` over `SAGE_ROUTER_EDGE_RATE_LIMIT_WINDOW_SECONDS`; responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` when a non-exempt identity is counted.
 - If `SAGE_ROUTER_EDGE_QUOTA_ENABLED=1`, generated customer API key traffic on `/v1/*` is counted against `SAGE_ROUTER_EDGE_MONTHLY_QUOTAS` in Supabase. Exhausted plans receive `402` with `X-Quota-*` headers; quota RPC/configuration failures fail closed with `503`.
 - Upstream health probes use `SAGE_ROUTER_HEALTH_PATH`, `SAGE_ROUTER_HEALTH_INTERVAL_SECONDS`, and `SAGE_ROUTER_HEALTH_TIMEOUT_SECONDS`.

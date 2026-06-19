@@ -182,6 +182,21 @@ class TailnetEdgeAuthTests(unittest.TestCase):
 
         self.assertEqual(["sk_sage_test", "sk_sage_test", "sk_sage_test"], calls)
 
+    def test_model_api_auth_errors_include_onboarding_links(self):
+        payload = self.edge.edge_error_payload("unauthorized", "/v1/models")
+        headers = self.edge.edge_error_headers("unauthorized", "/v1/models")
+
+        self.assertEqual("unauthorized", payload["error"])
+        self.assertEqual("https://app.sagerouter.dev/account.html", payload["accountUrl"])
+        self.assertEqual("https://sagerouter.dev/pricing", payload["pricingUrl"])
+        self.assertEqual("https://app.sagerouter.dev/status", payload["statusUrl"])
+        self.assertEqual("https://api.sagerouter.dev/v1", payload["openaiBaseUrl"])
+        self.assertEqual("sk_sage_", payload["apiKeyPrefix"])
+        self.assertIn("WWW-Authenticate", headers)
+        self.assertIn("Sage Router", headers["WWW-Authenticate"])
+        self.assertIn('rel="account"', headers["Link"])
+        self.assertIn('rel="pricing"', headers["Link"])
+
     def test_head_json_response_sends_headers_without_body(self):
         class Handler:
             command = "HEAD"

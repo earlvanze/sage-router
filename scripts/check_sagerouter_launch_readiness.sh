@@ -82,8 +82,12 @@ check_edge_health() {
 }
 
 check_public_auth_gate() {
-  local code analytics_code funnel_code account_analytics_code
+  local code analytics_code funnel_code account_analytics_code error account_url pricing_url api_key_prefix
   code="$(http_code "${API_BASE%/}/v1/models")"
+  error="$(jq -r '.error // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  account_url="$(jq -r '.accountUrl // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  pricing_url="$(jq -r '.pricingUrl // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  api_key_prefix="$(jq -r '.apiKeyPrefix // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   rm -f /tmp/sage-router-readiness-body
   analytics_code="$(http_code "${API_BASE%/}/analytics?days=7")"
   rm -f /tmp/sage-router-readiness-body
@@ -91,10 +95,10 @@ check_public_auth_gate() {
   rm -f /tmp/sage-router-readiness-body
   account_analytics_code="$(http_code "${API_BASE%/}/account/analytics?days=7")"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$code" == "401" && "$analytics_code" == "401" && "$funnel_code" == "401" && "$account_analytics_code" == "401" ]]; then
-    pass "anonymous model and analytics APIs are blocked"
+  if [[ "$code" == "401" && "$error" == "unauthorized" && "$account_url" == "${APP_BASE%/}/account.html" && "$pricing_url" == "${MARKETING_BASE%/}/pricing" && "$api_key_prefix" == "sk_sage_" && "$analytics_code" == "401" && "$funnel_code" == "401" && "$account_analytics_code" == "401" ]]; then
+    pass "anonymous model and analytics APIs are blocked with hosted onboarding guidance"
   else
-    fail "anonymous auth gate incomplete: /v1/models=${code} /analytics=${analytics_code} /analytics/funnel=${funnel_code} /account/analytics=${account_analytics_code}, expected 401"
+    fail "anonymous auth gate incomplete: /v1/models=${code} error=${error:-missing} accountUrl=${account_url:-missing} pricingUrl=${pricing_url:-missing} apiKeyPrefix=${api_key_prefix:-missing} /analytics=${analytics_code} /analytics/funnel=${funnel_code} /account/analytics=${account_analytics_code}, expected guided 401"
   fi
 }
 
