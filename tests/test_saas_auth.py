@@ -34,6 +34,8 @@ class SaaSAuthTests(unittest.TestCase):
             'supabase_select': router.supabase_select,
             'CLIENT_API_KEYS': list(router.CLIENT_API_KEYS),
             'CLIENT_AUTH_REQUIRED': router.CLIENT_AUTH_REQUIRED,
+            'ANALYTICS_TOKEN': router.ANALYTICS_TOKEN,
+            'SUPABASE_AUTH_ENABLED': router.SUPABASE_AUTH_ENABLED,
             'STRIPE_SECRET_KEY': router.STRIPE_SECRET_KEY,
             'STRIPE_PRICE_ID': router.STRIPE_PRICE_ID,
             'STRIPE_PRICE_IDS_RAW': router.STRIPE_PRICE_IDS_RAW,
@@ -58,6 +60,8 @@ class SaaSAuthTests(unittest.TestCase):
         router.SUPABASE_USAGE_COUNTERS_TABLE = 'sage_router_usage_counters'
         router.CLIENT_API_KEYS = []
         router.CLIENT_AUTH_REQUIRED = True
+        router.ANALYTICS_TOKEN = ''
+        router.SUPABASE_AUTH_ENABLED = False
         router.STRIPE_SECRET_KEY = ''
         router.STRIPE_PRICE_ID = ''
         router.STRIPE_PRICE_IDS_RAW = ''
@@ -82,6 +86,8 @@ class SaaSAuthTests(unittest.TestCase):
         router.supabase_select = self.old['supabase_select']
         router.CLIENT_API_KEYS = self.old['CLIENT_API_KEYS']
         router.CLIENT_AUTH_REQUIRED = self.old['CLIENT_AUTH_REQUIRED']
+        router.ANALYTICS_TOKEN = self.old['ANALYTICS_TOKEN']
+        router.SUPABASE_AUTH_ENABLED = self.old['SUPABASE_AUTH_ENABLED']
         router.STRIPE_SECRET_KEY = self.old['STRIPE_SECRET_KEY']
         router.STRIPE_PRICE_ID = self.old['STRIPE_PRICE_ID']
         router.STRIPE_PRICE_IDS_RAW = self.old['STRIPE_PRICE_IDS_RAW']
@@ -320,6 +326,74 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, snapshot['eventsAnalyzed'])
         self.assertEqual(customer['id'], snapshot['scope']['customer_id'])
         self.assertIn('test', [p['id'] for p in snapshot['providers']])
+
+    def test_global_analytics_rejects_customer_generated_key_when_hosted_auth_enabled(self):
+        router.SUPABASE_AUTH_ENABLED = True
+        customer = self.active_customer()
+        raw, _row = router.create_api_key_for_customer(customer, 'prod')
+
+        class Dummy:
+            path = '/analytics?days=7'
+            headers = {'Authorization': f'Bearer {raw}'}
+            status = None
+            payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_GET(handler)
+
+        self.assertEqual(401, handler.status)
+        self.assertEqual('unauthorized', handler.payload['error'])
+
+    def test_account_analytics_accepts_customer_generated_key_and_scopes_events(self):
+        customer = self.active_customer()
+        raw, _row = router.create_api_key_for_customer(customer, 'prod')
+        ctx = router.verify_generated_api_key(raw)
+        router.set_route_auth_context(ctx)
+        try:
+            router.append_route_event({
+                'request_id': 'r-account',
+                'status': 'ok',
+                'intent': 'GENERAL',
+                'selected': {'provider': 'local', 'model': 'frontier'},
+                'attempts': [{'provider': 'local', 'model': 'frontier', 'ok': True, 'elapsedMs': 12}],
+                'totalElapsedMs': 12,
+            })
+        finally:
+            router.clear_route_auth_context()
+        router.append_route_event({
+            'request_id': 'r-other',
+            'status': 'ok',
+            'intent': 'GENERAL',
+            'selected': {'provider': 'other', 'model': 'model'},
+            'attempts': [{'provider': 'other', 'model': 'model', 'ok': True, 'elapsedMs': 99}],
+            'totalElapsedMs': 99,
+            'customer_id': 'other-customer',
+        })
+
+        class Dummy:
+            path = '/account/analytics?days=7'
+            headers = {'Authorization': f'Bearer {raw}'}
+            status = None
+            payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_GET(handler)
+
+        self.assertEqual(200, handler.status)
+        self.assertEqual(customer['id'], handler.payload['scope']['customer_id'])
+        self.assertEqual(customer['id'], handler.payload['account']['customer_id'])
+        self.assertEqual(1, handler.payload['eventsAnalyzed'])
+        provider_requests = {p['id']: p.get('requests') for p in handler.payload['providers']}
+        self.assertEqual(1, provider_requests.get('local'))
+        self.assertNotIn('other', provider_requests)
 
     def test_legacy_key_still_authorizes(self):
         router.CLIENT_API_KEYS = ['legacy-key']

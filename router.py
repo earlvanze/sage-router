@@ -4963,12 +4963,6 @@ def analytics_authorized(handler):
         return True
     if token_matches_any(bearer, CLIENT_API_KEYS):
         return True
-    generated = verify_generated_api_key(bearer)
-    if generated:
-        return True
-    user = supabase_user_for_bearer(bearer)
-    if user and customer_is_active(customer_for_user(user, create=False)):
-        return True
     return not ANALYTICS_TOKEN and not SUPABASE_AUTH_ENABLED
 
 

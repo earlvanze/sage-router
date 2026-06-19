@@ -57,13 +57,17 @@ check_edge_health() {
 }
 
 check_public_auth_gate() {
-  local code
+  local code analytics_code account_analytics_code
   code="$(http_code "${API_BASE%/}/v1/models")"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$code" == "401" ]]; then
-    pass "anonymous /v1/models is blocked"
+  analytics_code="$(http_code "${API_BASE%/}/analytics?days=7")"
+  rm -f /tmp/sage-router-readiness-body
+  account_analytics_code="$(http_code "${API_BASE%/}/account/analytics?days=7")"
+  rm -f /tmp/sage-router-readiness-body
+  if [[ "$code" == "401" && "$analytics_code" == "401" && "$account_analytics_code" == "401" ]]; then
+    pass "anonymous model and analytics APIs are blocked"
   else
-    fail "anonymous /v1/models returned HTTP ${code}, expected 401"
+    fail "anonymous auth gate incomplete: /v1/models=${code} /analytics=${analytics_code} /account/analytics=${account_analytics_code}, expected 401"
   fi
 }
 
@@ -124,7 +128,7 @@ check_stripe_webhook_guard() {
 }
 
 check_hosted_onboarding_pages() {
-  local login_code account_code manifest_code
+  local login_code account_code analytics_code manifest_code
   login_code="$(http_code_follow "${APP_BASE%/}/login.html")"
   if [[ "$login_code" == "200" ]] && ! grep -q "Login · Sage Router" /tmp/sage-router-readiness-body; then
     login_code="200:unexpected-body"
@@ -137,16 +141,29 @@ check_hosted_onboarding_pages() {
   fi
   rm -f /tmp/sage-router-readiness-body
 
+  analytics_code="$(http_code_follow "${APP_BASE%/}/analytics.html")"
+  if [[ "$analytics_code" == "200" ]] && ! grep -q "Router analytics that prove the best route" /tmp/sage-router-readiness-body; then
+    analytics_code="200:unexpected-body"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  local analytics_js_code
+  analytics_js_code="$(http_code_follow "${APP_BASE%/}/analytics.js")"
+  if [[ "$analytics_js_code" == "200" ]] && ! grep -q "/account/analytics" /tmp/sage-router-readiness-body; then
+    analytics_js_code="200:missing-account-analytics"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
   manifest_code="$(http_code_follow "${APP_BASE%/}/github-app-manifest.html")"
   if [[ "$manifest_code" == "200" ]] && ! grep -q "Finish GitHub auth setup" /tmp/sage-router-readiness-body; then
     manifest_code="200:unexpected-body"
   fi
   rm -f /tmp/sage-router-readiness-body
 
-  if [[ "$login_code" == "200" && "$account_code" == "200" && "$manifest_code" == "200" ]]; then
-    pass "hosted login, account, and GitHub auth callback pages are live"
+  if [[ "$login_code" == "200" && "$account_code" == "200" && "$analytics_code" == "200" && "$analytics_js_code" == "200" && "$manifest_code" == "200" ]]; then
+    pass "hosted login, account, analytics, and GitHub auth callback pages are live"
   else
-    fail "hosted onboarding pages incomplete: login=${login_code} account=${account_code} github-app-manifest=${manifest_code}"
+    fail "hosted onboarding pages incomplete: login=${login_code} account=${account_code} analytics=${analytics_code} analytics.js=${analytics_js_code} github-app-manifest=${manifest_code}"
   fi
 }
 

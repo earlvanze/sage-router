@@ -62,7 +62,7 @@ function applyOauthButtons(external = {}, status = '') {
 
 async function fetchAnalytics(s) {
   const days = $('window-days')?.value || '7';
-  const res = await fetch(`${sageRouterUrl}/analytics?days=${encodeURIComponent(days)}`, {
+  const res = await fetch(`${sageRouterUrl}/account/analytics?days=${encodeURIComponent(days)}`, {
     headers: { Authorization: `Bearer ${s.access_token}` }
   });
   if (!res.ok) throw new Error(`Analytics API HTTP ${res.status}`);

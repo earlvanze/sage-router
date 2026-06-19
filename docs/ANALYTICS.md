@@ -74,9 +74,13 @@ Stored events intentionally exclude prompts, message bodies, provider credential
 
 ### Auth
 
-`GET /analytics` accepts either:
+The hosted browser dashboard on `https://app.sagerouter.dev/analytics.html`
+uses `GET /account/analytics` with the signed-in customer's Supabase session.
+That route only returns telemetry for the active customer account.
+
+`GET /analytics` is the operator/global route and accepts either:
 
 - `Authorization: Bearer $SAGE_ROUTER_ANALYTICS_TOKEN`, or
-- a valid Supabase user JWT from the AOPS Supabase project.
+- a configured operator key from `SAGE_ROUTER_CLIENT_API_KEYS`.
 
 Supabase service-role credentials are used only server-side for mirror writes and backend analytics reads.
