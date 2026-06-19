@@ -158,6 +158,21 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("https://api.sagerouter.dev", js)
         self.assertIn("api.sagerouter.dev/v1", html)
 
+    def test_security_doc_distinguishes_private_router_from_hosted_public_edge(self):
+        security = self.read_text("SECURITY.md")
+        normalized = " ".join(security.split())
+        self.assertIn("Hosted public edge", security)
+        self.assertIn("https://api.sagerouter.dev", security)
+        self.assertIn("/v1/*", security)
+        self.assertIn("/v1beta/*", security)
+        self.assertIn("active generated `sk_sage_*`", security)
+        self.assertIn("account and billing UI routes require a valid Supabase user JWT", security)
+        self.assertIn("`/analytics` and `/analytics/funnel` are operator-only routes", security)
+        self.assertIn("Customer dashboards use `/account/analytics`", security)
+        self.assertIn("anonymous model and analytics APIs are blocked", normalized)
+        self.assertIn("generated API-key revocation is effective on the next request", normalized)
+        self.assertNotIn("The `/health`, `/v1/models`, and analytics endpoints are anonymous.", security)
+
     def test_waitlist_endpoint_has_non_mutating_launch_health_check(self):
         function_js = self.read_text("web", "functions", "api", "waitlist.js")
         landing = self.read_text("web", "src", "main.jsx")

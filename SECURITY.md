@@ -4,7 +4,8 @@ Sage Router is a **router, not a collector**. It exists to forward requests to m
 
 ## TL;DR
 
-- The router **does not collect user identities** by default.
+- Self-hosted/private router mode **does not collect user identities** by default.
+- The hosted public edge requires customer auth for model traffic.
 - The router **does not store** OAuth tokens, API keys, prompts, or responses.
 - The router **does not phone home**. The only outbound calls are the ones you make to upstream providers.
 - All persisted state is local: a route event log and (optionally) a customer record for the hosted billing tier.
@@ -26,6 +27,30 @@ If none of the toggles above are set:
   - `Authorization` and `Cookie` headers are stripped.
   - Email addresses are masked to `<email-N>` tokens.
   - Bodies are kept at a compact summary; raw prompts are not logged.
+
+## Hosted public edge
+
+The hosted SaaS edge at `https://api.sagerouter.dev` is intentionally stricter
+than a private local router:
+
+- `/v1/*` and `/v1beta/*` model APIs require an active generated `sk_sage_*`
+  customer API key.
+- anonymous model requests fail closed with setup-safe account, pricing, status,
+  OpenAI base URL, and API-key-prefix guidance.
+- account and billing UI routes require a valid Supabase user JWT and are routed
+  to the hosted control plane.
+- `/analytics` and `/analytics/funnel` are operator-only routes.
+- Customer dashboards use `/account/analytics`, which is scoped to the signed-in
+  account.
+- generated-key traffic is rate-limited at the edge and can be counted against
+  durable monthly Supabase quotas.
+- `/edge/health`, `/pricing`, `/plans`, and `/features/agent-native` expose only
+  public-safe operational and plan metadata.
+
+The launch readiness script verifies that anonymous model and analytics APIs are
+blocked. It also verifies that direct hosted origins fail closed, Supabase auth
+and quotas are active, and generated API-key revocation is effective on the next
+request.
 
 ## What the router does store (when the hosted tier is enabled)
 
@@ -51,7 +76,11 @@ Credentials are held in memory and used as `Authorization: Bearer …` headers. 
 - It does not run a separate authentication backend.
 - It does not call Supabase, Stripe, or any third party unless the operator has set the corresponding env var.
 - It does not record prompts, completions, tool calls, or attachments.
-- It does not track users across requests. The `/health`, `/v1/models`, and analytics endpoints are anonymous.
+- In self-hosted/private mode, it does not track users across requests unless
+  the operator enables the hosted billing/Supabase features.
+- In hosted public edge mode, `/v1/models` and analytics are not anonymous:
+  model traffic requires a generated customer key, customer analytics are
+  account-scoped, and global analytics require the private operator token.
 
 ## Threat model assumptions
 
