@@ -4581,26 +4581,74 @@ def read_launch_api_key_rows(limit=10000):
         return []
 
 
-def read_launch_waitlist_count(since, limit=10000):
+def waitlist_interest_bucket(row):
+    metadata = row.get('metadata') if isinstance(row, dict) else None
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except Exception:
+            metadata = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    interest = str(metadata.get('interest') or 'general').strip().lower()
+    if interest == 'managed-access':
+        return 'managedAccess'
+    if interest and interest != 'general':
+        return 'other'
+    return 'general'
+
+
+def read_launch_waitlist_counts(since, limit=10000):
     if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
         return None, 'supabase_not_configured'
     since_iso = datetime.datetime.fromtimestamp(int(since), datetime.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
     quoted_since = urllib.parse.quote(since_iso, safe=':-TZ')
     tables = [SUPABASE_WAITLIST_TABLE, SUPABASE_WAITLIST_FALLBACK_TABLE]
-    counts = []
+    metrics = {
+        'total': 0,
+        'interest': {
+            'general': 0,
+            'managedAccess': 0,
+            'other': 0,
+            'unknown': 0,
+        },
+    }
+    tables_read = 0
     for table in [t for t in tables if t]:
         try:
-            rows = supabase_select(
-                table,
-                f'select=created_at&created_at=gte.{quoted_since}&limit={int(limit)}',
-                timeout=6,
-            )
-            counts.append(len(rows or []))
+            try:
+                rows = supabase_select(
+                    table,
+                    f'select=created_at,metadata&created_at=gte.{quoted_since}&limit={int(limit)}',
+                    timeout=6,
+                )
+                metadata_available = True
+            except Exception as e:
+                logger.debug(f'Launch funnel waitlist metadata read failed for {table}: {extract_http_error(e)}')
+                rows = supabase_select(
+                    table,
+                    f'select=created_at&created_at=gte.{quoted_since}&limit={int(limit)}',
+                    timeout=6,
+                )
+                metadata_available = False
+            rows = rows or []
+            metrics['total'] += len(rows)
+            tables_read += 1
+            for row in rows:
+                bucket = waitlist_interest_bucket(row) if metadata_available else 'unknown'
+                metrics['interest'][bucket] = metrics['interest'].get(bucket, 0) + 1
         except Exception as e:
             logger.debug(f'Launch funnel waitlist read failed for {table}: {extract_http_error(e)}')
-    if not counts:
+    if tables_read == 0:
         return None, 'waitlist_tables_unavailable'
-    return sum(counts), None
+    return metrics, None
+
+
+def read_launch_waitlist_count(since, limit=10000):
+    metrics, error = read_launch_waitlist_counts(since, limit)
+    if metrics is None:
+        return None, error
+    return metrics.get('total', 0), error
 
 
 def route_events_for_window(window_seconds, event_limit=None):
@@ -4622,7 +4670,10 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
     customers = [normalize_customer(row) for row in read_launch_customer_rows() if isinstance(row, dict)]
     api_keys = [row for row in read_launch_api_key_rows() if isinstance(row, dict)]
     event_source, route_events = route_events_for_window(window_seconds, event_limit)
-    waitlist_count, waitlist_error = read_launch_waitlist_count(since)
+    waitlist_metrics, waitlist_error = read_launch_waitlist_counts(since)
+    waitlist_count = waitlist_metrics.get('total', 0) if isinstance(waitlist_metrics, dict) else None
+    waitlist_interest = waitlist_metrics.get('interest') if isinstance(waitlist_metrics, dict) else None
+    managed_access_interest = waitlist_interest.get('managedAccess', 0) if isinstance(waitlist_interest, dict) else None
 
     customer_ids = {str(c.get('id')) for c in customers if c and c.get('id')}
     signup_ids = {
@@ -4664,6 +4715,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
 
     stages = {
         'waitlistLeads': waitlist_count,
+        'managedAccessBetaInterest': managed_access_interest,
         'signups': len(signup_ids),
         'customersWithActiveApiKeys': len(active_key_customer_ids & customer_ids),
         'customersWithGeneratedApiKeys': len(generated_key_customer_ids & customer_ids),
@@ -4696,9 +4748,11 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'containsApiKeys': False,
         },
         'stages': stages,
+        'waitlistInterest': waitlist_interest,
         'mrr': launch_mrr_snapshot(customers),
         'rates': {
             'waitlistToSignup': percent_rate(stages['signups'], stages['waitlistLeads']) if stages['waitlistLeads'] is not None else None,
+            'managedAccessShareOfWaitlist': percent_rate(stages['managedAccessBetaInterest'], stages['waitlistLeads']) if stages['waitlistLeads'] is not None else None,
             'signupToGeneratedKey': percent_rate(stages['customersWithGeneratedApiKeys'], stages['signups']),
             'generatedKeyToFirstRequest': percent_rate(stages['customersWithFirstRoutedRequest'], stages['customersWithGeneratedApiKeys']),
             'signupToPaidConversion': percent_rate(stages['paidConversions'], stages['signups']),

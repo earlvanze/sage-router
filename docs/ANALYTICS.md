@@ -44,6 +44,7 @@ The operator-only funnel summarizes the hosted launch path without returning
 PII or request content:
 
 - waitlist leads
+- managed-access beta interest and share of waitlist
 - signups
 - customers with generated API keys
 - customers with a first routed request

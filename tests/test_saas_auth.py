@@ -53,6 +53,7 @@ class SaaSAuthTests(unittest.TestCase):
             'ROUTE_EVENTS_PATH': router.ROUTE_EVENTS_PATH,
             'FIRESTORE_ENABLED': router.FIRESTORE_ENABLED,
             'SUPABASE_MIRROR_ENABLED': router.SUPABASE_MIRROR_ENABLED,
+            'read_launch_waitlist_counts': router.read_launch_waitlist_counts,
         }
         router.CUSTOMER_STORE_PATH = os.path.join(self.tmp.name, 'customers.json')
         router.SUPABASE_URL = ''
@@ -105,6 +106,7 @@ class SaaSAuthTests(unittest.TestCase):
         router.ROUTE_EVENTS_PATH = self.old['ROUTE_EVENTS_PATH']
         router.FIRESTORE_ENABLED = self.old['FIRESTORE_ENABLED']
         router.SUPABASE_MIRROR_ENABLED = self.old['SUPABASE_MIRROR_ENABLED']
+        router.read_launch_waitlist_counts = self.old['read_launch_waitlist_counts']
         if self._billing_env is None:
             os.environ.pop('SAGE_ROUTER_BILLING_ENABLED', None)
         else:
@@ -453,6 +455,15 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertNotIn('other', provider_requests)
 
     def test_launch_funnel_snapshot_counts_private_conversion_stages(self):
+        router.read_launch_waitlist_counts = lambda _since, limit=10000: ({
+            'total': 3,
+            'interest': {
+                'general': 1,
+                'managedAccess': 2,
+                'other': 0,
+                'unknown': 0,
+            },
+        }, None)
         customer = self.active_customer()
         raw, _row = router.create_api_key_for_customer(customer, 'prod')
         ctx = router.verify_generated_api_key(raw)
@@ -472,6 +483,10 @@ class SaaSAuthTests(unittest.TestCase):
 
         snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
 
+        self.assertEqual(3, snapshot['stages']['waitlistLeads'])
+        self.assertEqual(2, snapshot['stages']['managedAccessBetaInterest'])
+        self.assertEqual(2, snapshot['waitlistInterest']['managedAccess'])
+        self.assertEqual(0.6667, snapshot['rates']['managedAccessShareOfWaitlist'])
         self.assertEqual(2, snapshot['stages']['signups'])
         self.assertEqual(1, snapshot['stages']['customersWithGeneratedApiKeys'])
         self.assertEqual(1, snapshot['stages']['customersWithActiveApiKeys'])
@@ -490,6 +505,35 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertFalse(snapshot['privacy']['containsApiKeys'])
         self.assertNotIn('u@example.com', json.dumps(snapshot))
         self.assertNotIn(raw, json.dumps(snapshot))
+
+    def test_launch_waitlist_counts_group_managed_access_interest(self):
+        router.SUPABASE_URL = 'https://example.supabase.co'
+        router.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
+
+        def fake_select(table, query, timeout=8):
+            self.assertIn('created_at=gte.', query)
+            if table == router.SUPABASE_WAITLIST_TABLE:
+                self.assertIn('select=created_at,metadata', query)
+                return [
+                    {'created_at': '2026-06-19T00:00:00Z', 'metadata': {'interest': 'managed-access'}},
+                    {'created_at': '2026-06-19T00:00:00Z', 'metadata': {'interest': 'general'}},
+                    {'created_at': '2026-06-19T00:00:00Z', 'metadata': json.dumps({'interest': 'enterprise'})},
+                ]
+            return []
+
+        router.supabase_select = fake_select
+
+        metrics, error = router.read_launch_waitlist_counts(0)
+        self.assertIsNone(error)
+        self.assertEqual(3, metrics['total'])
+        self.assertEqual(1, metrics['interest']['managedAccess'])
+        self.assertEqual(1, metrics['interest']['general'])
+        self.assertEqual(1, metrics['interest']['other'])
+        self.assertEqual(0, metrics['interest']['unknown'])
+
+        count, error = router.read_launch_waitlist_count(0)
+        self.assertIsNone(error)
+        self.assertEqual(3, count)
 
     def test_analytics_funnel_requires_operator_auth_when_hosted_auth_enabled(self):
         router.SUPABASE_AUTH_ENABLED = True

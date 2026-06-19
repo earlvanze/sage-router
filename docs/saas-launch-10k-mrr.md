@@ -99,7 +99,9 @@ runtime feature flag.
   provider terms, billing, margin, and abuse controls support any managed
   provider resale offer.
 - Capture managed-access beta demand through the waitlist `interest` metadata
-  path instead of advertising bundled model access as live.
+  path and watch `managedAccessBetaInterest` plus
+  `managedAccessShareOfWaitlist` in `/analytics/funnel` instead of advertising
+  bundled model access as live.
 - Keep the managed provider access readiness guard active: default disabled,
   with `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` allowed only when provider
   resale terms and margin-policy URLs are configured and the legal/abuse-control
