@@ -152,29 +152,29 @@ function App() {
             <a href="/analytics.html">Dashboard</a>
             <a href="/login.html">Login</a>
             <a href="#docs">Guides</a>
-            <a href="#waitlist">Waitlist</a>
+            <a href="#waitlist">Updates</a>
             <a href="https://github.com/earlvanze/sage-router">GitHub</a>
           </div>
         </nav>
 
         <div className="heroGrid" id="top">
           <div className="heroCopy">
-            <p className="eyebrow">Open-source • local-first • agent-focused</p>
+            <p className="eyebrow">Hosted API live • open-source • local-first</p>
             <h1>Smarter model routing for serious AI agents.</h1>
             <p className="subhero">
-              One local-first endpoint for OpenClaw, Hermes, Pi agents, Codex, Claude Code, Cursor, Aider, Continue,
-              OpenHands, and the tools your agents already use. Make your agents’ engine
-              hot-swappable, across authorized providers and local/cloud models.
+              Create a hosted Sage Router API key, point tools at <code>https://api.sagerouter.dev/v1</code>,
+              and route OpenClaw, Hermes, Pi agents, Codex, Claude Code, Cursor, Aider, Continue,
+              OpenHands, and OpenAI-compatible clients across authorized providers and local/cloud models.
             </p>
             <div className="heroActions">
-              <a className="button primary" href="https://github.com/earlvanze/sage-router">
-                View on GitHub
+              <a className="button primary" href="/account.html?plan=pro">
+                Create hosted API key
               </a>
-              <a className="button secondary" href="#waitlist">
-                Join waitlist
+              <a className="button secondary" href="/pricing">
+                Compare hosted plans
               </a>
-              <a className="button secondary" href="/analytics.html">
-                View analytics dashboard
+              <a className="button secondary" href="/quickstart">
+                Read quickstart
               </a>
               <a className="button secondary" href="/status">
                 View public status
@@ -182,27 +182,28 @@ function App() {
               <a className="button secondary" href="/compare/openrouter">
                 Compare OpenRouter
               </a>
-              <a className="button secondary" href="/quickstart">
-                Read quickstart
-              </a>
               <a className="button secondary" href="/models">
                 Browse models
               </a>
               <a className="button secondary" href="/model-routing-calculator">
                 Estimate routing savings
               </a>
-              <a className="button secondary" href="/pricing">
-                View pricing
-              </a>
               <a className="button secondary" href="/security">
                 Review security
+              </a>
+              <a className="button secondary" href="/analytics.html">
+                View analytics dashboard
               </a>
               <a className="button secondary" href="/login.html">
                 Sign in
               </a>
+              <a className="button secondary" href="https://github.com/earlvanze/sage-router">
+                Run locally
+              </a>
             </div>
             <p className="complianceNote">
-              Bring your own authorized provider access. Sage Router does not resell models, pool
+              Hosted plans include account-managed keys, quotas, analytics, and reliability routing.
+              Bring your own authorized provider access; Sage Router does not resell models, pool
               accounts, or bypass provider terms.
             </p>
           </div>
@@ -449,9 +450,9 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
 
       <section className="section waitlistSection" id="waitlist">
         <div className="sectionHeader">
-          <p className="eyebrow">Waitlist</p>
-          <h2>Get Sage Router updates.</h2>
-          <p>Join the waitlist for integration updates, release notes, and early hosted reliability testing.</p>
+          <p className="eyebrow">Updates</p>
+          <h2>Get launch and integration updates.</h2>
+          <p>Hosted signup is live. Use this list for release notes, integration updates, private deployment help, and future managed-provider beta interest.</p>
         </div>
         <WaitlistForm />
       </section>

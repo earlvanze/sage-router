@@ -40,6 +40,16 @@ The waitlist form posts to `/api/waitlist`, a Cloudflare Pages Function that ins
 
 
 
+## Hosted onboarding CTA
+
+The primary homepage CTA is `Create hosted API key`, which links to
+`/account.html?plan=pro`. The hero keeps pricing, quickstart, public status,
+OpenRouter comparison, model catalog, calculator, security, analytics, login,
+and local GitHub install paths visible so a prospect can move from discovery to
+generated `sk_sage_*` key setup without joining a waitlist first. The
+waitlist remains secondary for release notes, integration updates, private
+deployment help, and future managed-provider beta interest.
+
 ## Hot-swappable copy
 
 The page now includes the product line: “Your agents’ engine is now hot-swappable.” It frames Sage Router as a model layer that lets agents swap/fail over between authorized providers and local/cloud models without rewiring the harness.

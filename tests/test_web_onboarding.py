@@ -111,6 +111,26 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("checkout=success&plan={urllib.parse.quote(plan", router)
         self.assertIn("checkout=cancel&plan={urllib.parse.quote(plan", router)
 
+    def test_landing_page_prioritizes_hosted_api_key_onboarding(self):
+        landing = self.read_text("web", "src", "main.jsx")
+        readme = self.read_text("README.md")
+        web_readme = self.read_text("web", "README.md")
+
+        self.assertIn("Hosted API live", landing)
+        self.assertIn('href="/account.html?plan=pro"', landing)
+        self.assertIn("Create hosted API key", landing)
+        self.assertIn("Compare hosted plans", landing)
+        self.assertIn("Read quickstart", landing)
+        self.assertIn("https://api.sagerouter.dev/v1", landing)
+        self.assertIn("Hosted plans include account-managed keys", landing)
+        self.assertIn("Run locally", landing)
+        self.assertIn("Hosted signup is live", landing)
+        self.assertIn("future managed-provider beta interest", landing)
+        self.assertIn("Create hosted API key", readme)
+        self.assertIn("homepage primary CTA", readme)
+        self.assertIn("primary homepage CTA", web_readme)
+        self.assertIn("waitlist remains secondary", web_readme)
+
     def test_account_page_shows_usage_and_quota(self):
         html = self.read_public("account.html")
         js = self.read_public("account.js")

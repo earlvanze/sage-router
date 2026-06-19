@@ -128,6 +128,13 @@ customers a first hosted API request path, while
 routing savings, escalation rules, fallback gaps, and review rates for one
 workflow before they create a hosted API key.
 
+The public homepage now treats hosted signup as live: the homepage primary CTA
+is `Create hosted API key`, links directly to `/account.html?plan=pro`, and
+keeps pricing, quickstart, status, OpenRouter comparison, model catalog,
+security, analytics, login, and local GitHub install paths available from the
+hero. The waitlist remains an updates/support path, not the primary conversion
+path.
+
 ### Hosted Auth
 
 The hosted web app uses Supabase Auth. Email/password signup and email magic links are the baseline onboarding path; OAuth buttons are additive and appear only when the matching provider is enabled in Supabase. GitHub login requires a GitHub OAuth/GitHub App client, not repository permissions:
