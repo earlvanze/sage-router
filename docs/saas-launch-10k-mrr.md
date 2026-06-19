@@ -75,8 +75,9 @@ authorization, billing, quota, and abuse-control checks are explicitly enabled.
 Pricing and comparison pages can still measure demand for the future
 one-subscription path by sending prospects to
 `/managed-access`. That private-beta intake stores contact and allowlisted
-qualification buckets only; it is not a checkout entitlement, provider resale
-claim, or runtime feature flag.
+qualification buckets only, including target provider family and commercial
+preference demand for Ollama, OpenAI, Anthropic, and BYOK-compatible routes; it
+is not a checkout entitlement, provider resale claim, or runtime feature flag.
 
 ## Near-term launch checklist
 
@@ -165,6 +166,9 @@ claim, or runtime feature flag.
   path from `/managed-access` and watch `managedAccessBetaInterest` plus
   `managedAccessShareOfWaitlist` in `/analytics/funnel` instead of advertising
   bundled model access as live.
+- Capture one-subscription demand with allowlisted target provider family and
+  commercial preference buckets, so provider resale conversations can be ranked
+  by real Ollama, OpenAI, Anthropic, and BYOK-compatible buyer interest.
 - Keep the managed provider access readiness guard active: default disabled,
   with `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` allowed only when provider
   resale terms and margin-policy URLs are configured and the legal/abuse-control

@@ -54,6 +54,10 @@
             <p>Managed provider access is not active in public plans. It requires explicit provider authorization, published terms, positive unit economics, durable quotas, generated-key revocation, rate limits, billing controls, abuse controls, and acceptable-use enforcement.</p>
           </article>
           <article class="panel">
+            <h3>One-subscription demand capture</h3>
+            <p>Ollama, OpenAI, and Anthropic are target provider families for private-beta authorization review, not enabled public resale. Tell us which family and commercial model you would buy first.</p>
+          </article>
+          <article class="panel">
             <h3>Do not send secrets</h3>
             <p>Do not submit prompts, workflow text, provider credentials, OAuth tokens, generated API keys, private keys, session cookies, raw provider responses, or customer data. This form stores only account contact and small qualification buckets.</p>
           </article>
@@ -93,6 +97,22 @@
                 <option value="local-ollama">Mostly local or Ollama/Ollama Cloud</option>
                 <option value="enterprise-contracts">We have enterprise provider contracts</option>
                 <option value="needs-managed-access">We need reviewed managed access</option>
+              </select>
+            </label>
+            <label>Target provider family
+              <select name="targetProviderFamily">
+                <option value="mixed-frontier">Mixed OpenAI, Anthropic, and Ollama access</option>
+                <option value="ollama">Ollama or Ollama Cloud first</option>
+                <option value="openai">OpenAI first</option>
+                <option value="anthropic">Anthropic first</option>
+                <option value="byok-compatible">BYOK OpenAI-compatible endpoint</option>
+              </select>
+            </label>
+            <label>Commercial preference
+              <select name="commercialPreference">
+                <option value="one-subscription">One Sage Router subscription if authorized</option>
+                <option value="byok-plus-routing">BYOK plus hosted routing</option>
+                <option value="private-contract">Private contract or enterprise agreement</option>
               </select>
             </label>
             <div id="turnstile-slot" class="turnstileSlot"></div>

@@ -602,7 +602,9 @@ check_waitlist_endpoint() {
   qualification_ok="$(jq -r '
     ((.allowedQualificationBuckets.deployment // []) | index("hybrid")) and
     ((.allowedQualificationBuckets.monthlyVolume // []) | index("1m-plus")) and
-    ((.allowedQualificationBuckets.providerAccess // []) | index("needs-managed-access"))
+    ((.allowedQualificationBuckets.providerAccess // []) | index("needs-managed-access")) and
+    ((.allowedQualificationBuckets.targetProviderFamily // []) | index("mixed-frontier")) and
+    ((.allowedQualificationBuckets.commercialPreference // []) | index("one-subscription"))
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   rm -f /tmp/sage-router-readiness-body
   if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-waitlist" && "$qualification_ok" == "true" && ( "$turnstile_required" != "true" || -n "$turnstile_site_key" ) ]]; then
@@ -729,6 +731,18 @@ check_marketing_managed_access_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Do not submit prompts" /tmp/sage-router-readiness-body; then
     page_code="200:missing-no-secrets-boundary"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Target provider family" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-target-provider-family"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Commercial preference" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-commercial-preference"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "one-subscription" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-one-subscription-demand"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Ollama, OpenAI, and Anthropic" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-target-provider-copy"
   fi
   rm -f /tmp/sage-router-readiness-body
 

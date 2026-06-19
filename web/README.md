@@ -36,7 +36,7 @@ Suggested Cloudflare Pages settings:
 - Build command: npm run build
 - Build output directory: dist
 
-The waitlist form posts to `/api/waitlist`, a Cloudflare Pages Function that inserts into Supabase table `sage_router_waitlist` and falls back to `funnel_leads` for older AOps schemas. `GET /api/waitlist` is a non-mutating health check used by `scripts/check_sagerouter_launch_readiness.sh`. The managed-access intake posts `interest=managed-access` plus allowlisted qualification buckets for private-beta demand measurement while public managed provider access stays disabled. Set both `SAGEROUTER_TURNSTILE_SECRET_KEY` and `SAGEROUTER_TURNSTILE_SITE_KEY` in Cloudflare Pages to require Cloudflare Turnstile on waitlist submissions; the health check fails if the secret is enabled without a public site key.
+The waitlist form posts to `/api/waitlist`, a Cloudflare Pages Function that inserts into Supabase table `sage_router_waitlist` and falls back to `funnel_leads` for older AOps schemas. `GET /api/waitlist` is a non-mutating health check used by `scripts/check_sagerouter_launch_readiness.sh`. The managed-access intake posts `interest=managed-access` plus allowlisted qualification buckets for private-beta demand measurement while public managed provider access stays disabled, including target provider family and commercial preference buckets for Ollama, OpenAI, Anthropic, and BYOK-compatible demand. Set both `SAGEROUTER_TURNSTILE_SECRET_KEY` and `SAGEROUTER_TURNSTILE_SITE_KEY` in Cloudflare Pages to require Cloudflare Turnstile on waitlist submissions; the health check fails if the secret is enabled without a public site key.
 
 The calculator, pricing, and OpenRouter comparison pages send anonymous
 pre-signup CTA intent to `/api/funnel-event`, backed by Supabase table
@@ -78,7 +78,7 @@ The MVP treats discoverability as first-class. Current static assets include:
 - Keyword coverage for AI model router, LLM router, provider routing, model selection automation, AI agent model routing, OpenAI-compatible router, Anthropic-compatible router, Ollama routing, BYOK AI gateway, local-first AI router, and OpenRouter alternative.
 - Structured page sections for automation, BYOK routing, OpenRouter comparison, and Ollama/Ollama Cloud roadmap language.
 - Dedicated hosted pricing page at `/pricing` with plan limits, compliance-safe positioning, and $10k MRR launch math.
-- Dedicated managed-access private beta intake at `/managed-access` with no-secret qualification buckets for one-subscription demand capture.
+- Dedicated managed-access private beta intake at `/managed-access` with no-secret qualification buckets for one-subscription demand capture, target provider family, and commercial preference.
 - Dedicated API quickstart page at `/quickstart` with hosted `sk_sage_*` key setup, `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, `sage-router/frontier`, curl, JavaScript, Python, Codex, and error troubleshooting.
 - Dedicated API troubleshooting page at `/api-troubleshooting` with no-secret guidance for hosted 401/402/429/503 responses, safe curl probes, `WWW-Authenticate`, `Retry-After`, `X-RateLimit-*`, `X-Quota-*`, and account/pricing/status onboarding links.
 - Dedicated hosted API reference page at `/docs/api-reference` with OpenAI-compatible endpoint docs for `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public `/model-catalog`, generated keys, quotas, rate limits, and failover signals.
