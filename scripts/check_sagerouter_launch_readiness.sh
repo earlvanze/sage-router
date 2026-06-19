@@ -772,6 +772,51 @@ check_marketing_quickstart_page() {
   fi
 }
 
+check_marketing_api_troubleshooting_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/api-troubleshooting")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router API Troubleshooting" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Do not paste prompts" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-no-secrets-boundary"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "WWW-Authenticate" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-auth-header-guidance"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "X-RateLimit-" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-rate-limit-guidance"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "X-Quota-Remaining" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quota-guidance"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "accountUrl" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-onboarding-links"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "sk_sage_" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-generated-key-guidance"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/api-troubleshooting" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-api-troubleshooting-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "API troubleshooting: ${MARKETING_BASE%/}/api-troubleshooting" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-api-troubleshooting-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing API troubleshooting page is live in sitemap and LLM discovery"
+  else
+    fail "marketing API troubleshooting incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_codex_docs_page() {
   local page_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/docs/codex")"
@@ -1112,6 +1157,7 @@ check_marketing_pricing_page
 check_marketing_managed_access_page
 check_marketing_model_catalog_page
 check_marketing_quickstart_page
+check_marketing_api_troubleshooting_page
 check_marketing_codex_docs_page
 check_model_routing_calculator
 check_legal_pages

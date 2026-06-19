@@ -17,12 +17,15 @@ Better model routing for agentic systems using the customer own authorized subsc
 Hosted pricing page: https://sagerouter.dev/pricing
 Managed-access private beta intake: https://sagerouter.dev/managed-access
 API quickstart page: https://sagerouter.dev/quickstart
+API troubleshooting page: https://sagerouter.dev/api-troubleshooting
 Codex setup page: https://sagerouter.dev/docs/codex
 Model catalog page: https://sagerouter.dev/models
 
 The hosted Sage Router plans sell account management, generated API keys, quotas, route telemetry, fallback reliability, and support. Lite is $6/month for 10,000 included requests, Pro is $30/month for 50,000 included requests, and Max is $72/month for 200,000 included requests. A balanced path to $10k MRR is 100 Lite, 200 Pro, and 50 Max customers, which equals $10,200 MRR.
 
 The public API quickstart at https://sagerouter.dev/quickstart is the first-request path for hosted customers. It shows `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, curl, JavaScript, Python, and Codex examples, and troubleshooting for 401, 402, 429, and 503 responses.
+
+The API troubleshooting page at https://sagerouter.dev/api-troubleshooting is the no-secret diagnostic path for hosted API failures. It explains 401, 402, 429, and 503 responses; safe probes for `/v1/models` and `/v1/chat/completions`; response signals such as `WWW-Authenticate`, `Retry-After`, `X-RateLimit-*`, `X-Quota-*`, `accountUrl`, `pricingUrl`, `statusUrl`, `openaiBaseUrl`, and `apiKeyPrefix`; and the support boundary against sharing prompts, workflow text, provider credentials, OAuth tokens, generated keys, private keys, session cookies, raw provider responses, or customer data.
 
 The public Codex setup guide at https://sagerouter.dev/docs/codex shows Codex CLI profiles for hosted Sage Router, local Sage Router, and Tailnet Sage Router installations. Hosted Codex uses `base_url = "https://api.sagerouter.dev/v1/"`, generated `sk_sage_*` keys, `wire_api = "responses"`, and `model = "sage-router/frontier"`. Local and Tailnet Codex profiles use port 8790, such as `http://127.0.0.1:8790/v1/` or `http://<tailnet-host>:8790/v1/`, with customer-controlled provider credentials on the router host.
 
