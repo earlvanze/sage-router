@@ -55,6 +55,8 @@ jq -n \
   --arg secret "$GITHUB_CLIENT_SECRET" \
   '{
     site_url: $site_url,
+    disable_signup: false,
+    external_email_enabled: true,
     external_github_enabled: true,
     external_github_client_id: $client_id,
     external_github_secret: $secret,
