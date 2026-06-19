@@ -51,6 +51,10 @@ create table if not exists public.sage_router_payment_intents (
   updated_at_epoch bigint not null
 );
 
+create unique index if not exists sage_router_payment_intents_stripe_event_idx
+  on public.sage_router_payment_intents (event_id)
+  where kind = 'stripe_webhook' and event_id is not null;
+
 create table if not exists public.sage_router_usage_counters (
   id text primary key,
   customer_id text not null references public.sage_router_customers(id) on delete cascade,

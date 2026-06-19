@@ -34,6 +34,9 @@ class SaaSAuthTests(unittest.TestCase):
             'CLIENT_AUTH_REQUIRED': router.CLIENT_AUTH_REQUIRED,
             'STRIPE_SECRET_KEY': router.STRIPE_SECRET_KEY,
             'STRIPE_PRICE_ID': router.STRIPE_PRICE_ID,
+            'STRIPE_PRICE_IDS_RAW': router.STRIPE_PRICE_IDS_RAW,
+            'STRIPE_WEBHOOK_SECRET': router.STRIPE_WEBHOOK_SECRET,
+            'stripe_request': router.stripe_request,
             'CRYPTO_PAYMENT_ADDRESS': router.CRYPTO_PAYMENT_ADDRESS,
             'PUBLIC_BASE_URL': router.PUBLIC_BASE_URL,
             'API_BASE_URL': router.API_BASE_URL,
@@ -51,6 +54,8 @@ class SaaSAuthTests(unittest.TestCase):
         router.CLIENT_AUTH_REQUIRED = True
         router.STRIPE_SECRET_KEY = ''
         router.STRIPE_PRICE_ID = ''
+        router.STRIPE_PRICE_IDS_RAW = ''
+        router.STRIPE_WEBHOOK_SECRET = ''
         router.CRYPTO_PAYMENT_ADDRESS = ''
         router.PUBLIC_BASE_URL = 'https://app.sagerouter.dev'
         router.API_BASE_URL = 'https://api.sagerouter.dev'
@@ -68,6 +73,9 @@ class SaaSAuthTests(unittest.TestCase):
         router.CLIENT_AUTH_REQUIRED = self.old['CLIENT_AUTH_REQUIRED']
         router.STRIPE_SECRET_KEY = self.old['STRIPE_SECRET_KEY']
         router.STRIPE_PRICE_ID = self.old['STRIPE_PRICE_ID']
+        router.STRIPE_PRICE_IDS_RAW = self.old['STRIPE_PRICE_IDS_RAW']
+        router.STRIPE_WEBHOOK_SECRET = self.old['STRIPE_WEBHOOK_SECRET']
+        router.stripe_request = self.old['stripe_request']
         router.CRYPTO_PAYMENT_ADDRESS = self.old['CRYPTO_PAYMENT_ADDRESS']
         router.PUBLIC_BASE_URL = self.old['PUBLIC_BASE_URL']
         router.API_BASE_URL = self.old['API_BASE_URL']
@@ -189,6 +197,82 @@ class SaaSAuthTests(unittest.TestCase):
         stale_sig = router.hmac.new(secret.encode(), f'{stale_ts}.{payload.decode()}'.encode(), router.hashlib.sha256).hexdigest()
         self.assertFalse(router.verify_stripe_signature(payload, f't={stale_ts},v1={stale_sig}'))
         self.assertFalse(router.verify_stripe_signature(payload, f't=not-a-time,v1={fresh_sig}'))
+
+    def test_stripe_checkout_reuses_existing_customer(self):
+        router.STRIPE_SECRET_KEY = 'sk_test'
+        router.STRIPE_PRICE_IDS_RAW = 'lite=price_lite,pro=price_pro,max=price_max'
+        router.supabase_user_for_bearer = lambda token: {'id': 'user-1', 'email': 'u@example.com'}
+        customer = router.customer_for_user({'id': 'user-1', 'email': 'u@example.com'})
+        router.update_customer(customer['id'], {'stripe_customer_id': 'cus_existing'})
+        captured = {}
+        router.stripe_request = lambda path, fields, timeout=10: captured.update({'path': path, 'fields': fields}) or {'id': 'cs_test', 'url': 'https://checkout.test'}
+
+        body = b'{"plan":"pro"}'
+
+        class Dummy:
+            path = '/billing/stripe/checkout'
+            headers = {'Authorization': 'Bearer valid-user-jwt', 'Content-Length': str(len(body))}
+            rfile = BytesIO(body)
+            status = None
+            payload = None
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+        self.assertEqual(200, handler.status)
+        self.assertEqual('/v1/checkout/sessions', captured['path'])
+        self.assertEqual('cus_existing', captured['fields']['customer'])
+        self.assertIsNone(captured['fields']['customer_email'])
+        self.assertEqual('price_pro', captured['fields']['line_items[0][price]'])
+
+    def test_stripe_webhook_duplicate_event_is_ignored(self):
+        router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
+        customer = router.customer_for_user({'id': 'user-1', 'email': 'u@example.com'})
+        event = {
+            'id': 'evt_checkout_1',
+            'type': 'checkout.session.completed',
+            'data': {
+                'object': {
+                    'customer': 'cus_1',
+                    'subscription': 'sub_1',
+                    'client_reference_id': customer['id'],
+                    'metadata': {'customer_id': customer['id'], 'plan': 'pro'},
+                },
+            },
+        }
+        body = json.dumps(event, separators=(',', ':')).encode()
+        timestamp = str(router.now_epoch())
+        sig = router.hmac.new(router.STRIPE_WEBHOOK_SECRET.encode(), f'{timestamp}.{body.decode()}'.encode(), router.hashlib.sha256).hexdigest()
+
+        class Dummy:
+            path = '/billing/stripe/webhook'
+            def __init__(self):
+                self.headers = {'Content-Length': str(len(body)), 'Stripe-Signature': f't={timestamp},v1={sig}'}
+                self.rfile = BytesIO(body)
+                self.status = None
+                self.payload = None
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        first = Dummy()
+        router.Handler.do_POST(first)
+        self.assertEqual(200, first.status)
+        self.assertEqual({'received': True, 'event_id': 'evt_checkout_1'}, first.payload)
+        updated = router.customer_by_id(customer['id'])
+        self.assertEqual('pro', updated['plan'])
+        self.assertEqual('active', updated['status'])
+        self.assertEqual('cus_1', updated['stripe_customer_id'])
+        self.assertEqual(1, len(router.local_customer_store()['payment_intents']))
+
+        second = Dummy()
+        router.Handler.do_POST(second)
+        self.assertEqual(200, second.status)
+        self.assertTrue(second.payload['duplicate'])
+        self.assertEqual('evt_checkout_1', second.payload['event_id'])
+        self.assertEqual(1, len(router.local_customer_store()['payment_intents']))
 
     def test_stripe_crypto_missing_config_and_options_cors(self):
         router.supabase_user_for_bearer = lambda token: {'id': 'user-1', 'email': 'u@example.com'}

@@ -59,7 +59,7 @@ check_public_auth_gate() {
 }
 
 check_public_pricing_metadata() {
-  local code plans api_base openai_base limits_ok
+  local code plans api_base openai_base limits_ok stripe_ok
   code="$(http_code "${API_BASE%/}/pricing")"
   if [[ "$code" != "200" ]]; then
     rm -f /tmp/sage-router-readiness-body
@@ -77,11 +77,16 @@ check_public_pricing_metadata() {
     (.plans.max.limits.monthlyRequests == 200000) and
     (.plans.max.limits.rateLimitPerMinute == 600)
   ' /tmp/sage-router-readiness-body)"
+  stripe_ok="$(jq -r '
+    (.plans.lite.stripeConfigured == true) and
+    (.plans.pro.stripeConfigured == true) and
+    (.plans.max.stripeConfigured == true)
+  ' /tmp/sage-router-readiness-body)"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$plans" =~ ^[0-9]+$ && "$plans" -gt 0 && "$api_base" == "${API_BASE%/}" && "$openai_base" == "${API_BASE%/}/v1" && "$limits_ok" == "true" ]]; then
-    pass "public /pricing exposes hosted plan, endpoint, and limit metadata"
+  if [[ "$plans" =~ ^[0-9]+$ && "$plans" -gt 0 && "$api_base" == "${API_BASE%/}" && "$openai_base" == "${API_BASE%/}/v1" && "$limits_ok" == "true" && "$stripe_ok" == "true" ]]; then
+    pass "public /pricing exposes hosted plan, Stripe, endpoint, and limit metadata"
   else
-    fail "public /pricing metadata incomplete: plans=${plans:-missing} apiBaseUrl=${api_base:-missing} openaiBaseUrl=${openai_base:-missing} limits=${limits_ok:-missing}"
+    fail "public /pricing metadata incomplete: plans=${plans:-missing} apiBaseUrl=${api_base:-missing} openaiBaseUrl=${openai_base:-missing} limits=${limits_ok:-missing} stripe=${stripe_ok:-missing}"
   fi
 }
 

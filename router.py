@@ -5249,6 +5249,42 @@ def payment_intent_for_customer(customer_id, intent_id):
     return None
 
 
+def stripe_webhook_event_seen(event_id):
+    event_id = str(event_id or '').strip()
+    if not event_id:
+        return False
+    quoted = urllib.parse.quote(event_id, safe='')
+    if customer_store_uses_supabase():
+        rows = supabase_select(
+            SUPABASE_PAYMENT_INTENTS_TABLE,
+            f'select=id&kind=eq.stripe_webhook&event_id=eq.{quoted}&limit=1',
+            timeout=5,
+        )
+        return bool(rows)
+    return any(
+        row.get('kind') == 'stripe_webhook' and row.get('event_id') == event_id
+        for row in local_customer_store().get('payment_intents', [])
+    )
+
+
+def store_stripe_webhook_event(event, customer_id=None):
+    event_id = str((event or {}).get('id') or '').strip()
+    row = {
+        'id': f'stripe:{event_id}' if event_id else uuid.uuid4().hex,
+        'kind': 'stripe_webhook',
+        'customer_id': customer_id,
+        'status': 'received',
+        'event_type': (event or {}).get('type'),
+        'event_id': event_id,
+    }
+    try:
+        return store_payment_intent(row)
+    except Exception as e:
+        if event_id and '409' in extract_http_error(e):
+            return row
+        raise
+
+
 def verify_stripe_signature(payload, signature_header, tolerance_seconds=300):
     if not STRIPE_WEBHOOK_SECRET:
         return False
@@ -8804,21 +8840,24 @@ class Handler(BaseHTTPRequestHandler):
                 self.write_json(503, {'error': 'stripe_not_configured', 'plan': plan, 'required_env': ['STRIPE_SECRET_KEY or SAGE_ROUTER_STRIPE_SECRET_KEY', 'SAGE_ROUTER_STRIPE_PRICE_IDS=lite=price_x,pro=price_y,max=price_z or SAGE_ROUTER_STRIPE_PRICE_ID/STRIPE_PRICE_ID for pro']})
                 return
             try:
-                session = stripe_request('/v1/checkout/sessions', {
+                stripe_customer_id = str(customer.get('stripe_customer_id') or '').strip()
+                checkout_fields = {
                     'mode': 'subscription',
                     'line_items[0][price]': price_id,
                     'line_items[0][quantity]': '1',
                     'success_url': f'{PUBLIC_BASE_URL}/analytics.html?checkout=success',
                     'cancel_url': f'{PUBLIC_BASE_URL}/analytics.html?checkout=cancel',
                     'client_reference_id': customer.get('id'),
-                    'customer_email': customer.get('email') or '',
+                    'customer': stripe_customer_id or None,
+                    'customer_email': None if stripe_customer_id else (customer.get('email') or None),
                     'metadata[customer_id]': customer.get('id'),
                     'metadata[user_id]': customer.get('user_id'),
                     'metadata[plan]': plan,
                     'subscription_data[metadata][customer_id]': customer.get('id'),
                     'subscription_data[metadata][user_id]': customer.get('user_id'),
                     'subscription_data[metadata][plan]': plan,
-                })
+                }
+                session = stripe_request('/v1/checkout/sessions', checkout_fields)
                 self.write_json(200, {'checkout_url': session.get('url'), 'session_id': session.get('id')})
             except Exception as e:
                 logger.warning(f'Stripe checkout failed: {extract_http_error(e)}')
@@ -8838,6 +8877,10 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 event = {}
             event_type = event.get('type')
+            event_id = str(event.get('id') or '').strip()
+            if event_id and stripe_webhook_event_seen(event_id):
+                self.write_json(200, {'received': True, 'duplicate': True, 'event_id': event_id})
+                return
             obj = ((event.get('data') or {}).get('object') or {}) if isinstance(event, dict) else {}
             metadata = obj.get('metadata') or {}
             customer_id = metadata.get('customer_id') or obj.get('client_reference_id')
@@ -8861,8 +8904,8 @@ class Handler(BaseHTTPRequestHandler):
                 })
             elif customer_id and event_type == 'customer.subscription.deleted':
                 update_customer(customer_id, {'status': 'inactive'})
-            store_payment_intent({'kind': 'stripe_webhook', 'status': 'received', 'event_type': event.get('type'), 'event_id': event.get('id')})
-            self.write_json(200, {'received': True})
+            store_stripe_webhook_event(event, customer_id=customer_id)
+            self.write_json(200, {'received': True, 'event_id': event_id})
             return
         if self.path == '/billing/crypto/intent':
             _user, customer = require_user_customer(self)
