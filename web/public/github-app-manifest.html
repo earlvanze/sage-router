@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
   <title>Sage Router GitHub Auth Setup</title>
   <style>
     :root{color-scheme:dark;--bg:#08110d;--panel:#0e1b15;--border:#274635;--text:#edfdf5;--muted:#a9c5b8;--brand:#8df0b2}
@@ -16,6 +17,9 @@
     button{min-height:42px;border:0;border-radius:8px;padding:0 16px;background:var(--brand);color:#03150c;font-weight:800;cursor:pointer}
     .actions{display:flex;gap:12px;flex-wrap:wrap}
     .label{display:block;margin:20px 0 8px;color:var(--muted);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
+    .notice{border:1px solid var(--border);border-radius:8px;background:#08110d;padding:14px;margin:18px 0;color:var(--muted)}
+    ol{color:var(--muted);padding-left:22px}
+    li{margin:8px 0}
     .hidden{display:none}
   </style>
 </head>
@@ -23,6 +27,7 @@
   <main>
     <h1>Finish GitHub auth setup</h1>
     <p id="status">Reading the temporary manifest code from the redirect URL.</p>
+    <div id="next-steps" class="notice hidden"></div>
     <span id="code-label" class="label hidden">Manifest code</span>
     <pre id="manifest-code" class="hidden"></pre>
     <span id="command-label" class="label hidden">Run from the sage-router repo</span>
@@ -42,13 +47,24 @@
     const copyCode = document.getElementById('copy-code');
     const commandLabel = document.getElementById('command-label');
     const codeLabel = document.getElementById('code-label');
+    const nextSteps = document.getElementById('next-steps');
     const shellQuote = (value) => `'${String(value).replaceAll("'", "'\"'\"'")}'`;
+    const setCopy = (button, value, copiedText) => {
+      button.addEventListener('click', async () => {
+        await navigator.clipboard.writeText(value);
+        const original = button.textContent;
+        button.textContent = copiedText;
+        window.setTimeout(() => { button.textContent = original; }, 1800);
+      });
+    };
     if (code) {
       const text = `cd /home/digit/Dropbox/Projects/sage-router
 set -a; source /home/digit/.openclaw/.env >/dev/null 2>&1; set +a
 bash scripts/bootstrap_github_supabase_auth.sh ${shellQuote(window.location.href)}
 scripts/check_sagerouter_launch_readiness.sh`;
       status.textContent = 'GitHub returned a temporary manifest code. Run the command below within one hour to exchange it for app credentials and enable GitHub login in Supabase.';
+      nextSteps.innerHTML = '<strong>Keep this secure:</strong> the command uses your local Supabase management token from <code>/home/digit/.openclaw/.env</code>; the browser only holds the short-lived GitHub manifest code. If the command reports that the manifest code is expired, rerun <code>SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh</code> and approve the app again.';
+      nextSteps.classList.remove('hidden');
       manifestCode.textContent = code;
       manifestCode.classList.remove('hidden');
       codeLabel.classList.remove('hidden');
@@ -57,10 +73,12 @@ scripts/check_sagerouter_launch_readiness.sh`;
       commandLabel.classList.remove('hidden');
       copyCommand.classList.remove('hidden');
       copyCode.classList.remove('hidden');
-      copyCommand.addEventListener('click', async () => navigator.clipboard.writeText(text));
-      copyCode.addEventListener('click', async () => navigator.clipboard.writeText(code));
+      setCopy(copyCommand, text, 'Command copied');
+      setCopy(copyCode, code, 'Code copied');
     } else {
-      status.textContent = 'No manifest code was found in this URL. Start from scripts/bootstrap_github_supabase_auth.sh to create the owner-approved GitHub app manifest.';
+      status.textContent = 'No manifest code was found in this URL.';
+      nextSteps.innerHTML = '<ol><li>From the sage-router repo, run <code>set -a; source /home/digit/.openclaw/.env >/dev/null 2>&1; set +a</code>.</li><li>Run <code>SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh</code>.</li><li>Approve the GitHub App as the owner. GitHub will redirect back here with <code>?code=...</code>, and this page will show the exchange command.</li></ol>';
+      nextSteps.classList.remove('hidden');
     }
   </script>
 </body>

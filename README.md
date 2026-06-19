@@ -150,7 +150,7 @@ When a public anon/publishable key is available in the environment, it also
 checks `/auth/v1/settings` so the browser-visible OAuth buttons match the
 management config before the launch readiness script is rerun.
 
-If local capture is not available, fall back to the hosted callback page. After approving the app, GitHub redirects to `/github-app-manifest.html` with a temporary `code`; rerun the same script with the full callback URL or the raw code:
+If local capture is not available, fall back to the hosted callback page. After approving the app, GitHub redirects to `/github-app-manifest.html` with a temporary one-hour `code`; the page is marked `noindex,nofollow`, explains that the browser only holds the short-lived manifest code, and prints the exact local exchange command. Rerun the same script with the full callback URL or the raw code:
 
 ```bash
 SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh
@@ -159,7 +159,7 @@ bash scripts/bootstrap_github_supabase_auth.sh 'https://app.sagerouter.dev/githu
 SAGEROUTER_GITHUB_APP_MANIFEST_CODE=... bash scripts/bootstrap_github_supabase_auth.sh
 ```
 
-The callback page prints the exact command, including env loading and the launch readiness rerun. It also shows the raw temporary code as a fallback if clipboard access is blocked by the browser.
+The callback page prints the exact command, including env loading and the launch readiness rerun. It also shows the raw temporary code as a fallback if clipboard access is blocked by the browser. If the code expires, rerun `SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh` and approve the app again.
 
 If a GitHub OAuth App already exists, pass its credentials directly:
 

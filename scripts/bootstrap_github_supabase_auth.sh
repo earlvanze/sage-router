@@ -250,7 +250,7 @@ EOF
 
   open_form
   printf 'Waiting up to 10 minutes for the GitHub manifest approval redirect...\n'
-  wait "$capture_pid" || die "Timed out waiting for the GitHub manifest approval redirect."
+  wait "$capture_pid" || die "Timed out waiting for the GitHub manifest approval redirect. Retry with SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh, approve the app, then run the command printed by ${AUTH_SITE_URL}/github-app-manifest.html?code=..."
   MANIFEST_CODE="$(cat "$code_file")"
   trap - EXIT
   rm -f "$code_file" "$capture_log"
