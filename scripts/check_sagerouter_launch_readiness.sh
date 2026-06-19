@@ -57,17 +57,19 @@ check_edge_health() {
 }
 
 check_public_auth_gate() {
-  local code analytics_code account_analytics_code
+  local code analytics_code funnel_code account_analytics_code
   code="$(http_code "${API_BASE%/}/v1/models")"
   rm -f /tmp/sage-router-readiness-body
   analytics_code="$(http_code "${API_BASE%/}/analytics?days=7")"
   rm -f /tmp/sage-router-readiness-body
+  funnel_code="$(http_code "${API_BASE%/}/analytics/funnel?days=30")"
+  rm -f /tmp/sage-router-readiness-body
   account_analytics_code="$(http_code "${API_BASE%/}/account/analytics?days=7")"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$code" == "401" && "$analytics_code" == "401" && "$account_analytics_code" == "401" ]]; then
+  if [[ "$code" == "401" && "$analytics_code" == "401" && "$funnel_code" == "401" && "$account_analytics_code" == "401" ]]; then
     pass "anonymous model and analytics APIs are blocked"
   else
-    fail "anonymous auth gate incomplete: /v1/models=${code} /analytics=${analytics_code} /account/analytics=${account_analytics_code}, expected 401"
+    fail "anonymous auth gate incomplete: /v1/models=${code} /analytics=${analytics_code} /analytics/funnel=${funnel_code} /account/analytics=${account_analytics_code}, expected 401"
   fi
 }
 
@@ -227,13 +229,16 @@ check_admin_token() {
     warn "SAGE_ROUTER_API_KEY/SAGE_ROUTER_EDGE_TOKEN not set; skipped private admin token probe"
     return
   fi
-  local code
+  local code funnel_code funnel_ok
   code="$(http_code "${API_BASE%/}/v1/models" -H "Authorization: Bearer ${ADMIN_TOKEN}")"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$code" == "200" ]]; then
-    pass "private admin token can reach /v1/models"
+  funnel_code="$(http_code "${API_BASE%/}/analytics/funnel?days=30" -H "Authorization: Bearer ${ADMIN_TOKEN}")"
+  funnel_ok="$(jq -r '((.stages // {}) | has("signups")) and ((.privacy // {}) | .containsEmails == false)' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  rm -f /tmp/sage-router-readiness-body
+  if [[ "$code" == "200" && "$funnel_code" == "200" && "$funnel_ok" == "true" ]]; then
+    pass "private admin token can reach /v1/models and privacy-safe launch funnel"
   else
-    fail "private admin token returned HTTP ${code}, expected 200"
+    fail "private admin token probe failed: /v1/models=${code} /analytics/funnel=${funnel_code} funnel=${funnel_ok:-missing}, expected 200/true"
   fi
 }
 

@@ -69,4 +69,5 @@ and abuse controls are in place.
 - Enable GitHub OAuth in Supabase after the GitHub App manifest approval code is
   available.
 - Track the funnel from waitlist to signup, generated key, first routed request,
-  paid conversion, and retained paid account.
+  paid conversion, and retained paid account through the operator-only
+  `/analytics/funnel` endpoint.

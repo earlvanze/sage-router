@@ -395,6 +395,65 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, provider_requests.get('local'))
         self.assertNotIn('other', provider_requests)
 
+    def test_launch_funnel_snapshot_counts_private_conversion_stages(self):
+        customer = self.active_customer()
+        raw, _row = router.create_api_key_for_customer(customer, 'prod')
+        ctx = router.verify_generated_api_key(raw)
+        router.set_route_auth_context(ctx)
+        try:
+            router.append_route_event({
+                'request_id': 'r-funnel',
+                'status': 'ok',
+                'intent': 'GENERAL',
+                'selected': {'provider': 'local', 'model': 'frontier'},
+                'attempts': [{'provider': 'local', 'model': 'frontier', 'ok': True, 'elapsedMs': 12}],
+                'totalElapsedMs': 12,
+            })
+        finally:
+            router.clear_route_auth_context()
+        router.customer_for_user({'id': 'user-2', 'email': 'second@example.com'})
+
+        snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
+
+        self.assertEqual(2, snapshot['stages']['signups'])
+        self.assertEqual(1, snapshot['stages']['customersWithGeneratedApiKeys'])
+        self.assertEqual(1, snapshot['stages']['customersWithActiveApiKeys'])
+        self.assertEqual(1, snapshot['stages']['customersWithFirstRoutedRequest'])
+        self.assertEqual(1, snapshot['stages']['paidConversions'])
+        self.assertEqual(1, snapshot['stages']['paidCustomers'])
+        self.assertEqual(1, snapshot['stages']['retainedPaidCustomers'])
+        self.assertFalse(snapshot['privacy']['containsEmails'])
+        self.assertFalse(snapshot['privacy']['containsApiKeys'])
+        self.assertNotIn('u@example.com', json.dumps(snapshot))
+        self.assertNotIn(raw, json.dumps(snapshot))
+
+    def test_analytics_funnel_requires_operator_auth_when_hosted_auth_enabled(self):
+        router.SUPABASE_AUTH_ENABLED = True
+        router.CLIENT_API_KEYS = ['operator-secret']
+
+        class Dummy:
+            path = '/analytics/funnel?days=30'
+
+            def __init__(self, authorization=''):
+                self.headers = {'Authorization': authorization} if authorization else {}
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        anonymous = Dummy()
+        router.Handler.do_GET(anonymous)
+        self.assertEqual(401, anonymous.status)
+        self.assertEqual('unauthorized', anonymous.payload['error'])
+
+        operator = Dummy('Bearer operator-secret')
+        router.Handler.do_GET(operator)
+        self.assertEqual(200, operator.status)
+        self.assertIn('stages', operator.payload)
+        self.assertIn('privacy', operator.payload)
+
     def test_legacy_key_still_authorizes(self):
         router.CLIENT_API_KEYS = ['legacy-key']
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Sage Router - Dynamic provider discovery and routing"""
-import argparse, base64, hashlib, hmac, ipaddress, json, logging, math, os, re, secrets, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, base64, datetime, hashlib, hmac, ipaddress, json, logging, math, os, re, secrets, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
 from dataclasses import dataclass
 from enum import Enum, auto
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -154,6 +154,8 @@ SUPABASE_CUSTOMERS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_CUSTOMERS_TABLE'
 SUPABASE_API_KEYS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_API_KEYS_TABLE', 'sage_router_api_keys')
 SUPABASE_PAYMENT_INTENTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_PAYMENT_INTENTS_TABLE', 'sage_router_payment_intents')
 SUPABASE_USAGE_COUNTERS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_USAGE_COUNTERS_TABLE', 'sage_router_usage_counters')
+SUPABASE_WAITLIST_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_WAITLIST_TABLE', 'sage_router_waitlist')
+SUPABASE_WAITLIST_FALLBACK_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_WAITLIST_FALLBACK_TABLE', 'funnel_leads')
 # Off by default — no remote mirroring of analytics/customers/keys. The
 # router should keep its work local; enable only when the operator runs a
 # hosted tier that needs the Supabase mirror.
@@ -4347,6 +4349,223 @@ def read_supabase_route_events(window_seconds=7 * 24 * 3600, limit=None):
     except Exception as e:
         logger.debug(f'Supabase analytics read failed: {extract_http_error(e)}')
         return []
+
+
+def parse_epoch_value(value):
+    if value is None or value == '':
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return int(float(text))
+    except Exception:
+        pass
+    try:
+        normalized = text.replace('Z', '+00:00')
+        return int(datetime.datetime.fromisoformat(normalized).timestamp())
+    except Exception:
+        return None
+
+
+def row_epoch(row, *keys):
+    for key in keys:
+        value = parse_epoch_value((row or {}).get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def in_epoch_window(epoch, since, now):
+    if epoch is None:
+        return False
+    return int(epoch) >= int(since) and int(epoch) <= int(now)
+
+
+def percent_rate(numerator, denominator):
+    if not denominator:
+        return None
+    return round(float(numerator) / float(denominator), 4)
+
+
+def read_launch_customer_rows(limit=10000):
+    try:
+        if customer_store_uses_supabase():
+            return supabase_select(
+                SUPABASE_CUSTOMERS_TABLE,
+                'select=id,plan,status,created_at_epoch,updated_at_epoch,stripe_customer_id,stripe_subscription_id'
+                f'&limit={int(limit)}',
+                timeout=8,
+            )
+        return [
+            {
+                'id': row.get('id'),
+                'plan': row.get('plan'),
+                'status': row.get('status'),
+                'created_at_epoch': row.get('created_at_epoch'),
+                'updated_at_epoch': row.get('updated_at_epoch'),
+                'stripe_customer_id': row.get('stripe_customer_id'),
+                'stripe_subscription_id': row.get('stripe_subscription_id'),
+            }
+            for row in (local_customer_store().get('customers') or [])
+            if isinstance(row, dict)
+        ]
+    except Exception as e:
+        logger.debug(f'Launch funnel customer read failed: {extract_http_error(e)}')
+        return []
+
+
+def read_launch_api_key_rows(limit=10000):
+    try:
+        if customer_store_uses_supabase():
+            return supabase_select(
+                SUPABASE_API_KEYS_TABLE,
+                'select=id,customer_id,status,created_at_epoch,last_used_at_epoch'
+                f'&limit={int(limit)}',
+                timeout=8,
+            )
+        return [
+            {
+                'id': row.get('id'),
+                'customer_id': row.get('customer_id'),
+                'status': row.get('status'),
+                'created_at_epoch': row.get('created_at_epoch'),
+                'last_used_at_epoch': row.get('last_used_at_epoch'),
+            }
+            for row in (local_customer_store().get('api_keys') or [])
+            if isinstance(row, dict)
+        ]
+    except Exception as e:
+        logger.debug(f'Launch funnel API key read failed: {extract_http_error(e)}')
+        return []
+
+
+def read_launch_waitlist_count(since, limit=10000):
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return None, 'supabase_not_configured'
+    since_iso = datetime.datetime.fromtimestamp(int(since), datetime.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+    quoted_since = urllib.parse.quote(since_iso, safe=':-TZ')
+    tables = [SUPABASE_WAITLIST_TABLE, SUPABASE_WAITLIST_FALLBACK_TABLE]
+    counts = []
+    for table in [t for t in tables if t]:
+        try:
+            rows = supabase_select(
+                table,
+                f'select=created_at&created_at=gte.{quoted_since}&limit={int(limit)}',
+                timeout=6,
+            )
+            counts.append(len(rows or []))
+        except Exception as e:
+            logger.debug(f'Launch funnel waitlist read failed for {table}: {extract_http_error(e)}')
+    if not counts:
+        return None, 'waitlist_tables_unavailable'
+    return sum(counts), None
+
+
+def route_events_for_window(window_seconds, event_limit=None):
+    now = int(time.time())
+    since = now - int(window_seconds or 0) if window_seconds else 0
+    durable_events = read_firestore_route_events(window_seconds, event_limit)
+    source = 'firestore' if durable_events else 'local'
+    if not durable_events:
+        durable_events = read_supabase_route_events(window_seconds, event_limit)
+        source = 'supabase' if durable_events else 'local'
+    events = durable_events or [e for e in read_recent_route_events(event_limit) if int(e.get('ts', 0) or 0) >= since]
+    return source, events
+
+
+def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None):
+    """Summarize hosted launch conversion without returning PII, prompts, or secrets."""
+    now = int(time.time())
+    since = now - int(window_seconds or 0) if window_seconds else 0
+    customers = [normalize_customer(row) for row in read_launch_customer_rows() if isinstance(row, dict)]
+    api_keys = [row for row in read_launch_api_key_rows() if isinstance(row, dict)]
+    event_source, route_events = route_events_for_window(window_seconds, event_limit)
+    waitlist_count, waitlist_error = read_launch_waitlist_count(since)
+
+    customer_ids = {str(c.get('id')) for c in customers if c and c.get('id')}
+    signup_ids = {
+        str(c.get('id'))
+        for c in customers
+        if c and c.get('id') and in_epoch_window(row_epoch(c, 'created_at_epoch', 'created_at'), since, now)
+    }
+    active_key_customer_ids = {
+        str(k.get('customer_id'))
+        for k in api_keys
+        if k.get('customer_id') and str(k.get('status') or 'active').lower() == 'active'
+    }
+    generated_key_customer_ids = {
+        str(k.get('customer_id'))
+        for k in api_keys
+        if k.get('customer_id') and in_epoch_window(row_epoch(k, 'created_at_epoch', 'created_at'), since, now)
+    }
+    first_request_customer_ids = {
+        str(e.get('customer_id'))
+        for e in route_events
+        if e.get('customer_id') and in_epoch_window(row_epoch(e, 'ts', 'event_ts'), since, now)
+    }
+    first_request_customer_ids.update(
+        str(k.get('customer_id'))
+        for k in api_keys
+        if k.get('customer_id') and in_epoch_window(row_epoch(k, 'last_used_at_epoch'), since, now)
+    )
+    paid_customer_ids = {
+        str(c.get('id'))
+        for c in customers
+        if c and c.get('id') and customer_is_active(c)
+    }
+    paid_conversion_ids = {
+        str(c.get('id'))
+        for c in customers
+        if c and c.get('id') and customer_is_active(c) and in_epoch_window(row_epoch(c, 'updated_at_epoch', 'created_at_epoch', 'created_at'), since, now)
+    }
+    retained_paid_ids = paid_customer_ids & first_request_customer_ids
+
+    stages = {
+        'waitlistLeads': waitlist_count,
+        'signups': len(signup_ids),
+        'customersWithActiveApiKeys': len(active_key_customer_ids & customer_ids),
+        'customersWithGeneratedApiKeys': len(generated_key_customer_ids & customer_ids),
+        'customersWithFirstRoutedRequest': len(first_request_customer_ids & customer_ids),
+        'paidConversions': len(paid_conversion_ids),
+        'paidCustomers': len(paid_customer_ids),
+        'retainedPaidCustomers': len(retained_paid_ids),
+    }
+    notes = []
+    if waitlist_error:
+        notes.append(f'waitlist_count_unavailable:{waitlist_error}')
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        notes.append('customer/key funnel read is local-only because Supabase service credentials are not configured')
+
+    return {
+        'version': 1,
+        'generatedAt': now,
+        'windowSeconds': int(window_seconds or 0),
+        'source': {
+            'customers': 'supabase' if customer_store_uses_supabase() else 'local',
+            'apiKeys': 'supabase' if customer_store_uses_supabase() else 'local',
+            'routeEvents': event_source,
+            'waitlist': 'supabase' if waitlist_count is not None else 'unavailable',
+        },
+        'privacy': {
+            'containsEmails': False,
+            'promptsStored': False,
+            'messageBodiesStored': False,
+            'containsProviderCredentials': False,
+            'containsApiKeys': False,
+        },
+        'stages': stages,
+        'rates': {
+            'waitlistToSignup': percent_rate(stages['signups'], stages['waitlistLeads']) if stages['waitlistLeads'] is not None else None,
+            'signupToGeneratedKey': percent_rate(stages['customersWithGeneratedApiKeys'], stages['signups']),
+            'generatedKeyToFirstRequest': percent_rate(stages['customersWithFirstRoutedRequest'], stages['customersWithGeneratedApiKeys']),
+            'signupToPaidConversion': percent_rate(stages['paidConversions'], stages['signups']),
+            'paidRecentUsage': percent_rate(stages['retainedPaidCustomers'], stages['paidCustomers']),
+        },
+        'notes': notes,
+    }
 
 
 def mirror_route_event_async(event):
@@ -8644,6 +8863,7 @@ class Handler(BaseHTTPRequestHandler):
                     "googleGenerateContent": "/v1beta/models/{model}:generateContent",
                     "discovery": "/discovery",
                     "analytics": "/analytics?days=7",
+                    "analyticsFunnel": "/analytics/funnel?days=30",
                     "dashboard": "/dashboard",
                     "account": "/account",
                     "apiKeys": "/account/api-keys",
@@ -8756,6 +8976,15 @@ class Handler(BaseHTTPRequestHandler):
             if not customer:
                 return
             self.write_json(200, {'api_keys': [public_api_key(k, customer) for k in api_keys_for_customer(customer.get('id'))]})
+        elif self.path.startswith('/analytics/funnel'):
+            if not analytics_authorized(self):
+                self.write_json(401, {'error': 'unauthorized'})
+                return
+            parsed = urllib.parse.urlparse(self.path)
+            qs = urllib.parse.parse_qs(parsed.query)
+            days = float((qs.get('days') or ['30'])[0] or 30)
+            limit = int((qs.get('limit') or [ANALYTICS_EVENT_LIMIT])[0] or ANALYTICS_EVENT_LIMIT)
+            self.write_json(200, build_launch_funnel_snapshot(days * 24 * 3600, limit))
         elif self.path.startswith('/analytics'):
             if not analytics_authorized(self):
                 self.write_json(401, {'error': 'unauthorized'})

@@ -33,6 +33,28 @@ The endpoint returns:
 - `recommendations.mostReliableModels[]`
 - `recommendations.degradedModels[]`
 
+## Launch Funnel Endpoint
+
+```bash
+GET /analytics/funnel?days=30&limit=10000
+Authorization: Bearer $SAGE_ROUTER_ANALYTICS_TOKEN # or an operator key
+```
+
+The operator-only funnel summarizes the hosted launch path without returning
+PII or request content:
+
+- waitlist leads
+- signups
+- customers with generated API keys
+- customers with a first routed request
+- paid conversions
+- paid customers with recent routed usage
+
+The funnel reads only timestamps and countable customer/key status fields from
+the customer store, API-key store, waitlist tables, and route telemetry. It does
+not return email addresses, prompts, message bodies, API keys, provider
+credentials, OAuth tokens, or raw responses.
+
 ## Privacy model
 
 The analytics feed is built from route telemetry only. It does not store prompts, message bodies, provider credentials, OAuth tokens, or API keys.

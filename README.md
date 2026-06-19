@@ -86,7 +86,7 @@ The hosted account page at `https://app.sagerouter.dev/account.html` is the cust
 
 API keys created before checkout are stored, but the account page marks routing as blocked until the customer is active, trialing, or manually enabled; the edge enforces the same rule before proxying `/v1/*` traffic. Revoked keys and inactive accounts are rechecked against Supabase by default on every generated-key request. Customers are limited to `SAGE_ROUTER_MAX_ACTIVE_API_KEYS_PER_CUSTOMER` active generated keys at a time, default `5`; revoked keys do not count against the cap.
 
-The account page also shows current-period usage from the same Supabase usage counter that the public edge enforces, including requests used, remaining monthly quota, and the active request-per-minute limit. The hosted analytics dashboard at `https://app.sagerouter.dev/analytics.html` uses the signed-in account session and calls `/account/analytics`, so customers see only their own privacy-safe routing telemetry while `/analytics` remains an operator/global endpoint.
+The account page also shows current-period usage from the same Supabase usage counter that the public edge enforces, including requests used, remaining monthly quota, and the active request-per-minute limit. The hosted analytics dashboard at `https://app.sagerouter.dev/analytics.html` uses the signed-in account session and calls `/account/analytics`, so customers see only their own privacy-safe routing telemetry while `/analytics` and `/analytics/funnel` remain operator/global endpoints. The launch funnel endpoint reports waitlist, signup, generated-key, first-request, paid-conversion, and retained-paid counts without returning email addresses, prompts, message bodies, API keys, provider credentials, OAuth tokens, or raw responses.
 
 Programmatic clients should call the API edge directly:
 
@@ -157,7 +157,7 @@ set -a; source /home/digit/.openclaw/.env; set +a
 scripts/check_sagerouter_launch_readiness.sh
 ```
 
-The readiness check verifies the public API edge, hosted pricing metadata, direct origin auth gating when `SAGEROUTER_ORIGIN_BASE_URL` is set, Supabase auth settings, quota schema, hosted login/account/GitHub callback pages, the non-mutating waitlist health endpoint on `SAGEROUTER_APP_BASE_URL` (default `https://app.sagerouter.dev`), and the marketing comparison/pricing pages on `SAGEROUTER_MARKETING_BASE_URL` (default `https://sagerouter.dev`).
+The readiness check verifies the public API edge, hosted pricing metadata, direct origin auth gating when `SAGEROUTER_ORIGIN_BASE_URL` is set, Supabase auth settings, quota schema, hosted login/account/GitHub callback pages, the operator-only privacy-safe `/analytics/funnel` endpoint, the non-mutating waitlist health endpoint on `SAGEROUTER_APP_BASE_URL` (default `https://app.sagerouter.dev`), and the marketing comparison/pricing pages on `SAGEROUTER_MARKETING_BASE_URL` (default `https://sagerouter.dev`).
 
 Monthly API-key quotas require the Supabase usage counter table and RPC. Apply
 the idempotent migration through the Supabase Management API before enabling
