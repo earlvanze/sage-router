@@ -98,6 +98,15 @@
         </div>
       </div>
 
+      <div class="panel">
+        <h3>Verify API key</h3>
+        <p class="small">Check the public edge with <code>/v1/models</code> before wiring an agent. This uses your generated key only in this browser session.</p>
+        <label for="test-api-key">API key</label>
+        <input id="test-api-key" type="password" autocomplete="off" placeholder="sk_sage_...">
+        <div class="actions"><button id="test-api-key-button" class="btn">Test key</button></div>
+        <div id="test-api-key-status" class="status"></div>
+      </div>
+
       <div class="panel"><h3>API keys</h3><div id="keys"></div></div>
     </section>
   </main>

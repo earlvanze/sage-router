@@ -143,6 +143,9 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "Sage Router Account" /tmp/sage-router-readiness-body; then
     account_code="200:unexpected-body"
   fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "Verify API key" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-api-key-verification"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   analytics_code="$(http_code_follow "${APP_BASE%/}/analytics.html")"
@@ -158,16 +161,23 @@ check_hosted_onboarding_pages() {
   fi
   rm -f /tmp/sage-router-readiness-body
 
+  local account_js_code
+  account_js_code="$(http_code_follow "${APP_BASE%/}/account.js")"
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "testApiKey" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-api-key-test"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
   manifest_code="$(http_code_follow "${APP_BASE%/}/github-app-manifest.html")"
   if [[ "$manifest_code" == "200" ]] && ! grep -q "Finish GitHub auth setup" /tmp/sage-router-readiness-body; then
     manifest_code="200:unexpected-body"
   fi
   rm -f /tmp/sage-router-readiness-body
 
-  if [[ "$login_code" == "200" && "$account_code" == "200" && "$analytics_code" == "200" && "$analytics_js_code" == "200" && "$manifest_code" == "200" ]]; then
-    pass "hosted login, account, analytics, and GitHub auth callback pages are live"
+  if [[ "$login_code" == "200" && "$account_code" == "200" && "$analytics_code" == "200" && "$analytics_js_code" == "200" && "$account_js_code" == "200" && "$manifest_code" == "200" ]]; then
+    pass "hosted login, account, API-key verification, analytics, and GitHub auth callback pages are live"
   else
-    fail "hosted onboarding pages incomplete: login=${login_code} account=${account_code} analytics=${analytics_code} analytics.js=${analytics_js_code} github-app-manifest=${manifest_code}"
+    fail "hosted onboarding pages incomplete: login=${login_code} account=${account_code} account.js=${account_js_code} analytics=${analytics_code} analytics.js=${analytics_js_code} github-app-manifest=${manifest_code}"
   fi
 }
 

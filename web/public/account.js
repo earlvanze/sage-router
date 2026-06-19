@@ -109,6 +109,9 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
 
 function renderQuickstart(key) {
   currentRawKey = key || currentRawKey;
+  if (currentRawKey && $('test-api-key') && !$('test-api-key').value) {
+    $('test-api-key').value = currentRawKey;
+  }
   set('quickstart-code', quickstartText(currentRawKey || 'sk_sage_your_key_here'));
 }
 
@@ -298,6 +301,7 @@ async function magicLogin() {
 
 async function createKey() {
   set('key-once', '');
+  set('test-api-key-status', '');
   try {
     const name = $('key-name')?.value || 'Default';
     const data = await api('/account/api-keys', { method: 'POST', body: JSON.stringify({ name }) });
@@ -308,6 +312,50 @@ async function createKey() {
     refresh();
   } catch (error) {
     set('key-once', error.message);
+  }
+}
+
+function explainModelProbeFailure(status, data = {}) {
+  const detail = data.error || data.message || `HTTP ${status}`;
+  if (status === 401 || status === 403) {
+    return `${detail}. Check that this is an active sk_sage key and has not been revoked.`;
+  }
+  if (status === 402) {
+    return `${detail}. Choose a plan or finish checkout before routing generated keys.`;
+  }
+  if (status === 429) {
+    return `${detail}. The key is valid, but the current rate limit or quota was reached.`;
+  }
+  if (status >= 500) {
+    return `${detail}. The public edge or selected backend is degraded; check /status before retrying.`;
+  }
+  return detail;
+}
+
+async function testApiKey() {
+  const key = $('test-api-key')?.value.trim() || currentRawKey;
+  if (!key) {
+    set('test-api-key-status', 'Create a key or paste an sk_sage key first.');
+    return;
+  }
+  set('test-api-key-status', 'Checking /v1/models through the public edge...');
+  try {
+    const res = await fetch(`${openaiBaseUrl}/models`, {
+      headers: {
+        Authorization: `Bearer ${key}`,
+        Accept: 'application/json',
+      },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      set('test-api-key-status', explainModelProbeFailure(res.status, data));
+      return;
+    }
+    const models = Array.isArray(data.data) ? data.data : [];
+    const suffix = models.length ? ` ${fmtNumber(models.length)} models visible.` : ' The key reached the model API.';
+    set('test-api-key-status', `Success: /v1/models returned HTTP ${res.status}.${suffix}`);
+  } catch (_error) {
+    set('test-api-key-status', 'Could not reach the public edge from this browser. Check network access, CORS, or https://app.sagerouter.dev/status.');
   }
 }
 
@@ -347,6 +395,7 @@ $('password-signup')?.addEventListener('click', passwordSignup);
 $('password-login')?.addEventListener('click', passwordLogin);
 $('magic-login')?.addEventListener('click', magicLogin);
 $('create-key')?.addEventListener('click', createKey);
+$('test-api-key-button')?.addEventListener('click', testApiKey);
 $('stripe-checkout')?.addEventListener('click', stripeCheckout);
 $('stripe-portal')?.addEventListener('click', billingPortal);
 $('crypto-intent')?.addEventListener('click', cryptoIntent);
