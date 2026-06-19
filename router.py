@@ -5490,6 +5490,33 @@ def revoke_api_key_for_customer(customer_id, key_id):
     return found
 
 
+def revoke_active_api_keys_for_customer(customer_id):
+    revoked = []
+    for row in api_keys_for_customer(customer_id):
+        if str(row.get('status') or 'active').lower() != 'active':
+            continue
+        updated = revoke_api_key_for_customer(customer_id, row.get('id'))
+        if updated:
+            revoked.append(updated)
+    return revoked
+
+
+def suspend_customer_for_operator(customer_id):
+    customer = customer_by_id(customer_id)
+    if not customer:
+        return None, []
+    revoked = revoke_active_api_keys_for_customer(customer_id)
+    updated = update_customer(customer_id, {'status': 'suspended'})
+    return updated or customer_by_id(customer_id), revoked
+
+
+def billing_status_for_customer(customer_id, desired_status):
+    existing = customer_by_id(customer_id)
+    if str((existing or {}).get('status') or '').lower() == 'suspended':
+        return 'suspended'
+    return desired_status
+
+
 def mark_api_key_used(key_id):
     try:
         if customer_store_uses_supabase():
@@ -9608,6 +9635,24 @@ class Handler(BaseHTTPRequestHandler):
                     pass
             Thread(target=_die, daemon=True).start()
             return
+        if self.path.startswith('/admin/customers/') and self.path.endswith('/suspend'):
+            if not require_operator_request(self):
+                return
+            parts = self.path.split('/')
+            customer_id = urllib.parse.unquote(parts[3] if len(parts) > 3 else '')
+            if not customer_id:
+                self.write_json(400, {'error': 'customer_id_required'})
+                return
+            customer, revoked = suspend_customer_for_operator(customer_id)
+            if not customer:
+                self.write_json(404, {'error': 'customer_not_found'})
+                return
+            self.write_json(200, {
+                'customer': public_customer(customer),
+                'revokedApiKeys': len(revoked),
+                'status': 'suspended',
+            })
+            return
         if self.path == '/account/api-keys':
             _user, customer = require_user_customer(self)
             if not customer:
@@ -9723,7 +9768,7 @@ class Handler(BaseHTTPRequestHandler):
             if customer_id and event_type == 'checkout.session.completed':
                 update_customer(customer_id, {
                     'plan': stripe_plan_from_object(obj, fallback_customer_id=customer_id),
-                    'status': 'active',
+                    'status': billing_status_for_customer(customer_id, 'active'),
                     'stripe_customer_id': obj.get('customer') or '',
                     'stripe_subscription_id': obj.get('subscription') or '',
                 })
@@ -9731,22 +9776,22 @@ class Handler(BaseHTTPRequestHandler):
                 status = obj.get('status') or 'active'
                 update_customer(customer_id, {
                     'plan': stripe_plan_from_object(obj, fallback_customer_id=customer_id),
-                    'status': 'active' if status in {'active', 'trialing'} else status,
+                    'status': billing_status_for_customer(customer_id, 'active' if status in {'active', 'trialing'} else status),
                     'stripe_customer_id': obj.get('customer') or '',
                     'stripe_subscription_id': obj.get('id') or '',
                 })
             elif customer_id and event_type == 'customer.subscription.deleted':
-                update_customer(customer_id, {'status': 'inactive'})
+                update_customer(customer_id, {'status': billing_status_for_customer(customer_id, 'inactive')})
             elif customer_id and event_type in {'invoice.payment_failed', 'invoice.marked_uncollectible'}:
                 update_customer(customer_id, {
-                    'status': 'past_due',
+                    'status': billing_status_for_customer(customer_id, 'past_due'),
                     'stripe_customer_id': obj.get('customer') or '',
                     'stripe_subscription_id': obj.get('subscription') or '',
                 })
             elif customer_id and event_type in {'invoice.payment_succeeded', 'invoice.paid'}:
                 update_customer(customer_id, {
                     'plan': stripe_plan_from_object(obj, fallback_customer_id=customer_id),
-                    'status': 'active',
+                    'status': billing_status_for_customer(customer_id, 'active'),
                     'stripe_customer_id': obj.get('customer') or '',
                     'stripe_subscription_id': obj.get('subscription') or '',
                 })

@@ -208,6 +208,63 @@ class SaaSAuthTests(unittest.TestCase):
         raw, _row = router.create_api_key_for_customer(customer, 'inactive')
         self.assertIsNone(router.verify_generated_api_key(raw))
 
+    def test_operator_suspend_customer_revokes_active_keys_and_blocks_routing(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        customer = self.active_customer()
+        first_raw, _first = router.create_api_key_for_customer(customer, 'first')
+        second_raw, _second = router.create_api_key_for_customer(customer, 'second')
+
+        class Dummy:
+            def __init__(self):
+                self.path = f'/admin/customers/{customer["id"]}/suspend'
+                self.headers = {'Authorization': 'Bearer operator-token', 'Content-Length': '2'}
+                self.rfile = BytesIO(b'{}')
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(200, handler.status)
+        self.assertEqual('suspended', handler.payload['status'])
+        self.assertEqual(2, handler.payload['revokedApiKeys'])
+        self.assertEqual('suspended', router.customer_by_id(customer['id'])['status'])
+        self.assertEqual(0, router.active_api_key_count_for_customer(customer['id']))
+        self.assertIsNone(router.verify_generated_api_key(first_raw))
+        self.assertIsNone(router.verify_generated_api_key(second_raw))
+
+    def test_stripe_payment_success_does_not_reactivate_suspended_customer(self):
+        router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
+        router.STRIPE_PRICE_IDS_RAW = 'lite=price_lite,pro=price_pro,max=price_max'
+        customer = self.active_customer()
+        router.update_customer(customer['id'], {
+            'status': 'suspended',
+            'stripe_customer_id': 'cus_1',
+            'stripe_subscription_id': 'sub_1',
+        })
+
+        event = {
+            'id': 'evt_suspended_payment_success',
+            'type': 'invoice.payment_succeeded',
+            'data': {'object': {
+                'customer': 'cus_1',
+                'subscription': 'sub_1',
+                'metadata': {'customer_id': customer['id'], 'plan': 'pro'},
+                'lines': {'data': [{'price': {'id': 'price_max'}}]},
+            }},
+        }
+        handler = self.signed_stripe_webhook_handler(event)
+        router.Handler.do_POST(handler)
+
+        updated = router.customer_by_id(customer['id'])
+        self.assertEqual(200, handler.status)
+        self.assertEqual('suspended', updated['status'])
+        self.assertFalse(router.customer_is_active(updated))
+        self.assertEqual('max', updated['plan'])
 
     def test_public_api_key_uses_effective_customer_plan_and_routing_state(self):
         customer = router.customer_for_user({'id': 'user-2', 'email': 'u2@example.com'})

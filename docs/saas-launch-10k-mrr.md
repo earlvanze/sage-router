@@ -124,6 +124,10 @@ claim, or runtime feature flag.
 - Keep Stripe webhook customer binding fail-closed: signed webhook metadata
   must agree with any existing `stripe_customer_id` binding before changing
   quota, plan, or routing state.
+- Keep operator suspension fail-closed: `POST /admin/customers/{customer_id}/suspend`
+  must require the private operator token, revoke active generated keys, block
+  generated-key routing immediately, and remain sticky across later Stripe
+  subscription or payment-recovery webhooks.
 - Capture managed-access beta demand through the waitlist `interest` metadata
   path from `/managed-access` and watch `managedAccessBetaInterest` plus
   `managedAccessShareOfWaitlist` in `/analytics/funnel` instead of advertising
