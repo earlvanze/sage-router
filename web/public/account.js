@@ -1,6 +1,8 @@
 const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
-const SAGE_ROUTER_URL = window.SAGE_ROUTER_API_URL || 'https://api.sagerouter.dev';
+let sageRouterUrl = window.SAGE_ROUTER_API_URL || 'https://api.sagerouter.dev';
+let openaiBaseUrl = `${sageRouterUrl}/v1`;
+let anthropicBaseUrl = sageRouterUrl;
 const DEFAULT_PLAN_ORDER = ['lite', 'pro', 'max'];
 const FALLBACK_PLANS = {
   lite: { name: 'Lite', price: '$6/month', features: ['agent-native routing', 'API keys', 'usage analytics'] },
@@ -23,6 +25,15 @@ const esc = (v) => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&
 let selectedPlan = 'pro';
 let currentRawKey = '';
 
+function applyLaunchMetadata(data) {
+  if (!data) return;
+  sageRouterUrl = data.apiBaseUrl || sageRouterUrl;
+  openaiBaseUrl = data.openaiBaseUrl || `${sageRouterUrl}/v1`;
+  anthropicBaseUrl = data.anthropicBaseUrl || sageRouterUrl;
+  set('openai-base-url', `OPENAI_BASE_URL=${openaiBaseUrl}`);
+  set('anthropic-base-url', `ANTHROPIC_BASE_URL=${anthropicBaseUrl}`);
+}
+
 async function session() {
   const { data } = await sb.auth.getSession();
   return data?.session || null;
@@ -31,7 +42,7 @@ async function session() {
 async function api(path, options = {}) {
   const s = await session();
   if (!s) throw new Error('Sign in first.');
-  const res = await fetch(`${SAGE_ROUTER_URL}${path}`, {
+  const res = await fetch(`${sageRouterUrl}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -50,7 +61,7 @@ function markStep(id, done) {
 }
 
 function quickstartText(key = 'sk_sage_your_key_here') {
-  return `export OPENAI_BASE_URL="${SAGE_ROUTER_URL}/v1"
+  return `export OPENAI_BASE_URL="${openaiBaseUrl}"
 export OPENAI_API_KEY="${key}"
 
 curl "$OPENAI_BASE_URL/chat/completions" \\
@@ -73,6 +84,12 @@ async function refresh() {
   show('account-panel', !!s);
   show('sign-out', !!s);
   markStep('step-auth', !!s);
+  try {
+    const metadata = await fetch(`${sageRouterUrl}/pricing`).then(response => response.ok ? response.json() : null);
+    applyLaunchMetadata(metadata);
+  } catch (_error) {
+    applyLaunchMetadata(null);
+  }
   renderQuickstart();
   if (!s) return;
   set('account-status', 'Loading account...');
@@ -82,6 +99,7 @@ async function refresh() {
       api('/account/api-keys'),
       api('/account/plan').catch(() => null),
     ]);
+    applyLaunchMetadata(planData);
     const accountPlan = planData?.plan || customer.plan || 'free';
     const accountStatus = planData?.status || customer.status || 'inactive';
     const routingEnabled = planData?.routing_enabled ?? ['active', 'trialing', 'manual'].includes(accountStatus);

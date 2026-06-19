@@ -1699,6 +1699,21 @@ def public_plan_catalog():
     return plans
 
 
+def public_launch_metadata():
+    api_base_url = API_BASE_URL or 'https://api.sagerouter.dev'
+    return {
+        'publicBaseUrl': PUBLIC_BASE_URL,
+        'apiBaseUrl': api_base_url,
+        'openaiBaseUrl': f"{api_base_url}/v1",
+        'anthropicBaseUrl': api_base_url,
+        'accountUrl': f"{PUBLIC_BASE_URL}/account.html",
+        'loginUrl': f"{PUBLIC_BASE_URL}/login.html",
+        'checkoutPath': '/billing/stripe/checkout',
+        'apiKeyPrefix': API_KEY_PREFIX,
+        'recommendedModel': 'sage-router/frontier',
+    }
+
+
 def is_truthy(value):
     if isinstance(value, bool):
         return value
@@ -8504,7 +8519,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.write_json(500, {'error': 'dashboard_not_found'})
             return
         elif self.path in {'/pricing', '/plans'}:
-            self.write_json(200, {'plans': public_plan_catalog(), 'agentNativeFeatures': PUBLIC_AGENT_NATIVE_FEATURES})
+            self.write_json(200, {**public_launch_metadata(), 'plans': public_plan_catalog(), 'agentNativeFeatures': PUBLIC_AGENT_NATIVE_FEATURES})
         elif self.path == '/features/agent-native':
             self.write_json(200, {'agentNativeFeatures': PUBLIC_AGENT_NATIVE_FEATURES})
         elif self.path == '/account':
@@ -8522,6 +8537,7 @@ class Handler(BaseHTTPRequestHandler):
                 'routing_enabled': customer_is_active(customer),
                 'customer': public_customer(customer),
                 'plans': public_plan_catalog(),
+                **public_launch_metadata(),
             })
         elif self.path == '/account/api-keys':
             _user, customer = require_user_customer(self)

@@ -59,7 +59,7 @@ check_public_auth_gate() {
 }
 
 check_public_pricing_metadata() {
-  local code plans
+  local code plans api_base openai_base
   code="$(http_code "${API_BASE%/}/pricing")"
   if [[ "$code" != "200" ]]; then
     rm -f /tmp/sage-router-readiness-body
@@ -67,11 +67,13 @@ check_public_pricing_metadata() {
     return
   fi
   plans="$(jq -r '((.plans // {}) | keys | length)' /tmp/sage-router-readiness-body)"
+  api_base="$(jq -r '.apiBaseUrl // empty' /tmp/sage-router-readiness-body)"
+  openai_base="$(jq -r '.openaiBaseUrl // empty' /tmp/sage-router-readiness-body)"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$plans" =~ ^[0-9]+$ && "$plans" -gt 0 ]]; then
-    pass "public /pricing exposes hosted plan metadata"
+  if [[ "$plans" =~ ^[0-9]+$ && "$plans" -gt 0 && "$api_base" == "${API_BASE%/}" && "$openai_base" == "${API_BASE%/}/v1" ]]; then
+    pass "public /pricing exposes hosted plan and endpoint metadata"
   else
-    fail "public /pricing did not include plan metadata"
+    fail "public /pricing metadata incomplete: plans=${plans:-missing} apiBaseUrl=${api_base:-missing} openaiBaseUrl=${openai_base:-missing}"
   fi
 }
 

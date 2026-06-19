@@ -35,6 +35,8 @@ class SaaSAuthTests(unittest.TestCase):
             'STRIPE_SECRET_KEY': router.STRIPE_SECRET_KEY,
             'STRIPE_PRICE_ID': router.STRIPE_PRICE_ID,
             'CRYPTO_PAYMENT_ADDRESS': router.CRYPTO_PAYMENT_ADDRESS,
+            'PUBLIC_BASE_URL': router.PUBLIC_BASE_URL,
+            'API_BASE_URL': router.API_BASE_URL,
             'supabase_user_for_bearer': router.supabase_user_for_bearer,
             'ROUTE_EVENTS_PATH': router.ROUTE_EVENTS_PATH,
             'FIRESTORE_ENABLED': router.FIRESTORE_ENABLED,
@@ -48,6 +50,8 @@ class SaaSAuthTests(unittest.TestCase):
         router.STRIPE_SECRET_KEY = ''
         router.STRIPE_PRICE_ID = ''
         router.CRYPTO_PAYMENT_ADDRESS = ''
+        router.PUBLIC_BASE_URL = 'https://app.sagerouter.dev'
+        router.API_BASE_URL = 'https://api.sagerouter.dev'
         router.ROUTE_EVENTS_PATH = os.path.join(self.tmp.name, 'route-events.jsonl')
         router.FIRESTORE_ENABLED = False
         router.SUPABASE_MIRROR_ENABLED = False
@@ -61,6 +65,8 @@ class SaaSAuthTests(unittest.TestCase):
         router.STRIPE_SECRET_KEY = self.old['STRIPE_SECRET_KEY']
         router.STRIPE_PRICE_ID = self.old['STRIPE_PRICE_ID']
         router.CRYPTO_PAYMENT_ADDRESS = self.old['CRYPTO_PAYMENT_ADDRESS']
+        router.PUBLIC_BASE_URL = self.old['PUBLIC_BASE_URL']
+        router.API_BASE_URL = self.old['API_BASE_URL']
         router.supabase_user_for_bearer = self.old['supabase_user_for_bearer']
         router.ROUTE_EVENTS_PATH = self.old['ROUTE_EVENTS_PATH']
         router.FIRESTORE_ENABLED = self.old['FIRESTORE_ENABLED']
@@ -193,6 +199,15 @@ class SaaSAuthTests(unittest.TestCase):
             handler = Dummy(path)
             router.Handler.do_POST(handler)
             self.assertEqual(expected, handler.payload['error'])
+
+    def test_public_launch_metadata_exposes_onboarding_urls(self):
+        metadata = router.public_launch_metadata()
+        self.assertEqual('https://app.sagerouter.dev', metadata['publicBaseUrl'])
+        self.assertEqual('https://api.sagerouter.dev', metadata['apiBaseUrl'])
+        self.assertEqual('https://api.sagerouter.dev/v1', metadata['openaiBaseUrl'])
+        self.assertEqual('https://api.sagerouter.dev', metadata['anthropicBaseUrl'])
+        self.assertEqual('/billing/stripe/checkout', metadata['checkoutPath'])
+        self.assertEqual('sk_sage_', metadata['apiKeyPrefix'])
 
 
 class AnalyticsModelConsolidationTests(unittest.TestCase):
