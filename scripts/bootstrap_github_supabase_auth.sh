@@ -7,7 +7,8 @@ APP_NAME="${SAGEROUTER_GITHUB_APP_NAME:-Sage Router Auth}"
 APP_OWNER="${SAGEROUTER_GITHUB_APP_OWNER:-}"
 LOCAL_CAPTURE="${SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE:-1}"
 LOCAL_CAPTURE_PORT="${SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE_PORT:-0}"
-MANIFEST_CODE="${SAGEROUTER_GITHUB_APP_MANIFEST_CODE:-${GITHUB_APP_MANIFEST_CODE:-}}"
+MANIFEST_INPUT="${1:-${SAGEROUTER_GITHUB_APP_MANIFEST_URL:-${SAGEROUTER_GITHUB_APP_MANIFEST_CODE:-${GITHUB_APP_MANIFEST_CODE:-}}}}"
+MANIFEST_CODE=""
 GITHUB_CLIENT_ID="${SAGEROUTER_GITHUB_CLIENT_ID:-${GITHUB_CLIENT_ID:-}}"
 GITHUB_CLIENT_SECRET="${SAGEROUTER_GITHUB_CLIENT_SECRET:-${GITHUB_CLIENT_SECRET:-}}"
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:?Set SUPABASE_ACCESS_TOKEN to a Supabase Management API token.}"
@@ -18,6 +19,29 @@ callback_url="https://${PROJECT_REF}.supabase.co/auth/v1/callback"
 die() {
   printf '%s\n' "$*" >&2
   exit 1
+}
+
+parse_manifest_code() {
+  MANIFEST_INPUT="$MANIFEST_INPUT" python3 - <<'PY'
+import os
+import sys
+import urllib.parse
+
+value = os.environ.get("MANIFEST_INPUT", "").strip()
+if not value:
+    sys.exit(0)
+
+parsed = urllib.parse.urlparse(value)
+if parsed.scheme and parsed.netloc:
+    code = urllib.parse.parse_qs(parsed.query).get("code", [""])[0].strip()
+    if not code:
+        print("Manifest callback URL did not include a code parameter.", file=sys.stderr)
+        sys.exit(2)
+    print(code)
+    sys.exit(0)
+
+print(value)
+PY
 }
 
 configure_supabase() {
@@ -73,6 +97,10 @@ open_form() {
 if [[ -n "$GITHUB_CLIENT_ID" && -n "$GITHUB_CLIENT_SECRET" ]]; then
   configure_supabase
   exit 0
+fi
+
+if [[ -n "$MANIFEST_INPUT" ]]; then
+  MANIFEST_CODE="$(parse_manifest_code)" || die "Could not parse GitHub manifest code from input."
 fi
 
 if [[ -n "$MANIFEST_CODE" ]]; then
@@ -238,7 +266,7 @@ GitHub requires an owner-approved browser step before it returns app credentials
 2. Approve the app named "${APP_NAME}".
 3. GitHub redirects to ${AUTH_SITE_URL}/github-app-manifest.html?code=...
 4. Rerun this script with:
-   SAGEROUTER_GITHUB_APP_MANIFEST_CODE=<code> bash scripts/bootstrap_github_supabase_auth.sh
+   bash scripts/bootstrap_github_supabase_auth.sh '${AUTH_SITE_URL}/github-app-manifest.html?code=...'
 
 The callback configured for Supabase will be:
   ${callback_url}

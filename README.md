@@ -150,10 +150,12 @@ When a public anon/publishable key is available in the environment, it also
 checks `/auth/v1/settings` so the browser-visible OAuth buttons match the
 management config before the launch readiness script is rerun.
 
-If local capture is not available, fall back to the hosted callback page. After approving the app, GitHub redirects to `/github-app-manifest.html` with a temporary `code`; rerun the same script with that code:
+If local capture is not available, fall back to the hosted callback page. After approving the app, GitHub redirects to `/github-app-manifest.html` with a temporary `code`; rerun the same script with the full callback URL or the raw code:
 
 ```bash
 SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh
+bash scripts/bootstrap_github_supabase_auth.sh 'https://app.sagerouter.dev/github-app-manifest.html?code=...'
+# or:
 SAGEROUTER_GITHUB_APP_MANIFEST_CODE=... bash scripts/bootstrap_github_supabase_auth.sh
 ```
 

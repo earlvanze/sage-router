@@ -53,12 +53,19 @@ class HostedOnboardingTests(unittest.TestCase):
     def test_github_app_bootstrap_opens_windows_temp_copy_from_wsl(self):
         script = self.read_text("scripts", "bootstrap_github_supabase_auth.sh")
         readme = self.read_text("README.md")
+        callback = self.read_public("github-app-manifest.html")
         self.assertIn("win_temp", script)
         self.assertIn("sage-router-github-auth-app.html", script)
         self.assertIn("[Uri](\\$p)", script)
         self.assertIn("Start-Process '$windows_form_uri'", script)
+        self.assertIn("SAGEROUTER_GITHUB_APP_MANIFEST_URL", script)
+        self.assertIn("urllib.parse.urlparse", script)
+        self.assertIn("parse_qs(parsed.query)", script)
+        self.assertIn("bash scripts/bootstrap_github_supabase_auth.sh ${shellQuote(window.location.href)}", callback)
         self.assertIn("Windows temp directory", readme)
         self.assertIn("cannot read `\\\\wsl.localhost` or WSL `/tmp` paths", readme)
+        self.assertIn("full callback URL or the raw code", readme)
+        self.assertIn("https://app.sagerouter.dev/github-app-manifest.html?code=...", readme)
 
     def test_account_page_has_stripe_billing_management(self):
         html = self.read_public("account.html")

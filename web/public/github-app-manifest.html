@@ -46,7 +46,7 @@
     if (code) {
       const text = `cd /home/digit/Dropbox/Projects/sage-router
 set -a; source /home/digit/.openclaw/.env >/dev/null 2>&1; set +a
-SAGEROUTER_GITHUB_APP_MANIFEST_CODE=${shellQuote(code)} bash scripts/bootstrap_github_supabase_auth.sh
+bash scripts/bootstrap_github_supabase_auth.sh ${shellQuote(window.location.href)}
 scripts/check_sagerouter_launch_readiness.sh`;
       status.textContent = 'GitHub returned a temporary manifest code. Run the command below within one hour to exchange it for app credentials and enable GitHub login in Supabase.';
       manifestCode.textContent = code;
