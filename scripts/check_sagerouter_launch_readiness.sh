@@ -10,6 +10,7 @@ SUPABASE_URL="${SAGE_ROUTER_SUPABASE_URL:-${PUBLIC_SUPABASE_URL:-https://${SUPAB
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:-}"
 SUPABASE_SERVICE_ROLE_KEY="${SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_SERVICE_ROLE_KEY:-}}"
 ADMIN_TOKEN="${SAGE_ROUTER_API_KEY:-${SAGE_ROUTER_EDGE_TOKEN:-}}"
+FAILURES=0
 
 pass() {
   printf 'PASS %s\n' "$1"
@@ -21,6 +22,7 @@ warn() {
 
 fail() {
   printf 'FAIL %s\n' "$1"
+  FAILURES=$((FAILURES + 1))
 }
 
 http_code() {
@@ -319,3 +321,7 @@ check_admin_token
 check_origin_auth_gate
 check_supabase_auth_config
 check_quota_schema
+
+if [[ "$FAILURES" -gt 0 ]]; then
+  exit 1
+fi

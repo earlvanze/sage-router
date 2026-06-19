@@ -157,6 +157,31 @@ class TailnetEdgeAuthTests(unittest.TestCase):
                 self.assertEqual("public_control_plane", ctx["type"])
                 self.assertFalse(ctx["preserve_authorization"])
 
+    def test_supabase_customer_keys_are_limited_to_model_api_paths(self):
+        calls = []
+
+        def fake_verify(token):
+            calls.append(token)
+            return {"type": "generated_key", "preserve_authorization": False}
+
+        self.edge.verify_supabase_generated_key = fake_verify
+
+        class Handler:
+            headers = {"Authorization": "Bearer sk_sage_test"}
+
+        for path in ("/v1/models", "/v1/chat/completions", "/v1beta/models/gemini:generateContent"):
+            with self.subTest(path=path):
+                Handler.path = path
+                ctx = self.edge.EdgeHandler._auth_context(Handler())
+                self.assertEqual("generated_key", ctx["type"])
+
+        for path in ("/analytics", "/analytics/funnel", "/admin/blocks", "/discovery"):
+            with self.subTest(path=path):
+                Handler.path = path
+                self.assertIsNone(self.edge.EdgeHandler._auth_context(Handler()))
+
+        self.assertEqual(["sk_sage_test", "sk_sage_test", "sk_sage_test"], calls)
+
     def test_head_json_response_sends_headers_without_body(self):
         class Handler:
             command = "HEAD"
@@ -192,6 +217,7 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertTrue(self.edge.should_use_control_plane("/plans?currency=usd"))
         self.assertTrue(self.edge.should_use_control_plane("/features/agent-native"))
         self.assertTrue(self.edge.should_use_control_plane("/account/api-keys"))
+        self.assertTrue(self.edge.should_use_control_plane("/analytics/funnel?days=30"))
         self.assertTrue(self.edge.should_use_control_plane("/billing/stripe/webhook"))
         self.assertFalse(self.edge.should_use_control_plane("/v1/models"))
         self.assertFalse(self.edge.should_use_control_plane("/health"))
@@ -206,6 +232,22 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         ctx = self.edge.EdgeHandler._auth_context(Handler())
         self.assertEqual("edge_token", ctx["type"])
         self.assertFalse(ctx["preserve_authorization"])
+
+    def test_control_plane_routes_can_use_separate_outbound_token(self):
+        self.edge.BACKEND_TOKEN = "tailnet-backend"
+        self.edge.CONTROL_PLANE_TOKEN = "hosted-control-plane"
+
+        self.assertEqual(
+            "hosted-control-plane",
+            self.edge.outbound_bearer_token("/analytics/funnel", {"type": "edge_token", "preserve_authorization": False}),
+        )
+        self.assertEqual(
+            "tailnet-backend",
+            self.edge.outbound_bearer_token("/v1/models", {"type": "generated_key", "preserve_authorization": False}),
+        )
+        self.assertIsNone(
+            self.edge.outbound_bearer_token("/account/api-keys", {"type": "supabase_user", "preserve_authorization": True})
+        )
 
     def test_generated_api_key_rate_limit_uses_plan_limit(self):
         ctx = {

@@ -18,6 +18,7 @@ UPSTREAMS_RAW = os.environ.get("SAGE_ROUTER_UPSTREAMS", "")
 CONTROL_PLANE_UPSTREAM_RAW = os.environ.get("SAGE_ROUTER_CONTROL_PLANE_UPSTREAM", "").strip()
 EDGE_TOKEN = os.environ.get("SAGE_ROUTER_EDGE_TOKEN", "")
 BACKEND_TOKEN = os.environ.get("SAGE_ROUTER_BACKEND_TOKEN", "local")
+CONTROL_PLANE_TOKEN = os.environ.get("SAGE_ROUTER_CONTROL_PLANE_TOKEN", "").strip()
 EDGE_AUTH_MODE = os.environ.get("SAGE_ROUTER_EDGE_AUTH_MODE", "shared-token").strip().lower()
 HEALTH_PATH = os.environ.get("SAGE_ROUTER_HEALTH_PATH", "/health")
 HEALTH_INTERVAL = float(os.environ.get("SAGE_ROUTER_HEALTH_INTERVAL_SECONDS", os.environ.get("SAGE_ROUTER_HEALTH_INTERVAL", "10").rstrip("s")))
@@ -73,6 +74,13 @@ USER_JWT_PREFIXES = (
     "/billing/stripe/checkout",
     "/billing/crypto/intent",
     "/billing/crypto/status",
+)
+GENERATED_API_KEY_PREFIXES = (
+    "/v1",
+    "/v1beta",
+)
+OPERATOR_CONTROL_PLANE_PREFIXES = (
+    "/analytics",
 )
 PUBLIC_SIGNED_BACKEND_PREFIXES = (
     "/billing/stripe/webhook",
@@ -500,8 +508,18 @@ def is_user_jwt_path(path):
     return any(clean_path == prefix or clean_path.startswith(prefix + "/") for prefix in USER_JWT_PREFIXES)
 
 
+def is_generated_api_key_path(path):
+    clean_path = urlsplit(path).path
+    return any(clean_path == prefix or clean_path.startswith(prefix + "/") for prefix in GENERATED_API_KEY_PREFIXES)
+
+
 def is_public_control_plane_path(path):
     return urlsplit(path).path in PUBLIC_CONTROL_PLANE_PATHS
+
+
+def is_operator_control_plane_path(path):
+    clean_path = urlsplit(path).path
+    return any(clean_path == prefix or clean_path.startswith(prefix + "/") for prefix in OPERATOR_CONTROL_PLANE_PREFIXES)
 
 
 def is_public_signed_backend_path(path):
@@ -510,7 +528,20 @@ def is_public_signed_backend_path(path):
 
 
 def should_use_control_plane(path):
-    return is_user_jwt_path(path) or is_public_control_plane_path(path) or is_public_signed_backend_path(path)
+    return (
+        is_user_jwt_path(path)
+        or is_public_control_plane_path(path)
+        or is_operator_control_plane_path(path)
+        or is_public_signed_backend_path(path)
+    )
+
+
+def outbound_bearer_token(path, auth_context):
+    if auth_context.get("preserve_authorization"):
+        return None
+    if should_use_control_plane(path) and CONTROL_PLANE_TOKEN:
+        return CONTROL_PLANE_TOKEN
+    return BACKEND_TOKEN
 
 
 def check_upstream(upstream):
@@ -625,6 +656,8 @@ class EdgeHandler(BaseHTTPRequestHandler):
         if EDGE_AUTH_MODE in {"supabase", "saas"}:
             if is_user_jwt_path(self.path):
                 return verify_supabase_user_jwt(token)
+            if not is_generated_api_key_path(self.path):
+                return None
             return verify_supabase_generated_key(token)
 
         if EDGE_AUTH_MODE in {"disabled", "off"}:
@@ -710,8 +743,9 @@ class EdgeHandler(BaseHTTPRequestHandler):
                 headers["X-Sage-Router-Customer-Id"] = str(auth_context.get("customer_id"))
             if auth_context.get("user_id"):
                 headers["X-Sage-Router-User-Id"] = str(auth_context.get("user_id"))
-            if BACKEND_TOKEN and not auth_context.get("preserve_authorization"):
-                headers["Authorization"] = f"Bearer {BACKEND_TOKEN}"
+            outbound_token = outbound_bearer_token(self.path, auth_context)
+            if outbound_token:
+                headers["Authorization"] = f"Bearer {outbound_token}"
 
             conn = None
             try:
