@@ -5272,6 +5272,42 @@ def active_api_key_count_for_customer(customer_id):
     return sum(1 for row in api_keys_for_customer(customer_id) if (row.get('status') or 'active') == 'active')
 
 
+def account_activation_for_customer(customer, usage=None, api_keys=None):
+    customer = normalize_customer(customer) or {}
+    usage = usage or account_usage_for_customer(customer)
+    if api_keys is None:
+        api_keys = api_keys_for_customer(customer.get('id')) if customer.get('id') else []
+    active_keys = [row for row in (api_keys or []) if (row.get('status') or 'active') == 'active']
+    routing_enabled = bool(usage.get('routing_enabled'))
+    requests = max(0, int(usage.get('requests') or 0))
+    quota = max(0, int(usage.get('quota') or 0))
+    quota_used_percent = None
+    if quota > 0:
+        quota_used_percent = min(100, max(0, round((requests / quota) * 100, 2)))
+    if not routing_enabled:
+        next_action = 'choose_plan'
+    elif not active_keys:
+        next_action = 'create_key'
+    elif requests <= 0:
+        next_action = 'send_first_request'
+    elif quota_used_percent is not None and quota_used_percent >= 90:
+        next_action = 'upgrade_before_quota'
+    else:
+        next_action = 'monitor_usage'
+    return {
+        'plan': usage.get('plan') or customer.get('plan') or 'free',
+        'status': usage.get('status') or customer.get('status') or 'inactive',
+        'routingEnabled': routing_enabled,
+        'keyCount': len(api_keys or []),
+        'activeKeyCount': len(active_keys),
+        'requestCount': requests,
+        'firstRequestComplete': requests > 0,
+        'quota': quota,
+        'quotaUsedPercent': quota_used_percent,
+        'nextAction': next_action,
+    }
+
+
 def create_api_key_for_customer(customer, name='Default'):
     max_active = MAX_ACTIVE_API_KEYS_PER_CUSTOMER
     if max_active > 0 and active_api_key_count_for_customer(customer.get('id')) >= max_active:
@@ -9206,7 +9242,8 @@ class Handler(BaseHTTPRequestHandler):
             _user, customer = require_user_customer(self)
             if not customer:
                 return
-            self.write_json(200, {'usage': account_usage_for_customer(customer)})
+            usage = account_usage_for_customer(customer)
+            self.write_json(200, {'usage': usage, 'activation': account_activation_for_customer(customer, usage=usage)})
         elif self.path == '/account/api-keys':
             _user, customer = require_user_customer(self)
             if not customer:

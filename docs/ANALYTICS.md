@@ -73,14 +73,17 @@ combines signed-in route analytics with the existing account control-plane
 endpoints:
 
 - `/account/plan`
-- `/account/usage`
+- `/account/usage` (`usage` plus server-derived `activation`)
 - `/account/api-keys`
 
 This keeps conversion guidance close to the customer's telemetry. A signed-in
 user can see whether they still need to create a generated key, finish Stripe
 checkout, send a first routed request, or upgrade before monthly quota blocks
-agent traffic. The dashboard does not expose operator funnel data or global
-customer totals.
+agent traffic. The `activation` object contains only safe state such as plan,
+routing status, active key count, current-period request count, quota percent,
+first-request completion, and `nextAction`; it does not expose keys, prompts,
+provider credentials, or global customer totals. The dashboard does not expose
+operator funnel data.
 
 ## Privacy model
 

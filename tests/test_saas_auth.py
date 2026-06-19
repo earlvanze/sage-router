@@ -240,6 +240,33 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertFalse(usage['unlimited'])
         self.assertTrue(usage['routing_enabled'])
 
+    def test_account_activation_reports_next_conversion_step(self):
+        customer = self.active_customer()
+
+        activation = router.account_activation_for_customer(customer)
+        self.assertEqual('create_key', activation['nextAction'])
+        self.assertTrue(activation['routingEnabled'])
+        self.assertEqual(0, activation['activeKeyCount'])
+        self.assertFalse(activation['firstRequestComplete'])
+
+        _raw, key = router.create_api_key_for_customer(customer, 'prod')
+        activation = router.account_activation_for_customer(customer, api_keys=[key])
+        self.assertEqual('send_first_request', activation['nextAction'])
+        self.assertEqual(1, activation['activeKeyCount'])
+        self.assertEqual(0, activation['requestCount'])
+
+        usage = router.account_usage_for_customer(customer)
+        usage.update({'requests': 49950, 'quota': 50000})
+        activation = router.account_activation_for_customer(customer, usage=usage, api_keys=[key])
+        self.assertEqual('upgrade_before_quota', activation['nextAction'])
+        self.assertTrue(activation['firstRequestComplete'])
+        self.assertEqual(99.9, activation['quotaUsedPercent'])
+
+        inactive_customer = router.customer_for_user({'id': 'user-free', 'email': 'free@example.com'})
+        activation = router.account_activation_for_customer(inactive_customer)
+        self.assertEqual('choose_plan', activation['nextAction'])
+        self.assertFalse(activation['routingEnabled'])
+
     def test_account_usage_reads_only_current_customer_period_from_supabase(self):
         router.SUPABASE_URL = 'https://example.supabase.co'
         router.SUPABASE_SERVICE_ROLE_KEY = 'service'
@@ -359,6 +386,10 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(200, handler.status)
         self.assertEqual('max', handler.payload['usage']['plan'])
         self.assertEqual(200000, handler.payload['usage']['quota'])
+        self.assertEqual('max', handler.payload['activation']['plan'])
+        self.assertTrue(handler.payload['activation']['routingEnabled'])
+        self.assertEqual('create_key', handler.payload['activation']['nextAction'])
+        self.assertEqual(0, handler.payload['activation']['requestCount'])
 
 
     def test_route_events_are_scoped_to_generated_customer_keys(self):

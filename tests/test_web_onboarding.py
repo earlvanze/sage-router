@@ -295,11 +295,15 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("api(s, '/account/plan')", js)
         self.assertIn("api(s, '/account/usage')", js)
         self.assertIn("api(s, '/account/api-keys')", js)
+        self.assertIn("activation: usage.activation", js)
+        self.assertIn("activation.nextAction", js)
         self.assertIn("renderAccountReadiness", js)
         self.assertIn("Quota is above 90%", js)
         self.assertIn("Choose a paid plan or finish checkout", js)
+        self.assertIn("/account/usage.activation", readme)
         self.assertIn("plan, usage, generated-key", readme)
         self.assertIn("Account readiness", analytics_doc)
+        self.assertIn("server-derived `activation`", analytics_doc)
 
     def test_operator_launch_funnel_page_uses_private_token_boundary(self):
         html = self.read_public("launch-funnel.html")

@@ -91,7 +91,7 @@ async function fetchAccountReadiness(s) {
     api(s, '/account/usage'),
     api(s, '/account/api-keys'),
   ]);
-  return { plan, usage: usage.usage || null, keys: keys.api_keys || [] };
+  return { plan, usage: usage.usage || null, activation: usage.activation || null, keys: keys.api_keys || [] };
 }
 
 async function fetchSnapshotFallback() {
@@ -142,26 +142,31 @@ function renderAccountReadiness(state) {
   }
   const planState = state.plan || {};
   const usage = state.usage || {};
+  const activation = state.activation || {};
   const activeKeys = (state.keys || []).filter(key => (key.status || 'active') === 'active');
-  const plan = planState.plan || usage.plan || 'free';
-  const status = planState.status || usage.status || 'inactive';
-  const routingEnabled = Boolean(planState.routing_enabled ?? usage.routing_enabled);
-  const requests = Number(usage.requests || 0);
-  const quota = Number(usage.quota || 0);
-  const usagePercent = quota > 0 ? Math.min(100, Math.max(0, (requests / quota) * 100)) : 0;
+  const plan = activation.plan || planState.plan || usage.plan || 'free';
+  const status = activation.status || planState.status || usage.status || 'inactive';
+  const routingEnabled = Boolean(activation.routingEnabled ?? planState.routing_enabled ?? usage.routing_enabled);
+  const activeKeyCount = Number.isFinite(Number(activation.activeKeyCount)) ? Number(activation.activeKeyCount) : activeKeys.length;
+  const requests = Number(activation.requestCount ?? usage.requests ?? 0);
+  const quota = Number(activation.quota ?? usage.quota ?? 0);
+  const usagePercent = activation.quotaUsedPercent != null
+    ? Number(activation.quotaUsedPercent)
+    : (quota > 0 ? Math.min(100, Math.max(0, (requests / quota) * 100)) : 0);
 
   setText('readiness-plan', `${plan} · ${status}`);
   setText('readiness-routing', routingEnabled ? 'Enabled' : 'Blocked');
-  setText('readiness-keys', fmtNumber(activeKeys.length));
+  setText('readiness-keys', fmtNumber(activeKeyCount));
   setText('readiness-usage', quota > 0 ? `${Math.round(usagePercent)}%` : 'Unlimited');
 
-  if (!activeKeys.length) {
-    setText('readiness-action', 'Create a generated API key, then send a first routed request from the account quickstart.');
-  } else if (!routingEnabled) {
+  const nextAction = activation.nextAction || '';
+  if (nextAction === 'choose_plan' || (!routingEnabled && activeKeyCount > 0)) {
     setText('readiness-action', 'Choose a paid plan or finish checkout before generated keys can route model traffic.');
-  } else if (requests <= 0) {
+  } else if (nextAction === 'create_key' || !activeKeyCount) {
+    setText('readiness-action', 'Create a generated API key, then send a first routed request from the account quickstart.');
+  } else if (nextAction === 'send_first_request' || requests <= 0) {
     setText('readiness-action', 'Keys and routing are ready. Send the first routed request so analytics can prove model performance.');
-  } else if (usagePercent >= 90) {
+  } else if (nextAction === 'upgrade_before_quota' || usagePercent >= 90) {
     setText('readiness-action', 'Quota is above 90% for this period. Upgrade before agent traffic is blocked.');
   } else if (usagePercent >= 75) {
     setText('readiness-action', 'Quota is above 75% for this period. Watch usage or move to the next plan before sustained traffic grows.');

@@ -435,14 +435,15 @@ async function refresh() {
     renderPreauthPlanPreview(plans);
     renderPlans(plans, accountPlan);
     const usage = usageData?.usage || null;
-    const keyCount = (keys.api_keys || []).length;
-    const requestCount = Number(usage?.requests || 0);
+    const activation = usageData?.activation || {};
+    const keyCount = Number.isFinite(Number(activation.activeKeyCount)) ? Number(activation.activeKeyCount) : (keys.api_keys || []).length;
+    const requestCount = Number(activation.requestCount ?? usage?.requests ?? 0);
     const keyVerified = keyVerifiedThisSession || requestCount > 0;
     renderUsage(usage, plans, accountPlan, routingEnabled);
     $('keys').innerHTML = renderKeys(keys.api_keys || []);
     renderLaunchNextAction({
       signedIn: true,
-      routingEnabled: accountPlan !== 'free' && routingEnabled,
+      routingEnabled: Boolean(activation.routingEnabled ?? (accountPlan !== 'free' && routingEnabled)),
       keyCount,
       keyVerified,
       requestCount,
