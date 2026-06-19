@@ -173,6 +173,35 @@ async function passwordLogin() {
   if (!error) refresh();
 }
 
+async function passwordSignup() {
+  setText('auth-status', 'Creating account...');
+  const email = $('email')?.value.trim();
+  const password = $('password')?.value;
+  if (!email) {
+    setText('auth-status', 'Enter your email first.');
+    return;
+  }
+  if (!password) {
+    setText('auth-status', 'Enter a password for the new account.');
+    return;
+  }
+  if (password.length < 8) {
+    setText('auth-status', 'Use at least 8 characters for the password.');
+    return;
+  }
+  const { data, error } = await sb.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: `${window.location.origin}/analytics.html` },
+  });
+  if (error) {
+    setText('auth-status', error.message);
+    return;
+  }
+  setText('auth-status', data?.session ? 'Account created and signed in.' : 'Account created. Check your email to confirm, then sign in.');
+  refresh();
+}
+
 async function magicLogin() {
   setText('auth-status', 'Sending magic link...');
   const email = $('email').value.trim();
@@ -186,6 +215,7 @@ async function magicLogin() {
 
 document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventListener('click', () => { if (!button.disabled) oauthLogin(button.dataset.oauth); }));
 $('wallet-login')?.addEventListener('click', walletLogin);
+$('password-signup')?.addEventListener('click', passwordSignup);
 $('password-login')?.addEventListener('click', passwordLogin);
 $('magic-login')?.addEventListener('click', magicLogin);
 $('refresh')?.addEventListener('click', refresh);

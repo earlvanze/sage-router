@@ -35,6 +35,16 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("sb.auth.signUp", js)
         self.assertIn("emailRedirectTo: `${window.location.origin}/login.html`", js)
 
+    def test_analytics_page_has_explicit_email_signup_and_account_link(self):
+        html = self.read_public("analytics.html")
+        js = self.read_public("analytics.js")
+        self.assertIn('id="password-signup"', html)
+        self.assertIn("Create account", html)
+        self.assertIn('href="/account.html"', html)
+        self.assertIn("Manage API access", html)
+        self.assertIn("sb.auth.signUp", js)
+        self.assertIn("emailRedirectTo: `${window.location.origin}/analytics.html`", js)
+
 
 if __name__ == "__main__":
     unittest.main()
