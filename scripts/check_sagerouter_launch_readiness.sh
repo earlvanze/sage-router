@@ -11,9 +11,11 @@ CLOUD_RUN_REGION="${SAGEROUTER_CLOUD_RUN_REGION:-us-central1}"
 CLOUD_RUN_SERVICE="${SAGEROUTER_CLOUD_RUN_SERVICE:-sage-router}"
 SUPABASE_PROJECT_REF="${SUPABASE_PROJECT_REF:-awtangrlqqsdpksarhwo}"
 SUPABASE_URL="${SAGE_ROUTER_SUPABASE_URL:-${PUBLIC_SUPABASE_URL:-https://${SUPABASE_PROJECT_REF}.supabase.co}}"
+SUPABASE_ANON_KEY="${SAGE_ROUTER_SUPABASE_ANON_KEY:-${PUBLIC_SUPABASE_ANON_KEY:-${SUPABASE_ANON_KEY:-}}}"
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:-}"
 SUPABASE_SERVICE_ROLE_KEY="${SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_SERVICE_ROLE_KEY:-}}"
 ADMIN_TOKEN="${SAGE_ROUTER_API_KEY:-${SAGE_ROUTER_EDGE_TOKEN:-}}"
+SUPABASE_PUBLIC_GITHUB_ENABLED=""
 FAILURES=0
 
 pass() {
@@ -46,6 +48,23 @@ require_jq() {
     fail "jq is required"
     exit 2
   fi
+}
+
+discover_supabase_anon_key() {
+  if [[ -n "$SUPABASE_ANON_KEY" ]]; then
+    printf '%s\n' "$SUPABASE_ANON_KEY"
+    return
+  fi
+  local path key
+  for path in web/public/account.js web/public/auth.js web/public/analytics.js; do
+    if [[ -f "$path" ]]; then
+      key="$(sed -n "s/^const SUPABASE_ANON_KEY = '\([^']*\)';$/\1/p" "$path" | head -n1)"
+      if [[ -n "$key" ]]; then
+        printf '%s\n' "$key"
+        return
+      fi
+    fi
+  done
 }
 
 check_edge_health() {
@@ -237,6 +256,33 @@ check_hosted_onboarding_pages() {
     pass "hosted login, account, API-key verification, analytics, and GitHub auth callback pages are live"
   else
     fail "hosted onboarding pages incomplete: login=${login_code} account=${account_code} account.js=${account_js_code} analytics=${analytics_code} analytics.js=${analytics_js_code} github-app-manifest=${manifest_code}"
+  fi
+}
+
+check_public_supabase_auth_settings() {
+  local anon_key code email_enabled github_enabled external_type
+  anon_key="$(discover_supabase_anon_key)"
+  if [[ -z "$anon_key" ]]; then
+    warn "Supabase anon key not set and not discoverable from hosted app scripts; skipped public auth settings probe"
+    return
+  fi
+
+  code="$(http_code "${SUPABASE_URL%/}/auth/v1/settings" -H "apikey: ${anon_key}")"
+  if [[ "$code" != "200" ]]; then
+    rm -f /tmp/sage-router-readiness-body
+    fail "public Supabase auth settings returned HTTP ${code}, expected 200"
+    return
+  fi
+  external_type="$(jq -r '(.external // null) | type' /tmp/sage-router-readiness-body)"
+  email_enabled="$(jq -r '.external.email // false' /tmp/sage-router-readiness-body)"
+  github_enabled="$(jq -r '.external.github // false' /tmp/sage-router-readiness-body)"
+  rm -f /tmp/sage-router-readiness-body
+  SUPABASE_PUBLIC_GITHUB_ENABLED="$github_enabled"
+
+  if [[ "$external_type" == "object" && "$email_enabled" == "true" ]]; then
+    pass "public Supabase auth settings expose browser-visible email/OAuth provider state"
+  else
+    fail "public Supabase auth settings incomplete: external=${external_type:-missing} email=${email_enabled:-missing}"
   fi
 }
 
@@ -439,6 +485,9 @@ check_supabase_auth_config() {
   [[ "$site" == "https://app.sagerouter.dev" ]] && pass "Supabase site_url is app.sagerouter.dev" || fail "Supabase site_url is ${site:-missing}"
   [[ "$signup_disabled" == "false" && "$email_enabled" == "true" ]] && pass "Supabase email signup is enabled" || fail "Supabase email signup disabled: disable_signup=${signup_disabled:-missing} external_email_enabled=${email_enabled:-missing}"
   [[ "$app_redirect" == "true" && "$api_redirect" == "true" ]] && pass "Supabase redirect allow-list includes app/api hosts" || fail "Supabase redirect allow-list missing app/api hosts"
+  if [[ -n "$SUPABASE_PUBLIC_GITHUB_ENABLED" && "$SUPABASE_PUBLIC_GITHUB_ENABLED" != "$github" ]]; then
+    fail "Supabase GitHub provider mismatch: management=${github} public=${SUPABASE_PUBLIC_GITHUB_ENABLED}"
+  fi
   [[ "$github" == "true" ]] && pass "GitHub OAuth provider enabled" || warn "GitHub OAuth provider disabled; run bash scripts/bootstrap_github_supabase_auth.sh"
 }
 
@@ -474,6 +523,7 @@ check_static_security_headers "${MARKETING_BASE%/}/pricing" "marketing"
 check_public_pricing_metadata
 check_stripe_webhook_guard
 check_hosted_onboarding_pages
+check_public_supabase_auth_settings
 check_waitlist_endpoint
 check_marketing_comparison_page
 check_marketing_pricing_page

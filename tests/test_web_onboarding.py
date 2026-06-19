@@ -23,6 +23,16 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn('id="key-limit-note"', html)
         self.assertIn("maxActiveApiKeysPerCustomer", js)
 
+    def test_readiness_checks_public_supabase_auth_settings(self):
+        readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")
+        readme = self.read_text("README.md")
+        self.assertIn("discover_supabase_anon_key", readiness)
+        self.assertIn("check_public_supabase_auth_settings", readiness)
+        self.assertIn("/auth/v1/settings", readiness)
+        self.assertIn("public Supabase auth settings expose browser-visible email/OAuth provider state", readiness)
+        self.assertIn("Supabase GitHub provider mismatch", readiness)
+        self.assertIn("public browser-visible Supabase auth settings", readme)
+
     def test_account_page_has_stripe_billing_management(self):
         html = self.read_public("account.html")
         js = self.read_public("account.js")
