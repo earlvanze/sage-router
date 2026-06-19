@@ -57,6 +57,22 @@ the customer store, API-key store, waitlist tables, and route telemetry. It does
 not return email addresses, prompts, message bodies, API keys, provider
 credentials, OAuth tokens, or raw responses.
 
+## Account readiness
+
+The hosted customer dashboard at `https://app.sagerouter.dev/analytics.html`
+combines signed-in route analytics with the existing account control-plane
+endpoints:
+
+- `/account/plan`
+- `/account/usage`
+- `/account/api-keys`
+
+This keeps conversion guidance close to the customer's telemetry. A signed-in
+user can see whether they still need to create a generated key, finish Stripe
+checkout, send a first routed request, or upgrade before monthly quota blocks
+agent traffic. The dashboard does not expose operator funnel data or global
+customer totals.
+
 ## Privacy model
 
 The analytics feed is built from route telemetry only. It does not store prompts, message bodies, provider credentials, OAuth tokens, or API keys.

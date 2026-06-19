@@ -11,6 +11,7 @@ function show(id, visible) { const el = $(id); if (el) el.classList.toggle('hidd
 function esc(v) { return String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function fmtMs(v) { return v == null ? '—' : `${Math.round(v).toLocaleString()} ms`; }
 function fmtPct(v) { return v == null ? '—' : `${Math.round(v * 1000) / 10}%`; }
+function fmtNumber(v) { return Number.isFinite(Number(v)) ? Number(v).toLocaleString() : '—'; }
 const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
 
 function table(rows, cols, empty='No data yet') {
@@ -69,6 +70,30 @@ async function fetchAnalytics(s) {
   return res.json();
 }
 
+async function api(s, path) {
+  const res = await fetch(`${sageRouterUrl}${path}`, {
+    headers: { Authorization: `Bearer ${s.access_token}` }
+  });
+  const raw = await res.text();
+  let data = {};
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch (_error) {
+    data = { message: raw.slice(0, 240) };
+  }
+  if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+async function fetchAccountReadiness(s) {
+  const [plan, usage, keys] = await Promise.all([
+    api(s, '/account/plan'),
+    api(s, '/account/usage'),
+    api(s, '/account/api-keys'),
+  ]);
+  return { plan, usage: usage.usage || null, keys: keys.api_keys || [] };
+}
+
 async function fetchSnapshotFallback() {
   const { data, error } = await sb.from('sage_router_analytics_snapshots').select('snapshot').order('generated_at_epoch', { ascending: false }).limit(1);
   if (error) throw error;
@@ -106,21 +131,64 @@ function render(snapshot) {
   ]);
 }
 
+function renderAccountReadiness(state) {
+  if (!state) {
+    setText('readiness-plan', '—');
+    setText('readiness-routing', '—');
+    setText('readiness-keys', '—');
+    setText('readiness-usage', '—');
+    setText('readiness-action', 'Account readiness is temporarily unavailable. Open the account page before changing production traffic.');
+    return;
+  }
+  const planState = state.plan || {};
+  const usage = state.usage || {};
+  const activeKeys = (state.keys || []).filter(key => (key.status || 'active') === 'active');
+  const plan = planState.plan || usage.plan || 'free';
+  const status = planState.status || usage.status || 'inactive';
+  const routingEnabled = Boolean(planState.routing_enabled ?? usage.routing_enabled);
+  const requests = Number(usage.requests || 0);
+  const quota = Number(usage.quota || 0);
+  const usagePercent = quota > 0 ? Math.min(100, Math.max(0, (requests / quota) * 100)) : 0;
+
+  setText('readiness-plan', `${plan} · ${status}`);
+  setText('readiness-routing', routingEnabled ? 'Enabled' : 'Blocked');
+  setText('readiness-keys', fmtNumber(activeKeys.length));
+  setText('readiness-usage', quota > 0 ? `${Math.round(usagePercent)}%` : 'Unlimited');
+
+  if (!activeKeys.length) {
+    setText('readiness-action', 'Create a generated API key, then send a first routed request from the account quickstart.');
+  } else if (!routingEnabled) {
+    setText('readiness-action', 'Choose a paid plan or finish checkout before generated keys can route model traffic.');
+  } else if (requests <= 0) {
+    setText('readiness-action', 'Keys and routing are ready. Send the first routed request so analytics can prove model performance.');
+  } else if (usagePercent >= 90) {
+    setText('readiness-action', 'Quota is above 90% for this period. Upgrade before agent traffic is blocked.');
+  } else if (usagePercent >= 75) {
+    setText('readiness-action', 'Quota is above 75% for this period. Watch usage or move to the next plan before sustained traffic grows.');
+  } else {
+    setText('readiness-action', 'Account is ready for routed traffic. Use this page to watch model quality, latency, and fallback health.');
+  }
+}
+
 async function refresh() {
   const s = await session();
   if (!s) { show('auth-panel', true); show('dashboard', false); show('sign-out', false); return; }
   show('auth-panel', false); show('dashboard', true); show('sign-out', true);
   setText('dashboard-status', 'Loading analytics...');
   setNote('');
+  const readiness = fetchAccountReadiness(s).catch(() => null);
   try {
     render(await fetchAnalytics(s));
+    renderAccountReadiness(await readiness);
     setNote('Live backend analytics loaded.');
   } catch (e) {
     const fallback = await fetchSnapshotFallback();
     if (fallback) {
       render({ ...fallback, source: fallback.source || 'supabase-snapshot' });
+      renderAccountReadiness(await readiness);
       setNote('Showing the latest mirrored snapshot while live backend analytics is unavailable.');
     } else {
+      renderAccountReadiness(await readiness);
       setText('dashboard-status', 'Analytics temporarily unavailable.');
       setNote('No mirrored snapshot is available yet.');
     }
