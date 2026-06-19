@@ -34,7 +34,8 @@
     <section id="auth-panel" class="panel">
       <h2>Sign up</h2>
       <p>Email works immediately when Supabase Auth is enabled. OAuth buttons are shown only for providers currently enabled in Supabase.</p>
-      <div class="actions"><button data-oauth="discord" class="btn">Discord</button><button data-oauth="google" class="btn">Google</button><button data-oauth="github" class="btn">GitHub</button></div>
+      <div class="actions"><button data-oauth="discord" class="btn hidden" disabled>Discord</button><button data-oauth="google" class="btn hidden" disabled>Google</button><button data-oauth="github" class="btn hidden" disabled>GitHub</button></div>
+      <div id="oauth-status" class="status">Checking enabled OAuth providers...</div>
       <div class="authGrid">
         <div><label for="email">Email</label><input id="email" type="email" autocomplete="email" placeholder="you@example.com"></div>
         <div><label for="password">Password</label><input id="password" type="password" autocomplete="current-password"></div>

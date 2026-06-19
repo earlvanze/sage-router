@@ -11,6 +11,7 @@ function show(id, visible) { const el = $(id); if (el) el.classList.toggle('hidd
 function esc(v) { return String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function fmtMs(v) { return v == null ? '—' : `${Math.round(v).toLocaleString()} ms`; }
 function fmtPct(v) { return v == null ? '—' : `${Math.round(v * 1000) / 10}%`; }
+const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
 
 function table(rows, cols, empty='No data yet') {
   if (!rows?.length) return `<p class="muted">${empty}</p>`;
@@ -32,16 +33,31 @@ async function applyLaunchMetadata() {
 }
 
 async function applyAuthSettings() {
+  applyOauthButtons({}, 'Checking enabled OAuth providers...');
   try {
     const res = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_ANON_KEY } });
-    if (!res.ok) return;
+    if (!res.ok) {
+      applyOauthButtons({}, 'OAuth status is unavailable. Use email magic link or password.');
+      return;
+    }
     const external = (await res.json()).external || {};
-    document.querySelectorAll('[data-oauth]').forEach((button) => {
-      const enabled = external[button.dataset.oauth] !== false;
-      button.classList.toggle('hidden', !enabled);
-      button.disabled = !enabled;
-    });
-  } catch (_error) {}
+    applyOauthButtons(external);
+  } catch (_error) {
+    applyOauthButtons({}, 'OAuth status is unavailable. Use email magic link or password.');
+  }
+}
+
+function applyOauthButtons(external = {}, status = '') {
+  const enabledLabels = [];
+  document.querySelectorAll('[data-oauth]').forEach((button) => {
+    const enabled = external[button.dataset.oauth] === true;
+    button.classList.toggle('hidden', !enabled);
+    button.disabled = !enabled;
+    if (enabled) enabledLabels.push(OAUTH_LABELS[button.dataset.oauth] || button.dataset.oauth);
+  });
+  setText('oauth-status', status || (enabledLabels.length
+    ? `OAuth enabled: ${enabledLabels.join(', ')}. Email sign-in is also available.`
+    : 'OAuth is temporarily unavailable. Use email magic link or password.'));
 }
 
 async function fetchAnalytics(s) {
@@ -144,6 +160,14 @@ async function passwordLogin() {
   setText('auth-status', 'Signing in...');
   const email = $('email').value.trim();
   const password = $('password').value;
+  if (!email) {
+    setText('auth-status', 'Enter your email first.');
+    return;
+  }
+  if (!password) {
+    setText('auth-status', 'Enter a password, or use Send magic link.');
+    return;
+  }
   const { error } = await sb.auth.signInWithPassword({ email, password });
   setText('auth-status', error ? error.message : 'Signed in.');
   if (!error) refresh();
@@ -152,6 +176,10 @@ async function passwordLogin() {
 async function magicLogin() {
   setText('auth-status', 'Sending magic link...');
   const email = $('email').value.trim();
+  if (!email) {
+    setText('auth-status', 'Enter your email first.');
+    return;
+  }
   const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
   setText('auth-status', error ? error.message : 'Magic link sent. Check your email.');
 }

@@ -22,6 +22,7 @@ const show = (id, visible) => {
 };
 const esc = (v) => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const fmtNumber = (value) => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '';
+const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
 
 let selectedPlan = 'pro';
 let currentRawKey = '';
@@ -35,17 +36,32 @@ function applyLaunchMetadata(data) {
   set('anthropic-base-url', `ANTHROPIC_BASE_URL=${anthropicBaseUrl}`);
 }
 
+function applyOauthButtons(external = {}, status = '') {
+  const enabledLabels = [];
+  document.querySelectorAll('[data-oauth]').forEach((button) => {
+    const enabled = external[button.dataset.oauth] === true;
+    button.classList.toggle('hidden', !enabled);
+    button.disabled = !enabled;
+    if (enabled) enabledLabels.push(OAUTH_LABELS[button.dataset.oauth] || button.dataset.oauth);
+  });
+  set('oauth-status', status || (enabledLabels.length
+    ? `OAuth enabled: ${enabledLabels.join(', ')}. Email sign-in is also available.`
+    : 'OAuth is temporarily unavailable. Use email magic link or password.'));
+}
+
 async function applyAuthSettings() {
+  applyOauthButtons({}, 'Checking enabled OAuth providers...');
   try {
     const res = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_ANON_KEY } });
-    if (!res.ok) return;
+    if (!res.ok) {
+      applyOauthButtons({}, 'OAuth status is unavailable. Use email magic link or password.');
+      return;
+    }
     const external = (await res.json()).external || {};
-    document.querySelectorAll('[data-oauth]').forEach((button) => {
-      const enabled = external[button.dataset.oauth] !== false;
-      button.classList.toggle('hidden', !enabled);
-      button.disabled = !enabled;
-    });
-  } catch (_error) {}
+    applyOauthButtons(external);
+  } catch (_error) {
+    applyOauthButtons({}, 'OAuth status is unavailable. Use email magic link or password.');
+  }
 }
 
 async function session() {
@@ -171,6 +187,14 @@ async function passwordLogin() {
   set('auth-status', 'Signing in...');
   const email = $('email')?.value.trim();
   const password = $('password')?.value;
+  if (!email) {
+    set('auth-status', 'Enter your email first.');
+    return;
+  }
+  if (!password) {
+    set('auth-status', 'Enter a password, or use Send magic link.');
+    return;
+  }
   const { error } = await sb.auth.signInWithPassword({ email, password });
   set('auth-status', error ? error.message : 'Signed in.');
   if (!error) refresh();
@@ -179,6 +203,10 @@ async function passwordLogin() {
 async function magicLogin() {
   set('auth-status', 'Sending magic link...');
   const email = $('email')?.value.trim();
+  if (!email) {
+    set('auth-status', 'Enter your email first.');
+    return;
+  }
   const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/account.html` } });
   set('auth-status', error ? error.message : 'Magic link sent. Check your email.');
 }
