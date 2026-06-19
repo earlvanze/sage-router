@@ -2,6 +2,7 @@
 set -euo pipefail
 
 API_BASE="${SAGEROUTER_API_BASE_URL:-https://api.sagerouter.dev}"
+ORIGIN_BASE="${SAGEROUTER_ORIGIN_BASE_URL:-}"
 SUPABASE_PROJECT_REF="${SUPABASE_PROJECT_REF:-awtangrlqqsdpksarhwo}"
 SUPABASE_URL="${SAGE_ROUTER_SUPABASE_URL:-${PUBLIC_SUPABASE_URL:-https://${SUPABASE_PROJECT_REF}.supabase.co}}"
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:-}"
@@ -108,6 +109,25 @@ check_admin_token() {
   fi
 }
 
+check_origin_auth_gate() {
+  if [[ -z "$ORIGIN_BASE" ]]; then
+    warn "SAGEROUTER_ORIGIN_BASE_URL not set; skipped direct origin auth-gate probe"
+    return
+  fi
+  local models_code setup_code admin_code
+  models_code="$(http_code "${ORIGIN_BASE%/}/v1/models")"
+  rm -f /tmp/sage-router-readiness-body
+  setup_code="$(http_code "${ORIGIN_BASE%/}/setup/state")"
+  rm -f /tmp/sage-router-readiness-body
+  admin_code="$(http_code "${ORIGIN_BASE%/}/admin/blocks")"
+  rm -f /tmp/sage-router-readiness-body
+  if [[ "$models_code" == "401" && "$setup_code" == "401" && "$admin_code" == "401" ]]; then
+    pass "direct hosted origin blocks anonymous model, setup, and admin routes"
+  else
+    fail "direct hosted origin auth gate incomplete: /v1/models=${models_code} /setup/state=${setup_code} /admin/blocks=${admin_code}"
+  fi
+}
+
 check_supabase_auth_config() {
   if [[ -z "$SUPABASE_ACCESS_TOKEN" ]]; then
     warn "SUPABASE_ACCESS_TOKEN not set; skipped Supabase auth config probe"
@@ -158,5 +178,6 @@ check_edge_health
 check_public_auth_gate
 check_public_pricing_metadata
 check_admin_token
+check_origin_auth_gate
 check_supabase_auth_config
 check_quota_schema

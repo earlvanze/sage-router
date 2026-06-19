@@ -228,6 +228,81 @@ class SaaSAuthTests(unittest.TestCase):
 
         self.assertFalse(router.client_request_authorized(H()))
 
+    def test_origin_model_listing_requires_paid_or_operator_auth_when_enabled(self):
+        class Dummy:
+            path = '/v1/models'
+            command = 'GET'
+
+            def __init__(self, authorization=''):
+                self.headers = {'Authorization': authorization} if authorization else {}
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        anonymous = Dummy()
+        router.Handler.do_GET(anonymous)
+        self.assertEqual(401, anonymous.status)
+        self.assertEqual('unauthorized', anonymous.payload['error'])
+
+        customer = self.active_customer()
+        raw, _row = router.create_api_key_for_customer(customer, 'prod')
+        generated = Dummy(f'Bearer {raw}')
+        router.Handler.do_GET(generated)
+        self.assertEqual(200, generated.status)
+        self.assertIn('models', generated.payload)
+
+        router.CLIENT_API_KEYS = ['operator-secret']
+        operator = Dummy('Bearer operator-secret')
+        router.Handler.do_GET(operator)
+        self.assertEqual(200, operator.status)
+        self.assertIn('models', operator.payload)
+
+    def test_operator_origin_routes_reject_generated_customer_keys(self):
+        customer = self.active_customer()
+        raw, _row = router.create_api_key_for_customer(customer, 'prod')
+        body = b'{}'
+
+        class Dummy:
+            command = 'POST'
+
+            def __init__(self, path, authorization=''):
+                self.path = path
+                self.headers = {
+                    'Authorization': authorization,
+                    'Content-Length': str(len(body)),
+                }
+                self.rfile = BytesIO(body)
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        for path in (
+            '/setup/provider',
+            '/setup/codex-auth',
+            '/setup/codex-oauth/start',
+            '/setup/codex-oauth/poll',
+            '/setup/codex-oauth/cancel',
+            '/api/restart',
+        ):
+            with self.subTest(path=path):
+                handler = Dummy(path, f'Bearer {raw}')
+                router.Handler.do_POST(handler)
+                self.assertEqual(401, handler.status)
+                self.assertEqual('unauthorized', handler.payload['error'])
+
+        for path in ('/setup/state', '/dashboard', '/admin/blocks', '/admin/clear-blocks', '/discovery'):
+            with self.subTest(path=path):
+                handler = Dummy(path, f'Bearer {raw}')
+                router.Handler.do_GET(handler)
+                self.assertEqual(401, handler.status)
+                self.assertEqual('unauthorized', handler.payload['error'])
+
 
     def test_stripe_signature_requires_current_timestamp(self):
         secret = 'whsec_test'

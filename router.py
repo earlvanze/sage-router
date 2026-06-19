@@ -4901,6 +4901,19 @@ def client_request_authorized(handler):
     return bool(client_auth_context(handler))
 
 
+def operator_request_authorized(handler):
+    if not CLIENT_AUTH_REQUIRED:
+        return True
+    return token_matches_any(bearer_token(handler), CLIENT_API_KEYS)
+
+
+def require_operator_request(handler):
+    if operator_request_authorized(handler):
+        return True
+    handler.write_json(401, {'error': 'unauthorized'})
+    return False
+
+
 def read_json_body(handler):
     length = int(handler.headers.get('Content-Length', 0) or 0)
     raw = handler.rfile.read(length) if length else b'{}'
@@ -8519,6 +8532,8 @@ class Handler(BaseHTTPRequestHandler):
         # clients that send Accept: application/json still get the JSON
         # root descriptor below.
         if self.path in ('', '/') and 'text/html' in (self.headers.get('Accept') or ''):
+            if not require_operator_request(self):
+                return
             try:
                 with open(os.path.join(os.path.dirname(__file__), 'web', 'dashboard', 'index.html'), 'rb') as f:
                     body = f.read()
@@ -8610,8 +8625,12 @@ class Handler(BaseHTTPRequestHandler):
                 "blocks": {key: {"until": info["until"], "reason": info["reason"]} for key, info in TEMP_MODEL_BLOCKS.items()},
             })
         elif self.path == '/setup/state':
+            if not require_operator_request(self):
+                return
             self.write_json(200, setup_state_payload())
         elif self.path == '/dashboard':
+            if not require_operator_request(self):
+                return
             try:
                 with open(os.path.join(os.path.dirname(__file__), 'web', 'dashboard', 'index.html'), 'rb') as f:
                     body = f.read()
@@ -8687,16 +8706,22 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self.write_json(200, {'intent': intent})
         elif self.path == '/admin/clear-blocks':
+            if not require_operator_request(self):
+                return
             count = len(TEMP_MODEL_BLOCKS)
             TEMP_MODEL_BLOCKS.clear()
             MODEL_HEALTH_CACHE.clear()
             self.write_json(200, {"cleared": count, "status": "ok"})
         elif self.path == '/admin/blocks':
+            if not require_operator_request(self):
+                return
             self.write_json(200, {
                 "blocks": {key: {"until": info["until"], "reason": info["reason"], "expiresInSeconds": max(0, info["until"] - time.time())} for key, info in TEMP_MODEL_BLOCKS.items()},
                 "count": len(TEMP_MODEL_BLOCKS)
             })
         elif self.path == '/discovery':
+            if not require_operator_request(self):
+                return
             # Return discovered providers from GitHub manifests, CLI, and fallbacks
             openclaw_github = discover_openclaw_github_manifests()
             hermes_github = discover_hermes_github_manifests()
@@ -8743,6 +8768,9 @@ class Handler(BaseHTTPRequestHandler):
                 "totalProviders": len(openclaw_file) + len(hermes_file)
             })
         elif self.path.startswith('/v1beta/models') or self.path.startswith('/v1/models'):
+            if not client_request_authorized(self):
+                self.write_json(401, {'error': 'unauthorized'})
+                return
             # Google Generative AI models listing endpoint
             models_data = []
             for name, prov in PROVIDERS.items():
@@ -8762,6 +8790,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self.path == '/setup/provider':
+            if not require_operator_request(self):
+                return
             try:
                 self.write_json(200, save_setup_provider(read_json_body(self)))
             except ValueError as e:
@@ -8771,6 +8801,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.write_json(500, {'error': 'provider_setup_failed', 'detail': str(e)})
             return
         if self.path == '/setup/codex-auth':
+            if not require_operator_request(self):
+                return
             try:
                 self.write_json(200, save_codex_setup_auth(read_json_body(self)))
             except json.JSONDecodeError:
@@ -8782,6 +8814,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.write_json(500, {'error': 'codex_auth_setup_failed', 'detail': str(e)})
             return
         if self.path == '/setup/codex-oauth/start':
+            if not require_operator_request(self):
+                return
             try:
                 self.write_json(200, start_codex_oauth_session())
             except ValueError as e:
@@ -8791,6 +8825,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.write_json(500, {'error': 'codex_oauth_start_failed', 'detail': str(e)})
             return
         if self.path == '/setup/codex-oauth/poll':
+            if not require_operator_request(self):
+                return
             try:
                 self.write_json(200, poll_codex_oauth_session(read_json_body(self)))
             except ValueError as e:
@@ -8800,12 +8836,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.write_json(500, {'error': 'codex_oauth_poll_failed', 'detail': str(e)})
             return
         if self.path == '/setup/codex-oauth/cancel':
+            if not require_operator_request(self):
+                return
             try:
                 self.write_json(200, cancel_codex_oauth_session(read_json_body(self)))
             except Exception:
                 self.write_json(200, {'status': 'cancelled'})
             return
         if self.path == '/api/restart':
+            if not require_operator_request(self):
+                return
             # Restart the router process. Only honored in environments where
             # SAGE_ROUTER_ALLOW_RESTART=1 (set by the Umbrel/Cyber compose
             # so the bundled supervisor can pick the process back up). We

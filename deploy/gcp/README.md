@@ -9,7 +9,11 @@ This deployment is for a public Phase 2 demo of Sage Router on Google Cloud Run.
 - Dario is bundled for Anthropic-compatible routing, but is not authenticated unless credentials are supplied via Secret Manager or a private runtime config.
 - Ollama is bundled and started without local models so users can route to Ollama Cloud when they provide their own Ollama auth/config.
 - Artifact Registry stores one small Python image.
-- The service is public for demoability and exposes `/health`.
+- The service is public for demoability and exposes `/health`, but hosted
+  deployments with `SAGE_ROUTER_CLIENT_AUTH_REQUIRED=1` must still block
+  anonymous model, setup, admin, discovery, and dashboard config routes at the
+  origin. Treat the public edge as the customer API surface, not as the only
+  auth gate.
 
 
 ## Live Phase 2 deployment
@@ -19,7 +23,7 @@ This deployment is for a public Phase 2 demo of Sage Router on Google Cloud Run.
 - Service: `sage-router`
 - URL: `https://sage-router-434058661374.us-central1.run.app`
 - Public API DNS: `https://api.sagerouter.dev`
-- Verified endpoints: `/`, `/health`, `/v1/models`
+- Verified endpoints: `/`, `/health`, authenticated `/v1/models`
 - Runtime boundary: Dario binary and Ollama daemon are present. Dario requires user-provided auth before Anthropic-compatible provider traffic can use it. Ollama requires user-provided Ollama Cloud auth/config for cloud inference; no local model weights are bundled.
 
 ## Deploy
@@ -37,6 +41,8 @@ The script enables required APIs, creates an Artifact Registry Docker repo if ne
 ```bash
 SERVICE_URL=$(gcloud run services describe sage-router --region us-central1 --format 'value(status.url)')
 curl "$SERVICE_URL/health"
+curl -i "$SERVICE_URL/v1/models"      # expect 401 without an operator/customer token
+curl -i "$SERVICE_URL/setup/state"    # expect 401 without an operator token
 ```
 
 The `tech-mvp` OpenClaw agent used Sage Router as a frontier profile with an OpenAI-compatible config like:
