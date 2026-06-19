@@ -133,7 +133,10 @@ is `Create hosted API key`, links directly to `/account.html?plan=pro`, and
 keeps pricing, quickstart, status, OpenRouter comparison, model catalog,
 security, analytics, login, and local GitHub install paths available from the
 hero. The waitlist remains an updates/support path, not the primary conversion
-path.
+path. When a prospect requests the future one-subscription managed access path,
+pricing and comparison pages link to `/?interest=managed-access#waitlist`; the
+waitlist stores that value as metadata so beta demand can be measured without
+enabling public provider resale.
 
 ### Hosted Auth
 

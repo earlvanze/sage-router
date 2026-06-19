@@ -44,6 +44,9 @@ const loadTurnstileScript = () => new Promise((resolve, reject) => {
 function WaitlistForm() {
   const widgetRef = useRef(null);
   const widgetIdRef = useRef(null);
+  const initialInterest = new URLSearchParams(window.location.search).get('interest') || 'general';
+  const interest = /^[a-z0-9-]{1,80}$/i.test(initialInterest) ? initialInterest : 'general';
+  const managedAccessInterest = interest === 'managed-access';
   const [status, setStatus] = useState('');
   const [turnstile, setTurnstile] = useState({ required: false, siteKey: '', token: '' });
 
@@ -107,7 +110,12 @@ function WaitlistForm() {
         const response = await fetch('/api/waitlist', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...data, turnstileToken: turnstile.token }),
+          body: JSON.stringify({
+            ...data,
+            interest,
+            sourcePage: `${window.location.origin}${window.location.pathname}`,
+            turnstileToken: turnstile.token,
+          }),
         });
         if (!response.ok) throw new Error('Submit failed');
         form.reset();
@@ -119,6 +127,10 @@ function WaitlistForm() {
       }
     }}>
       <input name="website" tabIndex="-1" autoComplete="off" className="honeypot" aria-hidden="true" />
+      <input name="interest" type="hidden" value={interest} readOnly />
+      {managedAccessInterest && (
+        <p className="formNote">Requesting private-beta interest for managed provider access. Public plans still require customer-authorized provider access.</p>
+      )}
       <input name="email" type="email" placeholder="you@example.com" required />
       <input name="company" type="text" placeholder="Company or project" />
       <button type="submit">Join waitlist</button>

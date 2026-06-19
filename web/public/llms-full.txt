@@ -22,7 +22,7 @@ The hosted Sage Router plans sell account management, generated API keys, quotas
 
 The public API quickstart at https://sagerouter.dev/quickstart is the first-request path for hosted customers. It shows `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, curl, JavaScript, Python, and Codex examples, and troubleshooting for 401, 402, 429, and 503 responses.
 
-Managed provider access is a future/private-beta path, not an active public plan. The public pricing metadata exposes `publicLaunch.managedProviderAccess`; it should remain disabled until provider resale terms, a margin policy, durable quotas/rate limits, and managed-access acceptable-use terms are ready. The public prerequisite pages are available at https://sagerouter.dev/provider-resale-terms and https://sagerouter.dev/margin-policy for review, but publishing those pages does not activate managed resale.
+Managed provider access is a future/private-beta path, not an active public plan. The public pricing metadata exposes `publicLaunch.managedProviderAccess`; it should remain disabled until provider resale terms, a margin policy, durable quotas/rate limits, and managed-access acceptable-use terms are ready. The public prerequisite pages are available at https://sagerouter.dev/provider-resale-terms and https://sagerouter.dev/margin-policy for review, but publishing those pages does not activate managed resale. Prospects can request private-beta interest through https://sagerouter.dev/?interest=managed-access#waitlist; that captures demand metadata only.
 
 ## Public model catalog
 

@@ -105,6 +105,9 @@ export async function onRequestPost({ request, env }) {
   const email = String(payload.email || '').trim().toLowerCase();
   const company = String(payload.company || '').trim().slice(0, 200);
   const website = String(payload.website || '').trim();
+  const interestValue = String(payload.interest || 'general').trim().toLowerCase();
+  const interest = /^[a-z0-9-]{1,80}$/.test(interestValue) ? interestValue : 'general';
+  const sourcePage = sanitizedUrl(payload.sourcePage) || 'https://sagerouter.dev';
   const turnstileToken = String(payload.turnstileToken || payload['cf-turnstile-response'] || '').trim();
 
   if (website) return json({ ok: true });
@@ -120,6 +123,7 @@ export async function onRequestPost({ request, env }) {
   const metadata = {
     product: 'sage-router',
     form: 'site_waitlist',
+    interest,
     user_agent: String(request.headers.get('user-agent') || '').slice(0, 300) || null,
     referer: sanitizedUrl(request.headers.get('referer')),
     origin: sanitizedUrl(request.headers.get('origin')),
@@ -127,7 +131,7 @@ export async function onRequestPost({ request, env }) {
   };
 
   const waitlistRecord = {
-    source_page: 'https://sagerouter.dev',
+    source_page: sourcePage,
     email,
     company: company || null,
     metadata,

@@ -8,6 +8,7 @@ Hosted pricing: https://sagerouter.dev/pricing
 API quickstart: https://sagerouter.dev/quickstart
 Model catalog: https://sagerouter.dev/models
 Model Routing Calculator: https://sagerouter.dev/model-routing-calculator
+Managed-access beta interest: https://sagerouter.dev/?interest=managed-access#waitlist
 Security: https://sagerouter.dev/security
 Terms: https://sagerouter.dev/terms
 Privacy: https://sagerouter.dev/privacy

@@ -72,6 +72,12 @@ beta. They do not activate managed resale by themselves; the runtime must still
 keep `publicLaunch.managedProviderAccess.enabled` false unless the provider
 authorization, billing, quota, and abuse-control checks are explicitly enabled.
 
+Pricing and comparison pages can still measure demand for the future
+one-subscription path by sending prospects to
+`/?interest=managed-access#waitlist`. That waitlist interest is stored as
+metadata only; it is not a checkout entitlement, provider resale claim, or
+runtime feature flag.
+
 ## Near-term launch checklist
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
@@ -92,6 +98,8 @@ authorization, billing, quota, and abuse-control checks are explicitly enabled.
 - Keep hosted positioning limited to routing/control-plane infrastructure until
   provider terms, billing, margin, and abuse controls support any managed
   provider resale offer.
+- Capture managed-access beta demand through the waitlist `interest` metadata
+  path instead of advertising bundled model access as live.
 - Keep the managed provider access readiness guard active: default disabled,
   with `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` allowed only when provider
   resale terms and margin-policy URLs are configured and the legal/abuse-control
