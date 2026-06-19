@@ -31,7 +31,7 @@
     const command = document.getElementById('command');
     const copy = document.getElementById('copy');
     if (code) {
-      const text = `SAGEROUTER_GITHUB_APP_MANIFEST_CODE=${code} scripts/bootstrap_github_supabase_auth.sh`;
+      const text = `SAGEROUTER_GITHUB_APP_MANIFEST_CODE=${code} bash scripts/bootstrap_github_supabase_auth.sh`;
       status.textContent = 'Run this from the sage-router repo within one hour to exchange the code and enable GitHub login in Supabase.';
       command.textContent = text;
       command.classList.remove('hidden');
