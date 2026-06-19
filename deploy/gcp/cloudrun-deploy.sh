@@ -68,10 +68,32 @@ if ! gcloud artifacts repositories describe "${REPOSITORY}" --location "${REGION
     --project "${PROJECT_ID}"
 fi
 
-gcloud builds submit . \
-  --project "${PROJECT_ID}" \
-  --config deploy/gcp/cloudbuild.yaml \
-  --substitutions _IMAGE="${IMAGE}"
+BUILD_ID="$(
+  gcloud builds submit . \
+    --async \
+    --project "${PROJECT_ID}" \
+    --config deploy/gcp/cloudbuild.yaml \
+    --substitutions _IMAGE="${IMAGE}" \
+    --format 'value(id)'
+)"
+
+echo "Cloud Build started: ${BUILD_ID}"
+while true; do
+  BUILD_STATUS="$(gcloud builds describe "${BUILD_ID}" --project "${PROJECT_ID}" --format 'value(status)')"
+  case "${BUILD_STATUS}" in
+    SUCCESS)
+      break
+      ;;
+    FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED)
+      echo "Cloud Build ${BUILD_ID} ended with status ${BUILD_STATUS}" >&2
+      exit 1
+      ;;
+    *)
+      echo "Cloud Build status: ${BUILD_STATUS}"
+      sleep 5
+      ;;
+  esac
+done
 
 gcloud run deploy "${SERVICE_NAME}" \
   --image "${IMAGE}" \
