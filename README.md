@@ -157,7 +157,7 @@ set -a; source /home/digit/.openclaw/.env; set +a
 scripts/check_sagerouter_launch_readiness.sh
 ```
 
-The readiness check verifies the public API edge, hosted pricing metadata, direct origin auth gating when `SAGEROUTER_ORIGIN_BASE_URL` is set, Supabase auth settings, quota schema, hosted login/account/GitHub callback pages, the operator-only privacy-safe `/analytics/funnel` endpoint, the non-mutating waitlist health endpoint on `SAGEROUTER_APP_BASE_URL` (default `https://app.sagerouter.dev`), and the marketing comparison/pricing pages on `SAGEROUTER_MARKETING_BASE_URL` (default `https://sagerouter.dev`).
+The readiness check verifies the public API edge, anonymous auth gating, browser CORS preflight for the hosted API-key verification flow, hosted pricing metadata, direct origin auth gating when `SAGEROUTER_ORIGIN_BASE_URL` is set, Supabase auth settings, quota schema, hosted login/account/GitHub callback pages, the operator-only privacy-safe `/analytics/funnel` endpoint, the non-mutating waitlist health endpoint on `SAGEROUTER_APP_BASE_URL` (default `https://app.sagerouter.dev`), and the marketing comparison/pricing pages on `SAGEROUTER_MARKETING_BASE_URL` (default `https://sagerouter.dev`).
 
 Monthly API-key quotas require the Supabase usage counter table and RPC. Apply
 the idempotent migration through the Supabase Management API before enabling

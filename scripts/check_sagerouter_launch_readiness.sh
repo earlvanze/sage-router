@@ -75,6 +75,28 @@ check_public_auth_gate() {
   fi
 }
 
+check_browser_api_cors() {
+  local headers code allow_origin allow_methods allow_headers
+  headers="$(mktemp)"
+  code="$(
+    curl -sS -o /tmp/sage-router-readiness-body -D "$headers" -w '%{http_code}' \
+      -X OPTIONS "${API_BASE%/}/v1/models" \
+      -H "Origin: ${APP_BASE%/}" \
+      -H "Access-Control-Request-Method: GET" \
+      -H "Access-Control-Request-Headers: authorization,content-type"
+  )"
+  allow_origin="$(awk 'tolower($1)=="access-control-allow-origin:" {sub(/\r$/,"",$2); print $2}' "$headers" | tail -n1)"
+  allow_methods="$(awk 'tolower($1)=="access-control-allow-methods:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$headers" | tail -n1)"
+  allow_headers="$(awk 'tolower($1)=="access-control-allow-headers:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$headers" | tail -n1)"
+  rm -f "$headers" /tmp/sage-router-readiness-body
+
+  if [[ "$code" == "204" && "$allow_origin" == "${APP_BASE%/}" && "$allow_methods" == *"GET"* && "$allow_methods" == *"OPTIONS"* && "$allow_headers" == *"Authorization"* ]]; then
+    pass "browser API-key verification CORS preflight is enabled"
+  else
+    fail "browser API-key CORS preflight failed: code=${code} allowOrigin=${allow_origin:-missing} allowMethods=${allow_methods:-missing} allowHeaders=${allow_headers:-missing}"
+  fi
+}
+
 check_public_pricing_metadata() {
   local code plans api_base openai_base checkout_path portal_path api_key_limit limits_ok stripe_ok launch_ok
   code="$(http_code "${API_BASE%/}/pricing")"
@@ -321,6 +343,7 @@ check_quota_schema() {
 require_jq
 check_edge_health
 check_public_auth_gate
+check_browser_api_cors
 check_public_pricing_metadata
 check_stripe_webhook_guard
 check_hosted_onboarding_pages
