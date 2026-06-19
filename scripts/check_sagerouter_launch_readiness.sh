@@ -15,6 +15,7 @@ SUPABASE_ANON_KEY="${SAGE_ROUTER_SUPABASE_ANON_KEY:-}"
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:-}"
 SUPABASE_SERVICE_ROLE_KEY="${SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_SERVICE_ROLE_KEY:-}}"
 ADMIN_TOKEN="${SAGE_ROUTER_API_KEY:-${SAGE_ROUTER_EDGE_TOKEN:-}}"
+OPERATOR_TOKEN="${SAGE_ROUTER_OPERATOR_TOKEN:-${SAGE_ROUTER_CLIENT_API_KEY:-}}"
 MANAGED_PROVIDER_RESALE_ENABLED="${SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED:-0}"
 PROVIDER_RESALE_TERMS_URL="${SAGEROUTER_PROVIDER_RESALE_TERMS_URL:-}"
 PROVIDER_RESALE_MARGIN_POLICY_URL="${SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL:-}"
@@ -51,6 +52,60 @@ require_jq() {
     fail "jq is required"
     exit 2
   fi
+}
+
+first_csv_token() {
+  VALUE="$1" python3 - <<'PY'
+import os
+
+for item in os.environ.get("VALUE", "").split(","):
+    item = item.strip()
+    if item:
+        print(item)
+        break
+PY
+}
+
+cloud_run_secret_ref() {
+  local env_name="$1"
+  if ! command -v gcloud >/dev/null 2>&1; then
+    return
+  fi
+  gcloud run services describe "$CLOUD_RUN_SERVICE" \
+    --project="$CLOUD_RUN_PROJECT" \
+    --region="$CLOUD_RUN_REGION" \
+    --format=json 2>/dev/null |
+    jq -r --arg name "$env_name" '
+      (.spec.template.spec.containers[0].env // [])
+      | map(select(.name == $name))
+      | .[0].valueFrom.secretKeyRef.name // empty
+    '
+}
+
+resolve_operator_token() {
+  local token secret_name secret_value
+  token="$(first_csv_token "$OPERATOR_TOKEN")"
+  if [[ -n "$token" ]]; then
+    printf '%s\n' "$token"
+    return
+  fi
+  token="$(first_csv_token "${SAGE_ROUTER_CLIENT_API_KEYS:-}")"
+  if [[ -n "$token" ]]; then
+    printf '%s\n' "$token"
+    return
+  fi
+
+  secret_name="$(cloud_run_secret_ref SAGE_ROUTER_CLIENT_API_KEYS)"
+  if [[ -n "$secret_name" ]] && command -v gcloud >/dev/null 2>&1; then
+    secret_value="$(gcloud secrets versions access latest --secret="$secret_name" --project="$CLOUD_RUN_PROJECT" 2>/dev/null || true)"
+    token="$(first_csv_token "$secret_value")"
+    if [[ -n "$token" ]]; then
+      printf '%s\n' "$token"
+      return
+    fi
+  fi
+
+  first_csv_token "$ADMIN_TOKEN"
 }
 
 discover_supabase_anon_key() {
@@ -872,7 +927,7 @@ check_admin_token() {
     warn "SAGE_ROUTER_API_KEY/SAGE_ROUTER_EDGE_TOKEN not set; skipped private admin token probe"
     return
   fi
-  local code funnel_code funnel_ok customer_base customer_code customer_ok
+  local code funnel_code funnel_ok customer_base customer_code customer_ok operator_token
   code="$(http_code "${API_BASE%/}/v1/models" -H "Authorization: Bearer ${ADMIN_TOKEN}")"
   rm -f /tmp/sage-router-readiness-body
   funnel_code="$(http_code "${API_BASE%/}/analytics/funnel?days=30" -H "Authorization: Bearer ${ADMIN_TOKEN}")"
@@ -892,7 +947,8 @@ check_admin_token() {
   rm -f /tmp/sage-router-readiness-body
   customer_base="$(discover_origin_base || true)"
   customer_base="${customer_base:-$API_BASE}"
-  customer_code="$(http_code "${customer_base%/}/admin/customers?limit=1" -H "Authorization: Bearer ${ADMIN_TOKEN}")"
+  operator_token="$(resolve_operator_token)"
+  customer_code="$(http_code "${customer_base%/}/admin/customers?limit=1" -H "Authorization: Bearer ${operator_token}")"
   customer_ok="$(jq -r '
     (.count | type == "number") and
     ((.customers // []) | type == "array") and
