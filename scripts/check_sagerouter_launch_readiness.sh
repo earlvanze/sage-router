@@ -101,6 +101,20 @@ check_public_pricing_metadata() {
   fi
 }
 
+check_stripe_webhook_guard() {
+  local code error
+  code="$(http_code "${API_BASE%/}/billing/stripe/webhook" \
+    -H "Content-Type: application/json" \
+    --data '{"id":"evt_readiness_unsigned","type":"readiness.probe"}')"
+  error="$(jq -r '.error // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  rm -f /tmp/sage-router-readiness-body
+  if [[ "$code" == "400" && "$error" == "invalid_signature" ]]; then
+    pass "Stripe webhook endpoint is configured and rejects unsigned events"
+  else
+    fail "Stripe webhook guard returned HTTP ${code} error=${error:-missing}, expected 400 invalid_signature"
+  fi
+}
+
 check_hosted_onboarding_pages() {
   local login_code account_code manifest_code
   login_code="$(http_code_follow "${APP_BASE%/}/login.html")"
@@ -211,6 +225,7 @@ require_jq
 check_edge_health
 check_public_auth_gate
 check_public_pricing_metadata
+check_stripe_webhook_guard
 check_hosted_onboarding_pages
 check_admin_token
 check_origin_auth_gate

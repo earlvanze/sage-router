@@ -102,6 +102,28 @@ class SaaSAuthTests(unittest.TestCase):
         router.write_local_customer_store(data)
         return router.customer_for_user({'id': 'user-1'}, create=False)
 
+    def signed_stripe_webhook_handler(self, event):
+        body = json.dumps(event, separators=(',', ':')).encode()
+        timestamp = str(router.now_epoch())
+        sig = router.hmac.new(
+            router.STRIPE_WEBHOOK_SECRET.encode(),
+            f'{timestamp}.{body.decode()}'.encode(),
+            router.hashlib.sha256,
+        ).hexdigest()
+
+        class Dummy:
+            path = '/billing/stripe/webhook'
+            def __init__(self):
+                self.headers = {'Content-Length': str(len(body)), 'Stripe-Signature': f't={timestamp},v1={sig}'}
+                self.rfile = BytesIO(body)
+                self.status = None
+                self.payload = None
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        return Dummy()
+
     def test_generated_key_is_hashed_and_verifies_when_active(self):
         customer = self.active_customer()
         raw, row = router.create_api_key_for_customer(customer, 'prod')
@@ -414,22 +436,7 @@ class SaaSAuthTests(unittest.TestCase):
                 },
             },
         }
-        body = json.dumps(event, separators=(',', ':')).encode()
-        timestamp = str(router.now_epoch())
-        sig = router.hmac.new(router.STRIPE_WEBHOOK_SECRET.encode(), f'{timestamp}.{body.decode()}'.encode(), router.hashlib.sha256).hexdigest()
-
-        class Dummy:
-            path = '/billing/stripe/webhook'
-            def __init__(self):
-                self.headers = {'Content-Length': str(len(body)), 'Stripe-Signature': f't={timestamp},v1={sig}'}
-                self.rfile = BytesIO(body)
-                self.status = None
-                self.payload = None
-            def write_json(self, status, payload, extra_headers=None):
-                self.status = status
-                self.payload = payload
-
-        first = Dummy()
+        first = self.signed_stripe_webhook_handler(event)
         router.Handler.do_POST(first)
         self.assertEqual(200, first.status)
         self.assertEqual({'received': True, 'event_id': 'evt_checkout_1'}, first.payload)
@@ -439,12 +446,98 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('cus_1', updated['stripe_customer_id'])
         self.assertEqual(1, len(router.local_customer_store()['payment_intents']))
 
-        second = Dummy()
+        second = self.signed_stripe_webhook_handler(event)
         router.Handler.do_POST(second)
         self.assertEqual(200, second.status)
         self.assertTrue(second.payload['duplicate'])
         self.assertEqual('evt_checkout_1', second.payload['event_id'])
         self.assertEqual(1, len(router.local_customer_store()['payment_intents']))
+
+    def test_stripe_subscription_lifecycle_controls_customer_routing_status(self):
+        router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
+        customer = self.active_customer()
+        router.update_customer(customer['id'], {'stripe_customer_id': 'cus_1', 'stripe_subscription_id': 'sub_1'})
+
+        subscription_update = {
+            'id': 'evt_sub_past_due',
+            'type': 'customer.subscription.updated',
+            'data': {
+                'object': {
+                    'id': 'sub_1',
+                    'customer': 'cus_1',
+                    'status': 'past_due',
+                    'metadata': {'customer_id': customer['id'], 'plan': 'pro'},
+                },
+            },
+        }
+        handler = self.signed_stripe_webhook_handler(subscription_update)
+        router.Handler.do_POST(handler)
+        self.assertEqual(200, handler.status)
+        updated = router.customer_by_id(customer['id'])
+        self.assertEqual('past_due', updated['status'])
+        self.assertFalse(router.customer_is_active(updated))
+
+        subscription_recovered = {
+            'id': 'evt_sub_active',
+            'type': 'customer.subscription.updated',
+            'data': {
+                'object': {
+                    'id': 'sub_1',
+                    'customer': 'cus_1',
+                    'status': 'active',
+                    'metadata': {'customer_id': customer['id'], 'plan': 'pro'},
+                },
+            },
+        }
+        handler = self.signed_stripe_webhook_handler(subscription_recovered)
+        router.Handler.do_POST(handler)
+        self.assertEqual(200, handler.status)
+        updated = router.customer_by_id(customer['id'])
+        self.assertEqual('active', updated['status'])
+        self.assertTrue(router.customer_is_active(updated))
+
+        subscription_deleted = {
+            'id': 'evt_sub_deleted',
+            'type': 'customer.subscription.deleted',
+            'data': {
+                'object': {
+                    'id': 'sub_1',
+                    'customer': 'cus_1',
+                    'metadata': {'customer_id': customer['id']},
+                },
+            },
+        }
+        handler = self.signed_stripe_webhook_handler(subscription_deleted)
+        router.Handler.do_POST(handler)
+        self.assertEqual(200, handler.status)
+        updated = router.customer_by_id(customer['id'])
+        self.assertEqual('inactive', updated['status'])
+        self.assertFalse(router.customer_is_active(updated))
+
+    def test_stripe_invoice_payment_failure_disables_generated_key_routing(self):
+        router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
+        customer = self.active_customer()
+        router.update_customer(customer['id'], {'stripe_customer_id': 'cus_1', 'stripe_subscription_id': 'sub_1'})
+        raw, _row = router.create_api_key_for_customer(router.customer_by_id(customer['id']), 'prod')
+        self.assertIsNotNone(router.verify_generated_api_key(raw))
+
+        event = {
+            'id': 'evt_invoice_failed',
+            'type': 'invoice.payment_failed',
+            'data': {
+                'object': {
+                    'customer': 'cus_1',
+                    'subscription': 'sub_1',
+                },
+            },
+        }
+        handler = self.signed_stripe_webhook_handler(event)
+        router.Handler.do_POST(handler)
+        self.assertEqual(200, handler.status)
+        updated = router.customer_by_id(customer['id'])
+        self.assertEqual('past_due', updated['status'])
+        self.assertFalse(router.customer_is_active(updated))
+        self.assertIsNone(router.verify_generated_api_key(raw))
 
     def test_stripe_crypto_missing_config_and_options_cors(self):
         router.supabase_user_for_bearer = lambda token: {'id': 'user-1', 'email': 'u@example.com'}

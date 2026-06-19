@@ -8995,6 +8995,12 @@ class Handler(BaseHTTPRequestHandler):
                 })
             elif customer_id and event_type == 'customer.subscription.deleted':
                 update_customer(customer_id, {'status': 'inactive'})
+            elif customer_id and event_type in {'invoice.payment_failed', 'invoice.marked_uncollectible'}:
+                update_customer(customer_id, {
+                    'status': 'past_due',
+                    'stripe_customer_id': obj.get('customer') or '',
+                    'stripe_subscription_id': obj.get('subscription') or '',
+                })
             store_stripe_webhook_event(event, customer_id=customer_id)
             self.write_json(200, {'received': True, 'event_id': event_id})
             return

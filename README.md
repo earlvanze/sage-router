@@ -163,7 +163,7 @@ scripts/apply_supabase_quota_schema.sh
 scripts/check_sagerouter_launch_readiness.sh
 ```
 
-Stripe checkout reuses an existing `stripe_customer_id` when a customer is already linked, the account page exposes Stripe's customer billing portal after checkout, and Stripe webhook retries are idempotent by `event_id`. Apply `supabase/migrations/20260619034200_stripe_webhook_idempotency.sql` anywhere the SaaS tables already exist so duplicate signed webhook deliveries cannot create duplicate payment event rows.
+Stripe checkout reuses an existing `stripe_customer_id` when a customer is already linked, the account page exposes Stripe's customer billing portal after checkout, and Stripe webhook retries are idempotent by `event_id`. Signed subscription lifecycle webhooks update customer routing status: active/trialing subscriptions enable generated-key routing, canceled subscriptions disable routing, and failed or uncollectible invoices mark the customer `past_due`. Apply `supabase/migrations/20260619034200_stripe_webhook_idempotency.sql` anywhere the SaaS tables already exist so duplicate signed webhook deliveries cannot create duplicate payment event rows.
 
 For the existing GCP deployment notes, see [deploy/gcp](deploy/gcp/README.md). For the privacy-preserving relay design where customer credentials stay on the user's machine, see [docs/cloud-tunnel](docs/cloud-tunnel/README.md).
 
