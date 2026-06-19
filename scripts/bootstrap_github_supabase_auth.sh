@@ -14,6 +14,8 @@ GITHUB_CLIENT_SECRET="${SAGEROUTER_GITHUB_CLIENT_SECRET:-${GITHUB_CLIENT_SECRET:
 GITHUB_CREDENTIALS_OUTPUT="${SAGEROUTER_GITHUB_APP_ENV_OUTPUT:-}"
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:?Set SUPABASE_ACCESS_TOKEN to a Supabase Management API token.}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WINDOWS_FORM_PATH=""
+WINDOWS_FORM_URI=""
 
 callback_url="https://${PROJECT_REF}.supabase.co/auth/v1/callback"
 
@@ -79,25 +81,44 @@ convert_manifest() {
   printf 'Configured Supabase GitHub auth for app id %s.\n' "$(printf '%s' "$response" | jq -r '.id // "unknown"')"
 }
 
+prepare_windows_form() {
+  [[ -z "$WINDOWS_FORM_URI" ]] || return 0
+  command -v powershell.exe >/dev/null 2>&1 || return 0
+  command -v wslpath >/dev/null 2>&1 || return 0
+
+  win_temp="$(
+    powershell.exe -NoProfile -Command '[Console]::Out.Write($env:TEMP)' 2>/dev/null | tr -d '\r'
+  )"
+  [[ -n "$win_temp" ]] || return 0
+  win_temp_wsl="$(wslpath -u "$win_temp" 2>/dev/null || true)"
+  [[ -n "$win_temp_wsl" ]] || return 0
+  mkdir -p "$win_temp_wsl" >/dev/null 2>&1 || return 0
+  cp "$form" "$win_temp_wsl/sage-router-github-auth-app.html" >/dev/null 2>&1 || return 0
+  WINDOWS_FORM_PATH="$(
+    powershell.exe -NoProfile -Command '$p = Join-Path $env:TEMP "sage-router-github-auth-app.html"; [Console]::Out.Write($p)' 2>/dev/null | tr -d '\r'
+  )"
+  WINDOWS_FORM_URI="$(
+    powershell.exe -NoProfile -Command '$p = Join-Path $env:TEMP "sage-router-github-auth-app.html"; [Console]::Out.Write(([Uri]$p).AbsoluteUri)' 2>/dev/null | tr -d '\r'
+  )"
+}
+
+form_location_text() {
+  if [[ -n "$WINDOWS_FORM_PATH" ]]; then
+    cat <<EOF
+   Windows path: ${WINDOWS_FORM_PATH}
+   WSL path:     ${form}
+EOF
+  else
+    printf '   %s\n' "$form"
+  fi
+}
+
 open_form() {
+  prepare_windows_form
   if command -v powershell.exe >/dev/null 2>&1; then
-    if command -v wslpath >/dev/null 2>&1; then
-      win_temp="$(
-        powershell.exe -NoProfile -Command '[Console]::Out.Write($env:TEMP)' 2>/dev/null | tr -d '\r'
-      )"
-      if [[ -n "$win_temp" ]]; then
-        win_temp_wsl="$(wslpath -u "$win_temp" 2>/dev/null || true)"
-        if [[ -n "$win_temp_wsl" ]]; then
-          mkdir -p "$win_temp_wsl" >/dev/null 2>&1 || true
-          cp "$form" "$win_temp_wsl/sage-router-github-auth-app.html" >/dev/null 2>&1 || true
-          windows_form_uri="$(
-            powershell.exe -NoProfile -Command "\$p = Join-Path \$env:TEMP 'sage-router-github-auth-app.html'; [Uri](\$p) | ForEach-Object { [Console]::Out.Write(\$_.AbsoluteUri) }" 2>/dev/null | tr -d '\r'
-          )"
-          if [[ -n "$windows_form_uri" ]]; then
-            powershell.exe -NoProfile -Command "Start-Process '$windows_form_uri'" >/dev/null 2>&1 && return
-          fi
-        fi
-      fi
+    if [[ -n "$WINDOWS_FORM_URI" ]]; then
+      powershell.exe -NoProfile -Command "Start-Process '$WINDOWS_FORM_URI'" >/dev/null 2>&1 && return
+    elif command -v wslpath >/dev/null 2>&1; then
       windows_form="$(wslpath -w "$form")"
       powershell.exe -NoProfile -Command "Start-Process '$windows_form'" >/dev/null 2>&1 && return
     fi
@@ -185,6 +206,8 @@ print(f"""<!doctype html>
 </html>""")
 PY
 
+prepare_windows_form
+
 if [[ "$redirect_url" == http://127.0.0.1:* ]]; then
   code_file="$(mktemp)"
   capture_log="$(mktemp)"
@@ -253,7 +276,7 @@ PY
 GitHub requires an owner-approved browser step before it returns app credentials.
 
 1. Opening this local form in a browser signed into the GitHub owner account:
-   ${form}
+$(form_location_text)
 2. Approve the app named "${APP_NAME}".
 3. The browser will return to ${redirect_url}; this script will capture the temporary code, configure Supabase, and exit.
 
@@ -275,7 +298,7 @@ cat <<EOF
 GitHub requires an owner-approved browser step before it returns app credentials.
 
 1. Open this local form in a browser signed into the GitHub owner account:
-   ${form}
+$(form_location_text)
 2. Approve the app named "${APP_NAME}".
 3. GitHub redirects to ${AUTH_SITE_URL}/github-app-manifest.html?code=...
 4. Rerun this script with:
