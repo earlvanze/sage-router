@@ -81,7 +81,7 @@ runtime feature flag.
 ## Near-term launch checklist
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
-- Keep `/pricing`, `/quickstart`, `/status`, `/account.html`, `/login.html`,
+- Keep `/pricing`, `/quickstart`, `/status`, `/support`, `/account.html`, `/login.html`,
   `/api/waitlist`, `/models`, `/compare/openrouter`, `/model-routing-calculator`, `/terms`,
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
@@ -92,6 +92,12 @@ runtime feature flag.
 - Keep `/quickstart` as the first hosted API request path with
   `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, `sage-router/frontier`,
   curl, JavaScript, Python, Codex, and 401/402/429/503 troubleshooting.
+- Keep `/support` as the safe escalation path for account, billing, Stripe
+  portal, manual/crypto settlement, quota, generated-key, reliability, 503,
+  security, abuse, and private deployment issues. Public support channels must
+  warn customers not to send prompts, workflow text, provider credentials,
+  OAuth tokens, generated API keys, private keys, cookies, raw provider
+  responses, or customer data.
 - Use the calculator as the lightweight qualification path before signup:
   prospects estimate savings, review points, and fallback gaps, then create a
   hosted API key or request implementation support. The calculator should

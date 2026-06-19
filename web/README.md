@@ -52,8 +52,8 @@ text, emails, API keys, or provider credentials.
 The primary homepage CTA is `Create hosted API key`, which links to
 `/account.html?plan=pro`. The hero keeps pricing, quickstart, public status,
 OpenRouter comparison, model catalog, calculator, security, analytics, login,
-and local GitHub install paths visible so a prospect can move from discovery to
-generated `sk_sage_*` key setup without joining a waitlist first. The
+support, and local GitHub install paths visible so a prospect can move from
+discovery to generated `sk_sage_*` key setup without joining a waitlist first. The
 waitlist remains secondary for release notes, integration updates, private
 deployment help, and future managed-provider beta interest.
 
@@ -87,6 +87,7 @@ Next recommended additions after MVP:
 - Keep `/quickstart` aligned with the hosted account page and public edge error guidance.
 - Keep the model routing calculator in navigation, sitemap, LLM discovery, and readiness checks.
 - Keep the public `/security` trust page in navigation, sitemap, LLM discovery, and readiness checks whenever hosted edge authentication copy changes.
+- Keep the public `/support` page in navigation, sitemap, LLM discovery, and readiness checks whenever hosted account, billing, quota, reliability, or security escalation copy changes.
 - Dedicated docs pages for OpenAI-compatible, Anthropic-compatible, Ollama, Gemini, Cursor, Aider, Continue, Codex CLI, Claude Code, and OpenHands setup.
 - Expand JSON-LD once final production docs URLs, logo/social image, and hosted beta URLs are stable.
 - Real case-study/benchmark pages targeting `automate model selection`, `agent model router`, and `BYOK LLM gateway` searches.

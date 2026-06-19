@@ -33,6 +33,7 @@ The catalog is discovery metadata only. Live `https://api.sagerouter.dev/v1/mode
 ## Hosted legal and compliance
 
 Security: https://sagerouter.dev/security
+Support: https://sagerouter.dev/support
 Terms: https://sagerouter.dev/terms
 Privacy: https://sagerouter.dev/privacy
 Acceptable Use: https://sagerouter.dev/acceptable-use
@@ -40,6 +41,8 @@ Provider Resale Terms: https://sagerouter.dev/provider-resale-terms
 Managed Access Margin Policy: https://sagerouter.dev/margin-policy
 
 The hosted service sells routing infrastructure, account management, generated API keys, quotas, route telemetry, reliability tooling, billing, and support. It does not grant unauthorized provider access, does not promise to bypass provider terms, and does not pool customer provider accounts as a default service. Customers remain responsible for using only authorized provider access, local models, subscriptions, API keys, cloud accounts, and endpoints.
+
+Hosted support for account, billing, quota, API key, reliability, 503, abuse, and security issues is published at https://sagerouter.dev/support. Public support channels should not receive prompts, workflow text, provider credentials, OAuth tokens, generated API keys, private keys, session cookies, raw provider responses, or customer data. Safe support context is limited to account email, plan, timestamp, request id, HTTP status, safe error class, and non-secret key prefix when needed.
 
 Managed provider access, if introduced, must be limited to provider access Sage Router is authorized to resell or operate. It is not unlimited unmetered resale, not a provider marketplace guarantee, and not permission to evade provider controls. Private-beta activation requires positive unit economics, durable quotas, request-per-minute limits, generated-key revocation, billing controls, abuse controls, and acceptable-use enforcement.
 
