@@ -59,7 +59,7 @@ check_public_auth_gate() {
 }
 
 check_public_pricing_metadata() {
-  local code plans api_base openai_base limits_ok stripe_ok
+  local code plans api_base openai_base checkout_path portal_path limits_ok stripe_ok
   code="$(http_code "${API_BASE%/}/pricing")"
   if [[ "$code" != "200" ]]; then
     rm -f /tmp/sage-router-readiness-body
@@ -69,6 +69,8 @@ check_public_pricing_metadata() {
   plans="$(jq -r '((.plans // {}) | keys | length)' /tmp/sage-router-readiness-body)"
   api_base="$(jq -r '.apiBaseUrl // empty' /tmp/sage-router-readiness-body)"
   openai_base="$(jq -r '.openaiBaseUrl // empty' /tmp/sage-router-readiness-body)"
+  checkout_path="$(jq -r '.checkoutPath // empty' /tmp/sage-router-readiness-body)"
+  portal_path="$(jq -r '.billingPortalPath // empty' /tmp/sage-router-readiness-body)"
   limits_ok="$(jq -r '
     (.plans.lite.limits.monthlyRequests == 10000) and
     (.plans.lite.limits.rateLimitPerMinute == 60) and
@@ -83,10 +85,10 @@ check_public_pricing_metadata() {
     (.plans.max.stripeConfigured == true)
   ' /tmp/sage-router-readiness-body)"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$plans" =~ ^[0-9]+$ && "$plans" -gt 0 && "$api_base" == "${API_BASE%/}" && "$openai_base" == "${API_BASE%/}/v1" && "$limits_ok" == "true" && "$stripe_ok" == "true" ]]; then
-    pass "public /pricing exposes hosted plan, Stripe, endpoint, and limit metadata"
+  if [[ "$plans" =~ ^[0-9]+$ && "$plans" -gt 0 && "$api_base" == "${API_BASE%/}" && "$openai_base" == "${API_BASE%/}/v1" && "$checkout_path" == "/billing/stripe/checkout" && "$portal_path" == "/billing/stripe/portal" && "$limits_ok" == "true" && "$stripe_ok" == "true" ]]; then
+    pass "public /pricing exposes hosted plan, Stripe billing, endpoint, and limit metadata"
   else
-    fail "public /pricing metadata incomplete: plans=${plans:-missing} apiBaseUrl=${api_base:-missing} openaiBaseUrl=${openai_base:-missing} limits=${limits_ok:-missing} stripe=${stripe_ok:-missing}"
+    fail "public /pricing metadata incomplete: plans=${plans:-missing} apiBaseUrl=${api_base:-missing} openaiBaseUrl=${openai_base:-missing} checkoutPath=${checkout_path:-missing} billingPortalPath=${portal_path:-missing} limits=${limits_ok:-missing} stripe=${stripe_ok:-missing}"
   fi
 }
 
