@@ -20,6 +20,7 @@ Docs: https://github.com/earlvanze/sage-router#readme
 - Supports local Ollama and Ollama Cloud today through Ollama running locally. Sage Router discovers available `:cloud` models, can auto-pull discovered cloud models, and routes between local Ollama, Ollama Cloud, NVIDIA NIM, and other cloud APIs according to policy and health.
 - Provides provider health, fallback, observability, and routing policy infrastructure for agents.
 - Hosted plans sell account management, API keys, usage quotas, analytics, and reliability infrastructure: Lite $6/month, Pro $30/month, and Max $72/month.
+- Managed provider access is not active in public plans; `publicLaunch.managedProviderAccess` must stay disabled until provider resale terms, margin policy, durable quotas/rate limits, and managed-access acceptable-use terms are ready.
 
 ## Compliance and custody
 

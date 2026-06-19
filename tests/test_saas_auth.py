@@ -276,6 +276,42 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('https://sagerouter.dev/model-routing-calculator', launch['conversionSurfaces'])
         self.assertIn('usage quotas and request-per-minute limits', launch['sells'])
         self.assertIn('does not grant unauthorized model access', launch['complianceBoundary'])
+        managed = launch['managedProviderAccess']
+        self.assertFalse(managed['enabled'])
+        self.assertEqual('disabled_pending_provider_terms', managed['status'])
+        self.assertIn('provider_resale_terms', managed['requiredControls'])
+        self.assertIn('margin_policy', managed['requiredControls'])
+        self.assertIn('rate_limits_and_durable_quotas', managed['requiredControls'])
+        self.assertIn('acceptable_use_managed_access_terms', managed['requiredControls'])
+        self.assertEqual('https://sagerouter.dev/acceptable-use', managed['acceptableUseUrl'])
+
+    def test_managed_provider_access_requires_terms_and_margin_policy(self):
+        old_env = {
+            'SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED': os.environ.get('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED'),
+            'SAGEROUTER_PROVIDER_RESALE_TERMS_URL': os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_URL'),
+            'SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL': os.environ.get('SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL'),
+        }
+        try:
+            os.environ['SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED'] = '1'
+            os.environ.pop('SAGEROUTER_PROVIDER_RESALE_TERMS_URL', None)
+            os.environ.pop('SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL', None)
+            managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
+            self.assertTrue(managed['enabled'])
+            self.assertEqual('requires_readiness_verification', managed['status'])
+
+            os.environ['SAGEROUTER_PROVIDER_RESALE_TERMS_URL'] = 'https://sagerouter.dev/provider-resale-terms'
+            os.environ['SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL'] = 'https://sagerouter.dev/margin-policy'
+            managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
+            self.assertTrue(managed['enabled'])
+            self.assertEqual('ready_for_private_beta', managed['status'])
+            self.assertEqual('https://sagerouter.dev/provider-resale-terms', managed['providerTermsUrl'])
+            self.assertEqual('https://sagerouter.dev/margin-policy', managed['marginPolicyUrl'])
+        finally:
+            for key, value in old_env.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
 
     def test_account_usage_endpoint_requires_signed_in_customer(self):
         router.supabase_user_for_bearer = lambda token: {'id': 'user-1', 'email': 'u@example.com'} if token == 'valid-user-jwt' else None

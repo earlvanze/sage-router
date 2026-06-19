@@ -18,6 +18,8 @@ Hosted pricing page: https://sagerouter.dev/pricing
 
 The hosted Sage Router plans sell account management, generated API keys, quotas, route telemetry, fallback reliability, and support. Lite is $6/month for 10,000 included requests, Pro is $30/month for 50,000 included requests, and Max is $72/month for 200,000 included requests. A balanced path to $10k MRR is 100 Lite, 200 Pro, and 50 Max customers, which equals $10,200 MRR.
 
+Managed provider access is a future/private-beta path, not an active public plan. The public pricing metadata exposes `publicLaunch.managedProviderAccess`; it should remain disabled until provider resale terms, a margin policy, durable quotas/rate limits, and managed-access acceptable-use terms are ready.
+
 ## Hosted legal and compliance
 
 Terms: https://sagerouter.dev/terms

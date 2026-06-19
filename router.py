@@ -268,6 +268,17 @@ PUBLIC_LAUNCH_POSITIONING = {
         'support and private deployment guidance',
     ],
     'complianceBoundary': 'Customer-authorized provider access only; Sage Router does not grant unauthorized model access, pool provider accounts, or bypass provider terms.',
+    'managedProviderAccess': {
+        'enabled': False,
+        'status': 'disabled_pending_provider_terms',
+        'description': 'Future managed model-provider access is gated until provider resale terms, billing margin policy, abuse controls, and customer terms are ready.',
+        'requiredControls': [
+            'provider_resale_terms',
+            'margin_policy',
+            'rate_limits_and_durable_quotas',
+            'acceptable_use_managed_access_terms',
+        ],
+    },
 }
 PUBLIC_BASE_URL = (os.environ.get('SAGE_ROUTER_PUBLIC_BASE_URL') or 'https://sagerouter.dev').rstrip('/')
 MARKETING_BASE_URL = (os.environ.get('SAGE_ROUTER_MARKETING_BASE_URL') or 'https://sagerouter.dev').rstrip('/')
@@ -1790,6 +1801,20 @@ def public_plan_catalog():
 def public_launch_metadata():
     api_base_url = API_BASE_URL or 'https://api.sagerouter.dev'
     launch = json.loads(json.dumps(PUBLIC_LAUNCH_POSITIONING))
+    managed_provider_access = launch.get('managedProviderAccess') or {}
+    managed_provider_resale_enabled = str(os.environ.get('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED', '')).strip().lower() in {'1', 'true', 'yes', 'on'}
+    provider_terms_url = os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_URL', '').strip()
+    margin_policy_url = os.environ.get('SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL', '').strip()
+    if managed_provider_resale_enabled:
+        managed_provider_access['enabled'] = True
+        if provider_terms_url and margin_policy_url:
+            managed_provider_access['status'] = 'ready_for_private_beta'
+        else:
+            managed_provider_access['status'] = 'requires_readiness_verification'
+    managed_provider_access['providerTermsUrl'] = provider_terms_url
+    managed_provider_access['marginPolicyUrl'] = margin_policy_url
+    managed_provider_access['acceptableUseUrl'] = f"{MARKETING_BASE_URL}/acceptable-use"
+    launch['managedProviderAccess'] = managed_provider_access
     launch['pricingPage'] = f"{MARKETING_BASE_URL}/pricing"
     launch['comparisonPage'] = f"{MARKETING_BASE_URL}/compare/openrouter"
     launch['calculatorPage'] = f"{MARKETING_BASE_URL}/model-routing-calculator"

@@ -60,6 +60,12 @@ Provider access remains customer-authorized by default. Managed provider
 resale should only be introduced after explicit provider terms, billing, margin,
 and abuse controls are in place.
 
+The public `/pricing` metadata must keep `publicLaunch.managedProviderAccess`
+disabled by default. Turning on bundled/managed model access requires explicit
+provider resale terms, a published margin policy, durable quota and rate-limit
+enforcement, and managed-access acceptable-use terms before it can be marketed
+as a launchable offer.
+
 ## Near-term launch checklist
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
@@ -74,6 +80,10 @@ and abuse controls are in place.
 - Keep hosted positioning limited to routing/control-plane infrastructure until
   provider terms, billing, margin, and abuse controls support any managed
   provider resale offer.
+- Keep the managed provider access readiness guard active: default disabled,
+  with `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` allowed only when provider
+  resale terms and margin-policy URLs are configured and the legal/abuse-control
+  boundary is published.
 - Enable GitHub OAuth in Supabase after the GitHub App manifest approval code is
   available; the bootstrap must verify both Supabase management config and the
   browser-visible `/auth/v1/settings` provider state before treating this as

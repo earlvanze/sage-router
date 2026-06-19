@@ -15,6 +15,9 @@ SUPABASE_ANON_KEY="${SAGE_ROUTER_SUPABASE_ANON_KEY:-${PUBLIC_SUPABASE_ANON_KEY:-
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:-}"
 SUPABASE_SERVICE_ROLE_KEY="${SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_SERVICE_ROLE_KEY:-}}"
 ADMIN_TOKEN="${SAGE_ROUTER_API_KEY:-${SAGE_ROUTER_EDGE_TOKEN:-}}"
+MANAGED_PROVIDER_RESALE_ENABLED="${SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED:-0}"
+PROVIDER_RESALE_TERMS_URL="${SAGEROUTER_PROVIDER_RESALE_TERMS_URL:-}"
+PROVIDER_RESALE_MARGIN_POLICY_URL="${SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL:-}"
 SUPABASE_PUBLIC_GITHUB_ENABLED=""
 FAILURES=0
 
@@ -201,6 +204,52 @@ check_public_pricing_metadata() {
   else
     fail "public /pricing metadata incomplete: plans=${plans:-missing} apiBaseUrl=${api_base:-missing} openaiBaseUrl=${openai_base:-missing} checkoutPath=${checkout_path:-missing} billingPortalPath=${portal_path:-missing} apiKeyLimit=${api_key_limit:-missing} limits=${limits_ok:-missing} stripe=${stripe_ok:-missing} launch=${launch_ok:-missing}"
   fi
+}
+
+check_managed_provider_access_guard() {
+  local code enabled status terms_url margin_url acceptable_url controls_ok
+  code="$(http_code "${API_BASE%/}/pricing")"
+  if [[ "$code" != "200" ]]; then
+    rm -f /tmp/sage-router-readiness-body
+    fail "managed provider access guard could not read /pricing: HTTP ${code}"
+    return
+  fi
+  enabled="$(jq -r '.publicLaunch.managedProviderAccess.enabled // false' /tmp/sage-router-readiness-body)"
+  status="$(jq -r '.publicLaunch.managedProviderAccess.status // empty' /tmp/sage-router-readiness-body)"
+  terms_url="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsUrl // empty' /tmp/sage-router-readiness-body)"
+  margin_url="$(jq -r '.publicLaunch.managedProviderAccess.marginPolicyUrl // empty' /tmp/sage-router-readiness-body)"
+  acceptable_url="$(jq -r '.publicLaunch.managedProviderAccess.acceptableUseUrl // empty' /tmp/sage-router-readiness-body)"
+  controls_ok="$(jq -r '
+    ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("provider_resale_terms")) and
+    ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("margin_policy")) and
+    ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("rate_limits_and_durable_quotas")) and
+    ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("acceptable_use_managed_access_terms"))
+  ' /tmp/sage-router-readiness-body)"
+  rm -f /tmp/sage-router-readiness-body
+
+  case "${MANAGED_PROVIDER_RESALE_ENABLED,,}" in
+    1|true|yes|on)
+      if [[ "$enabled" == "true" &&
+            "$status" == "ready_for_private_beta" &&
+            -n "$PROVIDER_RESALE_TERMS_URL" &&
+            -n "$PROVIDER_RESALE_MARGIN_POLICY_URL" &&
+            "$terms_url" == "$PROVIDER_RESALE_TERMS_URL" &&
+            "$margin_url" == "$PROVIDER_RESALE_MARGIN_POLICY_URL" &&
+            "$acceptable_url" == "${MARKETING_BASE%/}/acceptable-use" &&
+            "$controls_ok" == "true" ]]; then
+        pass "managed provider access is explicitly enabled with resale terms, margin policy, quotas, and acceptable-use controls"
+      else
+        fail "managed provider access enabled without complete controls, including managed-access acceptable-use boundary: enabled=${enabled} status=${status:-missing} terms=${terms_url:+present} margin=${margin_url:+present} acceptableUse=${acceptable_url:-missing} controls=${controls_ok:-missing}"
+      fi
+      ;;
+    *)
+      if [[ "$enabled" == "false" && "$status" == "disabled_pending_provider_terms" && "$controls_ok" == "true" ]]; then
+        pass "managed provider access remains disabled until provider resale terms, margin policy, quotas, and acceptable-use controls are ready"
+      else
+        fail "managed provider access guard unexpected: enabled=${enabled} status=${status:-missing} controls=${controls_ok:-missing}, expected disabled_pending_provider_terms"
+      fi
+      ;;
+  esac
 }
 
 check_stripe_webhook_guard() {
@@ -402,6 +451,9 @@ check_legal_pages() {
   if [[ "$acceptable_code" == "200" ]] && ! grep -q "authorized to use" /tmp/sage-router-readiness-body; then
     acceptable_code="200:missing-authorized-use"
   fi
+  if [[ "$acceptable_code" == "200" ]] && ! grep -q "Managed Provider Access" /tmp/sage-router-readiness-body; then
+    acceptable_code="200:missing-managed-provider-access-boundary"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
@@ -531,6 +583,7 @@ check_browser_api_cors
 check_static_security_headers "${APP_BASE%/}/login" "hosted app"
 check_static_security_headers "${MARKETING_BASE%/}/pricing" "marketing"
 check_public_pricing_metadata
+check_managed_provider_access_guard
 check_stripe_webhook_guard
 check_hosted_onboarding_pages
 check_public_supabase_auth_settings
