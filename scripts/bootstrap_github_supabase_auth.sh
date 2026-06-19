@@ -24,7 +24,7 @@ configure_supabase() {
   SUPABASE_ACCESS_TOKEN="$SUPABASE_ACCESS_TOKEN" \
   SAGEROUTER_GITHUB_CLIENT_ID="$GITHUB_CLIENT_ID" \
   SAGEROUTER_GITHUB_CLIENT_SECRET="$GITHUB_CLIENT_SECRET" \
-    "${script_dir}/configure_supabase_github_auth.sh"
+    bash "${script_dir}/configure_supabase_github_auth.sh"
 }
 
 if [[ -n "$GITHUB_CLIENT_ID" && -n "$GITHUB_CLIENT_SECRET" ]]; then
@@ -102,7 +102,7 @@ GitHub requires an owner-approved browser step before it returns app credentials
 2. Approve the app named "${APP_NAME}".
 3. GitHub redirects to ${AUTH_SITE_URL}/github-app-manifest.html?code=...
 4. Rerun this script with:
-   SAGEROUTER_GITHUB_APP_MANIFEST_CODE=<code> scripts/bootstrap_github_supabase_auth.sh
+   SAGEROUTER_GITHUB_APP_MANIFEST_CODE=<code> bash scripts/bootstrap_github_supabase_auth.sh
 
 The callback configured for Supabase will be:
   ${callback_url}

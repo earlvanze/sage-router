@@ -111,13 +111,13 @@ Bootstrap the GitHub app and wire Supabase without opening the Supabase dashboar
 
 ```bash
 set -a; source /home/digit/.openclaw/.env; set +a
-scripts/bootstrap_github_supabase_auth.sh
+bash scripts/bootstrap_github_supabase_auth.sh
 ```
 
 GitHub requires an owner-approved browser step before it returns app credentials. After approving the app, GitHub redirects to `/github-app-manifest.html` with a temporary `code`; rerun the same script with that code:
 
 ```bash
-SAGEROUTER_GITHUB_APP_MANIFEST_CODE=... scripts/bootstrap_github_supabase_auth.sh
+SAGEROUTER_GITHUB_APP_MANIFEST_CODE=... bash scripts/bootstrap_github_supabase_auth.sh
 ```
 
 If a GitHub OAuth App already exists, pass its credentials directly:
@@ -126,7 +126,7 @@ If a GitHub OAuth App already exists, pass its credentials directly:
 SUPABASE_ACCESS_TOKEN=... \
 SAGEROUTER_GITHUB_CLIENT_ID=... \
 SAGEROUTER_GITHUB_CLIENT_SECRET=... \
-scripts/configure_supabase_github_auth.sh
+bash scripts/configure_supabase_github_auth.sh
 ```
 
 Check the current hosted launch gates with:
