@@ -23,6 +23,7 @@
         <a href="/">Home</a>
         <a href="/pricing">Pricing</a>
         <a href="/models">Models</a>
+        <a href="/docs/codex">Codex</a>
         <a href="/compare/openrouter">Compare</a>
         <a href="/status">Status</a>
         <a href="/account.html">Account</a>
@@ -38,6 +39,7 @@
         <div class="actions">
           <a class="button primary" href="/account.html">Create hosted API key</a>
           <a class="button secondary" href="/models">Browse models</a>
+          <a class="button secondary" href="/docs/codex">Codex setup</a>
           <a class="button secondary" href="/pricing">View pricing</a>
           <a class="button secondary" href="/status">Check status</a>
         </div>
@@ -135,15 +137,15 @@ name = "Sage Router Hosted"
 base_url = "https://api.sagerouter.dev/v1/"
 env_key = "OPENAI_API_KEY"
 wire_api = "responses"
-TOML
 
-cat &gt; ~/.codex/sage-router-hosted.config.toml &lt;&lt;'TOML'
+[profiles.sage-router-frontier]
 model_provider = "sage-router-hosted"
 model = "sage-router/frontier"
 TOML
 
 export OPENAI_API_KEY=sk_sage_your_key_here
-codex --profile sage-router-hosted</code></pre>
+codex --profile sage-router-frontier</code></pre>
+          <p class="muted"><a href="/docs/codex">Read the dedicated Codex setup page</a> for hosted, local port <code>8790</code>, and Tailnet profiles.</p>
         </article>
       </section>
 
@@ -177,6 +179,7 @@ codex --profile sage-router-hosted</code></pre>
       <a href="/">Home</a>
       <a href="/pricing">Pricing</a>
       <a href="/quickstart">Quickstart</a>
+      <a href="/docs/codex">Codex</a>
       <a href="/models">Models</a>
       <a href="/status">Status</a>
       <a href="/terms">Terms</a>

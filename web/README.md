@@ -73,6 +73,7 @@ The MVP treats discoverability as first-class. Current static assets include:
 - Dedicated hosted pricing page at `/pricing` with plan limits, compliance-safe positioning, and $10k MRR launch math.
 - Dedicated managed-access private beta intake at `/managed-access` with no-secret qualification buckets for one-subscription demand capture.
 - Dedicated API quickstart page at `/quickstart` with hosted `sk_sage_*` key setup, `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, `sage-router/frontier`, curl, JavaScript, Python, Codex, and error troubleshooting.
+- Dedicated Codex setup page at `/docs/codex` with hosted `https://api.sagerouter.dev/v1/`, local `http://127.0.0.1:8790/v1/`, Tailnet `http://<tailnet-host>:8790/v1/`, `wire_api = "responses"`, and `sage-router/frontier` profiles.
 - No-login model routing calculator at `/model-routing-calculator` for acquisition and workflow qualification; it recommends Lite/Pro/Max and sends the selected tier into preselected checkout on `/account.html?plan=...`.
 - FAQ content intended for snippets and LLM ingestion.
 - JSON-LD SoftwareApplication and FAQPage schema in index.html.
@@ -91,7 +92,7 @@ Next recommended additions after MVP:
 - Keep the model routing calculator in navigation, sitemap, LLM discovery, and readiness checks.
 - Keep the public `/security` trust page in navigation, sitemap, LLM discovery, and readiness checks whenever hosted edge authentication copy changes.
 - Keep the public `/support` page in navigation, sitemap, LLM discovery, and readiness checks whenever hosted account, billing, quota, reliability, or security escalation copy changes.
-- Dedicated docs pages for OpenAI-compatible, Anthropic-compatible, Ollama, Gemini, Cursor, Aider, Continue, Codex CLI, Claude Code, and OpenHands setup.
+- Dedicated docs pages for OpenAI-compatible, Anthropic-compatible, Ollama, Gemini, Cursor, Aider, Continue, Claude Code, and OpenHands setup.
 - Expand JSON-LD once final production docs URLs, logo/social image, and hosted beta URLs are stable.
 - Real case-study/benchmark pages targeting `automate model selection`, `agent model router`, and `BYOK LLM gateway` searches.
 
@@ -103,7 +104,7 @@ The MVP page now encodes the intended business model:
 - Paid Sage Cloud / hosted control plane for team config sync, provider health monitoring, hosted dashboards, uptime checks, routing policy sync, and optional reliability.
 - Optional managed cloud fallback/failover, framed as BYOK/BYOS reliability infrastructure, not model resale.
 - Enterprise deployment/support: private deployments, compliance/security review, custom routing strategies, audit logs, usage visibility, team API keys, and private deployments.
-- Developer-first docs as acquisition, with prominent tutorial CTAs for Codex, Claude Code, OpenClaw, Ollama/Ollama Cloud, and OpenAI-compatible endpoint use.
+- Developer-first docs as acquisition, with prominent tutorial CTAs for the public Codex setup page, Claude Code, OpenClaw, Ollama/Ollama Cloud, and OpenAI-compatible endpoint use.
 - Provider profiles/routing presets for coding, fast chat, local fallback, and hybrid local/cloud routes.
 - Crypto-native billing remains planned, with Algorand-native billing and BTC bridge support.
 

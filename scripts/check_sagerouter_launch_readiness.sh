@@ -633,6 +633,48 @@ check_marketing_quickstart_page() {
   fi
 }
 
+check_marketing_codex_docs_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/docs/codex")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router Codex Setup" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'base_url = "https://api.sagerouter.dev/v1/"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-hosted-base-url"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'base_url = "http://127.0.0.1:8790/v1/"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-local-8790-base-url"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'wire_api = "responses"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-responses-wire-api"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "sage-router/frontier" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-frontier-profile"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Do not paste prompts" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-no-secrets-boundary"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/docs/codex" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-codex-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Codex setup: ${MARKETING_BASE%/}/docs/codex" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-codex-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing Codex setup page is live in sitemap and LLM discovery"
+  else
+    fail "marketing Codex setup page incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_model_routing_calculator() {
   local page_code sitemap_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/model-routing-calculator")"
@@ -917,6 +959,7 @@ check_marketing_pricing_page
 check_marketing_managed_access_page
 check_marketing_model_catalog_page
 check_marketing_quickstart_page
+check_marketing_codex_docs_page
 check_model_routing_calculator
 check_legal_pages
 check_managed_provider_prerequisite_pages

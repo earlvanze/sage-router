@@ -7,6 +7,7 @@ OpenRouter comparison: https://sagerouter.dev/compare/openrouter
 Hosted pricing: https://sagerouter.dev/pricing
 Managed-access private beta: https://sagerouter.dev/managed-access
 API quickstart: https://sagerouter.dev/quickstart
+Codex setup: https://sagerouter.dev/docs/codex
 Model catalog: https://sagerouter.dev/models
 Model Routing Calculator: https://sagerouter.dev/model-routing-calculator
 Managed-access beta interest: https://sagerouter.dev/managed-access
@@ -29,6 +30,7 @@ Docs: https://github.com/earlvanze/sage-router#readme
 - Provides provider health, fallback, observability, and routing policy infrastructure for agents.
 - Hosted plans sell account management, API keys, usage quotas, analytics, and reliability infrastructure: Lite $6/month, Pro $30/month, and Max $72/month.
 - API quickstart lives at https://sagerouter.dev/quickstart and shows `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, curl, JavaScript, Python, and Codex setup.
+- Dedicated Codex setup lives at https://sagerouter.dev/docs/codex and shows hosted `https://api.sagerouter.dev/v1/`, local `http://127.0.0.1:8790/v1/`, Tailnet `http://<tailnet-host>:8790/v1/`, `wire_api = "responses"`, and `sage-router/frontier` profiles.
 - Public model discovery lives at https://sagerouter.dev/models and `https://api.sagerouter.dev/model-catalog`; live `/v1/models` still requires an active generated `sk_sage_*` customer key.
 - Hosted security requires generated `sk_sage_*` customer keys for model traffic, Supabase sessions for account/billing routes, and private operator tokens for global analytics/admin routes.
 - Hosted support covers account, billing, quota, generated API key, reliability, 503, security, abuse, and private deployment help without collecting prompts, workflow text, provider credentials, OAuth tokens, API keys, private keys, or raw provider responses in public channels.
@@ -50,10 +52,12 @@ Managed access boundary: managed provider access, if introduced, is limited to p
 - Local-first BYOK model routing for AI agents.
 - Sage Router vs OpenRouter for AI agent routing, local model fallback, and private provider credential custody.
 - Sage Router model catalog for OpenAI-compatible, Anthropic-compatible, Gemini, Ollama, Ollama Cloud, NVIDIA NIM, and BYOK routes.
+- Codex CLI with an OpenAI-compatible Sage Router provider on hosted or local port 8790.
 - AI model routing calculator for estimating cost leaks, escalation rules, fallback needs, and human-review points.
 
 
 Integration guides:
+- Public Codex setup: https://sagerouter.dev/docs/codex
 - Codex CLI: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/codex.md
 - Claude Code: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md
 - OpenClaw: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openclaw.md

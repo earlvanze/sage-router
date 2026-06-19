@@ -81,7 +81,7 @@ claim, or runtime feature flag.
 ## Near-term launch checklist
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
-- Keep `/pricing`, `/quickstart`, `/status`, `/support`, `/account.html`, `/login.html`,
+- Keep `/pricing`, `/quickstart`, `/docs/codex`, `/status`, `/support`, `/account.html`, `/login.html`,
   `/api/waitlist`, `/models`, `/managed-access`, `/compare/openrouter`, `/model-routing-calculator`, `/terms`,
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
@@ -92,6 +92,9 @@ claim, or runtime feature flag.
 - Keep `/quickstart` as the first hosted API request path with
   `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, `sage-router/frontier`,
   curl, JavaScript, Python, Codex, and 401/402/429/503 troubleshooting.
+- Keep `/docs/codex` as the dedicated Codex CLI path with hosted, local port
+  `8790`, and Tailnet examples using `wire_api = "responses"` and
+  `sage-router/frontier`.
 - Keep `/support` as the safe escalation path for account, billing, Stripe
   portal, manual/crypto settlement, quota, generated-key, reliability, 503,
   security, abuse, and private deployment issues. Public support channels must

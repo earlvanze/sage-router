@@ -78,6 +78,7 @@ The current public deployment is intentionally split:
 - `https://api.sagerouter.dev` is a Cloudflare-proxied GCP edge VM. The edge health-checks Tailnet Sage Router installs plus the Google-hosted Sage Router API origin, then routes to the lowest-latency healthy backend.
 - Tailnet Edge is the reliability layer for routing to healthy Sage Router installs on a Tailnet. In public mode, set `SAGE_ROUTER_EDGE_AUTH_MODE=supabase`: `/pricing`, `/plans`, `/model-catalog`, and `/features/agent-native` are public control-plane metadata; `/pricing` also exposes `publicLaunch.managedProviderAccess`, which must stay disabled until provider resale terms, a margin policy, durable quota/rate-limit enforcement, and managed-access acceptable-use terms are ready. The marketing site publishes `/models`, `/provider-resale-terms`, and `/margin-policy` as reviewable prerequisites, but those pages do not enable managed resale by themselves; `/v1/*` and `/v1beta/*` model APIs accept active generated `sk_sage_*` customer API keys; anonymous model API failures stay fail-closed but include account, pricing, status, OpenAI base URL, and API-key-prefix guidance for setup debugging; account/billing UI requests preserve Supabase user JWTs and should be pinned to a hosted control-plane origin with `SAGE_ROUTER_CONTROL_PLANE_UPSTREAM`; operator analytics such as `/analytics/funnel` requires the private edge admin token, is pinned to the control plane, and can inject `SAGE_ROUTER_CONTROL_PLANE_TOKEN` separately from the Tailnet backend token. Browser login belongs on `app.sagerouter.dev`; `api.sagerouter.dev` should remain API-only. Generated keys and account/billing JWT routes are rate-limited by `SAGE_ROUTER_EDGE_RATE_LIMITS`; generated model API keys can also be counted against durable monthly Supabase quotas with `SAGE_ROUTER_EDGE_QUOTA_ENABLED=1` after applying `supabase/migrations/20260619021500_sage_router_usage_quotas.sql`. Supabase user JWT validation uses `SAGE_ROUTER_EDGE_AUTH_CACHE_SECONDS`, but generated customer API keys default to `SAGE_ROUTER_EDGE_API_KEY_AUTH_CACHE_SECONDS=0` so revocation takes effect on the next request. The private edge admin token is exempt for recovery. Hosted origins should also set `SAGE_ROUTER_CLIENT_AUTH_REQUIRED=1`; direct origin requests to `/v1/models`, setup, admin, discovery, and dashboard config routes must fail closed unless they carry a valid operator token, and generated customer keys are only accepted for model metadata/traffic.
 - `https://sagerouter.dev/quickstart` is the hosted API first-request path. It shows `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` key setup, the `sage-router/frontier` profile, curl, JavaScript, Python, and Codex examples, plus 401/402/429/503 troubleshooting.
+- `https://sagerouter.dev/docs/codex` is the dedicated Codex CLI setup path. It shows hosted `https://api.sagerouter.dev/v1/`, local `http://127.0.0.1:8790/v1/`, and Tailnet `http://<tailnet-host>:8790/v1/` profiles using `wire_api = "responses"` and `sage-router/frontier`.
 
 ### Hosted API Quickstart
 
@@ -125,7 +126,8 @@ Customer-facing hosted pricing and plan positioning are published at
 `https://sagerouter.dev/pricing`. The launch math and $10k MRR operating
 plan live in [docs/saas-launch-10k-mrr.md](docs/saas-launch-10k-mrr.md).
 For acquisition and onboarding, `https://sagerouter.dev/quickstart` gives new
-customers a first hosted API request path, while
+customers a first hosted API request path, `https://sagerouter.dev/docs/codex`
+gives Codex CLI users hosted, local port 8790, and Tailnet profile examples, while
 `https://sagerouter.dev/model-routing-calculator` helps prospects estimate
 routing savings, escalation rules, fallback gaps, and review rates for one
 workflow before they create a hosted API key. The calculator recommends
@@ -282,19 +284,16 @@ export ANTHROPIC_API_KEY=irrelevant
 
 ### Codex CLI on port 8790
 
-Codex CLI can use Sage Router through the OpenAI Responses-compatible endpoint. Add the provider to `~/.codex/config.toml`:
+Codex CLI can use Sage Router through the OpenAI Responses-compatible endpoint. The public setup guide is published at `https://sagerouter.dev/docs/codex`. For local port 8790, add the provider and profile to `~/.codex/config.toml`:
 
 ```toml
 [model_providers.sage-router]
 name = "Sage Router"
 base_url = "http://127.0.0.1:8790/v1/"
-env_key = "OPENAI_API_KEY"
+env_key = "SAGE_ROUTER_API_KEY"
 wire_api = "responses"
-```
 
-Then create `~/.codex/sage-router.config.toml`:
-
-```toml
+[profiles.sage-router-frontier]
 model_provider = "sage-router"
 model = "sage-router/frontier"
 ```
@@ -302,8 +301,8 @@ model = "sage-router/frontier"
 Run Codex with:
 
 ```bash
-export OPENAI_API_KEY=local-router
-codex --profile sage-router
+export SAGE_ROUTER_API_KEY=local-router
+codex --profile sage-router-frontier
 ```
 
 The `sage-router/frontier` model name selects the bundled `frontier` routing profile from `router-profiles.json`.
