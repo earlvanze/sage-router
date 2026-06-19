@@ -34,6 +34,7 @@ function App() {
             <a href="#security">Security</a>
             <a href="#automation">Automation</a>
             <a href="#analytics">Analytics</a>
+            <a href="/compare/openrouter">Compare</a>
             <a href="/status">Status</a>
             <a href="/analytics.html">Dashboard</a>
             <a href="/login.html">Login</a>
@@ -64,6 +65,9 @@ function App() {
               </a>
               <a className="button secondary" href="/status">
                 View public status
+              </a>
+              <a className="button secondary" href="/compare/openrouter">
+                Compare OpenRouter
               </a>
               <a className="button secondary" href="/login.html">
                 Sign in
@@ -168,6 +172,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
             and alerts when a provider degrades.
           </p>
           <p><a className="inlineLink" href="/analytics.html">Open the private analytics dashboard →</a></p>
+          <p><a className="inlineLink" href="/compare/openrouter">Read the Sage Router vs OpenRouter comparison →</a></p>
         </div>
         <div className="cards">
           <article>
@@ -349,6 +354,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <span>© Sage Router</span>
         <a href="https://github.com/earlvanze/sage-router">GitHub</a>
         <a href="/login.html">Login</a>
+        <a href="/compare/openrouter">Compare OpenRouter</a>
         <a href="/status">Status</a>
         <a href="https://github.com/earlvanze/sage-router#readme">Docs</a>
       </footer>

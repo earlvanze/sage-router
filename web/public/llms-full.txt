@@ -6,7 +6,7 @@ Sage Router is an open-source local-first routing layer for AI agents and develo
 
 ## Primary categories
 
-AI model router; LLM router; provider routing; model selection automation; AI agent model routing; OpenAI-compatible router; Anthropic-compatible router; Ollama routing; BYOK AI gateway; local-first AI router.
+AI model router; LLM router; provider routing; model selection automation; AI agent model routing; OpenAI-compatible router; Anthropic-compatible router; Ollama routing; BYOK AI gateway; local-first AI router; OpenRouter alternative for agents.
 
 ## Product promise
 
@@ -15,6 +15,12 @@ Better model routing for agentic systems using the customer own authorized subsc
 ## Architecture and security
 
 Default architecture keeps provider credentials on the customer machine or server. Sage Router should provide inspectable routing policy, health metadata, deployment helpers, and optional reliability layers without making key custody the default.
+
+## Sage Router vs OpenRouter
+
+Comparison page: https://sagerouter.dev/compare/openrouter
+
+Sage Router is positioned as a local-first OpenRouter alternative for agents and teams that want one endpoint, BYOK provider routing, local Ollama support, health-aware fallback, Tailnet/private router resilience, hosted account/API key management, and private credential custody by default. OpenRouter-style hosted APIs are useful for marketplace-style model access with minimal local infrastructure; Sage Router is optimized for agent harnesses, customer-controlled provider access, and hybrid local/cloud deployments.
 
 ## How to automate AI model selection
 

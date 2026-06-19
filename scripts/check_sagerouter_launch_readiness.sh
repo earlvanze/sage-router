@@ -3,6 +3,7 @@ set -euo pipefail
 
 API_BASE="${SAGEROUTER_API_BASE_URL:-https://api.sagerouter.dev}"
 APP_BASE="${SAGEROUTER_APP_BASE_URL:-https://app.sagerouter.dev}"
+MARKETING_BASE="${SAGEROUTER_MARKETING_BASE_URL:-https://sagerouter.dev}"
 ORIGIN_BASE="${SAGEROUTER_ORIGIN_BASE_URL:-}"
 SUPABASE_PROJECT_REF="${SUPABASE_PROJECT_REF:-awtangrlqqsdpksarhwo}"
 SUPABASE_URL="${SAGE_ROUTER_SUPABASE_URL:-${PUBLIC_SUPABASE_URL:-https://${SUPABASE_PROJECT_REF}.supabase.co}}"
@@ -155,6 +156,27 @@ check_waitlist_endpoint() {
   fi
 }
 
+check_marketing_comparison_page() {
+  local page_code sitemap_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/compare/openrouter")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router vs OpenRouter" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/compare/openrouter" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-compare-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" ]]; then
+    pass "marketing OpenRouter comparison page is live and in sitemap"
+  else
+    fail "marketing OpenRouter comparison incomplete: page=${page_code} sitemap=${sitemap_code}"
+  fi
+}
+
 check_admin_token() {
   if [[ -z "$ADMIN_TOKEN" ]]; then
     warn "SAGE_ROUTER_API_KEY/SAGE_ROUTER_EDGE_TOKEN not set; skipped private admin token probe"
@@ -241,6 +263,7 @@ check_public_pricing_metadata
 check_stripe_webhook_guard
 check_hosted_onboarding_pages
 check_waitlist_endpoint
+check_marketing_comparison_page
 check_admin_token
 check_origin_auth_gate
 check_supabase_auth_config

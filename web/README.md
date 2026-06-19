@@ -59,7 +59,7 @@ The MVP treats discoverability as first-class. Current static assets include:
 
 Next recommended additions after MVP:
 
-- Dedicated `/compare/openrouter` page if the site moves beyond one static page.
+- Dedicated `/compare/openrouter` page for OpenRouter-alternative acquisition traffic.
 - Dedicated docs pages for OpenAI-compatible, Anthropic-compatible, Ollama, Gemini, Cursor, Aider, Continue, Codex CLI, Claude Code, and OpenHands setup.
 - Expand JSON-LD once final production docs URLs, logo/social image, and hosted beta URLs are stable.
 - Real case-study/benchmark pages targeting `automate model selection`, `agent model router`, and `BYOK LLM gateway` searches.

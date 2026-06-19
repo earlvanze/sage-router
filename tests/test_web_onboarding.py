@@ -82,6 +82,24 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("hosted waitlist endpoint is configured", readiness)
         self.assertIn("GET /api/waitlist", readme)
 
+    def test_openrouter_comparison_page_is_discoverable(self):
+        page = self.read_text("web", "public", "compare", "openrouter.html")
+        sitemap = self.read_public("sitemap.xml")
+        llms = self.read_public("llms.txt")
+        llms_full = self.read_public("llms-full.txt")
+        readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")
+        landing = self.read_text("web", "src", "main.jsx")
+        self.assertIn("Sage Router vs OpenRouter", page)
+        self.assertIn('href="https://sagerouter.dev/compare/openrouter"', page)
+        self.assertIn("Create hosted API key", page)
+        self.assertIn("Bring your own authorized provider access", landing)
+        self.assertIn("/compare/openrouter", landing)
+        self.assertIn("https://sagerouter.dev/compare/openrouter", sitemap)
+        self.assertIn("OpenRouter comparison: https://sagerouter.dev/compare/openrouter", llms)
+        self.assertIn("OpenRouter alternative for agents", llms_full)
+        self.assertIn("SAGEROUTER_MARKETING_BASE_URL", readiness)
+        self.assertIn("marketing OpenRouter comparison page is live and in sitemap", readiness)
+
 
 if __name__ == "__main__":
     unittest.main()
