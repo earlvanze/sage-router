@@ -4,6 +4,7 @@ import importlib.util
 import os
 import sys
 import unittest
+from io import BytesIO
 from pathlib import Path
 
 
@@ -155,6 +156,36 @@ class TailnetEdgeAuthTests(unittest.TestCase):
                 ctx = self.edge.EdgeHandler._auth_context(Handler())
                 self.assertEqual("public_control_plane", ctx["type"])
                 self.assertFalse(ctx["preserve_authorization"])
+
+    def test_head_json_response_sends_headers_without_body(self):
+        class Handler:
+            command = "HEAD"
+            headers = {"Origin": "https://app.sagerouter.dev"}
+
+            def __init__(self):
+                self.status = None
+                self.sent_headers = {}
+                self.wfile = BytesIO()
+
+            def send_response(self, status):
+                self.status = status
+
+            def send_header(self, key, value):
+                self.sent_headers[key] = value
+
+            def end_headers(self):
+                pass
+
+            _cors_headers = self.edge.EdgeHandler._cors_headers
+
+        handler = Handler()
+        self.edge.EdgeHandler._json(handler, 200, {"status": "ok"})
+
+        self.assertEqual(200, handler.status)
+        self.assertEqual("application/json", handler.sent_headers["Content-Type"])
+        self.assertGreater(int(handler.sent_headers["Content-Length"]), 0)
+        self.assertIn("HEAD", handler.sent_headers["Access-Control-Allow-Methods"])
+        self.assertEqual(b"", handler.wfile.getvalue())
 
     def test_control_plane_route_predicate_is_narrow(self):
         self.assertTrue(self.edge.should_use_control_plane("/pricing"))

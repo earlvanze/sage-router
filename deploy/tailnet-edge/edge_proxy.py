@@ -589,7 +589,8 @@ class EdgeHandler(BaseHTTPRequestHandler):
             self.send_header(key, str(value))
         self._cors_headers()
         self.end_headers()
-        self.wfile.write(body)
+        if self.command != "HEAD":
+            self.wfile.write(body)
 
     def _cors_headers(self):
         origin = self.headers.get("Origin") or ""
@@ -598,7 +599,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
         elif origin and origin in CORS_ORIGINS:
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
-        self.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Authorization,Content-Type,Stripe-Signature,X-Requested-With")
         self.send_header("Access-Control-Max-Age", "600")
 
@@ -644,7 +645,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
         })
 
     def _proxy(self):
-        if urlsplit(self.path).path == "/edge/health" and self.command == "GET":
+        if urlsplit(self.path).path == "/edge/health" and self.command in {"GET", "HEAD"}:
             self._edge_health()
             return
         if self.command == "OPTIONS":
@@ -715,7 +716,8 @@ class EdgeHandler(BaseHTTPRequestHandler):
             conn = None
             try:
                 conn = upstream.connection(timeout=REQUEST_TIMEOUT)
-                conn.request(self.command, upstream.target_path(self.path), body=body, headers=headers)
+                upstream_method = "GET" if self.command == "HEAD" else self.command
+                conn.request(upstream_method, upstream.target_path(self.path), body=body, headers=headers)
                 resp = conn.getresponse()
                 if resp.status in RETRY_STATUSES and index < len(upstreams) - 1:
                     detail = resp.read(4096).decode("utf-8", errors="replace")
@@ -746,6 +748,9 @@ class EdgeHandler(BaseHTTPRequestHandler):
                 self.send_header("Connection", "close")
                 self._cors_headers()
                 self.end_headers()
+                if self.command == "HEAD":
+                    resp.read(READ_CHUNK_SIZE)
+                    return
                 while True:
                     chunk = resp.read(READ_CHUNK_SIZE)
                     if not chunk:
@@ -766,6 +771,9 @@ class EdgeHandler(BaseHTTPRequestHandler):
         self._json(502, {"error": "all sage-router upstreams failed", "attempts": attempts})
 
     def do_GET(self):
+        self._proxy()
+
+    def do_HEAD(self):
         self._proxy()
 
     def do_POST(self):

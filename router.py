@@ -8440,7 +8440,7 @@ class Handler(BaseHTTPRequestHandler):
             allow_origin = origin if origin in CORS_ORIGINS else CORS_ORIGINS[0]
         self.send_header('Access-Control-Allow-Origin', allow_origin)
         self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type, Stripe-Signature')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS')
         self.send_header('Vary', 'Origin')
 
     def do_OPTIONS(self):
@@ -8459,7 +8459,8 @@ class Handler(BaseHTTPRequestHandler):
                 if value:
                     self.send_header(key, str(value))
             self.end_headers()
-            self.wfile.write(body)
+            if self.command != 'HEAD':
+                self.wfile.write(body)
         except (BrokenPipeError, ConnectionResetError):
             logger.warning("Client disconnected before response could be written")
 
@@ -8473,7 +8474,8 @@ class Handler(BaseHTTPRequestHandler):
                 if value:
                     self.send_header(key, str(value))
             self.end_headers()
-            self.wfile.write(body)
+            if self.command != 'HEAD':
+                self.wfile.write(body)
         except (BrokenPipeError, ConnectionResetError):
             logger.warning("Client disconnected before binary response could be written")
 
@@ -8516,7 +8518,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header('Content-Length', str(len(body)))
                 self.send_cors_headers()
                 self.end_headers()
-                self.wfile.write(body)
+                if self.command != 'HEAD':
+                    self.wfile.write(body)
             except OSError:
                 self.write_json(500, {'error': 'dashboard_not_found'})
             return
@@ -8608,7 +8611,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header('Content-Length', str(len(body)))
                 self.send_cors_headers()
                 self.end_headers()
-                self.wfile.write(body)
+                if self.command != 'HEAD':
+                    self.wfile.write(body)
             except OSError:
                 self.write_json(500, {'error': 'dashboard_not_found'})
             return
@@ -8743,6 +8747,9 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.send_response(404)
             self.end_headers()
+
+    def do_HEAD(self):
+        self.do_GET()
 
     def do_POST(self):
         if self.path == '/setup/provider':

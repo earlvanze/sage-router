@@ -353,6 +353,7 @@ class SaaSAuthTests(unittest.TestCase):
         router.Handler.do_OPTIONS(opt)
         self.assertEqual(204, opt.status)
         self.assertIn('Authorization', opt.sent_headers.get('Access-Control-Allow-Headers'))
+        self.assertIn('HEAD', opt.sent_headers.get('Access-Control-Allow-Methods'))
 
         for path, expected in (
             ('/billing/stripe/checkout', 'stripe_not_configured'),
@@ -362,6 +363,36 @@ class SaaSAuthTests(unittest.TestCase):
             handler = Dummy(path)
             router.Handler.do_POST(handler)
             self.assertEqual(expected, handler.payload['error'])
+
+    def test_head_json_response_sends_headers_without_body(self):
+        class Dummy:
+            command = 'HEAD'
+            headers = {'Origin': 'https://sagerouter.dev'}
+
+            def __init__(self):
+                self.status = None
+                self.sent_headers = {}
+                self.wfile = BytesIO()
+
+            def send_response(self, status):
+                self.status = status
+
+            def send_header(self, key, value):
+                self.sent_headers[key] = value
+
+            def end_headers(self):
+                pass
+
+            send_cors_headers = router.Handler.send_cors_headers
+
+        handler = Dummy()
+        router.Handler.write_json(handler, 200, {'status': 'ok'})
+
+        self.assertEqual(200, handler.status)
+        self.assertEqual('application/json', handler.sent_headers['Content-Type'])
+        self.assertGreater(int(handler.sent_headers['Content-Length']), 0)
+        self.assertIn('HEAD', handler.sent_headers['Access-Control-Allow-Methods'])
+        self.assertEqual(b'', handler.wfile.getvalue())
 
     def test_public_launch_metadata_exposes_onboarding_urls(self):
         metadata = router.public_launch_metadata()
