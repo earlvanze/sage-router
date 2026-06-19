@@ -25,6 +25,16 @@ function percent(value) {
   return `${(asNumber(value) * 100).toFixed(1)}%`;
 }
 
+function esc(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;',
+  }[char]));
+}
+
 function setText(id, value) {
   const el = $(id);
   if (el) el.textContent = value;
@@ -66,7 +76,7 @@ function renderPlanMix(byPlan = {}) {
   const rows = names.sort().map((name) => {
     const plan = byPlan[name] || {};
     return `<tr>
-      <td><span class="pill">${name}</span></td>
+      <td><span class="pill">${esc(name)}</span></td>
       <td>${integer(plan.paidCustomers ?? plan.currentCustomers)}</td>
       <td>${integer(plan.targetCustomers)}</td>
       <td>${integer(plan.remainingToTarget ?? plan.customerGap)}</td>
@@ -77,6 +87,28 @@ function renderPlanMix(byPlan = {}) {
   $('plan-mix').innerHTML = `<table>
     <thead><tr><th>Plan</th><th>Current</th><th>Target</th><th>Gap</th><th>Current MRR</th><th>Target MRR</th></tr></thead>
     <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function gapLabel(row = {}) {
+  if (row.metric === 'mrrTargetAttainment') return money(row.gap);
+  return percent(row.gap);
+}
+
+function renderBottlenecks(rows = []) {
+  if (!rows.length) {
+    $('bottlenecks').innerHTML = '<div class="empty">All tracked launch targets are on track for this window.</div>';
+    return;
+  }
+  $('bottlenecks').innerHTML = `<table>
+    <thead><tr><th>Stage</th><th>Current</th><th>Target</th><th>Gap</th><th>Next action</th></tr></thead>
+    <tbody>${rows.map(row => `<tr>
+      <td><span class="pill">${esc(row.label || row.metric)}</span></td>
+      <td>${percent(row.actualRate)}</td>
+      <td>${row.targetRate == null ? '--' : percent(row.targetRate)}</td>
+      <td>${gapLabel(row)}</td>
+      <td>${esc(row.action || '')}</td>
+    </tr>`).join('')}</tbody>
   </table>`;
 }
 
@@ -111,6 +143,7 @@ function renderFunnel(data) {
   const privacyEl = $('metric-privacy');
   privacyEl.className = privacy.containsEmails === false && privacy.containsApiKeys === false ? 'pill good' : 'pill bad';
 
+  renderBottlenecks(data.bottlenecks || []);
   renderPlanMix(mrr.byPlan || {});
   $('dashboard').classList.remove('hidden');
 }

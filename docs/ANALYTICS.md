@@ -52,6 +52,8 @@ PII or request content:
 - paid customers with recent routed usage
 - estimated current MRR, target attainment, and per-plan gaps against the
   public `$10k MRR` recommended launch mix
+- target-aware bottlenecks for signup-to-key, key-to-first-request,
+  signup-to-paid, paid recent usage, and `$10k MRR` attainment
 
 The funnel reads only timestamps and countable customer/key status fields from
 the customer store, API-key store, waitlist tables, and route telemetry. It does
@@ -64,7 +66,9 @@ endpoint. It requires a private operator/admin token in the browser, sends it as
 an `Authorization: Bearer` header, and stores the token only in tab-scoped
 `sessionStorage` when the operator explicitly enables that option. Customer
 accounts never use this page; signed-in customer analytics remain scoped to
-`/account/analytics`.
+`/account/analytics`. The bottleneck table compares current rates with the
+launch-plan targets and gives the operator the next stage to improve without
+returning customer identities.
 
 ## Account readiness
 

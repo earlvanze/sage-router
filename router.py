@@ -4479,6 +4479,70 @@ def percent_rate(numerator, denominator):
     return round(float(numerator) / float(denominator), 4)
 
 
+LAUNCH_CONVERSION_TARGETS = {
+    'signupToGeneratedKey': {
+        'label': 'Signup to generated key',
+        'targetRate': 0.60,
+        'action': 'Tighten account onboarding, generated-key copy, and first setup CTA.',
+    },
+    'generatedKeyToFirstRequest': {
+        'label': 'Generated key to first routed request',
+        'targetRate': 0.50,
+        'action': 'Improve quickstart examples, browser first-request testing, and 401/402/429/503 guidance.',
+    },
+    'signupToPaidConversion': {
+        'label': 'Signup to paid conversion',
+        'targetRate': 0.15,
+        'action': 'Reduce checkout friction and strengthen Lite/Pro/Max upgrade prompts.',
+    },
+    'paidRecentUsage': {
+        'label': 'Paid customer recent usage',
+        'targetRate': 0.85,
+        'action': 'Use reliability/status, analytics value, and quota alerts to retain paid accounts.',
+    },
+}
+
+
+def launch_conversion_snapshot(rates, mrr):
+    targets = {}
+    bottlenecks = []
+    for metric, spec in LAUNCH_CONVERSION_TARGETS.items():
+        target_rate = float(spec.get('targetRate') or 0)
+        actual_rate = rates.get(metric)
+        gap = None if actual_rate is None else round(max(0.0, target_rate - float(actual_rate)), 4)
+        row = {
+            'metric': metric,
+            'label': spec.get('label') or metric,
+            'actualRate': actual_rate,
+            'targetRate': target_rate,
+            'gap': gap,
+            'status': 'not_enough_data' if actual_rate is None else ('on_track' if gap <= 0 else 'below_target'),
+            'action': spec.get('action') or '',
+        }
+        targets[metric] = row
+        if row['status'] != 'on_track':
+            bottlenecks.append(row)
+
+    mrr_target = float((mrr or {}).get('targetMrrUsd') or 0)
+    mrr_current = float((mrr or {}).get('estimatedCurrentMrrUsd') or 0)
+    mrr_gap = max(0.0, mrr_target - mrr_current) if mrr_target > 0 else None
+    mrr_row = {
+        'metric': 'mrrTargetAttainment',
+        'label': '$10k MRR attainment',
+        'actualRate': (mrr or {}).get('targetAttainment'),
+        'targetRate': 1.0 if mrr_target > 0 else None,
+        'gap': None if mrr_gap is None else round(mrr_gap, 2),
+        'status': 'not_configured' if mrr_target <= 0 else ('on_track' if mrr_gap <= 0 else 'below_target'),
+        'action': 'Close the remaining plan-mix gap with Pro/Max conversion and founder-led Max sales.',
+    }
+    targets[mrr_row['metric']] = mrr_row
+    if mrr_row['status'] != 'on_track':
+        bottlenecks.append(mrr_row)
+
+    bottlenecks.sort(key=lambda row: (0 if row.get('status') == 'below_target' else 1, row.get('gap') is None, -(float(row.get('gap') or 0))))
+    return {'targets': targets, 'bottlenecks': bottlenecks[:5]}
+
+
 def public_plan_monthly_price_usd(plan_name):
     plan = PUBLIC_PLAN_CATALOG.get(str(plan_name or '').strip().lower()) or {}
     price = str(plan.get('price') or '')
@@ -4767,6 +4831,16 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         notes.append(f'marketing_funnel_unavailable:{marketing_error}')
     if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
         notes.append('customer/key funnel read is local-only because Supabase service credentials are not configured')
+    rates = {
+        'waitlistToSignup': percent_rate(stages['signups'], stages['waitlistLeads']) if stages['waitlistLeads'] is not None else None,
+        'managedAccessShareOfWaitlist': percent_rate(stages['managedAccessBetaInterest'], stages['waitlistLeads']) if stages['waitlistLeads'] is not None else None,
+        'signupToGeneratedKey': percent_rate(stages['customersWithGeneratedApiKeys'], stages['signups']),
+        'generatedKeyToFirstRequest': percent_rate(stages['customersWithFirstRoutedRequest'], stages['customersWithGeneratedApiKeys']),
+        'signupToPaidConversion': percent_rate(stages['paidConversions'], stages['signups']),
+        'paidRecentUsage': percent_rate(stages['retainedPaidCustomers'], stages['paidCustomers']),
+    }
+    mrr = launch_mrr_snapshot(customers)
+    conversion = launch_conversion_snapshot(rates, mrr)
 
     return {
         'version': 1,
@@ -4789,15 +4863,9 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'marketingIntent': marketing_metrics,
         'stages': stages,
         'waitlistInterest': waitlist_interest,
-        'mrr': launch_mrr_snapshot(customers),
-        'rates': {
-            'waitlistToSignup': percent_rate(stages['signups'], stages['waitlistLeads']) if stages['waitlistLeads'] is not None else None,
-            'managedAccessShareOfWaitlist': percent_rate(stages['managedAccessBetaInterest'], stages['waitlistLeads']) if stages['waitlistLeads'] is not None else None,
-            'signupToGeneratedKey': percent_rate(stages['customersWithGeneratedApiKeys'], stages['signups']),
-            'generatedKeyToFirstRequest': percent_rate(stages['customersWithFirstRoutedRequest'], stages['customersWithGeneratedApiKeys']),
-            'signupToPaidConversion': percent_rate(stages['paidConversions'], stages['signups']),
-            'paidRecentUsage': percent_rate(stages['retainedPaidCustomers'], stages['paidCustomers']),
-        },
+        'mrr': mrr,
+        'rates': rates,
+        **conversion,
         'notes': notes,
     }
 

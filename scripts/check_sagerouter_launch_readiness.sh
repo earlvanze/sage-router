@@ -417,6 +417,9 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "SAGE_ROUTER_API_KEY or analytics token" /tmp/sage-router-readiness-body; then
     launch_funnel_code="200:missing-token-boundary"
   fi
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Launch bottlenecks" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:missing-launch-bottlenecks"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   launch_funnel_js_code="$(http_code_follow "${APP_BASE%/}/launch-funnel.js")"
@@ -425,6 +428,9 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "sessionStorage" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-tab-scoped-token-storage"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderBottlenecks" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-bottleneck-renderer"
   fi
   rm -f /tmp/sage-router-readiness-body
 
@@ -875,6 +881,9 @@ check_admin_token() {
     ((.stages // {}) | has("managedAccessBetaInterest")) and
     ((.waitlistInterest // {}) | has("managedAccess")) and
     ((.rates // {}) | has("managedAccessShareOfWaitlist")) and
+    ((.targets // {}) | has("signupToGeneratedKey") and has("generatedKeyToFirstRequest") and has("signupToPaidConversion") and has("paidRecentUsage") and has("mrrTargetAttainment")) and
+    ((.targets.signupToGeneratedKey // {}) | .targetRate == 0.6) and
+    ((.bottlenecks // []) | type == "array") and
     ((.privacy // {}) | .containsEmails == false) and
     ((.mrr // {}) | .targetMrrUsd == 10000) and
     ((.mrr // {}) | has("estimatedCurrentMrrUsd")) and
