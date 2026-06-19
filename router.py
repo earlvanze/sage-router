@@ -5632,6 +5632,68 @@ def update_customer(customer_id, updates):
     return normalize_customer(found)
 
 
+def customer_matches_operator_query(customer, query):
+    query = str(query or '').strip().lower()
+    if not query:
+        return True
+    fields = [
+        customer.get('id'),
+        customer.get('user_id'),
+        customer.get('email'),
+        customer.get('stripe_customer_id'),
+        customer.get('stripe_subscription_id'),
+    ]
+    return any(query in str(value or '').lower() for value in fields)
+
+
+def operator_customer_rows(query='', status='', limit=50):
+    try:
+        limit = int(limit or 50)
+    except Exception:
+        limit = 50
+    limit = max(1, min(limit, 100))
+    status = str(status or '').strip().lower()
+    select = 'select=id,user_id,email,plan,status,stripe_customer_id,stripe_subscription_id,created_at_epoch,updated_at_epoch'
+    try:
+        if customer_store_uses_supabase():
+            fetch_limit = 1000 if query or status else limit
+            rows = supabase_select(
+                SUPABASE_CUSTOMERS_TABLE,
+                f'{select}&order=updated_at_epoch.desc&limit={fetch_limit}',
+                timeout=8,
+            )
+        else:
+            rows = list(local_customer_store().get('customers') or [])
+    except Exception as e:
+        logger.debug(f'Operator customer lookup failed: {extract_http_error(e)}')
+        rows = []
+    out = []
+    for row in rows:
+        customer = normalize_customer(row)
+        if not customer:
+            continue
+        if status and str(customer.get('status') or '').lower() != status:
+            continue
+        if not customer_matches_operator_query(customer, query):
+            continue
+        out.append(customer)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def operator_customer_summary(customer):
+    customer = normalize_customer(customer) or {}
+    keys = api_keys_for_customer(customer.get('id')) if customer.get('id') else []
+    usage = account_usage_for_customer(customer)
+    return {
+        'customer': public_customer(customer),
+        'usage': usage,
+        'activation': account_activation_for_customer(customer, usage=usage, api_keys=keys),
+        'api_keys': [public_api_key(row, customer) for row in keys],
+    }
+
+
 def token_matches_any(token, allowed_tokens):
     if not token:
         return False
@@ -9441,6 +9503,38 @@ class Handler(BaseHTTPRequestHandler):
             if not customer:
                 return
             self.write_json(200, {'api_keys': [public_api_key(k, customer) for k in api_keys_for_customer(customer.get('id'))]})
+        elif self.path.startswith('/admin/customers'):
+            if not require_operator_request(self):
+                return
+            parsed = urllib.parse.urlparse(self.path)
+            parts = parsed.path.strip('/').split('/')
+            qs = urllib.parse.parse_qs(parsed.query)
+            if len(parts) >= 3 and parts[2]:
+                customer_id = urllib.parse.unquote(parts[2])
+                customer = customer_by_id(customer_id)
+                if not customer:
+                    self.write_json(404, {'error': 'customer_not_found'})
+                    return
+                self.write_json(200, operator_customer_summary(customer))
+                return
+            query = (qs.get('q') or [''])[0]
+            status = (qs.get('status') or [''])[0]
+            limit = (qs.get('limit') or ['50'])[0]
+            rows = operator_customer_rows(query=query, status=status, limit=limit)
+            self.write_json(200, {
+                'customers': [operator_customer_summary(row) for row in rows],
+                'count': len(rows),
+                'limit': max(1, min(int(limit or 50) if str(limit or '').isdigit() else 50, 100)),
+                'query': query,
+                'status': status,
+                'privacy': {
+                    'containsRawApiKeys': False,
+                    'containsApiKeyHashes': False,
+                    'containsProviderCredentials': False,
+                    'containsPrompts': False,
+                    'operatorOnly': True,
+                },
+            })
         elif self.path.startswith('/analytics/funnel'):
             if not analytics_authorized(self):
                 self.write_json(401, {'error': 'unauthorized'})

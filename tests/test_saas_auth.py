@@ -300,6 +300,42 @@ class SaaSAuthTests(unittest.TestCase):
         fresh_raw, _fresh = router.create_api_key_for_customer(updated, 'after-review')
         self.assertIsNotNone(router.verify_generated_api_key(fresh_raw))
 
+    def test_operator_customer_lookup_is_private_and_omits_key_hashes(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        customer = self.active_customer()
+        _raw, _row = router.create_api_key_for_customer(customer, 'prod')
+        other = router.customer_for_user({'id': 'user-2', 'email': 'other@example.com'})
+
+        class Dummy:
+            def __init__(self, path, token='operator-token'):
+                self.path = path
+                self.headers = {'Authorization': f'Bearer {token}'}
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        unauthorized = Dummy('/admin/customers', token='bad-token')
+        router.Handler.do_GET(unauthorized)
+        self.assertEqual(401, unauthorized.status)
+
+        listing = Dummy('/admin/customers?q=u%40example.com&limit=10')
+        router.Handler.do_GET(listing)
+        self.assertEqual(200, listing.status)
+        self.assertEqual(1, listing.payload['count'])
+        self.assertEqual(customer['id'], listing.payload['customers'][0]['customer']['id'])
+        self.assertTrue(listing.payload['privacy']['operatorOnly'])
+        self.assertFalse(listing.payload['privacy']['containsApiKeyHashes'])
+        self.assertNotIn('api_key_hash', json.dumps(listing.payload))
+
+        detail = Dummy(f'/admin/customers/{other["id"]}')
+        router.Handler.do_GET(detail)
+        self.assertEqual(200, detail.status)
+        self.assertEqual(other['id'], detail.payload['customer']['id'])
+        self.assertEqual('inactive', detail.payload['activation']['status'])
+
     def test_stripe_payment_success_does_not_reactivate_suspended_customer(self):
         router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
         router.STRIPE_PRICE_IDS_RAW = 'lite=price_lite,pro=price_pro,max=price_max'

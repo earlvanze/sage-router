@@ -128,6 +128,11 @@ claim, or runtime feature flag.
   must require the private operator token, revoke active generated keys, block
   generated-key routing immediately, and remain sticky across later Stripe
   subscription or payment-recovery webhooks.
+- Keep operator customer review bounded and privacy-safe:
+  `GET /admin/customers` and `GET /admin/customers/{customer_id}` must require
+  the private operator token and return only customer, usage, activation, and
+  public API-key metadata, without raw generated keys, key hashes, provider
+  credentials, prompts, or raw provider responses.
 - Keep operator review release fail-closed: `POST /admin/customers/{customer_id}/unsuspend`
   must require the private operator token, default the customer to `inactive`,
   only restore active routing when an operator explicitly requests an active
