@@ -43,6 +43,7 @@ SUPABASE_SERVICE_ROLE_KEY = (
 )
 SUPABASE_CUSTOMERS_TABLE = os.environ.get("SAGE_ROUTER_SUPABASE_CUSTOMERS_TABLE", "sage_router_customers")
 SUPABASE_API_KEYS_TABLE = os.environ.get("SAGE_ROUTER_SUPABASE_API_KEYS_TABLE", "sage_router_api_keys")
+SUPABASE_USAGE_RPC = os.environ.get("SAGE_ROUTER_SUPABASE_USAGE_RPC", "sage_router_increment_usage")
 API_KEY_PREFIX = os.environ.get("SAGE_ROUTER_API_KEY_PREFIX", "sk_sage_")
 API_KEY_HASH_PEPPER = os.environ.get("SAGE_ROUTER_API_KEY_HASH_PEPPER") or os.environ.get("SAGE_ROUTER_SIGNING_SECRET") or ""
 AUTH_CACHE_TTL_SECONDS = float(os.environ.get("SAGE_ROUTER_EDGE_AUTH_CACHE_SECONDS", "30"))
@@ -53,6 +54,11 @@ RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("SAGE_ROUTER_EDGE_RATE_LIMIT_WIND
 RATE_LIMITS_RAW = os.environ.get(
     "SAGE_ROUTER_EDGE_RATE_LIMITS",
     "trial=30,lite=60,pro=180,max=600,manual=600,paid=180,active=180,default=60",
+)
+QUOTA_ENABLED = os.environ.get("SAGE_ROUTER_EDGE_QUOTA_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+MONTHLY_QUOTAS_RAW = os.environ.get(
+    "SAGE_ROUTER_EDGE_MONTHLY_QUOTAS",
+    "trial=1000,lite=10000,pro=50000,max=200000,paid=50000,active=50000,default=0",
 )
 
 PUBLIC_PATHS = {"/edge/health"}
@@ -199,6 +205,7 @@ def parse_rate_limits(raw):
 
 
 RATE_LIMITS_BY_PLAN = parse_rate_limits(RATE_LIMITS_RAW)
+MONTHLY_QUOTAS_BY_PLAN = parse_rate_limits(MONTHLY_QUOTAS_RAW)
 
 
 def rate_limit_plan(auth_context):
@@ -209,6 +216,16 @@ def rate_limit_plan(auth_context):
     if status and status in RATE_LIMITS_BY_PLAN:
         return status
     return "default"
+
+
+def plan_limit(auth_context, limits):
+    plan = str((auth_context or {}).get("plan") or "").strip().lower()
+    status = str((auth_context or {}).get("customer_status") or "").strip().lower()
+    if plan and plan in limits:
+        return plan, limits[plan]
+    if status and status in limits:
+        return status, limits[status]
+    return "default", limits.get("default", 0)
 
 
 def rate_limit_identity(auth_context):
@@ -267,6 +284,84 @@ def check_rate_limit(auth_context, path):
         }
 
 
+def current_usage_period(now=None):
+    return time.strftime("%Y-%m", time.gmtime(now or time.time()))
+
+
+def should_count_quota(auth_context, path):
+    if not QUOTA_ENABLED:
+        return False
+    if str((auth_context or {}).get("type") or "") != "generated_key":
+        return False
+    clean_path = urlsplit(path).path
+    return clean_path == "/v1" or clean_path.startswith("/v1/")
+
+
+def quota_headers(state):
+    if not state:
+        return {}
+    headers = {
+        "X-Quota-Period": state.get("period", ""),
+        "X-Quota-Limit": state.get("quota", ""),
+        "X-Quota-Used": state.get("requests", ""),
+        "X-Quota-Remaining": state.get("remaining", ""),
+    }
+    return {key: value for key, value in headers.items() if value != ""}
+
+
+def check_usage_quota(auth_context, path):
+    if not should_count_quota(auth_context, path):
+        return True, None
+    _plan, quota = plan_limit(auth_context, MONTHLY_QUOTAS_BY_PLAN)
+    if quota <= 0:
+        return True, None
+    if not supabase_auth_configured(require_service=True):
+        return False, {
+            "error": "edge_quota_not_configured",
+            "quota": quota,
+            "remaining": 0,
+            "period": current_usage_period(),
+        }
+
+    payload = {
+        "p_customer_id": str(auth_context.get("customer_id") or ""),
+        "p_user_id": str(auth_context.get("user_id") or ""),
+        "p_plan": str(auth_context.get("plan") or ""),
+        "p_period": current_usage_period(),
+        "p_increment": 1,
+        "p_quota": quota,
+    }
+    if not payload["p_customer_id"]:
+        return False, {
+            "error": "edge_quota_missing_customer",
+            "quota": quota,
+            "remaining": 0,
+            "period": payload["p_period"],
+        }
+    try:
+        result = supabase_post_json(f"/rest/v1/rpc/{SUPABASE_USAGE_RPC}", payload, timeout=6)
+        row = result[0] if isinstance(result, list) and result else result
+        if not isinstance(row, dict):
+            raise ValueError("usage RPC returned no row")
+        state = {
+            "customer_id": row.get("customer_id") or payload["p_customer_id"],
+            "period": row.get("period") or payload["p_period"],
+            "requests": int(row.get("requests") or 0),
+            "quota": int(row.get("quota") or quota),
+            "remaining": max(0, int(row.get("remaining") or 0)),
+            "allowed": bool(row.get("allowed")),
+        }
+        return state["allowed"], state
+    except Exception as exc:
+        print(f"supabase usage quota check failed: {exc}", flush=True)
+        return False, {
+            "error": "edge_quota_unavailable",
+            "quota": quota,
+            "remaining": 0,
+            "period": payload["p_period"],
+        }
+
+
 def supabase_headers(service=False, token=None):
     key = SUPABASE_SERVICE_ROLE_KEY if service else SUPABASE_ANON_KEY
     headers = {
@@ -290,6 +385,16 @@ def supabase_patch_json(path, payload, timeout=4):
     req = urllib.request.Request(SUPABASE_URL.rstrip("/") + path, data=data, method="PATCH", headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         resp.read(4096)
+
+
+def supabase_post_json(path, payload, timeout=6):
+    data = json.dumps(payload).encode("utf-8")
+    headers = supabase_headers(service=True)
+    headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(SUPABASE_URL.rstrip("/") + path, data=data, method="POST", headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        body = resp.read().decode("utf-8")
+        return json.loads(body) if body else {}
 
 
 def cache_get(key):
@@ -546,6 +651,11 @@ class EdgeHandler(BaseHTTPRequestHandler):
                 "X-RateLimit-Reset": rate_state["reset"],
             })
             return
+        quota_allowed, quota_state = check_usage_quota(auth_context, self.path)
+        if not quota_allowed:
+            status = 503 if quota_state and str(quota_state.get("error") or "").startswith("edge_quota_") else 402
+            self._json(status, {"error": (quota_state or {}).get("error") or "quota_exceeded"}, quota_headers(quota_state))
+            return
 
         upstreams = control_plane_upstreams() if is_user_jwt_path(self.path) or is_public_signed_backend_path(self.path) else None
         if upstreams is None:
@@ -609,6 +719,8 @@ class EdgeHandler(BaseHTTPRequestHandler):
                     self.send_header("X-RateLimit-Limit", str(rate_state["limit"]))
                     self.send_header("X-RateLimit-Remaining", str(rate_state["remaining"]))
                     self.send_header("X-RateLimit-Reset", str(rate_state["reset"]))
+                for key, value in quota_headers(quota_state).items():
+                    self.send_header(key, str(value))
                 self.send_header("Connection", "close")
                 self._cors_headers()
                 self.end_headers()

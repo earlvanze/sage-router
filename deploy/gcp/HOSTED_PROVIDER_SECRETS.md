@@ -55,11 +55,13 @@ Self-serve SaaS tables are configured by name through:
 - `SAGE_ROUTER_SUPABASE_CUSTOMERS_TABLE` default `sage_router_customers`
 - `SAGE_ROUTER_SUPABASE_API_KEYS_TABLE` default `sage_router_api_keys`
 - `SAGE_ROUTER_SUPABASE_PAYMENT_INTENTS_TABLE` default `sage_router_payment_intents`
+- Tailnet Edge monthly quotas use `sage_router_usage_counters` plus the `sage_router_increment_usage` RPC from `supabase/sage_router_saas.sql`
 
 Minimum columns expected by the incremental backend:
 
 - `sage_router_customers`: `id`, `user_id`, `email`, `plan`, `status`, `stripe_customer_id`, `stripe_subscription_id`, `created_at_epoch`, `updated_at_epoch`
 - `sage_router_api_keys`: `id`, `customer_id`, `user_id`, `name`, `prefix`, `api_key_hash`, `status`, `plan`, `created_at_epoch`, `last_used_at_epoch`, `revoked_at_epoch`
 - `sage_router_payment_intents`: `id`, `kind`, `customer_id`, `user_id`, `status`, `asset`, `network`, `amount`, `address`, `metadata`, `event_type`, `event_id`, `created_at_epoch`, `updated_at_epoch`
+- `sage_router_usage_counters`: `id`, `customer_id`, `user_id`, `plan`, `period`, `requests`, `created_at_epoch`, `updated_at_epoch`
 
 Generated API keys are returned raw once on creation. Store only `api_key_hash` server-side. Legacy/manual `SAGE_ROUTER_CLIENT_API_KEYS` remains supported for migrations and operator-issued keys.

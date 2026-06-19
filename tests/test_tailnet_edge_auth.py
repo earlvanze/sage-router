@@ -22,6 +22,8 @@ def load_edge_proxy():
         "SAGE_ROUTER_EDGE_AUTH_CACHE_SECONDS": "0",
         "SAGE_ROUTER_EDGE_RATE_LIMIT_WINDOW_SECONDS": "60",
         "SAGE_ROUTER_EDGE_RATE_LIMITS": "pro=2,default=1",
+        "SAGE_ROUTER_EDGE_QUOTA_ENABLED": "1",
+        "SAGE_ROUTER_EDGE_MONTHLY_QUOTAS": "pro=2,default=0",
     }
     old = {key: os.environ.get(key) for key in env}
     os.environ.update(env)
@@ -157,6 +159,82 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         allowed, limited = self.edge.check_rate_limit(ctx, "/account/api-keys")
         self.assertFalse(allowed)
         self.assertEqual(0, limited["remaining"])
+
+    def test_generated_key_quota_uses_supabase_usage_rpc(self):
+        calls = []
+        ctx = {
+            "type": "generated_key",
+            "key_id": "key-1",
+            "customer_id": "customer-1",
+            "user_id": "user-1",
+            "plan": "pro",
+            "customer_status": "active",
+        }
+
+        def fake_post(path, payload, timeout=6):
+            calls.append((path, payload))
+            return {
+                "customer_id": payload["p_customer_id"],
+                "period": payload["p_period"],
+                "requests": 1,
+                "quota": payload["p_quota"],
+                "remaining": 1,
+                "allowed": True,
+            }
+
+        self.edge.supabase_post_json = fake_post
+        allowed, state = self.edge.check_usage_quota(ctx, "/v1/models")
+
+        self.assertTrue(allowed)
+        self.assertEqual(1, len(calls))
+        path, payload = calls[0]
+        self.assertIn("/rest/v1/rpc/sage_router_increment_usage", path)
+        self.assertEqual("customer-1", payload["p_customer_id"])
+        self.assertEqual("user-1", payload["p_user_id"])
+        self.assertEqual("pro", payload["p_plan"])
+        self.assertEqual(2, payload["p_quota"])
+        self.assertEqual(1, state["remaining"])
+        self.assertEqual("1", str(self.edge.quota_headers(state)["X-Quota-Remaining"]))
+
+    def test_generated_key_quota_denies_exhausted_plan(self):
+        ctx = {
+            "type": "generated_key",
+            "key_id": "key-1",
+            "customer_id": "customer-1",
+            "user_id": "user-1",
+            "plan": "pro",
+            "customer_status": "active",
+        }
+        self.edge.supabase_post_json = lambda path, payload, timeout=6: {
+            "customer_id": "customer-1",
+            "period": payload["p_period"],
+            "requests": 3,
+            "quota": 2,
+            "remaining": 0,
+            "allowed": False,
+        }
+
+        allowed, state = self.edge.check_usage_quota(ctx, "/v1/chat/completions")
+
+        self.assertFalse(allowed)
+        self.assertEqual(3, state["requests"])
+        self.assertEqual(0, state["remaining"])
+        self.assertEqual("2", str(self.edge.quota_headers(state)["X-Quota-Limit"]))
+
+    def test_quota_exempts_edge_token_and_non_model_paths(self):
+        self.edge.supabase_post_json = lambda *_args, **_kwargs: self.fail("quota should not call Supabase")
+
+        allowed, state = self.edge.check_usage_quota({"type": "edge_token"}, "/v1/models")
+        self.assertTrue(allowed)
+        self.assertIsNone(state)
+
+        allowed, state = self.edge.check_usage_quota({
+            "type": "generated_key",
+            "customer_id": "customer-1",
+            "plan": "pro",
+        }, "/account")
+        self.assertTrue(allowed)
+        self.assertIsNone(state)
 
 
 if __name__ == "__main__":

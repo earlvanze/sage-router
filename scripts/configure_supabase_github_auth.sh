@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PROJECT_REF="${SUPABASE_PROJECT_REF:-awtangrlqqsdpksarhwo}"
+AUTH_SITE_URL="${SAGEROUTER_AUTH_SITE_URL:-https://app.sagerouter.dev}"
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:?Set SUPABASE_ACCESS_TOKEN to a Supabase Management API token.}"
 GITHUB_CLIENT_ID="${SAGEROUTER_GITHUB_CLIENT_ID:-${GITHUB_CLIENT_ID:-}}"
 GITHUB_CLIENT_SECRET="${SAGEROUTER_GITHUB_CLIENT_SECRET:-${GITHUB_CLIENT_SECRET:-}}"
@@ -48,10 +49,12 @@ payload="$(mktemp)"
 trap 'rm -f "$payload"' EXIT
 
 jq -n \
+  --arg site_url "$AUTH_SITE_URL" \
   --arg uri_allow_list "$merged_allow_list" \
   --arg client_id "$GITHUB_CLIENT_ID" \
   --arg secret "$GITHUB_CLIENT_SECRET" \
   '{
+    site_url: $site_url,
     external_github_enabled: true,
     external_github_client_id: $client_id,
     external_github_secret: $secret,
