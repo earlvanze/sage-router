@@ -45,6 +45,7 @@
       <a class="brand" href="/"><span class="brandMark">S</span><span>Sage Router</span></a>
       <div class="navLinks">
         <a href="/">Home</a>
+        <a href="/docs/openrouter-migration">Migration</a>
         <a href="/model-routing-calculator">Calculator</a>
         <a href="/pricing">Pricing</a>
         <a href="/managed-access">Managed Access</a>
@@ -62,6 +63,7 @@
         <p class="lead">OpenRouter is useful when you want one hosted marketplace-style API. Sage Router is built for teams and agents that want one endpoint too, but with local-first control, BYOK routing, private provider credentials, Ollama support, health-aware fallback, and an optional hosted account layer.</p>
         <div class="actions">
           <a class="button primary" href="/account.html?plan=pro">Create hosted API key</a>
+          <a class="button secondary" href="/docs/openrouter-migration">Migration guide</a>
           <a class="button secondary" href="/pricing">Compare plans</a>
           <a class="button secondary" href="https://github.com/earlvanze/sage-router">Run locally</a>
           <a class="button secondary" href="/status">View public edge status</a>
@@ -144,6 +146,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
     <footer>
       <span>&copy; Sage Router</span>
       <a href="/">Home</a>
+      <a href="/docs/openrouter-migration">Migration</a>
       <a href="/account.html">Account</a>
       <a href="/pricing">Pricing</a>
       <a href="/status">Status</a>
@@ -199,6 +202,11 @@ curl "$OPENAI_BASE_URL/chat/completions" \
         }));
       } else if (href === '/pricing') {
         link.addEventListener('click', () => trackOpenRouterComparisonEvent('openrouter_compare_pricing_clicked', {
+          target: href,
+          button
+        }));
+      } else if (href === '/docs/openrouter-migration') {
+        link.addEventListener('click', () => trackOpenRouterComparisonEvent('openrouter_compare_migration_clicked', {
           target: href,
           button
         }));

@@ -81,7 +81,7 @@ claim, or runtime feature flag.
 ## Near-term launch checklist
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
-- Keep `/pricing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/codex`, `/status`, `/support`, `/account.html`, `/login.html`,
+- Keep `/pricing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/openrouter-migration`, `/docs/codex`, `/status`, `/support`, `/account.html`, `/login.html`,
   `/api/waitlist`, `/models`, `/managed-access`, `/compare/openrouter`, `/model-routing-calculator`, `/terms`,
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
@@ -100,6 +100,11 @@ claim, or runtime feature flag.
   `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public
   `/model-catalog`, generated `sk_sage_*` keys, quota headers, rate-limit
   headers, failover signals, and the authenticated model API boundary.
+- Keep `/docs/openrouter-migration` as the OpenRouter customer migration path
+  with `OPENAI_BASE_URL=https://openrouter.ai/api/v1` to
+  `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys,
+  `sage-router/frontier`, model catalog discovery, and the provider terms
+  boundary.
 - Keep `/docs/codex` as the dedicated Codex CLI path with hosted, local port
   `8790`, and Tailnet examples using `wire_api = "responses"` and
   `sage-router/frontier`.

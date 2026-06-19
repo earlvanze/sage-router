@@ -82,6 +82,7 @@ The MVP treats discoverability as first-class. Current static assets include:
 - Dedicated API quickstart page at `/quickstart` with hosted `sk_sage_*` key setup, `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, `sage-router/frontier`, curl, JavaScript, Python, Codex, and error troubleshooting.
 - Dedicated API troubleshooting page at `/api-troubleshooting` with no-secret guidance for hosted 401/402/429/503 responses, safe curl probes, `WWW-Authenticate`, `Retry-After`, `X-RateLimit-*`, `X-Quota-*`, and account/pricing/status onboarding links.
 - Dedicated hosted API reference page at `/docs/api-reference` with OpenAI-compatible endpoint docs for `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public `/model-catalog`, generated keys, quotas, rate limits, and failover signals.
+- Dedicated OpenRouter migration guide at `/docs/openrouter-migration` mapping `https://openrouter.ai/api/v1` to `https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, model catalog discovery, and provider terms boundaries.
 - Dedicated Codex setup page at `/docs/codex` with hosted `https://api.sagerouter.dev/v1/`, local `http://127.0.0.1:8790/v1/`, Tailnet `http://<tailnet-host>:8790/v1/`, `wire_api = "responses"`, and `sage-router/frontier` profiles.
 - No-login model routing calculator at `/model-routing-calculator` for acquisition and workflow qualification; it recommends Lite/Pro/Max and sends the selected tier into preselected checkout on `/account.html?plan=...`.
 - FAQ content intended for snippets and LLM ingestion.
@@ -95,6 +96,7 @@ The MVP treats discoverability as first-class. Current static assets include:
 Next recommended additions after MVP:
 
 - Dedicated `/compare/openrouter` page for OpenRouter-alternative acquisition traffic.
+- Keep `/docs/openrouter-migration` aligned with the OpenRouter comparison page, hosted quickstart, API reference, sitemap, LLM discovery, and readiness checks.
 - Keep the hosted pricing page aligned with `/pricing` API metadata and the account checkout plans.
 - Keep `/managed-access` aligned with provider-resale terms, margin policy, waitlist metadata, sitemap, LLM discovery, and readiness checks.
 - Keep `/quickstart` aligned with the hosted account page and public edge error guidance.

@@ -649,6 +649,51 @@ check_marketing_comparison_page() {
   fi
 }
 
+check_marketing_openrouter_migration_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/docs/openrouter-migration")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Migrate from OpenRouter to Sage Router" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "OPENAI_BASE_URL=https://openrouter.ai/api/v1" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-openrouter-before"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "OPENAI_BASE_URL=https://api.sagerouter.dev/v1" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-sage-router-after"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "sk_sage_" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-generated-key-guidance"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "sage-router/frontier" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-frontier-profile"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "does not grant unauthorized provider access" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-provider-boundary"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "api-troubleshooting" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-troubleshooting-link"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/docs/openrouter-migration" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-openrouter-migration-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "OpenRouter migration: ${MARKETING_BASE%/}/docs/openrouter-migration" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-openrouter-migration-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing OpenRouter migration guide is live in sitemap and LLM discovery"
+  else
+    fail "marketing OpenRouter migration guide incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_pricing_page() {
   local page_code sitemap_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/pricing")"
@@ -1201,6 +1246,7 @@ check_public_supabase_auth_settings
 check_waitlist_endpoint
 check_funnel_event_endpoint
 check_marketing_comparison_page
+check_marketing_openrouter_migration_page
 check_marketing_pricing_page
 check_marketing_managed_access_page
 check_marketing_model_catalog_page
