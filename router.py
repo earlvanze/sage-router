@@ -5510,6 +5510,18 @@ def suspend_customer_for_operator(customer_id):
     return updated or customer_by_id(customer_id), revoked
 
 
+def unsuspend_customer_for_operator(customer_id, desired_status='inactive'):
+    customer = customer_by_id(customer_id)
+    if not customer:
+        return None
+    status = str(desired_status or 'inactive').strip().lower()
+    allowed = {'inactive', 'active', 'trialing', 'manual', 'paid', 'past_due'}
+    if status not in allowed:
+        raise ValueError('invalid_customer_status')
+    updated = update_customer(customer_id, {'status': status})
+    return updated or customer_by_id(customer_id)
+
+
 def billing_status_for_customer(customer_id, desired_status):
     existing = customer_by_id(customer_id)
     if str((existing or {}).get('status') or '').lower() == 'suspended':
@@ -9651,6 +9663,29 @@ class Handler(BaseHTTPRequestHandler):
                 'customer': public_customer(customer),
                 'revokedApiKeys': len(revoked),
                 'status': 'suspended',
+            })
+            return
+        if self.path.startswith('/admin/customers/') and self.path.endswith('/unsuspend'):
+            if not require_operator_request(self):
+                return
+            parts = self.path.split('/')
+            customer_id = urllib.parse.unquote(parts[3] if len(parts) > 3 else '')
+            if not customer_id:
+                self.write_json(400, {'error': 'customer_id_required'})
+                return
+            payload = read_json_body(self)
+            try:
+                customer = unsuspend_customer_for_operator(customer_id, payload.get('status') or 'inactive')
+            except ValueError as e:
+                self.write_json(400, {'error': str(e)})
+                return
+            if not customer:
+                self.write_json(404, {'error': 'customer_not_found'})
+                return
+            self.write_json(200, {
+                'customer': public_customer(customer),
+                'revokedApiKeysRemainRevoked': True,
+                'status': customer.get('status') or 'inactive',
             })
             return
         if self.path == '/account/api-keys':

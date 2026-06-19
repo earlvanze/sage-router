@@ -237,6 +237,69 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIsNone(router.verify_generated_api_key(first_raw))
         self.assertIsNone(router.verify_generated_api_key(second_raw))
 
+    def test_operator_unsuspend_defaults_to_inactive_and_keeps_keys_revoked(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        customer = self.active_customer()
+        raw, _row = router.create_api_key_for_customer(customer, 'first')
+        router.suspend_customer_for_operator(customer['id'])
+
+        class Dummy:
+            def __init__(self):
+                self.path = f'/admin/customers/{customer["id"]}/unsuspend'
+                self.headers = {'Authorization': 'Bearer operator-token', 'Content-Length': '2'}
+                self.rfile = BytesIO(b'{}')
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        updated = router.customer_by_id(customer['id'])
+        self.assertEqual(200, handler.status)
+        self.assertEqual('inactive', handler.payload['status'])
+        self.assertTrue(handler.payload['revokedApiKeysRemainRevoked'])
+        self.assertEqual('inactive', updated['status'])
+        self.assertFalse(router.customer_is_active(updated))
+        self.assertEqual(0, router.active_api_key_count_for_customer(customer['id']))
+        self.assertIsNone(router.verify_generated_api_key(raw))
+
+    def test_operator_unsuspend_can_reactivate_without_restoring_revoked_keys(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        customer = self.active_customer()
+        raw, _row = router.create_api_key_for_customer(customer, 'first')
+        router.suspend_customer_for_operator(customer['id'])
+        body = b'{"status":"active"}'
+
+        class Dummy:
+            def __init__(self):
+                self.path = f'/admin/customers/{customer["id"]}/unsuspend'
+                self.headers = {'Authorization': 'Bearer operator-token', 'Content-Length': str(len(body))}
+                self.rfile = BytesIO(body)
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        updated = router.customer_by_id(customer['id'])
+        self.assertEqual(200, handler.status)
+        self.assertEqual('active', handler.payload['status'])
+        self.assertEqual('active', updated['status'])
+        self.assertTrue(router.customer_is_active(updated))
+        self.assertEqual(0, router.active_api_key_count_for_customer(customer['id']))
+        self.assertIsNone(router.verify_generated_api_key(raw))
+
+        fresh_raw, _fresh = router.create_api_key_for_customer(updated, 'after-review')
+        self.assertIsNotNone(router.verify_generated_api_key(fresh_raw))
+
     def test_stripe_payment_success_does_not_reactivate_suspended_customer(self):
         router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
         router.STRIPE_PRICE_IDS_RAW = 'lite=price_lite,pro=price_pro,max=price_max'

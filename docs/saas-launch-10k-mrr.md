@@ -128,6 +128,10 @@ claim, or runtime feature flag.
   must require the private operator token, revoke active generated keys, block
   generated-key routing immediately, and remain sticky across later Stripe
   subscription or payment-recovery webhooks.
+- Keep operator review release fail-closed: `POST /admin/customers/{customer_id}/unsuspend`
+  must require the private operator token, default the customer to `inactive`,
+  only restore active routing when an operator explicitly requests an active
+  status, and never un-revoke previously revoked generated API keys.
 - Capture managed-access beta demand through the waitlist `interest` metadata
   path from `/managed-access` and watch `managedAccessBetaInterest` plus
   `managedAccessShareOfWaitlist` in `/analytics/funnel` instead of advertising
