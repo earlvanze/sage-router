@@ -70,14 +70,15 @@ discover_supabase_anon_key() {
 check_edge_health() {
   local body
   body="$(curl -fsS "${API_BASE%/}/edge/health")"
-  local status auth_mode selected rate_limit_enabled quota_enabled api_key_auth_cache
+  local status auth_mode selected rate_limit_enabled quota_enabled api_key_auth_cache api_key_auth_cache_zero
   status="$(printf '%s' "$body" | jq -r '.status // empty')"
   auth_mode="$(printf '%s' "$body" | jq -r '.authMode // empty')"
   selected="$(printf '%s' "$body" | jq -r '.selected // empty')"
   rate_limit_enabled="$(printf '%s' "$body" | jq -r '.enforcement.rateLimitEnabled // false')"
   quota_enabled="$(printf '%s' "$body" | jq -r '.enforcement.quotaEnabled // false')"
   api_key_auth_cache="$(printf '%s' "$body" | jq -r '.enforcement.apiKeyAuthCacheSeconds // empty')"
-  if [[ "$status" == "ok" && "$auth_mode" == "supabase" && -n "$selected" && "$rate_limit_enabled" == "true" && "$quota_enabled" == "true" && "$api_key_auth_cache" == "0" ]]; then
+  api_key_auth_cache_zero="$(printf '%s' "$body" | jq -r '(.enforcement.apiKeyAuthCacheSeconds // -1) == 0')"
+  if [[ "$status" == "ok" && "$auth_mode" == "supabase" && -n "$selected" && "$rate_limit_enabled" == "true" && "$quota_enabled" == "true" && "$api_key_auth_cache_zero" == "true" ]]; then
     pass "edge healthy with supabase auth, rate limits, durable quotas, and immediate generated-key revocation; selected ${selected}"
   else
     fail "edge health unexpected: status=${status:-missing} authMode=${auth_mode:-missing} selected=${selected:-missing} rateLimit=${rate_limit_enabled:-missing} quota=${quota_enabled:-missing} apiKeyAuthCache=${api_key_auth_cache:-missing}"
