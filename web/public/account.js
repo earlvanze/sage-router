@@ -230,15 +230,14 @@ name = "Sage Router Hosted"
 base_url = "${openaiBaseUrl}/"
 env_key = "OPENAI_API_KEY"
 wire_api = "responses"
-TOML
 
-cat > ~/.codex/sage-router-hosted.config.toml <<'TOML'
+[profiles.sage-router-frontier]
 model_provider = "sage-router-hosted"
 model = "sage-router/frontier"
 TOML
 
 export OPENAI_API_KEY="${key}"
-codex --profile sage-router-hosted`;
+codex --profile sage-router-frontier`;
 }
 
 function anthropicSetupText(key = 'sk_sage_your_key_here') {
