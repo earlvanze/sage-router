@@ -102,12 +102,25 @@ Keep anonymous `/v1/*` traffic blocked at the edge. New users should reach accou
 
 ### Hosted Auth
 
-The hosted web app uses Supabase Auth. GitHub login requires a GitHub OAuth App, not repository permissions:
+The hosted web app uses Supabase Auth. GitHub login requires a GitHub OAuth/GitHub App client, not repository permissions:
 
 - Homepage URL: `https://app.sagerouter.dev`
 - Authorization callback URL: `https://awtangrlqqsdpksarhwo.supabase.co/auth/v1/callback`
 
-After creating the GitHub OAuth App and generating a client secret, enable it in Supabase without opening the dashboard:
+Bootstrap the GitHub app and wire Supabase without opening the Supabase dashboard:
+
+```bash
+set -a; source /home/digit/.openclaw/.env; set +a
+scripts/bootstrap_github_supabase_auth.sh
+```
+
+GitHub requires an owner-approved browser step before it returns app credentials. After approving the app, GitHub redirects to `/github-app-manifest.html` with a temporary `code`; rerun the same script with that code:
+
+```bash
+SAGEROUTER_GITHUB_APP_MANIFEST_CODE=... scripts/bootstrap_github_supabase_auth.sh
+```
+
+If a GitHub OAuth App already exists, pass its credentials directly:
 
 ```bash
 SUPABASE_ACCESS_TOKEN=... \

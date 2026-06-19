@@ -19,8 +19,9 @@ RUN apt-get update \
     && curl -fsSL "$OLLAMA_DOWNLOAD_URL" | tar --zstd -x -C /usr/local
 
 WORKDIR /app
-COPY router.py provider-profiles.json requirements.txt ./
+COPY router.py provider-profiles.json router-profiles.json requirements.txt ./
 COPY scripts ./scripts
+COPY web/dashboard ./web/dashboard
 
 EXPOSE 8080 11434 3456
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=10s \

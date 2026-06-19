@@ -12,8 +12,9 @@ Create these Secret Manager secrets before deploy, using dedicated hosted-router
 - `SAGE_ROUTER_SUPABASE_ANON_KEY` — public Supabase Auth validation key
 - `STRIPE_SECRET_KEY` or `SAGE_ROUTER_STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET` or `SAGE_ROUTER_STRIPE_WEBHOOK_SECRET`
-- `SAGE_ROUTER_STRIPE_PRICE_ID` or `STRIPE_PRICE_ID`
-- `SAGE_ROUTER_PUBLIC_BASE_URL` — public web origin, for example `https://sagerouter.dev`
+- `SAGE_ROUTER_STRIPE_PRICE_IDS` — comma-separated plan map, for example `lite=price_...,pro=price_...,max=price_...`
+- `SAGE_ROUTER_STRIPE_PRICE_ID` or `STRIPE_PRICE_ID` — legacy single-price fallback
+- `SAGE_ROUTER_PUBLIC_BASE_URL` — public account/control-plane origin, for example `https://app.sagerouter.dev`
 - `SAGE_ROUTER_API_BASE_URL` — public API origin, for example `https://api.sagerouter.dev`
 - `SAGE_ROUTER_CRYPTO_PAYMENT_ADDRESS` — optional manual crypto receiving address
 - `SAGE_ROUTER_OPENAI_API_KEY`
@@ -48,14 +49,14 @@ OpenAI Codex OAuth compatibility:
 
 Cloudflare account id is configured as deploy env `SAGE_ROUTER_CLOUDFLARE_ACCOUNT_ID`.
 
-Apply `supabase/sage_router_saas.sql` before enabling self-serve account creation in production.
+Apply `supabase/sage_router_saas.sql` before enabling self-serve account creation in production. Tailnet Edge monthly quotas require `supabase/migrations/20260619021500_sage_router_usage_quotas.sql` if the full schema has not already been applied.
 
 Self-serve SaaS tables are configured by name through:
 
 - `SAGE_ROUTER_SUPABASE_CUSTOMERS_TABLE` default `sage_router_customers`
 - `SAGE_ROUTER_SUPABASE_API_KEYS_TABLE` default `sage_router_api_keys`
 - `SAGE_ROUTER_SUPABASE_PAYMENT_INTENTS_TABLE` default `sage_router_payment_intents`
-- Tailnet Edge monthly quotas use `sage_router_usage_counters` plus the `sage_router_increment_usage` RPC from `supabase/sage_router_saas.sql`
+- Tailnet Edge monthly quotas use `sage_router_usage_counters` plus the `sage_router_increment_usage` RPC from `supabase/migrations/20260619021500_sage_router_usage_quotas.sql`
 
 Minimum columns expected by the incremental backend:
 
