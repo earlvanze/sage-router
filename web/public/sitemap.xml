@@ -19,7 +19,7 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://sagerouter.dev/status.html</loc>
+    <loc>https://sagerouter.dev/status</loc>
     <lastmod>2026-06-19</lastmod>
     <changefreq>hourly</changefreq>
     <priority>0.7</priority>
