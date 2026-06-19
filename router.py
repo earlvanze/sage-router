@@ -172,6 +172,7 @@ ROUTE_AUTH_CONTEXT = threading.local()
 CUSTOMER_STORE_PATH = os.path.expanduser(os.environ.get('SAGE_ROUTER_CUSTOMER_STORE_PATH', '~/.cache/sage-router/customers.json'))
 API_KEY_PREFIX = os.environ.get('SAGE_ROUTER_API_KEY_PREFIX', 'sk_sage_')
 API_KEY_HASH_PEPPER = os.environ.get('SAGE_ROUTER_API_KEY_HASH_PEPPER') or os.environ.get('SAGE_ROUTER_SIGNING_SECRET') or ''
+MAX_ACTIVE_API_KEYS_PER_CUSTOMER = int(os.environ.get('SAGE_ROUTER_MAX_ACTIVE_API_KEYS_PER_CUSTOMER', '5'))
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY') or os.environ.get('SAGE_ROUTER_STRIPE_SECRET_KEY') or ''
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET') or os.environ.get('SAGE_ROUTER_STRIPE_WEBHOOK_SECRET') or ''
 STRIPE_PRICE_ID = os.environ.get('SAGE_ROUTER_STRIPE_PRICE_ID') or os.environ.get('STRIPE_PRICE_ID') or ''
@@ -1761,6 +1762,7 @@ def public_launch_metadata():
         'checkoutPath': '/billing/stripe/checkout',
         'billingPortalPath': '/billing/stripe/portal',
         'apiKeyPrefix': API_KEY_PREFIX,
+        'maxActiveApiKeysPerCustomer': MAX_ACTIVE_API_KEYS_PER_CUSTOMER,
         'recommendedModel': 'sage-router/frontier',
     }
 
@@ -4726,7 +4728,14 @@ def api_keys_for_customer(customer_id):
     return [r for r in data.get('api_keys', []) if r.get('customer_id') == customer_id]
 
 
+def active_api_key_count_for_customer(customer_id):
+    return sum(1 for row in api_keys_for_customer(customer_id) if (row.get('status') or 'active') == 'active')
+
+
 def create_api_key_for_customer(customer, name='Default'):
+    max_active = MAX_ACTIVE_API_KEYS_PER_CUSTOMER
+    if max_active > 0 and active_api_key_count_for_customer(customer.get('id')) >= max_active:
+        raise ValueError(f'active_api_key_limit_reached:{max_active}')
     raw_key = generate_api_key()
     row = {
         'id': uuid.uuid4().hex,
@@ -8823,7 +8832,19 @@ class Handler(BaseHTTPRequestHandler):
             if not customer:
                 return
             payload = read_json_body(self)
-            raw_key, row = create_api_key_for_customer(customer, payload.get('name') or 'Default')
+            try:
+                raw_key, row = create_api_key_for_customer(customer, payload.get('name') or 'Default')
+            except ValueError as e:
+                detail = str(e)
+                if detail.startswith('active_api_key_limit_reached:'):
+                    limit = int(detail.split(':', 1)[1])
+                    self.write_json(409, {
+                        'error': 'active_api_key_limit_reached',
+                        'maxActiveApiKeysPerCustomer': limit,
+                        'message': f'Revoke an existing API key before creating another. Active key limit: {limit}.',
+                    })
+                    return
+                raise
             self.write_json(201, {'api_key': public_api_key(row, customer), 'key': raw_key})
             return
         if self.path.startswith('/account/api-keys/') and self.path.endswith('/revoke'):

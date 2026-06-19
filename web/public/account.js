@@ -35,6 +35,9 @@ function applyLaunchMetadata(data) {
   anthropicBaseUrl = data.anthropicBaseUrl || sageRouterUrl;
   set('openai-base-url', `OPENAI_BASE_URL=${openaiBaseUrl}`);
   set('anthropic-base-url', `ANTHROPIC_BASE_URL=${anthropicBaseUrl}`);
+  if (data.maxActiveApiKeysPerCustomer) {
+    set('key-limit-note', `Limit: ${data.maxActiveApiKeysPerCustomer} active keys per account.`);
+  }
 }
 
 function applyOauthButtons(external = {}, status = '') {

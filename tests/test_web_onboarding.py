@@ -17,6 +17,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("Create account", html)
         self.assertIn("sb.auth.signUp", js)
         self.assertIn("emailRedirectTo: `${window.location.origin}/account.html`", js)
+        self.assertIn('id="key-limit-note"', html)
+        self.assertIn("maxActiveApiKeysPerCustomer", js)
 
     def test_account_page_has_stripe_billing_management(self):
         html = self.read_public("account.html")

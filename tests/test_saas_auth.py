@@ -40,6 +40,7 @@ class SaaSAuthTests(unittest.TestCase):
             'CRYPTO_PAYMENT_ADDRESS': router.CRYPTO_PAYMENT_ADDRESS,
             'PUBLIC_BASE_URL': router.PUBLIC_BASE_URL,
             'API_BASE_URL': router.API_BASE_URL,
+            'MAX_ACTIVE_API_KEYS_PER_CUSTOMER': router.MAX_ACTIVE_API_KEYS_PER_CUSTOMER,
             'PUBLIC_PLAN_RATE_LIMITS_RAW': router.PUBLIC_PLAN_RATE_LIMITS_RAW,
             'PUBLIC_PLAN_MONTHLY_QUOTAS_RAW': router.PUBLIC_PLAN_MONTHLY_QUOTAS_RAW,
             'supabase_user_for_bearer': router.supabase_user_for_bearer,
@@ -59,6 +60,7 @@ class SaaSAuthTests(unittest.TestCase):
         router.CRYPTO_PAYMENT_ADDRESS = ''
         router.PUBLIC_BASE_URL = 'https://app.sagerouter.dev'
         router.API_BASE_URL = 'https://api.sagerouter.dev'
+        router.MAX_ACTIVE_API_KEYS_PER_CUSTOMER = 5
         router.PUBLIC_PLAN_RATE_LIMITS_RAW = 'trial=30,lite=60,pro=180,max=600,manual=600,paid=180,active=180,default=60'
         router.PUBLIC_PLAN_MONTHLY_QUOTAS_RAW = 'trial=1000,lite=10000,pro=50000,max=200000,paid=50000,active=50000,default=0'
         router.ROUTE_EVENTS_PATH = os.path.join(self.tmp.name, 'route-events.jsonl')
@@ -79,6 +81,7 @@ class SaaSAuthTests(unittest.TestCase):
         router.CRYPTO_PAYMENT_ADDRESS = self.old['CRYPTO_PAYMENT_ADDRESS']
         router.PUBLIC_BASE_URL = self.old['PUBLIC_BASE_URL']
         router.API_BASE_URL = self.old['API_BASE_URL']
+        router.MAX_ACTIVE_API_KEYS_PER_CUSTOMER = self.old['MAX_ACTIVE_API_KEYS_PER_CUSTOMER']
         router.PUBLIC_PLAN_RATE_LIMITS_RAW = self.old['PUBLIC_PLAN_RATE_LIMITS_RAW']
         router.PUBLIC_PLAN_MONTHLY_QUOTAS_RAW = self.old['PUBLIC_PLAN_MONTHLY_QUOTAS_RAW']
         router.supabase_user_for_bearer = self.old['supabase_user_for_bearer']
@@ -107,6 +110,47 @@ class SaaSAuthTests(unittest.TestCase):
         ctx = router.verify_generated_api_key(raw)
         self.assertEqual('generated_key', ctx['type'])
         self.assertEqual(customer['id'], ctx['customer']['id'])
+
+    def test_active_api_key_limit_blocks_new_keys_until_revoke(self):
+        router.MAX_ACTIVE_API_KEYS_PER_CUSTOMER = 2
+        customer = self.active_customer()
+        first_raw, first_row = router.create_api_key_for_customer(customer, 'first')
+        router.create_api_key_for_customer(customer, 'second')
+
+        with self.assertRaisesRegex(ValueError, 'active_api_key_limit_reached:2'):
+            router.create_api_key_for_customer(customer, 'third')
+
+        router.revoke_api_key_for_customer(customer['id'], first_row['id'])
+        replacement_raw, _replacement = router.create_api_key_for_customer(customer, 'replacement')
+
+        self.assertNotEqual(first_raw, replacement_raw)
+        self.assertEqual(2, router.active_api_key_count_for_customer(customer['id']))
+
+    def test_account_api_key_endpoint_returns_conflict_at_active_key_limit(self):
+        router.MAX_ACTIVE_API_KEYS_PER_CUSTOMER = 1
+        router.supabase_user_for_bearer = lambda token: {'id': 'user-1', 'email': 'u@example.com'}
+        customer = router.customer_for_user({'id': 'user-1', 'email': 'u@example.com'})
+        router.update_customer(customer['id'], {'plan': 'pro', 'status': 'active'})
+        router.create_api_key_for_customer(router.customer_by_id(customer['id']), 'existing')
+        body = b'{"name":"overflow"}'
+
+        class Dummy:
+            path = '/account/api-keys'
+            headers = {'Authorization': 'Bearer valid-user-jwt', 'Content-Length': str(len(body))}
+            rfile = BytesIO(body)
+            status = None
+            payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(409, handler.status)
+        self.assertEqual('active_api_key_limit_reached', handler.payload['error'])
+        self.assertEqual(1, handler.payload['maxActiveApiKeysPerCustomer'])
 
     def test_revoked_and_inactive_generated_keys_do_not_authorize(self):
         customer = self.active_customer()
@@ -403,6 +447,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('/billing/stripe/checkout', metadata['checkoutPath'])
         self.assertEqual('/billing/stripe/portal', metadata['billingPortalPath'])
         self.assertEqual('sk_sage_', metadata['apiKeyPrefix'])
+        self.assertEqual(5, metadata['maxActiveApiKeysPerCustomer'])
 
     def test_public_plan_catalog_exposes_edge_limits(self):
         plans = router.public_plan_catalog()
