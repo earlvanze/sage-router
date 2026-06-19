@@ -43,6 +43,13 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("usage?.requests", js)
         self.assertIn("test the key against /v1/models", js)
         self.assertIn("first sage-router/frontier chat completion", js)
+        self.assertIn('id="preauth-plans"', html)
+        self.assertIn('id="preauth-plan-summary"', html)
+        self.assertIn('id="plan-preview-route-cost"', html)
+        self.assertIn('data-preauth-plan', js)
+        self.assertIn("function renderPreauthPlanPreview", js)
+        self.assertIn("function costPerThousandRequests", js)
+        self.assertIn("Sign in to continue to checkout", js)
 
     def test_readiness_checks_public_supabase_auth_settings(self):
         readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")
@@ -115,6 +122,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("function requestedPlanFromUrl", js)
         self.assertIn("function applyRequestedPlanFromUrl", js)
         self.assertIn("rememberSelectedPlan(requested)", js)
+        self.assertIn("renderPreauthPlanPreview(availablePlans)", js)
         self.assertIn("applyRequestedPlanFromUrl();", js)
         self.assertIn("Stripe checkout returned for ${planDisplay(selectedPlan)}", js)
         self.assertIn("Checkout cancelled. ${planDisplay(selectedPlan)} is still selected.", js)

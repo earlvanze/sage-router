@@ -147,6 +147,11 @@ The hosted web app uses Supabase Auth. Email/password signup and email magic lin
 
 The account, login, and analytics pages read `https://awtangrlqqsdpksarhwo.supabase.co/auth/v1/settings` with the public anon key and hide disabled OAuth providers. This keeps onboarding usable through email signup while GitHub or other providers are still being configured.
 
+The account page also renders hosted plan selection before sign-in from public
+`/pricing` metadata. The selected Lite/Pro/Max plan is persisted in browser
+storage, shows quota, rate limit, and estimated cost per 1,000 requests, and is
+used after login when the customer continues to Stripe checkout.
+
 Bootstrap the GitHub app and wire Supabase without opening the Supabase dashboard:
 
 ```bash

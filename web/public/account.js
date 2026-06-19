@@ -72,6 +72,7 @@ function planDisplay(plan) {
 }
 
 let selectedPlan = storedPlan() || 'pro';
+let availablePlans = FALLBACK_PLANS;
 let recommendedUpgradePlan = '';
 let currentRawKey = '';
 let billingReturnHandled = false;
@@ -86,6 +87,9 @@ let activationState = {
 
 function applyLaunchMetadata(data) {
   if (!data) return;
+  if (data.plans) {
+    availablePlans = data.plans;
+  }
   sageRouterUrl = data.apiBaseUrl || sageRouterUrl;
   openaiBaseUrl = data.openaiBaseUrl || `${sageRouterUrl}/v1`;
   anthropicBaseUrl = data.anthropicBaseUrl || sageRouterUrl;
@@ -94,6 +98,7 @@ function applyLaunchMetadata(data) {
   if (data.maxActiveApiKeysPerCustomer) {
     set('key-limit-note', `Limit: ${data.maxActiveApiKeysPerCustomer} active keys per account.`);
   }
+  renderPreauthPlanPreview(availablePlans);
 }
 
 function applyOauthButtons(external = {}, status = '') {
@@ -266,6 +271,49 @@ function planLabel(plans, name) {
   return plans?.[name]?.name || (name ? name.charAt(0).toUpperCase() + name.slice(1) : 'plan');
 }
 
+function planPriceAmount(plan = {}) {
+  const explicit = Number(plan.monthlyPriceUsd ?? plan.priceUsd ?? plan.priceAmount);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  const match = String(plan.price || '').match(/([0-9]+(?:\.[0-9]+)?)/);
+  return match ? Number(match[1]) : 0;
+}
+
+function costPerThousandRequests(plan = {}) {
+  const quota = Number(plan.limits?.monthlyRequests || 0);
+  const price = planPriceAmount(plan);
+  if (!quota || !price) return '';
+  return `$${((price / quota) * 1000).toFixed(2)}`;
+}
+
+function renderPreauthPlanPreview(plans = availablePlans) {
+  availablePlans = plans || FALLBACK_PLANS;
+  const order = DEFAULT_PLAN_ORDER.filter(name => availablePlans?.[name]);
+  if (!order.length) return;
+  if (!order.includes(selectedPlan)) {
+    selectedPlan = rememberSelectedPlan(order.includes('pro') ? 'pro' : order[0]);
+  }
+  const chooser = $('preauth-plans');
+  if (chooser) {
+    chooser.innerHTML = order.map((name) => {
+      const plan = availablePlans[name] || {};
+      return `<button class="preauthPlan ${selectedPlan === name ? 'active' : ''}" data-preauth-plan="${esc(name)}" type="button">
+        <strong>${esc(plan.name || planDisplay(name))}</strong>
+        <span>${esc(plan.price || '')}</span>
+      </button>`;
+    }).join('');
+  }
+  document.querySelectorAll('[data-preauth-plan]').forEach(button => button.classList.toggle('active', button.dataset.preauthPlan === selectedPlan));
+  document.querySelectorAll('.planCard').forEach(card => card.classList.toggle('active', card.dataset.plan === selectedPlan));
+  const plan = availablePlans[selectedPlan] || {};
+  const limits = plan.limits || {};
+  set('plan-preview-selected', plan.name || planDisplay(selectedPlan));
+  set('plan-preview-price', plan.price || 'Manual');
+  set('plan-preview-quota', limits.monthlyRequests ? `${fmtNumber(limits.monthlyRequests)}/month` : 'Manual');
+  set('plan-preview-rate', limits.rateLimitPerMinute ? `${fmtNumber(limits.rateLimitPerMinute)}/min` : 'Manual');
+  set('plan-preview-route-cost', costPerThousandRequests(plan) || 'Manual');
+  set('plan-preview-next', 'Sign in to continue to checkout');
+}
+
 function nextPaidPlan(currentPlan, plans = FALLBACK_PLANS) {
   const available = DEFAULT_PLAN_ORDER.filter(name => plans?.[name]);
   if (!available.length) return '';
@@ -279,6 +327,7 @@ function selectPlan(plan, status = '') {
   if (!normalized) return;
   selectedPlan = rememberSelectedPlan(normalized);
   document.querySelectorAll('.planCard').forEach(card => card.classList.toggle('active', card.dataset.plan === selectedPlan));
+  renderPreauthPlanPreview(availablePlans);
   if (status) set('billing-status', status);
 }
 
@@ -286,6 +335,7 @@ function applyRequestedPlanFromUrl() {
   const requested = requestedPlanFromUrl();
   if (!requested) return '';
   selectedPlan = rememberSelectedPlan(requested);
+  renderPreauthPlanPreview(availablePlans);
   set('billing-status', `${planDisplay(selectedPlan)} selected. Sign in or continue to checkout when ready.`);
   return selectedPlan;
 }
@@ -361,6 +411,7 @@ async function refresh() {
   } catch (_error) {
     applyLaunchMetadata(null);
   }
+  renderPreauthPlanPreview(availablePlans);
   renderQuickstart();
   if (!s) return;
   set('account-status', 'Loading account...');
@@ -380,6 +431,8 @@ async function refresh() {
     set('account-status', `${customer.email || customer.user_id} · ${accountPlan} · ${accountStatus}`);
     set('routing-status', routingEnabled ? 'Routing enabled for generated API keys.' : 'Upgrade required before generated API keys can route paid traffic.');
     const plans = planData?.plans || FALLBACK_PLANS;
+    availablePlans = plans;
+    renderPreauthPlanPreview(plans);
     renderPlans(plans, accountPlan);
     const usage = usageData?.usage || null;
     const keyCount = (keys.api_keys || []).length;
@@ -654,6 +707,13 @@ $('plans')?.addEventListener('click', (event) => {
   if (!button) return;
   const plan = normalizePlan(button.dataset.plan);
   selectPlan(plan, `Selected ${planDisplay(plan)}.`);
+});
+$('preauth-plans')?.addEventListener('click', (event) => {
+  const button = event.target?.closest?.('[data-preauth-plan]');
+  if (!button) return;
+  const plan = normalizePlan(button.dataset.preauthPlan);
+  selectPlan(plan);
+  set('auth-status', `Selected ${planDisplay(plan)}. Sign in to continue to checkout.`);
 });
 $('usage-upgrade')?.addEventListener('click', () => {
   if (!recommendedUpgradePlan) return;
