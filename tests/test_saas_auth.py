@@ -41,6 +41,8 @@ class SaaSAuthTests(unittest.TestCase):
             'stripe_request': router.stripe_request,
             'CRYPTO_PAYMENT_ADDRESS': router.CRYPTO_PAYMENT_ADDRESS,
             'PUBLIC_BASE_URL': router.PUBLIC_BASE_URL,
+            'MARKETING_BASE_URL': router.MARKETING_BASE_URL,
+            'APP_BASE_URL': router.APP_BASE_URL,
             'API_BASE_URL': router.API_BASE_URL,
             'MAX_ACTIVE_API_KEYS_PER_CUSTOMER': router.MAX_ACTIVE_API_KEYS_PER_CUSTOMER,
             'PUBLIC_PLAN_RATE_LIMITS_RAW': router.PUBLIC_PLAN_RATE_LIMITS_RAW,
@@ -62,6 +64,8 @@ class SaaSAuthTests(unittest.TestCase):
         router.STRIPE_WEBHOOK_SECRET = ''
         router.CRYPTO_PAYMENT_ADDRESS = ''
         router.PUBLIC_BASE_URL = 'https://app.sagerouter.dev'
+        router.MARKETING_BASE_URL = 'https://sagerouter.dev'
+        router.APP_BASE_URL = 'https://app.sagerouter.dev'
         router.API_BASE_URL = 'https://api.sagerouter.dev'
         router.MAX_ACTIVE_API_KEYS_PER_CUSTOMER = 5
         router.PUBLIC_PLAN_RATE_LIMITS_RAW = 'trial=30,lite=60,pro=180,max=600,manual=600,paid=180,active=180,default=60'
@@ -85,6 +89,8 @@ class SaaSAuthTests(unittest.TestCase):
         router.stripe_request = self.old['stripe_request']
         router.CRYPTO_PAYMENT_ADDRESS = self.old['CRYPTO_PAYMENT_ADDRESS']
         router.PUBLIC_BASE_URL = self.old['PUBLIC_BASE_URL']
+        router.MARKETING_BASE_URL = self.old['MARKETING_BASE_URL']
+        router.APP_BASE_URL = self.old['APP_BASE_URL']
         router.API_BASE_URL = self.old['API_BASE_URL']
         router.MAX_ACTIVE_API_KEYS_PER_CUSTOMER = self.old['MAX_ACTIVE_API_KEYS_PER_CUSTOMER']
         router.PUBLIC_PLAN_RATE_LIMITS_RAW = self.old['PUBLIC_PLAN_RATE_LIMITS_RAW']
@@ -247,6 +253,20 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(10000, usage['quota'])
         self.assertEqual(9679, usage['remaining'])
         self.assertEqual(123456, usage['updated_at_epoch'])
+
+    def test_public_launch_metadata_exposes_10k_mrr_positioning(self):
+        metadata = router.public_launch_metadata()
+        launch = metadata['publicLaunch']
+
+        self.assertEqual(10000, launch['targetMrrUsd'])
+        self.assertEqual('hosted_routing_control_plane', launch['primaryRevenueModel'])
+        self.assertEqual('https://sagerouter.dev/pricing', launch['pricingPage'])
+        self.assertEqual('https://sagerouter.dev/compare/openrouter', launch['comparisonPage'])
+        self.assertEqual('https://app.sagerouter.dev/account.html', launch['accountPage'])
+        self.assertEqual(10200, launch['recommendedMix']['monthlyRevenueUsd'])
+        self.assertIn('sagerouter.dev/pricing', router.PUBLIC_LAUNCH_POSITIONING['conversionSurfaces'])
+        self.assertIn('usage quotas and request-per-minute limits', launch['sells'])
+        self.assertIn('does not grant unauthorized model access', launch['complianceBoundary'])
 
     def test_account_usage_endpoint_requires_signed_in_customer(self):
         router.supabase_user_for_bearer = lambda token: {'id': 'user-1', 'email': 'u@example.com'} if token == 'valid-user-jwt' else None
@@ -676,9 +696,13 @@ class SaaSAuthTests(unittest.TestCase):
     def test_public_launch_metadata_exposes_onboarding_urls(self):
         metadata = router.public_launch_metadata()
         self.assertEqual('https://app.sagerouter.dev', metadata['publicBaseUrl'])
+        self.assertEqual('https://sagerouter.dev', metadata['marketingBaseUrl'])
+        self.assertEqual('https://app.sagerouter.dev', metadata['appBaseUrl'])
         self.assertEqual('https://api.sagerouter.dev', metadata['apiBaseUrl'])
         self.assertEqual('https://api.sagerouter.dev/v1', metadata['openaiBaseUrl'])
         self.assertEqual('https://api.sagerouter.dev', metadata['anthropicBaseUrl'])
+        self.assertEqual('https://app.sagerouter.dev/account.html', metadata['accountUrl'])
+        self.assertEqual('https://app.sagerouter.dev/login.html', metadata['loginUrl'])
         self.assertEqual('/billing/stripe/checkout', metadata['checkoutPath'])
         self.assertEqual('/billing/stripe/portal', metadata['billingPortalPath'])
         self.assertEqual('sk_sage_', metadata['apiKeyPrefix'])

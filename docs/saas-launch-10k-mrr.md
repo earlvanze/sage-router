@@ -34,7 +34,7 @@ single buyer type.
 
 | Stage | Target metric | Product surface |
 | --- | ---: | --- |
-| Visitor to waitlist/signup | 5% | `sagerouter.dev`, `/pricing.html`, `/compare/openrouter` |
+| Visitor to waitlist/signup | 5% | `sagerouter.dev`, `/pricing`, `/compare/openrouter` |
 | Signup to generated key | 60% | `app.sagerouter.dev/account.html` |
 | Generated key to first routed request | 50% | OpenAI-compatible quickstart |
 | Trial/free to paid | 15% | Stripe checkout and plan gating |
@@ -70,4 +70,3 @@ and abuse controls are in place.
   available.
 - Track the funnel from waitlist to signup, generated key, first routed request,
   paid conversion, and retained paid account.
-

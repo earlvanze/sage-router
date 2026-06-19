@@ -239,7 +239,36 @@ PUBLIC_AGENT_NATIVE_FEATURES = {
     'costAndPlanTelemetry': {'description': 'Route events include selected model, attempts, elapsed time, customer plan, and auth type for pricing analytics.'},
     'freeTierFallbackPolicy': {'description': 'Eco/local/free profiles can be used for zero or low-balance workflows without blocking agent execution.'},
 }
+PUBLIC_LAUNCH_POSITIONING = {
+    'targetMrrUsd': 10000,
+    'primaryRevenueModel': 'hosted_routing_control_plane',
+    'pricingPage': 'https://sagerouter.dev/pricing',
+    'comparisonPage': 'https://sagerouter.dev/compare/openrouter',
+    'accountPage': 'https://app.sagerouter.dev/account.html',
+    'recommendedMix': {
+        'liteCustomers': 100,
+        'proCustomers': 200,
+        'maxCustomers': 50,
+        'monthlyRevenueUsd': 10200,
+    },
+    'conversionSurfaces': [
+        'sagerouter.dev',
+        'sagerouter.dev/pricing',
+        'sagerouter.dev/compare/openrouter',
+        'app.sagerouter.dev/account.html',
+    ],
+    'sells': [
+        'hosted account and API-key management',
+        'usage quotas and request-per-minute limits',
+        'route telemetry and analytics',
+        'fallback reliability and Tailnet/private-router resilience',
+        'support and private deployment guidance',
+    ],
+    'complianceBoundary': 'Customer-authorized provider access only; Sage Router does not grant unauthorized model access, pool provider accounts, or bypass provider terms.',
+}
 PUBLIC_BASE_URL = (os.environ.get('SAGE_ROUTER_PUBLIC_BASE_URL') or 'https://sagerouter.dev').rstrip('/')
+MARKETING_BASE_URL = (os.environ.get('SAGE_ROUTER_MARKETING_BASE_URL') or 'https://sagerouter.dev').rstrip('/')
+APP_BASE_URL = (os.environ.get('SAGE_ROUTER_APP_BASE_URL') or os.environ.get('SAGE_ROUTER_PUBLIC_BASE_URL') or 'https://app.sagerouter.dev').rstrip('/')
 API_BASE_URL = (os.environ.get('SAGE_ROUTER_API_BASE_URL') or '').rstrip('/')
 CRYPTO_PAYMENT_ADDRESS = os.environ.get('SAGE_ROUTER_CRYPTO_PAYMENT_ADDRESS', '').strip()
 CRYPTO_PAYMENT_ASSET = os.environ.get('SAGE_ROUTER_CRYPTO_PAYMENT_ASSET', 'USDC').strip()
@@ -1757,18 +1786,31 @@ def public_plan_catalog():
 
 def public_launch_metadata():
     api_base_url = API_BASE_URL or 'https://api.sagerouter.dev'
+    launch = json.loads(json.dumps(PUBLIC_LAUNCH_POSITIONING))
+    launch['pricingPage'] = f"{MARKETING_BASE_URL}/pricing"
+    launch['comparisonPage'] = f"{MARKETING_BASE_URL}/compare/openrouter"
+    launch['accountPage'] = f"{APP_BASE_URL}/account.html"
+    launch['conversionSurfaces'] = [
+        MARKETING_BASE_URL,
+        f"{MARKETING_BASE_URL}/pricing",
+        f"{MARKETING_BASE_URL}/compare/openrouter",
+        f"{APP_BASE_URL}/account.html",
+    ]
     return {
         'publicBaseUrl': PUBLIC_BASE_URL,
+        'marketingBaseUrl': MARKETING_BASE_URL,
+        'appBaseUrl': APP_BASE_URL,
         'apiBaseUrl': api_base_url,
         'openaiBaseUrl': f"{api_base_url}/v1",
         'anthropicBaseUrl': api_base_url,
-        'accountUrl': f"{PUBLIC_BASE_URL}/account.html",
-        'loginUrl': f"{PUBLIC_BASE_URL}/login.html",
+        'accountUrl': f"{APP_BASE_URL}/account.html",
+        'loginUrl': f"{APP_BASE_URL}/login.html",
         'checkoutPath': '/billing/stripe/checkout',
         'billingPortalPath': '/billing/stripe/portal',
         'apiKeyPrefix': API_KEY_PREFIX,
         'maxActiveApiKeysPerCustomer': MAX_ACTIVE_API_KEYS_PER_CUSTOMER,
         'recommendedModel': 'sage-router/frontier',
+        'publicLaunch': launch,
     }
 
 
@@ -8965,8 +9007,8 @@ class Handler(BaseHTTPRequestHandler):
                     'mode': 'subscription',
                     'line_items[0][price]': price_id,
                     'line_items[0][quantity]': '1',
-                    'success_url': f'{PUBLIC_BASE_URL}/account.html?checkout=success&plan={urllib.parse.quote(plan, safe="")}&session_id={{CHECKOUT_SESSION_ID}}',
-                    'cancel_url': f'{PUBLIC_BASE_URL}/account.html?checkout=cancel&plan={urllib.parse.quote(plan, safe="")}',
+                    'success_url': f'{APP_BASE_URL}/account.html?checkout=success&plan={urllib.parse.quote(plan, safe="")}&session_id={{CHECKOUT_SESSION_ID}}',
+                    'cancel_url': f'{APP_BASE_URL}/account.html?checkout=cancel&plan={urllib.parse.quote(plan, safe="")}',
                     'client_reference_id': customer.get('id'),
                     'customer': stripe_customer_id or None,
                     'customer_email': None if stripe_customer_id else (customer.get('email') or None),
@@ -8997,7 +9039,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 session = stripe_request('/v1/billing_portal/sessions', {
                     'customer': stripe_customer_id,
-                    'return_url': f'{PUBLIC_BASE_URL}/account.html?billing=portal',
+                    'return_url': f'{APP_BASE_URL}/account.html?billing=portal',
                 })
                 self.write_json(200, {'portal_url': session.get('url'), 'session_id': session.get('id')})
             except Exception as e:

@@ -117,6 +117,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("Hosted pricing: https://sagerouter.dev/pricing", llms)
         self.assertIn("balanced path to $10k MRR", llms_full)
         self.assertIn("/pricing", landing)
+        self.assertIn("endpoint, limit, and launch metadata", readiness)
         self.assertIn("marketing hosted pricing page is live and in sitemap", readiness)
         self.assertIn("Target: `$10,000 MRR`", launch_plan)
         self.assertIn("docs/saas-launch-10k-mrr.md", readme)
