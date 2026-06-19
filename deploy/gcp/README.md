@@ -42,6 +42,18 @@ GHCR_IMAGE_DIGEST=sha256:... \
 ./deploy/gcp/cloudrun-deploy.sh
 ```
 
+For the combined public release flow, use:
+
+```bash
+GHCR_IMAGE_DIGEST=sha256:... scripts/deploy_sagerouter_public.sh
+```
+
+That path deploys Cloudflare Pages production branch `main`, updates Cloud Run
+by immutable image digest when a digest is supplied, and reruns the hosted launch
+readiness gate. If `SAGEROUTER_DEPLOY_CLOUD_RUN=1` is set without a digest, it
+resolves the latest successful GitHub Actions `Release image` digest from the
+run log instead of trusting the mutable `latest` tag.
+
 Defaults for that path:
 
 - Project: `sage-router-demo-20260428`

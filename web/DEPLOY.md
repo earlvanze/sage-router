@@ -25,6 +25,17 @@ npm run preview
 
 Build output is written to `web/dist`.
 
+For production, prefer the repo-level deploy helper:
+
+```bash
+set -a; source /home/digit/.openclaw/.env; set +a
+scripts/deploy_sagerouter_public.sh
+```
+
+The helper deploys Cloudflare Pages to production branch `main`. Deploying this
+repo's `master` branch with Wrangler creates a preview deployment only, so do
+not use `--branch master` for the live `sagerouter.dev` custom domains.
+
 ## Recommended deploy path: Cloudflare Pages
 
 Use Cloudflare Pages for the marketing site and keep the router service separate.

@@ -180,6 +180,25 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("provider access Sage Router is authorized to sell or operate", page)
         self.assertIn("managed-access acceptable-use boundary", readiness)
 
+    def test_public_deploy_helper_pins_pages_production_and_cloud_run_digest(self):
+        script = self.read_text("scripts", "deploy_sagerouter_public.sh")
+        readme = self.read_text("README.md")
+        deploy = self.read_text("web", "DEPLOY.md")
+        gcp = self.read_text("deploy", "gcp", "README.md")
+
+        self.assertIn("SAGEROUTER_CLOUDFLARE_PAGES_PRODUCTION_BRANCH:-main", script)
+        self.assertIn("mktemp -d /tmp/sage-router-web", script)
+        self.assertIn("--exclude='./node_modules'", script)
+        self.assertIn("pages deploy \"$tmp/dist\"", script)
+        self.assertIn("npx wrangler \"${wrangler_args[@]}\"", script)
+        self.assertIn("--branch \"$PAGES_PRODUCTION_BRANCH\"", script)
+        self.assertIn("GHCR_IMAGE_DIGEST", script)
+        self.assertIn("containerimage.digest", script)
+        self.assertIn("check_sagerouter_launch_readiness.sh", script)
+        self.assertIn("deploys project `sage-router-web` to production branch `main`", readme)
+        self.assertIn("`master` branch with Wrangler creates a preview deployment only", deploy)
+        self.assertIn("resolves the latest successful GitHub Actions `Release image` digest", gcp)
+
 
 if __name__ == "__main__":
     unittest.main()

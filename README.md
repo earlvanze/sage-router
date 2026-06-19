@@ -171,6 +171,28 @@ scripts/check_sagerouter_launch_readiness.sh
 
 The readiness check verifies the public API edge, Supabase auth mode, rate limits, durable edge quotas, immediate generated-key revocation, anonymous auth gating, browser CORS preflight for the hosted API-key verification flow, hosted pricing metadata, the managed provider access guard, direct origin auth gating, Supabase management auth settings, public browser-visible Supabase auth settings, quota schema, hosted login/account/GitHub callback pages, hosted security headers, the public terms/privacy/acceptable-use pages, the model routing calculator, the operator-only privacy-safe `/analytics/funnel` endpoint, the non-mutating waitlist health endpoint on `SAGEROUTER_APP_BASE_URL` (default `https://app.sagerouter.dev`), optional Cloudflare Turnstile waitlist configuration, and the marketing comparison/pricing pages on `SAGEROUTER_MARKETING_BASE_URL` (default `https://sagerouter.dev`). By default, `publicLaunch.managedProviderAccess.enabled` must be false. If `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1`, readiness requires `SAGEROUTER_PROVIDER_RESALE_TERMS_URL`, `SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL`, durable quota/rate-limit enforcement, and the managed-access acceptable-use boundary before treating bundled provider access as launchable. The direct-origin probe uses `SAGEROUTER_ORIGIN_BASE_URL` when set; otherwise it auto-discovers the Cloud Run URL from `SAGEROUTER_CLOUD_RUN_PROJECT`/`SAGEROUTER_CLOUD_RUN_REGION`/`SAGEROUTER_CLOUD_RUN_SERVICE`, defaulting to the live hosted service.
 
+Use the public deploy helper to avoid branch/digest drift between the static
+site and hosted API:
+
+```bash
+set -a; source /home/digit/.openclaw/.env; set +a
+scripts/deploy_sagerouter_public.sh
+```
+
+The helper builds Cloudflare Pages from a clean temporary copy so local
+`node_modules` or Dropbox permissions cannot affect the production build, then
+deploys project `sage-router-web` to production branch `main` and reruns launch
+readiness. To update Cloud Run in the same pass, set an immutable release image
+digest:
+
+```bash
+GHCR_IMAGE_DIGEST=sha256:... scripts/deploy_sagerouter_public.sh
+```
+
+If `SAGEROUTER_DEPLOY_CLOUD_RUN=1` is set without a digest, the helper resolves
+the latest successful GitHub Actions `Release image` digest from the run log and
+deploys that digest through the Artifact Registry GHCR remote cache.
+
 Monthly API-key quotas require the Supabase usage counter table and RPC. Apply
 the idempotent migration through the Supabase Management API before enabling
 `SAGE_ROUTER_EDGE_QUOTA_ENABLED=1`:
