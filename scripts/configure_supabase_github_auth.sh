@@ -6,8 +6,57 @@ AUTH_SITE_URL="${SAGEROUTER_AUTH_SITE_URL:-https://app.sagerouter.dev}"
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:?Set SUPABASE_ACCESS_TOKEN to a Supabase Management API token.}"
 GITHUB_CLIENT_ID="${SAGEROUTER_GITHUB_CLIENT_ID:-${GITHUB_CLIENT_ID:-}}"
 GITHUB_CLIENT_SECRET="${SAGEROUTER_GITHUB_CLIENT_SECRET:-${GITHUB_CLIENT_SECRET:-}}"
-SUPABASE_URL="${SAGE_ROUTER_SUPABASE_URL:-${PUBLIC_SUPABASE_URL:-${VITE_SUPABASE_URL:-https://${PROJECT_REF}.supabase.co}}}"
-SUPABASE_ANON_KEY="${SAGE_ROUTER_SUPABASE_ANON_KEY:-${PUBLIC_SUPABASE_ANON_KEY:-${VITE_SUPABASE_PUBLISHABLE_KEY:-${SUPABASE_ANON_KEY:-}}}}"
+SUPABASE_URL="${SAGE_ROUTER_SUPABASE_URL:-https://${PROJECT_REF}.supabase.co}"
+SUPABASE_ANON_KEY="${SAGE_ROUTER_SUPABASE_ANON_KEY:-}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/.." && pwd)"
+
+supabase_key_for_project() {
+  KEY="$1" PROJECT_REF="$PROJECT_REF" python3 - <<'PY'
+import base64
+import json
+import os
+
+key = os.environ.get("KEY", "").strip()
+project_ref = os.environ.get("PROJECT_REF", "").strip()
+if not key or not project_ref:
+    raise SystemExit(0)
+
+try:
+    payload = key.split(".")[1]
+    payload += "=" * ((4 - len(payload) % 4) % 4)
+    data = json.loads(base64.urlsafe_b64decode(payload.encode()))
+except Exception:
+    raise SystemExit(0)
+
+if data.get("ref") == project_ref:
+    print(key)
+PY
+}
+
+discover_supabase_anon_key() {
+  if [[ -n "$SUPABASE_ANON_KEY" ]]; then
+    printf '%s\n' "$SUPABASE_ANON_KEY"
+    return
+  fi
+  local path key
+  for path in "${repo_root}/web/public/account.js" "${repo_root}/web/public/auth.js" "${repo_root}/web/public/analytics.js"; do
+    if [[ -f "$path" ]]; then
+      key="$(sed -n "s/^const SUPABASE_ANON_KEY = '\([^']*\)';$/\1/p" "$path" | head -n1)"
+      if [[ -n "$key" ]]; then
+        printf '%s\n' "$key"
+        return
+      fi
+    fi
+  done
+  for key in "${PUBLIC_SUPABASE_ANON_KEY:-}" "${VITE_SUPABASE_PUBLISHABLE_KEY:-}" "${SUPABASE_ANON_KEY:-}"; do
+    key="$(supabase_key_for_project "$key")"
+    if [[ -n "$key" ]]; then
+      printf '%s\n' "$key"
+      return
+    fi
+  done
+}
 
 if [[ -z "$GITHUB_CLIENT_ID" || -z "$GITHUB_CLIENT_SECRET" ]]; then
   cat >&2 <<EOF
@@ -83,6 +132,7 @@ if [[ "$site_url" != "$AUTH_SITE_URL" || "$github_enabled" != "true" || "$email_
   exit 1
 fi
 
+SUPABASE_ANON_KEY="$(discover_supabase_anon_key)"
 if [[ -n "$SUPABASE_ANON_KEY" ]]; then
   public_settings="$(curl -fsS "${SUPABASE_URL%/}/auth/v1/settings" -H "apikey: ${SUPABASE_ANON_KEY}")"
   public_email="$(printf '%s' "$public_settings" | jq -r '.external.email // false')"

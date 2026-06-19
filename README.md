@@ -185,6 +185,13 @@ After patching Supabase, the configurator verifies the management API state
 When a public anon/publishable key is available in the environment, it also
 checks `/auth/v1/settings` so the browser-visible OAuth buttons match the
 management config before the launch readiness script is rerun.
+The verification defaults to the Sage Router project ref
+`awtangrlqqsdpksarhwo` and the anon key published in the hosted app scripts.
+If you override Supabase settings from the environment, prefer
+`SAGE_ROUTER_SUPABASE_URL` and `SAGE_ROUTER_SUPABASE_ANON_KEY`; generic
+`PUBLIC_*`, `VITE_*`, or `SUPABASE_ANON_KEY` values are accepted only when the
+anon-key JWT belongs to the same project ref, which avoids false results on
+machines that also work with other Supabase projects.
 
 If local capture is not available, fall back to the hosted callback page. After approving the app, GitHub redirects to `/github-app-manifest.html` with a temporary one-hour `code`; the page is marked `noindex,nofollow`, explains that the browser only holds the short-lived manifest code, and prints the exact local exchange command. Rerun the same script with the full callback URL or the raw code:
 

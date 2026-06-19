@@ -10,8 +10,8 @@ CLOUD_RUN_PROJECT="${SAGEROUTER_CLOUD_RUN_PROJECT:-${SAGE_ROUTER_GCP_PROJECT_ID:
 CLOUD_RUN_REGION="${SAGEROUTER_CLOUD_RUN_REGION:-us-central1}"
 CLOUD_RUN_SERVICE="${SAGEROUTER_CLOUD_RUN_SERVICE:-sage-router}"
 SUPABASE_PROJECT_REF="${SUPABASE_PROJECT_REF:-awtangrlqqsdpksarhwo}"
-SUPABASE_URL="${SAGE_ROUTER_SUPABASE_URL:-${PUBLIC_SUPABASE_URL:-https://${SUPABASE_PROJECT_REF}.supabase.co}}"
-SUPABASE_ANON_KEY="${SAGE_ROUTER_SUPABASE_ANON_KEY:-${PUBLIC_SUPABASE_ANON_KEY:-${SUPABASE_ANON_KEY:-}}}"
+SUPABASE_URL="${SAGE_ROUTER_SUPABASE_URL:-https://${SUPABASE_PROJECT_REF}.supabase.co}"
+SUPABASE_ANON_KEY="${SAGE_ROUTER_SUPABASE_ANON_KEY:-}"
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:-}"
 SUPABASE_SERVICE_ROLE_KEY="${SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_SERVICE_ROLE_KEY:-}}"
 ADMIN_TOKEN="${SAGE_ROUTER_API_KEY:-${SAGE_ROUTER_EDGE_TOKEN:-}}"
@@ -68,6 +68,36 @@ discover_supabase_anon_key() {
       fi
     fi
   done
+  for key in "${PUBLIC_SUPABASE_ANON_KEY:-}" "${VITE_SUPABASE_PUBLISHABLE_KEY:-}" "${SUPABASE_ANON_KEY:-}"; do
+    key="$(supabase_key_for_project "$key")"
+    if [[ -n "$key" ]]; then
+      printf '%s\n' "$key"
+      return
+    fi
+  done
+}
+
+supabase_key_for_project() {
+  KEY="$1" PROJECT_REF="$SUPABASE_PROJECT_REF" python3 - <<'PY'
+import base64
+import json
+import os
+
+key = os.environ.get("KEY", "").strip()
+project_ref = os.environ.get("PROJECT_REF", "").strip()
+if not key or not project_ref:
+    raise SystemExit(0)
+
+try:
+    payload = key.split(".")[1]
+    payload += "=" * ((4 - len(payload) % 4) % 4)
+    data = json.loads(base64.urlsafe_b64decode(payload.encode()))
+except Exception:
+    raise SystemExit(0)
+
+if data.get("ref") == project_ref:
+    print(key)
+PY
 }
 
 check_edge_health() {
