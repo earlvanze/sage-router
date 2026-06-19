@@ -34,6 +34,7 @@ function App() {
             <a href="#security">Security</a>
             <a href="#automation">Automation</a>
             <a href="#analytics">Analytics</a>
+            <a href="/status.html">Status</a>
             <a href="/analytics.html">Dashboard</a>
             <a href="/login.html">Login</a>
             <a href="#docs">Guides</a>
@@ -60,6 +61,9 @@ function App() {
               </a>
               <a className="button secondary" href="/analytics.html">
                 View analytics dashboard
+              </a>
+              <a className="button secondary" href="/status.html">
+                View public status
               </a>
               <a className="button secondary" href="/login.html">
                 Sign in
@@ -345,6 +349,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <span>© Sage Router</span>
         <a href="https://github.com/earlvanze/sage-router">GitHub</a>
         <a href="/login.html">Login</a>
+        <a href="/status.html">Status</a>
         <a href="https://github.com/earlvanze/sage-router#readme">Docs</a>
       </footer>
     </main>

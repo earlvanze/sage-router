@@ -45,6 +45,17 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("sb.auth.signUp", js)
         self.assertIn("emailRedirectTo: `${window.location.origin}/analytics.html`", js)
 
+    def test_public_status_page_uses_edge_health_and_pricing(self):
+        html = self.read_public("status.html")
+        js = self.read_public("status.js")
+        self.assertIn("Public edge status", html)
+        self.assertIn('id="upstreams"', html)
+        self.assertIn('id="plans"', html)
+        self.assertIn("/edge/health", js)
+        self.assertIn("/pricing", js)
+        self.assertIn("https://api.sagerouter.dev", js)
+        self.assertIn("api.sagerouter.dev/v1", html)
+
 
 if __name__ == "__main__":
     unittest.main()
