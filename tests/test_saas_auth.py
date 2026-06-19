@@ -226,6 +226,14 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('cus_existing', captured['fields']['customer'])
         self.assertIsNone(captured['fields']['customer_email'])
         self.assertEqual('price_pro', captured['fields']['line_items[0][price]'])
+        self.assertEqual(
+            'https://app.sagerouter.dev/account.html?checkout=success&plan=pro&session_id={CHECKOUT_SESSION_ID}',
+            captured['fields']['success_url'],
+        )
+        self.assertEqual(
+            'https://app.sagerouter.dev/account.html?checkout=cancel&plan=pro',
+            captured['fields']['cancel_url'],
+        )
 
     def test_stripe_webhook_duplicate_event_is_ignored(self):
         router.STRIPE_WEBHOOK_SECRET = 'whsec_test'

@@ -26,6 +26,7 @@ const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
 
 let selectedPlan = 'pro';
 let currentRawKey = '';
+let checkoutReturnHandled = false;
 
 function applyLaunchMetadata(data) {
   if (!data) return;
@@ -143,6 +144,25 @@ async function refresh() {
     set('account-status', error.message);
     renderPlans(FALLBACK_PLANS, 'free');
   }
+}
+
+function handleCheckoutReturn() {
+  if (checkoutReturnHandled) return;
+  checkoutReturnHandled = true;
+  const params = new URLSearchParams(window.location.search || '');
+  const state = params.get('checkout');
+  if (!state) return;
+  const plan = (params.get('plan') || selectedPlan || 'pro').toLowerCase();
+  if (DEFAULT_PLAN_ORDER.includes(plan)) selectedPlan = plan;
+  if (state === 'success') {
+    set('billing-status', `Stripe checkout returned for ${selectedPlan}. Activation can take a moment while the webhook confirms the subscription.`);
+    setTimeout(() => refresh(), 3000);
+    setTimeout(() => refresh(), 10000);
+  } else if (state === 'cancel') {
+    set('billing-status', `Checkout cancelled. ${selectedPlan} is still selected.`);
+  }
+  const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+  window.history.replaceState({}, document.title, cleanUrl);
 }
 
 function renderPlans(plans, currentPlan) {
@@ -279,4 +299,5 @@ document.addEventListener('click', async (event) => {
 });
 sb.auth.onAuthStateChange(() => refresh());
 refresh();
+handleCheckoutReturn();
 applyAuthSettings();
