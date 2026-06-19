@@ -113,6 +113,10 @@ claim, or runtime feature flag.
 - Keep hosted positioning limited to routing/control-plane infrastructure until
   provider terms, billing, margin, and abuse controls support any managed
   provider resale offer.
+- Keep Stripe subscription webhooks price-ID aware: plan changes from the
+  Stripe portal should update Sage Router quotas and routing state from the
+  subscription item price before trusting webhook metadata or prior customer
+  state.
 - Capture managed-access beta demand through the waitlist `interest` metadata
   path from `/managed-access` and watch `managedAccessBetaInterest` plus
   `managedAccessShareOfWaitlist` in `/analytics/funnel` instead of advertising

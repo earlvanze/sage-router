@@ -1797,6 +1797,54 @@ def stripe_price_ids_by_plan():
     return mapping
 
 
+def normalize_stripe_plan(plan):
+    plan = str(plan or '').strip().lower()
+    if plan in {'lite', 'pro', 'max'}:
+        return plan
+    if plan and plan in stripe_price_ids_by_plan():
+        return plan
+    return ''
+
+
+def stripe_plan_from_price_id(price_id):
+    price_id = str(price_id or '').strip()
+    if not price_id:
+        return ''
+    for plan, configured_price_id in stripe_price_ids_by_plan().items():
+        if price_id == configured_price_id:
+            return normalize_stripe_plan(plan)
+    return ''
+
+
+def stripe_plan_from_object(obj, fallback_customer_id=None, default='pro'):
+    obj = obj if isinstance(obj, dict) else {}
+    items = (obj.get('items') or {}).get('data') if isinstance(obj.get('items'), dict) else []
+    if isinstance(items, list):
+        for item in items:
+            price = (item or {}).get('price') or {}
+            plan = stripe_plan_from_price_id(price.get('id'))
+            if plan:
+                return plan
+    legacy_plan = obj.get('plan') or {}
+    if isinstance(legacy_plan, dict):
+        plan = stripe_plan_from_price_id(legacy_plan.get('id'))
+        if plan:
+            return plan
+
+    metadata = obj.get('metadata') or {}
+    plan = normalize_stripe_plan(metadata.get('plan'))
+    if plan:
+        return plan
+
+    if fallback_customer_id:
+        existing = customer_by_id(fallback_customer_id)
+        plan = normalize_stripe_plan((existing or {}).get('plan'))
+        if plan:
+            return plan
+
+    return normalize_stripe_plan(default) or 'pro'
+
+
 def parse_public_plan_limits(raw):
     limits = {}
     for part in str(raw or '').split(','):
@@ -9636,7 +9684,7 @@ class Handler(BaseHTTPRequestHandler):
                 customer_id = (existing or {}).get('id')
             if customer_id and event_type == 'checkout.session.completed':
                 update_customer(customer_id, {
-                    'plan': metadata.get('plan') or 'pro',
+                    'plan': stripe_plan_from_object(obj, fallback_customer_id=customer_id),
                     'status': 'active',
                     'stripe_customer_id': obj.get('customer') or '',
                     'stripe_subscription_id': obj.get('subscription') or '',
@@ -9644,7 +9692,7 @@ class Handler(BaseHTTPRequestHandler):
             elif customer_id and event_type in {'customer.subscription.updated', 'customer.subscription.created'}:
                 status = obj.get('status') or 'active'
                 update_customer(customer_id, {
-                    'plan': metadata.get('plan') or 'pro',
+                    'plan': stripe_plan_from_object(obj, fallback_customer_id=customer_id),
                     'status': 'active' if status in {'active', 'trialing'} else status,
                     'stripe_customer_id': obj.get('customer') or '',
                     'stripe_subscription_id': obj.get('id') or '',

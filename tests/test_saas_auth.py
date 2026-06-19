@@ -932,6 +932,72 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('inactive', updated['status'])
         self.assertFalse(router.customer_is_active(updated))
 
+    def test_stripe_subscription_update_derives_plan_from_price_id(self):
+        router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
+        router.STRIPE_PRICE_IDS_RAW = 'lite=price_lite,pro=price_pro,max=price_max'
+        customer = self.active_customer()
+        router.update_customer(customer['id'], {
+            'plan': 'pro',
+            'stripe_customer_id': 'cus_1',
+            'stripe_subscription_id': 'sub_1',
+        })
+
+        event = {
+            'id': 'evt_sub_plan_change',
+            'type': 'customer.subscription.updated',
+            'data': {
+                'object': {
+                    'id': 'sub_1',
+                    'customer': 'cus_1',
+                    'status': 'active',
+                    'metadata': {'customer_id': customer['id'], 'plan': 'pro'},
+                    'items': {
+                        'data': [
+                            {'price': {'id': 'price_max'}},
+                        ],
+                    },
+                },
+            },
+        }
+
+        handler = self.signed_stripe_webhook_handler(event)
+        router.Handler.do_POST(handler)
+        self.assertEqual(200, handler.status)
+        updated = router.customer_by_id(customer['id'])
+        self.assertEqual('max', updated['plan'])
+        self.assertEqual('active', updated['status'])
+        self.assertTrue(router.customer_is_active(updated))
+        self.assertEqual(200000, router.account_usage_for_customer(updated)['quota'])
+
+    def test_stripe_subscription_update_preserves_current_plan_without_metadata_or_price(self):
+        router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
+        customer = self.active_customer()
+        router.update_customer(customer['id'], {
+            'plan': 'max',
+            'stripe_customer_id': 'cus_1',
+            'stripe_subscription_id': 'sub_1',
+        })
+
+        event = {
+            'id': 'evt_sub_no_plan_metadata',
+            'type': 'customer.subscription.updated',
+            'data': {
+                'object': {
+                    'id': 'sub_1',
+                    'customer': 'cus_1',
+                    'status': 'active',
+                    'metadata': {'customer_id': customer['id']},
+                },
+            },
+        }
+
+        handler = self.signed_stripe_webhook_handler(event)
+        router.Handler.do_POST(handler)
+        self.assertEqual(200, handler.status)
+        updated = router.customer_by_id(customer['id'])
+        self.assertEqual('max', updated['plan'])
+        self.assertEqual('active', updated['status'])
+
     def test_stripe_invoice_payment_failure_disables_generated_key_routing(self):
         router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
         customer = self.active_customer()
