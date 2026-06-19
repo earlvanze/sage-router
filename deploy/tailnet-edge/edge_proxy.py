@@ -76,6 +76,13 @@ HOP_BY_HOP_HEADERS = {
     "transfer-encoding",
     "upgrade",
 }
+EDGE_OWNED_RESPONSE_HEADERS = {
+    "access-control-allow-origin",
+    "access-control-allow-methods",
+    "access-control-allow-headers",
+    "access-control-max-age",
+    "access-control-allow-credentials",
+}
 
 AUTH_CACHE = {}
 AUTH_CACHE_LOCK = threading.Lock()
@@ -591,7 +598,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
                 self.close_connection = True
                 self.send_response(resp.status, resp.reason)
                 for key, value in resp.getheaders():
-                    if key.lower() in HOP_BY_HOP_HEADERS:
+                    if key.lower() in HOP_BY_HOP_HEADERS or key.lower() in EDGE_OWNED_RESPONSE_HEADERS:
                         continue
                     self.send_header(key, value)
                 self.send_header("X-Sage-Router-Edge", "tailnet-lowest-latency")
