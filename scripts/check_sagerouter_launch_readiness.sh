@@ -817,6 +817,54 @@ check_marketing_api_troubleshooting_page() {
   fi
 }
 
+check_marketing_api_reference_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/docs/api-reference")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router Hosted API Reference" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "https://api.sagerouter.dev/v1" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-hosted-base-url"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "GET /v1/models" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-models-endpoint"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "POST /v1/chat/completions" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-chat-endpoint"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "POST /v1/responses" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-responses-endpoint"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "X-RateLimit-" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-rate-limit-guidance"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "X-Quota-Remaining" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quota-guidance"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Anonymous .*/v1/.* model traffic is blocked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-authenticated-model-api-boundary"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/docs/api-reference" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-api-reference-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Hosted API reference: ${MARKETING_BASE%/}/docs/api-reference" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-api-reference-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing hosted API reference is live in sitemap and LLM discovery"
+  else
+    fail "marketing hosted API reference incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_codex_docs_page() {
   local page_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/docs/codex")"
@@ -1158,6 +1206,7 @@ check_marketing_managed_access_page
 check_marketing_model_catalog_page
 check_marketing_quickstart_page
 check_marketing_api_troubleshooting_page
+check_marketing_api_reference_page
 check_marketing_codex_docs_page
 check_model_routing_calculator
 check_legal_pages
