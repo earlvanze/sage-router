@@ -133,9 +133,12 @@ set -a; source /home/digit/.openclaw/.env; set +a
 bash scripts/bootstrap_github_supabase_auth.sh
 ```
 
-GitHub requires an owner-approved browser step before it returns app credentials. After approving the app, GitHub redirects to `/github-app-manifest.html` with a temporary `code`; rerun the same script with that code:
+GitHub requires an owner-approved browser step before it returns app credentials. By default the bootstrap script opens a local browser form, listens on an auto-selected `http://127.0.0.1` port, captures GitHub's one-hour manifest code, exchanges it for the app client id/secret, and patches Supabase Auth in the same run.
+
+If local capture is not available, fall back to the hosted callback page. After approving the app, GitHub redirects to `/github-app-manifest.html` with a temporary `code`; rerun the same script with that code:
 
 ```bash
+SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh
 SAGEROUTER_GITHUB_APP_MANIFEST_CODE=... bash scripts/bootstrap_github_supabase_auth.sh
 ```
 
