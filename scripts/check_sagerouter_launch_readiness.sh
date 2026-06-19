@@ -5,6 +5,10 @@ API_BASE="${SAGEROUTER_API_BASE_URL:-https://api.sagerouter.dev}"
 APP_BASE="${SAGEROUTER_APP_BASE_URL:-https://app.sagerouter.dev}"
 MARKETING_BASE="${SAGEROUTER_MARKETING_BASE_URL:-https://sagerouter.dev}"
 ORIGIN_BASE="${SAGEROUTER_ORIGIN_BASE_URL:-}"
+ORIGIN_AUTO_DISCOVER="${SAGEROUTER_ORIGIN_AUTO_DISCOVER:-1}"
+CLOUD_RUN_PROJECT="${SAGEROUTER_CLOUD_RUN_PROJECT:-${SAGE_ROUTER_GCP_PROJECT_ID:-sage-router-demo-20260428}}"
+CLOUD_RUN_REGION="${SAGEROUTER_CLOUD_RUN_REGION:-us-central1}"
+CLOUD_RUN_SERVICE="${SAGEROUTER_CLOUD_RUN_SERVICE:-sage-router}"
 SUPABASE_PROJECT_REF="${SUPABASE_PROJECT_REF:-awtangrlqqsdpksarhwo}"
 SUPABASE_URL="${SAGE_ROUTER_SUPABASE_URL:-${PUBLIC_SUPABASE_URL:-https://${SUPABASE_PROJECT_REF}.supabase.co}}"
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:-}"
@@ -276,22 +280,41 @@ check_admin_token() {
   fi
 }
 
+discover_origin_base() {
+  if [[ -n "$ORIGIN_BASE" ]]; then
+    printf '%s\n' "$ORIGIN_BASE"
+    return
+  fi
+  if [[ "$ORIGIN_AUTO_DISCOVER" == "0" || "$ORIGIN_AUTO_DISCOVER" == "false" || "$ORIGIN_AUTO_DISCOVER" == "no" ]]; then
+    return
+  fi
+  if ! command -v gcloud >/dev/null 2>&1; then
+    return
+  fi
+  gcloud run services describe "$CLOUD_RUN_SERVICE" \
+    --project="$CLOUD_RUN_PROJECT" \
+    --region="$CLOUD_RUN_REGION" \
+    --format='value(status.url)' 2>/dev/null || true
+}
+
 check_origin_auth_gate() {
-  if [[ -z "$ORIGIN_BASE" ]]; then
-    warn "SAGEROUTER_ORIGIN_BASE_URL not set; skipped direct origin auth-gate probe"
+  local origin_base
+  origin_base="$(discover_origin_base)"
+  if [[ -z "$origin_base" ]]; then
+    warn "SAGEROUTER_ORIGIN_BASE_URL not set and Cloud Run origin auto-discovery unavailable; skipped direct origin auth-gate probe"
     return
   fi
   local models_code setup_code admin_code
-  models_code="$(http_code "${ORIGIN_BASE%/}/v1/models")"
+  models_code="$(http_code "${origin_base%/}/v1/models")"
   rm -f /tmp/sage-router-readiness-body
-  setup_code="$(http_code "${ORIGIN_BASE%/}/setup/state")"
+  setup_code="$(http_code "${origin_base%/}/setup/state")"
   rm -f /tmp/sage-router-readiness-body
-  admin_code="$(http_code "${ORIGIN_BASE%/}/admin/blocks")"
+  admin_code="$(http_code "${origin_base%/}/admin/blocks")"
   rm -f /tmp/sage-router-readiness-body
   if [[ "$models_code" == "401" && "$setup_code" == "401" && "$admin_code" == "401" ]]; then
-    pass "direct hosted origin blocks anonymous model, setup, and admin routes"
+    pass "direct hosted origin blocks anonymous model, setup, and admin routes at ${origin_base%/}"
   else
-    fail "direct hosted origin auth gate incomplete: /v1/models=${models_code} /setup/state=${setup_code} /admin/blocks=${admin_code}"
+    fail "direct hosted origin auth gate incomplete at ${origin_base%/}: /v1/models=${models_code} /setup/state=${setup_code} /admin/blocks=${admin_code}"
   fi
 }
 

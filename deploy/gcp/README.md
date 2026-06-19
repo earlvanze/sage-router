@@ -21,7 +21,7 @@ This deployment is for a public Phase 2 demo of Sage Router on Google Cloud Run.
 - Project: `sage-router-demo-20260428`
 - Region: `us-central1`
 - Service: `sage-router`
-- URL: `https://sage-router-434058661374.us-central1.run.app`
+- URL: discover with `gcloud run services describe sage-router --project sage-router-demo-20260428 --region us-central1 --format 'value(status.url)'`
 - Public API DNS: `https://api.sagerouter.dev`
 - Verified endpoints: `/`, `/health`, authenticated `/v1/models`
 - Runtime boundary: Dario binary and Ollama daemon are present. Dario requires user-provided auth before Anthropic-compatible provider traffic can use it. Ollama requires user-provided Ollama Cloud auth/config for cloud inference; no local model weights are bundled.
@@ -70,7 +70,7 @@ The script enables required APIs, creates an Artifact Registry Docker repo if ne
 ## Verify
 
 ```bash
-SERVICE_URL=$(gcloud run services describe sage-router --region us-central1 --format 'value(status.url)')
+SERVICE_URL=$(gcloud run services describe sage-router --project sage-router-demo-20260428 --region us-central1 --format 'value(status.url)')
 curl "$SERVICE_URL/health"
 curl -i "$SERVICE_URL/v1/models"      # expect 401 without an operator/customer token
 curl -i "$SERVICE_URL/setup/state"    # expect 401 without an operator token

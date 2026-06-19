@@ -18,7 +18,7 @@ SAGE_ROUTER_ORIGINS = """
   },
   {
     "name": "google-hosted-ghs",
-    "url": "https://sage-router-434058661374.us-central1.run.app",
+    "url": "https://sage-router-azg7ltn2iq-uc.a.run.app",
     "healthPath": "/health"
   }
 ]
