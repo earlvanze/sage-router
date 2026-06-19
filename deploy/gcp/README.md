@@ -28,8 +28,39 @@ This deployment is for a public Phase 2 demo of Sage Router on Google Cloud Run.
 
 ## Deploy
 
+The script defaults to the live hosted project, `sage-router-demo-20260428`.
+Set `PROJECT_ID` only when intentionally deploying a separate environment.
+
+For the hosted service, prefer updating Cloud Run to a GitHub release image
+through the Artifact Registry GHCR remote cache. This preserves the existing
+Cloud Run environment variables and Secret Manager bindings instead of
+rebuilding and redeploying the full service configuration:
+
 ```bash
-export PROJECT_ID=your-gcp-project-id
+DEPLOY_FROM_GHCR_REMOTE=1 \
+GHCR_IMAGE_DIGEST=sha256:... \
+./deploy/gcp/cloudrun-deploy.sh
+```
+
+Defaults for that path:
+
+- Project: `sage-router-demo-20260428`
+- Region: `us-central1`
+- Service: `sage-router`
+- Artifact Registry remote repo: `ghcr-remote`
+- Upstream: `https://ghcr.io`
+- Image: `earlvanze/sage-router-public`
+
+You can also pass an exact image path when recovering or rolling back:
+
+```bash
+CLOUD_RUN_IMAGE=us-central1-docker.pkg.dev/sage-router-demo-20260428/ghcr-remote/earlvanze/sage-router-public@sha256:... \
+./deploy/gcp/cloudrun-deploy.sh
+```
+
+For a source build into a project-local Artifact Registry image:
+
+```bash
 export REGION=us-central1
 ./deploy/gcp/cloudrun-deploy.sh
 ```

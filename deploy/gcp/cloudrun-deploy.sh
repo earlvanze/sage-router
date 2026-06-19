@@ -5,7 +5,14 @@ SERVICE_NAME="${SERVICE_NAME:-sage-router}"
 REGION="${REGION:-us-central1}"
 REPOSITORY="${REPOSITORY:-sage-router}"
 IMAGE_TAG="${IMAGE_TAG:-phase2}"
-PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || true)}"
+PROJECT_ID="${PROJECT_ID:-${SAGE_ROUTER_GCP_PROJECT_ID:-sage-router-demo-20260428}}"
+DEPLOY_FROM_GHCR_REMOTE="${DEPLOY_FROM_GHCR_REMOTE:-0}"
+CLOUD_RUN_IMAGE="${CLOUD_RUN_IMAGE:-${SAGE_ROUTER_CLOUD_RUN_IMAGE:-}}"
+GHCR_REMOTE_REPOSITORY="${GHCR_REMOTE_REPOSITORY:-ghcr-remote}"
+GHCR_REMOTE_UPSTREAM="${GHCR_REMOTE_UPSTREAM:-https://ghcr.io}"
+GHCR_IMAGE="${GHCR_IMAGE:-earlvanze/sage-router-public}"
+GHCR_IMAGE_TAG="${GHCR_IMAGE_TAG:-latest}"
+GHCR_IMAGE_DIGEST="${GHCR_IMAGE_DIGEST:-}"
 PUBLIC_BASE_URL="${SAGE_ROUTER_PUBLIC_BASE_URL:-https://app.sagerouter.dev}"
 MARKETING_BASE_URL="${SAGE_ROUTER_MARKETING_BASE_URL:-https://sagerouter.dev}"
 APP_BASE_URL="${SAGE_ROUTER_APP_BASE_URL:-https://app.sagerouter.dev}"
@@ -49,8 +56,52 @@ PY
 fi
 
 if [[ -z "${PROJECT_ID}" || "${PROJECT_ID}" == "(unset)" ]]; then
-  echo "PROJECT_ID is required. Set PROJECT_ID or run: gcloud config set project YOUR_PROJECT_ID" >&2
+  echo "PROJECT_ID is required. Set PROJECT_ID or SAGE_ROUTER_GCP_PROJECT_ID." >&2
   exit 2
+fi
+
+echo "Using Cloud Run project=${PROJECT_ID} region=${REGION} service=${SERVICE_NAME}" >&2
+
+if [[ "${DEPLOY_FROM_GHCR_REMOTE}" == "1" || -n "${CLOUD_RUN_IMAGE}" || -n "${GHCR_IMAGE_DIGEST}" ]]; then
+  gcloud services enable \
+    run.googleapis.com \
+    artifactregistry.googleapis.com \
+    --project "${PROJECT_ID}"
+
+  if [[ -z "${CLOUD_RUN_IMAGE}" ]]; then
+    if ! gcloud artifacts repositories describe "${GHCR_REMOTE_REPOSITORY}" --location "${REGION}" --project "${PROJECT_ID}" >/dev/null 2>&1; then
+      gcloud artifacts repositories create "${GHCR_REMOTE_REPOSITORY}" \
+        --repository-format=docker \
+        --mode=remote-repository \
+        --remote-docker-repo="${GHCR_REMOTE_UPSTREAM}" \
+        --location "${REGION}" \
+        --description "GHCR remote cache for Sage Router images" \
+        --project "${PROJECT_ID}"
+    fi
+
+    if [[ -n "${GHCR_IMAGE_DIGEST}" ]]; then
+      digest="${GHCR_IMAGE_DIGEST}"
+      if [[ "${digest}" != sha256:* ]]; then
+        digest="sha256:${digest}"
+      fi
+      CLOUD_RUN_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${GHCR_REMOTE_REPOSITORY}/${GHCR_IMAGE}@${digest}"
+    else
+      CLOUD_RUN_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${GHCR_REMOTE_REPOSITORY}/${GHCR_IMAGE}:${GHCR_IMAGE_TAG}"
+    fi
+  fi
+
+  echo "Updating ${SERVICE_NAME} to ${CLOUD_RUN_IMAGE}" >&2
+  gcloud run services update "${SERVICE_NAME}" \
+    --image "${CLOUD_RUN_IMAGE}" \
+    --project "${PROJECT_ID}" \
+    --region "${REGION}" \
+    --platform managed
+
+  gcloud run services describe "${SERVICE_NAME}" \
+    --project "${PROJECT_ID}" \
+    --region "${REGION}" \
+    --format 'value(status.url)'
+  exit 0
 fi
 
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE_NAME}:${IMAGE_TAG}"
