@@ -64,8 +64,12 @@ and abuse controls are in place.
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
 - Keep `/pricing`, `/status`, `/account.html`, `/login.html`, `/api/waitlist`,
-  and `/compare/openrouter` in the readiness gate.
-- Add the public pricing page to readiness and LLM discovery.
+  `/compare/openrouter`, `/terms`, `/privacy`, and `/acceptable-use` in the
+  readiness gate.
+- Keep the public pricing and legal pages in sitemap and LLM discovery.
+- Keep hosted positioning limited to routing/control-plane infrastructure until
+  provider terms, billing, margin, and abuse controls support any managed
+  provider resale offer.
 - Enable GitHub OAuth in Supabase after the GitHub App manifest approval code is
   available.
 - Track the funnel from waitlist to signup, generated key, first routed request,

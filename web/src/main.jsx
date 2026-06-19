@@ -362,6 +362,9 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/pricing">Pricing</a>
         <a href="/compare/openrouter">Compare OpenRouter</a>
         <a href="/status">Status</a>
+        <a href="/terms">Terms</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/acceptable-use">Acceptable Use</a>
         <a href="https://github.com/earlvanze/sage-router#readme">Docs</a>
       </footer>
     </main>

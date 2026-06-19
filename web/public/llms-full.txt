@@ -18,6 +18,14 @@ Hosted pricing page: https://sagerouter.dev/pricing
 
 The hosted Sage Router plans sell account management, generated API keys, quotas, route telemetry, fallback reliability, and support. Lite is $6/month for 10,000 included requests, Pro is $30/month for 50,000 included requests, and Max is $72/month for 200,000 included requests. A balanced path to $10k MRR is 100 Lite, 200 Pro, and 50 Max customers, which equals $10,200 MRR.
 
+## Hosted legal and compliance
+
+Terms: https://sagerouter.dev/terms
+Privacy: https://sagerouter.dev/privacy
+Acceptable Use: https://sagerouter.dev/acceptable-use
+
+The hosted service sells routing infrastructure, account management, generated API keys, quotas, route telemetry, reliability tooling, billing, and support. It does not grant unauthorized provider access, does not promise to bypass provider terms, and does not pool customer provider accounts as a default service. Customers remain responsible for using only authorized provider access, local models, subscriptions, API keys, cloud accounts, and endpoints.
+
 ## Architecture and security
 
 Default architecture keeps provider credentials on the customer machine or server. Sage Router should provide inspectable routing policy, health metadata, deployment helpers, and optional reliability layers without making key custody the default.

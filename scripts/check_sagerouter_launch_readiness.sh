@@ -295,6 +295,51 @@ check_marketing_pricing_page() {
   fi
 }
 
+check_legal_pages() {
+  local terms_code privacy_code acceptable_code sitemap_code
+  terms_code="$(http_code_follow "${MARKETING_BASE%/}/terms")"
+  if [[ "$terms_code" == "200" ]] && ! grep -q "Sage Router Terms" /tmp/sage-router-readiness-body; then
+    terms_code="200:unexpected-body"
+  fi
+  if [[ "$terms_code" == "200" ]] && ! grep -q "does not grant unauthorized" /tmp/sage-router-readiness-body; then
+    terms_code="200:missing-service-boundary"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  privacy_code="$(http_code_follow "${MARKETING_BASE%/}/privacy")"
+  if [[ "$privacy_code" == "200" ]] && ! grep -q "Sage Router Privacy" /tmp/sage-router-readiness-body; then
+    privacy_code="200:unexpected-body"
+  fi
+  if [[ "$privacy_code" == "200" ]] && ! grep -q "prompt bodies" /tmp/sage-router-readiness-body; then
+    privacy_code="200:missing-privacy-boundary"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  acceptable_code="$(http_code_follow "${MARKETING_BASE%/}/acceptable-use")"
+  if [[ "$acceptable_code" == "200" ]] && ! grep -q "Sage Router Acceptable Use" /tmp/sage-router-readiness-body; then
+    acceptable_code="200:unexpected-body"
+  fi
+  if [[ "$acceptable_code" == "200" ]] && ! grep -q "authorized to use" /tmp/sage-router-readiness-body; then
+    acceptable_code="200:missing-authorized-use"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] &&
+      { ! grep -q "${MARKETING_BASE%/}/terms" /tmp/sage-router-readiness-body ||
+        ! grep -q "${MARKETING_BASE%/}/privacy" /tmp/sage-router-readiness-body ||
+        ! grep -q "${MARKETING_BASE%/}/acceptable-use" /tmp/sage-router-readiness-body; }; then
+    sitemap_code="200:missing-legal-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$terms_code" == "200" && "$privacy_code" == "200" && "$acceptable_code" == "200" && "$sitemap_code" == "200" ]]; then
+    pass "marketing terms, privacy, and acceptable-use pages are live and in sitemap"
+  else
+    fail "marketing legal pages incomplete: terms=${terms_code} privacy=${privacy_code} acceptable-use=${acceptable_code} sitemap=${sitemap_code}"
+  fi
+}
+
 check_admin_token() {
   if [[ -z "$ADMIN_TOKEN" ]]; then
     warn "SAGE_ROUTER_API_KEY/SAGE_ROUTER_EDGE_TOKEN not set; skipped private admin token probe"
@@ -408,6 +453,7 @@ check_hosted_onboarding_pages
 check_waitlist_endpoint
 check_marketing_comparison_page
 check_marketing_pricing_page
+check_legal_pages
 check_admin_token
 check_origin_auth_gate
 check_supabase_auth_config

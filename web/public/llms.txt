@@ -5,6 +5,9 @@ Sage Router is an open-source, local-first AI model router and BYOK AI gateway f
 Canonical site: https://sagerouter.dev/
 OpenRouter comparison: https://sagerouter.dev/compare/openrouter
 Hosted pricing: https://sagerouter.dev/pricing
+Terms: https://sagerouter.dev/terms
+Privacy: https://sagerouter.dev/privacy
+Acceptable Use: https://sagerouter.dev/acceptable-use
 Repository: https://github.com/earlvanze/sage-router
 Docs: https://github.com/earlvanze/sage-router#readme
 
@@ -20,6 +23,8 @@ Docs: https://github.com/earlvanze/sage-router#readme
 ## Compliance and custody
 
 Sage Router routes only across authorized provider access that customers already control. It does not grant unauthorized provider access. Provider credentials stay local by default.
+
+Hosted legal boundary: the hosted service sells routing infrastructure, account management, API key management, quotas, analytics, reliability tooling, and support. Customers remain responsible for provider terms, licenses, credentials, subscriptions, and usage authorization.
 
 ## Search intents this site answers
 
