@@ -11,6 +11,7 @@ MANIFEST_INPUT="${1:-${SAGEROUTER_GITHUB_APP_MANIFEST_URL:-${SAGEROUTER_GITHUB_A
 MANIFEST_CODE=""
 GITHUB_CLIENT_ID="${SAGEROUTER_GITHUB_CLIENT_ID:-${GITHUB_CLIENT_ID:-}}"
 GITHUB_CLIENT_SECRET="${SAGEROUTER_GITHUB_CLIENT_SECRET:-${GITHUB_CLIENT_SECRET:-}}"
+GITHUB_CREDENTIALS_OUTPUT="${SAGEROUTER_GITHUB_APP_ENV_OUTPUT:-}"
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:?Set SUPABASE_ACCESS_TOKEN to a Supabase Management API token.}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -53,6 +54,17 @@ configure_supabase() {
     bash "${script_dir}/configure_supabase_github_auth.sh"
 }
 
+save_github_credentials() {
+  [[ -n "$GITHUB_CREDENTIALS_OUTPUT" ]] || return 0
+  umask 077
+  mkdir -p "$(dirname "$GITHUB_CREDENTIALS_OUTPUT")"
+  {
+    printf 'SAGEROUTER_GITHUB_CLIENT_ID=%q\n' "$GITHUB_CLIENT_ID"
+    printf 'SAGEROUTER_GITHUB_CLIENT_SECRET=%q\n' "$GITHUB_CLIENT_SECRET"
+  } > "$GITHUB_CREDENTIALS_OUTPUT"
+  printf 'Saved GitHub OAuth credentials to %s.\n' "$GITHUB_CREDENTIALS_OUTPUT" >&2
+}
+
 convert_manifest() {
   response="$(
     curl -fsS -X POST "https://api.github.com/app-manifests/${MANIFEST_CODE}/conversions" \
@@ -62,6 +74,7 @@ convert_manifest() {
   GITHUB_CLIENT_ID="$(printf '%s' "$response" | jq -r '.client_id // empty')"
   GITHUB_CLIENT_SECRET="$(printf '%s' "$response" | jq -r '.client_secret // empty')"
   [[ -n "$GITHUB_CLIENT_ID" && -n "$GITHUB_CLIENT_SECRET" ]] || die "GitHub manifest conversion did not return a client id and secret."
+  save_github_credentials
   configure_supabase
   printf 'Configured Supabase GitHub auth for app id %s.\n' "$(printf '%s' "$response" | jq -r '.id // "unknown"')"
 }

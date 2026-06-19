@@ -174,6 +174,14 @@ bash scripts/bootstrap_github_supabase_auth.sh 'https://app.sagerouter.dev/githu
 SAGEROUTER_GITHUB_APP_MANIFEST_CODE=... bash scripts/bootstrap_github_supabase_auth.sh
 ```
 
+If the Supabase Management API token is being refreshed or debugged, preserve
+the one-time GitHub client secret before the Supabase patch runs:
+
+```bash
+SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env \
+  bash scripts/bootstrap_github_supabase_auth.sh 'https://app.sagerouter.dev/github-app-manifest.html?code=...'
+```
+
 The callback page prints the exact command, including env loading and the launch readiness rerun. It also shows the raw temporary code as a fallback if clipboard access is blocked by the browser. If the code expires, rerun `SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh` and approve the app again.
 
 If a GitHub OAuth App already exists, pass its credentials directly:
