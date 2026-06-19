@@ -133,6 +133,8 @@ GitHub requires an owner-approved browser step before it returns app credentials
 SAGEROUTER_GITHUB_APP_MANIFEST_CODE=... bash scripts/bootstrap_github_supabase_auth.sh
 ```
 
+The callback page prints the exact command, including env loading and the launch readiness rerun. It also shows the raw temporary code as a fallback if clipboard access is blocked by the browser.
+
 If a GitHub OAuth App already exists, pass its credentials directly:
 
 ```bash
@@ -148,6 +150,8 @@ Check the current hosted launch gates with:
 set -a; source /home/digit/.openclaw/.env; set +a
 scripts/check_sagerouter_launch_readiness.sh
 ```
+
+The readiness check verifies the public API edge, hosted pricing metadata, direct origin auth gating when `SAGEROUTER_ORIGIN_BASE_URL` is set, Supabase auth settings, quota schema, and the hosted login/account/GitHub callback pages on `SAGEROUTER_APP_BASE_URL` (default `https://app.sagerouter.dev`).
 
 Monthly API-key quotas require the Supabase usage counter table and RPC. Apply
 the idempotent migration through the Supabase Management API before enabling

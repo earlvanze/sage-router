@@ -2,6 +2,7 @@
 set -euo pipefail
 
 API_BASE="${SAGEROUTER_API_BASE_URL:-https://api.sagerouter.dev}"
+APP_BASE="${SAGEROUTER_APP_BASE_URL:-https://app.sagerouter.dev}"
 ORIGIN_BASE="${SAGEROUTER_ORIGIN_BASE_URL:-}"
 SUPABASE_PROJECT_REF="${SUPABASE_PROJECT_REF:-awtangrlqqsdpksarhwo}"
 SUPABASE_URL="${SAGE_ROUTER_SUPABASE_URL:-${PUBLIC_SUPABASE_URL:-https://${SUPABASE_PROJECT_REF}.supabase.co}}"
@@ -25,6 +26,12 @@ http_code() {
   local url="$1"
   shift
   curl -sS -o /tmp/sage-router-readiness-body -w '%{http_code}' "$url" "$@"
+}
+
+http_code_follow() {
+  local url="$1"
+  shift
+  curl -sSL -o /tmp/sage-router-readiness-body -w '%{http_code}' "$url" "$@"
 }
 
 require_jq() {
@@ -91,6 +98,33 @@ check_public_pricing_metadata() {
     pass "public /pricing exposes hosted plan, Stripe billing, endpoint, and limit metadata"
   else
     fail "public /pricing metadata incomplete: plans=${plans:-missing} apiBaseUrl=${api_base:-missing} openaiBaseUrl=${openai_base:-missing} checkoutPath=${checkout_path:-missing} billingPortalPath=${portal_path:-missing} apiKeyLimit=${api_key_limit:-missing} limits=${limits_ok:-missing} stripe=${stripe_ok:-missing}"
+  fi
+}
+
+check_hosted_onboarding_pages() {
+  local login_code account_code manifest_code
+  login_code="$(http_code_follow "${APP_BASE%/}/login.html")"
+  if [[ "$login_code" == "200" ]] && ! grep -q "Login · Sage Router" /tmp/sage-router-readiness-body; then
+    login_code="200:unexpected-body"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  account_code="$(http_code_follow "${APP_BASE%/}/account.html")"
+  if [[ "$account_code" == "200" ]] && ! grep -q "Sage Router Account" /tmp/sage-router-readiness-body; then
+    account_code="200:unexpected-body"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  manifest_code="$(http_code_follow "${APP_BASE%/}/github-app-manifest.html")"
+  if [[ "$manifest_code" == "200" ]] && ! grep -q "Finish GitHub auth setup" /tmp/sage-router-readiness-body; then
+    manifest_code="200:unexpected-body"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$login_code" == "200" && "$account_code" == "200" && "$manifest_code" == "200" ]]; then
+    pass "hosted login, account, and GitHub auth callback pages are live"
+  else
+    fail "hosted onboarding pages incomplete: login=${login_code} account=${account_code} github-app-manifest=${manifest_code}"
   fi
 }
 
@@ -177,6 +211,7 @@ require_jq
 check_edge_health
 check_public_auth_gate
 check_public_pricing_metadata
+check_hosted_onboarding_pages
 check_admin_token
 check_origin_auth_gate
 check_supabase_auth_config

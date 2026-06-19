@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sage Router GitHub App</title>
+  <title>Sage Router GitHub Auth Setup</title>
   <style>
     :root{color-scheme:dark;--bg:#08110d;--panel:#0e1b15;--border:#274635;--text:#edfdf5;--muted:#a9c5b8;--brand:#8df0b2}
     *{box-sizing:border-box}
@@ -14,31 +14,53 @@
     code{color:var(--brand)}
     pre{overflow:auto;border:1px solid var(--border);border-radius:8px;background:#050807;padding:16px;color:#d9f8e6}
     button{min-height:42px;border:0;border-radius:8px;padding:0 16px;background:var(--brand);color:#03150c;font-weight:800;cursor:pointer}
+    .actions{display:flex;gap:12px;flex-wrap:wrap}
+    .label{display:block;margin:20px 0 8px;color:var(--muted);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
     .hidden{display:none}
   </style>
 </head>
 <body>
   <main>
-    <h1>GitHub app created</h1>
+    <h1>Finish GitHub auth setup</h1>
     <p id="status">Reading the temporary manifest code from the redirect URL.</p>
+    <span id="code-label" class="label hidden">Manifest code</span>
+    <pre id="manifest-code" class="hidden"></pre>
+    <span id="command-label" class="label hidden">Run from the sage-router repo</span>
     <pre id="command" class="hidden"></pre>
-    <button id="copy" class="hidden" type="button">Copy command</button>
+    <div class="actions">
+      <button id="copy-command" class="hidden" type="button">Copy command</button>
+      <button id="copy-code" class="hidden" type="button">Copy code</button>
+    </div>
   </main>
   <script>
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const status = document.getElementById('status');
     const command = document.getElementById('command');
-    const copy = document.getElementById('copy');
+    const manifestCode = document.getElementById('manifest-code');
+    const copyCommand = document.getElementById('copy-command');
+    const copyCode = document.getElementById('copy-code');
+    const commandLabel = document.getElementById('command-label');
+    const codeLabel = document.getElementById('code-label');
+    const shellQuote = (value) => `'${String(value).replaceAll("'", "'\"'\"'")}'`;
     if (code) {
-      const text = `SAGEROUTER_GITHUB_APP_MANIFEST_CODE=${code} bash scripts/bootstrap_github_supabase_auth.sh`;
-      status.textContent = 'Run this from the sage-router repo within one hour to exchange the code and enable GitHub login in Supabase.';
+      const text = `cd /home/digit/Dropbox/Projects/sage-router
+set -a; source /home/digit/.openclaw/.env >/dev/null 2>&1; set +a
+SAGEROUTER_GITHUB_APP_MANIFEST_CODE=${shellQuote(code)} bash scripts/bootstrap_github_supabase_auth.sh
+SAGEROUTER_ORIGIN_BASE_URL=https://sage-router-434058661374.us-central1.run.app scripts/check_sagerouter_launch_readiness.sh`;
+      status.textContent = 'GitHub returned a temporary manifest code. Run the command below within one hour to exchange it for app credentials and enable GitHub login in Supabase.';
+      manifestCode.textContent = code;
+      manifestCode.classList.remove('hidden');
+      codeLabel.classList.remove('hidden');
       command.textContent = text;
       command.classList.remove('hidden');
-      copy.classList.remove('hidden');
-      copy.addEventListener('click', async () => navigator.clipboard.writeText(text));
+      commandLabel.classList.remove('hidden');
+      copyCommand.classList.remove('hidden');
+      copyCode.classList.remove('hidden');
+      copyCommand.addEventListener('click', async () => navigator.clipboard.writeText(text));
+      copyCode.addEventListener('click', async () => navigator.clipboard.writeText(code));
     } else {
-      status.textContent = 'No manifest code was found in this URL.';
+      status.textContent = 'No manifest code was found in this URL. Start from scripts/bootstrap_github_supabase_auth.sh to create the owner-approved GitHub app manifest.';
     }
   </script>
 </body>
