@@ -130,6 +130,28 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("checkout=success&plan={urllib.parse.quote(plan", router)
         self.assertIn("checkout=cancel&plan={urllib.parse.quote(plan", router)
 
+    def test_calculator_recommends_checkout_plan_before_signup(self):
+        calculator = self.read_public("model-routing-calculator.html")
+        readme = self.read_text("README.md")
+        web_readme = self.read_text("web", "README.md")
+        launch_plan = self.read_text("docs", "saas-launch-10k-mrr.md")
+
+        self.assertIn('id="recommendedPlan"', calculator)
+        self.assertIn('id="recommendedPlanReason"', calculator)
+        self.assertIn('id="startRecommendedPlan"', calculator)
+        self.assertIn('id="createHostedKey"', calculator)
+        self.assertIn("PLAN_LIMITS", calculator)
+        self.assertIn("function recommendedPlanFor", calculator)
+        self.assertIn("function planCheckoutUrl", calculator)
+        self.assertIn("/account.html?plan=${encodeURIComponent(planKey)}", calculator)
+        self.assertIn("Recommended hosted plan", calculator)
+        self.assertIn("Recommended hosted plan: ${plan.label}", calculator)
+        self.assertIn("calculator recommends", readme)
+        self.assertIn("Lite/Pro/Max from workflow volume", readme)
+        self.assertIn("that plan into `/account.html?plan=...`", readme)
+        self.assertIn("recommends Lite/Pro/Max", web_readme)
+        self.assertIn("preselected checkout", launch_plan)
+
     def test_landing_page_prioritizes_hosted_api_key_onboarding(self):
         landing = self.read_text("web", "src", "main.jsx")
         readme = self.read_text("README.md")

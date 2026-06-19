@@ -94,7 +94,9 @@ runtime feature flag.
   curl, JavaScript, Python, Codex, and 401/402/429/503 troubleshooting.
 - Use the calculator as the lightweight qualification path before signup:
   prospects estimate savings, review points, and fallback gaps, then create a
-  hosted API key or request implementation support.
+  hosted API key or request implementation support. The calculator should
+  recommend Lite, Pro, or Max from the workflow profile and send the prospect
+  into preselected checkout with `/account.html?plan=...`.
 - Keep hosted positioning limited to routing/control-plane infrastructure until
   provider terms, billing, margin, and abuse controls support any managed
   provider resale offer.

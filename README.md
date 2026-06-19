@@ -126,7 +126,10 @@ For acquisition and onboarding, `https://sagerouter.dev/quickstart` gives new
 customers a first hosted API request path, while
 `https://sagerouter.dev/model-routing-calculator` helps prospects estimate
 routing savings, escalation rules, fallback gaps, and review rates for one
-workflow before they create a hosted API key.
+workflow before they create a hosted API key. The calculator recommends
+Lite/Pro/Max from workflow volume, risk flags, and routing score, then carries
+that plan into `/account.html?plan=...` for preselected checkout after account
+creation.
 
 The public homepage now treats hosted signup as live: the homepage primary CTA
 is `Create hosted API key`, links directly to `/account.html?plan=pro`, and

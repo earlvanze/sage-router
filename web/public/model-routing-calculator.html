@@ -137,6 +137,8 @@
     .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0; }
     .metric { background: rgba(255,255,255,.05); border: 1px solid var(--line); padding: 14px; border-radius: 8px; }
     .metric b { display: block; font-size: 1.25rem; letter-spacing: 0; }
+    .planReco { display: grid; gap: 8px; margin: 18px 0; padding: 14px 0 18px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .planReco .actions { margin-top: 4px; }
     .rec-list { display: grid; gap: 12px; margin-top: 16px; }
     .rec { padding: 13px 14px; border-radius: 8px; background: rgba(255,255,255,.05); border: 1px solid var(--line); }
     .rec strong { display: block; margin-bottom: 4px; }
@@ -290,6 +292,16 @@
           <div class="metric"><span class="muted">Savings range</span><b id="savingsRange">0%</b></div>
         </div>
 
+        <div class="planReco" aria-live="polite">
+          <span class="pill">Recommended hosted plan</span>
+          <div class="big" id="recommendedPlan">Pro</div>
+          <div class="muted" id="recommendedPlanReason">The calculator will match this workflow to Lite, Pro, or Max.</div>
+          <div class="actions">
+            <button class="primary" type="button" id="startRecommendedPlan">Start recommended plan</button>
+            <button class="secondary" type="button" id="comparePlans">Compare plans</button>
+          </div>
+        </div>
+
         <div class="rec-list" id="recommendations"></div>
 
         <div class="cta">
@@ -297,8 +309,8 @@
           <p class="muted">Sage Router can turn this into a routing policy: model paths, fallback rules, human review points, and BYOK/BYOS implementation plan.</p>
           <div class="actions">
             <button class="primary" type="button" id="copyBtn">Copy audit brief</button>
-            <button class="secondary" type="button" onclick="window.location.href='/account.html'">Create hosted key</button>
-            <button class="secondary" type="button" onclick="window.location.href='/pricing'">See plans</button>
+            <button class="secondary" type="button" id="createHostedKey">Create hosted key</button>
+            <button class="secondary" type="button" id="seePlans">See plans</button>
           </div>
           <div class="copybox" id="copybox" aria-live="polite"></div>
         </div>
@@ -318,9 +330,33 @@
   <script>
     const $ = (id) => document.getElementById(id);
     const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+    const PLAN_LIMITS = {
+      lite: { label: 'Lite', price: 6, requests: 10000, rateLimit: 60 },
+      pro: { label: 'Pro', price: 30, requests: 50000, rateLimit: 180 },
+      max: { label: 'Max', price: 72, requests: 200000, rateLimit: 600 }
+    };
 
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
     function money(n) { return fmt.format(Number.isFinite(n) ? n : 0); }
+    function planCheckoutUrl(planKey) { return `/account.html?plan=${encodeURIComponent(planKey)}`; }
+    function planUnitCost(plan) { return plan.requests > 0 ? (plan.price / plan.requests) * 1000 : 0; }
+
+    function recommendedPlanFor(v, score, riskPoints) {
+      if (v.volume > PLAN_LIMITS.pro.requests || (riskPoints >= 6 && v.volume > PLAN_LIMITS.lite.requests)) return 'max';
+      if (v.volume > PLAN_LIMITS.lite.requests || score >= 52 || riskPoints >= 5 || v.customerVisible || v.silentFailure) return 'pro';
+      return 'lite';
+    }
+
+    function planRecommendationReason(v, score, riskPoints, planKey) {
+      const plan = PLAN_LIMITS[planKey];
+      const pieces = [`${plan.label} covers ${plan.requests.toLocaleString()} requests/month at ${plan.rateLimit}/minute`];
+      pieces.push(`about ${money(planUnitCost(plan))} per 1,000 included requests`);
+      if (v.volume > plan.requests) pieces.push('this workflow is above the public quota, so start here and talk to support for overflow');
+      else pieces.push(`${v.volume.toLocaleString()} runs/month fits the quota`);
+      if (score >= 52) pieces.push('the routing score is high enough to justify a paid pilot');
+      if (riskPoints >= 5) pieces.push('risk flags call for stronger monitoring and fallback');
+      return `${pieces.join('; ')}.`;
+    }
 
     function vals() {
       return {
@@ -360,6 +396,10 @@
 
       const riskPoints = v.risk + (v.customerVisible ? 1 : 0) + (v.sensitiveData ? 2 : 0) + (v.silentFailure ? 1 : 0) - (v.hasFallback ? 1 : 0);
       const reviewSuggested = clamp(Math.round((riskPoints * 12) + ((3 - v.confidence) * 10)), 5, 80);
+      const planKey = recommendedPlanFor(v, score, riskPoints);
+      const plan = PLAN_LIMITS[planKey];
+      const planReason = planRecommendationReason(v, score, riskPoints, planKey);
+      const checkoutUrl = planCheckoutUrl(planKey);
 
       let label, headline, summary, pillClass = '';
       if (score >= 72 && riskPoints <= 4) {
@@ -399,9 +439,17 @@
       $('routedMonthly').textContent = money(routedMonthly);
       $('savings').textContent = money(rawSavings);
       $('savingsRange').textContent = `${Math.round(savingsPct * 100)}%`;
+      $('recommendedPlan').textContent = `${plan.label} - ${money(plan.price)}/month`;
+      $('recommendedPlanReason').textContent = planReason;
+      $('startRecommendedPlan').textContent = `Start ${plan.label}`;
+      $('startRecommendedPlan').onclick = () => { window.location.href = checkoutUrl; };
+      $('createHostedKey').textContent = `Create hosted key on ${plan.label}`;
+      $('createHostedKey').onclick = () => { window.location.href = checkoutUrl; };
+      $('comparePlans').onclick = () => { window.location.href = '/pricing'; };
+      $('seePlans').onclick = () => { window.location.href = '/pricing'; };
       $('recommendations').innerHTML = recs.map(([title, body]) => `<div class="rec"><strong>${title}</strong><span class="muted">${body}</span></div>`).join('');
 
-      const brief = `AI Ops Routing Brief\n\nWorkflow: ${v.workflow}\nTask type: ${v.taskType}\nRuns/month: ${v.volume}\nCurrent est. monthly cost: ${money(currentMonthly)}\nRouted est. monthly cost: ${money(routedMonthly)}\nPotential directional savings: ${money(rawSavings)} (${Math.round(savingsPct * 100)}%)\nRouting score: ${score}/100, ${label}\n\nRecommendation:\n- ${headline}\n- ${summary}\n- Suggested initial human review: ~${reviewSuggested}%\n- Fallback exists: ${v.hasFallback ? 'yes' : 'no'}\n\nNote: directional estimate only. Needs real workflow/token/pricing review before decisions.`;
+      const brief = `AI Ops Routing Brief\n\nWorkflow: ${v.workflow}\nTask type: ${v.taskType}\nRuns/month: ${v.volume}\nCurrent est. monthly cost: ${money(currentMonthly)}\nRouted est. monthly cost: ${money(routedMonthly)}\nPotential directional savings: ${money(rawSavings)} (${Math.round(savingsPct * 100)}%)\nRouting score: ${score}/100, ${label}\nRecommended hosted plan: ${plan.label} (${money(plan.price)}/month, ${plan.requests.toLocaleString()} requests/month)\n\nRecommendation:\n- ${headline}\n- ${summary}\n- Suggested initial human review: ~${reviewSuggested}%\n- Fallback exists: ${v.hasFallback ? 'yes' : 'no'}\n- Checkout handoff: ${window.location.origin}${checkoutUrl}\n\nNote: directional estimate only. Needs real workflow/token/pricing review before decisions.`;
       $('copybox').textContent = brief;
       return brief;
     }
