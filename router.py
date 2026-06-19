@@ -4418,6 +4418,57 @@ def percent_rate(numerator, denominator):
     return round(float(numerator) / float(denominator), 4)
 
 
+def public_plan_monthly_price_usd(plan_name):
+    plan = PUBLIC_PLAN_CATALOG.get(str(plan_name or '').strip().lower()) or {}
+    price = str(plan.get('price') or '')
+    match = re.search(r'\$([0-9]+(?:\.[0-9]+)?)/month', price)
+    if not match:
+        return 0
+    value = float(match.group(1))
+    return int(value) if value.is_integer() else value
+
+
+def launch_mrr_snapshot(customers):
+    target = int(PUBLIC_LAUNCH_POSITIONING.get('targetMrrUsd') or 0)
+    recommended = PUBLIC_LAUNCH_POSITIONING.get('recommendedMix') or {}
+    paid_by_plan = {}
+    for customer in customers:
+        if not customer_is_active(customer):
+            continue
+        plan = str(customer.get('plan') or 'free').strip().lower() or 'free'
+        paid_by_plan[plan] = paid_by_plan.get(plan, 0) + 1
+
+    by_plan = {}
+    current_mrr = 0
+    for plan in sorted(set(paid_by_plan) | {'lite', 'pro', 'max'}):
+        customers_on_plan = int(paid_by_plan.get(plan, 0))
+        monthly_price = public_plan_monthly_price_usd(plan)
+        plan_mrr = customers_on_plan * monthly_price
+        current_mrr += plan_mrr
+        target_customers = int(recommended.get(f'{plan}Customers') or 0)
+        by_plan[plan] = {
+            'paidCustomers': customers_on_plan,
+            'monthlyPriceUsd': monthly_price,
+            'estimatedMrrUsd': plan_mrr,
+            'targetCustomers': target_customers,
+            'remainingToTarget': max(0, target_customers - customers_on_plan),
+            'targetAttainment': percent_rate(customers_on_plan, target_customers),
+        }
+
+    return {
+        'targetMrrUsd': target,
+        'estimatedCurrentMrrUsd': current_mrr,
+        'targetAttainment': percent_rate(current_mrr, target),
+        'recommendedMixMonthlyRevenueUsd': recommended.get('monthlyRevenueUsd'),
+        'paidCustomersByPlan': paid_by_plan,
+        'byPlan': by_plan,
+        'assumptions': {
+            'source': 'public_plan_catalog',
+            'managedProviderAccessIncluded': bool((PUBLIC_LAUNCH_POSITIONING.get('managedProviderAccess') or {}).get('enabled')),
+        },
+    }
+
+
 def read_launch_customer_rows(limit=10000):
     try:
         if customer_store_uses_supabase():
@@ -4585,6 +4636,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'containsApiKeys': False,
         },
         'stages': stages,
+        'mrr': launch_mrr_snapshot(customers),
         'rates': {
             'waitlistToSignup': percent_rate(stages['signups'], stages['waitlistLeads']) if stages['waitlistLeads'] is not None else None,
             'signupToGeneratedKey': percent_rate(stages['customersWithGeneratedApiKeys'], stages['signups']),

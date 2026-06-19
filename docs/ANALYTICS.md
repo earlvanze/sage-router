@@ -49,6 +49,8 @@ PII or request content:
 - customers with a first routed request
 - paid conversions
 - paid customers with recent routed usage
+- estimated current MRR, target attainment, and per-plan gaps against the
+  public `$10k MRR` recommended launch mix
 
 The funnel reads only timestamps and countable customer/key status fields from
 the customer store, API-key store, waitlist tables, and route telemetry. It does

@@ -559,10 +559,16 @@ check_admin_token() {
   code="$(http_code "${API_BASE%/}/v1/models" -H "Authorization: Bearer ${ADMIN_TOKEN}")"
   rm -f /tmp/sage-router-readiness-body
   funnel_code="$(http_code "${API_BASE%/}/analytics/funnel?days=30" -H "Authorization: Bearer ${ADMIN_TOKEN}")"
-  funnel_ok="$(jq -r '((.stages // {}) | has("signups")) and ((.privacy // {}) | .containsEmails == false)' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  funnel_ok="$(jq -r '
+    ((.stages // {}) | has("signups")) and
+    ((.privacy // {}) | .containsEmails == false) and
+    ((.mrr // {}) | .targetMrrUsd == 10000) and
+    ((.mrr // {}) | has("estimatedCurrentMrrUsd")) and
+    ((.mrr.byPlan // {}) | has("lite") and has("pro") and has("max"))
+  ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   rm -f /tmp/sage-router-readiness-body
   if [[ "$code" == "200" && "$funnel_code" == "200" && "$funnel_ok" == "true" ]]; then
-    pass "private admin token can reach /v1/models and privacy-safe launch funnel"
+    pass "private admin token can reach /v1/models and privacy-safe launch funnel with MRR target tracking"
   else
     fail "private admin token probe failed: /v1/models=${code} /analytics/funnel=${funnel_code} funnel=${funnel_ok:-missing}, expected 200/true"
   fi
