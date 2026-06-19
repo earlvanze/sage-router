@@ -38,6 +38,7 @@ const fmtNumber = (value) => Number.isFinite(Number(value)) ? Number(value).toLo
 const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
 
 let selectedPlan = 'pro';
+let recommendedUpgradePlan = '';
 let currentRawKey = '';
 let billingReturnHandled = false;
 
@@ -185,7 +186,58 @@ function renderQuickstart(key) {
   set('client-anthropic-code', anthropicSetupText(displayKey));
 }
 
-function renderUsage(usage) {
+function planLabel(plans, name) {
+  return plans?.[name]?.name || (name ? name.charAt(0).toUpperCase() + name.slice(1) : 'plan');
+}
+
+function nextPaidPlan(currentPlan, plans = FALLBACK_PLANS) {
+  const available = DEFAULT_PLAN_ORDER.filter(name => plans?.[name]);
+  if (!available.length) return '';
+  const index = available.indexOf(currentPlan);
+  if (index < 0) return available[0];
+  return available[Math.min(index + 1, available.length - 1)] || '';
+}
+
+function selectPlan(plan, status = '') {
+  if (!plan) return;
+  selectedPlan = plan;
+  document.querySelectorAll('.planCard').forEach(card => card.classList.toggle('active', card.dataset.plan === selectedPlan));
+  if (status) set('billing-status', status);
+}
+
+function renderUpgradeRecommendation(usage, plans = FALLBACK_PLANS, currentPlan = 'free', routingEnabled = false) {
+  const button = $('usage-upgrade');
+  const current = currentPlan || usage?.plan || 'free';
+  const nextPlan = nextPaidPlan(current, plans);
+  recommendedUpgradePlan = '';
+  if (button) button.classList.add('hidden');
+  set('usage-recommendation', '');
+
+  if (!routingEnabled) {
+    recommendedUpgradePlan = nextPlan || 'lite';
+    set('usage-recommendation', `Upgrade to ${planLabel(plans, recommendedUpgradePlan)} to enable generated-key routing.`);
+  } else if (usage && !usage.unlimited) {
+    const used = Number(usage.requests || 0);
+    const quota = Number(usage.quota || 0);
+    const percent = quota > 0 ? (used / quota) * 100 : 0;
+    if (percent >= 90 && nextPlan && nextPlan !== current) {
+      recommendedUpgradePlan = nextPlan;
+      set('usage-recommendation', `Usage is above 90% of this period. Select ${planLabel(plans, nextPlan)} before quota blocks agent traffic.`);
+    } else if (percent >= 75 && nextPlan && nextPlan !== current) {
+      recommendedUpgradePlan = nextPlan;
+      set('usage-recommendation', `Usage is above 75% of this period. ${planLabel(plans, nextPlan)} gives more request headroom.`);
+    } else if (percent >= 90 && current === 'max') {
+      set('usage-recommendation', 'Usage is above 90% of Max. Use billing management or manual support before adding more production traffic.');
+    }
+  }
+
+  if (button && recommendedUpgradePlan) {
+    button.textContent = `Select ${planLabel(plans, recommendedUpgradePlan)}`;
+    button.classList.remove('hidden');
+  }
+}
+
+function renderUsage(usage, plans = FALLBACK_PLANS, currentPlan = '', routingEnabled = true) {
   const fill = $('usage-fill');
   if (!usage) {
     set('usage-status', 'Usage is unavailable.');
@@ -193,6 +245,9 @@ function renderUsage(usage) {
     set('usage-remaining', '--');
     set('usage-rate', '--');
     if (fill) fill.style.width = '0%';
+    recommendedUpgradePlan = '';
+    $('usage-upgrade')?.classList.add('hidden');
+    set('usage-recommendation', '');
     return;
   }
   const used = Number(usage.requests || 0);
@@ -206,6 +261,7 @@ function renderUsage(usage) {
   set('usage-remaining', usage.unlimited ? 'Unlimited' : fmtNumber(remaining));
   set('usage-rate', usage.rateLimitPerMinute ? `${fmtNumber(usage.rateLimitPerMinute)}/min` : '--');
   if (fill) fill.style.width = `${percent}%`;
+  renderUpgradeRecommendation(usage, plans, currentPlan, routingEnabled);
 }
 
 async function refresh() {
@@ -238,15 +294,16 @@ async function refresh() {
     const routingEnabled = planData?.routing_enabled ?? ['active', 'trialing', 'manual'].includes(accountStatus);
     set('account-status', `${customer.email || customer.user_id} · ${accountPlan} · ${accountStatus}`);
     set('routing-status', routingEnabled ? 'Routing enabled for generated API keys.' : 'Upgrade required before generated API keys can route paid traffic.');
-    renderPlans(planData?.plans || FALLBACK_PLANS, accountPlan);
-    renderUsage(usageData?.usage || null);
+    const plans = planData?.plans || FALLBACK_PLANS;
+    renderPlans(plans, accountPlan);
+    renderUsage(usageData?.usage || null, plans, accountPlan, routingEnabled);
     $('keys').innerHTML = renderKeys(keys.api_keys || []);
     markStep('step-plan', accountPlan !== 'free' && routingEnabled);
     markStep('step-key', (keys.api_keys || []).length > 0);
   } catch (error) {
     set('account-status', error.message);
     renderPlans(FALLBACK_PLANS, 'free');
-    renderUsage(null);
+    renderUsage(null, FALLBACK_PLANS, 'free', false);
   }
 }
 
@@ -496,9 +553,12 @@ $('sign-out')?.addEventListener('click', async () => { await sb.auth.signOut(); 
 $('plans')?.addEventListener('click', (event) => {
   const button = event.target?.closest?.('[data-plan]');
   if (!button) return;
-  selectedPlan = button.dataset.plan;
-  document.querySelectorAll('.planCard').forEach(card => card.classList.toggle('active', card.dataset.plan === selectedPlan));
-  set('billing-status', `Selected ${selectedPlan}.`);
+  selectPlan(button.dataset.plan, `Selected ${button.dataset.plan}.`);
+});
+$('usage-upgrade')?.addEventListener('click', () => {
+  if (!recommendedUpgradePlan) return;
+  selectPlan(recommendedUpgradePlan, `Selected ${recommendedUpgradePlan}. Continue to Stripe when ready.`);
+  $('stripe-checkout')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
 $('keys')?.addEventListener('click', async (event) => {
   const button = event.target?.closest?.('[data-revoke]');

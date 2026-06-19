@@ -92,8 +92,16 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn('id="usage-status"', html)
         self.assertIn('id="usage-fill"', html)
         self.assertIn('id="usage-remaining"', html)
+        self.assertIn('id="usage-recommendation"', html)
+        self.assertIn('id="usage-upgrade"', html)
         self.assertIn("api('/account/usage'", js)
         self.assertIn("rateLimitPerMinute", js)
+        self.assertIn("renderUpgradeRecommendation", js)
+        self.assertIn("Usage is above 90%", js)
+        self.assertIn("Usage is above 75%", js)
+        self.assertIn("Upgrade to", js)
+        self.assertIn("recommendedUpgradePlan", js)
+        self.assertIn("scrollIntoView", js)
 
     def test_login_page_has_explicit_email_signup(self):
         html = self.read_public("login.html")
