@@ -89,7 +89,7 @@ check_supabase_auth_config() {
 
   [[ "$site" == "https://app.sagerouter.dev" ]] && pass "Supabase site_url is app.sagerouter.dev" || fail "Supabase site_url is ${site:-missing}"
   [[ "$app_redirect" == "true" && "$api_redirect" == "true" ]] && pass "Supabase redirect allow-list includes app/api hosts" || fail "Supabase redirect allow-list missing app/api hosts"
-  [[ "$github" == "true" ]] && pass "GitHub OAuth provider enabled" || warn "GitHub OAuth provider disabled; create OAuth app and run scripts/configure_supabase_github_auth.sh"
+  [[ "$github" == "true" ]] && pass "GitHub OAuth provider enabled" || warn "GitHub OAuth provider disabled; run bash scripts/bootstrap_github_supabase_auth.sh"
 }
 
 check_quota_schema() {
