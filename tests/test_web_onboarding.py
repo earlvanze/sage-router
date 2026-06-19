@@ -22,6 +22,16 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("emailRedirectTo: `${window.location.origin}/account.html`", js)
         self.assertIn('id="key-limit-note"', html)
         self.assertIn("maxActiveApiKeysPerCustomer", js)
+        self.assertIn("Client setup", html)
+        self.assertIn('id="client-openai-code"', html)
+        self.assertIn('id="client-codex-code"', html)
+        self.assertIn('id="client-anthropic-code"', html)
+        self.assertIn("openaiSdkSetupText", js)
+        self.assertIn("codexSetupText", js)
+        self.assertIn("anthropicSetupText", js)
+        self.assertIn("sage-router-hosted", js)
+        self.assertIn("sage-router/frontier", js)
+        self.assertIn("sk_sage_your_key_here", js)
 
     def test_readiness_checks_public_supabase_auth_settings(self):
         readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")

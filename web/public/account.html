@@ -99,6 +99,31 @@
       </div>
 
       <div class="panel">
+        <h3>Client setup</h3>
+        <p class="small">Copy the setup for the client you are wiring. Generated keys are inserted after key creation and are only stored in this browser session.</p>
+        <div class="grid2">
+          <div>
+            <h3>OpenAI SDK</h3>
+            <div class="codeBox">
+              <pre id="client-openai-code"></pre>
+              <div class="copyRow"><button class="btn ghost" data-copy-target="client-openai-code">Copy</button></div>
+            </div>
+          </div>
+          <div>
+            <h3>Codex CLI</h3>
+            <div class="codeBox">
+              <pre id="client-codex-code"></pre>
+              <div class="copyRow"><button class="btn ghost" data-copy-target="client-codex-code">Copy</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="codeBox">
+          <pre id="client-anthropic-code"></pre>
+          <div class="copyRow"><button class="btn ghost" data-copy-target="client-anthropic-code">Copy Anthropic-compatible</button></div>
+        </div>
+      </div>
+
+      <div class="panel">
         <h3>Verify API key</h3>
         <p class="small">Check the public edge with <code>/v1/models</code> before wiring an agent. This uses your generated key only in this browser session.</p>
         <label for="test-api-key">API key</label>

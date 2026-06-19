@@ -126,12 +126,63 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
   }'`;
 }
 
+function openaiSdkSetupText(key = 'sk_sage_your_key_here') {
+  return `import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "${openaiBaseUrl}",
+  apiKey: "${key}",
+});
+
+const response = await client.chat.completions.create({
+  model: "sage-router/frontier",
+  messages: [{ role: "user", content: "Route this through Sage Router" }],
+});`;
+}
+
+function codexSetupText(key = 'sk_sage_your_key_here') {
+  return `mkdir -p ~/.codex
+cat >> ~/.codex/config.toml <<'TOML'
+[model_providers.sage-router-hosted]
+name = "Sage Router Hosted"
+base_url = "${openaiBaseUrl}/"
+wire_api = "responses"
+TOML
+
+cat > ~/.codex/sage-router-hosted.config.toml <<'TOML'
+model_provider = "sage-router-hosted"
+model = "sage-router/frontier"
+TOML
+
+export OPENAI_API_KEY="${key}"
+codex --profile sage-router-hosted`;
+}
+
+function anthropicSetupText(key = 'sk_sage_your_key_here') {
+  return `export ANTHROPIC_BASE_URL="${anthropicBaseUrl}"
+export ANTHROPIC_API_KEY="${key}"
+
+curl "$ANTHROPIC_BASE_URL/v1/messages" \\
+  -H "x-api-key: $ANTHROPIC_API_KEY" \\
+  -H "anthropic-version: 2023-06-01" \\
+  -H "content-type: application/json" \\
+  -d '{
+    "model": "sage-router/frontier",
+    "max_tokens": 128,
+    "messages": [{"role": "user", "content": "Say hello from Sage Router"}]
+  }'`;
+}
+
 function renderQuickstart(key) {
   currentRawKey = key || currentRawKey;
   if (currentRawKey && $('test-api-key') && !$('test-api-key').value) {
     $('test-api-key').value = currentRawKey;
   }
-  set('quickstart-code', quickstartText(currentRawKey || 'sk_sage_your_key_here'));
+  const displayKey = currentRawKey || 'sk_sage_your_key_here';
+  set('quickstart-code', quickstartText(displayKey));
+  set('client-openai-code', openaiSdkSetupText(displayKey));
+  set('client-codex-code', codexSetupText(displayKey));
+  set('client-anthropic-code', anthropicSetupText(displayKey));
 }
 
 function renderUsage(usage) {
@@ -181,6 +232,7 @@ async function refresh() {
       api('/account/usage').catch(() => null),
     ]);
     applyLaunchMetadata(planData);
+    renderQuickstart();
     const accountPlan = planData?.plan || customer.plan || 'free';
     const accountStatus = planData?.status || customer.status || 'inactive';
     const routingEnabled = planData?.routing_enabled ?? ['active', 'trialing', 'manual'].includes(accountStatus);

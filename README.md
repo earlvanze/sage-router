@@ -82,7 +82,7 @@ The hosted account page at `https://app.sagerouter.dev/account.html` is the cust
 
 1. Create an account or sign in with email, magic link, or an enabled Supabase OAuth provider.
 2. Choose Lite, Pro, or Max. Stripe checkout posts the selected plan to `/billing/stripe/checkout`; after checkout links a Stripe customer, the account page opens `/billing/stripe/portal` for self-service billing, payment-method changes, cancellation, and subscription management. Crypto/manual settlement stays available for accounts that are not ready for Stripe.
-3. Generate an `sk_sage_*` API key, copy the raw key while it is shown once, test it against `/v1/models` from the account page, and use the copyable OpenAI-compatible quickstart.
+3. Generate an `sk_sage_*` API key, copy the raw key while it is shown once, test it against `/v1/models` from the account page, and use the copyable OpenAI SDK, Codex CLI, Anthropic-compatible, or curl quickstart.
 
 API keys created before checkout are stored, but the account page marks routing as blocked until the customer is active, trialing, or manually enabled; the edge enforces the same rule before proxying `/v1/*` traffic. Revoked keys and inactive accounts are rechecked against Supabase by default on every generated-key request. Customers are limited to `SAGE_ROUTER_MAX_ACTIVE_API_KEYS_PER_CUSTOMER` active generated keys at a time, default `5`; revoked keys do not count against the cap.
 
