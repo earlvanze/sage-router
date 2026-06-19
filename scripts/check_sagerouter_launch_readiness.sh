@@ -147,7 +147,7 @@ check_public_api_browser_boundary() {
 }
 
 check_browser_api_cors() {
-  local headers code allow_origin allow_methods allow_headers
+  local headers code allow_origin allow_methods allow_headers funnel_headers funnel_code funnel_allow_origin funnel_allow_headers
   headers="$(mktemp)"
   code="$(
     curl -sS -o /tmp/sage-router-readiness-body -D "$headers" -w '%{http_code}' \
@@ -161,10 +161,23 @@ check_browser_api_cors() {
   allow_headers="$(awk 'tolower($1)=="access-control-allow-headers:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$headers" | tail -n1)"
   rm -f "$headers" /tmp/sage-router-readiness-body
 
-  if [[ "$code" == "204" && "$allow_origin" == "${APP_BASE%/}" && "$allow_methods" == *"GET"* && "$allow_methods" == *"OPTIONS"* && "$allow_headers" == *"Authorization"* ]]; then
-    pass "browser API-key verification CORS preflight is enabled"
+  funnel_headers="$(mktemp)"
+  funnel_code="$(
+    curl -sS -o /tmp/sage-router-readiness-body -D "$funnel_headers" -w '%{http_code}' \
+      -X OPTIONS "${API_BASE%/}/analytics/funnel?days=30" \
+      -H "Origin: ${APP_BASE%/}" \
+      -H "Access-Control-Request-Method: GET" \
+      -H "Access-Control-Request-Headers: authorization"
+  )"
+  funnel_allow_origin="$(awk 'tolower($1)=="access-control-allow-origin:" {sub(/\r$/,"",$2); print $2}' "$funnel_headers" | tail -n1)"
+  funnel_allow_headers="$(awk 'tolower($1)=="access-control-allow-headers:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$funnel_headers" | tail -n1)"
+  rm -f "$funnel_headers" /tmp/sage-router-readiness-body
+
+  if [[ "$code" == "204" && "$allow_origin" == "${APP_BASE%/}" && "$allow_methods" == *"GET"* && "$allow_methods" == *"OPTIONS"* && "$allow_headers" == *"Authorization"* &&
+        "$funnel_code" == "204" && "$funnel_allow_origin" == "${APP_BASE%/}" && "$funnel_allow_headers" == *"Authorization"* ]]; then
+    pass "browser API-key verification and operator launch funnel CORS preflights are enabled"
   else
-    fail "browser API-key CORS preflight failed: code=${code} allowOrigin=${allow_origin:-missing} allowMethods=${allow_methods:-missing} allowHeaders=${allow_headers:-missing}"
+    fail "browser CORS preflight failed: /v1/models code=${code} allowOrigin=${allow_origin:-missing} allowMethods=${allow_methods:-missing} allowHeaders=${allow_headers:-missing}; /analytics/funnel code=${funnel_code} allowOrigin=${funnel_allow_origin:-missing} allowHeaders=${funnel_allow_headers:-missing}"
   fi
 }
 
@@ -331,7 +344,7 @@ check_stripe_webhook_guard() {
 }
 
 check_hosted_onboarding_pages() {
-  local login_code account_code analytics_code manifest_code status_code status_js_code
+  local login_code account_code analytics_code launch_funnel_code launch_funnel_js_code manifest_code status_code status_js_code
   login_code="$(http_code_follow "${APP_BASE%/}/login.html")"
   if [[ "$login_code" == "200" ]] && ! grep -q "Login · Sage Router" /tmp/sage-router-readiness-body; then
     login_code="200:unexpected-body"
@@ -350,6 +363,24 @@ check_hosted_onboarding_pages() {
   analytics_code="$(http_code_follow "${APP_BASE%/}/analytics.html")"
   if [[ "$analytics_code" == "200" ]] && ! grep -q "Router analytics that prove the best route" /tmp/sage-router-readiness-body; then
     analytics_code="200:unexpected-body"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  launch_funnel_code="$(http_code_follow "${APP_BASE%/}/launch-funnel.html")"
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Private operator dashboard" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:unexpected-body"
+  fi
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "SAGE_ROUTER_API_KEY or analytics token" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:missing-token-boundary"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  launch_funnel_js_code="$(http_code_follow "${APP_BASE%/}/launch-funnel.js")"
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "/analytics/funnel" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-funnel-call"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "sessionStorage" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-tab-scoped-token-storage"
   fi
   rm -f /tmp/sage-router-readiness-body
 
@@ -388,10 +419,10 @@ check_hosted_onboarding_pages() {
   fi
   rm -f /tmp/sage-router-readiness-body
 
-  if [[ "$login_code" == "200" && "$account_code" == "200" && "$analytics_code" == "200" && "$status_code" == "200" && "$status_js_code" == "200" && "$analytics_js_code" == "200" && "$account_js_code" == "200" && "$manifest_code" == "200" ]]; then
-    pass "hosted login, account, API-key verification, analytics, reliability status, and GitHub auth callback pages are live"
+  if [[ "$login_code" == "200" && "$account_code" == "200" && "$analytics_code" == "200" && "$launch_funnel_code" == "200" && "$launch_funnel_js_code" == "200" && "$status_code" == "200" && "$status_js_code" == "200" && "$analytics_js_code" == "200" && "$account_js_code" == "200" && "$manifest_code" == "200" ]]; then
+    pass "hosted login, account, API-key verification, analytics, operator launch funnel, reliability status, and GitHub auth callback pages are live"
   else
-    fail "hosted onboarding pages incomplete: login=${login_code} account=${account_code} account.js=${account_js_code} analytics=${analytics_code} analytics.js=${analytics_js_code} status=${status_code} status.js=${status_js_code} github-app-manifest=${manifest_code}"
+    fail "hosted onboarding pages incomplete: login=${login_code} account=${account_code} account.js=${account_js_code} analytics=${analytics_code} analytics.js=${analytics_js_code} launch-funnel=${launch_funnel_code} launch-funnel.js=${launch_funnel_js_code} status=${status_code} status.js=${status_js_code} github-app-manifest=${manifest_code}"
   fi
 }
 
@@ -682,6 +713,9 @@ check_admin_token() {
   funnel_code="$(http_code "${API_BASE%/}/analytics/funnel?days=30" -H "Authorization: Bearer ${ADMIN_TOKEN}")"
   funnel_ok="$(jq -r '
     ((.stages // {}) | has("signups")) and
+    ((.stages // {}) | has("managedAccessBetaInterest")) and
+    ((.waitlistInterest // {}) | has("managedAccess")) and
+    ((.rates // {}) | has("managedAccessShareOfWaitlist")) and
     ((.privacy // {}) | .containsEmails == false) and
     ((.mrr // {}) | .targetMrrUsd == 10000) and
     ((.mrr // {}) | has("estimatedCurrentMrrUsd")) and

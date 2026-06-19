@@ -119,3 +119,7 @@ runtime feature flag.
 - Keep `/analytics/funnel` tied to the `$10k MRR` operating plan by reporting
   estimated current MRR, target attainment, and per-plan gaps against the
   recommended 100 Lite / 200 Pro / 50 Max launch mix.
+- Use `https://app.sagerouter.dev/launch-funnel.html` as the private operator
+  view for the same data. The page is not a customer dashboard; it requires the
+  private admin/analytics token and keeps optional browser persistence scoped to
+  the current tab.

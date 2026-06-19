@@ -198,6 +198,37 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("plan, usage, generated-key", readme)
         self.assertIn("Account readiness", analytics_doc)
 
+    def test_operator_launch_funnel_page_uses_private_token_boundary(self):
+        html = self.read_public("launch-funnel.html")
+        js = self.read_public("launch-funnel.js")
+        readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")
+        readme = self.read_text("README.md")
+        analytics_doc = self.read_text("docs", "ANALYTICS.md")
+        launch_plan = self.read_text("docs", "saas-launch-10k-mrr.md")
+
+        self.assertIn("Sage Router Launch Funnel", html)
+        self.assertIn("Private operator dashboard", html)
+        self.assertIn('name="robots" content="noindex,nofollow"', html)
+        self.assertIn("SAGE_ROUTER_API_KEY or analytics token", html)
+        self.assertIn('id="remember-token"', html)
+        self.assertIn('id="kpi-managed-access"', html)
+        self.assertIn('id="metric-managed-share"', html)
+        self.assertIn('id="plan-mix"', html)
+        self.assertIn("https://api.sagerouter.dev", js)
+        self.assertIn("/analytics/funnel?days=", js)
+        self.assertIn("sessionStorage", js)
+        self.assertIn("managedAccessBetaInterest", js)
+        self.assertIn("managedAccessShareOfWaitlist", js)
+        self.assertIn("containsEmails === false", js)
+        self.assertIn("launch-funnel.html", readiness)
+        self.assertIn("operator launch funnel CORS preflights are enabled", readiness)
+        self.assertIn("managedAccessBetaInterest", readiness)
+        self.assertIn("managedAccessShareOfWaitlist", readiness)
+        self.assertIn("https://app.sagerouter.dev/launch-funnel.html", readme)
+        self.assertIn("tab-scoped `sessionStorage`", readme)
+        self.assertIn("hosted operator dashboard", analytics_doc)
+        self.assertIn("private admin/analytics token", launch_plan)
+
     def test_public_status_page_uses_edge_health_and_pricing(self):
         html = self.read_public("status.html")
         js = self.read_public("status.js")
@@ -229,7 +260,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("CDN-style reliability evidence", readme)
         readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")
         self.assertIn("CDN-style reliability evidence", readiness)
-        self.assertIn("hosted login, account, API-key verification, analytics, reliability status, and GitHub auth callback pages are live", readiness)
+        self.assertIn("hosted login, account, API-key verification, analytics, operator launch funnel, reliability status, and GitHub auth callback pages are live", readiness)
 
     def test_security_doc_distinguishes_private_router_from_hosted_public_edge(self):
         security = self.read_text("SECURITY.md")

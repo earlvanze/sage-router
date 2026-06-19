@@ -58,6 +58,14 @@ the customer store, API-key store, waitlist tables, and route telemetry. It does
 not return email addresses, prompts, message bodies, API keys, provider
 credentials, OAuth tokens, or raw responses.
 
+The hosted operator dashboard at
+`https://app.sagerouter.dev/launch-funnel.html` is a static shell for this
+endpoint. It requires a private operator/admin token in the browser, sends it as
+an `Authorization: Bearer` header, and stores the token only in tab-scoped
+`sessionStorage` when the operator explicitly enables that option. Customer
+accounts never use this page; signed-in customer analytics remain scoped to
+`/account/analytics`.
+
 ## Account readiness
 
 The hosted customer dashboard at `https://app.sagerouter.dev/analytics.html`
