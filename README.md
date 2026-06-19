@@ -73,7 +73,32 @@ The current public deployment is intentionally split:
 - `https://sagerouter.dev` and `https://www.sagerouter.dev` are static Cloudflare Pages (`sage-router-web`). They host marketing/docs/account UI only.
 - `https://app.sagerouter.dev` is reserved for the hosted dashboard and login surface. Supabase Auth redirect allow-list entries should include this host before moving the dashboard there.
 - `https://api.sagerouter.dev` is a Cloudflare-proxied GCP edge VM. The edge health-checks Tailnet Sage Router installs plus the Google-hosted Sage Router API origin, then routes to the lowest-latency healthy backend.
-- Tailnet Edge is the reliability layer for routing to healthy Sage Router installs on a Tailnet. In public mode, set `SAGE_ROUTER_EDGE_AUTH_MODE=supabase`: `/v1/*` accepts active generated `sk_sage_*` customer API keys, while account/billing UI requests preserve Supabase user JWTs and should be pinned to a hosted control-plane origin with `SAGE_ROUTER_CONTROL_PLANE_UPSTREAM`. Browser login belongs on `app.sagerouter.dev`; `api.sagerouter.dev` should remain API-only. Generated keys and account/billing JWT routes are rate-limited by `SAGE_ROUTER_EDGE_RATE_LIMITS`; generated `/v1/*` keys can also be counted against durable monthly Supabase quotas with `SAGE_ROUTER_EDGE_QUOTA_ENABLED=1` after applying `supabase/sage_router_saas.sql`. The private edge admin token is exempt for recovery.
+- Tailnet Edge is the reliability layer for routing to healthy Sage Router installs on a Tailnet. In public mode, set `SAGE_ROUTER_EDGE_AUTH_MODE=supabase`: `/v1/*` accepts active generated `sk_sage_*` customer API keys, while account/billing UI requests preserve Supabase user JWTs and should be pinned to a hosted control-plane origin with `SAGE_ROUTER_CONTROL_PLANE_UPSTREAM`. Browser login belongs on `app.sagerouter.dev`; `api.sagerouter.dev` should remain API-only. Generated keys and account/billing JWT routes are rate-limited by `SAGE_ROUTER_EDGE_RATE_LIMITS`; generated `/v1/*` keys can also be counted against durable monthly Supabase quotas with `SAGE_ROUTER_EDGE_QUOTA_ENABLED=1` after applying `supabase/migrations/20260619021500_sage_router_usage_quotas.sql`. The private edge admin token is exempt for recovery.
+
+### Hosted API Quickstart
+
+The hosted account page at `https://app.sagerouter.dev/account.html` is the customer onboarding surface:
+
+1. Sign in with email or an enabled Supabase OAuth provider.
+2. Choose Lite, Pro, or Max. Stripe checkout posts the selected plan to `/billing/stripe/checkout`; crypto/manual settlement stays available for accounts that are not ready for Stripe.
+3. Generate an `sk_sage_*` API key and use the copyable OpenAI-compatible quickstart.
+
+Programmatic clients should call the API edge directly:
+
+```bash
+export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
+export OPENAI_API_KEY=sk_sage_your_key_here
+
+curl "$OPENAI_BASE_URL/chat/completions" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "sage-router/frontier",
+    "messages": [{"role": "user", "content": "Say hello from Sage Router"}]
+  }'
+```
+
+Keep anonymous `/v1/*` traffic blocked at the edge. New users should reach account, billing, and API key workflows through the hosted control plane, then use generated API keys for model traffic.
 
 ### Hosted Auth
 

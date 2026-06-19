@@ -1,12 +1,27 @@
 const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
 const SAGE_ROUTER_URL = window.SAGE_ROUTER_API_URL || 'https://api.sagerouter.dev';
+const DEFAULT_PLAN_ORDER = ['lite', 'pro', 'max'];
+const FALLBACK_PLANS = {
+  lite: { name: 'Lite', price: '$6/month', features: ['agent-native routing', 'API keys', 'usage analytics'] },
+  pro: { name: 'Pro', price: '$30/month', features: ['frontier routing', 'agentic tool-use preference', 'analytics snapshots'] },
+  max: { name: 'Max', price: '$72/month', features: ['highest quality routing', 'priority fallback budget', 'team/automation use'] },
+};
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (id) => document.getElementById(id);
-const set = (id, text) => { const el = $(id); if (el) el.textContent = text; };
-const show = (id, visible) => { const el = $(id); if (el) el.classList.toggle('hidden', !visible); };
+const set = (id, text) => {
+  const el = $(id);
+  if (el) el.textContent = text;
+};
+const show = (id, visible) => {
+  const el = $(id);
+  if (el) el.classList.toggle('hidden', !visible);
+};
 const esc = (v) => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+
+let selectedPlan = 'pro';
+let currentRawKey = '';
 
 async function session() {
   const { data } = await sb.auth.getSession();
@@ -29,21 +44,75 @@ async function api(path, options = {}) {
   return data;
 }
 
+function markStep(id, done) {
+  const el = $(id);
+  if (el) el.textContent = done ? 'ok' : el.dataset.step || el.textContent;
+}
+
+function quickstartText(key = 'sk_sage_your_key_here') {
+  return `export OPENAI_BASE_URL="${SAGE_ROUTER_URL}/v1"
+export OPENAI_API_KEY="${key}"
+
+curl "$OPENAI_BASE_URL/chat/completions" \\
+  -H "Authorization: Bearer $OPENAI_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "sage-router/frontier",
+    "messages": [{"role": "user", "content": "Say hello from Sage Router"}]
+  }'`;
+}
+
+function renderQuickstart(key) {
+  currentRawKey = key || currentRawKey;
+  set('quickstart-code', quickstartText(currentRawKey || 'sk_sage_your_key_here'));
+}
+
 async function refresh() {
   const s = await session();
   show('auth-panel', !s);
   show('account-panel', !!s);
   show('sign-out', !!s);
+  markStep('step-auth', !!s);
+  renderQuickstart();
   if (!s) return;
   set('account-status', 'Loading account...');
   try {
-    const [{ customer }, keys] = await Promise.all([api('/account'), api('/account/api-keys')]);
-    set('account-status', `${customer.email || customer.user_id} · ${customer.plan} · ${customer.status}`);
-    set('routing-status', customer.status === 'active' || customer.status === 'trialing' || customer.status === 'manual' ? 'Routing enabled' : 'Upgrade required before generated API keys can route paid traffic.');
+    const [{ customer }, keys, planData] = await Promise.all([
+      api('/account'),
+      api('/account/api-keys'),
+      api('/account/plan').catch(() => null),
+    ]);
+    const accountPlan = planData?.plan || customer.plan || 'free';
+    const accountStatus = planData?.status || customer.status || 'inactive';
+    const routingEnabled = planData?.routing_enabled ?? ['active', 'trialing', 'manual'].includes(accountStatus);
+    set('account-status', `${customer.email || customer.user_id} · ${accountPlan} · ${accountStatus}`);
+    set('routing-status', routingEnabled ? 'Routing enabled for generated API keys.' : 'Upgrade required before generated API keys can route paid traffic.');
+    renderPlans(planData?.plans || FALLBACK_PLANS, accountPlan);
     $('keys').innerHTML = renderKeys(keys.api_keys || []);
+    markStep('step-plan', accountPlan !== 'free' && routingEnabled);
+    markStep('step-key', (keys.api_keys || []).length > 0);
   } catch (error) {
     set('account-status', error.message);
+    renderPlans(FALLBACK_PLANS, 'free');
   }
+}
+
+function renderPlans(plans, currentPlan) {
+  const el = $('plans');
+  if (!el) return;
+  const order = DEFAULT_PLAN_ORDER.filter(name => plans?.[name]);
+  if (!order.includes(selectedPlan)) selectedPlan = order.includes(currentPlan) ? currentPlan : 'pro';
+  el.innerHTML = order.map((name) => {
+    const plan = plans[name] || {};
+    const features = (plan.features || []).slice(0, 3).map(feature => `<li>${esc(feature)}</li>`).join('');
+    const configured = plan.stripeConfigured === undefined || plan.stripeConfigured;
+    const badge = currentPlan === name ? 'Current' : (configured ? 'Ready' : 'Manual');
+    return `<button class="planCard ${selectedPlan === name ? 'active' : ''}" data-plan="${esc(name)}" type="button">
+      <div class="planName"><span>${esc(plan.name || name)}</span><span class="pill">${esc(badge)}</span></div>
+      <div class="price">${esc(plan.price || '')}</div>
+      <ul class="features">${features}</ul>
+    </button>`;
+  }).join('');
 }
 
 function renderKeys(keys) {
@@ -78,7 +147,10 @@ async function createKey() {
   try {
     const name = $('key-name')?.value || 'Default';
     const data = await api('/account/api-keys', { method: 'POST', body: JSON.stringify({ name }) });
-    set('key-once', `Copy now. This key is only shown once: ${data.key}`);
+    const key = data.key || '';
+    renderQuickstart(key);
+    const target = 'quickstart-code';
+    $('key-once').innerHTML = `<p>Copy now. This key is only shown once.</p><div class="codeBox"><pre>${esc(key)}</pre><div class="copyRow"><button class="btn ghost" data-copy-target="${target}">Copy quickstart</button></div></div>`;
     refresh();
   } catch (error) {
     set('key-once', error.message);
@@ -87,18 +159,18 @@ async function createKey() {
 
 async function stripeCheckout() {
   try {
-    set('billing-status', 'Opening checkout...');
-    const data = await api('/billing/stripe/checkout', { method: 'POST', body: '{}' });
+    set('billing-status', `Opening ${selectedPlan} checkout...`);
+    const data = await api('/billing/stripe/checkout', { method: 'POST', body: JSON.stringify({ plan: selectedPlan }) });
     if (data.checkout_url) window.location.href = data.checkout_url;
   } catch (error) {
-    set('billing-status', error.message);
+    set('billing-status', `${error.message}. If Stripe is not configured yet, use crypto/manual settlement or try again after billing setup is complete.`);
   }
 }
 
 async function cryptoIntent() {
   try {
     set('crypto-status', 'Creating manual payment intent...');
-    const data = await api('/billing/crypto/intent', { method: 'POST', body: JSON.stringify({ note: 'Sage Router subscription' }) });
+    const data = await api('/billing/crypto/intent', { method: 'POST', body: JSON.stringify({ note: `Sage Router ${selectedPlan} subscription`, plan: selectedPlan }) });
     const i = data.intent || {};
     set('crypto-status', `${i.status}. Send ${i.amount || 'the agreed amount'} ${i.asset || ''} on ${i.network || 'the configured network'} to ${i.address}. Include intent id ${i.id} in the memo/reference. Settlement is manual until a processor is configured.`);
   } catch (error) {
@@ -113,11 +185,28 @@ $('create-key')?.addEventListener('click', createKey);
 $('stripe-checkout')?.addEventListener('click', stripeCheckout);
 $('crypto-intent')?.addEventListener('click', cryptoIntent);
 $('sign-out')?.addEventListener('click', async () => { await sb.auth.signOut(); refresh(); });
+$('plans')?.addEventListener('click', (event) => {
+  const button = event.target?.closest?.('[data-plan]');
+  if (!button) return;
+  selectedPlan = button.dataset.plan;
+  document.querySelectorAll('.planCard').forEach(card => card.classList.toggle('active', card.dataset.plan === selectedPlan));
+  set('billing-status', `Selected ${selectedPlan}.`);
+});
 $('keys')?.addEventListener('click', async (event) => {
   const id = event.target?.dataset?.revoke;
   if (!id) return;
   await api(`/account/api-keys/${encodeURIComponent(id)}/revoke`, { method: 'POST', body: '{}' });
   refresh();
+});
+document.addEventListener('click', async (event) => {
+  const button = event.target?.closest?.('[data-copy-target]');
+  if (!button) return;
+  const target = $(button.dataset.copyTarget);
+  const text = target?.textContent || '';
+  if (!text) return;
+  await navigator.clipboard.writeText(text);
+  button.textContent = 'Copied';
+  setTimeout(() => { button.textContent = button.dataset.copyLabel || 'Copy'; }, 1200);
 });
 sb.auth.onAuthStateChange(() => refresh());
 refresh();
