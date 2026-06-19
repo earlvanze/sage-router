@@ -138,6 +138,12 @@ bash scripts/bootstrap_github_supabase_auth.sh
 
 GitHub requires an owner-approved browser step before it returns app credentials. By default the bootstrap script opens a local browser form, listens on an auto-selected `http://127.0.0.1` port, captures GitHub's one-hour manifest code, exchanges it for the app client id/secret, and patches Supabase Auth in the same run.
 
+On WSL/Windows, the bootstrap copies the generated manifest form into the
+Windows temp directory and opens that `file:///` URL first. This avoids browser
+handlers that cannot read `\\wsl.localhost` or WSL `/tmp` paths. If the browser
+does not appear, open the printed HTML file path manually or use the hosted
+callback fallback below.
+
 After patching Supabase, the configurator verifies the management API state
 (`site_url`, email auth, GitHub auth, and app/API redirect allow-list entries).
 When a public anon/publishable key is available in the environment, it also

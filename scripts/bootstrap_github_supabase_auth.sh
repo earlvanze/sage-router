@@ -44,11 +44,27 @@ convert_manifest() {
 
 open_form() {
   if command -v powershell.exe >/dev/null 2>&1; then
-    windows_form="$form"
     if command -v wslpath >/dev/null 2>&1; then
+      win_temp="$(
+        powershell.exe -NoProfile -Command '[Console]::Out.Write($env:TEMP)' 2>/dev/null | tr -d '\r'
+      )"
+      if [[ -n "$win_temp" ]]; then
+        win_temp_wsl="$(wslpath -u "$win_temp" 2>/dev/null || true)"
+        if [[ -n "$win_temp_wsl" ]]; then
+          mkdir -p "$win_temp_wsl" >/dev/null 2>&1 || true
+          cp "$form" "$win_temp_wsl/sage-router-github-auth-app.html" >/dev/null 2>&1 || true
+          windows_form_uri="$(
+            powershell.exe -NoProfile -Command "\$p = Join-Path \$env:TEMP 'sage-router-github-auth-app.html'; [Uri](\$p) | ForEach-Object { [Console]::Out.Write(\$_.AbsoluteUri) }" 2>/dev/null | tr -d '\r'
+          )"
+          if [[ -n "$windows_form_uri" ]]; then
+            powershell.exe -NoProfile -Command "Start-Process '$windows_form_uri'" >/dev/null 2>&1 && return
+          fi
+        fi
+      fi
       windows_form="$(wslpath -w "$form")"
+      powershell.exe -NoProfile -Command "Start-Process '$windows_form'" >/dev/null 2>&1 && return
     fi
-    powershell.exe -NoProfile -Command "Start-Process '$windows_form'" >/dev/null 2>&1 || true
+    powershell.exe -NoProfile -Command "Start-Process '$form'" >/dev/null 2>&1 || true
   elif command -v xdg-open >/dev/null 2>&1; then
     xdg-open "$form" >/dev/null 2>&1 || true
   fi
