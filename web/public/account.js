@@ -4,6 +4,7 @@ let sageRouterUrl = window.SAGE_ROUTER_API_URL || 'https://api.sagerouter.dev';
 let openaiBaseUrl = `${sageRouterUrl}/v1`;
 let anthropicBaseUrl = sageRouterUrl;
 const DEFAULT_PLAN_ORDER = ['lite', 'pro', 'max'];
+const SELECTED_PLAN_STORAGE_KEY = 'sage_router_selected_plan';
 const FALLBACK_PLANS = {
   lite: { name: 'Lite', price: '$6/month', limits: { monthlyRequests: 10000, rateLimitPerMinute: 60 }, features: ['agent-native routing', 'API keys', 'usage analytics'] },
   pro: { name: 'Pro', price: '$30/month', limits: { monthlyRequests: 50000, rateLimitPerMinute: 180 }, features: ['frontier routing', 'agentic tool-use preference', 'analytics snapshots'] },
@@ -37,7 +38,40 @@ const esc = (v) => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&
 const fmtNumber = (value) => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '';
 const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
 
-let selectedPlan = 'pro';
+function normalizePlan(plan) {
+  const normalized = String(plan || '').trim().toLowerCase();
+  return DEFAULT_PLAN_ORDER.includes(normalized) ? normalized : '';
+}
+
+function storedPlan() {
+  try {
+    return normalizePlan(window.localStorage?.getItem(SELECTED_PLAN_STORAGE_KEY));
+  } catch (_error) {
+    return '';
+  }
+}
+
+function rememberSelectedPlan(plan) {
+  const normalized = normalizePlan(plan);
+  if (!normalized) return '';
+  try {
+    window.localStorage?.setItem(SELECTED_PLAN_STORAGE_KEY, normalized);
+  } catch (_error) {
+    // Storage can be unavailable in private or locked-down browser sessions.
+  }
+  return normalized;
+}
+
+function requestedPlanFromUrl() {
+  const params = new URLSearchParams(window.location.search || '');
+  return normalizePlan(params.get('plan'));
+}
+
+function planDisplay(plan) {
+  return plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : 'Pro';
+}
+
+let selectedPlan = storedPlan() || 'pro';
 let recommendedUpgradePlan = '';
 let currentRawKey = '';
 let billingReturnHandled = false;
@@ -199,10 +233,19 @@ function nextPaidPlan(currentPlan, plans = FALLBACK_PLANS) {
 }
 
 function selectPlan(plan, status = '') {
-  if (!plan) return;
-  selectedPlan = plan;
+  const normalized = normalizePlan(plan);
+  if (!normalized) return;
+  selectedPlan = rememberSelectedPlan(normalized);
   document.querySelectorAll('.planCard').forEach(card => card.classList.toggle('active', card.dataset.plan === selectedPlan));
   if (status) set('billing-status', status);
+}
+
+function applyRequestedPlanFromUrl() {
+  const requested = requestedPlanFromUrl();
+  if (!requested) return '';
+  selectedPlan = rememberSelectedPlan(requested);
+  set('billing-status', `${planDisplay(selectedPlan)} selected. Sign in or continue to checkout when ready.`);
+  return selectedPlan;
 }
 
 function renderUpgradeRecommendation(usage, plans = FALLBACK_PLANS, currentPlan = 'free', routingEnabled = false) {
@@ -313,16 +356,16 @@ function handleBillingReturn() {
   const params = new URLSearchParams(window.location.search || '');
   const state = params.get('checkout');
   const billing = params.get('billing');
+  const requested = normalizePlan(params.get('plan'));
+  if (requested) selectedPlan = rememberSelectedPlan(requested);
   if (!state && !billing) return;
   if (state) {
-    const plan = (params.get('plan') || selectedPlan || 'pro').toLowerCase();
-    if (DEFAULT_PLAN_ORDER.includes(plan)) selectedPlan = plan;
     if (state === 'success') {
-      set('billing-status', `Stripe checkout returned for ${selectedPlan}. Activation can take a moment while the webhook confirms the subscription.`);
+      set('billing-status', `Stripe checkout returned for ${planDisplay(selectedPlan)}. Activation can take a moment while the webhook confirms the subscription.`);
       setTimeout(() => refresh(), 3000);
       setTimeout(() => refresh(), 10000);
     } else if (state === 'cancel') {
-      set('billing-status', `Checkout cancelled. ${selectedPlan} is still selected.`);
+      set('billing-status', `Checkout cancelled. ${planDisplay(selectedPlan)} is still selected.`);
     }
   } else if (billing === 'portal') {
     set('billing-status', 'Returned from Stripe billing management.');
@@ -336,7 +379,9 @@ function renderPlans(plans, currentPlan) {
   const el = $('plans');
   if (!el) return;
   const order = DEFAULT_PLAN_ORDER.filter(name => plans?.[name]);
-  if (!order.includes(selectedPlan)) selectedPlan = order.includes(currentPlan) ? currentPlan : 'pro';
+  if (!order.includes(selectedPlan)) {
+    selectedPlan = rememberSelectedPlan(order.includes(currentPlan) ? currentPlan : 'pro');
+  }
   el.innerHTML = order.map((name) => {
     const plan = plans[name] || {};
     const limits = plan.limits || {};
@@ -553,7 +598,8 @@ $('sign-out')?.addEventListener('click', async () => { await sb.auth.signOut(); 
 $('plans')?.addEventListener('click', (event) => {
   const button = event.target?.closest?.('[data-plan]');
   if (!button) return;
-  selectPlan(button.dataset.plan, `Selected ${button.dataset.plan}.`);
+  const plan = normalizePlan(button.dataset.plan);
+  selectPlan(plan, `Selected ${planDisplay(plan)}.`);
 });
 $('usage-upgrade')?.addEventListener('click', () => {
   if (!recommendedUpgradePlan) return;
@@ -594,6 +640,7 @@ document.addEventListener('click', async (event) => {
   setTimeout(() => { button.textContent = button.dataset.copyLabel || original || 'Copy'; }, 1200);
 });
 sb.auth.onAuthStateChange(() => refresh());
+applyRequestedPlanFromUrl();
 refresh();
 handleBillingReturn();
 applyAuthSettings();

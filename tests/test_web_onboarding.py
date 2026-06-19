@@ -93,6 +93,24 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("params.get('billing')", js)
         self.assertIn("billing === 'portal'", js)
 
+    def test_pricing_plan_links_preselect_checkout_plan(self):
+        pricing = self.read_public("pricing.html")
+        js = self.read_public("account.js")
+        router = self.read_text("router.py")
+        self.assertIn('/account.html?plan=lite', pricing)
+        self.assertIn('/account.html?plan=pro', pricing)
+        self.assertIn('/account.html?plan=max', pricing)
+        self.assertIn("SELECTED_PLAN_STORAGE_KEY", js)
+        self.assertIn("function requestedPlanFromUrl", js)
+        self.assertIn("function applyRequestedPlanFromUrl", js)
+        self.assertIn("rememberSelectedPlan(requested)", js)
+        self.assertIn("applyRequestedPlanFromUrl();", js)
+        self.assertIn("Stripe checkout returned for ${planDisplay(selectedPlan)}", js)
+        self.assertIn("Checkout cancelled. ${planDisplay(selectedPlan)} is still selected.", js)
+        self.assertIn("JSON.stringify({ plan: selectedPlan })", js)
+        self.assertIn("checkout=success&plan={urllib.parse.quote(plan", router)
+        self.assertIn("checkout=cancel&plan={urllib.parse.quote(plan", router)
+
     def test_account_page_shows_usage_and_quota(self):
         html = self.read_public("account.html")
         js = self.read_public("account.js")
