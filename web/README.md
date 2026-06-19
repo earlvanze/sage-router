@@ -36,7 +36,7 @@ Suggested Cloudflare Pages settings:
 - Build command: npm run build
 - Build output directory: dist
 
-The waitlist form posts to `/api/waitlist`, a Cloudflare Pages Function that inserts into Supabase table `sage_router_waitlist` and falls back to `funnel_leads` for older AOps schemas. `GET /api/waitlist` is a non-mutating health check used by `scripts/check_sagerouter_launch_readiness.sh`. Links can pass `?interest=managed-access#waitlist`; the function stores that slug in metadata for private-beta demand measurement while public managed provider access stays disabled. Set both `SAGEROUTER_TURNSTILE_SECRET_KEY` and `SAGEROUTER_TURNSTILE_SITE_KEY` in Cloudflare Pages to require Cloudflare Turnstile on waitlist submissions; the health check fails if the secret is enabled without a public site key.
+The waitlist form posts to `/api/waitlist`, a Cloudflare Pages Function that inserts into Supabase table `sage_router_waitlist` and falls back to `funnel_leads` for older AOps schemas. `GET /api/waitlist` is a non-mutating health check used by `scripts/check_sagerouter_launch_readiness.sh`. The managed-access intake posts `interest=managed-access` plus allowlisted qualification buckets for private-beta demand measurement while public managed provider access stays disabled. Set both `SAGEROUTER_TURNSTILE_SECRET_KEY` and `SAGEROUTER_TURNSTILE_SITE_KEY` in Cloudflare Pages to require Cloudflare Turnstile on waitlist submissions; the health check fails if the secret is enabled without a public site key.
 
 The calculator and pricing pages send anonymous pre-signup CTA intent to
 `/api/funnel-event`, backed by Supabase table `sage_router_funnel_events`.
@@ -52,10 +52,11 @@ text, emails, API keys, or provider credentials.
 The primary homepage CTA is `Create hosted API key`, which links to
 `/account.html?plan=pro`. The hero keeps pricing, quickstart, public status,
 OpenRouter comparison, model catalog, calculator, security, analytics, login,
-support, and local GitHub install paths visible so a prospect can move from
-discovery to generated `sk_sage_*` key setup without joining a waitlist first. The
-waitlist remains secondary for release notes, integration updates, private
-deployment help, and future managed-provider beta interest.
+managed-access private beta review, support, and local GitHub install paths
+visible so a prospect can move from discovery to generated `sk_sage_*` key setup
+without joining a waitlist first. The waitlist remains secondary for release
+notes, integration updates, private deployment help, and future managed-provider
+beta interest.
 
 ## Hot-swappable copy
 
@@ -70,6 +71,7 @@ The MVP treats discoverability as first-class. Current static assets include:
 - Keyword coverage for AI model router, LLM router, provider routing, model selection automation, AI agent model routing, OpenAI-compatible router, Anthropic-compatible router, Ollama routing, BYOK AI gateway, local-first AI router, and OpenRouter alternative.
 - Structured page sections for automation, BYOK routing, OpenRouter comparison, and Ollama/Ollama Cloud roadmap language.
 - Dedicated hosted pricing page at `/pricing` with plan limits, compliance-safe positioning, and $10k MRR launch math.
+- Dedicated managed-access private beta intake at `/managed-access` with no-secret qualification buckets for one-subscription demand capture.
 - Dedicated API quickstart page at `/quickstart` with hosted `sk_sage_*` key setup, `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, `sage-router/frontier`, curl, JavaScript, Python, Codex, and error troubleshooting.
 - No-login model routing calculator at `/model-routing-calculator` for acquisition and workflow qualification; it recommends Lite/Pro/Max and sends the selected tier into preselected checkout on `/account.html?plan=...`.
 - FAQ content intended for snippets and LLM ingestion.
@@ -84,6 +86,7 @@ Next recommended additions after MVP:
 
 - Dedicated `/compare/openrouter` page for OpenRouter-alternative acquisition traffic.
 - Keep the hosted pricing page aligned with `/pricing` API metadata and the account checkout plans.
+- Keep `/managed-access` aligned with provider-resale terms, margin policy, waitlist metadata, sitemap, LLM discovery, and readiness checks.
 - Keep `/quickstart` aligned with the hosted account page and public edge error guidance.
 - Keep the model routing calculator in navigation, sitemap, LLM discovery, and readiness checks.
 - Keep the public `/security` trust page in navigation, sitemap, LLM discovery, and readiness checks whenever hosted edge authentication copy changes.

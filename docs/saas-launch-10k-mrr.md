@@ -74,15 +74,15 @@ authorization, billing, quota, and abuse-control checks are explicitly enabled.
 
 Pricing and comparison pages can still measure demand for the future
 one-subscription path by sending prospects to
-`/?interest=managed-access#waitlist`. That waitlist interest is stored as
-metadata only; it is not a checkout entitlement, provider resale claim, or
-runtime feature flag.
+`/managed-access`. That private-beta intake stores contact and allowlisted
+qualification buckets only; it is not a checkout entitlement, provider resale
+claim, or runtime feature flag.
 
 ## Near-term launch checklist
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
 - Keep `/pricing`, `/quickstart`, `/status`, `/support`, `/account.html`, `/login.html`,
-  `/api/waitlist`, `/models`, `/compare/openrouter`, `/model-routing-calculator`, `/terms`,
+  `/api/waitlist`, `/models`, `/managed-access`, `/compare/openrouter`, `/model-routing-calculator`, `/terms`,
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
 - Keep the public pricing, calculator, legal, provider-resale, and margin-policy
@@ -111,7 +111,7 @@ runtime feature flag.
   provider terms, billing, margin, and abuse controls support any managed
   provider resale offer.
 - Capture managed-access beta demand through the waitlist `interest` metadata
-  path and watch `managedAccessBetaInterest` plus
+  path from `/managed-access` and watch `managedAccessBetaInterest` plus
   `managedAccessShareOfWaitlist` in `/analytics/funnel` instead of advertising
   bundled model access as live.
 - Keep the managed provider access readiness guard active: default disabled,

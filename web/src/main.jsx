@@ -158,6 +158,7 @@ function App() {
             <a href="/quickstart">Quickstart</a>
             <a href="/models">Models</a>
             <a href="/model-routing-calculator">Calculator</a>
+            <a href="/managed-access">Managed Access</a>
             <a href="/pricing">Pricing</a>
             <a href="/security">Security</a>
             <a href="/status">Status</a>
@@ -199,6 +200,9 @@ function App() {
               </a>
               <a className="button secondary" href="/model-routing-calculator">
                 Estimate routing savings
+              </a>
+              <a className="button secondary" href="/managed-access">
+                Managed access beta
               </a>
               <a className="button secondary" href="/security">
                 Review security
@@ -315,6 +319,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <p><a className="inlineLink" href="/analytics.html">Open the private analytics dashboard →</a></p>
           <p><a className="inlineLink" href="/compare/openrouter">Read the Sage Router vs OpenRouter comparison →</a></p>
           <p><a className="inlineLink" href="/model-routing-calculator">Estimate routing savings for one workflow →</a></p>
+          <p><a className="inlineLink" href="/managed-access">Request managed-access private beta review →</a></p>
           <p><a className="inlineLink" href="/pricing">See hosted routing pricing and plan limits →</a></p>
         </div>
         <div className="cards">
@@ -476,6 +481,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/pricing">Pricing</a>
         <a href="/compare/openrouter">Compare OpenRouter</a>
         <a href="/model-routing-calculator">Calculator</a>
+        <a href="/managed-access">Managed Access</a>
         <a href="/security">Security</a>
         <a href="/status">Status</a>
         <a href="/terms">Terms</a>

@@ -38,6 +38,7 @@
         <a href="/compare/openrouter">Compare</a>
         <a href="/models">Models</a>
         <a href="/model-routing-calculator">Calculator</a>
+        <a href="/managed-access">Managed Access</a>
         <a href="/status">Status</a>
         <a href="/support">Support</a>
         <a href="/account.html">Account</a>
@@ -151,7 +152,7 @@
             <li>Prerequisite boundaries are published as <a href="/provider-resale-terms">provider resale terms</a>, a <a href="/margin-policy">margin policy</a>, and <a href="/acceptable-use">acceptable use</a>.</li>
           </ul>
           <div class="actions">
-            <a class="button primary" href="/?interest=managed-access#waitlist">Request managed-access beta</a>
+            <a class="button primary" href="/managed-access">Request managed-access beta</a>
             <a class="button secondary" href="/account.html?plan=max">Start Max with BYOK</a>
           </div>
           <p class="note">Beta interest is demand capture only. Public checkout still buys Sage Router routing, account, quota, analytics, and reliability infrastructure.</p>
@@ -165,6 +166,7 @@
       <a href="/account.html">Account</a>
       <a href="/quickstart">Quickstart</a>
       <a href="/models">Models</a>
+      <a href="/managed-access">Managed Access</a>
       <a href="/status">Status</a>
       <a href="/support">Support</a>
       <a href="/compare/openrouter">Compare</a>
@@ -223,7 +225,7 @@
           target: href,
           button: link.textContent.trim().slice(0, 60)
         }));
-      } else if (href.includes('interest=managed-access')) {
+      } else if (href === '/managed-access' || href.includes('interest=managed-access')) {
         link.addEventListener('click', () => trackPricingFunnelEvent('managed_access_interest_clicked', {
           plan: 'max',
           target: href,

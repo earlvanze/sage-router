@@ -15,6 +15,7 @@ Better model routing for agentic systems using the customer own authorized subsc
 ## Hosted pricing
 
 Hosted pricing page: https://sagerouter.dev/pricing
+Managed-access private beta intake: https://sagerouter.dev/managed-access
 API quickstart page: https://sagerouter.dev/quickstart
 Model catalog page: https://sagerouter.dev/models
 
@@ -22,7 +23,7 @@ The hosted Sage Router plans sell account management, generated API keys, quotas
 
 The public API quickstart at https://sagerouter.dev/quickstart is the first-request path for hosted customers. It shows `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, curl, JavaScript, Python, and Codex examples, and troubleshooting for 401, 402, 429, and 503 responses.
 
-Managed provider access is a future/private-beta path, not an active public plan. The public pricing metadata exposes `publicLaunch.managedProviderAccess`; it should remain disabled until provider resale terms, a margin policy, durable quotas/rate limits, and managed-access acceptable-use terms are ready. The public prerequisite pages are available at https://sagerouter.dev/provider-resale-terms and https://sagerouter.dev/margin-policy for review, but publishing those pages does not activate managed resale. Prospects can request private-beta interest through https://sagerouter.dev/?interest=managed-access#waitlist; that captures demand metadata only.
+Managed provider access is a future/private-beta path, not an active public plan. The public pricing metadata exposes `publicLaunch.managedProviderAccess`; it should remain disabled until provider resale terms, a margin policy, durable quotas/rate limits, and managed-access acceptable-use terms are ready. The public prerequisite pages are available at https://sagerouter.dev/provider-resale-terms and https://sagerouter.dev/margin-policy for review, but publishing those pages does not activate managed resale. Prospects can request private-beta review through https://sagerouter.dev/managed-access; that captures contact and allowlisted qualification buckets only.
 
 ## Public model catalog
 
@@ -43,6 +44,8 @@ Managed Access Margin Policy: https://sagerouter.dev/margin-policy
 The hosted service sells routing infrastructure, account management, generated API keys, quotas, route telemetry, reliability tooling, billing, and support. It does not grant unauthorized provider access, does not promise to bypass provider terms, and does not pool customer provider accounts as a default service. Customers remain responsible for using only authorized provider access, local models, subscriptions, API keys, cloud accounts, and endpoints.
 
 Hosted support for account, billing, quota, API key, reliability, 503, abuse, and security issues is published at https://sagerouter.dev/support. Public support channels should not receive prompts, workflow text, provider credentials, OAuth tokens, generated API keys, private keys, session cookies, raw provider responses, or customer data. Safe support context is limited to account email, plan, timestamp, request id, HTTP status, safe error class, and non-secret key prefix when needed.
+
+Managed-access private beta intake at https://sagerouter.dev/managed-access is for company contact and small qualification buckets such as deployment preference, expected monthly routed request volume, and provider access posture. It should not collect prompts, workflow text, provider credentials, OAuth tokens, generated API keys, private keys, session cookies, raw provider responses, or customer data.
 
 Managed provider access, if introduced, must be limited to provider access Sage Router is authorized to resell or operate. It is not unlimited unmetered resale, not a provider marketplace guarantee, and not permission to evade provider controls. Private-beta activation requires positive unit economics, durable quotas, request-per-minute limits, generated-key revocation, billing controls, abuse controls, and acceptable-use enforcement.
 

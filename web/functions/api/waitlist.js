@@ -39,6 +39,11 @@ const sanitizedUrl = (value) => {
   }
 };
 
+const sanitizeChoice = (value, allowed, fallback = null) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return allowed.has(normalized) ? normalized : fallback;
+};
+
 const validateTurnstile = async ({ token, request, turnstileSecret }) => {
   if (!turnstileSecret) return { ok: true, configured: false };
   if (!token) return { ok: false, status: 403, error: 'turnstile_required' };
@@ -91,6 +96,11 @@ export async function onRequestGet({ env }) {
     turnstileRequired: Boolean(turnstileSecret),
     turnstileSiteKey: turnstileSecret ? turnstileSiteKey || null : null,
     turnstileReady: !turnstileSecret || Boolean(turnstileSiteKey),
+    allowedQualificationBuckets: {
+      deployment: ['hosted-edge', 'tailnet-private', 'hybrid', 'unsure'],
+      monthlyVolume: ['under-50k', '50k-200k', '200k-1m', '1m-plus'],
+      providerAccess: ['byok', 'local-ollama', 'enterprise-contracts', 'needs-managed-access'],
+    },
   });
 }
 
@@ -107,6 +117,9 @@ export async function onRequestPost({ request, env }) {
   const website = String(payload.website || '').trim();
   const interestValue = String(payload.interest || 'general').trim().toLowerCase();
   const interest = /^[a-z0-9-]{1,80}$/.test(interestValue) ? interestValue : 'general';
+  const deployment = sanitizeChoice(payload.deployment, new Set(['hosted-edge', 'tailnet-private', 'hybrid', 'unsure']));
+  const monthlyVolume = sanitizeChoice(payload.monthlyVolume, new Set(['under-50k', '50k-200k', '200k-1m', '1m-plus']));
+  const providerAccess = sanitizeChoice(payload.providerAccess, new Set(['byok', 'local-ollama', 'enterprise-contracts', 'needs-managed-access']));
   const sourcePage = sanitizedUrl(payload.sourcePage) || 'https://sagerouter.dev';
   const turnstileToken = String(payload.turnstileToken || payload['cf-turnstile-response'] || '').trim();
 
@@ -128,6 +141,9 @@ export async function onRequestPost({ request, env }) {
     referer: sanitizedUrl(request.headers.get('referer')),
     origin: sanitizedUrl(request.headers.get('origin')),
     turnstile: turnstile.configured ? 'verified' : 'not_configured',
+    deployment,
+    monthly_volume: monthlyVolume,
+    provider_access: providerAccess,
   };
 
   const waitlistRecord = {

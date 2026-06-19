@@ -454,17 +454,22 @@ check_public_supabase_auth_settings() {
 }
 
 check_waitlist_endpoint() {
-  local code ok service turnstile_required turnstile_site_key
+  local code ok service turnstile_required turnstile_site_key qualification_ok
   code="$(http_code "${APP_BASE%/}/api/waitlist")"
   ok="$(jq -r '.ok // false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   service="$(jq -r '.service // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   turnstile_required="$(jq -r '.turnstileRequired // false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   turnstile_site_key="$(jq -r '.turnstileSiteKey // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  qualification_ok="$(jq -r '
+    ((.allowedQualificationBuckets.deployment // []) | index("hybrid")) and
+    ((.allowedQualificationBuckets.monthlyVolume // []) | index("1m-plus")) and
+    ((.allowedQualificationBuckets.providerAccess // []) | index("needs-managed-access"))
+  ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-waitlist" && ( "$turnstile_required" != "true" || -n "$turnstile_site_key" ) ]]; then
+  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-waitlist" && "$qualification_ok" == "true" && ( "$turnstile_required" != "true" || -n "$turnstile_site_key" ) ]]; then
     pass "hosted waitlist endpoint is configured"
   else
-    fail "hosted waitlist endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} turnstileRequired=${turnstile_required:-missing} turnstileSiteKey=${turnstile_site_key:+present}"
+    fail "hosted waitlist endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} qualificationBuckets=${qualification_ok:-missing} turnstileRequired=${turnstile_required:-missing} turnstileSiteKey=${turnstile_site_key:+present}"
   fi
 }
 
@@ -523,6 +528,42 @@ check_marketing_pricing_page() {
     pass "marketing hosted pricing page is live and in sitemap"
   else
     fail "marketing hosted pricing page incomplete: page=${page_code} sitemap=${sitemap_code}"
+  fi
+}
+
+check_marketing_managed_access_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/managed-access")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router Managed Access Private Beta" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "interest.*managed-access" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-interest"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/api/waitlist" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-waitlist-submit"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Do not submit prompts" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-no-secrets-boundary"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/managed-access" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-managed-access-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Managed-access private beta: ${MARKETING_BASE%/}/managed-access" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-managed-access-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing managed-access private beta intake page is live in sitemap and LLM discovery"
+  else
+    fail "marketing managed-access private beta intake incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
   fi
 }
 
@@ -873,6 +914,7 @@ check_waitlist_endpoint
 check_funnel_event_endpoint
 check_marketing_comparison_page
 check_marketing_pricing_page
+check_marketing_managed_access_page
 check_marketing_model_catalog_page
 check_marketing_quickstart_page
 check_model_routing_calculator
