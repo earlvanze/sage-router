@@ -9,6 +9,8 @@ Model Routing Calculator: https://sagerouter.dev/model-routing-calculator
 Terms: https://sagerouter.dev/terms
 Privacy: https://sagerouter.dev/privacy
 Acceptable Use: https://sagerouter.dev/acceptable-use
+Provider Resale Terms: https://sagerouter.dev/provider-resale-terms
+Managed Access Margin Policy: https://sagerouter.dev/margin-policy
 Repository: https://github.com/earlvanze/sage-router
 Docs: https://github.com/earlvanze/sage-router#readme
 
@@ -20,13 +22,15 @@ Docs: https://github.com/earlvanze/sage-router#readme
 - Supports local Ollama and Ollama Cloud today through Ollama running locally. Sage Router discovers available `:cloud` models, can auto-pull discovered cloud models, and routes between local Ollama, Ollama Cloud, NVIDIA NIM, and other cloud APIs according to policy and health.
 - Provides provider health, fallback, observability, and routing policy infrastructure for agents.
 - Hosted plans sell account management, API keys, usage quotas, analytics, and reliability infrastructure: Lite $6/month, Pro $30/month, and Max $72/month.
-- Managed provider access is not active in public plans; `publicLaunch.managedProviderAccess` must stay disabled until provider resale terms, margin policy, durable quotas/rate limits, and managed-access acceptable-use terms are ready.
+- Managed provider access is not active in public plans; `publicLaunch.managedProviderAccess` must stay disabled until provider resale terms, margin policy, durable quotas/rate limits, and managed-access acceptable-use terms are ready. The prerequisite pages are published for review, but they do not enable managed resale by themselves.
 
 ## Compliance and custody
 
 Sage Router routes only across authorized provider access that customers already control. It does not grant unauthorized provider access. Provider credentials stay local by default.
 
 Hosted legal boundary: the hosted service sells routing infrastructure, account management, API key management, quotas, analytics, reliability tooling, and support. Customers remain responsible for provider terms, licenses, credentials, subscriptions, and usage authorization.
+
+Managed access boundary: managed provider access, if introduced, is limited to provider access Sage Router is authorized to resell or operate and is not unlimited unmetered resale.
 
 ## Search intents this site answers
 

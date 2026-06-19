@@ -66,14 +66,21 @@ provider resale terms, a published margin policy, durable quota and rate-limit
 enforcement, and managed-access acceptable-use terms before it can be marketed
 as a launchable offer.
 
+The public prerequisite pages at `/provider-resale-terms` and `/margin-policy`
+document the required legal and unit-economics boundaries for a future private
+beta. They do not activate managed resale by themselves; the runtime must still
+keep `publicLaunch.managedProviderAccess.enabled` false unless the provider
+authorization, billing, quota, and abuse-control checks are explicitly enabled.
+
 ## Near-term launch checklist
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
 - Keep `/pricing`, `/status`, `/account.html`, `/login.html`, `/api/waitlist`,
   `/compare/openrouter`, `/model-routing-calculator`, `/terms`, `/privacy`,
-  and `/acceptable-use` in the readiness gate.
-- Keep the public pricing, calculator, and legal pages in sitemap and LLM
-  discovery.
+  `/acceptable-use`, `/provider-resale-terms`, and `/margin-policy` in the
+  readiness gate.
+- Keep the public pricing, calculator, legal, provider-resale, and margin-policy
+  pages in sitemap and LLM discovery.
 - Use the calculator as the lightweight qualification path before signup:
   prospects estimate savings, review points, and fallback gaps, then create a
   hosted API key or request implementation support.

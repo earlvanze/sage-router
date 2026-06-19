@@ -509,6 +509,47 @@ check_legal_pages() {
   fi
 }
 
+check_managed_provider_prerequisite_pages() {
+  local provider_code margin_code sitemap_code
+  provider_code="$(http_code_follow "${MARKETING_BASE%/}/provider-resale-terms")"
+  if [[ "$provider_code" == "200" ]] && ! grep -q "Sage Router Provider Resale Terms" /tmp/sage-router-readiness-body; then
+    provider_code="200:unexpected-body"
+  fi
+  if [[ "$provider_code" == "200" ]] && ! grep -q "authorized to resell or operate" /tmp/sage-router-readiness-body; then
+    provider_code="200:missing-authorized-resale-boundary"
+  fi
+  if [[ "$provider_code" == "200" ]] && ! grep -q "does not authorize pooled accounts" /tmp/sage-router-readiness-body; then
+    provider_code="200:missing-pooled-account-boundary"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  margin_code="$(http_code_follow "${MARKETING_BASE%/}/margin-policy")"
+  if [[ "$margin_code" == "200" ]] && ! grep -q "Sage Router Managed Access Margin Policy" /tmp/sage-router-readiness-body; then
+    margin_code="200:unexpected-body"
+  fi
+  if [[ "$margin_code" == "200" ]] && ! grep -q "positive unit economics" /tmp/sage-router-readiness-body; then
+    margin_code="200:missing-positive-unit-economics"
+  fi
+  if [[ "$margin_code" == "200" ]] && ! grep -q "not unlimited unmetered resale" /tmp/sage-router-readiness-body; then
+    margin_code="200:missing-unmetered-resale-boundary"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] &&
+      { ! grep -q "${MARKETING_BASE%/}/provider-resale-terms" /tmp/sage-router-readiness-body ||
+        ! grep -q "${MARKETING_BASE%/}/margin-policy" /tmp/sage-router-readiness-body; }; then
+    sitemap_code="200:missing-managed-provider-prerequisite-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$provider_code" == "200" && "$margin_code" == "200" && "$sitemap_code" == "200" ]]; then
+    pass "marketing provider resale terms and margin policy pages are live and in sitemap"
+  else
+    fail "marketing managed-provider prerequisite pages incomplete: provider-resale-terms=${provider_code} margin-policy=${margin_code} sitemap=${sitemap_code}"
+  fi
+}
+
 check_admin_token() {
   if [[ -z "$ADMIN_TOKEN" ]]; then
     warn "SAGE_ROUTER_API_KEY/SAGE_ROUTER_EDGE_TOKEN not set; skipped private admin token probe"
@@ -630,6 +671,7 @@ check_marketing_comparison_page
 check_marketing_pricing_page
 check_model_routing_calculator
 check_legal_pages
+check_managed_provider_prerequisite_pages
 check_admin_token
 check_origin_auth_gate
 check_supabase_auth_config
