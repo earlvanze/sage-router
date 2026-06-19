@@ -26,6 +26,9 @@ The static site is emitted to web/dist/.
 ## Deploy notes
 
 This site is deployed with Cloudflare Pages so static assets and Pages Functions ship together. `web/dist/` contains the static build; `web/functions/` contains production functions such as the waitlist endpoint.
+The repo deploy helper compiles `web/functions` into the deploy artifact before
+calling `wrangler pages deploy`, which keeps `/api/waitlist` routed to the
+function in direct Wrangler uploads.
 
 Suggested Cloudflare Pages settings:
 

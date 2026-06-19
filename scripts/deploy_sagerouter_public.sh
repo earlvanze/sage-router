@@ -70,6 +70,12 @@ deploy_pages() {
     cd "$tmp"
     npm ci
     npm run build
+    if [[ -d functions ]]; then
+      npx wrangler pages functions build functions \
+        --outdir dist/_worker.js \
+        --output-routes-path dist/_routes.json \
+        --build-output-directory dist
+    fi
   )
 
   printf 'Deploying Cloudflare Pages project=%s branch=%s\n' "$PAGES_PROJECT" "$PAGES_PRODUCTION_BRANCH" >&2

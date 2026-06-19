@@ -35,6 +35,9 @@ scripts/deploy_sagerouter_public.sh
 The helper deploys Cloudflare Pages to production branch `main`. Deploying this
 repo's `master` branch with Wrangler creates a preview deployment only, so do
 not use `--branch master` for the live `sagerouter.dev` custom domains.
+It also compiles `web/functions` into `dist/_worker.js` and `dist/_routes.json`
+before upload so `/api/waitlist` is served by the Pages Function instead of the
+static app shell.
 
 ## Recommended deploy path: Cloudflare Pages
 
