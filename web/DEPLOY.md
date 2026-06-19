@@ -37,6 +37,8 @@ Cloudflare Pages settings:
 - Build command: `npm ci && npm run build`
 - Build output directory: `dist`
 - Custom domain: `sagerouter.dev`
+- Function env vars for waitlist capture: `SAGEROUTER_SUPABASE_URL` and `SAGEROUTER_SUPABASE_SERVICE_ROLE`
+- Optional Cloudflare Turnstile waitlist guard: set both `SAGEROUTER_TURNSTILE_SECRET_KEY` and `SAGEROUTER_TURNSTILE_SITE_KEY`
 
 Do not deploy the Python router service or any local provider credentials to Pages. This site is static marketing/docs content only.
 
@@ -58,6 +60,7 @@ Let Cloudflare manage the required CNAME/flattened records.
 - [x] Canonical URL set to `https://sagerouter.dev/`
 - [x] `robots.txt`, `sitemap.xml`, `llms.txt`, and `llms-full.txt` reachable at site root
 - [x] Waitlist form wired to AOps Supabase via Cloudflare Pages Function
+- [x] Optional Turnstile abuse guard supported for the public waitlist form
 
 ### Phase 2 — Public launch polish (in progress)
 

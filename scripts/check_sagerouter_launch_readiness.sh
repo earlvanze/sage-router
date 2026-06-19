@@ -287,15 +287,17 @@ check_public_supabase_auth_settings() {
 }
 
 check_waitlist_endpoint() {
-  local code ok service
+  local code ok service turnstile_required turnstile_site_key
   code="$(http_code "${APP_BASE%/}/api/waitlist")"
   ok="$(jq -r '.ok // false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   service="$(jq -r '.service // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  turnstile_required="$(jq -r '.turnstileRequired // false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  turnstile_site_key="$(jq -r '.turnstileSiteKey // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-waitlist" ]]; then
+  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-waitlist" && ( "$turnstile_required" != "true" || -n "$turnstile_site_key" ) ]]; then
     pass "hosted waitlist endpoint is configured"
   else
-    fail "hosted waitlist endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing}"
+    fail "hosted waitlist endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} turnstileRequired=${turnstile_required:-missing} turnstileSiteKey=${turnstile_site_key:+present}"
   fi
 }
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
@@ -19,6 +19,114 @@ const steps = [
     body: 'Route by task, provider health, latency, capability, and policy. Fall back automatically and inspect what happened afterward.',
   },
 ];
+
+const loadTurnstileScript = () => new Promise((resolve, reject) => {
+  if (window.turnstile) {
+    resolve(window.turnstile);
+    return;
+  }
+  const existing = document.querySelector('script[data-turnstile]');
+  if (existing) {
+    existing.addEventListener('load', () => resolve(window.turnstile), { once: true });
+    existing.addEventListener('error', reject, { once: true });
+    return;
+  }
+  const script = document.createElement('script');
+  script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+  script.async = true;
+  script.defer = true;
+  script.dataset.turnstile = 'true';
+  script.addEventListener('load', () => resolve(window.turnstile), { once: true });
+  script.addEventListener('error', reject, { once: true });
+  document.head.appendChild(script);
+});
+
+function WaitlistForm() {
+  const widgetRef = useRef(null);
+  const widgetIdRef = useRef(null);
+  const [status, setStatus] = useState('');
+  const [turnstile, setTurnstile] = useState({ required: false, siteKey: '', token: '' });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/waitlist')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.turnstileRequired && data?.turnstileSiteKey) {
+          setTurnstile({ required: true, siteKey: data.turnstileSiteKey, token: '' });
+        } else if (!cancelled && data?.turnstileRequired) {
+          setStatus('Verification is temporarily unavailable.');
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!turnstile.required || !turnstile.siteKey || !widgetRef.current || widgetIdRef.current) return;
+    let cancelled = false;
+    loadTurnstileScript()
+      .then((api) => {
+        if (cancelled || !api || !widgetRef.current || widgetIdRef.current) return;
+        widgetIdRef.current = api.render(widgetRef.current, {
+          sitekey: turnstile.siteKey,
+          callback: (token) => setTurnstile((current) => ({ ...current, token })),
+          'expired-callback': () => setTurnstile((current) => ({ ...current, token: '' })),
+          'error-callback': () => {
+            setTurnstile((current) => ({ ...current, token: '' }));
+            setStatus('Verification failed. Refresh and try again.');
+          },
+        });
+      })
+      .catch(() => setStatus('Verification could not load. Try again later.'));
+    return () => {
+      cancelled = true;
+    };
+  }, [turnstile.required, turnstile.siteKey]);
+
+  const resetTurnstile = () => {
+    if (widgetIdRef.current && window.turnstile) {
+      window.turnstile.reset(widgetIdRef.current);
+    }
+    setTurnstile((current) => ({ ...current, token: '' }));
+  };
+
+  return (
+    <form className="waitlistForm" onSubmit={async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const data = Object.fromEntries(new FormData(form));
+      if (turnstile.required && !turnstile.token) {
+        setStatus('Complete verification first.');
+        return;
+      }
+      setStatus('Submitting...');
+      try {
+        const response = await fetch('/api/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...data, turnstileToken: turnstile.token }),
+        });
+        if (!response.ok) throw new Error('Submit failed');
+        form.reset();
+        resetTurnstile();
+        setStatus('You are on the list.');
+      } catch (error) {
+        resetTurnstile();
+        setStatus('Could not submit. Try again or use GitHub for now.');
+      }
+    }}>
+      <input name="website" tabIndex="-1" autoComplete="off" className="honeypot" aria-hidden="true" />
+      <input name="email" type="email" placeholder="you@example.com" required />
+      <input name="company" type="text" placeholder="Company or project" />
+      <button type="submit">Join waitlist</button>
+      {turnstile.required && <div className="turnstileSlot" ref={widgetRef} />}
+      <p data-status>{status}</p>
+    </form>
+  );
+}
 
 function App() {
   return (
@@ -333,31 +441,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <h2>Get Sage Router updates.</h2>
           <p>Join the waitlist for integration updates, release notes, and early hosted reliability testing.</p>
         </div>
-        <form className="waitlistForm" onSubmit={async (event) => {
-          event.preventDefault();
-          const form = event.currentTarget;
-          const data = Object.fromEntries(new FormData(form));
-          const status = form.querySelector('[data-status]');
-          status.textContent = 'Submitting...';
-          try {
-            const response = await fetch('/api/waitlist', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(data),
-            });
-            if (!response.ok) throw new Error('Submit failed');
-            form.reset();
-            status.textContent = 'You are on the list.';
-          } catch (error) {
-            status.textContent = 'Could not submit. Try again or use GitHub for now.';
-          }
-        }}>
-          <input name="website" tabIndex="-1" autoComplete="off" className="honeypot" aria-hidden="true" />
-          <input name="email" type="email" placeholder="you@example.com" required />
-          <input name="company" type="text" placeholder="Company or project" />
-          <button type="submit">Join waitlist</button>
-          <p data-status></p>
-        </form>
+        <WaitlistForm />
       </section>
 
       <footer>

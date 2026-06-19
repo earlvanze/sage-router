@@ -83,6 +83,7 @@ footer span { margin-right: auto; }
 .waitlistForm input { min-width: 0; height: 50px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,255,255,.05); color: var(--text); padding: 0 18px; font: inherit; }
 .waitlistForm input:focus { outline: 2px solid rgba(141,240,178,.42); outline-offset: 2px; }
 .waitlistForm button { height: 50px; border: 0; border-radius: 999px; padding: 0 18px; background: var(--brand); color: #04150d; font-weight: 900; cursor: pointer; }
+.turnstileSlot { grid-column: 1 / -1; min-height: 65px; }
 .waitlistForm p { grid-column: 1 / -1; min-height: 20px; margin: 0; color: var(--muted); }
 .honeypot { position: absolute; left: -9999px; opacity: 0; }
 @media (max-width: 920px) { .docsGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .waitlistForm { grid-template-columns: 1fr; } }

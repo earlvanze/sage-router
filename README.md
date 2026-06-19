@@ -163,7 +163,7 @@ set -a; source /home/digit/.openclaw/.env; set +a
 scripts/check_sagerouter_launch_readiness.sh
 ```
 
-The readiness check verifies the public API edge, anonymous auth gating, browser CORS preflight for the hosted API-key verification flow, hosted pricing metadata, direct origin auth gating, Supabase management auth settings, public browser-visible Supabase auth settings, quota schema, hosted login/account/GitHub callback pages, hosted security headers, the public terms/privacy/acceptable-use pages, the model routing calculator, the operator-only privacy-safe `/analytics/funnel` endpoint, the non-mutating waitlist health endpoint on `SAGEROUTER_APP_BASE_URL` (default `https://app.sagerouter.dev`), and the marketing comparison/pricing pages on `SAGEROUTER_MARKETING_BASE_URL` (default `https://sagerouter.dev`). The direct-origin probe uses `SAGEROUTER_ORIGIN_BASE_URL` when set; otherwise it auto-discovers the Cloud Run URL from `SAGEROUTER_CLOUD_RUN_PROJECT`/`SAGEROUTER_CLOUD_RUN_REGION`/`SAGEROUTER_CLOUD_RUN_SERVICE`, defaulting to the live hosted service.
+The readiness check verifies the public API edge, anonymous auth gating, browser CORS preflight for the hosted API-key verification flow, hosted pricing metadata, direct origin auth gating, Supabase management auth settings, public browser-visible Supabase auth settings, quota schema, hosted login/account/GitHub callback pages, hosted security headers, the public terms/privacy/acceptable-use pages, the model routing calculator, the operator-only privacy-safe `/analytics/funnel` endpoint, the non-mutating waitlist health endpoint on `SAGEROUTER_APP_BASE_URL` (default `https://app.sagerouter.dev`), optional Cloudflare Turnstile waitlist configuration, and the marketing comparison/pricing pages on `SAGEROUTER_MARKETING_BASE_URL` (default `https://sagerouter.dev`). The direct-origin probe uses `SAGEROUTER_ORIGIN_BASE_URL` when set; otherwise it auto-discovers the Cloud Run URL from `SAGEROUTER_CLOUD_RUN_PROJECT`/`SAGEROUTER_CLOUD_RUN_REGION`/`SAGEROUTER_CLOUD_RUN_SERVICE`, defaulting to the live hosted service.
 
 Monthly API-key quotas require the Supabase usage counter table and RPC. Apply
 the idempotent migration through the Supabase Management API before enabling
@@ -797,7 +797,7 @@ LOG_LEVEL=DEBUG python3 router.py
 - [x] Tool/function calling proxy (OpenAI, Ollama, and Anthropic-compatible tool-call normalization)
 - [x] Cloudflare Pages marketing site on `https://sagerouter.dev`
 - [x] Integration guides for major agent harnesses and SDK-compatible clients
-- [x] Waitlist capture into AOps Supabase
+- [x] Waitlist capture into AOps Supabase with optional Turnstile abuse protection
 - [x] OpenClaw Codex OAuth passthrough (chatgpt.com/backend-api/codex)
 - [x] Umbrel App Store packaging (v1.0.4)
 - [x] Built-in config dashboard with provider health, toggles, and analytics
