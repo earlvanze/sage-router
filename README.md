@@ -136,6 +136,16 @@ set -a; source /home/digit/.openclaw/.env; set +a
 scripts/check_sagerouter_launch_readiness.sh
 ```
 
+Monthly API-key quotas require the Supabase usage counter table and RPC. Apply
+the idempotent migration through the Supabase Management API before enabling
+`SAGE_ROUTER_EDGE_QUOTA_ENABLED=1`:
+
+```bash
+set -a; source /home/digit/.openclaw/.env; set +a
+scripts/apply_supabase_quota_schema.sh
+scripts/check_sagerouter_launch_readiness.sh
+```
+
 For the existing GCP deployment notes, see [deploy/gcp](deploy/gcp/README.md). For the privacy-preserving relay design where customer credentials stay on the user's machine, see [docs/cloud-tunnel](docs/cloud-tunnel/README.md).
 
 ### Configure Your Tools

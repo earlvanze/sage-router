@@ -3,6 +3,7 @@ __pycache__/
 data/
 *.bak-*
 .wrangler/
+supabase/.temp/
 # Frontend
 web/node_modules/
 web/dist/

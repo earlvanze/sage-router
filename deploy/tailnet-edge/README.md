@@ -74,7 +74,7 @@ With that split, public metadata (`/pricing`, `/plans`, and `/features/agent-nat
 
 The edge enforces an in-memory fixed-window rate limit for generated customer API keys and Supabase user-JWT account/billing requests. Limits are keyed by generated key/customer or user id, grouped by the first path segment (`/v1`, `/account`, `/billing`), and return `429` with `Retry-After` plus `X-RateLimit-*` headers when exceeded. The private `SAGE_ROUTER_EDGE_TOKEN` remains exempt for emergency/admin operations.
 
-Monthly SaaS quotas are optional and durable in Supabase. Apply `../../supabase/migrations/20260619021500_sage_router_usage_quotas.sql` first, then set `SAGE_ROUTER_EDGE_QUOTA_ENABLED=1`. Generated customer API keys on `/v1/*` call the `sage_router_increment_usage` RPC before proxying and receive `X-Quota-*` headers. A plan limit of `0` means no monthly cap for that plan/status; omitted plans fall back to `default`.
+Monthly SaaS quotas are optional and durable in Supabase. From the repository root, run `scripts/apply_supabase_quota_schema.sh` to apply `supabase/migrations/20260619021500_sage_router_usage_quotas.sql`, then set `SAGE_ROUTER_EDGE_QUOTA_ENABLED=1`. Generated customer API keys on `/v1/*` call the `sage_router_increment_usage` RPC before proxying and receive `X-Quota-*` headers. A plan limit of `0` means no monthly cap for that plan/status; omitted plans fall back to `default`.
 
 ## Run
 
