@@ -37,6 +37,16 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("accountUrl", readiness)
         self.assertIn("apiKeyPrefix", readiness)
 
+    def test_github_supabase_configurator_verifies_management_and_public_state(self):
+        script = self.read_text("scripts", "configure_supabase_github_auth.sh")
+        readme = self.read_text("README.md")
+        self.assertIn("external_github_enabled: true", script)
+        self.assertIn("Supabase GitHub auth verification failed", script)
+        self.assertIn("Supabase public auth settings verification failed", script)
+        self.assertIn("/auth/v1/settings", script)
+        self.assertIn("VITE_SUPABASE_PUBLISHABLE_KEY", script)
+        self.assertIn("browser-visible OAuth buttons match the", readme)
+
     def test_account_page_has_stripe_billing_management(self):
         html = self.read_public("account.html")
         js = self.read_public("account.js")

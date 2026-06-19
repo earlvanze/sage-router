@@ -138,6 +138,12 @@ bash scripts/bootstrap_github_supabase_auth.sh
 
 GitHub requires an owner-approved browser step before it returns app credentials. By default the bootstrap script opens a local browser form, listens on an auto-selected `http://127.0.0.1` port, captures GitHub's one-hour manifest code, exchanges it for the app client id/secret, and patches Supabase Auth in the same run.
 
+After patching Supabase, the configurator verifies the management API state
+(`site_url`, email auth, GitHub auth, and app/API redirect allow-list entries).
+When a public anon/publishable key is available in the environment, it also
+checks `/auth/v1/settings` so the browser-visible OAuth buttons match the
+management config before the launch readiness script is rerun.
+
 If local capture is not available, fall back to the hosted callback page. After approving the app, GitHub redirects to `/github-app-manifest.html` with a temporary `code`; rerun the same script with that code:
 
 ```bash

@@ -75,7 +75,9 @@ and abuse controls are in place.
   provider terms, billing, margin, and abuse controls support any managed
   provider resale offer.
 - Enable GitHub OAuth in Supabase after the GitHub App manifest approval code is
-  available.
+  available; the bootstrap must verify both Supabase management config and the
+  browser-visible `/auth/v1/settings` provider state before treating this as
+  complete.
 - Track the funnel from waitlist to signup, generated key, first routed request,
   paid conversion, and retained paid account through the operator-only
   `/analytics/funnel` endpoint.
