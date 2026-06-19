@@ -101,6 +101,39 @@ check_browser_api_cors() {
   fi
 }
 
+check_static_security_headers() {
+  local url="$1"
+  local label="$2"
+  local headers code hsts csp nosniff referrer frame permissions csp_state
+  headers="$(mktemp)"
+  code="$(curl -sSL -o /tmp/sage-router-readiness-body -D "$headers" -w '%{http_code}' "$url")"
+  hsts="$(awk 'tolower($1)=="strict-transport-security:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$headers" | tail -n1)"
+  csp="$(awk 'tolower($1)=="content-security-policy:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$headers" | tail -n1)"
+  nosniff="$(awk 'tolower($1)=="x-content-type-options:" {sub(/\r$/,"",$2); print $2}' "$headers" | tail -n1)"
+  referrer="$(awk 'tolower($1)=="referrer-policy:" {sub(/\r$/,"",$2); print $2}' "$headers" | tail -n1)"
+  frame="$(awk 'tolower($1)=="x-frame-options:" {sub(/\r$/,"",$2); print $2}' "$headers" | tail -n1)"
+  permissions="$(awk 'tolower($1)=="permissions-policy:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$headers" | tail -n1)"
+  csp_state="$([[ -n "$csp" ]] && printf present || printf missing)"
+  rm -f "$headers" /tmp/sage-router-readiness-body
+
+  if [[ "$code" == "200" &&
+        "$hsts" == *"max-age="* &&
+        "$csp" == *"default-src 'self'"* &&
+        "$csp" == *"object-src 'none'"* &&
+        "$csp" == *"frame-ancestors 'none'"* &&
+        "$csp" == *"connect-src"* &&
+        "$csp" == *"https://api.sagerouter.dev"* &&
+        "$csp" == *"https://awtangrlqqsdpksarhwo.supabase.co"* &&
+        "$nosniff" == "nosniff" &&
+        "$referrer" == "strict-origin-when-cross-origin" &&
+        "$frame" == "DENY" &&
+        "$permissions" == *"camera=()"* ]]; then
+    pass "${label} static security headers include HSTS, CSP, nosniff, frame, referrer, and permissions policy"
+  else
+    fail "${label} static security headers incomplete: code=${code} hsts=${hsts:-missing} csp=${csp_state} nosniff=${nosniff:-missing} referrer=${referrer:-missing} frame=${frame:-missing} permissions=${permissions:-missing}"
+  fi
+}
+
 check_public_pricing_metadata() {
   local code plans api_base openai_base checkout_path portal_path api_key_limit limits_ok stripe_ok launch_ok
   code="$(http_code "${API_BASE%/}/pricing")"
@@ -367,6 +400,8 @@ require_jq
 check_edge_health
 check_public_auth_gate
 check_browser_api_cors
+check_static_security_headers "${APP_BASE%/}/login" "hosted app"
+check_static_security_headers "${MARKETING_BASE%/}/pricing" "marketing"
 check_public_pricing_metadata
 check_stripe_webhook_guard
 check_hosted_onboarding_pages
