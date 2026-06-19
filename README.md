@@ -91,6 +91,13 @@ SAGEROUTER_GITHUB_CLIENT_SECRET=... \
 scripts/configure_supabase_github_auth.sh
 ```
 
+Check the current hosted launch gates with:
+
+```bash
+set -a; source /home/digit/.openclaw/.env; set +a
+scripts/check_sagerouter_launch_readiness.sh
+```
+
 For the existing GCP deployment notes, see [deploy/gcp](deploy/gcp/README.md). For the privacy-preserving relay design where customer credentials stay on the user's machine, see [docs/cloud-tunnel](docs/cloud-tunnel/README.md).
 
 ### Configure Your Tools
