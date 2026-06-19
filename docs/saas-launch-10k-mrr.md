@@ -97,6 +97,10 @@ runtime feature flag.
   hosted API key or request implementation support. The calculator should
   recommend Lite, Pro, or Max from the workflow profile and send the prospect
   into preselected checkout with `/account.html?plan=...`.
+- Capture pre-signup CTA intent from the calculator and pricing pages through
+  the privacy-safe `/api/funnel-event` path. Store only event, plan, sanitized
+  source/target URL, and small allowlisted metadata buckets; do not store
+  prompts, workflow text, emails, API keys, or provider credentials.
 - Keep hosted positioning limited to routing/control-plane infrastructure until
   provider terms, billing, margin, and abuse controls support any managed
   provider resale offer.
@@ -115,6 +119,8 @@ runtime feature flag.
 - Track the funnel from waitlist to signup, generated key, first routed request,
   paid conversion, and retained paid account through the operator-only
   `/analytics/funnel` endpoint.
+- Include anonymous `marketingIntentEvents` in `/analytics/funnel` so the
+  operator can see whether pricing/calculator demand exists before signup.
 - Keep `app.sagerouter.dev/account.html` aligned with the same activation
   funnel: signed-in account, paid routing, generated key, public-edge
   `/v1/models` verification, and server-recorded first routed usage.

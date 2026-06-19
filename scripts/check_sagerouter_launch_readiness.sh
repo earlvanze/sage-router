@@ -468,6 +468,22 @@ check_waitlist_endpoint() {
   fi
 }
 
+check_funnel_event_endpoint() {
+  local code ok service primary_table privacy_ok allowed_events
+  code="$(http_code "${APP_BASE%/}/api/funnel-event")"
+  ok="$(jq -r '.ok // false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  service="$(jq -r '.service // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  primary_table="$(jq -r '.primaryTable // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  privacy_ok="$(jq -r '(.privacy.promptsStored == false) and (.privacy.messageBodiesStored == false) and (.privacy.containsApiKeys == false)' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  allowed_events="$(jq -r '(.allowedEvents // []) | index("calculator_checkout_clicked") != null' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  rm -f /tmp/sage-router-readiness-body
+  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-funnel-event" && "$primary_table" == "sage_router_funnel_events" && "$privacy_ok" == "true" && "$allowed_events" == "true" ]]; then
+    pass "privacy-safe marketing funnel event endpoint is configured"
+  else
+    fail "marketing funnel event endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} table=${primary_table:-missing} privacy=${privacy_ok:-missing} calculatorEvent=${allowed_events:-missing}"
+  fi
+}
+
 check_marketing_comparison_page() {
   local page_code sitemap_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/compare/openrouter")"
@@ -582,8 +598,8 @@ check_model_routing_calculator() {
   if [[ "$page_code" == "200" ]] && ! grep -q "AI Model Routing Calculator" /tmp/sage-router-readiness-body; then
     page_code="200:unexpected-body"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "No login. No data leaves your browser." /tmp/sage-router-readiness-body; then
-    page_code="200:missing-no-storage-copy"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Workflow text and prompt bodies stay in your browser." /tmp/sage-router-readiness-body; then
+    page_code="200:missing-private-workflow-copy"
   fi
   rm -f /tmp/sage-router-readiness-body
 
@@ -794,11 +810,15 @@ check_supabase_auth_config() {
 
 check_quota_schema() {
   if [[ -z "$SUPABASE_SERVICE_ROLE_KEY" ]]; then
-    warn "Supabase service role key not set; skipped quota schema probe"
+    warn "Supabase service role key not set; skipped quota and funnel-event schema probe"
     return
   fi
-  local table_code rpc_code
+  local table_code rpc_code funnel_table_code
   table_code="$(http_code "${SUPABASE_URL%/}/rest/v1/sage_router_usage_counters?select=id&limit=1" \
+    -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}")"
+  rm -f /tmp/sage-router-readiness-body
+  funnel_table_code="$(http_code "${SUPABASE_URL%/}/rest/v1/sage_router_funnel_events?select=id&limit=1" \
     -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
     -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}")"
   rm -f /tmp/sage-router-readiness-body
@@ -812,6 +832,11 @@ check_quota_schema() {
     pass "Supabase quota table and RPC are installed"
   else
     warn "Supabase quota schema not ready: table HTTP ${table_code}, RPC HTTP ${rpc_code}; apply supabase/migrations/20260619021500_sage_router_usage_quotas.sql before enabling quotas"
+  fi
+  if [[ "$funnel_table_code" == "200" ]]; then
+    pass "Supabase anonymous funnel event table is installed"
+  else
+    warn "Supabase funnel event schema not ready: table HTTP ${funnel_table_code}; apply supabase/migrations/20260619053000_sage_router_funnel_events.sql before relying on pre-signup conversion analytics"
   fi
 }
 
@@ -829,6 +854,7 @@ check_stripe_webhook_guard
 check_hosted_onboarding_pages
 check_public_supabase_auth_settings
 check_waitlist_endpoint
+check_funnel_event_endpoint
 check_marketing_comparison_page
 check_marketing_pricing_page
 check_marketing_model_catalog_page

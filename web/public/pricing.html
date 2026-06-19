@@ -175,5 +175,60 @@
       <a href="https://github.com/earlvanze/sage-router">GitHub</a>
     </footer>
   </div>
+  <script>
+    function trackPricingFunnelEvent(event, data = {}) {
+      const payload = JSON.stringify({
+        event,
+        plan: data.plan || null,
+        sourcePage: window.location.href,
+        target: data.target || null,
+        metadata: {
+          source: 'pricing',
+          button: data.button || null
+        }
+      });
+      try {
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          if (navigator.sendBeacon('/api/funnel-event', blob)) return;
+        }
+      } catch {}
+      fetch('/api/funnel-event', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: payload,
+        keepalive: true,
+        credentials: 'omit'
+      }).catch(() => {});
+    }
+
+    document.querySelectorAll('a[href]').forEach((link) => {
+      const href = link.getAttribute('href') || '';
+      const planMatch = href.match(/\/account\.html\?plan=(lite|pro|max)\b/);
+      if (planMatch) {
+        link.addEventListener('click', () => trackPricingFunnelEvent('pricing_checkout_clicked', {
+          plan: planMatch[1],
+          target: href,
+          button: link.textContent.trim().slice(0, 60)
+        }));
+      } else if (href === '/account.html') {
+        link.addEventListener('click', () => trackPricingFunnelEvent('pricing_account_clicked', {
+          target: href,
+          button: link.textContent.trim().slice(0, 60)
+        }));
+      } else if (href === '/quickstart') {
+        link.addEventListener('click', () => trackPricingFunnelEvent('pricing_quickstart_clicked', {
+          target: href,
+          button: link.textContent.trim().slice(0, 60)
+        }));
+      } else if (href.includes('interest=managed-access')) {
+        link.addEventListener('click', () => trackPricingFunnelEvent('managed_access_interest_clicked', {
+          plan: 'max',
+          target: href,
+          button: link.textContent.trim().slice(0, 60)
+        }));
+      }
+    });
+  </script>
 </body>
 </html>

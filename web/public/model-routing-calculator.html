@@ -179,7 +179,7 @@
   <header class="wrap">
     <div class="eyebrow">Free tool by Sage Router</div>
     <h1>AI Model Routing Calculator</h1>
-    <p class="sub">Estimate where an AI workflow can route cheaper requests, escalate risky cases, and add fallback before outages or provider limits break the user experience. No login. No data leaves your browser.</p>
+    <p class="sub">Estimate where an AI workflow can route cheaper requests, escalate risky cases, and add fallback before outages or provider limits break the user experience. No login. Workflow text and prompt bodies stay in your browser.</p>
     <div class="notice"><span>This is an estimation tool, not a guarantee. Use it to spot routing opportunities before a deeper AI operations review.</span></div>
   </header>
 
@@ -335,11 +335,68 @@
       pro: { label: 'Pro', price: 30, requests: 50000, rateLimit: 180 },
       max: { label: 'Max', price: 72, requests: 200000, rateLimit: 600 }
     };
+    let lastCalculation = null;
 
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
     function money(n) { return fmt.format(Number.isFinite(n) ? n : 0); }
     function planCheckoutUrl(planKey) { return `/account.html?plan=${encodeURIComponent(planKey)}`; }
     function planUnitCost(plan) { return plan.requests > 0 ? (plan.price / plan.requests) * 1000 : 0; }
+    function volumeBucket(volume) {
+      if (volume < 1000) return 'lt_1k';
+      if (volume < 10000) return '1k_10k';
+      if (volume < 50000) return '10k_50k';
+      if (volume < 200000) return '50k_200k';
+      return 'gte_200k';
+    }
+    function savingsBucket(savingsPct) {
+      const pct = Math.round((Number.isFinite(savingsPct) ? savingsPct : 0) * 100);
+      if (pct < 10) return 'lt_10';
+      if (pct < 25) return '10_24';
+      if (pct < 50) return '25_49';
+      if (pct < 75) return '50_74';
+      return 'gte_75';
+    }
+    function trackFunnelEvent(event, data = {}) {
+      const payload = JSON.stringify({
+        event,
+        plan: data.plan || null,
+        sourcePage: window.location.href,
+        target: data.target || null,
+        metadata: {
+          source: 'model-routing-calculator',
+          score: data.score,
+          volumeBucket: data.volumeBucket,
+          riskLevel: data.riskLevel,
+          savingsBucket: data.savingsBucket,
+          button: data.button
+        }
+      });
+      try {
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          if (navigator.sendBeacon('/api/funnel-event', blob)) return;
+        }
+      } catch {}
+      fetch('/api/funnel-event', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: payload,
+        keepalive: true,
+        credentials: 'omit'
+      }).catch(() => {});
+    }
+    function trackCurrentIntent(event, button, target) {
+      const current = lastCalculation || calculate();
+      trackFunnelEvent(event, {
+        plan: current.planKey,
+        target,
+        button,
+        score: current.score,
+        volumeBucket: volumeBucket(current.volume),
+        riskLevel: current.riskPoints >= 6 ? 'high' : current.riskPoints >= 4 ? 'medium' : 'low',
+        savingsBucket: savingsBucket(current.savingsPct)
+      });
+    }
 
     function recommendedPlanFor(v, score, riskPoints) {
       if (v.volume > PLAN_LIMITS.pro.requests || (riskPoints >= 6 && v.volume > PLAN_LIMITS.lite.requests)) return 'max';
@@ -442,15 +499,34 @@
       $('recommendedPlan').textContent = `${plan.label} - ${money(plan.price)}/month`;
       $('recommendedPlanReason').textContent = planReason;
       $('startRecommendedPlan').textContent = `Start ${plan.label}`;
-      $('startRecommendedPlan').onclick = () => { window.location.href = checkoutUrl; };
+      $('startRecommendedPlan').onclick = () => {
+        trackCurrentIntent('calculator_checkout_clicked', 'start_recommended_plan', checkoutUrl);
+        window.location.href = checkoutUrl;
+      };
       $('createHostedKey').textContent = `Create hosted key on ${plan.label}`;
-      $('createHostedKey').onclick = () => { window.location.href = checkoutUrl; };
-      $('comparePlans').onclick = () => { window.location.href = '/pricing'; };
-      $('seePlans').onclick = () => { window.location.href = '/pricing'; };
+      $('createHostedKey').onclick = () => {
+        trackCurrentIntent('calculator_checkout_clicked', 'create_hosted_key', checkoutUrl);
+        window.location.href = checkoutUrl;
+      };
+      $('comparePlans').onclick = () => {
+        trackCurrentIntent('calculator_compare_plans_clicked', 'compare_plans', '/pricing');
+        window.location.href = '/pricing';
+      };
+      $('seePlans').onclick = () => {
+        trackCurrentIntent('calculator_compare_plans_clicked', 'see_plans', '/pricing');
+        window.location.href = '/pricing';
+      };
       $('recommendations').innerHTML = recs.map(([title, body]) => `<div class="rec"><strong>${title}</strong><span class="muted">${body}</span></div>`).join('');
 
       const brief = `AI Ops Routing Brief\n\nWorkflow: ${v.workflow}\nTask type: ${v.taskType}\nRuns/month: ${v.volume}\nCurrent est. monthly cost: ${money(currentMonthly)}\nRouted est. monthly cost: ${money(routedMonthly)}\nPotential directional savings: ${money(rawSavings)} (${Math.round(savingsPct * 100)}%)\nRouting score: ${score}/100, ${label}\nRecommended hosted plan: ${plan.label} (${money(plan.price)}/month, ${plan.requests.toLocaleString()} requests/month)\n\nRecommendation:\n- ${headline}\n- ${summary}\n- Suggested initial human review: ~${reviewSuggested}%\n- Fallback exists: ${v.hasFallback ? 'yes' : 'no'}\n- Checkout handoff: ${window.location.origin}${checkoutUrl}\n\nNote: directional estimate only. Needs real workflow/token/pricing review before decisions.`;
       $('copybox').textContent = brief;
+      lastCalculation = {
+        planKey,
+        score,
+        volume: v.volume,
+        riskPoints,
+        savingsPct
+      };
       return brief;
     }
 
@@ -474,6 +550,7 @@
     });
     $('copyBtn').addEventListener('click', async () => {
       const text = calculate();
+      trackCurrentIntent('calculator_audit_brief_copied', 'copy_audit_brief', window.location.pathname);
       try {
         await navigator.clipboard.writeText(text);
         $('copyBtn').textContent = 'Copied';

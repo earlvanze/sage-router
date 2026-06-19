@@ -156,6 +156,7 @@ SUPABASE_PAYMENT_INTENTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_PAYMENT_IN
 SUPABASE_USAGE_COUNTERS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_USAGE_COUNTERS_TABLE', 'sage_router_usage_counters')
 SUPABASE_WAITLIST_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_WAITLIST_TABLE', 'sage_router_waitlist')
 SUPABASE_WAITLIST_FALLBACK_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_WAITLIST_FALLBACK_TABLE', 'funnel_leads')
+SUPABASE_FUNNEL_EVENTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_FUNNEL_EVENTS_TABLE', 'sage_router_funnel_events')
 # Off by default — no remote mirroring of analytics/customers/keys. The
 # router should keep its work local; enable only when the operator runs a
 # hosted tier that needs the Supabase mirror.
@@ -4651,6 +4652,38 @@ def read_launch_waitlist_count(since, limit=10000):
     return metrics.get('total', 0), error
 
 
+def read_launch_marketing_funnel_counts(since, limit=10000):
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return None, 'supabase_not_configured'
+    since_iso = datetime.datetime.fromtimestamp(int(since), datetime.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+    quoted_since = urllib.parse.quote(since_iso, safe=':-TZ')
+    metrics = {
+        'total': 0,
+        'events': {},
+        'plans': {},
+    }
+    try:
+        rows = supabase_select(
+            SUPABASE_FUNNEL_EVENTS_TABLE,
+            f'select=event,plan,created_at&created_at=gte.{quoted_since}&limit={int(limit)}',
+            timeout=6,
+        ) or []
+    except Exception as e:
+        logger.debug(f'Launch funnel marketing event read failed: {extract_http_error(e)}')
+        return None, 'marketing_funnel_events_unavailable'
+
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        event = str(row.get('event') or 'unknown').strip() or 'unknown'
+        plan = str(row.get('plan') or '').strip().lower()
+        metrics['total'] += 1
+        metrics['events'][event] = metrics['events'].get(event, 0) + 1
+        if plan:
+            metrics['plans'][plan] = metrics['plans'].get(plan, 0) + 1
+    return metrics, None
+
+
 def route_events_for_window(window_seconds, event_limit=None):
     now = int(time.time())
     since = now - int(window_seconds or 0) if window_seconds else 0
@@ -4671,9 +4704,11 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
     api_keys = [row for row in read_launch_api_key_rows() if isinstance(row, dict)]
     event_source, route_events = route_events_for_window(window_seconds, event_limit)
     waitlist_metrics, waitlist_error = read_launch_waitlist_counts(since)
+    marketing_metrics, marketing_error = read_launch_marketing_funnel_counts(since)
     waitlist_count = waitlist_metrics.get('total', 0) if isinstance(waitlist_metrics, dict) else None
     waitlist_interest = waitlist_metrics.get('interest') if isinstance(waitlist_metrics, dict) else None
     managed_access_interest = waitlist_interest.get('managedAccess', 0) if isinstance(waitlist_interest, dict) else None
+    marketing_intent_events = marketing_metrics.get('total', 0) if isinstance(marketing_metrics, dict) else None
 
     customer_ids = {str(c.get('id')) for c in customers if c and c.get('id')}
     signup_ids = {
@@ -4714,6 +4749,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
     retained_paid_ids = paid_customer_ids & first_request_customer_ids
 
     stages = {
+        'marketingIntentEvents': marketing_intent_events,
         'waitlistLeads': waitlist_count,
         'managedAccessBetaInterest': managed_access_interest,
         'signups': len(signup_ids),
@@ -4727,6 +4763,8 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
     notes = []
     if waitlist_error:
         notes.append(f'waitlist_count_unavailable:{waitlist_error}')
+    if marketing_error:
+        notes.append(f'marketing_funnel_unavailable:{marketing_error}')
     if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
         notes.append('customer/key funnel read is local-only because Supabase service credentials are not configured')
 
@@ -4739,6 +4777,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'apiKeys': 'supabase' if customer_store_uses_supabase() else 'local',
             'routeEvents': event_source,
             'waitlist': 'supabase' if waitlist_count is not None else 'unavailable',
+            'marketingFunnel': 'supabase' if marketing_intent_events is not None else 'unavailable',
         },
         'privacy': {
             'containsEmails': False,
@@ -4747,6 +4786,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'containsProviderCredentials': False,
             'containsApiKeys': False,
         },
+        'marketingIntent': marketing_metrics,
         'stages': stages,
         'waitlistInterest': waitlist_interest,
         'mrr': launch_mrr_snapshot(customers),

@@ -67,11 +67,11 @@ function renderPlanMix(byPlan = {}) {
     const plan = byPlan[name] || {};
     return `<tr>
       <td><span class="pill">${name}</span></td>
-      <td>${integer(plan.currentCustomers)}</td>
+      <td>${integer(plan.paidCustomers ?? plan.currentCustomers)}</td>
       <td>${integer(plan.targetCustomers)}</td>
-      <td>${integer(plan.customerGap)}</td>
-      <td>${money(plan.estimatedCurrentMrrUsd)}</td>
-      <td>${money(plan.targetMrrUsd)}</td>
+      <td>${integer(plan.remainingToTarget ?? plan.customerGap)}</td>
+      <td>${money(plan.estimatedMrrUsd ?? plan.estimatedCurrentMrrUsd)}</td>
+      <td>${money((plan.monthlyPriceUsd || 0) * (plan.targetCustomers || 0))}</td>
     </tr>`;
   }).join('');
   $('plan-mix').innerHTML = `<table>
@@ -85,25 +85,28 @@ function renderFunnel(data) {
   const rates = data.rates || {};
   const mrr = data.mrr || {};
   const waitlistInterest = data.waitlistInterest || {};
+  const marketingIntent = data.marketingIntent || {};
   const privacy = data.privacy || {};
 
+  setText('kpi-marketing-intent', integer(stages.marketingIntentEvents ?? marketingIntent.total));
   setText('kpi-waitlist', integer(stages.waitlistLeads));
   setText('kpi-managed-access', integer(stages.managedAccessBetaInterest ?? waitlistInterest.managedAccess));
   setText('kpi-signups', integer(stages.signups));
   setText('kpi-mrr', money(mrr.estimatedCurrentMrrUsd));
 
-  setText('metric-generated-keys', integer(stages.generatedApiKeys));
-  setText('metric-first-request', integer(stages.firstRoutedRequest));
+  setText('metric-generated-keys', integer(stages.customersWithGeneratedApiKeys ?? stages.generatedApiKeys));
+  setText('metric-first-request', integer(stages.customersWithFirstRoutedRequest ?? stages.firstRoutedRequest));
   setText('metric-paid-conversions', integer(stages.paidConversions));
   setText('metric-paid-customers', integer(stages.paidCustomers));
-  setText('metric-retained-paid', integer(stages.retainedPaidWithUsage));
+  setText('metric-retained-paid', integer(stages.retainedPaidCustomers ?? stages.retainedPaidWithUsage));
   setText('metric-key-to-first', percent(rates.generatedKeyToFirstRequest));
+  setText('metric-marketing-intent', integer(stages.marketingIntentEvents ?? marketingIntent.total));
   setText('metric-target-mrr', money(mrr.targetMrrUsd));
   setText('metric-attainment', percent(mrr.targetAttainment));
-  setText('metric-mrr-gap', money(mrr.remainingToTargetUsd));
+  setText('metric-mrr-gap', money(Math.max(0, asNumber(mrr.targetMrrUsd) - asNumber(mrr.estimatedCurrentMrrUsd))));
   setText('metric-managed-share', percent(rates.managedAccessShareOfWaitlist));
   setText('metric-privacy', privacyLabel(privacy));
-  setText('metric-generated-at', data.generatedAt ? new Date(data.generatedAt).toLocaleString() : '--');
+  setText('metric-generated-at', data.generatedAt ? new Date(data.generatedAt * 1000).toLocaleString() : '--');
 
   const privacyEl = $('metric-privacy');
   privacyEl.className = privacy.containsEmails === false && privacy.containsApiKeys === false ? 'pill good' : 'pill bad';

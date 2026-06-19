@@ -51,7 +51,7 @@ Cloudflare Pages settings:
 - Build command: `npm ci && npm run build`
 - Build output directory: `dist`
 - Custom domain: `sagerouter.dev`
-- Function env vars for waitlist capture: `SAGEROUTER_SUPABASE_URL` and `SAGEROUTER_SUPABASE_SERVICE_ROLE`
+- Function env vars for waitlist and funnel-event capture: `SAGEROUTER_SUPABASE_URL` and `SAGEROUTER_SUPABASE_SERVICE_ROLE`
 - Optional Cloudflare Turnstile waitlist guard: set both `SAGEROUTER_TURNSTILE_SECRET_KEY` and `SAGEROUTER_TURNSTILE_SITE_KEY`
 
 Do not deploy the Python router service or any local provider credentials to Pages. This site is static marketing/docs content only.

@@ -155,6 +155,12 @@ The account page also renders hosted plan selection before sign-in from public
 storage, shows quota, rate limit, and estimated cost per 1,000 requests, and is
 used after login when the customer continues to Stripe checkout.
 
+The public calculator and pricing pages emit anonymous pre-signup CTA intent to
+`/api/funnel-event` so the private launch funnel can count demand before users
+create accounts. The event path stores event name, selected plan, sanitized
+source/target URL, and small metadata buckets only; it must not store workflow
+text, prompt bodies, emails, API keys, or provider credentials.
+
 Bootstrap the GitHub app and wire Supabase without opening the Supabase dashboard:
 
 ```bash

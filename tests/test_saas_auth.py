@@ -31,6 +31,7 @@ class SaaSAuthTests(unittest.TestCase):
             'SUPABASE_URL': router.SUPABASE_URL,
             'SUPABASE_SERVICE_ROLE_KEY': router.SUPABASE_SERVICE_ROLE_KEY,
             'SUPABASE_USAGE_COUNTERS_TABLE': router.SUPABASE_USAGE_COUNTERS_TABLE,
+            'SUPABASE_FUNNEL_EVENTS_TABLE': router.SUPABASE_FUNNEL_EVENTS_TABLE,
             'supabase_select': router.supabase_select,
             'CLIENT_API_KEYS': list(router.CLIENT_API_KEYS),
             'CLIENT_AUTH_REQUIRED': router.CLIENT_AUTH_REQUIRED,
@@ -54,11 +55,13 @@ class SaaSAuthTests(unittest.TestCase):
             'FIRESTORE_ENABLED': router.FIRESTORE_ENABLED,
             'SUPABASE_MIRROR_ENABLED': router.SUPABASE_MIRROR_ENABLED,
             'read_launch_waitlist_counts': router.read_launch_waitlist_counts,
+            'read_launch_marketing_funnel_counts': router.read_launch_marketing_funnel_counts,
         }
         router.CUSTOMER_STORE_PATH = os.path.join(self.tmp.name, 'customers.json')
         router.SUPABASE_URL = ''
         router.SUPABASE_SERVICE_ROLE_KEY = ''
         router.SUPABASE_USAGE_COUNTERS_TABLE = 'sage_router_usage_counters'
+        router.SUPABASE_FUNNEL_EVENTS_TABLE = 'sage_router_funnel_events'
         router.CLIENT_API_KEYS = []
         router.CLIENT_AUTH_REQUIRED = True
         router.ANALYTICS_TOKEN = ''
@@ -84,6 +87,7 @@ class SaaSAuthTests(unittest.TestCase):
         router.SUPABASE_URL = self.old['SUPABASE_URL']
         router.SUPABASE_SERVICE_ROLE_KEY = self.old['SUPABASE_SERVICE_ROLE_KEY']
         router.SUPABASE_USAGE_COUNTERS_TABLE = self.old['SUPABASE_USAGE_COUNTERS_TABLE']
+        router.SUPABASE_FUNNEL_EVENTS_TABLE = self.old['SUPABASE_FUNNEL_EVENTS_TABLE']
         router.supabase_select = self.old['supabase_select']
         router.CLIENT_API_KEYS = self.old['CLIENT_API_KEYS']
         router.CLIENT_AUTH_REQUIRED = self.old['CLIENT_AUTH_REQUIRED']
@@ -107,6 +111,7 @@ class SaaSAuthTests(unittest.TestCase):
         router.FIRESTORE_ENABLED = self.old['FIRESTORE_ENABLED']
         router.SUPABASE_MIRROR_ENABLED = self.old['SUPABASE_MIRROR_ENABLED']
         router.read_launch_waitlist_counts = self.old['read_launch_waitlist_counts']
+        router.read_launch_marketing_funnel_counts = self.old['read_launch_marketing_funnel_counts']
         if self._billing_env is None:
             os.environ.pop('SAGE_ROUTER_BILLING_ENABLED', None)
         else:
@@ -464,6 +469,18 @@ class SaaSAuthTests(unittest.TestCase):
                 'unknown': 0,
             },
         }, None)
+        router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
+            'total': 4,
+            'events': {
+                'calculator_checkout_clicked': 2,
+                'pricing_checkout_clicked': 1,
+                'managed_access_interest_clicked': 1,
+            },
+            'plans': {
+                'pro': 3,
+                'max': 1,
+            },
+        }, None)
         customer = self.active_customer()
         raw, _row = router.create_api_key_for_customer(customer, 'prod')
         ctx = router.verify_generated_api_key(raw)
@@ -484,6 +501,9 @@ class SaaSAuthTests(unittest.TestCase):
         snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
 
         self.assertEqual(3, snapshot['stages']['waitlistLeads'])
+        self.assertEqual(4, snapshot['stages']['marketingIntentEvents'])
+        self.assertEqual(2, snapshot['marketingIntent']['events']['calculator_checkout_clicked'])
+        self.assertEqual(3, snapshot['marketingIntent']['plans']['pro'])
         self.assertEqual(2, snapshot['stages']['managedAccessBetaInterest'])
         self.assertEqual(2, snapshot['waitlistInterest']['managedAccess'])
         self.assertEqual(0.6667, snapshot['rates']['managedAccessShareOfWaitlist'])
@@ -534,6 +554,34 @@ class SaaSAuthTests(unittest.TestCase):
         count, error = router.read_launch_waitlist_count(0)
         self.assertIsNone(error)
         self.assertEqual(3, count)
+
+    def test_launch_marketing_funnel_counts_group_events_without_identity(self):
+        router.SUPABASE_URL = 'https://example.supabase.co'
+        router.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
+
+        def fake_select(table, query, timeout=8):
+            self.assertEqual(router.SUPABASE_FUNNEL_EVENTS_TABLE, table)
+            self.assertIn('select=event,plan,created_at', query)
+            self.assertIn('created_at=gte.', query)
+            return [
+                {'event': 'calculator_checkout_clicked', 'plan': 'pro', 'created_at': '2026-06-19T00:00:00Z'},
+                {'event': 'calculator_checkout_clicked', 'plan': 'pro', 'created_at': '2026-06-19T00:00:00Z'},
+                {'event': 'pricing_checkout_clicked', 'plan': 'lite', 'created_at': '2026-06-19T00:00:00Z'},
+                {'event': '', 'plan': None, 'created_at': '2026-06-19T00:00:00Z'},
+            ]
+
+        router.supabase_select = fake_select
+
+        metrics, error = router.read_launch_marketing_funnel_counts(0)
+
+        self.assertIsNone(error)
+        self.assertEqual(4, metrics['total'])
+        self.assertEqual(2, metrics['events']['calculator_checkout_clicked'])
+        self.assertEqual(1, metrics['events']['pricing_checkout_clicked'])
+        self.assertEqual(1, metrics['events']['unknown'])
+        self.assertEqual(2, metrics['plans']['pro'])
+        self.assertEqual(1, metrics['plans']['lite'])
+        self.assertNotIn('email', json.dumps(metrics))
 
     def test_analytics_funnel_requires_operator_auth_when_hosted_auth_enabled(self):
         router.SUPABASE_AUTH_ENABLED = True
