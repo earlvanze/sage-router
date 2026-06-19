@@ -189,7 +189,7 @@ function renderLaunchNextAction(patch = {}) {
   } else if (!keyVerified) {
     set('launch-next-action', 'Next: test the key against /v1/models using the verifier below.');
   } else if (!activationState.requestCount) {
-    set('launch-next-action', 'Next: copy the quickstart and send the first sage-router/frontier chat completion.');
+    set('launch-next-action', 'Next: send the first sage-router/frontier chat completion from this page or copy the quickstart.');
   } else {
     set('launch-next-action', `Activated: ${fmtNumber(activationState.requestCount)} routed request${activationState.requestCount === 1 ? '' : 's'} recorded this period.`);
   }
@@ -580,6 +580,7 @@ async function magicLogin() {
 async function createKey() {
   set('key-once', '');
   set('test-api-key-status', '');
+  set('test-chat-status', '');
   setBusy('create-key', true, 'Creating...');
   try {
     const name = $('key-name')?.value || 'Default';
@@ -644,6 +645,47 @@ async function testApiKey() {
   }
 }
 
+async function sendTestChat() {
+  const key = $('test-api-key')?.value.trim() || currentRawKey;
+  if (!key) {
+    set('test-chat-status', 'Create a key or paste an sk_sage key first.');
+    return;
+  }
+  currentRawKey = key;
+  set('test-chat-status', 'Sending sage-router/frontier through the public edge...');
+  setBusy('test-chat-button', true, 'Sending...');
+  try {
+    const res = await fetch(`${openaiBaseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'sage-router/frontier',
+        messages: [{ role: 'user', content: 'Reply with one short sentence confirming Sage Router is working.' }],
+        max_tokens: 96,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      set('test-chat-status', explainModelProbeFailure(res.status, data));
+      return;
+    }
+    const text = data?.choices?.[0]?.message?.content || data?.output_text || 'Completion returned.';
+    keyVerifiedThisSession = true;
+    set('test-chat-status', `First routed completion succeeded: ${String(text).slice(0, 220)}`);
+    renderLaunchNextAction({ keyVerified: true, requestCount: Math.max(1, Number(activationState.requestCount || 0)) });
+    setTimeout(() => refresh(), 2500);
+    setTimeout(() => refresh(), 9000);
+  } catch (_error) {
+    set('test-chat-status', 'Could not send the test request from this browser. Check network access, CORS, or https://app.sagerouter.dev/status.');
+  } finally {
+    setBusy('test-chat-button', false);
+  }
+}
+
 async function stripeCheckout() {
   let redirecting = false;
   setBusy('stripe-checkout', true, 'Opening...');
@@ -698,6 +740,7 @@ $('password-login')?.addEventListener('click', passwordLogin);
 $('magic-login')?.addEventListener('click', magicLogin);
 $('create-key')?.addEventListener('click', createKey);
 $('test-api-key-button')?.addEventListener('click', testApiKey);
+$('test-chat-button')?.addEventListener('click', sendTestChat);
 $('stripe-checkout')?.addEventListener('click', stripeCheckout);
 $('stripe-portal')?.addEventListener('click', billingPortal);
 $('crypto-intent')?.addEventListener('click', cryptoIntent);

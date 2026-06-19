@@ -177,7 +177,7 @@ check_public_api_browser_boundary() {
 }
 
 check_browser_api_cors() {
-  local headers code allow_origin allow_methods allow_headers funnel_headers funnel_code funnel_allow_origin funnel_allow_headers
+  local headers code allow_origin allow_methods allow_headers chat_headers chat_code chat_allow_origin chat_allow_methods chat_allow_headers funnel_headers funnel_code funnel_allow_origin funnel_allow_headers
   headers="$(mktemp)"
   code="$(
     curl -sS -o /tmp/sage-router-readiness-body -D "$headers" -w '%{http_code}' \
@@ -190,6 +190,19 @@ check_browser_api_cors() {
   allow_methods="$(awk 'tolower($1)=="access-control-allow-methods:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$headers" | tail -n1)"
   allow_headers="$(awk 'tolower($1)=="access-control-allow-headers:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$headers" | tail -n1)"
   rm -f "$headers" /tmp/sage-router-readiness-body
+
+  chat_headers="$(mktemp)"
+  chat_code="$(
+    curl -sS -o /tmp/sage-router-readiness-body -D "$chat_headers" -w '%{http_code}' \
+      -X OPTIONS "${API_BASE%/}/v1/chat/completions" \
+      -H "Origin: ${APP_BASE%/}" \
+      -H "Access-Control-Request-Method: POST" \
+      -H "Access-Control-Request-Headers: authorization,content-type"
+  )"
+  chat_allow_origin="$(awk 'tolower($1)=="access-control-allow-origin:" {sub(/\r$/,"",$2); print $2}' "$chat_headers" | tail -n1)"
+  chat_allow_methods="$(awk 'tolower($1)=="access-control-allow-methods:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$chat_headers" | tail -n1)"
+  chat_allow_headers="$(awk 'tolower($1)=="access-control-allow-headers:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$chat_headers" | tail -n1)"
+  rm -f "$chat_headers" /tmp/sage-router-readiness-body
 
   funnel_headers="$(mktemp)"
   funnel_code="$(
@@ -204,10 +217,11 @@ check_browser_api_cors() {
   rm -f "$funnel_headers" /tmp/sage-router-readiness-body
 
   if [[ "$code" == "204" && "$allow_origin" == "${APP_BASE%/}" && "$allow_methods" == *"GET"* && "$allow_methods" == *"OPTIONS"* && "$allow_headers" == *"Authorization"* &&
+        "$chat_code" == "204" && "$chat_allow_origin" == "${APP_BASE%/}" && "$chat_allow_methods" == *"POST"* && "$chat_allow_methods" == *"OPTIONS"* && "$chat_allow_headers" == *"Authorization"* &&
         "$funnel_code" == "204" && "$funnel_allow_origin" == "${APP_BASE%/}" && "$funnel_allow_headers" == *"Authorization"* ]]; then
-    pass "browser API-key verification and operator launch funnel CORS preflights are enabled"
+    pass "browser API-key verification, first routed request, and operator launch funnel CORS preflights are enabled"
   else
-    fail "browser CORS preflight failed: /v1/models code=${code} allowOrigin=${allow_origin:-missing} allowMethods=${allow_methods:-missing} allowHeaders=${allow_headers:-missing}; /analytics/funnel code=${funnel_code} allowOrigin=${funnel_allow_origin:-missing} allowHeaders=${funnel_allow_headers:-missing}"
+    fail "browser CORS preflight failed: /v1/models code=${code} allowOrigin=${allow_origin:-missing} allowMethods=${allow_methods:-missing} allowHeaders=${allow_headers:-missing}; /v1/chat/completions code=${chat_code} allowOrigin=${chat_allow_origin:-missing} allowMethods=${chat_allow_methods:-missing} allowHeaders=${chat_allow_headers:-missing}; /analytics/funnel code=${funnel_code} allowOrigin=${funnel_allow_origin:-missing} allowHeaders=${funnel_allow_headers:-missing}"
   fi
 }
 
