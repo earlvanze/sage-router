@@ -48,6 +48,12 @@ API_KEY_HASH_PEPPER = os.environ.get("SAGE_ROUTER_API_KEY_HASH_PEPPER") or os.en
 AUTH_CACHE_TTL_SECONDS = float(os.environ.get("SAGE_ROUTER_EDGE_AUTH_CACHE_SECONDS", "30"))
 CORS_ORIGIN = os.environ.get("SAGE_ROUTER_CORS_ORIGIN", "https://app.sagerouter.dev,https://sagerouter.dev,https://www.sagerouter.dev")
 CORS_ORIGINS = [origin.strip() for origin in CORS_ORIGIN.split(",") if origin.strip()]
+RATE_LIMIT_ENABLED = os.environ.get("SAGE_ROUTER_EDGE_RATE_LIMIT_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
+RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("SAGE_ROUTER_EDGE_RATE_LIMIT_WINDOW_SECONDS", "60"))
+RATE_LIMITS_RAW = os.environ.get(
+    "SAGE_ROUTER_EDGE_RATE_LIMITS",
+    "trial=30,lite=60,pro=180,max=600,manual=600,paid=180,active=180,default=60",
+)
 
 PUBLIC_PATHS = {"/edge/health"}
 USER_JWT_PREFIXES = (
@@ -73,6 +79,8 @@ HOP_BY_HOP_HEADERS = {
 
 AUTH_CACHE = {}
 AUTH_CACHE_LOCK = threading.Lock()
+RATE_LIMIT_BUCKETS = {}
+RATE_LIMIT_LOCK = threading.Lock()
 
 
 class Upstream:
@@ -158,6 +166,98 @@ def customer_is_active(customer):
     status = str((customer or {}).get("status") or "").lower()
     plan = str((customer or {}).get("plan") or "").lower()
     return status in {"active", "trialing", "manual", "paid"} and plan not in {"", "free", "inactive"}
+
+
+def parse_rate_limits(raw):
+    limits = {}
+    for item in (raw or "").replace(" ", ",").split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" in item:
+            key, value = item.split("=", 1)
+        elif ":" in item:
+            key, value = item.split(":", 1)
+        else:
+            continue
+        key = key.strip().lower()
+        try:
+            limit = int(value.strip())
+        except ValueError:
+            continue
+        if key and limit >= 0:
+            limits[key] = limit
+    limits.setdefault("default", 60)
+    return limits
+
+
+RATE_LIMITS_BY_PLAN = parse_rate_limits(RATE_LIMITS_RAW)
+
+
+def rate_limit_plan(auth_context):
+    plan = str((auth_context or {}).get("plan") or "").strip().lower()
+    status = str((auth_context or {}).get("customer_status") or "").strip().lower()
+    if plan and plan in RATE_LIMITS_BY_PLAN:
+        return plan
+    if status and status in RATE_LIMITS_BY_PLAN:
+        return status
+    return "default"
+
+
+def rate_limit_identity(auth_context):
+    auth_type = str((auth_context or {}).get("type") or "")
+    if auth_type in {"edge_token", "public", "public_signed_backend", "disabled"}:
+        return None
+    if auth_type == "generated_key":
+        key_id = (auth_context or {}).get("key_id")
+        customer_id = (auth_context or {}).get("customer_id")
+        user_id = (auth_context or {}).get("user_id")
+        return f"api-key:{key_id or customer_id or user_id or 'unknown'}"
+    if auth_type == "supabase_user":
+        return f"user:{(auth_context or {}).get('user_id') or 'unknown'}"
+    return None
+
+
+def check_rate_limit(auth_context, path):
+    if not RATE_LIMIT_ENABLED:
+        return True, None
+    if RATE_LIMIT_WINDOW_SECONDS <= 0:
+        return True, None
+    identity = rate_limit_identity(auth_context)
+    if not identity:
+        return True, None
+    plan = rate_limit_plan(auth_context)
+    limit = RATE_LIMITS_BY_PLAN.get(plan, RATE_LIMITS_BY_PLAN.get("default", 60))
+    now = time.time()
+    window = int(now // RATE_LIMIT_WINDOW_SECONDS)
+    bucket_key = (identity, plan, urlsplit(path).path.split("/", 2)[1] if urlsplit(path).path.startswith("/") else "")
+    reset_at = (window + 1) * RATE_LIMIT_WINDOW_SECONDS
+    with RATE_LIMIT_LOCK:
+        if len(RATE_LIMIT_BUCKETS) > 20000:
+            stale_before = window - 2
+            for key, value in list(RATE_LIMIT_BUCKETS.items()):
+                if value[0] <= stale_before:
+                    RATE_LIMIT_BUCKETS.pop(key, None)
+        current_window, count = RATE_LIMIT_BUCKETS.get(bucket_key, (window, 0))
+        if current_window != window:
+            count = 0
+            current_window = window
+        if limit <= 0 or count >= limit:
+            RATE_LIMIT_BUCKETS[bucket_key] = (current_window, count)
+            return False, {
+                "limit": limit,
+                "remaining": 0,
+                "reset": int(reset_at),
+                "retry_after": max(1, int(reset_at - now)),
+            }
+        count += 1
+        RATE_LIMIT_BUCKETS[bucket_key] = (current_window, count)
+        return True, {
+            "limit": limit,
+            "remaining": max(0, limit - count),
+            "reset": int(reset_at),
+            "retry_after": max(1, int(reset_at - now)),
+        }
 
 
 def supabase_headers(service=False, token=None):
@@ -259,9 +359,11 @@ def verify_supabase_generated_key(token):
                 print(f"supabase last-used update failed: {exc}", flush=True)
         return cache_set(cache_key, {
             "type": "generated_key",
+            "key_id": key.get("id"),
             "customer_id": customer.get("id"),
             "user_id": customer.get("user_id"),
             "plan": customer.get("plan"),
+            "customer_status": customer.get("status"),
             "preserve_authorization": False,
         })
     except Exception as exc:
@@ -345,12 +447,14 @@ class EdgeHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print(f"{self.client_address[0]} - {fmt % args}", flush=True)
 
-    def _json(self, status, payload):
+    def _json(self, status, payload, extra_headers=None):
         body = json.dumps(payload, separators=(",", ":")).encode("utf-8") + b"\n"
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, str(value))
         self._cors_headers()
         self.end_headers()
         self.wfile.write(body)
@@ -426,6 +530,15 @@ class EdgeHandler(BaseHTTPRequestHandler):
         ):
             self._json(503, {"error": "edge_auth_not_configured"})
             return
+        allowed, rate_state = check_rate_limit(auth_context, self.path)
+        if not allowed:
+            self._json(429, {"error": "rate_limited"}, {
+                "Retry-After": rate_state["retry_after"],
+                "X-RateLimit-Limit": rate_state["limit"],
+                "X-RateLimit-Remaining": rate_state["remaining"],
+                "X-RateLimit-Reset": rate_state["reset"],
+            })
+            return
 
         upstreams = control_plane_upstreams() if is_user_jwt_path(self.path) or is_public_signed_backend_path(self.path) else None
         if upstreams is None:
@@ -485,6 +598,10 @@ class EdgeHandler(BaseHTTPRequestHandler):
                 self.send_header("X-Sage-Router-Upstream", upstream.raw_url)
                 if attempts:
                     self.send_header("X-Sage-Router-Retry-Count", str(len(attempts)))
+                if rate_state:
+                    self.send_header("X-RateLimit-Limit", str(rate_state["limit"]))
+                    self.send_header("X-RateLimit-Remaining", str(rate_state["remaining"]))
+                    self.send_header("X-RateLimit-Reset", str(rate_state["reset"]))
                 self.send_header("Connection", "close")
                 self._cors_headers()
                 self.end_headers()

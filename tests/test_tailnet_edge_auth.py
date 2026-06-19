@@ -20,6 +20,8 @@ def load_edge_proxy():
         "SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY": "service",
         "SAGE_ROUTER_API_KEY_HASH_PEPPER": "pepper",
         "SAGE_ROUTER_EDGE_AUTH_CACHE_SECONDS": "0",
+        "SAGE_ROUTER_EDGE_RATE_LIMIT_WINDOW_SECONDS": "60",
+        "SAGE_ROUTER_EDGE_RATE_LIMITS": "pro=2,default=1",
     }
     old = {key: os.environ.get(key) for key in env}
     os.environ.update(env)
@@ -73,7 +75,9 @@ class TailnetEdgeAuthTests(unittest.TestCase):
 
         ctx = self.edge.verify_supabase_generated_key(raw_key)
         self.assertEqual("generated_key", ctx["type"])
+        self.assertEqual("key-1", ctx["key_id"])
         self.assertEqual("customer-1", ctx["customer_id"])
+        self.assertEqual("pro", ctx["plan"])
         self.assertFalse(ctx["preserve_authorization"])
         self.assertEqual(1, len(patches))
 
@@ -110,6 +114,49 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         ctx = self.edge.EdgeHandler._auth_context(Handler())
         self.assertEqual("edge_token", ctx["type"])
         self.assertFalse(ctx["preserve_authorization"])
+
+    def test_generated_api_key_rate_limit_uses_plan_limit(self):
+        ctx = {
+            "type": "generated_key",
+            "key_id": "key-1",
+            "customer_id": "customer-1",
+            "plan": "pro",
+        }
+
+        allowed, first = self.edge.check_rate_limit(ctx, "/v1/models")
+        self.assertTrue(allowed)
+        self.assertEqual(2, first["limit"])
+        self.assertEqual(1, first["remaining"])
+
+        allowed, second = self.edge.check_rate_limit(ctx, "/v1/chat/completions")
+        self.assertTrue(allowed)
+        self.assertEqual(0, second["remaining"])
+
+        allowed, limited = self.edge.check_rate_limit(ctx, "/v1/models")
+        self.assertFalse(allowed)
+        self.assertEqual(2, limited["limit"])
+        self.assertEqual(0, limited["remaining"])
+
+    def test_rate_limit_exempts_private_edge_token(self):
+        ctx = {"type": "edge_token", "preserve_authorization": False}
+        for _ in range(5):
+            allowed, state = self.edge.check_rate_limit(ctx, "/v1/models")
+            self.assertTrue(allowed)
+            self.assertIsNone(state)
+
+    def test_default_rate_limit_applies_to_account_user_paths(self):
+        ctx = {
+            "type": "supabase_user",
+            "user_id": "user-1",
+            "preserve_authorization": True,
+        }
+        allowed, first = self.edge.check_rate_limit(ctx, "/account")
+        self.assertTrue(allowed)
+        self.assertEqual(1, first["limit"])
+
+        allowed, limited = self.edge.check_rate_limit(ctx, "/account/api-keys")
+        self.assertFalse(allowed)
+        self.assertEqual(0, limited["remaining"])
 
 
 if __name__ == "__main__":

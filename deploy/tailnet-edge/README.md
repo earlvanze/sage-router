@@ -57,6 +57,9 @@ SAGE_ROUTER_SUPABASE_ANON_KEY=...
 SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY=...
 SAGE_ROUTER_API_KEY_HASH_PEPPER=...
 SAGE_ROUTER_CORS_ORIGIN=https://app.sagerouter.dev,https://sagerouter.dev,https://www.sagerouter.dev
+SAGE_ROUTER_EDGE_RATE_LIMIT_ENABLED=1
+SAGE_ROUTER_EDGE_RATE_LIMIT_WINDOW_SECONDS=60
+SAGE_ROUTER_EDGE_RATE_LIMITS=trial=30,lite=60,pro=180,max=600,manual=600,paid=180,active=180,default=60
 ```
 
 If browser account or billing requests go through the edge, route them to the hosted control-plane Sage Router instance rather than a random private model router:
@@ -66,6 +69,8 @@ SAGE_ROUTER_CONTROL_PLANE_UPSTREAM=https://sage-router-hosted.example.run.app
 ```
 
 With that split, `/account*` and supported `/billing/*` UI endpoints preserve the user's Supabase JWT and use the control-plane origin, while `/v1/*` model routes validate a generated customer API key and inject only `SAGE_ROUTER_BACKEND_TOKEN` into private Tailnet routers.
+
+The edge enforces an in-memory fixed-window rate limit for generated customer API keys and Supabase user-JWT account/billing requests. Limits are keyed by generated key/customer or user id, grouped by the first path segment (`/v1`, `/account`, `/billing`), and return `429` with `Retry-After` plus `X-RateLimit-*` headers when exceeded. The private `SAGE_ROUTER_EDGE_TOKEN` remains exempt for emergency/admin operations.
 
 ## Run
 
@@ -181,6 +186,7 @@ gcloud app domain-mappings list
 
 - `/edge/health` reports the selected upstream and last probe latency/error for every configured upstream.
 - In `SAGE_ROUTER_EDGE_AUTH_MODE=supabase`, `/edge/health` remains public but all proxied routes fail closed unless the request has a private edge token, a valid generated customer API key, or a valid Supabase user JWT for account/billing UI paths.
+- Public SaaS traffic is rate-limited by `SAGE_ROUTER_EDGE_RATE_LIMITS` over `SAGE_ROUTER_EDGE_RATE_LIMIT_WINDOW_SECONDS`; responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` when a non-exempt identity is counted.
 - Upstream health probes use `SAGE_ROUTER_HEALTH_PATH`, `SAGE_ROUTER_HEALTH_INTERVAL_SECONDS`, and `SAGE_ROUTER_HEALTH_TIMEOUT_SECONDS`.
 - Proxied request timeout uses `SAGE_ROUTER_REQUEST_TIMEOUT_SECONDS` and defaults to 120 seconds so slower frontier/model fallback attempts can complete.
 - Proxied requests retry the next healthy upstream on backend `401`, `429`, `502`, `503`, or `504`; responses include `X-Sage-Router-Retry-Count` when a retry was needed.
