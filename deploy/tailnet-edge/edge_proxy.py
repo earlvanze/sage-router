@@ -532,6 +532,11 @@ def is_public_signed_backend_path(path):
     return any(clean_path == prefix or clean_path.startswith(prefix + "/") for prefix in PUBLIC_SIGNED_BACKEND_PREFIXES)
 
 
+def is_public_api_browser_path(path):
+    clean_path = urlsplit(path).path or "/"
+    return clean_path in {"/", "/dashboard"} or clean_path.startswith("/dashboard/")
+
+
 def should_use_control_plane(path):
     return (
         is_user_jwt_path(path)
@@ -562,6 +567,12 @@ def edge_error_payload(error, path, message=None, **extra):
     elif is_user_jwt_path(path):
         payload["loginUrl"] = LOGIN_URL
         payload["accountUrl"] = ACCOUNT_URL
+    elif error == "unauthorized" and is_public_api_browser_path(path):
+        payload["apiOnly"] = True
+        payload["loginUrl"] = LOGIN_URL
+        payload["accountUrl"] = ACCOUNT_URL
+        payload["statusUrl"] = STATUS_URL
+        payload["openaiBaseUrl"] = API_BASE_URL.rstrip("/") + "/v1"
     if extra:
         payload.update({key: value for key, value in extra.items() if value is not None})
     return payload
@@ -569,7 +580,7 @@ def edge_error_payload(error, path, message=None, **extra):
 
 def edge_error_headers(error, path):
     headers = {}
-    if is_generated_api_key_path(path):
+    if is_generated_api_key_path(path) or is_public_api_browser_path(path):
         headers["Link"] = (
             f'<{ACCOUNT_URL}>; rel="account", '
             f'<{PRICING_URL}>; rel="pricing", '

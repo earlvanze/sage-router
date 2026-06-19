@@ -197,6 +197,21 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertIn('rel="account"', headers["Link"])
         self.assertIn('rel="pricing"', headers["Link"])
 
+    def test_public_api_browser_auth_errors_point_to_app_not_dashboard(self):
+        for path in ("/", "/dashboard"):
+            with self.subTest(path=path):
+                payload = self.edge.edge_error_payload("unauthorized", path)
+                headers = self.edge.edge_error_headers("unauthorized", path)
+
+                self.assertEqual("unauthorized", payload["error"])
+                self.assertTrue(payload["apiOnly"])
+                self.assertEqual("https://app.sagerouter.dev/login.html", payload["loginUrl"])
+                self.assertEqual("https://app.sagerouter.dev/account.html", payload["accountUrl"])
+                self.assertEqual("https://app.sagerouter.dev/status", payload["statusUrl"])
+                self.assertEqual("https://api.sagerouter.dev/v1", payload["openaiBaseUrl"])
+                self.assertIn('rel="account"', headers["Link"])
+                self.assertIn('rel="status"', headers["Link"])
+
     def test_edge_health_exposes_public_safe_enforcement_state(self):
         self.edge.UPSTREAMS[0].set_health(True, 12.3, "")
 

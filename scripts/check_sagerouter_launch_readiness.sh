@@ -109,6 +109,43 @@ check_public_auth_gate() {
   fi
 }
 
+check_public_api_browser_boundary() {
+  local root_headers dashboard_headers root_code dashboard_code root_type dashboard_type root_error dashboard_error root_html dashboard_html
+  root_headers="$(mktemp)"
+  dashboard_headers="$(mktemp)"
+  root_code="$(
+    curl -sS -o /tmp/sage-router-readiness-body -D "$root_headers" -w '%{http_code}' \
+      "${API_BASE%/}/" \
+      -H "Accept: text/html"
+  )"
+  root_error="$(jq -r '.error // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  root_html="$(grep -Eiq '<html|Sage Router Dashboard|id="dashboard"' /tmp/sage-router-readiness-body && printf true || printf false)"
+  rm -f /tmp/sage-router-readiness-body
+  dashboard_code="$(
+    curl -sS -o /tmp/sage-router-readiness-body -D "$dashboard_headers" -w '%{http_code}' \
+      "${API_BASE%/}/dashboard" \
+      -H "Accept: text/html"
+  )"
+  dashboard_error="$(jq -r '.error // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  dashboard_html="$(grep -Eiq '<html|Sage Router Dashboard|id="dashboard"' /tmp/sage-router-readiness-body && printf true || printf false)"
+  root_type="$(awk 'tolower($1)=="content-type:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$root_headers" | tail -n1)"
+  dashboard_type="$(awk 'tolower($1)=="content-type:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$dashboard_headers" | tail -n1)"
+  rm -f "$root_headers" "$dashboard_headers" /tmp/sage-router-readiness-body
+
+  if [[ "$root_code" == "401" &&
+        "$dashboard_code" == "401" &&
+        "$root_error" == "unauthorized" &&
+        "$dashboard_error" == "unauthorized" &&
+        "$root_type" == application/json* &&
+        "$dashboard_type" == application/json* &&
+        "$root_html" == "false" &&
+        "$dashboard_html" == "false" ]]; then
+    pass "public API root and dashboard paths stay JSON-auth gated; browser app remains on app.sagerouter.dev"
+  else
+    fail "public API browser boundary incomplete: / code=${root_code} type=${root_type:-missing} error=${root_error:-missing} html=${root_html}; /dashboard code=${dashboard_code} type=${dashboard_type:-missing} error=${dashboard_error:-missing} html=${dashboard_html}"
+  fi
+}
+
 check_browser_api_cors() {
   local headers code allow_origin allow_methods allow_headers
   headers="$(mktemp)"
@@ -579,6 +616,7 @@ check_quota_schema() {
 require_jq
 check_edge_health
 check_public_auth_gate
+check_public_api_browser_boundary
 check_browser_api_cors
 check_static_security_headers "${APP_BASE%/}/login" "hosted app"
 check_static_security_headers "${MARKETING_BASE%/}/pricing" "marketing"

@@ -36,6 +36,9 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("anonymous model and analytics APIs are blocked with hosted onboarding guidance", readiness)
         self.assertIn("accountUrl", readiness)
         self.assertIn("apiKeyPrefix", readiness)
+        self.assertIn("check_public_api_browser_boundary", readiness)
+        self.assertIn("public API root and dashboard paths stay JSON-auth gated", readiness)
+        self.assertIn("API-only browser/dashboard boundary", readme)
 
     def test_github_supabase_configurator_verifies_management_and_public_state(self):
         script = self.read_text("scripts", "configure_supabase_github_auth.sh")
