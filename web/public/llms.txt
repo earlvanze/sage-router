@@ -4,6 +4,7 @@ Sage Router is an open-source, local-first AI model router and BYOK AI gateway f
 
 Canonical site: https://sagerouter.dev/
 OpenRouter comparison: https://sagerouter.dev/compare/openrouter
+Hosted pricing: https://sagerouter.dev/pricing.html
 Repository: https://github.com/earlvanze/sage-router
 Docs: https://github.com/earlvanze/sage-router#readme
 
@@ -14,6 +15,7 @@ Docs: https://github.com/earlvanze/sage-router#readme
 - Supports OpenAI-compatible, Anthropic-compatible, and Google/Gemini-style endpoint patterns documented in the repo.
 - Supports local Ollama and Ollama Cloud today through Ollama running locally. Sage Router discovers available `:cloud` models, can auto-pull discovered cloud models, and routes between local Ollama, Ollama Cloud, NVIDIA NIM, and other cloud APIs according to policy and health.
 - Provides provider health, fallback, observability, and routing policy infrastructure for agents.
+- Hosted plans sell account management, API keys, usage quotas, analytics, and reliability infrastructure: Lite $6/month, Pro $30/month, and Max $72/month.
 
 ## Compliance and custody
 

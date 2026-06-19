@@ -177,6 +177,27 @@ check_marketing_comparison_page() {
   fi
 }
 
+check_marketing_pricing_page() {
+  local page_code sitemap_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/pricing.html")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router Hosted Pricing" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/pricing.html" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-pricing-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" ]]; then
+    pass "marketing hosted pricing page is live and in sitemap"
+  else
+    fail "marketing hosted pricing page incomplete: page=${page_code} sitemap=${sitemap_code}"
+  fi
+}
+
 check_admin_token() {
   if [[ -z "$ADMIN_TOKEN" ]]; then
     warn "SAGE_ROUTER_API_KEY/SAGE_ROUTER_EDGE_TOKEN not set; skipped private admin token probe"
@@ -264,6 +285,7 @@ check_stripe_webhook_guard
 check_hosted_onboarding_pages
 check_waitlist_endpoint
 check_marketing_comparison_page
+check_marketing_pricing_page
 check_admin_token
 check_origin_auth_gate
 check_supabase_auth_config

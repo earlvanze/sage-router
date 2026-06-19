@@ -113,6 +113,10 @@ Hosted plan limits are exposed from `/pricing` and enforced at the public edge:
 | Pro | $30/month | 50,000/month | 180/minute |
 | Max | $72/month | 200,000/month | 600/minute |
 
+Customer-facing hosted pricing and plan positioning are published at
+`https://sagerouter.dev/pricing.html`. The launch math and $10k MRR operating
+plan live in [docs/saas-launch-10k-mrr.md](docs/saas-launch-10k-mrr.md).
+
 ### Hosted Auth
 
 The hosted web app uses Supabase Auth. Email/password signup and email magic links are the baseline onboarding path; OAuth buttons are additive and appear only when the matching provider is enabled in Supabase. GitHub login requires a GitHub OAuth/GitHub App client, not repository permissions:
@@ -153,7 +157,7 @@ set -a; source /home/digit/.openclaw/.env; set +a
 scripts/check_sagerouter_launch_readiness.sh
 ```
 
-The readiness check verifies the public API edge, hosted pricing metadata, direct origin auth gating when `SAGEROUTER_ORIGIN_BASE_URL` is set, Supabase auth settings, quota schema, hosted login/account/GitHub callback pages, the non-mutating waitlist health endpoint on `SAGEROUTER_APP_BASE_URL` (default `https://app.sagerouter.dev`), and the marketing comparison page on `SAGEROUTER_MARKETING_BASE_URL` (default `https://sagerouter.dev`).
+The readiness check verifies the public API edge, hosted pricing metadata, direct origin auth gating when `SAGEROUTER_ORIGIN_BASE_URL` is set, Supabase auth settings, quota schema, hosted login/account/GitHub callback pages, the non-mutating waitlist health endpoint on `SAGEROUTER_APP_BASE_URL` (default `https://app.sagerouter.dev`), and the marketing comparison/pricing pages on `SAGEROUTER_MARKETING_BASE_URL` (default `https://sagerouter.dev`).
 
 Monthly API-key quotas require the Supabase usage counter table and RPC. Apply
 the idempotent migration through the Supabase Management API before enabling

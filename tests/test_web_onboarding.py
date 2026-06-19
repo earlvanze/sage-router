@@ -100,6 +100,27 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("SAGEROUTER_MARKETING_BASE_URL", readiness)
         self.assertIn("marketing OpenRouter comparison page is live and in sitemap", readiness)
 
+    def test_hosted_pricing_page_and_10k_mrr_plan_are_discoverable(self):
+        page = self.read_public("pricing.html")
+        sitemap = self.read_public("sitemap.xml")
+        llms = self.read_public("llms.txt")
+        llms_full = self.read_public("llms-full.txt")
+        readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")
+        launch_plan = self.read_text("docs", "saas-launch-10k-mrr.md")
+        landing = self.read_text("web", "src", "main.jsx")
+        readme = self.read_text("README.md")
+
+        self.assertIn("Sage Router Hosted Pricing", page)
+        self.assertIn("100 Lite, 200 Pro, and 50 Max customers is $10,200 MRR", page)
+        self.assertIn("It does not grant unauthorized model access", page)
+        self.assertIn("https://sagerouter.dev/pricing.html", sitemap)
+        self.assertIn("Hosted pricing: https://sagerouter.dev/pricing.html", llms)
+        self.assertIn("balanced path to $10k MRR", llms_full)
+        self.assertIn("/pricing.html", landing)
+        self.assertIn("marketing hosted pricing page is live and in sitemap", readiness)
+        self.assertIn("Target: `$10,000 MRR`", launch_plan)
+        self.assertIn("docs/saas-launch-10k-mrr.md", readme)
+
 
 if __name__ == "__main__":
     unittest.main()
