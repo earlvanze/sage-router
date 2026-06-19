@@ -257,6 +257,7 @@ PUBLIC_LAUNCH_POSITIONING = {
         'sagerouter.dev',
         'sagerouter.dev/pricing',
         'sagerouter.dev/compare/openrouter',
+        'sagerouter.dev/model-routing-calculator',
         'app.sagerouter.dev/account.html',
     ],
     'sells': [
@@ -1791,11 +1792,13 @@ def public_launch_metadata():
     launch = json.loads(json.dumps(PUBLIC_LAUNCH_POSITIONING))
     launch['pricingPage'] = f"{MARKETING_BASE_URL}/pricing"
     launch['comparisonPage'] = f"{MARKETING_BASE_URL}/compare/openrouter"
+    launch['calculatorPage'] = f"{MARKETING_BASE_URL}/model-routing-calculator"
     launch['accountPage'] = f"{APP_BASE_URL}/account.html"
     launch['conversionSurfaces'] = [
         MARKETING_BASE_URL,
         f"{MARKETING_BASE_URL}/pricing",
         f"{MARKETING_BASE_URL}/compare/openrouter",
+        f"{MARKETING_BASE_URL}/model-routing-calculator",
         f"{APP_BASE_URL}/account.html",
     ]
     return {

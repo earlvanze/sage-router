@@ -268,9 +268,12 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('hosted_routing_control_plane', launch['primaryRevenueModel'])
         self.assertEqual('https://sagerouter.dev/pricing', launch['pricingPage'])
         self.assertEqual('https://sagerouter.dev/compare/openrouter', launch['comparisonPage'])
+        self.assertEqual('https://sagerouter.dev/model-routing-calculator', launch['calculatorPage'])
         self.assertEqual('https://app.sagerouter.dev/account.html', launch['accountPage'])
         self.assertEqual(10200, launch['recommendedMix']['monthlyRevenueUsd'])
         self.assertIn('sagerouter.dev/pricing', router.PUBLIC_LAUNCH_POSITIONING['conversionSurfaces'])
+        self.assertIn('sagerouter.dev/model-routing-calculator', router.PUBLIC_LAUNCH_POSITIONING['conversionSurfaces'])
+        self.assertIn('https://sagerouter.dev/model-routing-calculator', launch['conversionSurfaces'])
         self.assertIn('usage quotas and request-per-minute limits', launch['sells'])
         self.assertIn('does not grant unauthorized model access', launch['complianceBoundary'])
 

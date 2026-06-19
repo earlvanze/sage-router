@@ -20,6 +20,19 @@ const show = (id, visible) => {
   const el = $(id);
   if (el) el.classList.toggle('hidden', !visible);
 };
+const setElementBusy = (el, busy, label = '') => {
+  if (!el) return;
+  if (busy) {
+    if (!el.dataset.idleText) el.dataset.idleText = el.textContent;
+    el.disabled = true;
+    if (label) el.textContent = label;
+  } else {
+    el.disabled = false;
+    el.textContent = el.dataset.idleText || el.textContent;
+    delete el.dataset.idleText;
+  }
+};
+const setBusy = (id, busy, label = '') => setElementBusy($(id), busy, label);
 const esc = (v) => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const fmtNumber = (value) => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '';
 const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
@@ -84,8 +97,14 @@ async function api(path, options = {}) {
       ...(options.headers || {})
     }
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  const raw = await res.text();
+  let data = {};
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch (_error) {
+    data = { message: raw.slice(0, 240) };
+  }
+  if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
   return data;
 }
 
@@ -302,16 +321,18 @@ async function magicLogin() {
 async function createKey() {
   set('key-once', '');
   set('test-api-key-status', '');
+  setBusy('create-key', true, 'Creating...');
   try {
     const name = $('key-name')?.value || 'Default';
     const data = await api('/account/api-keys', { method: 'POST', body: JSON.stringify({ name }) });
     const key = data.key || '';
     renderQuickstart(key);
-    const target = 'quickstart-code';
-    $('key-once').innerHTML = `<p>Copy now. This key is only shown once.</p><div class="codeBox"><pre>${esc(key)}</pre><div class="copyRow"><button class="btn ghost" data-copy-target="${target}">Copy quickstart</button></div></div>`;
+    $('key-once').innerHTML = `<p>Copy now. This key is only shown once.</p><div class="codeBox"><pre id="raw-api-key-once">${esc(key)}</pre><div class="copyRow"><button class="btn ghost" data-copy-target="raw-api-key-once" data-copy-label="Copy key">Copy key</button><button class="btn ghost" data-copy-target="quickstart-code" data-copy-label="Copy quickstart">Copy quickstart</button></div></div>`;
     refresh();
   } catch (error) {
     set('key-once', error.message);
+  } finally {
+    setBusy('create-key', false);
   }
 }
 
@@ -339,6 +360,7 @@ async function testApiKey() {
     return;
   }
   set('test-api-key-status', 'Checking /v1/models through the public edge...');
+  setBusy('test-api-key-button', true, 'Testing...');
   try {
     const res = await fetch(`${openaiBaseUrl}/models`, {
       headers: {
@@ -356,30 +378,47 @@ async function testApiKey() {
     set('test-api-key-status', `Success: /v1/models returned HTTP ${res.status}.${suffix}`);
   } catch (_error) {
     set('test-api-key-status', 'Could not reach the public edge from this browser. Check network access, CORS, or https://app.sagerouter.dev/status.');
+  } finally {
+    setBusy('test-api-key-button', false);
   }
 }
 
 async function stripeCheckout() {
+  let redirecting = false;
+  setBusy('stripe-checkout', true, 'Opening...');
   try {
     set('billing-status', `Opening ${selectedPlan} checkout...`);
     const data = await api('/billing/stripe/checkout', { method: 'POST', body: JSON.stringify({ plan: selectedPlan }) });
-    if (data.checkout_url) window.location.href = data.checkout_url;
+    if (data.checkout_url) {
+      redirecting = true;
+      window.location.href = data.checkout_url;
+    }
   } catch (error) {
     set('billing-status', `${error.message}. If Stripe is not configured yet, use crypto/manual settlement or try again after billing setup is complete.`);
+  } finally {
+    if (!redirecting) setBusy('stripe-checkout', false);
   }
 }
 
 async function billingPortal() {
+  let redirecting = false;
+  setBusy('stripe-portal', true, 'Opening...');
   try {
     set('billing-status', 'Opening Stripe billing management...');
     const data = await api('/billing/stripe/portal', { method: 'POST', body: '{}' });
-    if (data.portal_url) window.location.href = data.portal_url;
+    if (data.portal_url) {
+      redirecting = true;
+      window.location.href = data.portal_url;
+    }
   } catch (error) {
     set('billing-status', `${error.message}. Complete Stripe checkout before opening billing management.`);
+  } finally {
+    if (!redirecting) setBusy('stripe-portal', false);
   }
 }
 
 async function cryptoIntent() {
+  setBusy('crypto-intent', true, 'Creating...');
   try {
     set('crypto-status', 'Creating manual payment intent...');
     const data = await api('/billing/crypto/intent', { method: 'POST', body: JSON.stringify({ note: `Sage Router ${selectedPlan} subscription`, plan: selectedPlan }) });
@@ -387,6 +426,8 @@ async function cryptoIntent() {
     set('crypto-status', `${i.status}. Send ${i.amount || 'the agreed amount'} ${i.asset || ''} on ${i.network || 'the configured network'} to ${i.address}. Include intent id ${i.id} in the memo/reference. Settlement is manual until a processor is configured.`);
   } catch (error) {
     set('crypto-status', error.message);
+  } finally {
+    setBusy('crypto-intent', false);
   }
 }
 
@@ -408,10 +449,17 @@ $('plans')?.addEventListener('click', (event) => {
   set('billing-status', `Selected ${selectedPlan}.`);
 });
 $('keys')?.addEventListener('click', async (event) => {
-  const id = event.target?.dataset?.revoke;
+  const button = event.target?.closest?.('[data-revoke]');
+  const id = button?.dataset?.revoke;
   if (!id) return;
-  await api(`/account/api-keys/${encodeURIComponent(id)}/revoke`, { method: 'POST', body: '{}' });
-  refresh();
+  setElementBusy(button, true, 'Revoking...');
+  try {
+    await api(`/account/api-keys/${encodeURIComponent(id)}/revoke`, { method: 'POST', body: '{}' });
+    refresh();
+  } catch (error) {
+    set('account-status', error.message);
+    setElementBusy(button, false);
+  }
 });
 document.addEventListener('click', async (event) => {
   const button = event.target?.closest?.('[data-copy-target]');
@@ -419,9 +467,19 @@ document.addEventListener('click', async (event) => {
   const target = $(button.dataset.copyTarget);
   const text = target?.textContent || '';
   if (!text) return;
-  await navigator.clipboard.writeText(text);
-  button.textContent = 'Copied';
-  setTimeout(() => { button.textContent = button.dataset.copyLabel || 'Copy'; }, 1200);
+  const original = button.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    button.textContent = 'Copied';
+  } catch (_error) {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    button.textContent = 'Selected';
+  }
+  setTimeout(() => { button.textContent = button.dataset.copyLabel || original || 'Copy'; }, 1200);
 });
 sb.auth.onAuthStateChange(() => refresh());
 refresh();
