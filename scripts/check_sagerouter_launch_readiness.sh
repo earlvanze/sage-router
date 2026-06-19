@@ -58,6 +58,23 @@ check_public_auth_gate() {
   fi
 }
 
+check_public_pricing_metadata() {
+  local code plans
+  code="$(http_code "${API_BASE%/}/pricing")"
+  if [[ "$code" != "200" ]]; then
+    rm -f /tmp/sage-router-readiness-body
+    fail "public /pricing returned HTTP ${code}, expected 200"
+    return
+  fi
+  plans="$(jq -r '((.plans // {}) | keys | length)' /tmp/sage-router-readiness-body)"
+  rm -f /tmp/sage-router-readiness-body
+  if [[ "$plans" =~ ^[0-9]+$ && "$plans" -gt 0 ]]; then
+    pass "public /pricing exposes hosted plan metadata"
+  else
+    fail "public /pricing did not include plan metadata"
+  fi
+}
+
 check_admin_token() {
   if [[ -z "$ADMIN_TOKEN" ]]; then
     warn "SAGE_ROUTER_API_KEY/SAGE_ROUTER_EDGE_TOKEN not set; skipped private admin token probe"
@@ -118,6 +135,7 @@ check_quota_schema() {
 require_jq
 check_edge_health
 check_public_auth_gate
+check_public_pricing_metadata
 check_admin_token
 check_supabase_auth_config
 check_quota_schema

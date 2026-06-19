@@ -70,7 +70,7 @@ If browser account or billing requests go through the edge, route them to the ho
 SAGE_ROUTER_CONTROL_PLANE_UPSTREAM=https://sage-router-hosted.example.run.app
 ```
 
-With that split, `/account*` and supported `/billing/*` UI endpoints preserve the user's Supabase JWT and use the control-plane origin, while `/v1/*` model routes validate a generated customer API key and inject only `SAGE_ROUTER_BACKEND_TOKEN` into private Tailnet routers.
+With that split, public metadata (`/pricing`, `/plans`, and `/features/agent-native`), `/account*`, and supported `/billing/*` UI endpoints use the control-plane origin. Account and billing UI endpoints preserve the user's Supabase JWT, while `/v1/*` model routes validate a generated customer API key and inject only `SAGE_ROUTER_BACKEND_TOKEN` into private Tailnet routers.
 
 The edge enforces an in-memory fixed-window rate limit for generated customer API keys and Supabase user-JWT account/billing requests. Limits are keyed by generated key/customer or user id, grouped by the first path segment (`/v1`, `/account`, `/billing`), and return `429` with `Retry-After` plus `X-RateLimit-*` headers when exceeded. The private `SAGE_ROUTER_EDGE_TOKEN` remains exempt for emergency/admin operations.
 

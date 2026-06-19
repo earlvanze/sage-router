@@ -62,6 +62,11 @@ MONTHLY_QUOTAS_RAW = os.environ.get(
 )
 
 PUBLIC_PATHS = {"/edge/health"}
+PUBLIC_CONTROL_PLANE_PATHS = {
+    "/pricing",
+    "/plans",
+    "/features/agent-native",
+}
 USER_JWT_PREFIXES = (
     "/account",
     "/billing/stripe/checkout",
@@ -230,7 +235,7 @@ def plan_limit(auth_context, limits):
 
 def rate_limit_identity(auth_context):
     auth_type = str((auth_context or {}).get("type") or "")
-    if auth_type in {"edge_token", "public", "public_signed_backend", "disabled"}:
+    if auth_type in {"edge_token", "public", "public_control_plane", "public_signed_backend", "disabled"}:
         return None
     if auth_type == "generated_key":
         key_id = (auth_context or {}).get("key_id")
@@ -488,9 +493,17 @@ def is_user_jwt_path(path):
     return any(clean_path == prefix or clean_path.startswith(prefix + "/") for prefix in USER_JWT_PREFIXES)
 
 
+def is_public_control_plane_path(path):
+    return urlsplit(path).path in PUBLIC_CONTROL_PLANE_PATHS
+
+
 def is_public_signed_backend_path(path):
     clean_path = urlsplit(path).path
     return any(clean_path == prefix or clean_path.startswith(prefix + "/") for prefix in PUBLIC_SIGNED_BACKEND_PREFIXES)
+
+
+def should_use_control_plane(path):
+    return is_user_jwt_path(path) or is_public_control_plane_path(path) or is_public_signed_backend_path(path)
 
 
 def check_upstream(upstream):
@@ -586,6 +599,8 @@ class EdgeHandler(BaseHTTPRequestHandler):
         clean_path = urlsplit(self.path).path
         if clean_path in PUBLIC_PATHS:
             return {"type": "public", "preserve_authorization": True}
+        if is_public_control_plane_path(self.path):
+            return {"type": "public_control_plane", "preserve_authorization": False}
 
         token = bearer_token(self.headers)
         if token_matches(token, EDGE_TOKEN):
@@ -637,7 +652,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
             return
         if (
             EDGE_AUTH_MODE in {"supabase", "saas"}
-            and auth_context.get("type") not in {"edge_token", "public_signed_backend"}
+            and auth_context.get("type") not in {"edge_token", "public_control_plane", "public_signed_backend"}
             and not supabase_auth_configured(require_service=not is_user_jwt_path(self.path))
         ):
             self._json(503, {"error": "edge_auth_not_configured"})
@@ -657,7 +672,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
             self._json(status, {"error": (quota_state or {}).get("error") or "quota_exceeded"}, quota_headers(quota_state))
             return
 
-        upstreams = control_plane_upstreams() if is_user_jwt_path(self.path) or is_public_signed_backend_path(self.path) else None
+        upstreams = control_plane_upstreams() if should_use_control_plane(self.path) else None
         if upstreams is None:
             upstreams = healthy_upstreams()
         if not upstreams:

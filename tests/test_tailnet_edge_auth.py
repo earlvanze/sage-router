@@ -106,6 +106,28 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertEqual("supabase_user", ctx["type"])
         self.assertTrue(ctx["preserve_authorization"])
 
+    def test_public_control_plane_metadata_does_not_require_auth(self):
+        self.edge.verify_supabase_generated_key = lambda token: self.fail("public metadata should not require an API key")
+
+        for path in ("/pricing", "/plans", "/features/agent-native"):
+            with self.subTest(path=path):
+                class Handler:
+                    headers = {}
+
+                Handler.path = path
+                ctx = self.edge.EdgeHandler._auth_context(Handler())
+                self.assertEqual("public_control_plane", ctx["type"])
+                self.assertFalse(ctx["preserve_authorization"])
+
+    def test_control_plane_route_predicate_is_narrow(self):
+        self.assertTrue(self.edge.should_use_control_plane("/pricing"))
+        self.assertTrue(self.edge.should_use_control_plane("/plans?currency=usd"))
+        self.assertTrue(self.edge.should_use_control_plane("/features/agent-native"))
+        self.assertTrue(self.edge.should_use_control_plane("/account/api-keys"))
+        self.assertTrue(self.edge.should_use_control_plane("/billing/stripe/webhook"))
+        self.assertFalse(self.edge.should_use_control_plane("/v1/models"))
+        self.assertFalse(self.edge.should_use_control_plane("/health"))
+
     def test_edge_token_bypasses_supabase_for_private_admin_access(self):
         self.edge.EDGE_TOKEN = "edge-secret"
 
@@ -143,6 +165,13 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         ctx = {"type": "edge_token", "preserve_authorization": False}
         for _ in range(5):
             allowed, state = self.edge.check_rate_limit(ctx, "/v1/models")
+            self.assertTrue(allowed)
+            self.assertIsNone(state)
+
+    def test_rate_limit_exempts_public_control_plane_metadata(self):
+        ctx = {"type": "public_control_plane", "preserve_authorization": False}
+        for _ in range(5):
+            allowed, state = self.edge.check_rate_limit(ctx, "/pricing")
             self.assertTrue(allowed)
             self.assertIsNone(state)
 
