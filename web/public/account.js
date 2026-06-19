@@ -5,9 +5,9 @@ let openaiBaseUrl = `${sageRouterUrl}/v1`;
 let anthropicBaseUrl = sageRouterUrl;
 const DEFAULT_PLAN_ORDER = ['lite', 'pro', 'max'];
 const FALLBACK_PLANS = {
-  lite: { name: 'Lite', price: '$6/month', features: ['agent-native routing', 'API keys', 'usage analytics'] },
-  pro: { name: 'Pro', price: '$30/month', features: ['frontier routing', 'agentic tool-use preference', 'analytics snapshots'] },
-  max: { name: 'Max', price: '$72/month', features: ['highest quality routing', 'priority fallback budget', 'team/automation use'] },
+  lite: { name: 'Lite', price: '$6/month', limits: { monthlyRequests: 10000, rateLimitPerMinute: 60 }, features: ['agent-native routing', 'API keys', 'usage analytics'] },
+  pro: { name: 'Pro', price: '$30/month', limits: { monthlyRequests: 50000, rateLimitPerMinute: 180 }, features: ['frontier routing', 'agentic tool-use preference', 'analytics snapshots'] },
+  max: { name: 'Max', price: '$72/month', limits: { monthlyRequests: 200000, rateLimitPerMinute: 600 }, features: ['highest quality routing', 'priority fallback budget', 'team/automation use'] },
 };
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -21,6 +21,7 @@ const show = (id, visible) => {
   if (el) el.classList.toggle('hidden', !visible);
 };
 const esc = (v) => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const fmtNumber = (value) => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '';
 
 let selectedPlan = 'pro';
 let currentRawKey = '';
@@ -135,7 +136,13 @@ function renderPlans(plans, currentPlan) {
   if (!order.includes(selectedPlan)) selectedPlan = order.includes(currentPlan) ? currentPlan : 'pro';
   el.innerHTML = order.map((name) => {
     const plan = plans[name] || {};
-    const features = (plan.features || []).slice(0, 3).map(feature => `<li>${esc(feature)}</li>`).join('');
+    const limits = plan.limits || {};
+    const limitItems = [
+      limits.monthlyRequests ? `${fmtNumber(limits.monthlyRequests)} requests/month` : '',
+      limits.rateLimitPerMinute ? `${fmtNumber(limits.rateLimitPerMinute)} requests/minute` : '',
+    ].filter(Boolean);
+    const featureItems = [...limitItems, ...(plan.features || [])].slice(0, 4);
+    const features = featureItems.map(feature => `<li>${esc(feature)}</li>`).join('');
     const configured = plan.stripeConfigured === undefined || plan.stripeConfigured;
     const badge = currentPlan === name ? 'Current' : (configured ? 'Ready' : 'Manual');
     return `<button class="planCard ${selectedPlan === name ? 'active' : ''}" data-plan="${esc(name)}" type="button">

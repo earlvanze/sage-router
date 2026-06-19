@@ -100,6 +100,14 @@ curl "$OPENAI_BASE_URL/chat/completions" \
 
 Keep anonymous `/v1/*` traffic blocked at the edge. New users should reach account, billing, and API key workflows through the hosted control plane, then use generated API keys for model traffic.
 
+Hosted plan limits are exposed from `/pricing` and enforced at the public edge:
+
+| Plan | Price | Included requests | Rate limit |
+| --- | --- | ---: | ---: |
+| Lite | $6/month | 10,000/month | 60/minute |
+| Pro | $30/month | 50,000/month | 180/minute |
+| Max | $72/month | 200,000/month | 600/minute |
+
 ### Hosted Auth
 
 The hosted web app uses Supabase Auth. GitHub login requires a GitHub OAuth/GitHub App client, not repository permissions:

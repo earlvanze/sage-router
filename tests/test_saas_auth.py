@@ -37,6 +37,8 @@ class SaaSAuthTests(unittest.TestCase):
             'CRYPTO_PAYMENT_ADDRESS': router.CRYPTO_PAYMENT_ADDRESS,
             'PUBLIC_BASE_URL': router.PUBLIC_BASE_URL,
             'API_BASE_URL': router.API_BASE_URL,
+            'PUBLIC_PLAN_RATE_LIMITS_RAW': router.PUBLIC_PLAN_RATE_LIMITS_RAW,
+            'PUBLIC_PLAN_MONTHLY_QUOTAS_RAW': router.PUBLIC_PLAN_MONTHLY_QUOTAS_RAW,
             'supabase_user_for_bearer': router.supabase_user_for_bearer,
             'ROUTE_EVENTS_PATH': router.ROUTE_EVENTS_PATH,
             'FIRESTORE_ENABLED': router.FIRESTORE_ENABLED,
@@ -52,6 +54,8 @@ class SaaSAuthTests(unittest.TestCase):
         router.CRYPTO_PAYMENT_ADDRESS = ''
         router.PUBLIC_BASE_URL = 'https://app.sagerouter.dev'
         router.API_BASE_URL = 'https://api.sagerouter.dev'
+        router.PUBLIC_PLAN_RATE_LIMITS_RAW = 'trial=30,lite=60,pro=180,max=600,manual=600,paid=180,active=180,default=60'
+        router.PUBLIC_PLAN_MONTHLY_QUOTAS_RAW = 'trial=1000,lite=10000,pro=50000,max=200000,paid=50000,active=50000,default=0'
         router.ROUTE_EVENTS_PATH = os.path.join(self.tmp.name, 'route-events.jsonl')
         router.FIRESTORE_ENABLED = False
         router.SUPABASE_MIRROR_ENABLED = False
@@ -67,6 +71,8 @@ class SaaSAuthTests(unittest.TestCase):
         router.CRYPTO_PAYMENT_ADDRESS = self.old['CRYPTO_PAYMENT_ADDRESS']
         router.PUBLIC_BASE_URL = self.old['PUBLIC_BASE_URL']
         router.API_BASE_URL = self.old['API_BASE_URL']
+        router.PUBLIC_PLAN_RATE_LIMITS_RAW = self.old['PUBLIC_PLAN_RATE_LIMITS_RAW']
+        router.PUBLIC_PLAN_MONTHLY_QUOTAS_RAW = self.old['PUBLIC_PLAN_MONTHLY_QUOTAS_RAW']
         router.supabase_user_for_bearer = self.old['supabase_user_for_bearer']
         router.ROUTE_EVENTS_PATH = self.old['ROUTE_EVENTS_PATH']
         router.FIRESTORE_ENABLED = self.old['FIRESTORE_ENABLED']
@@ -208,6 +214,25 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('https://api.sagerouter.dev', metadata['anthropicBaseUrl'])
         self.assertEqual('/billing/stripe/checkout', metadata['checkoutPath'])
         self.assertEqual('sk_sage_', metadata['apiKeyPrefix'])
+
+    def test_public_plan_catalog_exposes_edge_limits(self):
+        plans = router.public_plan_catalog()
+        self.assertEqual(10000, plans['lite']['limits']['monthlyRequests'])
+        self.assertEqual(60, plans['lite']['limits']['rateLimitPerMinute'])
+        self.assertEqual(50000, plans['pro']['limits']['monthlyRequests'])
+        self.assertEqual(180, plans['pro']['limits']['rateLimitPerMinute'])
+        self.assertEqual(200000, plans['max']['limits']['monthlyRequests'])
+        self.assertEqual(600, plans['max']['limits']['rateLimitPerMinute'])
+        self.assertFalse(plans['free']['apiAccess'])
+        self.assertTrue(plans['pro']['apiAccess'])
+
+    def test_public_plan_catalog_uses_edge_limit_overrides(self):
+        router.PUBLIC_PLAN_RATE_LIMITS_RAW = 'lite=7,pro=8,max=9,default=3'
+        router.PUBLIC_PLAN_MONTHLY_QUOTAS_RAW = 'lite=70,pro=80,max=90,default=0'
+        plans = router.public_plan_catalog()
+        self.assertEqual({'monthlyRequests': 70, 'rateLimitPerMinute': 7}, plans['lite']['limits'])
+        self.assertEqual({'monthlyRequests': 80, 'rateLimitPerMinute': 8}, plans['pro']['limits'])
+        self.assertEqual({'monthlyRequests': 90, 'rateLimitPerMinute': 9}, plans['max']['limits'])
 
 
 class AnalyticsModelConsolidationTests(unittest.TestCase):

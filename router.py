@@ -176,6 +176,18 @@ STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY') or os.environ.get('SAGE_
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET') or os.environ.get('SAGE_ROUTER_STRIPE_WEBHOOK_SECRET') or ''
 STRIPE_PRICE_ID = os.environ.get('SAGE_ROUTER_STRIPE_PRICE_ID') or os.environ.get('STRIPE_PRICE_ID') or ''
 STRIPE_PRICE_IDS_RAW = os.environ.get('SAGE_ROUTER_STRIPE_PRICE_IDS', '').strip()
+PUBLIC_PLAN_RATE_LIMITS_RAW = os.environ.get(
+    'SAGE_ROUTER_EDGE_RATE_LIMITS',
+    'trial=30,lite=60,pro=180,max=600,manual=600,paid=180,active=180,default=60',
+)
+PUBLIC_PLAN_MONTHLY_QUOTAS_RAW = os.environ.get(
+    'SAGE_ROUTER_EDGE_MONTHLY_QUOTAS',
+    'trial=1000,lite=10000,pro=50000,max=200000,paid=50000,active=50000,default=0',
+)
+PUBLIC_PLAN_LIMIT_ALIASES = {
+    'free': 'default',
+    'metered': 'paid',
+}
 PUBLIC_PLAN_CATALOG = {
     'free': {
         'name': 'Free',
@@ -1691,11 +1703,49 @@ def stripe_price_ids_by_plan():
     return mapping
 
 
+def parse_public_plan_limits(raw):
+    limits = {}
+    for part in str(raw or '').split(','):
+        if '=' not in part:
+            continue
+        plan, value = part.split('=', 1)
+        plan = plan.strip().lower()
+        try:
+            parsed = int(value.strip())
+        except ValueError:
+            continue
+        if plan:
+            limits[plan] = parsed
+    return limits
+
+
+def limit_for_public_plan(plan_name, limits, fallback=0):
+    plan = str(plan_name or '').strip().lower()
+    candidates = [plan]
+    alias = PUBLIC_PLAN_LIMIT_ALIASES.get(plan)
+    if alias:
+        candidates.append(alias)
+    candidates.append('default')
+    for candidate in candidates:
+        if candidate in limits:
+            return limits[candidate]
+    return fallback
+
+
 def public_plan_catalog():
     plans = json.loads(json.dumps(PUBLIC_PLAN_CATALOG))
     price_ids = stripe_price_ids_by_plan()
+    rate_limits = parse_public_plan_limits(PUBLIC_PLAN_RATE_LIMITS_RAW)
+    monthly_quotas = parse_public_plan_limits(PUBLIC_PLAN_MONTHLY_QUOTAS_RAW)
     for name, plan in plans.items():
         plan['stripeConfigured'] = bool(price_ids.get(name))
+        monthly_requests = limit_for_public_plan(name, monthly_quotas, 0)
+        rate_limit_per_minute = limit_for_public_plan(name, rate_limits, 0)
+        plan['limits'] = {
+            'monthlyRequests': monthly_requests,
+            'rateLimitPerMinute': rate_limit_per_minute,
+        }
+        plan['apiAccess'] = bool(monthly_requests > 0 or name == 'metered')
     return plans
 
 
