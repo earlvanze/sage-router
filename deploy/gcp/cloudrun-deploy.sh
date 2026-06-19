@@ -11,6 +11,41 @@ API_BASE_URL="${SAGE_ROUTER_API_BASE_URL:-https://api.sagerouter.dev}"
 CORS_ORIGIN="${SAGE_ROUTER_CORS_ORIGIN:-https://sagerouter.dev,https://www.sagerouter.dev,https://app.sagerouter.dev}"
 STRIPE_PRICE_IDS="${SAGE_ROUTER_STRIPE_PRICE_IDS:-}"
 
+if [[ -z "${STRIPE_PRICE_IDS}" && -n "${STRIPE_SECRET_KEY:-}" ]]; then
+  STRIPE_PRICE_IDS="$(
+    python3 - <<'PY'
+import json
+import os
+import urllib.parse
+import urllib.request
+
+key = os.environ.get("STRIPE_SECRET_KEY") or os.environ.get("SAGE_ROUTER_STRIPE_SECRET_KEY")
+if not key:
+    raise SystemExit(0)
+
+url = "https://api.stripe.com/v1/prices?" + urllib.parse.urlencode(
+    {"active": "true", "limit": "100", "expand[]": "data.product"}
+)
+req = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
+with urllib.request.urlopen(req, timeout=20) as resp:
+    prices = json.load(resp).get("data", [])
+
+lookup_to_plan = {
+    "sage_router_lite_monthly": "lite",
+    "sage_router_pro_monthly": "pro",
+    "sage_router_max_monthly": "max",
+}
+mapped = {}
+for price in prices:
+    plan = lookup_to_plan.get(price.get("lookup_key") or "")
+    if plan and price.get("id"):
+        mapped[plan] = price["id"]
+
+print(",".join(f"{plan}={mapped[plan]}" for plan in ("lite", "pro", "max") if plan in mapped))
+PY
+  )"
+fi
+
 if [[ -z "${PROJECT_ID}" || "${PROJECT_ID}" == "(unset)" ]]; then
   echo "PROJECT_ID is required. Set PROJECT_ID or run: gcloud config set project YOUR_PROJECT_ID" >&2
   exit 2
