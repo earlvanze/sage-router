@@ -1,6 +1,6 @@
 # Sage Router Frontend MVP
 
-Static React/Vite landing page for sagerouter.ai. It lives in web/ so the Python router service and OpenClaw skill packaging stay untouched.
+Static React/Vite landing page for sagerouter.dev. It lives in web/ so the Python router service and OpenClaw skill packaging stay untouched.
 
 ## Preview
 
@@ -25,7 +25,7 @@ The static site is emitted to web/dist/.
 
 ## Deploy notes
 
-This MVP is a static site. Deploy web/dist/ to any static host, for example Cloudflare Pages, Netlify, Vercel static output, S3/CloudFront, or a plain nginx/Caddy site.
+This site is deployed with Cloudflare Pages so static assets and Pages Functions ship together. `web/dist/` contains the static build; `web/functions/` contains production functions such as the waitlist endpoint.
 
 Suggested Cloudflare Pages settings:
 
@@ -33,7 +33,7 @@ Suggested Cloudflare Pages settings:
 - Build command: npm run build
 - Build output directory: dist
 
-The waitlist form is intentionally static and currently prevents default submit. Wire it to the chosen waitlist provider before launch.
+The waitlist form posts to `/api/waitlist`, a Cloudflare Pages Function that inserts into Supabase table `sage_router_waitlist` and falls back to `funnel_leads` for older AOps schemas. `GET /api/waitlist` is a non-mutating health check used by `scripts/check_sagerouter_launch_readiness.sh`.
 
 
 
@@ -76,7 +76,7 @@ The MVP page now encodes the intended business model:
 - Provider profiles/routing presets for coding, fast chat, local fallback, and hybrid local/cloud routes.
 - Crypto-native billing remains planned, with Algorand-native billing and BTC bridge support.
 
-This scope does not change implementation choices for the frontend MVP. It remains a static Vite/React site with no backend, no account system, and no live payments.
+This scope keeps the frontend lightweight: Vite/React static assets, Cloudflare Pages Functions for narrow hosted flows, Supabase Auth for account/session state, and the Sage Router API edge for billing, API keys, usage, and model traffic.
 
 ## Crypto billing direction
 

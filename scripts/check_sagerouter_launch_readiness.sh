@@ -142,6 +142,19 @@ check_hosted_onboarding_pages() {
   fi
 }
 
+check_waitlist_endpoint() {
+  local code ok service
+  code="$(http_code "${APP_BASE%/}/api/waitlist")"
+  ok="$(jq -r '.ok // false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  service="$(jq -r '.service // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  rm -f /tmp/sage-router-readiness-body
+  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-waitlist" ]]; then
+    pass "hosted waitlist endpoint is configured"
+  else
+    fail "hosted waitlist endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing}"
+  fi
+}
+
 check_admin_token() {
   if [[ -z "$ADMIN_TOKEN" ]]; then
     warn "SAGE_ROUTER_API_KEY/SAGE_ROUTER_EDGE_TOKEN not set; skipped private admin token probe"
@@ -227,6 +240,7 @@ check_public_auth_gate
 check_public_pricing_metadata
 check_stripe_webhook_guard
 check_hosted_onboarding_pages
+check_waitlist_endpoint
 check_admin_token
 check_origin_auth_gate
 check_supabase_auth_config

@@ -10,6 +10,9 @@ class HostedOnboardingTests(unittest.TestCase):
     def read_public(self, name):
         return (ROOT / "web" / "public" / name).read_text(encoding="utf-8")
 
+    def read_text(self, *parts):
+        return (ROOT.joinpath(*parts)).read_text(encoding="utf-8")
+
     def test_account_page_has_explicit_email_signup(self):
         html = self.read_public("account.html")
         js = self.read_public("account.js")
@@ -66,6 +69,18 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("/pricing", js)
         self.assertIn("https://api.sagerouter.dev", js)
         self.assertIn("api.sagerouter.dev/v1", html)
+
+    def test_waitlist_endpoint_has_non_mutating_launch_health_check(self):
+        function_js = self.read_text("web", "functions", "api", "waitlist.js")
+        readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")
+        readme = self.read_text("web", "README.md")
+        self.assertIn("export async function onRequestGet", function_js)
+        self.assertIn("sage-router-waitlist", function_js)
+        self.assertIn("primaryTable: 'sage_router_waitlist'", function_js)
+        self.assertIn("fallbackTable: 'funnel_leads'", function_js)
+        self.assertIn("/api/waitlist", readiness)
+        self.assertIn("hosted waitlist endpoint is configured", readiness)
+        self.assertIn("GET /api/waitlist", readme)
 
 
 if __name__ == "__main__":

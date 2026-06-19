@@ -14,6 +14,24 @@ const insert = async (supabaseUrl, serviceKey, table, record) => fetch(`${supaba
   body: JSON.stringify(record),
 });
 
+const waitlistConfig = (env) => {
+  const supabaseUrl = env.SAGEROUTER_SUPABASE_URL || env.SUPABASE_URL;
+  const serviceKey = env.SAGEROUTER_SUPABASE_SERVICE_ROLE || env.SUPABASE_SERVICE_ROLE_KEY;
+  return { supabaseUrl, serviceKey };
+};
+
+export async function onRequestGet({ env }) {
+  const { supabaseUrl, serviceKey } = waitlistConfig(env);
+  if (!supabaseUrl || !serviceKey) return json({ ok: false, error: 'supabase_not_configured' }, 500);
+  return json({
+    ok: true,
+    service: 'sage-router-waitlist',
+    storage: 'supabase',
+    primaryTable: 'sage_router_waitlist',
+    fallbackTable: 'funnel_leads',
+  });
+}
+
 export async function onRequestPost({ request, env }) {
   let payload;
   try {
@@ -31,8 +49,7 @@ export async function onRequestPost({ request, env }) {
     return json({ error: 'invalid_email' }, 400);
   }
 
-  const supabaseUrl = env.SAGEROUTER_SUPABASE_URL || env.SUPABASE_URL;
-  const serviceKey = env.SAGEROUTER_SUPABASE_SERVICE_ROLE || env.SUPABASE_SERVICE_ROLE_KEY;
+  const { supabaseUrl, serviceKey } = waitlistConfig(env);
   if (!supabaseUrl || !serviceKey) return json({ error: 'supabase_not_configured' }, 500);
 
   const metadata = {
