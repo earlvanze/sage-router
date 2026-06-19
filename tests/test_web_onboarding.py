@@ -109,6 +109,25 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("VITE_SUPABASE_PUBLISHABLE_KEY", script)
         self.assertIn("browser-visible OAuth buttons match the", readme)
 
+    def test_github_supabase_auth_status_helper_is_read_only(self):
+        script = self.read_text("scripts", "check_github_supabase_auth_status.sh")
+        readme = self.read_text("README.md")
+        plan = self.read_text("docs", "saas-launch-10k-mrr.md")
+        self.assertIn('PROJECT_REF="${SUPABASE_PROJECT_REF:-awtangrlqqsdpksarhwo}"', script)
+        self.assertIn("check_management_config", script)
+        self.assertIn("check_public_settings", script)
+        self.assertIn("Supabase Management API shows GitHub OAuth disabled", script)
+        self.assertIn("Browser-visible Supabase GitHub OAuth is disabled", script)
+        self.assertIn("/auth/v1/settings", script)
+        self.assertIn("discover_supabase_anon_key", script)
+        self.assertIn("supabase_key_for_project", script)
+        self.assertIn("curl -fsS \"https://api.supabase.com/v1/projects/${PROJECT_REF}/config/auth\"", script)
+        self.assertNotIn("-X PATCH", script)
+        self.assertNotIn("external_github_secret", script)
+        self.assertIn("bash scripts/check_github_supabase_auth_status.sh", readme)
+        self.assertIn("never OAuth client secrets, anon keys, service-role", readme)
+        self.assertIn("non-mutating status probe", plan)
+
     def test_github_app_bootstrap_opens_windows_temp_copy_from_wsl(self):
         script = self.read_text("scripts", "bootstrap_github_supabase_auth.sh")
         readme = self.read_text("README.md")

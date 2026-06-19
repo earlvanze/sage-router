@@ -164,10 +164,12 @@ claim, or runtime feature flag.
   with `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` allowed only when provider
   resale terms and margin-policy URLs are configured and the legal/abuse-control
   boundary is published.
-- Enable GitHub OAuth in Supabase after the GitHub App manifest approval code is
-  available; the bootstrap must verify both Supabase management config and the
-  browser-visible `/auth/v1/settings` provider state before treating this as
-  complete.
+- Keep email/password and magic-link auth as the baseline launch path, then
+  enable GitHub OAuth in Supabase after the GitHub App manifest approval code is
+  available. Use `bash scripts/check_github_supabase_auth_status.sh` for a
+  non-mutating status probe; the bootstrap must verify both Supabase management
+  config and the browser-visible `/auth/v1/settings` provider state before
+  treating GitHub OAuth as complete.
 - Track the funnel from waitlist to signup, generated key, first routed request,
   paid conversion, and retained paid account through the operator-only
   `/analytics/funnel` endpoint.
