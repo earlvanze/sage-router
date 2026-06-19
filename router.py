@@ -153,6 +153,7 @@ SUPABASE_ANALYTICS_SNAPSHOTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_ANALYT
 SUPABASE_CUSTOMERS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_CUSTOMERS_TABLE', 'sage_router_customers')
 SUPABASE_API_KEYS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_API_KEYS_TABLE', 'sage_router_api_keys')
 SUPABASE_PAYMENT_INTENTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_PAYMENT_INTENTS_TABLE', 'sage_router_payment_intents')
+SUPABASE_USAGE_COUNTERS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_USAGE_COUNTERS_TABLE', 'sage_router_usage_counters')
 # Off by default — no remote mirroring of analytics/customers/keys. The
 # router should keep its work local; enable only when the operator runs a
 # hosted tier that needs the Supabase mirror.
@@ -1731,6 +1732,10 @@ def limit_for_public_plan(plan_name, limits, fallback=0):
         if candidate in limits:
             return limits[candidate]
     return fallback
+
+
+def current_usage_period(now=None):
+    return time.strftime('%Y-%m', time.gmtime(now or time.time()))
 
 
 def public_plan_catalog():
@@ -4631,6 +4636,46 @@ def public_customer(row):
         'stripe_subscription_id': row.get('stripe_subscription_id') or '',
         'created_at_epoch': row.get('created_at_epoch'),
         'updated_at_epoch': row.get('updated_at_epoch'),
+    }
+
+
+def account_usage_for_customer(customer):
+    customer = normalize_customer(customer) or {}
+    plan = str(customer.get('plan') or 'free').lower()
+    rate_limits = parse_public_plan_limits(PUBLIC_PLAN_RATE_LIMITS_RAW)
+    monthly_quotas = parse_public_plan_limits(PUBLIC_PLAN_MONTHLY_QUOTAS_RAW)
+    period = current_usage_period()
+    quota = limit_for_public_plan(plan, monthly_quotas, 0)
+    rate_limit = limit_for_public_plan(plan, rate_limits, 0)
+    requests = 0
+    updated_at = None
+    if customer_store_uses_supabase() and customer.get('id'):
+        try:
+            customer_id = urllib.parse.quote(str(customer.get('id')), safe='')
+            quoted_period = urllib.parse.quote(period, safe='')
+            rows = supabase_select(
+                SUPABASE_USAGE_COUNTERS_TABLE,
+                f'select=*&customer_id=eq.{customer_id}&period=eq.{quoted_period}&limit=1',
+                timeout=5,
+            )
+            if rows:
+                requests = max(0, int(rows[0].get('requests') or 0))
+                updated_at = rows[0].get('updated_at_epoch')
+        except Exception as e:
+            logger.warning(f'Customer usage lookup failed: {extract_http_error(e)}')
+    remaining = max(quota - requests, 0) if quota > 0 else None
+    return {
+        'customer_id': customer.get('id') or '',
+        'period': period,
+        'plan': plan,
+        'status': customer.get('status') or 'inactive',
+        'requests': requests,
+        'quota': quota,
+        'remaining': remaining,
+        'unlimited': quota <= 0,
+        'rateLimitPerMinute': rate_limit,
+        'routing_enabled': customer_is_active(customer),
+        'updated_at_epoch': updated_at,
     }
 
 
@@ -8665,6 +8710,11 @@ class Handler(BaseHTTPRequestHandler):
                 'plans': public_plan_catalog(),
                 **public_launch_metadata(),
             })
+        elif self.path == '/account/usage':
+            _user, customer = require_user_customer(self)
+            if not customer:
+                return
+            self.write_json(200, {'usage': account_usage_for_customer(customer)})
         elif self.path == '/account/api-keys':
             _user, customer = require_user_customer(self)
             if not customer:

@@ -29,6 +29,15 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("params.get('billing')", js)
         self.assertIn("billing === 'portal'", js)
 
+    def test_account_page_shows_usage_and_quota(self):
+        html = self.read_public("account.html")
+        js = self.read_public("account.js")
+        self.assertIn('id="usage-status"', html)
+        self.assertIn('id="usage-fill"', html)
+        self.assertIn('id="usage-remaining"', html)
+        self.assertIn("api('/account/usage'", js)
+        self.assertIn("rateLimitPerMinute", js)
+
     def test_login_page_has_explicit_email_signup(self):
         html = self.read_public("login.html")
         js = self.read_public("auth.js")

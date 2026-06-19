@@ -30,6 +30,8 @@ class SaaSAuthTests(unittest.TestCase):
             'CUSTOMER_STORE_PATH': router.CUSTOMER_STORE_PATH,
             'SUPABASE_URL': router.SUPABASE_URL,
             'SUPABASE_SERVICE_ROLE_KEY': router.SUPABASE_SERVICE_ROLE_KEY,
+            'SUPABASE_USAGE_COUNTERS_TABLE': router.SUPABASE_USAGE_COUNTERS_TABLE,
+            'supabase_select': router.supabase_select,
             'CLIENT_API_KEYS': list(router.CLIENT_API_KEYS),
             'CLIENT_AUTH_REQUIRED': router.CLIENT_AUTH_REQUIRED,
             'STRIPE_SECRET_KEY': router.STRIPE_SECRET_KEY,
@@ -51,6 +53,7 @@ class SaaSAuthTests(unittest.TestCase):
         router.CUSTOMER_STORE_PATH = os.path.join(self.tmp.name, 'customers.json')
         router.SUPABASE_URL = ''
         router.SUPABASE_SERVICE_ROLE_KEY = ''
+        router.SUPABASE_USAGE_COUNTERS_TABLE = 'sage_router_usage_counters'
         router.CLIENT_API_KEYS = []
         router.CLIENT_AUTH_REQUIRED = True
         router.STRIPE_SECRET_KEY = ''
@@ -71,6 +74,8 @@ class SaaSAuthTests(unittest.TestCase):
         router.CUSTOMER_STORE_PATH = self.old['CUSTOMER_STORE_PATH']
         router.SUPABASE_URL = self.old['SUPABASE_URL']
         router.SUPABASE_SERVICE_ROLE_KEY = self.old['SUPABASE_SERVICE_ROLE_KEY']
+        router.SUPABASE_USAGE_COUNTERS_TABLE = self.old['SUPABASE_USAGE_COUNTERS_TABLE']
+        router.supabase_select = self.old['supabase_select']
         router.CLIENT_API_KEYS = self.old['CLIENT_API_KEYS']
         router.CLIENT_AUTH_REQUIRED = self.old['CLIENT_AUTH_REQUIRED']
         router.STRIPE_SECRET_KEY = self.old['STRIPE_SECRET_KEY']
@@ -202,6 +207,68 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('max', active_public['plan'])
         self.assertEqual('free', active_public['key_plan'])
         self.assertTrue(active_public['routing_enabled'])
+
+    def test_account_usage_defaults_to_current_plan_limits(self):
+        customer = self.active_customer()
+        usage = router.account_usage_for_customer(customer)
+
+        self.assertEqual(customer['id'], usage['customer_id'])
+        self.assertEqual('pro', usage['plan'])
+        self.assertEqual(0, usage['requests'])
+        self.assertEqual(50000, usage['quota'])
+        self.assertEqual(50000, usage['remaining'])
+        self.assertEqual(180, usage['rateLimitPerMinute'])
+        self.assertFalse(usage['unlimited'])
+        self.assertTrue(usage['routing_enabled'])
+
+    def test_account_usage_reads_only_current_customer_period_from_supabase(self):
+        router.SUPABASE_URL = 'https://example.supabase.co'
+        router.SUPABASE_SERVICE_ROLE_KEY = 'service'
+        captured = {}
+        customer = {
+            'id': 'customer/1',
+            'user_id': 'user-1',
+            'plan': 'lite',
+            'status': 'active',
+            'created_at_epoch': router.now_epoch(),
+        }
+
+        def fake_select(table, query, timeout=8):
+            captured.update({'table': table, 'query': query, 'timeout': timeout})
+            return [{'requests': 321, 'updated_at_epoch': 123456}]
+
+        router.supabase_select = fake_select
+        usage = router.account_usage_for_customer(customer)
+
+        self.assertEqual('sage_router_usage_counters', captured['table'])
+        self.assertIn('customer_id=eq.customer%2F1', captured['query'])
+        self.assertIn(f'period=eq.{router.current_usage_period()}', captured['query'])
+        self.assertEqual(321, usage['requests'])
+        self.assertEqual(10000, usage['quota'])
+        self.assertEqual(9679, usage['remaining'])
+        self.assertEqual(123456, usage['updated_at_epoch'])
+
+    def test_account_usage_endpoint_requires_signed_in_customer(self):
+        router.supabase_user_for_bearer = lambda token: {'id': 'user-1', 'email': 'u@example.com'} if token == 'valid-user-jwt' else None
+        customer = router.customer_for_user({'id': 'user-1', 'email': 'u@example.com'})
+        router.update_customer(customer['id'], {'plan': 'max', 'status': 'active'})
+
+        class Dummy:
+            path = '/account/usage'
+            headers = {'Authorization': 'Bearer valid-user-jwt'}
+            status = None
+            payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_GET(handler)
+
+        self.assertEqual(200, handler.status)
+        self.assertEqual('max', handler.payload['usage']['plan'])
+        self.assertEqual(200000, handler.payload['usage']['quota'])
 
 
     def test_route_events_are_scoped_to_generated_customer_keys(self):

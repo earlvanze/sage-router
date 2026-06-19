@@ -112,6 +112,29 @@ function renderQuickstart(key) {
   set('quickstart-code', quickstartText(currentRawKey || 'sk_sage_your_key_here'));
 }
 
+function renderUsage(usage) {
+  const fill = $('usage-fill');
+  if (!usage) {
+    set('usage-status', 'Usage is unavailable.');
+    set('usage-used', '--');
+    set('usage-remaining', '--');
+    set('usage-rate', '--');
+    if (fill) fill.style.width = '0%';
+    return;
+  }
+  const used = Number(usage.requests || 0);
+  const quota = Number(usage.quota || 0);
+  const remaining = usage.unlimited ? null : Number(usage.remaining || 0);
+  const percent = quota > 0 ? Math.min(100, Math.max(0, (used / quota) * 100)) : 0;
+  set('usage-status', usage.unlimited
+    ? `${usage.period || 'Current period'} · ${usage.plan || 'free'} has no monthly cap configured.`
+    : `${usage.period || 'Current period'} · ${fmtNumber(quota)} requests included.`);
+  set('usage-used', fmtNumber(used));
+  set('usage-remaining', usage.unlimited ? 'Unlimited' : fmtNumber(remaining));
+  set('usage-rate', usage.rateLimitPerMinute ? `${fmtNumber(usage.rateLimitPerMinute)}/min` : '--');
+  if (fill) fill.style.width = `${percent}%`;
+}
+
 async function refresh() {
   const s = await session();
   show('auth-panel', !s);
@@ -127,11 +150,13 @@ async function refresh() {
   renderQuickstart();
   if (!s) return;
   set('account-status', 'Loading account...');
+  renderUsage(null);
   try {
-    const [{ customer }, keys, planData] = await Promise.all([
+    const [{ customer }, keys, planData, usageData] = await Promise.all([
       api('/account'),
       api('/account/api-keys'),
       api('/account/plan').catch(() => null),
+      api('/account/usage').catch(() => null),
     ]);
     applyLaunchMetadata(planData);
     const accountPlan = planData?.plan || customer.plan || 'free';
@@ -140,12 +165,14 @@ async function refresh() {
     set('account-status', `${customer.email || customer.user_id} · ${accountPlan} · ${accountStatus}`);
     set('routing-status', routingEnabled ? 'Routing enabled for generated API keys.' : 'Upgrade required before generated API keys can route paid traffic.');
     renderPlans(planData?.plans || FALLBACK_PLANS, accountPlan);
+    renderUsage(usageData?.usage || null);
     $('keys').innerHTML = renderKeys(keys.api_keys || []);
     markStep('step-plan', accountPlan !== 'free' && routingEnabled);
     markStep('step-key', (keys.api_keys || []).length > 0);
   } catch (error) {
     set('account-status', error.message);
     renderPlans(FALLBACK_PLANS, 'free');
+    renderUsage(null);
   }
 }
 
