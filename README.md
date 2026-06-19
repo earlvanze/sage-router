@@ -107,6 +107,8 @@ The hosted web app uses Supabase Auth. GitHub login requires a GitHub OAuth/GitH
 - Homepage URL: `https://app.sagerouter.dev`
 - Authorization callback URL: `https://awtangrlqqsdpksarhwo.supabase.co/auth/v1/callback`
 
+The account, login, and analytics pages read `https://awtangrlqqsdpksarhwo.supabase.co/auth/v1/settings` with the public anon key and hide disabled OAuth providers. This keeps onboarding usable while GitHub or other providers are still being configured.
+
 Bootstrap the GitHub app and wire Supabase without opening the Supabase dashboard:
 
 ```bash

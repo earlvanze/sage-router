@@ -1,6 +1,6 @@
 const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
-const SAGE_ROUTER_URL = 'https://sage-router-434058661374.us-central1.run.app';
+let sageRouterUrl = window.SAGE_ROUTER_API_URL || 'https://api.sagerouter.dev';
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (id) => document.getElementById(id);
@@ -22,9 +22,31 @@ async function session() {
   return data?.session || null;
 }
 
+async function applyLaunchMetadata() {
+  try {
+    const res = await fetch(`${sageRouterUrl}/pricing`);
+    if (!res.ok) return;
+    const data = await res.json();
+    sageRouterUrl = data.apiBaseUrl || sageRouterUrl;
+  } catch (_error) {}
+}
+
+async function applyAuthSettings() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_ANON_KEY } });
+    if (!res.ok) return;
+    const external = (await res.json()).external || {};
+    document.querySelectorAll('[data-oauth]').forEach((button) => {
+      const enabled = external[button.dataset.oauth] !== false;
+      button.classList.toggle('hidden', !enabled);
+      button.disabled = !enabled;
+    });
+  } catch (_error) {}
+}
+
 async function fetchAnalytics(s) {
   const days = $('window-days')?.value || '7';
-  const res = await fetch(`${SAGE_ROUTER_URL}/analytics?days=${encodeURIComponent(days)}`, {
+  const res = await fetch(`${sageRouterUrl}/analytics?days=${encodeURIComponent(days)}`, {
     headers: { Authorization: `Bearer ${s.access_token}` }
   });
   if (!res.ok) throw new Error(`Analytics API HTTP ${res.status}`);
@@ -134,7 +156,7 @@ async function magicLogin() {
   setText('auth-status', error ? error.message : 'Magic link sent. Check your email.');
 }
 
-document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventListener('click', () => oauthLogin(button.dataset.oauth)));
+document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventListener('click', () => { if (!button.disabled) oauthLogin(button.dataset.oauth); }));
 $('wallet-login')?.addEventListener('click', walletLogin);
 $('password-login')?.addEventListener('click', passwordLogin);
 $('magic-login')?.addEventListener('click', magicLogin);
@@ -142,4 +164,5 @@ $('refresh')?.addEventListener('click', refresh);
 $('window-days')?.addEventListener('change', refresh);
 $('sign-out')?.addEventListener('click', async () => { await sb.auth.signOut(); refresh(); });
 sb.auth.onAuthStateChange(() => refresh());
-refresh();
+applyAuthSettings();
+applyLaunchMetadata().finally(() => refresh());

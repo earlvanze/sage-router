@@ -34,6 +34,19 @@ function applyLaunchMetadata(data) {
   set('anthropic-base-url', `ANTHROPIC_BASE_URL=${anthropicBaseUrl}`);
 }
 
+async function applyAuthSettings() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_ANON_KEY } });
+    if (!res.ok) return;
+    const external = (await res.json()).external || {};
+    document.querySelectorAll('[data-oauth]').forEach((button) => {
+      const enabled = external[button.dataset.oauth] !== false;
+      button.classList.toggle('hidden', !enabled);
+      button.disabled = !enabled;
+    });
+  } catch (_error) {}
+}
+
 async function session() {
   const { data } = await sb.auth.getSession();
   return data?.session || null;
@@ -196,7 +209,7 @@ async function cryptoIntent() {
   }
 }
 
-document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventListener('click', () => oauthLogin(button.dataset.oauth)));
+document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventListener('click', () => { if (!button.disabled) oauthLogin(button.dataset.oauth); }));
 $('password-login')?.addEventListener('click', passwordLogin);
 $('magic-login')?.addEventListener('click', magicLogin);
 $('create-key')?.addEventListener('click', createKey);
@@ -228,3 +241,4 @@ document.addEventListener('click', async (event) => {
 });
 sb.auth.onAuthStateChange(() => refresh());
 refresh();
+applyAuthSettings();

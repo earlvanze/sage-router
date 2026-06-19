@@ -3,10 +3,23 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (id) => document.getElementById(id);
 const set = (id, text) => { const el = $(id); if (el) el.textContent = text; };
+async function applyAuthSettings() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_ANON_KEY } });
+    if (!res.ok) return;
+    const external = (await res.json()).external || {};
+    document.querySelectorAll('[data-oauth]').forEach((button) => {
+      const enabled = external[button.dataset.oauth] !== false;
+      button.classList.toggle('hidden', !enabled);
+      button.disabled = !enabled;
+    });
+  } catch (_error) {}
+}
 async function refreshSession() { const { data } = await sb.auth.getSession(); const session = data?.session; if (session?.user) { set('session-status', `Signed in as ${session.user.email || session.user.user_metadata?.full_name || session.user.id}`); $('sign-out')?.classList.remove('hidden'); } else { set('session-status', 'Choose a sign-in method.'); $('sign-out')?.classList.add('hidden'); } }
 async function oauthLogin(provider) { set('auth-status', `Opening ${provider} sign-in...`); const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: `${window.location.origin}/login.html` } }); if (error) set('auth-status', error.message); }
 async function passwordLogin() { set('auth-status', 'Signing in...'); const email = $('email')?.value.trim(); const password = $('password')?.value; const { error } = await sb.auth.signInWithPassword({ email, password }); set('auth-status', error ? error.message : 'Signed in.'); if (!error) refreshSession(); }
 async function magicLogin() { set('auth-status', 'Sending magic link...'); const email = $('email')?.value.trim(); const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/login.html` } }); set('auth-status', error ? error.message : 'Magic link sent. Check your email.'); }
 async function walletLogin() { try { set('wallet-status', 'Connecting wallet...'); if (window.algorand?.enable) { const result = await window.algorand.enable({ genesisID: 'mainnet-v1.0' }); const account = result?.accounts?.[0]?.address || result?.accounts?.[0]; if (!account) throw new Error('No wallet account returned.'); localStorage.setItem('sage_wallet_address', account); set('wallet-status', `Wallet connected: ${account.slice(0, 8)}…${account.slice(-6)}`); return; } throw new Error('Install or unlock an Algorand wallet extension, then try again.'); } catch (error) { set('wallet-status', error.message || 'Wallet connection failed.'); } }
-document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventListener('click', () => oauthLogin(button.dataset.oauth)));
+document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventListener('click', () => { if (!button.disabled) oauthLogin(button.dataset.oauth); }));
 $('wallet-login')?.addEventListener('click', walletLogin); $('password-login')?.addEventListener('click', passwordLogin); $('magic-login')?.addEventListener('click', magicLogin); $('sign-out')?.addEventListener('click', async () => { await sb.auth.signOut(); refreshSession(); }); sb.auth.onAuthStateChange(() => refreshSession()); refreshSession();
+applyAuthSettings();
