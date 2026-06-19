@@ -167,6 +167,12 @@ create accounts. The event path stores event name, selected plan, sanitized
 source/target URL, and small metadata buckets only; it must not store workflow
 text, prompt bodies, emails, API keys, or provider credentials.
 
+The account page also emits privacy-safe checkout intent events for plan
+selection, Stripe checkout clicks and returns, Stripe portal clicks and returns,
+and crypto/manual payment intent clicks. These events help diagnose customer
+drop-off after login; Stripe webhooks and Supabase customer state remain the
+source of truth for paid conversion, quota, and routing entitlement.
+
 Bootstrap the GitHub app and wire Supabase without opening the Supabase dashboard:
 
 ```bash

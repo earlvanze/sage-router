@@ -110,6 +110,12 @@ claim, or runtime feature flag.
   the privacy-safe `/api/funnel-event` path. Store only event, plan, sanitized
   source/target URL, and small allowlisted metadata buckets; do not store
   prompts, workflow text, emails, API keys, or provider credentials.
+- Capture signed-in checkout and billing intent from the account page through
+  the same privacy-safe path, including plan selection, Stripe checkout clicks
+  and returns, Stripe portal clicks and returns, and crypto/manual payment
+  intent clicks. Treat Stripe webhooks and customer state as the source of
+  truth for paid conversion; use browser funnel events only to diagnose
+  onboarding drop-off.
 - Keep hosted positioning limited to routing/control-plane infrastructure until
   provider terms, billing, margin, and abuse controls support any managed
   provider resale offer.

@@ -6,6 +6,12 @@ const ALLOWED_EVENTS = new Set([
   'pricing_account_clicked',
   'pricing_quickstart_clicked',
   'managed_access_interest_clicked',
+  'account_plan_selected',
+  'account_checkout_clicked',
+  'account_checkout_returned',
+  'account_billing_portal_clicked',
+  'account_billing_portal_returned',
+  'account_crypto_intent_clicked',
 ]);
 
 const ALLOWED_PLANS = new Set(['lite', 'pro', 'max', 'trial', 'manual']);
@@ -16,6 +22,8 @@ const ALLOWED_METADATA_KEYS = new Set([
   'savingsBucket',
   'source',
   'button',
+  'state',
+  'billing',
 ]);
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {

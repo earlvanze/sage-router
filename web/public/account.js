@@ -129,6 +129,36 @@ async function applyAuthSettings() {
   }
 }
 
+function trackAccountFunnelEvent(event, data = {}) {
+  const payload = JSON.stringify({
+    event,
+    plan: data.plan || selectedPlan || null,
+    sourcePage: window.location.href,
+    target: data.target || null,
+    metadata: {
+      source: 'account',
+      button: data.button || null,
+      state: data.state || null,
+      billing: data.billing || null,
+    },
+  });
+  try {
+    if (navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: 'application/json' });
+      if (navigator.sendBeacon('/api/funnel-event', blob)) return;
+    }
+  } catch (_error) {
+    // Funnel telemetry must never block customer onboarding.
+  }
+  fetch('/api/funnel-event', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: payload,
+    keepalive: true,
+    credentials: 'omit',
+  }).catch(() => {});
+}
+
 async function session() {
   const { data } = await sb.auth.getSession();
   return data?.session || null;
@@ -467,13 +497,16 @@ function handleBillingReturn() {
   if (!state && !billing) return;
   if (state) {
     if (state === 'success') {
+      trackAccountFunnelEvent('account_checkout_returned', { state, target: window.location.href });
       set('billing-status', `Stripe checkout returned for ${planDisplay(selectedPlan)}. Activation can take a moment while the webhook confirms the subscription.`);
       setTimeout(() => refresh(), 3000);
       setTimeout(() => refresh(), 10000);
     } else if (state === 'cancel') {
+      trackAccountFunnelEvent('account_checkout_returned', { state, target: window.location.href });
       set('billing-status', `Checkout cancelled. ${planDisplay(selectedPlan)} is still selected.`);
     }
   } else if (billing === 'portal') {
+    trackAccountFunnelEvent('account_billing_portal_returned', { billing, target: window.location.href });
     set('billing-status', 'Returned from Stripe billing management.');
     setTimeout(() => refresh(), 1500);
   }
@@ -692,6 +725,7 @@ async function stripeCheckout() {
   setBusy('stripe-checkout', true, 'Opening...');
   try {
     set('billing-status', `Opening ${selectedPlan} checkout...`);
+    trackAccountFunnelEvent('account_checkout_clicked', { button: 'stripe_checkout', target: '/billing/stripe/checkout' });
     const data = await api('/billing/stripe/checkout', { method: 'POST', body: JSON.stringify({ plan: selectedPlan }) });
     if (data.checkout_url) {
       redirecting = true;
@@ -709,6 +743,7 @@ async function billingPortal() {
   setBusy('stripe-portal', true, 'Opening...');
   try {
     set('billing-status', 'Opening Stripe billing management...');
+    trackAccountFunnelEvent('account_billing_portal_clicked', { button: 'stripe_portal', target: '/billing/stripe/portal' });
     const data = await api('/billing/stripe/portal', { method: 'POST', body: '{}' });
     if (data.portal_url) {
       redirecting = true;
@@ -725,6 +760,7 @@ async function cryptoIntent() {
   setBusy('crypto-intent', true, 'Creating...');
   try {
     set('crypto-status', 'Creating manual payment intent...');
+    trackAccountFunnelEvent('account_crypto_intent_clicked', { button: 'crypto_intent', target: '/billing/crypto/intent' });
     const data = await api('/billing/crypto/intent', { method: 'POST', body: JSON.stringify({ note: `Sage Router ${selectedPlan} subscription`, plan: selectedPlan }) });
     const i = data.intent || {};
     set('crypto-status', `${i.status}. Send ${i.amount || 'the agreed amount'} ${i.asset || ''} on ${i.network || 'the configured network'} to ${i.address}. Include intent id ${i.id} in the memo/reference. Settlement is manual until a processor is configured.`);
@@ -751,17 +787,20 @@ $('plans')?.addEventListener('click', (event) => {
   if (!button) return;
   const plan = normalizePlan(button.dataset.plan);
   selectPlan(plan, `Selected ${planDisplay(plan)}.`);
+  trackAccountFunnelEvent('account_plan_selected', { plan, button: 'plan_card' });
 });
 $('preauth-plans')?.addEventListener('click', (event) => {
   const button = event.target?.closest?.('[data-preauth-plan]');
   if (!button) return;
   const plan = normalizePlan(button.dataset.preauthPlan);
   selectPlan(plan);
+  trackAccountFunnelEvent('account_plan_selected', { plan, button: 'preauth_plan' });
   set('auth-status', `Selected ${planDisplay(plan)}. Sign in to continue to checkout.`);
 });
 $('usage-upgrade')?.addEventListener('click', () => {
   if (!recommendedUpgradePlan) return;
   selectPlan(recommendedUpgradePlan, `Selected ${recommendedUpgradePlan}. Continue to Stripe when ready.`);
+  trackAccountFunnelEvent('account_plan_selected', { plan: recommendedUpgradePlan, button: 'usage_upgrade' });
   $('stripe-checkout')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
 $('keys')?.addEventListener('click', async (event) => {

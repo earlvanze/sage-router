@@ -45,6 +45,12 @@ accepts allowlisted event names, plans, sanitized URLs, and metadata buckets so
 the operator launch funnel can count demand without storing prompts, workflow
 text, emails, API keys, or provider credentials.
 
+The account page uses the same endpoint for signed-in checkout intent:
+selected plan, Stripe checkout click/return, Stripe portal click/return, and
+crypto/manual payment intent click. Keep the payload limited to event name,
+plan, sanitized source/target URL, and allowlisted metadata; billing webhooks
+and Supabase customer records remain authoritative for paid conversion.
+
 
 
 ## Hosted onboarding CTA
