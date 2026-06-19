@@ -75,6 +75,14 @@ let selectedPlan = storedPlan() || 'pro';
 let recommendedUpgradePlan = '';
 let currentRawKey = '';
 let billingReturnHandled = false;
+let keyVerifiedThisSession = false;
+let activationState = {
+  signedIn: false,
+  routingEnabled: false,
+  keyCount: 0,
+  keyVerified: false,
+  requestCount: 0,
+};
 
 function applyLaunchMetadata(data) {
   if (!data) return;
@@ -146,6 +154,40 @@ async function api(path, options = {}) {
 function markStep(id, done) {
   const el = $(id);
   if (el) el.textContent = done ? 'ok' : el.dataset.step || el.textContent;
+}
+
+function activationBadge(id, done) {
+  const el = $(id);
+  if (el) el.textContent = done ? 'Ready' : 'Waiting';
+}
+
+function renderLaunchNextAction(patch = {}) {
+  activationState = { ...activationState, ...patch };
+  const keyVerified = activationState.keyVerified || activationState.requestCount > 0;
+  activationBadge('launch-auth-status', activationState.signedIn);
+  activationBadge('launch-plan-status', activationState.routingEnabled);
+  activationBadge('launch-key-status', activationState.keyCount > 0);
+  activationBadge('launch-verify-status', keyVerified);
+  activationBadge('launch-first-request-status', activationState.requestCount > 0);
+  markStep('step-auth', activationState.signedIn);
+  markStep('step-plan', activationState.routingEnabled);
+  markStep('step-key', activationState.keyCount > 0);
+  markStep('step-verify', keyVerified);
+  markStep('step-first-request', activationState.requestCount > 0);
+
+  if (!activationState.signedIn) {
+    set('launch-next-action', 'Next: sign in or create an account.');
+  } else if (!activationState.routingEnabled) {
+    set('launch-next-action', 'Next: choose a paid plan or finish checkout so generated keys can route.');
+  } else if (!activationState.keyCount) {
+    set('launch-next-action', 'Next: create an sk_sage key.');
+  } else if (!keyVerified) {
+    set('launch-next-action', 'Next: test the key against /v1/models using the verifier below.');
+  } else if (!activationState.requestCount) {
+    set('launch-next-action', 'Next: copy the quickstart and send the first sage-router/frontier chat completion.');
+  } else {
+    set('launch-next-action', `Activated: ${fmtNumber(activationState.requestCount)} routed request${activationState.requestCount === 1 ? '' : 's'} recorded this period.`);
+  }
 }
 
 function quickstartText(key = 'sk_sage_your_key_here') {
@@ -312,7 +354,7 @@ async function refresh() {
   show('auth-panel', !s);
   show('account-panel', !!s);
   show('sign-out', !!s);
-  markStep('step-auth', !!s);
+  renderLaunchNextAction({ signedIn: !!s, routingEnabled: false, keyCount: 0, keyVerified: keyVerifiedThisSession, requestCount: 0 });
   try {
     const metadata = await fetch(`${sageRouterUrl}/pricing`).then(response => response.ok ? response.json() : null);
     applyLaunchMetadata(metadata);
@@ -339,14 +381,24 @@ async function refresh() {
     set('routing-status', routingEnabled ? 'Routing enabled for generated API keys.' : 'Upgrade required before generated API keys can route paid traffic.');
     const plans = planData?.plans || FALLBACK_PLANS;
     renderPlans(plans, accountPlan);
-    renderUsage(usageData?.usage || null, plans, accountPlan, routingEnabled);
+    const usage = usageData?.usage || null;
+    const keyCount = (keys.api_keys || []).length;
+    const requestCount = Number(usage?.requests || 0);
+    const keyVerified = keyVerifiedThisSession || requestCount > 0;
+    renderUsage(usage, plans, accountPlan, routingEnabled);
     $('keys').innerHTML = renderKeys(keys.api_keys || []);
-    markStep('step-plan', accountPlan !== 'free' && routingEnabled);
-    markStep('step-key', (keys.api_keys || []).length > 0);
+    renderLaunchNextAction({
+      signedIn: true,
+      routingEnabled: accountPlan !== 'free' && routingEnabled,
+      keyCount,
+      keyVerified,
+      requestCount,
+    });
   } catch (error) {
     set('account-status', error.message);
     renderPlans(FALLBACK_PLANS, 'free');
     renderUsage(null, FALLBACK_PLANS, 'free', false);
+    renderLaunchNextAction({ signedIn: true, routingEnabled: false, keyCount: 0, keyVerified: keyVerifiedThisSession, requestCount: 0 });
   }
 }
 
@@ -529,7 +581,9 @@ async function testApiKey() {
     }
     const models = Array.isArray(data.data) ? data.data : [];
     const suffix = models.length ? ` ${fmtNumber(models.length)} models visible.` : ' The key reached the model API.';
+    keyVerifiedThisSession = true;
     set('test-api-key-status', `Success: /v1/models returned HTTP ${res.status}.${suffix}`);
+    renderLaunchNextAction({ keyVerified: true });
   } catch (_error) {
     set('test-api-key-status', 'Could not reach the public edge from this browser. Check network access, CORS, or https://app.sagerouter.dev/status.');
   } finally {

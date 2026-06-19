@@ -32,6 +32,17 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("sage-router-hosted", js)
         self.assertIn("sage-router/frontier", js)
         self.assertIn("sk_sage_your_key_here", js)
+        self.assertIn('id="step-verify"', html)
+        self.assertIn('id="step-first-request"', html)
+        self.assertIn('id="launch-next-action"', html)
+        self.assertIn("generated-key to first routed request funnel", html)
+        self.assertIn("keyVerifiedThisSession", js)
+        self.assertIn("renderLaunchNextAction", js)
+        self.assertIn("launch-verify-status", js)
+        self.assertIn("launch-first-request-status", js)
+        self.assertIn("usage?.requests", js)
+        self.assertIn("test the key against /v1/models", js)
+        self.assertIn("first sage-router/frontier chat completion", js)
 
     def test_readiness_checks_public_supabase_auth_settings(self):
         readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")

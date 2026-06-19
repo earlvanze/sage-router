@@ -103,6 +103,9 @@ authorization, billing, quota, and abuse-control checks are explicitly enabled.
 - Track the funnel from waitlist to signup, generated key, first routed request,
   paid conversion, and retained paid account through the operator-only
   `/analytics/funnel` endpoint.
+- Keep `app.sagerouter.dev/account.html` aligned with the same activation
+  funnel: signed-in account, paid routing, generated key, public-edge
+  `/v1/models` verification, and server-recorded first routed usage.
 - Keep `/analytics/funnel` tied to the `$10k MRR` operating plan by reporting
   estimated current MRR, target attainment, and per-plan gaps against the
   recommended 100 Lite / 200 Pro / 50 Max launch mix.
