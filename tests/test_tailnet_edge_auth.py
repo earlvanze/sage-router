@@ -197,6 +197,31 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertIn('rel="account"', headers["Link"])
         self.assertIn('rel="pricing"', headers["Link"])
 
+    def test_edge_health_exposes_public_safe_enforcement_state(self):
+        self.edge.UPSTREAMS[0].set_health(True, 12.3, "")
+
+        class Handler:
+            payload = None
+            status = None
+
+            def _json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Handler()
+        self.edge.EdgeHandler._edge_health(handler)
+
+        self.assertEqual(200, handler.status)
+        self.assertEqual("supabase", handler.payload["authMode"])
+        self.assertEqual("http://backend.local:8790", handler.payload["selected"])
+        self.assertEqual({
+            "rateLimitEnabled": True,
+            "rateLimitWindowSeconds": 60,
+            "quotaEnabled": True,
+            "apiKeyAuthCacheSeconds": 0.0,
+            "apiKeyPrefix": "sk_sage_",
+        }, handler.payload["enforcement"])
+
     def test_head_json_response_sends_headers_without_body(self):
         class Handler:
             command = "HEAD"

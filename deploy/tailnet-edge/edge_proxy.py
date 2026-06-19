@@ -642,6 +642,16 @@ def control_plane_upstreams():
     return [CONTROL_PLANE_UPSTREAM] if snap["healthy"] else []
 
 
+def edge_enforcement_state():
+    return {
+        "rateLimitEnabled": RATE_LIMIT_ENABLED,
+        "rateLimitWindowSeconds": RATE_LIMIT_WINDOW_SECONDS,
+        "quotaEnabled": QUOTA_ENABLED,
+        "apiKeyAuthCacheSeconds": API_KEY_AUTH_CACHE_TTL_SECONDS,
+        "apiKeyPrefix": API_KEY_PREFIX,
+    }
+
+
 class EdgeHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "sage-router-tailnet-edge"
@@ -714,6 +724,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
             "upstreams": upstreams,
             "controlPlane": control_plane,
             "authMode": EDGE_AUTH_MODE,
+            "enforcement": edge_enforcement_state(),
         })
 
     def _proxy(self):

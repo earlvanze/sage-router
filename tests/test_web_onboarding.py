@@ -32,6 +32,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("public Supabase auth settings expose browser-visible email/OAuth provider state", readiness)
         self.assertIn("Supabase GitHub provider mismatch", readiness)
         self.assertIn("public browser-visible Supabase auth settings", readme)
+        self.assertIn("durable quotas", readiness)
         self.assertIn("anonymous model and analytics APIs are blocked with hosted onboarding guidance", readiness)
         self.assertIn("accountUrl", readiness)
         self.assertIn("apiKeyPrefix", readiness)
