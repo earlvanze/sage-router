@@ -1818,9 +1818,21 @@ def stripe_plan_from_price_id(price_id):
 
 def stripe_plan_from_object(obj, fallback_customer_id=None, default='pro'):
     obj = obj if isinstance(obj, dict) else {}
-    items = (obj.get('items') or {}).get('data') if isinstance(obj.get('items'), dict) else []
-    if isinstance(items, list):
-        for item in items:
+    for collection_name in ('items', 'lines'):
+        line_items = (obj.get(collection_name) or {}).get('data') if isinstance(obj.get(collection_name), dict) else []
+        if isinstance(line_items, list):
+            for item in line_items:
+                price = (item or {}).get('price') or {}
+                plan = stripe_plan_from_price_id(price.get('id'))
+                if plan:
+                    return plan
+                plan_info = (item or {}).get('plan') or {}
+                if isinstance(plan_info, dict):
+                    plan = stripe_plan_from_price_id(plan_info.get('id'))
+                    if plan:
+                        return plan
+    if isinstance(obj.get('items'), list):
+        for item in obj.get('items') or []:
             price = (item or {}).get('price') or {}
             plan = stripe_plan_from_price_id(price.get('id'))
             if plan:
@@ -9728,6 +9740,13 @@ class Handler(BaseHTTPRequestHandler):
             elif customer_id and event_type in {'invoice.payment_failed', 'invoice.marked_uncollectible'}:
                 update_customer(customer_id, {
                     'status': 'past_due',
+                    'stripe_customer_id': obj.get('customer') or '',
+                    'stripe_subscription_id': obj.get('subscription') or '',
+                })
+            elif customer_id and event_type in {'invoice.payment_succeeded', 'invoice.paid'}:
+                update_customer(customer_id, {
+                    'plan': stripe_plan_from_object(obj, fallback_customer_id=customer_id),
+                    'status': 'active',
                     'stripe_customer_id': obj.get('customer') or '',
                     'stripe_subscription_id': obj.get('subscription') or '',
                 })

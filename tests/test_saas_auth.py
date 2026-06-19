@@ -1090,6 +1090,44 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertFalse(router.customer_is_active(updated))
         self.assertIsNone(router.verify_generated_api_key(raw))
 
+    def test_stripe_invoice_payment_success_recovers_routing_from_invoice_line_price(self):
+        router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
+        router.STRIPE_PRICE_IDS_RAW = 'lite=price_lite,pro=price_pro,max=price_max'
+        customer = self.active_customer()
+        router.update_customer(customer['id'], {
+            'plan': 'pro',
+            'status': 'past_due',
+            'stripe_customer_id': 'cus_1',
+            'stripe_subscription_id': 'sub_1',
+        })
+        raw, _row = router.create_api_key_for_customer(router.customer_by_id(customer['id']), 'prod')
+        self.assertIsNone(router.verify_generated_api_key(raw))
+
+        event = {
+            'id': 'evt_invoice_paid',
+            'type': 'invoice.payment_succeeded',
+            'data': {
+                'object': {
+                    'customer': 'cus_1',
+                    'subscription': 'sub_1',
+                    'lines': {
+                        'data': [
+                            {'price': {'id': 'price_max'}},
+                        ],
+                    },
+                },
+            },
+        }
+
+        handler = self.signed_stripe_webhook_handler(event)
+        router.Handler.do_POST(handler)
+        self.assertEqual(200, handler.status)
+        updated = router.customer_by_id(customer['id'])
+        self.assertEqual('max', updated['plan'])
+        self.assertEqual('active', updated['status'])
+        self.assertTrue(router.customer_is_active(updated))
+        self.assertIsNotNone(router.verify_generated_api_key(raw))
+
     def test_stripe_crypto_missing_config_and_options_cors(self):
         router.supabase_user_for_bearer = lambda token: {'id': 'user-1', 'email': 'u@example.com'}
 

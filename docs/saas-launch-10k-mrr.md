@@ -117,6 +117,10 @@ claim, or runtime feature flag.
   Stripe portal should update Sage Router quotas and routing state from the
   subscription item price before trusting webhook metadata or prior customer
   state.
+- Keep Stripe payment recovery automatic: signed `invoice.payment_succeeded`
+  and `invoice.paid` events should restore active generated-key routing after
+  resolving the existing Stripe customer binding and deriving the plan from
+  invoice line price IDs.
 - Keep Stripe webhook customer binding fail-closed: signed webhook metadata
   must agree with any existing `stripe_customer_id` binding before changing
   quota, plan, or routing state.
