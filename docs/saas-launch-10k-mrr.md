@@ -64,9 +64,13 @@ and abuse controls are in place.
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
 - Keep `/pricing`, `/status`, `/account.html`, `/login.html`, `/api/waitlist`,
-  `/compare/openrouter`, `/terms`, `/privacy`, and `/acceptable-use` in the
-  readiness gate.
-- Keep the public pricing and legal pages in sitemap and LLM discovery.
+  `/compare/openrouter`, `/model-routing-calculator`, `/terms`, `/privacy`,
+  and `/acceptable-use` in the readiness gate.
+- Keep the public pricing, calculator, and legal pages in sitemap and LLM
+  discovery.
+- Use the calculator as the lightweight qualification path before signup:
+  prospects estimate savings, review points, and fallback gaps, then create a
+  hosted API key or request implementation support.
 - Keep hosted positioning limited to routing/control-plane infrastructure until
   provider terms, billing, margin, and abuse controls support any managed
   provider resale offer.

@@ -5,6 +5,7 @@ Sage Router is an open-source, local-first AI model router and BYOK AI gateway f
 Canonical site: https://sagerouter.dev/
 OpenRouter comparison: https://sagerouter.dev/compare/openrouter
 Hosted pricing: https://sagerouter.dev/pricing
+Model Routing Calculator: https://sagerouter.dev/model-routing-calculator
 Terms: https://sagerouter.dev/terms
 Privacy: https://sagerouter.dev/privacy
 Acceptable Use: https://sagerouter.dev/acceptable-use
@@ -32,6 +33,7 @@ Hosted legal boundary: the hosted service sells routing infrastructure, account 
 - How to route requests across OpenAI, Anthropic, Gemini, Ollama, BYOK-compatible endpoints, and local models.
 - Local-first BYOK model routing for AI agents.
 - Sage Router vs OpenRouter for AI agent routing, local model fallback, and private provider credential custody.
+- AI model routing calculator for estimating cost leaks, escalation rules, fallback needs, and human-review points.
 
 
 Integration guides:

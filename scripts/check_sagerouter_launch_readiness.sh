@@ -295,6 +295,30 @@ check_marketing_pricing_page() {
   fi
 }
 
+check_model_routing_calculator() {
+  local page_code sitemap_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/model-routing-calculator")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "AI Model Routing Calculator" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "No login. No data leaves your browser." /tmp/sage-router-readiness-body; then
+    page_code="200:missing-no-storage-copy"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/model-routing-calculator" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-calculator-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" ]]; then
+    pass "marketing model routing calculator is live and in sitemap"
+  else
+    fail "marketing model routing calculator incomplete: page=${page_code} sitemap=${sitemap_code}"
+  fi
+}
+
 check_legal_pages() {
   local terms_code privacy_code acceptable_code sitemap_code
   terms_code="$(http_code_follow "${MARKETING_BASE%/}/terms")"
@@ -453,6 +477,7 @@ check_hosted_onboarding_pages
 check_waitlist_endpoint
 check_marketing_comparison_page
 check_marketing_pricing_page
+check_model_routing_calculator
 check_legal_pages
 check_admin_token
 check_origin_auth_gate

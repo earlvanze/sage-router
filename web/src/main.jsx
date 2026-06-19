@@ -35,6 +35,7 @@ function App() {
             <a href="#automation">Automation</a>
             <a href="#analytics">Analytics</a>
             <a href="/compare/openrouter">Compare</a>
+            <a href="/model-routing-calculator">Calculator</a>
             <a href="/pricing">Pricing</a>
             <a href="/status">Status</a>
             <a href="/analytics.html">Dashboard</a>
@@ -69,6 +70,9 @@ function App() {
               </a>
               <a className="button secondary" href="/compare/openrouter">
                 Compare OpenRouter
+              </a>
+              <a className="button secondary" href="/model-routing-calculator">
+                Estimate routing savings
               </a>
               <a className="button secondary" href="/pricing">
                 View pricing
@@ -177,6 +181,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           </p>
           <p><a className="inlineLink" href="/analytics.html">Open the private analytics dashboard →</a></p>
           <p><a className="inlineLink" href="/compare/openrouter">Read the Sage Router vs OpenRouter comparison →</a></p>
+          <p><a className="inlineLink" href="/model-routing-calculator">Estimate routing savings for one workflow →</a></p>
           <p><a className="inlineLink" href="/pricing">See hosted routing pricing and plan limits →</a></p>
         </div>
         <div className="cards">
@@ -361,6 +366,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/login.html">Login</a>
         <a href="/pricing">Pricing</a>
         <a href="/compare/openrouter">Compare OpenRouter</a>
+        <a href="/model-routing-calculator">Calculator</a>
         <a href="/status">Status</a>
         <a href="/terms">Terms</a>
         <a href="/privacy">Privacy</a>
