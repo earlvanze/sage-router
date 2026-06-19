@@ -117,6 +117,9 @@ claim, or runtime feature flag.
   Stripe portal should update Sage Router quotas and routing state from the
   subscription item price before trusting webhook metadata or prior customer
   state.
+- Keep Stripe webhook customer binding fail-closed: signed webhook metadata
+  must agree with any existing `stripe_customer_id` binding before changing
+  quota, plan, or routing state.
 - Capture managed-access beta demand through the waitlist `interest` metadata
   path from `/managed-access` and watch `managedAccessBetaInterest` plus
   `managedAccessShareOfWaitlist` in `/analytics/funnel` instead of advertising

@@ -5538,6 +5538,31 @@ def customer_by_stripe_customer_id(stripe_customer_id):
     return None
 
 
+def resolve_stripe_webhook_customer_id(obj):
+    obj = obj if isinstance(obj, dict) else {}
+    metadata = obj.get('metadata') or {}
+    metadata_customer_id = str(metadata.get('customer_id') or obj.get('client_reference_id') or '').strip()
+    stripe_customer_id = str(obj.get('customer') or '').strip()
+    customer_from_stripe = customer_by_stripe_customer_id(stripe_customer_id) if stripe_customer_id else None
+
+    if customer_from_stripe:
+        resolved_id = str(customer_from_stripe.get('id') or '')
+        if metadata_customer_id and metadata_customer_id != resolved_id:
+            raise ValueError('stripe_customer_mismatch')
+        return resolved_id
+
+    if metadata_customer_id:
+        customer = customer_by_id(metadata_customer_id)
+        if not customer:
+            raise ValueError('stripe_customer_not_found')
+        existing_stripe_customer_id = str(customer.get('stripe_customer_id') or '').strip()
+        if stripe_customer_id and existing_stripe_customer_id and existing_stripe_customer_id != stripe_customer_id:
+            raise ValueError('stripe_customer_mismatch')
+        return metadata_customer_id
+
+    return ''
+
+
 def update_customer(customer_id, updates):
     updates = dict(updates or {})
     updates['updated_at_epoch'] = now_epoch()
@@ -9677,11 +9702,12 @@ class Handler(BaseHTTPRequestHandler):
                 self.write_json(200, {'received': True, 'duplicate': True, 'event_id': event_id})
                 return
             obj = ((event.get('data') or {}).get('object') or {}) if isinstance(event, dict) else {}
-            metadata = obj.get('metadata') or {}
-            customer_id = metadata.get('customer_id') or obj.get('client_reference_id')
-            if not customer_id:
-                existing = customer_by_stripe_customer_id(obj.get('customer'))
-                customer_id = (existing or {}).get('id')
+            try:
+                customer_id = resolve_stripe_webhook_customer_id(obj)
+            except ValueError as e:
+                logger.warning(f'Stripe webhook customer binding rejected: {str(e)} event={event_id or "unknown"}')
+                self.write_json(409, {'error': str(e), 'event_id': event_id})
+                return
             if customer_id and event_type == 'checkout.session.completed':
                 update_customer(customer_id, {
                     'plan': stripe_plan_from_object(obj, fallback_customer_id=customer_id),
