@@ -6,17 +6,13 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0",
-    "index:google": "gis https://sagerouter.dev",
-    "index:google:retry": "GIS_QUOTA_RPM_RETRY=true gis https://sagerouter.dev"
+    "preview": "vite preview --host 0.0.0.0"
   },
-  "dependencies": {
+  "dependencies": {},
+  "devDependencies": {
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
+    "vite": "8.0.16",
     "react": "latest",
     "react-dom": "latest"
-  },
-  "devDependencies": {
-    "google-indexing-script": "^0.4.0"
   }
 }

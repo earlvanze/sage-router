@@ -1,31 +1,25 @@
-# Google Indexing integration
+# Google indexing
 
-This landing site is wired to use [`google-indexing-script`](https://github.com/goenning/google-indexing-script) for Search Console URL inspection and Indexing API submission.
+The landing site publishes passive discovery files for Google and other crawlers:
 
-## One-time setup
+- `public/sitemap.xml`
+- `public/robots.txt`
+- `public/llms.txt`
+- `public/llms-full.txt`
+
+The previous active submission helper used `google-indexing-script@0.4.0`.
+That package currently has unpatched transitive audit findings, so it is no
+longer installed by `npm install` or exposed through `npm run` scripts.
+
+## Manual Search Console setup
 
 1. Verify `https://sagerouter.dev/` in Google Search Console.
-2. In Google Cloud, enable:
-   - Google Search Console API
-   - Web Search Indexing API
-3. Create a service account, add its email as an Owner for the Search Console property, and save the JSON key at `~/.gis/service_account.json`.
-
-Do not commit the service account JSON.
-
-## Run
-
-```bash
-npm install
-npm run index:google
-```
-
-If minute quota throttling gets in the way:
-
-```bash
-npm run index:google:retry
-```
+2. Submit `https://sagerouter.dev/sitemap.xml` in Search Console.
+3. Use URL inspection manually for priority pages after deployment.
 
 ## Notes
 
-- `public/sitemap.xml` and `public/robots.txt` are already present for `https://sagerouter.dev/`.
-- Google's Indexing API is officially intended for pages with `JobPosting` or `BroadcastEvent` structured data. This script can still inspect sitemap URLs, but indexing submission behavior depends on Google's API eligibility and Search Console ownership.
+- Google's Indexing API is officially intended for pages with `JobPosting` or
+  `BroadcastEvent` structured data. Sage Router pages should rely on sitemap
+  discovery unless a maintained, audited submission client is added later.
+- Do not commit Google service account JSON files or Search Console credentials.
