@@ -273,10 +273,11 @@
       <div class="container grid">
         <section>
           <span class="eyebrow">Sage Router account</span>
-          <h1>Sign in to your routing control plane.</h1>
+          <h1>Access your routing control plane.</h1>
           <p>
-            Use enabled OAuth providers, email, or connect an Algorand wallet.
-            Provider access stays separate from model credentials.
+            Create an account or sign in with enabled OAuth providers, email,
+            or an Algorand wallet. Provider access stays separate from model
+            credentials.
           </p>
         </section>
         <section class="panel">
@@ -309,13 +310,14 @@
               ><input
                 id="password"
                 type="password"
-                autocomplete="current-password"
+                autocomplete="new-password"
                 placeholder="Optional for magic link"
               />
             </div>
           </div>
           <div class="actions">
-            <button id="password-login" class="btn ghost">
+            <button id="password-signup" class="btn">Create account</button
+            ><button id="password-login" class="btn ghost">
               Sign in with password</button
             ><button id="magic-login" class="btn ghost">Send magic link</button>
           </div>

@@ -79,7 +79,7 @@ The current public deployment is intentionally split:
 
 The hosted account page at `https://app.sagerouter.dev/account.html` is the customer onboarding surface:
 
-1. Sign in with email or an enabled Supabase OAuth provider.
+1. Create an account or sign in with email, magic link, or an enabled Supabase OAuth provider.
 2. Choose Lite, Pro, or Max. Stripe checkout posts the selected plan to `/billing/stripe/checkout`; crypto/manual settlement stays available for accounts that are not ready for Stripe.
 3. Generate an `sk_sage_*` API key and use the copyable OpenAI-compatible quickstart.
 
@@ -112,12 +112,12 @@ Hosted plan limits are exposed from `/pricing` and enforced at the public edge:
 
 ### Hosted Auth
 
-The hosted web app uses Supabase Auth. GitHub login requires a GitHub OAuth/GitHub App client, not repository permissions:
+The hosted web app uses Supabase Auth. Email/password signup and email magic links are the baseline onboarding path; OAuth buttons are additive and appear only when the matching provider is enabled in Supabase. GitHub login requires a GitHub OAuth/GitHub App client, not repository permissions:
 
 - Homepage URL: `https://app.sagerouter.dev`
 - Authorization callback URL: `https://awtangrlqqsdpksarhwo.supabase.co/auth/v1/callback`
 
-The account, login, and analytics pages read `https://awtangrlqqsdpksarhwo.supabase.co/auth/v1/settings` with the public anon key and hide disabled OAuth providers. This keeps onboarding usable while GitHub or other providers are still being configured.
+The account, login, and analytics pages read `https://awtangrlqqsdpksarhwo.supabase.co/auth/v1/settings` with the public anon key and hide disabled OAuth providers. This keeps onboarding usable through email signup while GitHub or other providers are still being configured.
 
 Bootstrap the GitHub app and wire Supabase without opening the Supabase dashboard:
 

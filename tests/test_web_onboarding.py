@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+from pathlib import Path
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class HostedOnboardingTests(unittest.TestCase):
+    def read_public(self, name):
+        return (ROOT / "web" / "public" / name).read_text(encoding="utf-8")
+
+    def test_account_page_has_explicit_email_signup(self):
+        html = self.read_public("account.html")
+        js = self.read_public("account.js")
+        self.assertIn('id="password-signup"', html)
+        self.assertIn("Create account", html)
+        self.assertIn("sb.auth.signUp", js)
+        self.assertIn("emailRedirectTo: `${window.location.origin}/account.html`", js)
+
+    def test_login_page_has_explicit_email_signup(self):
+        html = self.read_public("login.html")
+        js = self.read_public("auth.js")
+        self.assertIn('id="password-signup"', html)
+        self.assertIn("Create account", html)
+        self.assertIn("sb.auth.signUp", js)
+        self.assertIn("emailRedirectTo: `${window.location.origin}/login.html`", js)
+
+
+if __name__ == "__main__":
+    unittest.main()

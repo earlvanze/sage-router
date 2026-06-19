@@ -33,14 +33,14 @@
 
     <section id="auth-panel" class="panel">
       <h2>Sign up</h2>
-      <p>Email works immediately when Supabase Auth is enabled. OAuth buttons are shown only for providers currently enabled in Supabase.</p>
+      <p>Create an account with email and password, request a magic link, or use an enabled OAuth provider. OAuth buttons are shown only for providers currently enabled in Supabase.</p>
       <div class="actions"><button data-oauth="discord" class="btn hidden" disabled>Discord</button><button data-oauth="google" class="btn hidden" disabled>Google</button><button data-oauth="github" class="btn hidden" disabled>GitHub</button></div>
       <div id="oauth-status" class="status">Checking enabled OAuth providers...</div>
       <div class="authGrid">
         <div><label for="email">Email</label><input id="email" type="email" autocomplete="email" placeholder="you@example.com"></div>
-        <div><label for="password">Password</label><input id="password" type="password" autocomplete="current-password"></div>
+        <div><label for="password">Password</label><input id="password" type="password" autocomplete="new-password" placeholder="8+ characters"></div>
       </div>
-      <div class="actions"><button id="password-login" class="btn ghost">Sign in</button><button id="magic-login" class="btn ghost">Send magic link</button></div>
+      <div class="actions"><button id="password-signup" class="btn">Create account</button><button id="password-login" class="btn ghost">Sign in</button><button id="magic-login" class="btn ghost">Send magic link</button></div>
       <div id="auth-status" class="status"></div>
     </section>
 
