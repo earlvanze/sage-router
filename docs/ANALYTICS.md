@@ -70,6 +70,14 @@ accounts never use this page; signed-in customer analytics remain scoped to
 launch-plan targets and gives the operator the next stage to improve without
 returning customer identities.
 
+The same hosted operator dashboard includes a customer review panel backed by
+`/admin/customers`. It uses the same private token boundary as the global
+funnel, and the public edge pins `/admin` traffic to the control-plane origin
+instead of the lowest-latency model backend. The customer review table is for
+support, abuse, chargeback, and activation review only; it renders bounded
+customer, usage, activation, and public API-key metadata without raw generated
+keys, key hashes, provider credentials, prompts, or raw responses.
+
 ## Account readiness
 
 The hosted customer dashboard at `https://app.sagerouter.dev/analytics.html`

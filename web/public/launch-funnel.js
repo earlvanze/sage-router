@@ -46,6 +46,21 @@ function setStatus(message, tone = '') {
   status.textContent = message;
 }
 
+function setCustomerStatus(message, tone = '') {
+  const status = $('customer-status-message');
+  if (!status) return;
+  status.className = `status ${tone}`.trim();
+  status.textContent = message;
+}
+
+function operatorToken() {
+  return $('operator-token').value.trim();
+}
+
+function authHeaders(token, extra = {}) {
+  return { Authorization: `Bearer ${token}`, ...extra };
+}
+
 function rememberTokenIfRequested(token) {
   if ($('remember-token').checked) {
     sessionStorage.setItem(SESSION_TOKEN_KEY, token);
@@ -65,6 +80,43 @@ function loadRememberedToken() {
 function privacyLabel(privacy = {}) {
   const clean = privacy.containsEmails === false && privacy.containsApiKeys === false;
   return clean ? 'No emails or keys' : 'Review payload';
+}
+
+function customerPrivacyLabel(privacy = {}) {
+  const clean = privacy.containsRawApiKeys === false &&
+    privacy.containsApiKeyHashes === false &&
+    privacy.containsProviderCredentials === false &&
+    privacy.containsPrompts === false &&
+    privacy.operatorOnly === true;
+  return clean ? 'No raw keys/hashes' : 'Review payload';
+}
+
+function formatDate(epoch) {
+  const value = asNumber(epoch);
+  return value > 0 ? new Date(value * 1000).toLocaleString() : '--';
+}
+
+function statusTone(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (['active', 'trialing', 'manual', 'paid'].includes(normalized)) return 'good';
+  if (['suspended', 'canceled', 'blocked'].includes(normalized)) return 'bad';
+  return 'warn';
+}
+
+function customerLabel(summary = {}) {
+  const customer = summary.customer || {};
+  return customer.email || customer.user_id || customer.id || 'unknown customer';
+}
+
+function usageLabel(summary = {}) {
+  const activation = summary.activation || {};
+  const usage = summary.usage || {};
+  if (usage.unlimited) return `${integer(usage.requests)} requests`;
+  return `${integer(usage.requests)} / ${integer(activation.quota ?? usage.quota)} requests`;
+}
+
+function customerActionLabel(action) {
+  return String(action || '').replace(/_/g, ' ');
 }
 
 function renderPlanMix(byPlan = {}) {
@@ -148,9 +200,86 @@ function renderFunnel(data) {
   $('dashboard').classList.remove('hidden');
 }
 
+function renderApiKeys(keys = []) {
+  if (!keys.length) return '<div class="empty">No generated API keys on this account.</div>';
+  return `<div class="tableWrap"><table>
+    <thead><tr><th>Name</th><th>Prefix</th><th>Status</th><th>Routing</th><th>Created</th><th>Last used</th></tr></thead>
+    <tbody>${keys.map(key => `<tr>
+      <td>${esc(key.name || 'Default')}</td>
+      <td><span class="pill">${esc(key.prefix || '--')}</span></td>
+      <td><span class="pill ${statusTone(key.status)}">${esc(key.status || 'active')}</span></td>
+      <td>${key.routing_enabled ? '<span class="good">enabled</span>' : '<span class="warn">blocked</span>'}</td>
+      <td>${formatDate(key.created_at_epoch)}</td>
+      <td>${formatDate(key.last_used_at_epoch)}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function renderCustomerDetail(summary = {}) {
+  const customer = summary.customer || {};
+  const activation = summary.activation || {};
+  const usage = summary.usage || {};
+  const status = customer.status || activation.status || 'inactive';
+  const isSuspended = status === 'suspended';
+  $('customer-detail').classList.remove('hidden');
+  $('customer-detail').innerHTML = `
+    <h3>${esc(customerLabel(summary))}</h3>
+    <div class="grid2">
+      <div class="metricList">
+        <div class="metric"><span>Customer ID</span><strong>${esc(customer.id || '--')}</strong></div>
+        <div class="metric"><span>Plan</span><strong>${esc(customer.plan || activation.plan || 'free')}</strong></div>
+        <div class="metric"><span>Status</span><strong><span class="pill ${statusTone(status)}">${esc(status)}</span></strong></div>
+        <div class="metric"><span>Next action</span><strong>${esc(customerActionLabel(activation.nextAction))}</strong></div>
+      </div>
+      <div class="metricList">
+        <div class="metric"><span>Usage</span><strong>${esc(usageLabel(summary))}</strong></div>
+        <div class="metric"><span>Active keys</span><strong>${integer(activation.activeKeyCount)}</strong></div>
+        <div class="metric"><span>Routing</span><strong>${activation.routingEnabled ? '<span class="good">enabled</span>' : '<span class="warn">blocked</span>'}</strong></div>
+        <div class="metric"><span>Updated</span><strong>${formatDate(customer.updated_at_epoch)}</strong></div>
+      </div>
+    </div>
+    <div class="actions" style="margin:14px 0">
+      <button class="btn danger" type="button" data-customer-action="suspend" data-customer-id="${esc(customer.id || '')}" ${isSuspended ? 'disabled' : ''}>Suspend</button>
+      <button class="btn secondary" type="button" data-customer-action="unsuspend" data-customer-id="${esc(customer.id || '')}" ${isSuspended ? '' : 'disabled'}>Unsuspend inactive</button>
+      <button class="btn secondary" type="button" data-customer-action="unsuspend-active" data-customer-id="${esc(customer.id || '')}" ${isSuspended ? '' : 'disabled'}>Unsuspend active</button>
+    </div>
+    ${renderApiKeys(summary.api_keys || [])}`;
+}
+
+function renderCustomers(data = {}) {
+  const customers = data.customers || [];
+  const privacy = data.privacy || {};
+  const omitsApiKeyHashes = privacy.containsApiKeyHashes === false;
+  const omitsRawApiKeys = privacy.containsRawApiKeys === false;
+  const privacyTone = omitsApiKeyHashes && omitsRawApiKeys ? 'good' : 'bad';
+  if (!customers.length) {
+    $('customers').innerHTML = `<div class="empty">No matching customers. <span class="pill ${privacyTone}">${esc(customerPrivacyLabel(privacy))}</span></div>`;
+    return;
+  }
+  $('customers').innerHTML = `<div class="tableWrap"><table>
+    <thead><tr><th>Customer</th><th>Plan</th><th>Status</th><th>Usage</th><th>Keys</th><th>Next action</th><th>Updated</th><th></th></tr></thead>
+    <tbody>${customers.map(summary => {
+      const customer = summary.customer || {};
+      const activation = summary.activation || {};
+      const status = customer.status || activation.status || 'inactive';
+      return `<tr>
+        <td>${esc(customerLabel(summary))}<br><span class="muted">${esc(customer.id || '')}</span></td>
+        <td>${esc(customer.plan || activation.plan || 'free')}</td>
+        <td><span class="pill ${statusTone(status)}">${esc(status)}</span></td>
+        <td>${esc(usageLabel(summary))}</td>
+        <td>${integer(activation.activeKeyCount)} active / ${integer(activation.keyCount)} total</td>
+        <td>${esc(customerActionLabel(activation.nextAction))}</td>
+        <td>${formatDate(customer.updated_at_epoch)}</td>
+        <td><button class="btn secondary" type="button" data-customer-action="detail" data-customer-id="${esc(customer.id || '')}">Review</button></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>
+  <p><span class="pill ${privacyTone}">${esc(customerPrivacyLabel(privacy))}</span></p>`;
+}
+
 async function fetchFunnel(event) {
   event?.preventDefault();
-  const token = $('operator-token').value.trim();
+  const token = operatorToken();
   const days = $('days').value || '30';
   if (!token) {
     setStatus('Operator token is required.', 'bad');
@@ -163,7 +292,7 @@ async function fetchFunnel(event) {
 
   try {
     const response = await fetch(`${API_BASE}/analytics/funnel?days=${encodeURIComponent(days)}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: authHeaders(token),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -178,17 +307,125 @@ async function fetchFunnel(event) {
   }
 }
 
+async function fetchCustomers(event) {
+  event?.preventDefault();
+  const token = operatorToken();
+  if (!token) {
+    setCustomerStatus('Operator token is required.', 'bad');
+    return;
+  }
+  rememberTokenIfRequested(token);
+  $('load-customers').disabled = true;
+  setCustomerStatus('Loading customer review...');
+  const params = new URLSearchParams();
+  const query = $('customer-query').value.trim();
+  const status = $('customer-status').value.trim();
+  const limit = $('customer-limit').value || '25';
+  if (query) params.set('q', query);
+  if (status) params.set('status', status);
+  params.set('limit', limit);
+  try {
+    const response = await fetch(`${API_BASE}/admin/customers?${params.toString()}`, {
+      headers: authHeaders(token),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    renderCustomers(data);
+    setCustomerStatus(`Loaded ${integer(data.count)} matching customer records.`, 'good');
+  } catch (error) {
+    setCustomerStatus(`Customer review failed: ${error.message}`, 'bad');
+  } finally {
+    $('load-customers').disabled = false;
+  }
+}
+
+async function fetchCustomerDetail(customerId) {
+  const token = operatorToken();
+  if (!token || !customerId) {
+    setCustomerStatus('Operator token and customer ID are required.', 'bad');
+    return;
+  }
+  setCustomerStatus('Loading customer detail...');
+  try {
+    const response = await fetch(`${API_BASE}/admin/customers/${encodeURIComponent(customerId)}`, {
+      headers: authHeaders(token),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    renderCustomerDetail(data);
+    setCustomerStatus('Loaded bounded customer detail.', 'good');
+  } catch (error) {
+    setCustomerStatus(`Customer detail failed: ${error.message}`, 'bad');
+  }
+}
+
+async function postCustomerAction(customerId, action) {
+  const token = operatorToken();
+  if (!token || !customerId) {
+    setCustomerStatus('Operator token and customer ID are required.', 'bad');
+    return;
+  }
+  const endpointAction = action === 'unsuspend-active' ? 'unsuspend' : action;
+  const body = action === 'unsuspend-active' ? { status: 'active' } : {};
+  if (action === 'suspend' && !confirm('Suspend this customer and revoke active generated API keys?')) {
+    return;
+  }
+  setCustomerStatus(`${customerActionLabel(action)} in progress...`);
+  try {
+    const response = await fetch(`${API_BASE}/admin/customers/${encodeURIComponent(customerId)}/${endpointAction}`, {
+      method: 'POST',
+      headers: authHeaders(token, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    const revokedApiKeysRemainRevoked = data.revokedApiKeysRemainRevoked === true;
+    const suffix = revokedApiKeysRemainRevoked ? ' Revoked API keys remain revoked.' : '';
+    await fetchCustomerDetail(customerId);
+    await fetchCustomers();
+    setCustomerStatus(`${customerActionLabel(action)} complete.${suffix}`, 'good');
+  } catch (error) {
+    setCustomerStatus(`${customerActionLabel(action)} failed: ${error.message}`, 'bad');
+  }
+}
+
 function clearToken() {
   sessionStorage.removeItem(SESSION_TOKEN_KEY);
   $('operator-token').value = '';
   $('remember-token').checked = false;
   setStatus('Operator token cleared for this tab.');
+  setCustomerStatus('Operator token cleared for this tab.');
+}
+
+function clearCustomerSearch() {
+  $('customer-query').value = '';
+  $('customer-status').value = '';
+  $('customer-limit').value = '25';
+  $('customers').innerHTML = '';
+  $('customer-detail').classList.add('hidden');
+  setCustomerStatus('Customer search cleared.');
+}
+
+function handleCustomerClick(event) {
+  const button = event.target.closest('[data-customer-action]');
+  if (!button) return;
+  const customerId = button.getAttribute('data-customer-id');
+  const action = button.getAttribute('data-customer-action');
+  if (action === 'detail') {
+    fetchCustomerDetail(customerId);
+    return;
+  }
+  postCustomerAction(customerId, action);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   loadRememberedToken();
   $('controls').addEventListener('submit', fetchFunnel);
   $('clear-token').addEventListener('click', clearToken);
+  $('customer-controls').addEventListener('submit', fetchCustomers);
+  $('clear-customer-search').addEventListener('click', clearCustomerSearch);
+  $('customers').addEventListener('click', handleCustomerClick);
+  $('customer-detail').addEventListener('click', handleCustomerClick);
   if ($('operator-token').value) {
     fetchFunnel();
   }

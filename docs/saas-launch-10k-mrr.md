@@ -133,6 +133,10 @@ claim, or runtime feature flag.
   the private operator token and return only customer, usage, activation, and
   public API-key metadata, without raw generated keys, key hashes, provider
   credentials, prompts, or raw provider responses.
+- Keep the hosted operator customer review on
+  `https://app.sagerouter.dev/launch-funnel.html` and route `/admin/customers`
+  through the public edge control-plane path, not the latency-selected model
+  backend.
 - Keep operator review release fail-closed: `POST /admin/customers/{customer_id}/unsuspend`
   must require the private operator token, default the customer to `inactive`,
   only restore active routing when an operator explicitly requests an active

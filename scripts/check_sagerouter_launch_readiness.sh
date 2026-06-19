@@ -232,7 +232,7 @@ check_public_api_browser_boundary() {
 }
 
 check_browser_api_cors() {
-  local headers code allow_origin allow_methods allow_headers chat_headers chat_code chat_allow_origin chat_allow_methods chat_allow_headers funnel_headers funnel_code funnel_allow_origin funnel_allow_headers
+  local headers code allow_origin allow_methods allow_headers chat_headers chat_code chat_allow_origin chat_allow_methods chat_allow_headers funnel_headers funnel_code funnel_allow_origin funnel_allow_headers admin_headers admin_code admin_allow_origin admin_allow_methods admin_allow_headers admin_post_headers admin_post_code admin_post_allow_origin admin_post_allow_methods admin_post_allow_headers
   headers="$(mktemp)"
   code="$(
     curl -sS -o /tmp/sage-router-readiness-body -D "$headers" -w '%{http_code}' \
@@ -271,12 +271,40 @@ check_browser_api_cors() {
   funnel_allow_headers="$(awk 'tolower($1)=="access-control-allow-headers:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$funnel_headers" | tail -n1)"
   rm -f "$funnel_headers" /tmp/sage-router-readiness-body
 
+  admin_headers="$(mktemp)"
+  admin_code="$(
+    curl -sS -o /tmp/sage-router-readiness-body -D "$admin_headers" -w '%{http_code}' \
+      -X OPTIONS "${API_BASE%/}/admin/customers?limit=1" \
+      -H "Origin: ${APP_BASE%/}" \
+      -H "Access-Control-Request-Method: GET" \
+      -H "Access-Control-Request-Headers: authorization"
+  )"
+  admin_allow_origin="$(awk 'tolower($1)=="access-control-allow-origin:" {sub(/\r$/,"",$2); print $2}' "$admin_headers" | tail -n1)"
+  admin_allow_methods="$(awk 'tolower($1)=="access-control-allow-methods:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$admin_headers" | tail -n1)"
+  admin_allow_headers="$(awk 'tolower($1)=="access-control-allow-headers:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$admin_headers" | tail -n1)"
+  rm -f "$admin_headers" /tmp/sage-router-readiness-body
+
+  admin_post_headers="$(mktemp)"
+  admin_post_code="$(
+    curl -sS -o /tmp/sage-router-readiness-body -D "$admin_post_headers" -w '%{http_code}' \
+      -X OPTIONS "${API_BASE%/}/admin/customers/customer_1/suspend" \
+      -H "Origin: ${APP_BASE%/}" \
+      -H "Access-Control-Request-Method: POST" \
+      -H "Access-Control-Request-Headers: authorization,content-type"
+  )"
+  admin_post_allow_origin="$(awk 'tolower($1)=="access-control-allow-origin:" {sub(/\r$/,"",$2); print $2}' "$admin_post_headers" | tail -n1)"
+  admin_post_allow_methods="$(awk 'tolower($1)=="access-control-allow-methods:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$admin_post_headers" | tail -n1)"
+  admin_post_allow_headers="$(awk 'tolower($1)=="access-control-allow-headers:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$admin_post_headers" | tail -n1)"
+  rm -f "$admin_post_headers" /tmp/sage-router-readiness-body
+
   if [[ "$code" == "204" && "$allow_origin" == "${APP_BASE%/}" && "$allow_methods" == *"GET"* && "$allow_methods" == *"OPTIONS"* && "$allow_headers" == *"Authorization"* &&
         "$chat_code" == "204" && "$chat_allow_origin" == "${APP_BASE%/}" && "$chat_allow_methods" == *"POST"* && "$chat_allow_methods" == *"OPTIONS"* && "$chat_allow_headers" == *"Authorization"* &&
-        "$funnel_code" == "204" && "$funnel_allow_origin" == "${APP_BASE%/}" && "$funnel_allow_headers" == *"Authorization"* ]]; then
-    pass "browser API-key verification, first routed request, and operator launch funnel CORS preflights are enabled"
+        "$funnel_code" == "204" && "$funnel_allow_origin" == "${APP_BASE%/}" && "$funnel_allow_headers" == *"Authorization"* &&
+        "$admin_code" == "204" && "$admin_allow_origin" == "${APP_BASE%/}" && "$admin_allow_methods" == *"GET"* && "$admin_allow_headers" == *"Authorization"* &&
+        "$admin_post_code" == "204" && "$admin_post_allow_origin" == "${APP_BASE%/}" && "$admin_post_allow_methods" == *"POST"* && "$admin_post_allow_headers" == *"Authorization"* && "$admin_post_allow_headers" == *"Content-Type"* ]]; then
+    pass "browser API-key verification, first routed request, operator launch funnel CORS preflights are enabled, and operator customer review CORS preflights are enabled"
   else
-    fail "browser CORS preflight failed: /v1/models code=${code} allowOrigin=${allow_origin:-missing} allowMethods=${allow_methods:-missing} allowHeaders=${allow_headers:-missing}; /v1/chat/completions code=${chat_code} allowOrigin=${chat_allow_origin:-missing} allowMethods=${chat_allow_methods:-missing} allowHeaders=${chat_allow_headers:-missing}; /analytics/funnel code=${funnel_code} allowOrigin=${funnel_allow_origin:-missing} allowHeaders=${funnel_allow_headers:-missing}"
+    fail "browser CORS preflight failed: /v1/models code=${code} allowOrigin=${allow_origin:-missing} allowMethods=${allow_methods:-missing} allowHeaders=${allow_headers:-missing}; /v1/chat/completions code=${chat_code} allowOrigin=${chat_allow_origin:-missing} allowMethods=${chat_allow_methods:-missing} allowHeaders=${chat_allow_headers:-missing}; /analytics/funnel code=${funnel_code} allowOrigin=${funnel_allow_origin:-missing} allowHeaders=${funnel_allow_headers:-missing}; /admin/customers code=${admin_code} allowOrigin=${admin_allow_origin:-missing} allowMethods=${admin_allow_methods:-missing} allowHeaders=${admin_allow_headers:-missing}; /admin/customers suspend code=${admin_post_code} allowOrigin=${admin_post_allow_origin:-missing} allowMethods=${admin_post_allow_methods:-missing} allowHeaders=${admin_post_allow_headers:-missing}"
   fi
 }
 
@@ -475,11 +503,17 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Launch bottlenecks" /tmp/sage-router-readiness-body; then
     launch_funnel_code="200:missing-launch-bottlenecks"
   fi
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Customer Review" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:missing-customer-review"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   launch_funnel_js_code="$(http_code_follow "${APP_BASE%/}/launch-funnel.js")"
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "/analytics/funnel" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-funnel-call"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "/admin/customers" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-customer-review-call"
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "sessionStorage" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-tab-scoped-token-storage"
@@ -525,7 +559,7 @@ check_hosted_onboarding_pages() {
   rm -f /tmp/sage-router-readiness-body
 
   if [[ "$login_code" == "200" && "$account_code" == "200" && "$analytics_code" == "200" && "$launch_funnel_code" == "200" && "$launch_funnel_js_code" == "200" && "$status_code" == "200" && "$status_js_code" == "200" && "$analytics_js_code" == "200" && "$account_js_code" == "200" && "$manifest_code" == "200" ]]; then
-    pass "hosted login, account, API-key verification, analytics, operator launch funnel, reliability status, and GitHub auth callback pages are live"
+    pass "hosted login, account, API-key verification, analytics, operator launch funnel, reliability status, and GitHub auth callback pages are live; operator customer review is live"
   else
     fail "hosted onboarding pages incomplete: login=${login_code} account=${account_code} account.js=${account_js_code} analytics=${analytics_code} analytics.js=${analytics_js_code} launch-funnel=${launch_funnel_code} launch-funnel.js=${launch_funnel_js_code} status=${status_code} status.js=${status_js_code} github-app-manifest=${manifest_code}"
   fi

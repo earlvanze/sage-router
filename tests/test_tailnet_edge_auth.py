@@ -175,7 +175,7 @@ class TailnetEdgeAuthTests(unittest.TestCase):
                 ctx = self.edge.EdgeHandler._auth_context(Handler())
                 self.assertEqual("generated_key", ctx["type"])
 
-        for path in ("/analytics", "/analytics/funnel", "/admin/blocks", "/discovery"):
+        for path in ("/analytics", "/analytics/funnel", "/admin/blocks", "/admin/customers", "/discovery"):
             with self.subTest(path=path):
                 Handler.path = path
                 self.assertIsNone(self.edge.EdgeHandler._auth_context(Handler()))
@@ -274,6 +274,8 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertTrue(self.edge.should_use_control_plane("/features/agent-native"))
         self.assertTrue(self.edge.should_use_control_plane("/account/api-keys"))
         self.assertTrue(self.edge.should_use_control_plane("/analytics/funnel?days=30"))
+        self.assertTrue(self.edge.should_use_control_plane("/admin/customers?limit=1"))
+        self.assertTrue(self.edge.should_use_control_plane("/admin/customers/customer_1/suspend"))
         self.assertTrue(self.edge.should_use_control_plane("/billing/stripe/webhook"))
         self.assertFalse(self.edge.should_use_control_plane("/v1/models"))
         self.assertFalse(self.edge.should_use_control_plane("/health"))
@@ -296,6 +298,10 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertEqual(
             "hosted-control-plane",
             self.edge.outbound_bearer_token("/analytics/funnel", {"type": "edge_token", "preserve_authorization": False}),
+        )
+        self.assertEqual(
+            "hosted-control-plane",
+            self.edge.outbound_bearer_token("/admin/customers", {"type": "edge_token", "preserve_authorization": False}),
         )
         self.assertEqual(
             "tailnet-backend",
