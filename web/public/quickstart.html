@@ -128,9 +128,22 @@ client.chat.completions.create(
         <article class="card">
           <span class="pill">Codex</span>
           <h3>Hosted profile</h3>
-          <pre><code>export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
+          <pre><code>mkdir -p ~/.codex
+cat >> ~/.codex/config.toml &lt;&lt;'TOML'
+[model_providers.sage-router-hosted]
+name = "Sage Router Hosted"
+base_url = "https://api.sagerouter.dev/v1/"
+env_key = "OPENAI_API_KEY"
+wire_api = "responses"
+TOML
+
+cat &gt; ~/.codex/sage-router-hosted.config.toml &lt;&lt;'TOML'
+model_provider = "sage-router-hosted"
+model = "sage-router/frontier"
+TOML
+
 export OPENAI_API_KEY=sk_sage_your_key_here
-export OPENAI_MODEL=sage-router/frontier</code></pre>
+codex --profile sage-router-hosted</code></pre>
         </article>
       </section>
 

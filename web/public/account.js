@@ -228,6 +228,7 @@ cat >> ~/.codex/config.toml <<'TOML'
 [model_providers.sage-router-hosted]
 name = "Sage Router Hosted"
 base_url = "${openaiBaseUrl}/"
+env_key = "OPENAI_API_KEY"
 wire_api = "responses"
 TOML
 

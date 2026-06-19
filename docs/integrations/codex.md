@@ -4,11 +4,31 @@ Codex CLI can use Sage Router as an OpenAI-compatible endpoint.
 
 ## Setup
 
-Start Sage Router on port `8790`, then export:
+Start Sage Router on port `8790`, then add a Codex provider that forwards the
+API key from `OPENAI_API_KEY`:
+
+```toml
+# ~/.codex/config.toml
+[model_providers.sage-router]
+name = "Sage Router"
+base_url = "http://127.0.0.1:8790/v1/"
+env_key = "OPENAI_API_KEY"
+wire_api = "responses"
+```
+
+Create a Sage Router profile:
+
+```toml
+# ~/.codex/sage-router.config.toml
+model_provider = "sage-router"
+model = "sage-router/frontier"
+```
+
+Then export a local router token or generated `sk_sage_*` key and start Codex:
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:8790/v1
 export OPENAI_API_KEY=local-router
+codex --profile sage-router
 ```
 
 Use a provider-qualified model when you want an explicit route:

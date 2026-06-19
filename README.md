@@ -286,6 +286,7 @@ Codex CLI can use Sage Router through the OpenAI Responses-compatible endpoint. 
 [model_providers.sage-router]
 name = "Sage Router"
 base_url = "http://127.0.0.1:8790/v1/"
+env_key = "OPENAI_API_KEY"
 wire_api = "responses"
 ```
 
@@ -299,6 +300,7 @@ model = "sage-router/frontier"
 Run Codex with:
 
 ```bash
+export OPENAI_API_KEY=local-router
 codex --profile sage-router
 ```
 
