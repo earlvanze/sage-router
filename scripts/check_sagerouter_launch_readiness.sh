@@ -233,6 +233,7 @@ check_public_pricing_metadata() {
     (.publicLaunch.recommendedMix.monthlyRevenueUsd == 10200) and
     (.publicLaunch.primaryRevenueModel == "hosted_routing_control_plane") and
     (.publicLaunch.pricingPage == "https://sagerouter.dev/pricing") and
+    (.publicLaunch.modelCatalogPage == "https://sagerouter.dev/models") and
     ((.publicLaunch.complianceBoundary // "") | contains("does not grant unauthorized model access"))
   ' /tmp/sage-router-readiness-body)"
   rm -f /tmp/sage-router-readiness-body
@@ -240,6 +241,32 @@ check_public_pricing_metadata() {
     pass "public /pricing exposes hosted plan, Stripe billing, endpoint, limit, and launch metadata"
   else
     fail "public /pricing metadata incomplete: plans=${plans:-missing} apiBaseUrl=${api_base:-missing} openaiBaseUrl=${openai_base:-missing} checkoutPath=${checkout_path:-missing} billingPortalPath=${portal_path:-missing} apiKeyLimit=${api_key_limit:-missing} limits=${limits_ok:-missing} stripe=${stripe_ok:-missing} launch=${launch_ok:-missing}"
+  fi
+}
+
+check_public_model_catalog() {
+  local code families auth_required page openai_base boundary_ok
+  code="$(http_code "${API_BASE%/}/model-catalog")"
+  if [[ "$code" != "200" ]]; then
+    rm -f /tmp/sage-router-readiness-body
+    fail "public /model-catalog returned HTTP ${code}, expected 200"
+    return
+  fi
+  families="$(jq -r '((.modelCatalog.families // []) | length)' /tmp/sage-router-readiness-body)"
+  auth_required="$(jq -r '.modelCatalog.modelApiRequiresGeneratedKey // false' /tmp/sage-router-readiness-body)"
+  page="$(jq -r '.modelCatalog.catalogPage // empty' /tmp/sage-router-readiness-body)"
+  openai_base="$(jq -r '.modelCatalog.openaiBaseUrl // empty' /tmp/sage-router-readiness-body)"
+  boundary_ok="$(jq -r '
+    ((.modelCatalog.safetyBoundary // "") | contains("not a promise of bundled model resale")) and
+    ((.modelCatalog.families // []) | any(.id == "sage-router-profiles")) and
+    ((.modelCatalog.families // []) | any(.id == "ollama")) and
+    ((.modelCatalog.families // []) | any(.id == "byok-compatible"))
+  ' /tmp/sage-router-readiness-body)"
+  rm -f /tmp/sage-router-readiness-body
+  if [[ "$families" =~ ^[0-9]+$ && "$families" -ge 5 && "$auth_required" == "true" && "$page" == "${MARKETING_BASE%/}/models" && "$openai_base" == "${API_BASE%/}/v1" && "$boundary_ok" == "true" ]]; then
+    pass "public /model-catalog exposes safe model-family discovery while /v1/models remains key-gated"
+  else
+    fail "public /model-catalog metadata incomplete: families=${families:-missing} authRequired=${auth_required:-missing} page=${page:-missing} openaiBaseUrl=${openai_base:-missing} boundary=${boundary_ok:-missing}"
   fi
 }
 
@@ -449,6 +476,36 @@ check_marketing_pricing_page() {
     pass "marketing hosted pricing page is live and in sitemap"
   else
     fail "marketing hosted pricing page incomplete: page=${page_code} sitemap=${sitemap_code}"
+  fi
+}
+
+check_marketing_model_catalog_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/models")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router Model Catalog" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/v1/models" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-authenticated-model-api-boundary"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/models" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-models-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Model catalog: ${MARKETING_BASE%/}/models" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-model-catalog-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing model catalog page is live in sitemap and LLM discovery"
+  else
+    fail "marketing model catalog page incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
   fi
 }
 
@@ -696,6 +753,7 @@ check_browser_api_cors
 check_static_security_headers "${APP_BASE%/}/login" "hosted app"
 check_static_security_headers "${MARKETING_BASE%/}/pricing" "marketing"
 check_public_pricing_metadata
+check_public_model_catalog
 check_managed_provider_access_guard
 check_stripe_webhook_guard
 check_hosted_onboarding_pages
@@ -703,6 +761,7 @@ check_public_supabase_auth_settings
 check_waitlist_endpoint
 check_marketing_comparison_page
 check_marketing_pricing_page
+check_marketing_model_catalog_page
 check_model_routing_calculator
 check_legal_pages
 check_managed_provider_prerequisite_pages

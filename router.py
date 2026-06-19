@@ -241,11 +241,58 @@ PUBLIC_AGENT_NATIVE_FEATURES = {
     'costAndPlanTelemetry': {'description': 'Route events include selected model, attempts, elapsed time, customer plan, and auth type for pricing analytics.'},
     'freeTierFallbackPolicy': {'description': 'Eco/local/free profiles can be used for zero or low-balance workflows without blocking agent execution.'},
 }
+PUBLIC_MODEL_CATALOG = {
+    'description': 'Public model-family catalog for Sage Router hosted routing. This is discovery metadata only; live /v1/models remains authenticated with generated sk_sage_* customer API keys.',
+    'modelApiRequiresGeneratedKey': True,
+    'catalogPage': 'https://sagerouter.dev/models',
+    'modelApiPath': '/v1/models',
+    'recommendedModel': 'sage-router/frontier',
+    'families': [
+        {
+            'id': 'sage-router-profiles',
+            'name': 'Sage Router profiles',
+            'examples': ['sage-router/auto', 'sage-router/balanced', 'sage-router/frontier', 'sage-router/agentic'],
+            'access': 'Hosted profile aliases select across authorized providers, local models, and healthy fallback routes.',
+        },
+        {
+            'id': 'openai-codex',
+            'name': 'OpenAI and Codex-compatible routes',
+            'examples': ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'],
+            'access': 'Bring an authorized API key or compatible Codex/OpenClaw auth profile.',
+        },
+        {
+            'id': 'anthropic',
+            'name': 'Anthropic-compatible routes',
+            'examples': ['claude-opus', 'claude-sonnet', 'claude-haiku'],
+            'access': 'Bring authorized Anthropic/Dario access; hosted public plans do not pool personal provider accounts.',
+        },
+        {
+            'id': 'gemini',
+            'name': 'Google Gemini-compatible routes',
+            'examples': ['gemini-3-pro', 'gemini-3-flash', 'gemini-2.5-pro'],
+            'access': 'Bring authorized Google API or Vertex credentials.',
+        },
+        {
+            'id': 'ollama',
+            'name': 'Ollama local and Ollama Cloud routes',
+            'examples': ['llama3.3', 'qwen3-coder', 'gpt-oss:cloud'],
+            'access': 'Use customer-controlled local Ollama or authorized Ollama Cloud models discovered through the runtime.',
+        },
+        {
+            'id': 'byok-compatible',
+            'name': 'BYOK OpenAI-compatible providers',
+            'examples': ['nvidia-nim/nemotron', 'openrouter/free-models', 'darkbloom/custom'],
+            'access': 'Bring authorized provider keys for OpenAI-compatible endpoints such as NVIDIA NIM, OpenRouter-compatible, or private gateways.',
+        },
+    ],
+    'safetyBoundary': 'The public catalog is not a promise of bundled model resale. Provider access must be authorized by the customer or explicitly approved for managed access.',
+}
 PUBLIC_LAUNCH_POSITIONING = {
     'targetMrrUsd': 10000,
     'primaryRevenueModel': 'hosted_routing_control_plane',
     'pricingPage': 'https://sagerouter.dev/pricing',
     'comparisonPage': 'https://sagerouter.dev/compare/openrouter',
+    'modelCatalogPage': 'https://sagerouter.dev/models',
     'accountPage': 'https://app.sagerouter.dev/account.html',
     'recommendedMix': {
         'liteCustomers': 100,
@@ -256,6 +303,7 @@ PUBLIC_LAUNCH_POSITIONING = {
     'conversionSurfaces': [
         'sagerouter.dev',
         'sagerouter.dev/pricing',
+        'sagerouter.dev/models',
         'sagerouter.dev/compare/openrouter',
         'sagerouter.dev/model-routing-calculator',
         'app.sagerouter.dev/account.html',
@@ -1798,6 +1846,16 @@ def public_plan_catalog():
     return plans
 
 
+def public_model_catalog():
+    catalog = json.loads(json.dumps(PUBLIC_MODEL_CATALOG))
+    catalog['catalogPage'] = f"{MARKETING_BASE_URL}/models"
+    catalog['pricingPage'] = f"{MARKETING_BASE_URL}/pricing"
+    catalog['accountPage'] = f"{APP_BASE_URL}/account.html"
+    catalog['openaiBaseUrl'] = f"{API_BASE_URL or 'https://api.sagerouter.dev'}/v1"
+    catalog['apiKeyPrefix'] = API_KEY_PREFIX
+    return catalog
+
+
 def public_launch_metadata():
     api_base_url = API_BASE_URL or 'https://api.sagerouter.dev'
     launch = json.loads(json.dumps(PUBLIC_LAUNCH_POSITIONING))
@@ -1817,11 +1875,13 @@ def public_launch_metadata():
     launch['managedProviderAccess'] = managed_provider_access
     launch['pricingPage'] = f"{MARKETING_BASE_URL}/pricing"
     launch['comparisonPage'] = f"{MARKETING_BASE_URL}/compare/openrouter"
+    launch['modelCatalogPage'] = f"{MARKETING_BASE_URL}/models"
     launch['calculatorPage'] = f"{MARKETING_BASE_URL}/model-routing-calculator"
     launch['accountPage'] = f"{APP_BASE_URL}/account.html"
     launch['conversionSurfaces'] = [
         MARKETING_BASE_URL,
         f"{MARKETING_BASE_URL}/pricing",
+        f"{MARKETING_BASE_URL}/models",
         f"{MARKETING_BASE_URL}/compare/openrouter",
         f"{MARKETING_BASE_URL}/model-routing-calculator",
         f"{APP_BASE_URL}/account.html",
@@ -9027,6 +9087,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         elif self.path in {'/pricing', '/plans'}:
             self.write_json(200, {**public_launch_metadata(), 'plans': public_plan_catalog(), 'agentNativeFeatures': PUBLIC_AGENT_NATIVE_FEATURES})
+        elif self.path == '/model-catalog':
+            self.write_json(200, {'modelCatalog': public_model_catalog(), **public_launch_metadata()})
         elif self.path == '/features/agent-native':
             self.write_json(200, {'agentNativeFeatures': PUBLIC_AGENT_NATIVE_FEATURES})
         elif self.path == '/account':

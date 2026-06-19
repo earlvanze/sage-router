@@ -147,7 +147,7 @@ class TailnetEdgeAuthTests(unittest.TestCase):
     def test_public_control_plane_metadata_does_not_require_auth(self):
         self.edge.verify_supabase_generated_key = lambda token: self.fail("public metadata should not require an API key")
 
-        for path in ("/pricing", "/plans", "/features/agent-native"):
+        for path in ("/pricing", "/plans", "/model-catalog", "/features/agent-native"):
             with self.subTest(path=path):
                 class Handler:
                     headers = {}
@@ -270,6 +270,7 @@ class TailnetEdgeAuthTests(unittest.TestCase):
     def test_control_plane_route_predicate_is_narrow(self):
         self.assertTrue(self.edge.should_use_control_plane("/pricing"))
         self.assertTrue(self.edge.should_use_control_plane("/plans?currency=usd"))
+        self.assertTrue(self.edge.should_use_control_plane("/model-catalog"))
         self.assertTrue(self.edge.should_use_control_plane("/features/agent-native"))
         self.assertTrue(self.edge.should_use_control_plane("/account/api-keys"))
         self.assertTrue(self.edge.should_use_control_plane("/analytics/funnel?days=30"))

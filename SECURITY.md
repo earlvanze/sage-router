@@ -44,8 +44,9 @@ than a private local router:
   account.
 - generated-key traffic is rate-limited at the edge and can be counted against
   durable monthly Supabase quotas.
-- `/edge/health`, `/pricing`, `/plans`, and `/features/agent-native` expose only
-  public-safe operational and plan metadata.
+- `/edge/health`, `/pricing`, `/plans`, `/model-catalog`, and
+  `/features/agent-native` expose only public-safe operational, model-family,
+  and plan metadata.
 
 The launch readiness script verifies that anonymous model and analytics APIs are
 blocked. It also verifies that direct hosted origins fail closed, Supabase auth

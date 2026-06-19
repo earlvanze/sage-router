@@ -72,6 +72,7 @@ PUBLIC_PATHS = {"/edge/health"}
 PUBLIC_CONTROL_PLANE_PATHS = {
     "/pricing",
     "/plans",
+    "/model-catalog",
     "/features/agent-native",
 }
 USER_JWT_PREFIXES = (

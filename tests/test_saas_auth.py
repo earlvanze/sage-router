@@ -268,10 +268,13 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('hosted_routing_control_plane', launch['primaryRevenueModel'])
         self.assertEqual('https://sagerouter.dev/pricing', launch['pricingPage'])
         self.assertEqual('https://sagerouter.dev/compare/openrouter', launch['comparisonPage'])
+        self.assertEqual('https://sagerouter.dev/models', launch['modelCatalogPage'])
         self.assertEqual('https://sagerouter.dev/model-routing-calculator', launch['calculatorPage'])
         self.assertEqual('https://app.sagerouter.dev/account.html', launch['accountPage'])
         self.assertEqual(10200, launch['recommendedMix']['monthlyRevenueUsd'])
         self.assertIn('sagerouter.dev/pricing', router.PUBLIC_LAUNCH_POSITIONING['conversionSurfaces'])
+        self.assertIn('sagerouter.dev/models', router.PUBLIC_LAUNCH_POSITIONING['conversionSurfaces'])
+        self.assertIn('https://sagerouter.dev/models', launch['conversionSurfaces'])
         self.assertIn('sagerouter.dev/model-routing-calculator', router.PUBLIC_LAUNCH_POSITIONING['conversionSurfaces'])
         self.assertIn('https://sagerouter.dev/model-routing-calculator', launch['conversionSurfaces'])
         self.assertIn('usage quotas and request-per-minute limits', launch['sells'])
@@ -284,6 +287,21 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('rate_limits_and_durable_quotas', managed['requiredControls'])
         self.assertIn('acceptable_use_managed_access_terms', managed['requiredControls'])
         self.assertEqual('https://sagerouter.dev/acceptable-use', managed['acceptableUseUrl'])
+
+    def test_public_model_catalog_is_safe_discovery_metadata(self):
+        catalog = router.public_model_catalog()
+
+        self.assertTrue(catalog['modelApiRequiresGeneratedKey'])
+        self.assertEqual('https://sagerouter.dev/models', catalog['catalogPage'])
+        self.assertEqual('/v1/models', catalog['modelApiPath'])
+        self.assertEqual('sage-router/frontier', catalog['recommendedModel'])
+        self.assertEqual('https://api.sagerouter.dev/v1', catalog['openaiBaseUrl'])
+        self.assertIn('sk_sage_', catalog['apiKeyPrefix'])
+        family_ids = {row['id'] for row in catalog['families']}
+        self.assertIn('sage-router-profiles', family_ids)
+        self.assertIn('ollama', family_ids)
+        self.assertIn('byok-compatible', family_ids)
+        self.assertIn('not a promise of bundled model resale', catalog['safetyBoundary'])
 
     def test_managed_provider_access_requires_terms_and_margin_policy(self):
         old_env = {
