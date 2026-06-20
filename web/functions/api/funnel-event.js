@@ -9,6 +9,7 @@ const ALLOWED_EVENTS = new Set([
   'openrouter_compare_checkout_clicked',
   'openrouter_compare_account_clicked',
   'openrouter_compare_pricing_clicked',
+  'openrouter_compare_migration_clicked',
   'openrouter_compare_calculator_clicked',
   'openrouter_compare_managed_access_clicked',
   'account_plan_selected',
