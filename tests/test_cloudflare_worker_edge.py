@@ -56,6 +56,9 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
         self.assertIn("enforcement.authAttemptRateLimitEnabled === true", worker)
         self.assertIn("enforcement.quotaEnabled === true", worker)
         self.assertIn("Number(enforcement.apiKeyAuthCacheSeconds) === 0", worker)
+        self.assertIn("enforcement.corsWildcardAllowed === false", worker)
+        self.assertIn("enforcement.corsExplicitOriginRequired === true", worker)
+        self.assertIn("Number(enforcement.corsAllowedOriginsCount || 0) > 0", worker)
         self.assertIn("failover.mode === \"lowest-latency-healthy\"", worker)
         self.assertIn("!hasRawOriginUrl(payload.upstreams || [])", worker)
 

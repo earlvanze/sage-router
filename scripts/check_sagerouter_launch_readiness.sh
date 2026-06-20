@@ -160,7 +160,7 @@ PY
 check_edge_health() {
   local body
   body="$(curl -fsS "${API_BASE%/}/edge/health")"
-  local status auth_mode selected health_urls_redacted rate_limit_enabled auth_attempt_rate_limit_enabled auth_attempt_rate_limit quota_enabled api_key_auth_cache api_key_auth_cache_zero failover_ok
+  local status auth_mode selected health_urls_redacted rate_limit_enabled auth_attempt_rate_limit_enabled auth_attempt_rate_limit quota_enabled api_key_auth_cache api_key_auth_cache_zero cors_wildcard_blocked cors_explicit_origin_required cors_allowed_origins_count failover_ok
   status="$(printf '%s' "$body" | jq -r '.status // empty')"
   auth_mode="$(printf '%s' "$body" | jq -r '.authMode // empty')"
   selected="$(printf '%s' "$body" | jq -r '.selected // empty')"
@@ -174,16 +174,19 @@ check_edge_health() {
   quota_enabled="$(printf '%s' "$body" | jq -r '.enforcement.quotaEnabled // false')"
   api_key_auth_cache="$(printf '%s' "$body" | jq -r '.enforcement.apiKeyAuthCacheSeconds // empty')"
   api_key_auth_cache_zero="$(printf '%s' "$body" | jq -r '(.enforcement.apiKeyAuthCacheSeconds // -1) == 0')"
+  cors_wildcard_blocked="$(printf '%s' "$body" | jq -r '.enforcement.corsWildcardAllowed == false')"
+  cors_explicit_origin_required="$(printf '%s' "$body" | jq -r '.enforcement.corsExplicitOriginRequired == true')"
+  cors_allowed_origins_count="$(printf '%s' "$body" | jq -r '.enforcement.corsAllowedOriginsCount // 0')"
   failover_ok="$(printf '%s' "$body" | jq -r '
     ((.failover // {}) | .mode == "lowest-latency-healthy") and
     ((.failover // {}) | .retryEnabled == true) and
     ((.failover.retryStatuses // []) | index(502) and index(503) and index(504)) and
     ((.failover // {}) | .retryHeader == "X-Sage-Router-Retry-Count")
   ')"
-  if [[ "$status" == "ok" && "$auth_mode" == "supabase" && -n "$selected" && "$health_urls_redacted" == "true" && "$rate_limit_enabled" == "true" && "$auth_attempt_rate_limit_enabled" == "true" && "$auth_attempt_rate_limit" -gt 0 && "$quota_enabled" == "true" && "$api_key_auth_cache_zero" == "true" && "$failover_ok" == "true" ]]; then
-    pass "edge healthy with supabase auth, redacted health snapshots, rate limits, auth-attempt throttling, durable quotas, immediate generated-key revocation, and retry failover; selected ${selected}"
+  if [[ "$status" == "ok" && "$auth_mode" == "supabase" && -n "$selected" && "$health_urls_redacted" == "true" && "$rate_limit_enabled" == "true" && "$auth_attempt_rate_limit_enabled" == "true" && "$auth_attempt_rate_limit" -gt 0 && "$quota_enabled" == "true" && "$api_key_auth_cache_zero" == "true" && "$cors_wildcard_blocked" == "true" && "$cors_explicit_origin_required" == "true" && "$cors_allowed_origins_count" -gt 0 && "$failover_ok" == "true" ]]; then
+    pass "edge healthy with supabase auth, redacted health snapshots, rate limits, auth-attempt throttling, durable quotas, immediate generated-key revocation, non-wildcard browser CORS, and retry failover; selected ${selected}"
   else
-    fail "edge health unexpected: status=${status:-missing} authMode=${auth_mode:-missing} selected=${selected:-missing} healthUrlsRedacted=${health_urls_redacted:-missing} rateLimit=${rate_limit_enabled:-missing} authAttemptRateLimit=${auth_attempt_rate_limit_enabled:-missing}/${auth_attempt_rate_limit:-missing} quota=${quota_enabled:-missing} apiKeyAuthCache=${api_key_auth_cache:-missing} failover=${failover_ok:-missing}"
+    fail "edge health unexpected: status=${status:-missing} authMode=${auth_mode:-missing} selected=${selected:-missing} healthUrlsRedacted=${health_urls_redacted:-missing} rateLimit=${rate_limit_enabled:-missing} authAttemptRateLimit=${auth_attempt_rate_limit_enabled:-missing}/${auth_attempt_rate_limit:-missing} quota=${quota_enabled:-missing} apiKeyAuthCache=${api_key_auth_cache:-missing} corsWildcardBlocked=${cors_wildcard_blocked:-missing} corsExplicitOrigin=${cors_explicit_origin_required:-missing} corsAllowedOrigins=${cors_allowed_origins_count:-missing} failover=${failover_ok:-missing}"
   fi
 }
 

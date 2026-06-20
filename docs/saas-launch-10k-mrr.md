@@ -281,6 +281,10 @@ provider resale claim, or runtime feature flag.
   enabled, higher than the highest legitimate per-plan RPM, and visible in
   `/edge/health` so random invalid `sk_sage_*` traffic cannot create unbounded
   service-role reads.
+- Keep hosted browser CORS explicit at the public edge: `SAGE_ROUTER_CORS_ORIGIN`
+  should list the app and marketing origins rather than `*`, and `/edge/health`
+  must report `corsWildcardAllowed=false` before Cloudflare or launch readiness
+  treats an origin as public-SaaS safe.
 - Capture one-subscription and Max implementation demand with allowlisted
   target provider family, commercial preference, support need, target launch
   window, and inbound intent buckets, so provider resale and implementation

@@ -246,6 +246,9 @@ class TailnetEdgeAuthTests(unittest.TestCase):
             "quotaEnabled": True,
             "apiKeyAuthCacheSeconds": 0.0,
             "apiKeyPrefix": "sk_sage_",
+            "corsWildcardAllowed": False,
+            "corsExplicitOriginRequired": True,
+            "corsAllowedOriginsCount": 4,
         }, handler.payload["enforcement"])
         self.assertEqual({
             "mode": "lowest-latency-healthy",
@@ -255,6 +258,15 @@ class TailnetEdgeAuthTests(unittest.TestCase):
             "retryStatuses": [401, 429, 502, 503, 504],
             "retryHeader": "X-Sage-Router-Retry-Count",
         }, handler.payload["failover"])
+
+    def test_edge_health_flags_wildcard_cors_as_not_launch_ready(self):
+        self.edge.CORS_ORIGINS = ["*"]
+
+        self.assertEqual({
+            "corsWildcardAllowed": True,
+            "corsExplicitOriginRequired": False,
+            "corsAllowedOriginsCount": 3,
+        }, self.edge.edge_cors_state())
 
     def test_upstream_health_requires_success_status(self):
         class FakeResponse:

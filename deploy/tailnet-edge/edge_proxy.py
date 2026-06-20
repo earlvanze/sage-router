@@ -669,6 +669,15 @@ def configured_browser_allowed_origins():
     return allowed
 
 
+def edge_cors_state():
+    cors_wildcard_allowed = "*" in CORS_ORIGINS
+    return {
+        "corsWildcardAllowed": cors_wildcard_allowed,
+        "corsExplicitOriginRequired": not cors_wildcard_allowed,
+        "corsAllowedOriginsCount": len(configured_browser_allowed_origins()),
+    }
+
+
 def browser_origin_allowed(origin):
     normalized = normalize_browser_origin(origin)
     if not normalized:
@@ -899,6 +908,7 @@ def edge_enforcement_state():
         "quotaEnabled": QUOTA_ENABLED,
         "apiKeyAuthCacheSeconds": API_KEY_AUTH_CACHE_TTL_SECONDS,
         "apiKeyPrefix": API_KEY_PREFIX,
+        **edge_cors_state(),
     }
 
 

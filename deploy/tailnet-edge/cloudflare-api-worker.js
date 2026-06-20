@@ -150,6 +150,9 @@ function publicEdgeHealthSatisfied(payload) {
     && Number(enforcement.authAttemptRateLimit || 0) > 0
     && enforcement.quotaEnabled === true
     && Number(enforcement.apiKeyAuthCacheSeconds) === 0
+    && enforcement.corsWildcardAllowed === false
+    && enforcement.corsExplicitOriginRequired === true
+    && Number(enforcement.corsAllowedOriginsCount || 0) > 0
     && failover.mode === "lowest-latency-healthy"
     && failover.retryEnabled === true
     && retryStatuses.includes(502)

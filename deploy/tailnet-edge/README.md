@@ -68,6 +68,11 @@ SAGE_ROUTER_EDGE_QUOTA_ENABLED=1
 SAGE_ROUTER_EDGE_MONTHLY_QUOTAS=trial=1000,lite=10000,pro=50000,max=200000,paid=50000,active=50000,default=0
 ```
 
+For the hosted public API, keep `SAGE_ROUTER_CORS_ORIGIN` as explicit app and
+marketing origins. Do not set it to `*`: `/edge/health` reports the CORS
+posture, launch readiness requires `corsWildcardAllowed=false`, and the
+Cloudflare worker rejects origins that do not prove explicit browser CORS.
+
 If browser account or billing requests go through the edge, route them to the hosted control-plane Sage Router instance rather than a random private model router:
 
 ```dotenv
@@ -139,8 +144,8 @@ Do not CNAME `api.sagerouter.dev` directly to a Funnel hostname unless you have 
 cd deploy/tailnet-edge
 cp wrangler.api-sagerouter.example.toml wrangler.toml
 # Edit SAGE_ROUTER_ORIGINS to include only verified public edge origins whose
-# /edge/health proves Supabase auth, quotas, rate limits, retry failover, and
-# redacted health snapshots.
+# /edge/health proves Supabase auth, quotas, rate limits, non-wildcard CORS,
+# retry failover, and redacted health snapshots.
 npx wrangler deploy --config wrangler.toml
 ```
 
