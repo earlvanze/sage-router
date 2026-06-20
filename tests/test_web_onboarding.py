@@ -103,6 +103,9 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("/v1/chat/completions", readiness)
         self.assertIn("missing-api-key-revoke", readiness)
         self.assertIn("self-service API-key revocation", readiness)
+        self.assertIn("missing-github-credential-save-command", readiness)
+        self.assertIn("missing-github-secret-preservation-guidance", readiness)
+        self.assertIn("GitHub credential preservation guidance", readiness)
 
     def test_github_supabase_configurator_verifies_management_and_public_state(self):
         script = self.read_text("scripts", "configure_supabase_github_auth.sh")

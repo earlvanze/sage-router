@@ -626,10 +626,16 @@ check_hosted_onboarding_pages() {
   if [[ "$manifest_code" == "200" ]] && ! grep -q "Finish GitHub auth setup" /tmp/sage-router-readiness-body; then
     manifest_code="200:unexpected-body"
   fi
+  if [[ "$manifest_code" == "200" ]] && ! grep -q "SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env" /tmp/sage-router-readiness-body; then
+    manifest_code="200:missing-github-credential-save-command"
+  fi
+  if [[ "$manifest_code" == "200" ]] && ! grep -q "preserve the one-time client secret" /tmp/sage-router-readiness-body; then
+    manifest_code="200:missing-github-secret-preservation-guidance"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   if [[ "$login_code" == "200" && "$account_code" == "200" && "$analytics_code" == "200" && "$launch_funnel_code" == "200" && "$launch_funnel_js_code" == "200" && "$status_code" == "200" && "$status_js_code" == "200" && "$analytics_js_code" == "200" && "$account_js_code" == "200" && "$manifest_code" == "200" ]]; then
-    pass "hosted login, account, API-key verification, analytics, operator launch funnel, reliability status, and GitHub auth callback pages are live; self-service API-key revocation and operator customer review are live"
+    pass "hosted login, account, API-key verification, analytics, operator launch funnel, reliability status, and GitHub auth callback pages are live; self-service API-key revocation, operator customer review, and GitHub credential preservation guidance are live"
   else
     fail "hosted onboarding pages incomplete: login=${login_code} account=${account_code} account.js=${account_js_code} analytics=${analytics_code} analytics.js=${analytics_js_code} launch-funnel=${launch_funnel_code} launch-funnel.js=${launch_funnel_js_code} status=${status_code} status.js=${status_js_code} github-app-manifest=${manifest_code}"
   fi
