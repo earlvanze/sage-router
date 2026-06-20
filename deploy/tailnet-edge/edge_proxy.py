@@ -841,7 +841,7 @@ def check_upstream(upstream):
         resp = conn.getresponse()
         resp.read(4096)
         elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
-        if 200 <= resp.status < 500:
+        if 200 <= resp.status < 300:
             upstream.set_health(True, elapsed_ms, "")
         else:
             upstream.set_health(False, elapsed_ms, f"HTTP {resp.status}")

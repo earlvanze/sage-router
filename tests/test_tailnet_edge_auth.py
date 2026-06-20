@@ -250,6 +250,46 @@ class TailnetEdgeAuthTests(unittest.TestCase):
             "retryHeader": "X-Sage-Router-Retry-Count",
         }, handler.payload["failover"])
 
+    def test_upstream_health_requires_success_status(self):
+        class FakeResponse:
+            def __init__(self, status):
+                self.status = status
+
+            def read(self, _limit):
+                return b""
+
+        class FakeConnection:
+            def __init__(self, status):
+                self.status = status
+                self.closed = False
+
+            def request(self, method, path, headers=None):
+                self.method = method
+                self.path = path
+                self.headers = headers or {}
+
+            def getresponse(self):
+                return FakeResponse(self.status)
+
+            def close(self):
+                self.closed = True
+
+        for status, expected in ((200, True), (204, True), (302, False), (401, False), (503, False)):
+            with self.subTest(status=status):
+                upstream = self.edge.Upstream("http://backend.local:8790")
+                conn = FakeConnection(status)
+                upstream.connection = lambda timeout, conn=conn: conn
+
+                self.edge.check_upstream(upstream)
+                snapshot = upstream.snapshot()
+
+                self.assertEqual(expected, snapshot["healthy"])
+                self.assertTrue(conn.closed)
+                if expected:
+                    self.assertEqual("", snapshot["last_error"])
+                else:
+                    self.assertEqual(f"HTTP {status}", snapshot["last_error"])
+
     def test_browser_origin_guard_rejects_untrusted_account_billing_and_admin_mutations(self):
         for path in (
             "/account/api-keys",
