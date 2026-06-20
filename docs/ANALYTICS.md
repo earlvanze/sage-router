@@ -85,6 +85,11 @@ The acquisition actions table ranks active source/channel signals by anonymous
 CTA clicks, and the revenue actions table ranks Lite, Pro, and Max plan gaps by
 remaining MRR so the operator can choose the next acquisition motion without
 returning customer identities.
+The same dashboard includes an operational readiness panel backed only by
+public `/edge/health` and `/pricing` metadata. It keeps live edge health,
+customer API-key enforcement, Stripe checkout/portal readiness, and
+managed-provider gating visible next to MRR actions without sending the private
+operator token to those public metadata routes.
 
 The same hosted operator dashboard includes a customer review panel backed by
 `/admin/customers`. It uses the same private token boundary as the global

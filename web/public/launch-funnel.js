@@ -26,6 +26,18 @@ function percent(value) {
   return `${(asNumber(value) * 100).toFixed(1)}%`;
 }
 
+function host(url) {
+  try {
+    return new URL(url).host;
+  } catch (_error) {
+    return url || 'unknown';
+  }
+}
+
+function fmtLatency(value) {
+  return Number.isFinite(Number(value)) ? `${Math.round(Number(value))} ms` : '--';
+}
+
 function esc(value) {
   return String(value ?? '').replace(/[&<>'"]/g, char => ({
     '&': '&amp;',
@@ -443,6 +455,82 @@ function renderAuthProviderState(authState = {}) {
   }</div>`;
 }
 
+function readinessPill(label, good) {
+  return `<span class="pill ${good ? 'good' : 'warn'}">${esc(label)}</span>`;
+}
+
+function renderOperationalReadiness(health = {}, pricing = {}) {
+  const upstreams = Array.isArray(health.upstreams) ? health.upstreams : [];
+  const healthyRows = upstreams.filter(row => row.healthy);
+  const failover = health.failover || {};
+  const healthyCount = Number.isFinite(Number(failover.healthyUpstreamCount))
+    ? Number(failover.healthyUpstreamCount)
+    : healthyRows.length;
+  const selected = upstreams.find(row => row.url === health.selected) || {};
+  const enforcement = health.enforcement || {};
+  const stripe = pricing.billing?.stripe || {};
+  const managed = pricing.publicLaunch?.managedProviderAccess || {};
+  const missingControls = Array.isArray(managed.missingControls) ? managed.missingControls : [];
+  const checkoutPlans = Array.isArray(stripe.configuredPlans) ? stripe.configuredPlans : [];
+  const retryEnabled = failover.retryEnabled === true;
+  const quotaReady = enforcement.quotaEnabled === true && enforcement.authAttemptRateLimitEnabled === true;
+  const checkoutReady = stripe.checkoutReady === true && stripe.billingPortalReady === true;
+  const managedSafelyGated = managed.enabled === false && managed.readinessSatisfied !== true;
+  const rows = [
+    {
+      title: 'Public edge',
+      status: health.status === 'ok' && healthyCount > 0 ? `${healthyCount}/${upstreams.length} healthy` : 'degraded',
+      ok: health.status === 'ok' && healthyCount > 0,
+      detail: `${host(health.selected || selected.url || '--')} selected at ${fmtLatency(selected.latency_ms)}; retry failover ${retryEnabled ? 'enabled' : 'not reported'}.`,
+    },
+    {
+      title: 'Customer enforcement',
+      status: health.authMode === 'supabase' && quotaReady ? 'API-key gated' : 'review',
+      ok: health.authMode === 'supabase' && quotaReady,
+      detail: `Auth mode ${health.authMode || 'unknown'}; quotas ${enforcement.quotaEnabled ? 'enabled' : 'disabled'}; invalid key throttle ${enforcement.authAttemptRateLimitEnabled ? 'enabled' : 'disabled'}.`,
+    },
+    {
+      title: 'Checkout',
+      status: checkoutReady ? 'self-serve ready' : 'manual fallback',
+      ok: checkoutReady,
+      detail: checkoutReady
+        ? `Stripe checkout and portal are ready for ${checkoutPlans.join(', ') || 'configured plans'}.`
+        : 'Use manual settlement or billing support until Stripe checkout and portal metadata are ready.',
+    },
+    {
+      title: 'Managed provider access',
+      status: managed.enabled ? 'enabled' : 'gated',
+      ok: managedSafelyGated,
+      detail: managedSafelyGated
+        ? `Public resale remains disabled; missing controls: ${missingControls.slice(0, 4).join(', ') || 'not reported'}.`
+        : 'Review provider terms, margin, quota, and abuse controls before marketing bundled provider access.',
+    },
+  ];
+  $('operational-readiness').innerHTML = rows.map(row => `<article>
+    <div class="metric"><span>${esc(row.title)}</span><strong>${readinessPill(row.status, row.ok)}</strong></div>
+    <p class="muted">${esc(row.detail)}</p>
+  </article>`).join('');
+}
+
+async function fetchOperationalReadiness() {
+  const target = $('operational-readiness');
+  if (!target) return;
+  target.innerHTML = '<div class="empty">Loading live operational readiness...</div>';
+  try {
+    const [healthResponse, pricingResponse] = await Promise.all([
+      fetch(`${API_BASE}/edge/health`, { cache: 'no-store' }),
+      fetch(`${API_BASE}/pricing`, { cache: 'no-store' }),
+    ]);
+    const health = await healthResponse.json().catch(() => ({}));
+    const pricing = await pricingResponse.json().catch(() => ({}));
+    if (!healthResponse.ok) throw new Error(health.error || `edge health HTTP ${healthResponse.status}`);
+    if (!pricingResponse.ok) throw new Error(pricing.error || `pricing HTTP ${pricingResponse.status}`);
+    renderOperationalReadiness(health, pricing);
+  } catch (error) {
+    target.innerHTML = `<div class="empty">Operational readiness unavailable: ${esc(error.message)}</div>`;
+  }
+}
+
 function renderFunnel(data) {
   const stages = data.stages || {};
   const rates = data.rates || {};
@@ -483,6 +571,7 @@ function renderFunnel(data) {
   renderPlanMix(mrr.byPlan || {});
   renderRevenueActions(mrr.planRevenueActions || []);
   $('dashboard').classList.remove('hidden');
+  fetchOperationalReadiness();
 }
 
 function renderApiKeys(keys = []) {
