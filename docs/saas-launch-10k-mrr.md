@@ -193,6 +193,10 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   API-key creation, Stripe checkout, and manual crypto payment intent creation
   require verified email unless a trusted private deployment explicitly sets
   `SAGE_ROUTER_REQUIRE_VERIFIED_EMAIL=0`.
+- Keep customer emergency revocation available: a signed-in customer can revoke
+  their own generated API keys even before email verification is complete, while
+  the revoke endpoint still scopes the key lookup to that customer's id so one
+  account cannot revoke another customer's key.
 - Track the funnel from waitlist to signup, generated key, first routed request,
   paid conversion, and retained paid account through the operator-only
   `/analytics/funnel` endpoint.

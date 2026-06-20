@@ -262,6 +262,72 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(403, checkout_handler.status)
         self.assertEqual('email_verification_required', checkout_handler.payload['error'])
 
+    def test_unverified_hosted_user_can_revoke_own_generated_key(self):
+        router.SUPABASE_AUTH_ENABLED = True
+        router.REQUIRE_VERIFIED_EMAIL = True
+        router.supabase_user_for_bearer = lambda token: {
+            'id': 'user-unverified',
+            'email': 'unverified@example.com',
+        } if token == 'valid-user-jwt' else None
+        customer = router.customer_for_user({'id': 'user-unverified', 'email': 'unverified@example.com'})
+        router.update_customer(customer['id'], {'plan': 'pro', 'status': 'active'})
+        active_customer = router.customer_by_id(customer['id'])
+        raw, row = router.create_api_key_for_customer(active_customer, 'leaked')
+        self.assertIsNotNone(router.verify_generated_api_key(raw))
+
+        class Dummy:
+            def __init__(self):
+                self.path = f'/account/api-keys/{row["id"]}/revoke'
+                self.headers = {'Authorization': 'Bearer valid-user-jwt', 'Content-Length': '2'}
+                self.rfile = BytesIO(b'{}')
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(200, handler.status)
+        self.assertEqual('revoked', handler.payload['api_key']['status'])
+        self.assertIsNone(router.verify_generated_api_key(raw))
+
+    def test_hosted_user_cannot_revoke_another_customers_key(self):
+        router.SUPABASE_AUTH_ENABLED = True
+        router.REQUIRE_VERIFIED_EMAIL = True
+        router.supabase_user_for_bearer = lambda token: {
+            'id': 'user-a',
+            'email': 'a@example.com',
+            'email_confirmed_at': '2026-06-20T00:00:00Z',
+        } if token == 'valid-user-jwt' else None
+        customer_a = router.customer_for_user({'id': 'user-a', 'email': 'a@example.com'})
+        customer_b = router.customer_for_user({'id': 'user-b', 'email': 'b@example.com'})
+        router.update_customer(customer_a['id'], {'plan': 'pro', 'status': 'active'})
+        router.update_customer(customer_b['id'], {'plan': 'pro', 'status': 'active'})
+        active_b = router.customer_by_id(customer_b['id'])
+        raw_b, row_b = router.create_api_key_for_customer(active_b, 'belongs-to-b')
+
+        class Dummy:
+            def __init__(self):
+                self.path = f'/account/api-keys/{row_b["id"]}/revoke'
+                self.headers = {'Authorization': 'Bearer valid-user-jwt', 'Content-Length': '2'}
+                self.rfile = BytesIO(b'{}')
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(404, handler.status)
+        self.assertEqual('api_key_not_found', handler.payload['error'])
+        self.assertIsNotNone(router.verify_generated_api_key(raw_b))
+
     def test_verified_hosted_user_can_create_generated_key(self):
         router.SUPABASE_AUTH_ENABLED = True
         router.REQUIRE_VERIFIED_EMAIL = True

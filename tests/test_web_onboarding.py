@@ -75,6 +75,9 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("utmSource", js)
         self.assertIn("referrerHost", js)
         self.assertIn("landingPath", js)
+        self.assertIn('data-revoke="${esc(k.id)}"', js)
+        self.assertIn("/account/api-keys/${encodeURIComponent(id)}/revoke", js)
+        self.assertIn("Revoking...", js)
 
     def test_readiness_checks_public_supabase_auth_settings(self):
         readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")
@@ -97,6 +100,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("API-only browser/dashboard boundary", readme)
         self.assertIn("first routed request", readiness)
         self.assertIn("/v1/chat/completions", readiness)
+        self.assertIn("missing-api-key-revoke", readiness)
+        self.assertIn("self-service API-key revocation", readiness)
 
     def test_github_supabase_configurator_verifies_management_and_public_state(self):
         script = self.read_text("scripts", "configure_supabase_github_auth.sh")
