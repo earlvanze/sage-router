@@ -33,6 +33,14 @@ The endpoint returns:
 - `recommendations.mostReliableModels[]`
 - `recommendations.degradedModels[]`
 
+Supabase onboarding metadata is bounded separately from route telemetry. Email
+signup and magic-link requests may attach selected hosted plan, signup surface,
+auth method, UTM source/medium/campaign, referrer host, and landing path to the
+Supabase user record; OAuth redirects keep that same coarse context in browser
+storage. Do not attach prompts, workflow text, provider credentials, OAuth
+tokens, generated API keys, private keys, raw URLs, cookies, raw provider
+responses, or customer data.
+
 ## Launch Funnel Endpoint
 
 ```bash

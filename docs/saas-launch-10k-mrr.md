@@ -290,6 +290,13 @@ provider resale claim, or runtime feature flag.
   treating GitHub OAuth as complete. When GitHub is still disabled, the status
   helper prints the hosted fallback owner handoff and local credential-save path
   so the manifest secret is not lost during Supabase setup.
+- Keep signup attribution bounded. Email signup and magic-link requests can
+  attach Supabase user metadata for selected hosted plan, signup surface, auth
+  method, UTM source/medium/campaign, referrer host, and landing path. OAuth
+  redirects can persist the same context in browser storage. Do not attach
+  prompts, workflow text, provider credentials, OAuth tokens, generated API
+  keys, private keys, raw URLs, cookies, raw provider responses, or customer
+  data.
 - Keep hosted account abuse controls on by default: with Supabase Auth enabled,
   API-key creation, Stripe checkout, and manual crypto payment intent creation
   require verified email unless a trusted private deployment explicitly sets

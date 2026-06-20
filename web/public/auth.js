@@ -5,6 +5,49 @@ const $ = (id) => document.getElementById(id);
 const set = (id, text) => { const el = $(id); if (el) el.textContent = text; };
 const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
 const OAUTH_PROVIDER_ORDER = ['github', 'google', 'discord'];
+const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
+
+function attributionValue(value) {
+  const sanitized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._/-]+/g, '-')
+    .slice(0, 80);
+  return sanitized || null;
+}
+
+function currentReferrerHost() {
+  try {
+    const referrer = document.referrer ? new URL(document.referrer) : null;
+    return referrer && referrer.host !== window.location.host ? attributionValue(referrer.host) : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function onboardingContext(extra = {}) {
+  const params = new URLSearchParams(window.location.search || '');
+  return {
+    sage_router_onboarding: true,
+    signup_source: 'login',
+    auth_method: extra.authMethod || null,
+    utm_source: attributionValue(params.get('utm_source') || params.get('utmSource')),
+    utm_medium: attributionValue(params.get('utm_medium') || params.get('utmMedium')),
+    utm_campaign: attributionValue(params.get('utm_campaign') || params.get('utmCampaign')),
+    referrer_host: currentReferrerHost(),
+    landing_path: window.location.pathname,
+  };
+}
+
+function rememberOnboardingContext(context) {
+  try {
+    window.localStorage?.setItem(ONBOARDING_CONTEXT_STORAGE_KEY, JSON.stringify(context));
+  } catch (_error) {
+    // Onboarding can continue without local persistence.
+  }
+  return context;
+}
+
 function trackLoginFunnelEvent(event, data = {}) {
   const params = new URLSearchParams(window.location.search);
   let referrerHost = null;
@@ -97,10 +140,10 @@ async function applyAuthSettings() {
   }
 }
 async function refreshSession() { const { data } = await sb.auth.getSession(); const session = data?.session; if (session?.user) { set('session-status', `Signed in as ${session.user.email || session.user.user_metadata?.full_name || session.user.id}`); $('sign-out')?.classList.remove('hidden'); } else { set('session-status', 'Choose a sign-in method.'); $('sign-out')?.classList.add('hidden'); } }
-async function oauthLogin(provider) { set('auth-status', `Opening ${provider} sign-in...`); trackLoginFunnelEvent('account_oauth_clicked', { button: provider, target: '/auth/v1/authorize', state: provider }); const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: `${window.location.origin}/login.html` } }); if (error) set('auth-status', error.message); }
+async function oauthLogin(provider) { set('auth-status', `Opening ${provider} sign-in...`); rememberOnboardingContext(onboardingContext({ authMethod: provider })); trackLoginFunnelEvent('account_oauth_clicked', { button: provider, target: '/auth/v1/authorize', state: provider }); const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: `${window.location.origin}/login.html` } }); if (error) set('auth-status', error.message); }
 async function passwordLogin() { set('auth-status', 'Signing in...'); const email = $('email')?.value.trim(); const password = $('password')?.value; if (!email) { set('auth-status', 'Enter your email first.'); return; } if (!password) { set('auth-status', 'Enter a password, or use Send magic link.'); return; } trackLoginFunnelEvent('account_login_submitted', { button: 'password_login', target: '/auth/v1/token', state: 'password' }); const { error } = await sb.auth.signInWithPassword({ email, password }); set('auth-status', error ? error.message : 'Signed in.'); if (!error) { trackLoginFunnelEvent('account_login_succeeded', { button: 'password_login', target: '/login.html', state: 'password' }); refreshSession(); } }
-async function passwordSignup() { set('auth-status', 'Creating account...'); const email = $('email')?.value.trim(); const password = $('password')?.value; if (!email) { set('auth-status', 'Enter your email first.'); return; } if (!password) { set('auth-status', 'Enter a password for the new account.'); return; } if (password.length < 8) { set('auth-status', 'Use at least 8 characters for the password.'); return; } trackLoginFunnelEvent('account_signup_submitted', { button: 'password_signup', target: '/auth/v1/signup', state: 'password' }); const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/login.html` } }); if (error) { set('auth-status', error.message); return; } trackLoginFunnelEvent('account_signup_succeeded', { button: 'password_signup', target: '/login.html', state: data?.session ? 'signed_in' : 'email_confirmation' }); set('auth-status', data?.session ? 'Account created and signed in.' : 'Account created. Check your email to confirm, then sign in.'); refreshSession(); }
-async function magicLogin() { set('auth-status', 'Sending magic link...'); const email = $('email')?.value.trim(); if (!email) { set('auth-status', 'Enter your email first.'); return; } trackLoginFunnelEvent('account_magic_link_requested', { button: 'magic_login', target: '/auth/v1/otp', state: 'email' }); const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/login.html` } }); if (!error) trackLoginFunnelEvent('account_magic_link_sent', { button: 'magic_login', target: '/login.html', state: 'email' }); set('auth-status', error ? error.message : 'Magic link sent. Check your email.'); }
+async function passwordSignup() { set('auth-status', 'Creating account...'); const email = $('email')?.value.trim(); const password = $('password')?.value; if (!email) { set('auth-status', 'Enter your email first.'); return; } if (!password) { set('auth-status', 'Enter a password for the new account.'); return; } if (password.length < 8) { set('auth-status', 'Use at least 8 characters for the password.'); return; } trackLoginFunnelEvent('account_signup_submitted', { button: 'password_signup', target: '/auth/v1/signup', state: 'password' }); const metadata = onboardingContext({ authMethod: 'password' }); rememberOnboardingContext(metadata); const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/login.html`, data: metadata } }); if (error) { set('auth-status', error.message); return; } trackLoginFunnelEvent('account_signup_succeeded', { button: 'password_signup', target: '/login.html', state: data?.session ? 'signed_in' : 'email_confirmation' }); set('auth-status', data?.session ? 'Account created and signed in.' : 'Account created. Check your email to confirm, then sign in.'); refreshSession(); }
+async function magicLogin() { set('auth-status', 'Sending magic link...'); const email = $('email')?.value.trim(); if (!email) { set('auth-status', 'Enter your email first.'); return; } trackLoginFunnelEvent('account_magic_link_requested', { button: 'magic_login', target: '/auth/v1/otp', state: 'email' }); const metadata = onboardingContext({ authMethod: 'magic_link' }); rememberOnboardingContext(metadata); const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/login.html`, data: metadata } }); if (!error) trackLoginFunnelEvent('account_magic_link_sent', { button: 'magic_login', target: '/login.html', state: 'email' }); set('auth-status', error ? error.message : 'Magic link sent. Check your email.'); }
 async function walletLogin() { try { set('wallet-status', 'Connecting wallet...'); trackLoginFunnelEvent('login_wallet_clicked', { button: 'wallet_login', target: '/login.html', state: 'algorand' }); if (window.algorand?.enable) { const result = await window.algorand.enable({ genesisID: 'mainnet-v1.0' }); const account = result?.accounts?.[0]?.address || result?.accounts?.[0]; if (!account) throw new Error('No wallet account returned.'); localStorage.setItem('sage_wallet_address', account); trackLoginFunnelEvent('login_wallet_connected', { button: 'wallet_login', target: '/login.html', state: 'algorand' }); set('wallet-status', `Wallet connected: ${account.slice(0, 8)}…${account.slice(-6)}`); return; } throw new Error('Install or unlock an Algorand wallet extension, then try again.'); } catch (error) { set('wallet-status', error.message || 'Wallet connection failed.'); } }
 document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventListener('click', () => { if (!button.disabled) oauthLogin(button.dataset.oauth); }));
 $('wallet-login')?.addEventListener('click', walletLogin); $('password-signup')?.addEventListener('click', passwordSignup); $('password-login')?.addEventListener('click', passwordLogin); $('magic-login')?.addEventListener('click', magicLogin); $('sign-out')?.addEventListener('click', async () => { await sb.auth.signOut(); refreshSession(); }); sb.auth.onAuthStateChange(() => refreshSession()); refreshSession();

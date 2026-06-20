@@ -197,6 +197,14 @@ The hosted web app uses Supabase Auth. Email/password signup and email magic lin
 
 The account, login, and analytics pages read `https://awtangrlqqsdpksarhwo.supabase.co/auth/v1/settings` with the public anon key and hide disabled OAuth providers. This keeps onboarding usable through email signup while GitHub or other providers are still being configured.
 
+Email signup and magic-link requests attach bounded Supabase user metadata for
+launch attribution: selected hosted plan, signup surface, auth method, UTM
+source/medium/campaign, referrer host, and landing path. OAuth clicks persist
+the same bounded context in browser storage before the provider redirect. This
+metadata must not include prompts, workflow text, provider credentials, OAuth
+tokens, generated API keys, private keys, raw URLs, cookies, raw provider
+responses, or customer data.
+
 Hosted customer actions require verified email by default when
 `SAGE_ROUTER_SUPABASE_AUTH_ENABLED=1`. The account page still loads for
 signed-in users and shows the verification state, but API-key creation, Stripe

@@ -5,6 +5,7 @@ let openaiBaseUrl = `${sageRouterUrl}/v1`;
 let anthropicBaseUrl = sageRouterUrl;
 const DEFAULT_PLAN_ORDER = ['lite', 'pro', 'max'];
 const SELECTED_PLAN_STORAGE_KEY = 'sage_router_selected_plan';
+const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
 const FALLBACK_PLANS = {
   lite: { name: 'Lite', price: '$6/month', limits: { monthlyRequests: 10000, rateLimitPerMinute: 60 }, features: ['agent-native routing', 'API keys', 'usage analytics'] },
   pro: { name: 'Pro', price: '$30/month', limits: { monthlyRequests: 50000, rateLimitPerMinute: 180 }, features: ['frontier routing', 'agentic tool-use preference', 'analytics snapshots'] },
@@ -38,6 +39,48 @@ const esc = (v) => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&
 const fmtNumber = (value) => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '';
 const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
 const OAUTH_PROVIDER_ORDER = ['github', 'google', 'discord'];
+
+function attributionValue(value) {
+  const sanitized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._/-]+/g, '-')
+    .slice(0, 80);
+  return sanitized || null;
+}
+
+function currentReferrerHost() {
+  try {
+    const referrer = document.referrer ? new URL(document.referrer) : null;
+    return referrer && referrer.host !== window.location.host ? attributionValue(referrer.host) : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function onboardingContext(extra = {}) {
+  const params = new URLSearchParams(window.location.search || '');
+  return {
+    sage_router_onboarding: true,
+    signup_source: extra.source || 'account',
+    auth_method: extra.authMethod || null,
+    selected_plan: normalizePlan(extra.plan || selectedPlan) || null,
+    utm_source: attributionValue(params.get('utm_source') || params.get('utmSource')),
+    utm_medium: attributionValue(params.get('utm_medium') || params.get('utmMedium')),
+    utm_campaign: attributionValue(params.get('utm_campaign') || params.get('utmCampaign')),
+    referrer_host: currentReferrerHost(),
+    landing_path: window.location.pathname,
+  };
+}
+
+function rememberOnboardingContext(context) {
+  try {
+    window.localStorage?.setItem(ONBOARDING_CONTEXT_STORAGE_KEY, JSON.stringify(context));
+  } catch (_error) {
+    // Onboarding can continue without local persistence.
+  }
+  return context;
+}
 
 function normalizePlan(plan) {
   const normalized = String(plan || '').trim().toLowerCase();
@@ -691,6 +734,7 @@ function renderKeys(keys) {
 
 async function oauthLogin(provider) {
   set('auth-status', `Opening ${provider} sign-in...`);
+  rememberOnboardingContext(onboardingContext({ authMethod: provider }));
   trackAccountFunnelEvent('account_oauth_clicked', { button: provider, target: '/auth/v1/authorize', state: provider });
   const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: `${window.location.origin}/account.html` } });
   if (error) set('auth-status', error.message);
@@ -734,10 +778,12 @@ async function passwordSignup() {
     return;
   }
   trackAccountFunnelEvent('account_signup_submitted', { button: 'password_signup', target: '/auth/v1/signup', state: 'password' });
+  const metadata = onboardingContext({ authMethod: 'password' });
+  rememberOnboardingContext(metadata);
   const { data, error } = await sb.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: `${window.location.origin}/account.html` },
+    options: { emailRedirectTo: `${window.location.origin}/account.html`, data: metadata },
   });
   if (error) {
     set('auth-status', error.message);
@@ -756,7 +802,9 @@ async function magicLogin() {
     return;
   }
   trackAccountFunnelEvent('account_magic_link_requested', { button: 'magic_login', target: '/auth/v1/otp', state: 'email' });
-  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/account.html` } });
+  const metadata = onboardingContext({ authMethod: 'magic_link' });
+  rememberOnboardingContext(metadata);
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/account.html`, data: metadata } });
   set('auth-status', error ? error.message : 'Magic link sent. Check your email.');
   if (!error) trackAccountFunnelEvent('account_magic_link_sent', { button: 'magic_login', target: '/account.html', state: 'email' });
 }
