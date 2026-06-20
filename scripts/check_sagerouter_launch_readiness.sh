@@ -585,6 +585,9 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderBottlenecks" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-bottleneck-renderer"
   fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderRevenueActions" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-revenue-action-renderer"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   status_code="$(http_code_follow "${APP_BASE%/}/status")"

@@ -4666,6 +4666,17 @@ def public_plan_monthly_price_usd(plan_name):
     return int(value) if value.is_integer() else value
 
 
+def launch_revenue_action(plan, customer_gap, mrr_gap):
+    plan_name = str(plan or '').strip().lower()
+    if plan_name == 'max':
+        return 'Book founder-led Max demos for automation/team users and attach private deployment support.'
+    if plan_name == 'pro':
+        return 'Convert active generated-key users into Pro with frontier profile, analytics, and fallback proof.'
+    if plan_name == 'lite':
+        return 'Use low-friction Lite checkout from pricing, calculator, and quickstart entry points.'
+    return f'Close {int(customer_gap or 0)} paid customer gap worth ${int(mrr_gap or 0):,}/month.'
+
+
 def launch_mrr_snapshot(customers):
     target = int(PUBLIC_LAUNCH_POSITIONING.get('targetMrrUsd') or 0)
     recommended = PUBLIC_LAUNCH_POSITIONING.get('recommendedMix') or {}
@@ -4677,6 +4688,7 @@ def launch_mrr_snapshot(customers):
         paid_by_plan[plan] = paid_by_plan.get(plan, 0) + 1
 
     by_plan = {}
+    revenue_actions = []
     current_mrr = 0
     for plan in sorted(set(paid_by_plan) | {'lite', 'pro', 'max'}):
         customers_on_plan = int(paid_by_plan.get(plan, 0))
@@ -4684,14 +4696,38 @@ def launch_mrr_snapshot(customers):
         plan_mrr = customers_on_plan * monthly_price
         current_mrr += plan_mrr
         target_customers = int(recommended.get(f'{plan}Customers') or 0)
+        customer_gap = max(0, target_customers - customers_on_plan)
+        target_mrr = target_customers * monthly_price
+        mrr_gap = max(0, target_mrr - plan_mrr)
         by_plan[plan] = {
             'paidCustomers': customers_on_plan,
             'monthlyPriceUsd': monthly_price,
             'estimatedMrrUsd': plan_mrr,
             'targetCustomers': target_customers,
-            'remainingToTarget': max(0, target_customers - customers_on_plan),
+            'remainingToTarget': customer_gap,
+            'targetMrrUsd': target_mrr,
+            'remainingMrrToTargetUsd': mrr_gap,
             'targetAttainment': percent_rate(customers_on_plan, target_customers),
         }
+        if customer_gap > 0 and target_mrr > 0:
+            revenue_actions.append({
+                'plan': plan,
+                'label': f'Close {plan.title()} plan gap',
+                'currentCustomers': customers_on_plan,
+                'targetCustomers': target_customers,
+                'customerGap': customer_gap,
+                'monthlyPriceUsd': monthly_price,
+                'estimatedMrrUsd': plan_mrr,
+                'targetMrrUsd': target_mrr,
+                'remainingMrrToTargetUsd': mrr_gap,
+                'action': launch_revenue_action(plan, customer_gap, mrr_gap),
+            })
+
+    revenue_actions.sort(key=lambda row: (
+        -int(row.get('remainingMrrToTargetUsd') or 0),
+        -int(row.get('monthlyPriceUsd') or 0),
+        str(row.get('plan') or ''),
+    ))
 
     return {
         'targetMrrUsd': target,
@@ -4700,6 +4736,7 @@ def launch_mrr_snapshot(customers):
         'recommendedMixMonthlyRevenueUsd': recommended.get('monthlyRevenueUsd'),
         'paidCustomersByPlan': paid_by_plan,
         'byPlan': by_plan,
+        'planRevenueActions': revenue_actions,
         'assumptions': {
             'source': 'public_plan_catalog',
             'managedProviderAccessIncluded': bool((PUBLIC_LAUNCH_POSITIONING.get('managedProviderAccess') or {}).get('enabled')),

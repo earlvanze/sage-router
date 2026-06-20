@@ -53,6 +53,7 @@ PII or request content:
 - paid customers with recent routed usage
 - estimated current MRR, target attainment, and per-plan gaps against the
   public `$10k MRR` recommended launch mix
+- prioritized plan revenue actions sorted by remaining MRR gap
 - anonymous marketing intent by event, plan, source surface, and coarse
   attribution channel
 - target-aware bottlenecks for signup-to-key, key-to-first-request,
@@ -71,8 +72,9 @@ an `Authorization: Bearer` header, and stores the token only in tab-scoped
 `sessionStorage` when the operator explicitly enables that option. Customer
 accounts never use this page; signed-in customer analytics remain scoped to
 `/account/analytics`. The bottleneck table compares current rates with the
-launch-plan targets and gives the operator the next stage to improve without
-returning customer identities.
+launch-plan targets, and the revenue actions table ranks Lite, Pro, and Max
+plan gaps by remaining MRR so the operator can choose the next acquisition
+motion without returning customer identities.
 
 The same hosted operator dashboard includes a customer review panel backed by
 `/admin/customers`. It uses the same private token boundary as the global

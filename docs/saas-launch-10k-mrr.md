@@ -261,6 +261,10 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
 - Keep `/analytics/funnel` tied to the `$10k MRR` operating plan by reporting
   estimated current MRR, target attainment, and per-plan gaps against the
   recommended 100 Lite / 200 Pro / 50 Max launch mix.
+- Include prioritized plan revenue actions in `/analytics/funnel`, sorted by
+  remaining MRR gap, so the operator can choose between Lite checkout
+  conversion, Pro activation upgrades, and founder-led Max sales without
+  exposing customer identities.
 - Keep `/analytics/funnel` target-aware: it should compare current activation
   rates with the launch assumptions and return privacy-safe bottlenecks for the
   next stage to improve.

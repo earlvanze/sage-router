@@ -160,6 +160,22 @@ function renderPlanMix(byPlan = {}) {
   </table>`;
 }
 
+function renderRevenueActions(actions = []) {
+  if (!actions.length) {
+    $('revenue-actions').innerHTML = '<div class="empty">No remaining revenue actions against the launch mix.</div>';
+    return;
+  }
+  $('revenue-actions').innerHTML = `<table>
+    <thead><tr><th>Priority</th><th>Customer gap</th><th>MRR gap</th><th>Action</th></tr></thead>
+    <tbody>${actions.map(row => `<tr>
+      <td><span class="pill">${esc(row.plan || row.label || 'plan')}</span></td>
+      <td>${integer(row.customerGap)} at ${money(row.monthlyPriceUsd)}/mo</td>
+      <td>${money(row.remainingMrrToTargetUsd)}</td>
+      <td>${esc(row.action || '')}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
 function gapLabel(row = {}) {
   if (row.metric === 'mrrTargetAttainment') return money(row.gap);
   return percent(row.gap);
@@ -294,6 +310,7 @@ function renderFunnel(data) {
   renderMarketingIntent(marketingIntent);
   renderManagedAccessDemand(managedAccessDemand);
   renderPlanMix(mrr.byPlan || {});
+  renderRevenueActions(mrr.planRevenueActions || []);
   $('dashboard').classList.remove('hidden');
 }
 
