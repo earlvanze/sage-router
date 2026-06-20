@@ -4814,15 +4814,19 @@ LAUNCH_CONVERSION_ACTIONS = {
         'owner': 'Billing',
         'surface': 'checkout',
         'ctaPath': '/billing.html',
-        'action': 'Fix checkout unavailable events or route buyers to manual activation before buying more traffic.',
-        'successMetric': 'Drive checkout-unavailable rate to 0%.',
+        'action': 'Fix checkout, billing-portal, or manual-settlement friction before buying more traffic.',
+        'successMetric': 'Drive billing-friction rate to 0%.',
     },
 }
 
 
 CHECKOUT_INTENT_EVENTS = {
     'account_checkout_clicked',
+    'account_checkout_failed',
     'account_checkout_unavailable',
+    'account_billing_portal_failed',
+    'account_crypto_intent_failed',
+    'account_usage_upgrade_clicked',
     'calculator_checkout_clicked',
     'calculator_checkout_unavailable',
     'launch_plan_checkout_clicked',
@@ -4830,7 +4834,10 @@ CHECKOUT_INTENT_EVENTS = {
     'pricing_checkout_clicked',
 }
 CHECKOUT_UNAVAILABLE_EVENTS = {
+    'account_checkout_failed',
     'account_checkout_unavailable',
+    'account_billing_portal_failed',
+    'account_crypto_intent_failed',
     'calculator_checkout_unavailable',
 }
 SETUP_SNIPPET_COPY_EVENTS = {

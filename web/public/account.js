@@ -323,6 +323,20 @@ function trackAccountFunnelEvent(event, data = {}) {
   }).catch(() => {});
 }
 
+function billingFailureState(error, fallback = 'billing_action_failed') {
+  const message = String(error?.message || '').toLowerCase();
+  if (message.includes('stripe_not_configured') || message.includes('stripe is not configured') || message.includes('not configured')) return 'stripe_not_configured';
+  if (message.includes('stripe_customer_missing') || message.includes('complete stripe checkout')) return 'stripe_customer_missing';
+  if (message.includes('crypto_not_configured')) return 'crypto_not_configured';
+  if (message.includes('401') || message.includes('sign in') || message.includes('unauthorized')) return 'unauthorized';
+  if (message.includes('403') || message.includes('forbidden')) return 'forbidden';
+  if (message.includes('409') || message.includes('conflict')) return 'conflict';
+  if (message.includes('429') || message.includes('rate limit')) return 'rate_limited';
+  if (message.includes('503') || message.includes('unavailable')) return 'service_unavailable';
+  if (message.includes('http')) return 'http_error';
+  return fallback;
+}
+
 async function session() {
   const { data } = await sb.auth.getSession();
   return data?.session || null;
@@ -1043,6 +1057,11 @@ async function stripeCheckout() {
       window.location.href = data.checkout_url;
     }
   } catch (error) {
+    trackAccountFunnelEvent('account_checkout_failed', {
+      button: 'stripe_checkout',
+      target: '/billing/stripe/checkout',
+      state: billingFailureState(error, 'checkout_failed'),
+    });
     set('billing-status', `${error.message}. If Stripe is not configured yet, use crypto/manual settlement or try again after billing setup is complete.`);
   } finally {
     if (!redirecting) setBusy('stripe-checkout', false);
@@ -1061,6 +1080,11 @@ async function billingPortal() {
       window.location.href = data.portal_url;
     }
   } catch (error) {
+    trackAccountFunnelEvent('account_billing_portal_failed', {
+      button: 'stripe_portal',
+      target: '/billing/stripe/portal',
+      state: billingFailureState(error, 'billing_portal_failed'),
+    });
     set('billing-status', `${error.message}. Complete Stripe checkout before opening billing management.`);
   } finally {
     if (!redirecting) setBusy('stripe-portal', false);
@@ -1094,6 +1118,11 @@ async function cryptoIntent() {
     set('crypto-status', describeManualPaymentIntent(i));
     trackAccountFunnelEvent('account_crypto_intent_created', { button: 'crypto_intent', target: '/billing/crypto/intent', state: i.status || 'pending_manual_review' });
   } catch (error) {
+    trackAccountFunnelEvent('account_crypto_intent_failed', {
+      button: 'crypto_intent',
+      target: '/billing/crypto/intent',
+      state: billingFailureState(error, 'manual_payment_intent_failed'),
+    });
     set('crypto-status', error.message);
   } finally {
     setBusy('crypto-intent', false);
@@ -1114,6 +1143,11 @@ async function cryptoStatus() {
     trackAccountFunnelEvent('account_crypto_status_checked', { button: 'crypto_status', target: '/billing/crypto/status', state: intent.status || 'unknown' });
     if (intent.status === 'settled_manual_review') refresh();
   } catch (error) {
+    trackAccountFunnelEvent('account_crypto_status_failed', {
+      button: 'crypto_status',
+      target: '/billing/crypto/status',
+      state: billingFailureState(error, 'manual_payment_status_failed'),
+    });
     set('crypto-status', error.message);
   } finally {
     setBusy('crypto-status-check', false);
@@ -1150,7 +1184,8 @@ $('preauth-plans')?.addEventListener('click', (event) => {
 });
 $('usage-upgrade')?.addEventListener('click', () => {
   if (!recommendedUpgradePlan) return;
-  selectPlan(recommendedUpgradePlan, `Selected ${recommendedUpgradePlan}. Continue to Stripe when ready.`);
+  trackAccountFunnelEvent('account_usage_upgrade_clicked', { plan: recommendedUpgradePlan, button: 'usage_upgrade', state: 'quota_upgrade' });
+  selectPlan(recommendedUpgradePlan, `Selected ${planDisplay(recommendedUpgradePlan)}. Continue to Stripe when ready.`);
   trackAccountFunnelEvent('account_plan_selected', { plan: recommendedUpgradePlan, button: 'usage_upgrade' });
   $('stripe-checkout')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 });

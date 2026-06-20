@@ -200,9 +200,10 @@ provider resale claim, or runtime feature flag.
   provider credentials, raw invoices, or support message bodies.
 - Surface checkout-readiness friction in the private operator launch funnel by
   comparing aggregate checkout intent against `account_checkout_unavailable`
-  and `calculator_checkout_unavailable` counts. Treat nonzero unavailable
-  checkout events as a monetization bottleneck to fix before scaling paid
-  acquisition.
+  and `calculator_checkout_unavailable` counts, plus checkout failure,
+  billing-portal failure, and manual-settlement failure counts. Treat nonzero
+  billing friction events as a monetization bottleneck to fix before scaling
+  paid acquisition.
 - Keep hosted positioning limited to routing/control-plane infrastructure until
   provider terms, billing, margin, and abuse controls support any managed
   provider resale offer.
