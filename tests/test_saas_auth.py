@@ -2171,6 +2171,94 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(400, handler.status)
         self.assertEqual('invalid_payment_intent_kind', handler.payload['error'])
 
+    def test_operator_manual_payment_approval_rejects_replay_without_duplicate_audit(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        customer = router.customer_for_user({'id': 'user-1', 'email': 'u@example.com'})
+        intent = router.store_payment_intent({
+            'kind': 'crypto_manual',
+            'customer_id': customer['id'],
+            'user_id': customer['user_id'],
+            'status': 'pending_manual_review',
+            'asset': 'USDC',
+            'network': 'base',
+            'amount': '72',
+            'address': 'wallet_123',
+            'metadata': {'plan': 'max', 'settlement': 'manual', 'automatic_settlement': False},
+        })
+        body = b'{"settlementReference":"tx_123"}'
+
+        class Dummy:
+            def __init__(self):
+                self.path = f'/admin/payment-intents/{intent["id"]}/approve'
+                self.headers = {
+                    'Authorization': 'Bearer operator-token',
+                    'Content-Length': str(len(body)),
+                    'Origin': 'https://app.sagerouter.dev',
+                }
+                self.rfile = BytesIO(body)
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        first = Dummy()
+        router.Handler.do_POST(first)
+        self.assertEqual(200, first.status)
+        self.assertEqual(1, len(router.operator_audit_events_for_customer(customer['id'])))
+        approved_intent = router.payment_intent_by_id(intent['id'])
+        first_approved_at = approved_intent['metadata']['approved_at_epoch']
+
+        second = Dummy()
+        router.Handler.do_POST(second)
+
+        self.assertEqual(409, second.status)
+        self.assertEqual('payment_intent_already_settled', second.payload['error'])
+        self.assertEqual(1, len(router.operator_audit_events_for_customer(customer['id'])))
+        replayed_intent = router.payment_intent_by_id(intent['id'])
+        self.assertEqual('settled_manual_review', replayed_intent['status'])
+        self.assertEqual(first_approved_at, replayed_intent['metadata']['approved_at_epoch'])
+
+    def test_operator_manual_payment_approval_rejects_non_pending_manual_intent(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        customer = self.active_customer()
+        intent = router.store_payment_intent({
+            'kind': 'crypto_manual',
+            'customer_id': customer['id'],
+            'user_id': customer['user_id'],
+            'status': 'rejected_manual_review',
+            'asset': 'USDC',
+            'network': 'base',
+            'amount': '72',
+            'address': 'wallet_123',
+            'metadata': {'plan': 'max', 'settlement': 'manual', 'automatic_settlement': False},
+        })
+
+        class Dummy:
+            def __init__(self):
+                self.path = f'/admin/payment-intents/{intent["id"]}/approve'
+                self.headers = {
+                    'Authorization': 'Bearer operator-token',
+                    'Content-Length': '2',
+                    'Origin': 'https://app.sagerouter.dev',
+                }
+                self.rfile = BytesIO(b'{}')
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(409, handler.status)
+        self.assertEqual('payment_intent_not_pending', handler.payload['error'])
+        self.assertEqual(0, len(router.operator_audit_events_for_customer(customer['id'])))
+        self.assertEqual('rejected_manual_review', router.payment_intent_by_id(intent['id'])['status'])
+
     def test_stripe_invoice_payment_failure_disables_generated_key_routing(self):
         router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
         customer = self.active_customer()

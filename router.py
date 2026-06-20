@@ -6949,6 +6949,11 @@ def approve_manual_payment_intent(intent_id, settlement_reference='', reason_cod
         return None, None, None
     if str(intent.get('kind') or '') != 'crypto_manual':
         raise ValueError('invalid_payment_intent_kind')
+    intent_status = str(intent.get('status') or '').strip().lower()
+    if intent_status == 'settled_manual_review':
+        raise ValueError('payment_intent_already_settled')
+    if intent_status != 'pending_manual_review':
+        raise ValueError('payment_intent_not_pending')
     customer_id = intent.get('customer_id')
     customer = customer_by_id(customer_id)
     if not customer:
@@ -10717,7 +10722,11 @@ class Handler(BaseHTTPRequestHandler):
                     payload.get('plan') or '',
                 )
             except ValueError as e:
-                self.write_json(400, {'error': str(e)})
+                error = str(e)
+                if error in ('payment_intent_already_settled', 'payment_intent_not_pending'):
+                    self.write_json(409, {'error': error})
+                else:
+                    self.write_json(400, {'error': error})
                 return
             if not intent:
                 self.write_json(404, {'error': 'payment_intent_not_found'})

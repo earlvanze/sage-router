@@ -209,8 +209,9 @@ not a checkout entitlement, provider resale claim, or runtime feature flag.
   previously revoked generated API keys.
 - Keep manual/crypto payment recovery bounded: `POST
   /admin/payment-intents/{intent_id}/approve` must require the private operator
-  token, approve only manual crypto intents, activate the selected Lite/Pro/Max
-  plan, record a secret-free operator audit event, and preserve sticky
+  token, approve only pending manual crypto intents, activate the selected
+  Lite/Pro/Max plan, reject replay/stale approvals without duplicate audit
+  events, record a secret-free operator audit event, and preserve sticky
   suspension so settled payment cannot restore an account under abuse,
   chargeback, provider-risk, or security review.
 - Capture managed-access beta and Max implementation demand through the
