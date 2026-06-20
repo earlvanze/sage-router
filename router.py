@@ -10504,7 +10504,16 @@ class Handler(BaseHTTPRequestHandler):
             if not require_verified_account_user(self, user):
                 return
             payload = read_json_body(self)
-            plan = str(payload.get('plan') or 'pro').strip().lower()
+            requested_plan = payload.get('plan') or 'pro'
+            plan = normalize_stripe_plan(requested_plan)
+            if not plan:
+                self.write_json(400, {
+                    'error': 'invalid_plan',
+                    'message': 'Choose a configured hosted checkout plan.',
+                    'plan': str(requested_plan or '').strip().lower(),
+                    'validPlans': sorted(stripe_price_ids_by_plan().keys() or ['lite', 'pro', 'max']),
+                })
+                return
             price_ids = stripe_price_ids_by_plan()
             price_id = price_ids.get(plan)
             if not (STRIPE_SECRET_KEY and price_id):

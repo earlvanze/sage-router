@@ -1509,6 +1509,34 @@ class SaaSAuthTests(unittest.TestCase):
             captured['fields']['cancel_url'],
         )
 
+    def test_stripe_checkout_rejects_unknown_plan_before_config_lookup(self):
+        router.STRIPE_SECRET_KEY = 'sk_test'
+        router.STRIPE_PRICE_IDS_RAW = 'lite=price_lite,pro=price_pro,max=price_max'
+        router.supabase_user_for_bearer = lambda token: {'id': 'user-1', 'email': 'u@example.com'}
+        router.customer_for_user({'id': 'user-1', 'email': 'u@example.com'})
+        called = {'stripe': False}
+        router.stripe_request = lambda path, fields, timeout=10: called.update({'stripe': True}) or {}
+
+        body = b'{"plan":"enterprise"}'
+
+        class Dummy:
+            path = '/billing/stripe/checkout'
+            headers = {'Authorization': 'Bearer valid-user-jwt', 'Content-Length': str(len(body))}
+            rfile = BytesIO(body)
+            status = None
+            payload = None
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+        self.assertEqual(400, handler.status)
+        self.assertEqual('invalid_plan', handler.payload['error'])
+        self.assertEqual('enterprise', handler.payload['plan'])
+        self.assertEqual(['lite', 'max', 'pro'], handler.payload['validPlans'])
+        self.assertFalse(called['stripe'])
+
     def test_stripe_billing_portal_uses_existing_customer(self):
         router.STRIPE_SECRET_KEY = 'sk_test'
         router.supabase_user_for_bearer = lambda token: {'id': 'user-1', 'email': 'u@example.com'}
