@@ -241,6 +241,9 @@ function buildLaunchBrief(data = {}) {
   const topAcquisition = acquisitionActions.slice(0, 3);
   const topRevenue = revenueActions.slice(0, 3);
   const generatedAt = data.generatedAt ? new Date(data.generatedAt * 1000).toLocaleString() : 'unknown';
+  const githubOauthPosture = asNumber(authState.githubEnabled) > 0
+    ? 'GitHub OAuth is visible in browser settings; keep email as the fallback signup path.'
+    : 'GitHub OAuth has not appeared in browser settings yet; email remains the baseline signup path.';
   const lines = [
     'Sage Router operator launch brief',
     `Generated: ${generatedAt}`,
@@ -277,7 +280,7 @@ function buildLaunchBrief(data = {}) {
     `- Commercial buckets: ${sortedEntries(managedAccessDemand.commercialPreference).slice(0, 4).map(([name, count]) => `${demandLabel(name)} ${integer(count)}`).join(', ') || 'none'}`,
     '',
     'OAuth onboarding state',
-    `- GitHub enabled checks: ${integer(authState.githubEnabled)}; GitHub disabled checks: ${integer(authState.githubDisabled)}; email remains the baseline signup path until GitHub is enabled.`,
+    `- GitHub enabled checks: ${integer(authState.githubEnabled)}; GitHub disabled checks: ${integer(authState.githubDisabled)}; ${githubOauthPosture}`,
   ];
   return `${lines.join('\n')}\n`;
 }

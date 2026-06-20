@@ -758,10 +758,10 @@ check_public_supabase_auth_settings() {
   rm -f /tmp/sage-router-readiness-body
   SUPABASE_PUBLIC_GITHUB_ENABLED="$github_enabled"
 
-  if [[ "$external_type" == "object" && "$email_enabled" == "true" ]]; then
-    pass "public Supabase auth settings expose browser-visible email/OAuth provider state"
+  if [[ "$external_type" == "object" && "$email_enabled" == "true" && "$github_enabled" == "true" ]]; then
+    pass "public Supabase auth settings expose browser-visible email and GitHub OAuth provider state"
   else
-    fail "public Supabase auth settings incomplete: external=${external_type:-missing} email=${email_enabled:-missing}"
+    fail "public Supabase auth settings incomplete: external=${external_type:-missing} email=${email_enabled:-missing} github=${github_enabled:-missing}"
   fi
 }
 
@@ -1588,7 +1588,7 @@ check_supabase_auth_config() {
   if [[ -n "$SUPABASE_PUBLIC_GITHUB_ENABLED" && "$SUPABASE_PUBLIC_GITHUB_ENABLED" != "$github" ]]; then
     fail "Supabase GitHub provider mismatch: management=${github} public=${SUPABASE_PUBLIC_GITHUB_ENABLED}"
   fi
-  [[ "$github" == "true" ]] && pass "GitHub OAuth provider enabled" || warn "GitHub OAuth provider disabled; run bash scripts/check_github_supabase_auth_status.sh for the owner handoff"
+  [[ "$github" == "true" ]] && pass "GitHub OAuth provider enabled" || fail "GitHub OAuth provider disabled; run bash scripts/check_github_supabase_auth_status.sh for the owner handoff"
 }
 
 check_quota_schema() {
