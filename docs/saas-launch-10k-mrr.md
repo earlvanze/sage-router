@@ -156,9 +156,12 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   subscription or payment-recovery webhooks.
 - Keep operator customer review bounded and privacy-safe:
   `GET /admin/customers` and `GET /admin/customers/{customer_id}` must require
-  the private operator token and return only customer, usage, activation, and
-  public API-key metadata, without raw generated keys, key hashes, provider
-  credentials, prompts, or raw provider responses.
+  the private operator token and return only customer, usage, activation,
+  server-derived review flags, and public API-key metadata, without raw
+  generated keys, key hashes, provider credentials, prompts, or raw provider
+  responses. Review flags may identify bounded operational states such as
+  suspended, routing blocked, no active key, no first request, quota pressure,
+  and paid-but-idle accounts.
 - Keep the hosted operator customer review on
   `https://app.sagerouter.dev/launch-funnel.html` and route `/admin/customers`
   through the public edge control-plane path, not the latency-selected model

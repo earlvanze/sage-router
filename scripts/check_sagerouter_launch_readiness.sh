@@ -518,6 +518,9 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "/admin/customers" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-customer-review-call"
   fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderReviewFlags" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-customer-review-flags"
+  fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "sessionStorage" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-tab-scoped-token-storage"
   fi

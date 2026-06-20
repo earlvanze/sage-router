@@ -5579,6 +5579,84 @@ def account_activation_for_customer(customer, usage=None, api_keys=None):
     }
 
 
+def operator_customer_review(customer, usage=None, api_keys=None):
+    customer = normalize_customer(customer) or {}
+    usage = usage or account_usage_for_customer(customer)
+    if api_keys is None:
+        api_keys = api_keys_for_customer(customer.get('id')) if customer.get('id') else []
+    activation = account_activation_for_customer(customer, usage=usage, api_keys=api_keys)
+    status = str(customer.get('status') or activation.get('status') or 'inactive').lower()
+    plan = str(customer.get('plan') or activation.get('plan') or 'free').lower()
+    requests = max(0, int(activation.get('requestCount') or usage.get('requests') or 0))
+    quota = max(0, int(activation.get('quota') or usage.get('quota') or 0))
+    quota_used_percent = activation.get('quotaUsedPercent')
+    if quota_used_percent is None and quota > 0:
+        quota_used_percent = min(100, max(0, round((requests / quota) * 100, 2)))
+    active_key_count = max(0, int(activation.get('activeKeyCount') or 0))
+    key_count = max(0, int(activation.get('keyCount') or len(api_keys or []) or 0))
+    routing_enabled = bool(activation.get('routingEnabled'))
+    now = now_epoch()
+
+    def flag(code, severity, label):
+        return {'code': code, 'severity': severity, 'label': label}
+
+    flags = []
+    if status == 'suspended':
+        flags.append(flag('suspended', 'bad', 'Suspended'))
+    elif status in {'past_due', 'unpaid'}:
+        flags.append(flag('payment_review', 'warn', 'Payment review'))
+    elif status in {'canceled', 'blocked'}:
+        flags.append(flag('inactive_billing', 'warn', 'Inactive billing'))
+
+    if not routing_enabled:
+        flags.append(flag('routing_blocked', 'bad' if status == 'suspended' else 'warn', 'Routing blocked'))
+
+    if active_key_count <= 0 and routing_enabled:
+        flags.append(flag('no_active_api_key', 'warn', 'No active API key'))
+    elif active_key_count <= 0 and plan in {'free', 'inactive', ''}:
+        flags.append(flag('new_signup', 'info', 'New signup'))
+
+    if active_key_count > 0 and not routing_enabled:
+        flags.append(flag('keys_blocked', 'warn', 'Keys blocked'))
+
+    if active_key_count > 0 and requests <= 0 and routing_enabled:
+        flags.append(flag('no_first_request', 'warn', 'No first request'))
+
+    if MAX_ACTIVE_API_KEYS_PER_CUSTOMER > 0 and active_key_count >= MAX_ACTIVE_API_KEYS_PER_CUSTOMER:
+        flags.append(flag('active_key_limit', 'warn', 'At active-key limit'))
+
+    if quota > 0 and quota_used_percent is not None:
+        if quota_used_percent >= 100:
+            flags.append(flag('quota_exhausted', 'bad', 'Quota exhausted'))
+        elif quota_used_percent >= 90:
+            flags.append(flag('quota_high', 'warn', 'Quota above 90%'))
+        elif quota_used_percent >= 75:
+            flags.append(flag('quota_watch', 'info', 'Quota above 75%'))
+
+    last_usage = usage.get('updated_at_epoch')
+    try:
+        last_usage = int(last_usage or 0)
+    except Exception:
+        last_usage = 0
+    if routing_enabled and requests > 0 and last_usage > 0 and now - last_usage > 14 * 24 * 3600:
+        flags.append(flag('paid_idle', 'info', 'Paid but idle'))
+
+    if not flags:
+        flags.append(flag('healthy', 'good', 'No review flags'))
+
+    severity_order = {'bad': 3, 'warn': 2, 'info': 1, 'good': 0}
+    severity = max((row.get('severity') for row in flags), key=lambda value: severity_order.get(value, 0))
+    return {
+        'severity': severity,
+        'flags': flags,
+        'flagCodes': [row['code'] for row in flags],
+        'activeKeyLimit': MAX_ACTIVE_API_KEYS_PER_CUSTOMER,
+        'keyCount': key_count,
+        'activeKeyCount': active_key_count,
+        'quotaUsedPercent': quota_used_percent,
+    }
+
+
 def create_api_key_for_customer(customer, name='Default'):
     max_active = MAX_ACTIVE_API_KEYS_PER_CUSTOMER
     if max_active > 0 and active_api_key_count_for_customer(customer.get('id')) >= max_active:
@@ -5829,10 +5907,12 @@ def operator_customer_summary(customer):
     customer = normalize_customer(customer) or {}
     keys = api_keys_for_customer(customer.get('id')) if customer.get('id') else []
     usage = account_usage_for_customer(customer)
+    activation = account_activation_for_customer(customer, usage=usage, api_keys=keys)
     return {
         'customer': public_customer(customer),
         'usage': usage,
-        'activation': account_activation_for_customer(customer, usage=usage, api_keys=keys),
+        'activation': activation,
+        'review': operator_customer_review(customer, usage=usage, api_keys=keys),
         'api_keys': [public_api_key(row, customer) for row in keys],
     }
 

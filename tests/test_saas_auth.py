@@ -417,6 +417,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(200, listing.status)
         self.assertEqual(1, listing.payload['count'])
         self.assertEqual(customer['id'], listing.payload['customers'][0]['customer']['id'])
+        self.assertIn('no_first_request', listing.payload['customers'][0]['review']['flagCodes'])
+        self.assertEqual('warn', listing.payload['customers'][0]['review']['severity'])
         self.assertTrue(listing.payload['privacy']['operatorOnly'])
         self.assertFalse(listing.payload['privacy']['containsApiKeyHashes'])
         self.assertNotIn('api_key_hash', json.dumps(listing.payload))
@@ -426,6 +428,40 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(200, detail.status)
         self.assertEqual(other['id'], detail.payload['customer']['id'])
         self.assertEqual('inactive', detail.payload['activation']['status'])
+        self.assertIn('new_signup', detail.payload['review']['flagCodes'])
+
+    def test_operator_customer_review_flags_are_bounded_and_actionable(self):
+        customer = self.active_customer()
+        _raw, _row = router.create_api_key_for_customer(customer, 'prod')
+
+        review = router.operator_customer_review(customer)
+        self.assertIn('no_first_request', review['flagCodes'])
+        self.assertEqual('warn', review['severity'])
+        self.assertEqual(router.MAX_ACTIVE_API_KEYS_PER_CUSTOMER, review['activeKeyLimit'])
+
+        usage = {
+            'customer_id': customer['id'],
+            'period': router.current_usage_period(),
+            'plan': 'pro',
+            'status': 'active',
+            'requests': 47000,
+            'quota': 50000,
+            'remaining': 3000,
+            'unlimited': False,
+            'rateLimitPerMinute': 180,
+            'routing_enabled': True,
+            'updated_at_epoch': router.now_epoch(),
+        }
+        quota_review = router.operator_customer_review(customer, usage=usage)
+        self.assertIn('quota_high', quota_review['flagCodes'])
+        self.assertEqual('warn', quota_review['severity'])
+        self.assertNotIn('api_key_hash', json.dumps(quota_review))
+
+        suspended = router.update_customer(customer['id'], {'status': 'suspended'})
+        suspended_review = router.operator_customer_review(suspended, usage={**usage, 'routing_enabled': False})
+        self.assertIn('suspended', suspended_review['flagCodes'])
+        self.assertIn('routing_blocked', suspended_review['flagCodes'])
+        self.assertEqual('bad', suspended_review['severity'])
 
     def test_stripe_payment_success_does_not_reactivate_suspended_customer(self):
         router.STRIPE_WEBHOOK_SECRET = 'whsec_test'

@@ -119,6 +119,24 @@ function customerActionLabel(action) {
   return String(action || '').replace(/_/g, ' ');
 }
 
+function reviewTone(severity) {
+  const normalized = String(severity || '').toLowerCase();
+  if (normalized === 'bad') return 'bad';
+  if (normalized === 'warn') return 'warn';
+  if (normalized === 'good') return 'good';
+  return '';
+}
+
+function renderReviewFlags(review = {}, limit = 3) {
+  const flags = Array.isArray(review.flags) ? review.flags : [];
+  if (!flags.length) return '<span class="pill good">No review flags</span>';
+  const visible = flags.slice(0, limit);
+  const extra = flags.length - visible.length;
+  const pills = visible.map(flag => `<span class="pill ${reviewTone(flag.severity)}">${esc(flag.label || flag.code || 'review')}</span>`);
+  if (extra > 0) pills.push(`<span class="pill">+${integer(extra)}</span>`);
+  return pills.join(' ');
+}
+
 function renderPlanMix(byPlan = {}) {
   const names = Object.keys(byPlan);
   if (!names.length) {
@@ -311,6 +329,7 @@ function renderCustomerDetail(summary = {}) {
         <div class="metric"><span>Next action</span><strong>${esc(customerActionLabel(activation.nextAction))}</strong></div>
       </div>
       <div class="metricList">
+        <div class="metric"><span>Review</span><strong>${renderReviewFlags(summary.review || {}, 5)}</strong></div>
         <div class="metric"><span>Usage</span><strong>${esc(usageLabel(summary))}</strong></div>
         <div class="metric"><span>Active keys</span><strong>${integer(activation.activeKeyCount)}</strong></div>
         <div class="metric"><span>Routing</span><strong>${activation.routingEnabled ? '<span class="good">enabled</span>' : '<span class="warn">blocked</span>'}</strong></div>
@@ -336,7 +355,7 @@ function renderCustomers(data = {}) {
     return;
   }
   $('customers').innerHTML = `<div class="tableWrap"><table>
-    <thead><tr><th>Customer</th><th>Plan</th><th>Status</th><th>Usage</th><th>Keys</th><th>Next action</th><th>Updated</th><th></th></tr></thead>
+    <thead><tr><th>Customer</th><th>Plan</th><th>Status</th><th>Review</th><th>Usage</th><th>Keys</th><th>Next action</th><th>Updated</th><th></th></tr></thead>
     <tbody>${customers.map(summary => {
       const customer = summary.customer || {};
       const activation = summary.activation || {};
@@ -345,6 +364,7 @@ function renderCustomers(data = {}) {
         <td>${esc(customerLabel(summary))}<br><span class="muted">${esc(customer.id || '')}</span></td>
         <td>${esc(customer.plan || activation.plan || 'free')}</td>
         <td><span class="pill ${statusTone(status)}">${esc(status)}</span></td>
+        <td>${renderReviewFlags(summary.review || {})}</td>
         <td>${esc(usageLabel(summary))}</td>
         <td>${integer(activation.activeKeyCount)} active / ${integer(activation.keyCount)} total</td>
         <td>${esc(customerActionLabel(activation.nextAction))}</td>

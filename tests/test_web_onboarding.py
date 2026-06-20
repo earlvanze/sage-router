@@ -380,6 +380,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("fetchCustomerDetail", js)
         self.assertIn("postCustomerAction", js)
         self.assertIn("revokedApiKeysRemainRevoked", js)
+        self.assertIn("renderReviewFlags", js)
+        self.assertIn("No review flags", js)
         self.assertIn("containsApiKeyHashes === false", js)
         self.assertIn("sessionStorage", js)
         self.assertIn("renderBottlenecks", js)
