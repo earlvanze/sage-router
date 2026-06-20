@@ -92,11 +92,11 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
 ## Near-term launch checklist
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
-- Keep `/pricing`, `/billing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/openrouter-migration`, `/docs/codex`, `/agent-native`, `/integrations`, `/status`, `/support`, `/account.html`, `/login.html`,
+- Keep `/pricing`, `/launch-plan`, `/billing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/openrouter-migration`, `/docs/codex`, `/agent-native`, `/integrations`, `/status`, `/support`, `/account.html`, `/login.html`,
   `/api/waitlist`, `/models`, `/managed-access`, `/compare/openrouter`, `/model-routing-calculator`, `/terms`,
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
-- Keep the public pricing, agent-native routing, calculator, legal, provider-resale,
+- Keep the public pricing, launch-plan, agent-native routing, calculator, legal, provider-resale,
   and margin-policy pages in sitemap and LLM discovery.
 - Keep public model discovery at `/models` and `/model-catalog`, while live
   `/v1/models` stays authenticated with generated `sk_sage_*` keys.
@@ -140,6 +140,7 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   recommend Lite, Pro, or Max from the workflow profile and send the prospect
   into preselected checkout with `/account.html?plan=...`.
 - Capture pre-signup CTA intent from the homepage, calculator, pricing, and
+  launch plan, plus
   OpenRouter comparison/migration pages through the privacy-safe
   `/api/funnel-event` path. Store only event, plan, sanitized source/target URL,
   and small allowlisted metadata buckets; do not store prompts, workflow text,

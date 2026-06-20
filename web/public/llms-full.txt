@@ -15,6 +15,7 @@ Better model routing for agentic systems using the customer own authorized subsc
 ## Hosted pricing
 
 Hosted pricing page: https://sagerouter.dev/pricing
+Launch plan page: https://sagerouter.dev/launch-plan
 Billing help page: https://sagerouter.dev/billing
 Managed-access private beta intake: https://sagerouter.dev/managed-access
 API quickstart page: https://sagerouter.dev/quickstart
@@ -27,6 +28,8 @@ Integrations page: https://sagerouter.dev/integrations
 OpenRouter migration guide: https://sagerouter.dev/docs/openrouter-migration
 
 The hosted Sage Router plans sell account management, generated API keys, quotas, route telemetry, fallback reliability, and support. Lite is $6/month for 10,000 included requests, Pro is $30/month for 50,000 included requests, and Max is $72/month for 200,000 included requests. A balanced path to $10k MRR is 100 Lite, 200 Pro, and 50 Max customers, which equals $10,200 MRR.
+
+The public launch plan at https://sagerouter.dev/launch-plan turns the $10k MRR operating plan into a buyer-facing conversion path. It explains the Lite/Pro/Max plan ladder, the signup to first routed request activation funnel, private operator evidence from `/analytics/funnel`, `/edge/health`, and `/admin/customers`, and the boundary that managed provider access is a separate guarded beta path rather than a public pooled-provider entitlement.
 
 The billing help page at https://sagerouter.dev/billing is the customer recovery path for hosted checkout and paid activation. It documents Stripe checkout from the signed-in account page, Stripe billing portal for payment methods, invoices, cancellation, and subscription changes, manual and crypto settlement as fallback paths, payment recovery behavior, generated `sk_sage_*` API-key behavior before and after activation, and safe support context. It states that keys can exist before payment but hosted model traffic is blocked until an account is active, trialing, or manually enabled, and that revoked keys stay revoked.
 

@@ -6,6 +6,7 @@ Canonical site: https://sagerouter.dev/
 OpenRouter comparison: https://sagerouter.dev/compare/openrouter
 OpenRouter migration: https://sagerouter.dev/docs/openrouter-migration
 Hosted pricing: https://sagerouter.dev/pricing
+Launch plan: https://sagerouter.dev/launch-plan
 Billing help: https://sagerouter.dev/billing
 Managed-access private beta: https://sagerouter.dev/managed-access
 API quickstart: https://sagerouter.dev/quickstart
@@ -68,6 +69,7 @@ Managed access boundary: managed provider access, if introduced, is limited to p
 - Hosted OpenAI-compatible API reference for models, chat completions, Responses API, quotas, and rate-limit headers.
 - Agent-native model routing for OpenAI-compatible, Codex-style, local, Tailnet, and BYOK agents.
 - Sage Router integrations for OpenAI-compatible clients, Codex, Cursor, Aider, Continue, Claude Code, OpenHands, Ollama, Anthropic-compatible clients, and Tailnet agents.
+- Sage Router launch plan for $10k MRR, hosted plan mix, conversion funnel, and managed-access beta boundary.
 - Troubleshooting Sage Router 401/402/429/503 without sharing prompts or secrets.
 - AI model routing calculator for estimating cost leaks, escalation rules, fallback needs, and human-review points.
 

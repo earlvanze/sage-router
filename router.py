@@ -4839,6 +4839,7 @@ MARKETING_SOURCE_SURFACE_BUCKETS = (
     'pricing',
     'model-routing-calculator',
     'compare-openrouter',
+    'launch-plan',
     'account',
     'login',
     'billing',
@@ -4945,6 +4946,7 @@ def launch_acquisition_action(kind, bucket):
             'pricing': 'Tighten pricing CTAs, checkout plan defaults, and proof around hosted key activation.',
             'model-routing-calculator': 'Turn calculator interest into implementation calls and preselected Pro/Max checkout.',
             'compare-openrouter': 'Route OpenRouter comparison traffic into the migration guide, model catalog, and hosted checkout.',
+            'launch-plan': 'Turn launch-plan readers into Pro checkout, calculator qualification, or managed-access beta conversations.',
             'landing': 'Keep the homepage focused on account creation, pricing, model catalog, and migration CTAs.',
             'account': 'Reduce signed-in friction from plan selection to generated key and first routed request.',
             'login': 'Improve login/signup handoff copy and OAuth/email fallback paths.',
@@ -4991,7 +4993,7 @@ def launch_acquisition_actions(marketing_metrics):
                 'action': launch_acquisition_action(kind, bucket),
             })
     rows.sort(key=lambda row: (-int(row.get('clicks') or 0), str(row.get('kind') or ''), str(row.get('bucket') or '')))
-    return rows[:12]
+    return rows[:16]
 
 
 def new_auth_provider_state_metrics():

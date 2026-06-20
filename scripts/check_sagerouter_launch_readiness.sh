@@ -827,6 +827,51 @@ check_marketing_pricing_page() {
   fi
 }
 
+check_marketing_launch_plan_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/launch-plan")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router Launch Plan" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "The Sage Router path to \$10k MRR" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-10k-mrr-positioning"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "100 Lite, 200 Pro, and 50 Max customers produces \$10,200 MRR" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-plan-mix"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Managed provider access is a separate guarded beta path" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-boundary"
+  fi
+  if [[ "$page_code" == "200" ]] &&
+    { ! grep -q "/analytics/funnel" /tmp/sage-router-readiness-body ||
+      ! grep -q "/edge/health" /tmp/sage-router-readiness-body ||
+      ! grep -q "/admin/customers" /tmp/sage-router-readiness-body; }; then
+    page_code="200:missing-operator-evidence"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "launch_plan_checkout_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-funnel-event"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/launch-plan" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-launch-plan-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Launch plan: ${MARKETING_BASE%/}/launch-plan" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-launch-plan-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing launch plan page is live in sitemap and LLM discovery"
+  else
+    fail "marketing launch plan page incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_billing_page() {
   local page_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/billing")"
@@ -1518,6 +1563,7 @@ check_funnel_event_endpoint
 check_marketing_comparison_page
 check_marketing_openrouter_migration_page
 check_marketing_pricing_page
+check_marketing_launch_plan_page
 check_marketing_billing_page
 check_marketing_managed_access_page
 check_marketing_model_catalog_page

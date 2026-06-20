@@ -206,6 +206,7 @@ function App() {
             <a href="/quickstart">Quickstart</a>
             <a href="/models">Models</a>
             <a href="/model-routing-calculator">Calculator</a>
+            <a href="/launch-plan">Launch Plan</a>
             <a href="/managed-access">Managed Access</a>
             <a href="/billing">Billing</a>
             <a href="/pricing">Pricing</a>
@@ -593,6 +594,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/pricing">Pricing</a>
         <a href="/compare/openrouter">Compare OpenRouter</a>
         <a href="/model-routing-calculator">Calculator</a>
+        <a href="/launch-plan">Launch Plan</a>
         <a href="/managed-access">Managed Access</a>
         <a href="/security">Security</a>
         <a href="/status">Status</a>
