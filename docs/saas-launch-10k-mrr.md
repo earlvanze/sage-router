@@ -185,6 +185,11 @@ provider resale claim, or runtime feature flag.
   quickstart, and status clicks. Use those aggregates to diagnose payment
   recovery and activation friction without storing prompts, emails, API keys,
   provider credentials, raw invoices, or support message bodies.
+- Surface checkout-readiness friction in the private operator launch funnel by
+  comparing aggregate checkout intent against `account_checkout_unavailable`
+  and `calculator_checkout_unavailable` counts. Treat nonzero unavailable
+  checkout events as a monetization bottleneck to fix before scaling paid
+  acquisition.
 - Keep hosted positioning limited to routing/control-plane infrastructure until
   provider terms, billing, margin, and abuse controls support any managed
   provider resale offer.

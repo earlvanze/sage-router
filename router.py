@@ -4752,7 +4752,51 @@ LAUNCH_CONVERSION_TARGETS = {
 }
 
 
-def launch_conversion_snapshot(rates, mrr):
+CHECKOUT_INTENT_EVENTS = {
+    'account_checkout_clicked',
+    'account_checkout_unavailable',
+    'calculator_checkout_clicked',
+    'calculator_checkout_unavailable',
+    'launch_plan_checkout_clicked',
+    'openrouter_compare_checkout_clicked',
+    'pricing_checkout_clicked',
+}
+CHECKOUT_UNAVAILABLE_EVENTS = {
+    'account_checkout_unavailable',
+    'calculator_checkout_unavailable',
+}
+
+
+def launch_checkout_friction(marketing_metrics):
+    events = (marketing_metrics or {}).get('events') if isinstance(marketing_metrics, dict) else {}
+    if not isinstance(events, dict):
+        events = {}
+    total_intent = 0
+    unavailable = 0
+    unavailable_by_event = {}
+    for event, count in events.items():
+        try:
+            value = int(count or 0)
+        except (TypeError, ValueError):
+            value = 0
+        if value <= 0:
+            continue
+        if event in CHECKOUT_INTENT_EVENTS:
+            total_intent += value
+        if event in CHECKOUT_UNAVAILABLE_EVENTS:
+            unavailable += value
+            unavailable_by_event[event] = unavailable_by_event.get(event, 0) + value
+    return {
+        'totalCheckoutIntent': total_intent,
+        'unavailableEvents': unavailable,
+        'unavailableByEvent': unavailable_by_event,
+        'unavailableRate': percent_rate(unavailable, total_intent),
+        'targetUnavailableRate': 0.0,
+        'action': 'Fix Stripe checkout readiness or route demand into manual activation before buying more checkout traffic.',
+    }
+
+
+def launch_conversion_snapshot(rates, mrr, checkout_friction=None):
     targets = {}
     bottlenecks = []
     for metric, spec in LAUNCH_CONVERSION_TARGETS.items():
@@ -4787,6 +4831,23 @@ def launch_conversion_snapshot(rates, mrr):
     targets[mrr_row['metric']] = mrr_row
     if mrr_row['status'] != 'on_track':
         bottlenecks.append(mrr_row)
+
+    if isinstance(checkout_friction, dict):
+        total_checkout_intent = int(checkout_friction.get('totalCheckoutIntent') or 0)
+        unavailable_events = int(checkout_friction.get('unavailableEvents') or 0)
+        unavailable_rate = checkout_friction.get('unavailableRate')
+        checkout_row = {
+            'metric': 'checkoutReadinessFriction',
+            'label': 'Checkout readiness friction',
+            'actualRate': unavailable_rate,
+            'targetRate': 0.0,
+            'gap': unavailable_rate,
+            'status': 'not_enough_data' if total_checkout_intent <= 0 else ('on_track' if unavailable_events <= 0 else 'below_target'),
+            'action': checkout_friction.get('action') or 'Fix checkout readiness before scaling paid acquisition.',
+        }
+        targets[checkout_row['metric']] = checkout_row
+        if checkout_row['status'] != 'on_track':
+            bottlenecks.append(checkout_row)
 
     bottlenecks.sort(key=lambda row: (0 if row.get('status') == 'below_target' else 1, row.get('gap') is None, -(float(row.get('gap') or 0))))
     return {'targets': targets, 'bottlenecks': bottlenecks[:5]}
@@ -5428,7 +5489,11 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
     marketing_metrics, marketing_error = read_launch_marketing_funnel_counts(since)
     acquisition_actions = launch_acquisition_actions(marketing_metrics)
     if isinstance(marketing_metrics, dict):
-        marketing_metrics = {**marketing_metrics, 'acquisitionActions': acquisition_actions}
+        marketing_metrics = {
+            **marketing_metrics,
+            'acquisitionActions': acquisition_actions,
+            'checkoutFriction': launch_checkout_friction(marketing_metrics),
+        }
     waitlist_count = waitlist_metrics.get('total', 0) if isinstance(waitlist_metrics, dict) else None
     waitlist_interest = waitlist_metrics.get('interest') if isinstance(waitlist_metrics, dict) else None
     managed_access_demand = waitlist_metrics.get('managedAccessDemand') if isinstance(waitlist_metrics, dict) else None
@@ -5501,7 +5566,8 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'paidRecentUsage': percent_rate(stages['retainedPaidCustomers'], stages['paidCustomers']),
     }
     mrr = launch_mrr_snapshot(customers)
-    conversion = launch_conversion_snapshot(rates, mrr)
+    checkout_friction = marketing_metrics.get('checkoutFriction') if isinstance(marketing_metrics, dict) else None
+    conversion = launch_conversion_snapshot(rates, mrr, checkout_friction)
 
     return {
         'version': 1,

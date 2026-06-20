@@ -373,7 +373,24 @@ function renderMarketingIntent(marketingIntent = {}) {
   const planRows = sortedEntries(marketingIntent.plans);
   const surfaceRows = sortedEntries(marketingIntent.sourceSurfaces);
   const channelRows = sortedEntries(marketingIntent.attributionChannels);
-  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length) {
+  const checkoutFriction = marketingIntent.checkoutFriction || {};
+  const hasCheckoutFriction = asNumber(checkoutFriction.totalCheckoutIntent) > 0 || asNumber(checkoutFriction.unavailableEvents) > 0;
+  const checkoutRows = hasCheckoutFriction ? [
+    ['Total checkout intent', checkoutFriction.totalCheckoutIntent],
+    ['Checkout unavailable', checkoutFriction.unavailableEvents],
+    ['Unavailable rate', percent(checkoutFriction.unavailableRate)],
+  ] : [];
+  const unavailableRows = sortedEntries(checkoutFriction.unavailableByEvent);
+  const checkoutBlock = checkoutRows.length || unavailableRows.length ? `<div>
+    <h3>Checkout readiness</h3>
+    <table>
+      <thead><tr><th>Signal</th><th>Value</th></tr></thead>
+      <tbody>${checkoutRows.map(([name, value]) => `<tr><td><span class="pill">${esc(name)}</span></td><td>${typeof value === 'string' ? esc(value) : integer(value)}</td></tr>`).join('')}${
+        unavailableRows.map(([name, count]) => `<tr><td><span class="pill warn">${esc(eventLabel(name))}</span></td><td>${integer(count)}</td></tr>`).join('')
+      }</tbody>
+    </table>
+  </div>` : '';
+  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length && !checkoutBlock) {
     $('marketing-intent-breakdown').innerHTML = '<div class="empty">No anonymous marketing CTA intent events in this window.</div>';
     return;
   }
@@ -392,7 +409,7 @@ function renderMarketingIntent(marketingIntent = {}) {
     renderTable('Source surfaces', surfaceRows)
   }${
     renderTable('Attribution channels', channelRows)
-  }</div>`;
+  }${checkoutBlock}</div>`;
 }
 
 function renderAuthProviderState(authState = {}) {

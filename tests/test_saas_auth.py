@@ -1139,11 +1139,13 @@ class SaaSAuthTests(unittest.TestCase):
             },
         }, None)
         router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
-            'total': 10,
+            'total': 12,
             'events': {
                 'landing_account_clicked': 1,
                 'account_api_key_created': 1,
                 'calculator_checkout_clicked': 2,
+                'calculator_checkout_unavailable': 1,
+                'account_checkout_unavailable': 1,
                 'launch_plan_checkout_clicked': 1,
                 'pricing_checkout_clicked': 1,
                 'managed_access_interest_clicked': 1,
@@ -1210,10 +1212,17 @@ class SaaSAuthTests(unittest.TestCase):
         snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
 
         self.assertEqual(3, snapshot['stages']['waitlistLeads'])
-        self.assertEqual(10, snapshot['stages']['marketingIntentEvents'])
+        self.assertEqual(12, snapshot['stages']['marketingIntentEvents'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['landing_account_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['account_api_key_created'])
         self.assertEqual(2, snapshot['marketingIntent']['events']['calculator_checkout_clicked'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['calculator_checkout_unavailable'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['account_checkout_unavailable'])
+        self.assertEqual(7, snapshot['marketingIntent']['checkoutFriction']['totalCheckoutIntent'])
+        self.assertEqual(2, snapshot['marketingIntent']['checkoutFriction']['unavailableEvents'])
+        self.assertEqual(0.2857, snapshot['marketingIntent']['checkoutFriction']['unavailableRate'])
+        self.assertEqual(1, snapshot['marketingIntent']['checkoutFriction']['unavailableByEvent']['calculator_checkout_unavailable'])
+        self.assertEqual(1, snapshot['marketingIntent']['checkoutFriction']['unavailableByEvent']['account_checkout_unavailable'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['launch_plan_checkout_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['openrouter_compare_checkout_clicked'])
         self.assertEqual(2, snapshot['marketingIntent']['events']['auth_provider_state_checked'])
@@ -1270,11 +1279,15 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(0.15, snapshot['targets']['signupToPaidConversion']['targetRate'])
         self.assertEqual(0.85, snapshot['targets']['paidRecentUsage']['targetRate'])
         self.assertEqual(1.0, snapshot['targets']['mrrTargetAttainment']['targetRate'])
+        self.assertEqual(0.0, snapshot['targets']['checkoutReadinessFriction']['targetRate'])
+        self.assertEqual(0.2857, snapshot['targets']['checkoutReadinessFriction']['actualRate'])
+        self.assertEqual('below_target', snapshot['targets']['checkoutReadinessFriction']['status'])
         self.assertEqual(0.5, snapshot['targets']['signupToGeneratedKey']['actualRate'])
         self.assertEqual('below_target', snapshot['targets']['signupToGeneratedKey']['status'])
         self.assertEqual('on_track', snapshot['targets']['generatedKeyToFirstRequest']['status'])
         bottleneck_metrics = [row['metric'] for row in snapshot['bottlenecks']]
         self.assertIn('mrrTargetAttainment', bottleneck_metrics)
+        self.assertIn('checkoutReadinessFriction', bottleneck_metrics)
         self.assertIn('signupToGeneratedKey', bottleneck_metrics)
         self.assertFalse(snapshot['privacy']['containsEmails'])
         self.assertFalse(snapshot['privacy']['containsApiKeys'])
