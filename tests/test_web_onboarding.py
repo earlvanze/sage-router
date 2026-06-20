@@ -828,6 +828,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("Hybrid failover is active", js)
         self.assertIn("health.failover", js)
         self.assertIn("healthyUpstreamCount", js)
+        self.assertIn("selectedUpstreamId", js)
+        self.assertIn("upstreamLabel", js)
         self.assertIn("retryStatuses", js)
         self.assertIn("X-Sage-Router-Retry-Count", js)
         self.assertIn("Retry failover", js)

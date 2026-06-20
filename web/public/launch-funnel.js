@@ -35,6 +35,14 @@ function host(url) {
   }
 }
 
+function upstreamId(row = {}) {
+  return row.id || row.url || '';
+}
+
+function upstreamLabel(row = {}, fallback = 'unknown') {
+  return row.label || (row.url ? host(row.url) : '') || row.id || fallback;
+}
+
 function fmtLatency(value) {
   return Number.isFinite(Number(value)) ? `${Math.round(Number(value))} ms` : '--';
 }
@@ -632,7 +640,8 @@ function renderOperationalReadiness(health = {}, pricing = {}) {
   const healthyCount = Number.isFinite(Number(failover.healthyUpstreamCount))
     ? Number(failover.healthyUpstreamCount)
     : healthyRows.length;
-  const selected = upstreams.find(row => row.url === health.selected) || {};
+  const selectedId = health.selectedUpstreamId || health.selected || '';
+  const selected = upstreams.find(row => upstreamId(row) === selectedId) || {};
   const enforcement = health.enforcement || {};
   const stripe = pricing.billing?.stripe || {};
   const managed = pricing.publicLaunch?.managedProviderAccess || {};
@@ -647,7 +656,7 @@ function renderOperationalReadiness(health = {}, pricing = {}) {
       title: 'Public edge',
       status: health.status === 'ok' && healthyCount > 0 ? `${healthyCount}/${upstreams.length} healthy` : 'degraded',
       ok: health.status === 'ok' && healthyCount > 0,
-      detail: `${host(health.selected || selected.url || '--')} selected at ${fmtLatency(selected.latency_ms)}; retry failover ${retryEnabled ? 'enabled' : 'not reported'}.`,
+      detail: `${upstreamLabel(selected, selectedId || '--')} selected at ${fmtLatency(selected.latency_ms)}; retry failover ${retryEnabled ? 'enabled' : 'not reported'}.`,
     },
     {
       title: 'Customer enforcement',

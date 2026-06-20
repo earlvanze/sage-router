@@ -913,6 +913,37 @@ def edge_failover_state():
     }
 
 
+def public_upstream_origin_kind(upstream):
+    host = (upstream.host or "").lower()
+    raw_url = (upstream.raw_url or "").lower()
+    if host.endswith(".ts.net"):
+        return "tailnet"
+    if "run.app" in host or "cloudfunctions.net" in host or "googleapis.com" in host:
+        return "cloud fallback"
+    if host.endswith("sagerouter.dev"):
+        return "public edge"
+    if "localhost" in host or host.startswith("127.") or host.startswith("10.") or host.startswith("192.168."):
+        return "private"
+    if "tailnet" in raw_url:
+        return "tailnet"
+    return "custom"
+
+
+def public_upstream_snapshot(upstream, index, label_prefix="Upstream"):
+    snap = upstream.snapshot()
+    origin_kind = public_upstream_origin_kind(upstream)
+    public_id = "control-plane" if label_prefix == "Control plane" else f"upstream-{index + 1}"
+    return {
+        "id": public_id,
+        "label": f"{label_prefix} {index + 1}" if label_prefix != "Control plane" else "Control plane",
+        "originKind": origin_kind,
+        "healthy": snap["healthy"],
+        "latency_ms": snap["latency_ms"],
+        "last_checked": snap["last_checked"],
+        "last_error": snap["last_error"],
+    }
+
+
 def edge_identity_headers(auth_context):
     auth_context = auth_context or {}
     headers = {
@@ -1016,12 +1047,19 @@ class EdgeHandler(BaseHTTPRequestHandler):
         return True
 
     def _edge_health(self):
-        upstreams = [upstream.snapshot() for upstream in UPSTREAMS]
-        control_plane = CONTROL_PLANE_UPSTREAM.snapshot() if CONTROL_PLANE_UPSTREAM else None
+        upstreams = [public_upstream_snapshot(upstream, index) for index, upstream in enumerate(UPSTREAMS)]
+        control_plane = public_upstream_snapshot(CONTROL_PLANE_UPSTREAM, 0, "Control plane") if CONTROL_PLANE_UPSTREAM else None
         fastest = choose_upstream()
+        selected_id = None
+        if fastest:
+            for index, upstream in enumerate(UPSTREAMS):
+                if upstream is fastest:
+                    selected_id = f"upstream-{index + 1}"
+                    break
         self._json(200, {
             "status": "ok" if fastest else "degraded",
-            "selected": fastest.raw_url if fastest else None,
+            "selected": selected_id,
+            "selectedUpstreamId": selected_id,
             "upstreams": upstreams,
             "controlPlane": control_plane,
             "authMode": EDGE_AUTH_MODE,

@@ -229,7 +229,13 @@ class TailnetEdgeAuthTests(unittest.TestCase):
 
         self.assertEqual(200, handler.status)
         self.assertEqual("supabase", handler.payload["authMode"])
-        self.assertEqual("http://backend.local:8790", handler.payload["selected"])
+        self.assertEqual("upstream-1", handler.payload["selected"])
+        self.assertEqual("upstream-1", handler.payload["selectedUpstreamId"])
+        self.assertEqual("upstream-1", handler.payload["upstreams"][0]["id"])
+        self.assertEqual("Upstream 1", handler.payload["upstreams"][0]["label"])
+        self.assertEqual("custom", handler.payload["upstreams"][0]["originKind"])
+        self.assertNotIn("url", handler.payload["upstreams"][0])
+        self.assertNotIn("backend.local", str(handler.payload))
         self.assertEqual({
             "rateLimitEnabled": True,
             "rateLimitWindowSeconds": 60,

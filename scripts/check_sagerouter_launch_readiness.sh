@@ -160,10 +160,14 @@ PY
 check_edge_health() {
   local body
   body="$(curl -fsS "${API_BASE%/}/edge/health")"
-  local status auth_mode selected rate_limit_enabled auth_attempt_rate_limit_enabled auth_attempt_rate_limit quota_enabled api_key_auth_cache api_key_auth_cache_zero failover_ok
+  local status auth_mode selected health_urls_redacted rate_limit_enabled auth_attempt_rate_limit_enabled auth_attempt_rate_limit quota_enabled api_key_auth_cache api_key_auth_cache_zero failover_ok
   status="$(printf '%s' "$body" | jq -r '.status // empty')"
   auth_mode="$(printf '%s' "$body" | jq -r '.authMode // empty')"
   selected="$(printf '%s' "$body" | jq -r '.selected // empty')"
+  health_urls_redacted="$(printf '%s' "$body" | jq -r '
+    ([.upstreams[]? | has("url")] | any) == false and
+    ((.controlPlane // {}) | has("url") | not)
+  ')"
   rate_limit_enabled="$(printf '%s' "$body" | jq -r '.enforcement.rateLimitEnabled // false')"
   auth_attempt_rate_limit_enabled="$(printf '%s' "$body" | jq -r '.enforcement.authAttemptRateLimitEnabled // false')"
   auth_attempt_rate_limit="$(printf '%s' "$body" | jq -r '.enforcement.authAttemptRateLimit // 0')"
@@ -176,10 +180,10 @@ check_edge_health() {
     ((.failover.retryStatuses // []) | index(502) and index(503) and index(504)) and
     ((.failover // {}) | .retryHeader == "X-Sage-Router-Retry-Count")
   ')"
-  if [[ "$status" == "ok" && "$auth_mode" == "supabase" && -n "$selected" && "$rate_limit_enabled" == "true" && "$auth_attempt_rate_limit_enabled" == "true" && "$auth_attempt_rate_limit" -gt 0 && "$quota_enabled" == "true" && "$api_key_auth_cache_zero" == "true" && "$failover_ok" == "true" ]]; then
-    pass "edge healthy with supabase auth, rate limits, auth-attempt throttling, durable quotas, immediate generated-key revocation, and retry failover; selected ${selected}"
+  if [[ "$status" == "ok" && "$auth_mode" == "supabase" && -n "$selected" && "$health_urls_redacted" == "true" && "$rate_limit_enabled" == "true" && "$auth_attempt_rate_limit_enabled" == "true" && "$auth_attempt_rate_limit" -gt 0 && "$quota_enabled" == "true" && "$api_key_auth_cache_zero" == "true" && "$failover_ok" == "true" ]]; then
+    pass "edge healthy with supabase auth, redacted health snapshots, rate limits, auth-attempt throttling, durable quotas, immediate generated-key revocation, and retry failover; selected ${selected}"
   else
-    fail "edge health unexpected: status=${status:-missing} authMode=${auth_mode:-missing} selected=${selected:-missing} rateLimit=${rate_limit_enabled:-missing} authAttemptRateLimit=${auth_attempt_rate_limit_enabled:-missing}/${auth_attempt_rate_limit:-missing} quota=${quota_enabled:-missing} apiKeyAuthCache=${api_key_auth_cache:-missing} failover=${failover_ok:-missing}"
+    fail "edge health unexpected: status=${status:-missing} authMode=${auth_mode:-missing} selected=${selected:-missing} healthUrlsRedacted=${health_urls_redacted:-missing} rateLimit=${rate_limit_enabled:-missing} authAttemptRateLimit=${auth_attempt_rate_limit_enabled:-missing}/${auth_attempt_rate_limit:-missing} quota=${quota_enabled:-missing} apiKeyAuthCache=${api_key_auth_cache:-missing} failover=${failover_ok:-missing}"
   fi
 }
 

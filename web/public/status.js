@@ -23,12 +23,15 @@ const fmtRetryStatuses = (statuses = []) => {
   return values.length ? values.join('/') : 'configured retry statuses';
 };
 const originKind = (url = '') => {
+  if (url && typeof url === 'object') return url.originKind || originKind(url.url || url.label || url.id || '');
   const name = host(url).toLowerCase();
   if (name.endsWith('.ts.net')) return 'tailnet';
   if (name.includes('run.app')) return 'cloud fallback';
   if (name.includes('sagerouter.dev')) return 'public edge';
   return 'custom';
 };
+const upstreamId = (row = {}) => row.id || row.url || '';
+const upstreamLabel = (row = {}, fallback = 'unknown') => row.label || (row.url ? host(row.url) : '') || row.id || fallback;
 const relTime = (epochSeconds) => {
   const epoch = Number(epochSeconds);
   if (!Number.isFinite(epoch) || epoch <= 0) return 'not checked yet';
@@ -45,20 +48,20 @@ function badge(label, state = '') {
 }
 
 function renderUpstreams(health = {}) {
-  const selected = health.selected || '';
+  const selected = health.selectedUpstreamId || health.selected || '';
   const rows = health.upstreams || [];
   if (!rows.length) {
     $('upstreams').innerHTML = '<p class="muted">No upstreams reported by the edge.</p>';
     return null;
   }
-  const selectedRow = rows.find(row => row.url === selected) || null;
+  const selectedRow = rows.find(row => upstreamId(row) === selected) || null;
   $('upstreams').innerHTML = rows.map((row) => {
-    const isSelected = row.url === selected;
+    const isSelected = upstreamId(row) === selected;
     const state = row.healthy ? 'good' : 'bad';
     const label = row.healthy ? 'healthy' : 'down';
     const error = row.last_error ? `<div class="meta">${esc(row.last_error)}</div>` : '';
     return `<article class="upstream ${isSelected ? 'selected' : ''}">
-      <div class="row"><div class="host">${esc(host(row.url))}</div>${badge(isSelected ? 'selected' : label, isSelected ? 'good' : state)}</div>
+      <div class="row"><div class="host">${esc(upstreamLabel(row))}</div>${badge(isSelected ? 'selected' : label, isSelected ? 'good' : state)}</div>
       <div class="meta">${esc(fmtLatency(row.latency_ms))} latency · checked ${esc(relTime(row.last_checked))}</div>
       ${error}
     </article>`;
@@ -99,10 +102,11 @@ function renderReliabilityEvidence(health = {}) {
   const upstreams = health.upstreams || [];
   const healthy = upstreams.filter(row => row.healthy);
   const failover = health.failover || {};
-  const tailnetCount = healthy.filter(row => originKind(row.url) === 'tailnet').length;
-  const cloudCount = healthy.filter(row => originKind(row.url) === 'cloud fallback').length;
-  const selected = upstreams.find(row => row.url === health.selected) || {};
-  const selectedKind = originKind(selected.url || health.selected || '');
+  const tailnetCount = healthy.filter(row => originKind(row) === 'tailnet').length;
+  const cloudCount = healthy.filter(row => originKind(row) === 'cloud fallback').length;
+  const selectedId = health.selectedUpstreamId || health.selected || '';
+  const selected = upstreams.find(row => upstreamId(row) === selectedId) || {};
+  const selectedKind = originKind(selected);
   const multiOrigin = tailnetCount > 0 && cloudCount > 0;
   const multiHost = healthy.length >= 2;
   const status = multiOrigin && multiHost ? 'resilient' : (multiHost ? 'partial' : 'limited');
@@ -128,7 +132,7 @@ function renderReliabilityEvidence(health = {}) {
     },
     {
       title: 'Current route',
-      value: host(selected.url || health.selected || '--'),
+      value: upstreamLabel(selected, selectedId || '--'),
       badge: selectedKind,
       state: selected.healthy ? 'good' : 'warn',
       meta: `${fmtLatency(selected.latency_ms)} selected latency; checked ${relTime(selected.last_checked)}.`,
@@ -180,7 +184,7 @@ function renderControls(health = {}) {
       value: controlPlane.healthy ? 'healthy' : 'unavailable',
       badge: fmtLatency(controlPlane.latency_ms),
       state: controlPlane.healthy ? 'good' : 'bad',
-      meta: `${host(controlPlane.url || 'unknown')} · checked ${relTime(controlPlane.last_checked)}`,
+      meta: `${upstreamLabel(controlPlane)} · checked ${relTime(controlPlane.last_checked)}`,
     },
     {
       title: 'Customer auth',
@@ -250,11 +254,12 @@ async function refreshStatus() {
     const healthyCount = (health.upstreams || []).filter(row => row.healthy).length;
     const totalCount = (health.upstreams || []).length;
     const ok = health.status === 'ok' && healthyCount > 0;
+    const selectedLabel = upstreamLabel(selectedRow || {}, health.selectedUpstreamId || health.selected || '--');
     set('headline', ok ? 'Operational' : 'Degraded');
-    set('summary', `${healthyCount}/${totalCount} upstreams healthy. Public API traffic is routed through ${host(health.selected)}.`);
+    set('summary', `${healthyCount}/${totalCount} upstreams healthy. Public API traffic is routed through ${selectedLabel}.`);
     set('kpi-status', ok ? 'OK' : 'Check');
     set('kpi-auth', health.authMode || '--');
-    set('kpi-selected', host(health.selected || '--'));
+    set('kpi-selected', selectedLabel);
     set('kpi-latency', fmtLatency(selectedRow?.latency_ms));
     const openaiBase = pricing.openaiBaseUrl || `${sageRouterUrl}/v1`;
     $('endpoint').innerHTML = `OpenAI-compatible clients should use <code>${esc(openaiBase)}</code>.`;
