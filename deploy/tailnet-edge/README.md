@@ -143,7 +143,7 @@ cp wrangler.api-sagerouter.example.toml wrangler.toml
 npx wrangler deploy --config wrangler.toml
 ```
 
-The Worker exposes `GET /edge/health` on `api.sagerouter.dev` so you can see which public origin it selected. Cloudflare can then provide DNS, proxying, WAF, cache rules for cacheable non-streaming paths, and optional Load Balancing if you later expose multiple public edge origins. The Tailnet Edge process still performs the application-aware lowest-latency selection among private Sage Router installs.
+The Worker exposes `GET /edge/health` on `api.sagerouter.dev` so you can see which public origin ID it selected, the backend class, status, and probe latency. It intentionally does not return raw origin URLs, Tailnet hostnames, health paths, or response headers that reveal the chosen origin URL. Cloudflare can then provide DNS, proxying, WAF, cache rules for cacheable non-streaming paths, and optional Load Balancing if you later expose multiple public edge origins. The Tailnet Edge process still performs the application-aware lowest-latency selection among private Sage Router installs.
 
 ## Publish publicly with a cloud VM origin
 

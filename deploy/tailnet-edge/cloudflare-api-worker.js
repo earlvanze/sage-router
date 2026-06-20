@@ -54,6 +54,65 @@ function originTarget(origin, incomingUrl) {
   return new URL(incomingUrl.pathname + incomingUrl.search, origin.url);
 }
 
+function privateHostname(hostname) {
+  return hostname === "localhost"
+    || hostname === "127.0.0.1"
+    || hostname === "::1"
+    || hostname.startsWith("10.")
+    || hostname.startsWith("192.168.")
+    || /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname)
+    || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(hostname);
+}
+
+function originKind(originUrl) {
+  try {
+    const hostname = new URL(originUrl).hostname.toLowerCase();
+    if (hostname.endsWith(".ts.net")) {
+      return "tailnet";
+    }
+    if (privateHostname(hostname)) {
+      return "private";
+    }
+    if (hostname.endsWith(".run.app") || hostname.includes(".cloudfunctions.") || hostname.includes(".googleapis.")) {
+      return "cloud fallback";
+    }
+    if (hostname.endsWith("sagerouter.dev")) {
+      return "public edge";
+    }
+    return "public origin";
+  } catch (_error) {
+    return "unknown";
+  }
+}
+
+function publicOriginId(index) {
+  return `origin-${index + 1}`;
+}
+
+function publicOriginSnapshot(check, index) {
+  return {
+    id: publicOriginId(index),
+    originKind: originKind(check.url),
+    healthy: check.healthy,
+    status: check.status,
+    latencyMs: check.latencyMs,
+    checkedAt: check.checkedAt,
+    error: check.error || null,
+  };
+}
+
+function publicOriginsSnapshot(checks) {
+  return checks.map(publicOriginSnapshot);
+}
+
+function selectedOriginId(checks, selected) {
+  if (!selected) {
+    return null;
+  }
+  const index = checks.findIndex((check) => check.name === selected.name && check.url === selected.url);
+  return index >= 0 ? publicOriginId(index) : null;
+}
+
 async function timedFetch(url, init, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort("timeout"), timeoutMs);
@@ -134,9 +193,12 @@ async function chooseOrigin(env) {
   if (!selected) {
     return { origin: null, checks };
   }
+  const selectedId = selectedOriginId(checks, selected);
   return {
     origin: origins.find((candidate) => candidate.name === selected.name && candidate.url === selected.url),
     checks,
+    originId: selectedId,
+    originKind: originKind(selected.url),
   };
 }
 
@@ -169,16 +231,18 @@ export default {
         const healthy = checks
           .filter((check) => check.healthy)
           .sort((a, b) => (a.latencyMs ?? Number.MAX_SAFE_INTEGER) - (b.latencyMs ?? Number.MAX_SAFE_INTEGER));
+        const selectedId = selectedOriginId(checks, healthy[0]);
         return responseJson({
           status: healthy.length ? "ok" : "degraded",
-          selected: healthy[0] || null,
-          origins: checks,
+          selected: selectedId,
+          selectedOriginId: selectedId,
+          origins: publicOriginsSnapshot(checks),
         }, healthy.length ? 200 : 503);
       }
 
-      const { origin, checks } = await chooseOrigin(env);
+      const { origin, checks, originId, originKind: selectedKind } = await chooseOrigin(env);
       if (!origin) {
-        return responseJson({ error: "no healthy sage-router origins", origins: checks }, 503);
+        return responseJson({ error: "no healthy sage-router origins", origins: publicOriginsSnapshot(checks) }, 503);
       }
 
       const target = originTarget(origin, incoming);
@@ -194,8 +258,8 @@ export default {
       for (const header of HOP_BY_HOP_HEADERS) {
         headers.delete(header);
       }
-      headers.set("x-sage-router-api-origin", origin.name);
-      headers.set("x-sage-router-api-origin-url", origin.url);
+      headers.set("x-sage-router-api-origin", originId || "origin-unknown");
+      headers.set("x-sage-router-api-origin-kind", selectedKind || "unknown");
       headers.set("x-sage-router-api-origin-latency-ms", String(response.latencyMs));
       return new Response(response.response.body, {
         status: response.response.status,
