@@ -665,6 +665,8 @@ def is_browser_account_billing_mutation(path, method):
         "/billing/crypto/intent",
     }:
         return True
+    if clean_path.startswith("/admin/payment-intents/") and clean_path.endswith("/approve"):
+        return True
     return clean_path.startswith("/admin/customers/") and (
         clean_path.endswith("/suspend") or clean_path.endswith("/unsuspend")
     )

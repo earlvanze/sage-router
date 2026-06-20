@@ -2037,6 +2037,140 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('lite', intent['metadata']['plan'])
         self.assertEqual('request', intent['metadata']['amount_source'])
 
+    def test_operator_can_approve_manual_payment_intent_and_activate_customer(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        customer = router.customer_for_user({'id': 'user-1', 'email': 'u@example.com'})
+        intent = router.store_payment_intent({
+            'kind': 'crypto_manual',
+            'customer_id': customer['id'],
+            'user_id': customer['user_id'],
+            'status': 'pending_manual_review',
+            'asset': 'USDC',
+            'network': 'base',
+            'amount': '72',
+            'address': 'wallet_123',
+            'metadata': {
+                'settlement': 'manual',
+                'automatic_settlement': False,
+                'plan': 'max',
+                'amount_source': 'public_plan_catalog',
+                'note': 'customer supplied note stays out of operator response',
+            },
+        })
+        body = b'{"settlementReference":"tx_123","reasonCode":"billing_review","note":"sk-secret-should-not-return"}'
+
+        class Dummy:
+            def __init__(self):
+                self.path = f'/admin/payment-intents/{intent["id"]}/approve'
+                self.headers = {
+                    'Authorization': 'Bearer operator-token',
+                    'Content-Length': str(len(body)),
+                    'Origin': 'https://app.sagerouter.dev',
+                }
+                self.rfile = BytesIO(body)
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(200, handler.status)
+        updated = router.customer_by_id(customer['id'])
+        self.assertEqual('max', updated['plan'])
+        self.assertEqual('active', updated['status'])
+        self.assertTrue(router.customer_is_active(updated))
+        self.assertEqual('settled_manual_review', handler.payload['intent']['status'])
+        self.assertEqual('tx_123', handler.payload['intent']['metadata']['settlement_reference'])
+        self.assertEqual('payment_intent.approve', handler.payload['auditEvent']['action'])
+        self.assertEqual('billing_review', handler.payload['auditEvent']['reason_code'])
+        self.assertEqual('inactive', handler.payload['auditEvent']['status_before'])
+        self.assertEqual('active', handler.payload['auditEvent']['status_after'])
+        self.assertNotIn('sk-secret', json.dumps(handler.payload))
+        self.assertNotIn('customer supplied note', json.dumps(handler.payload))
+
+    def test_operator_manual_payment_approval_respects_suspended_customer(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        customer = self.active_customer()
+        raw, _row = router.create_api_key_for_customer(customer, 'prod')
+        router.suspend_customer_for_operator(customer['id'], reason_code='provider_risk')
+        intent = router.store_payment_intent({
+            'kind': 'crypto_manual',
+            'customer_id': customer['id'],
+            'user_id': customer['user_id'],
+            'status': 'pending_manual_review',
+            'asset': 'USDC',
+            'network': 'base',
+            'amount': '72',
+            'address': 'wallet_123',
+            'metadata': {'plan': 'max', 'settlement': 'manual', 'automatic_settlement': False},
+        })
+        body = b'{}'
+
+        class Dummy:
+            def __init__(self):
+                self.path = f'/admin/payment-intents/{intent["id"]}/approve'
+                self.headers = {
+                    'Authorization': 'Bearer operator-token',
+                    'Content-Length': str(len(body)),
+                    'Origin': 'https://app.sagerouter.dev',
+                }
+                self.rfile = BytesIO(body)
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        updated = router.customer_by_id(customer['id'])
+        self.assertEqual(200, handler.status)
+        self.assertEqual('max', updated['plan'])
+        self.assertEqual('suspended', updated['status'])
+        self.assertFalse(router.customer_is_active(updated))
+        self.assertFalse(handler.payload['routingEnabled'])
+        self.assertEqual('suspended', handler.payload['auditEvent']['status_before'])
+        self.assertEqual('suspended', handler.payload['auditEvent']['status_after'])
+        self.assertIsNone(router.verify_generated_api_key(raw))
+
+    def test_operator_manual_payment_approval_rejects_non_manual_intent(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        customer = self.active_customer()
+        intent = router.store_payment_intent({
+            'kind': 'stripe_webhook',
+            'customer_id': customer['id'],
+            'event_id': 'evt_1',
+            'status': 'received',
+        })
+
+        class Dummy:
+            def __init__(self):
+                self.path = f'/admin/payment-intents/{intent["id"]}/approve'
+                self.headers = {
+                    'Authorization': 'Bearer operator-token',
+                    'Content-Length': '2',
+                    'Origin': 'https://app.sagerouter.dev',
+                }
+                self.rfile = BytesIO(b'{}')
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(400, handler.status)
+        self.assertEqual('invalid_payment_intent_kind', handler.payload['error'])
+
     def test_stripe_invoice_payment_failure_disables_generated_key_routing(self):
         router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
         customer = self.active_customer()

@@ -207,6 +207,12 @@ not a checkout entitlement, provider resale claim, or runtime feature flag.
   only restore active routing when an operator explicitly requests an active
   status, record a secret-free operator audit event, and never un-revoke
   previously revoked generated API keys.
+- Keep manual/crypto payment recovery bounded: `POST
+  /admin/payment-intents/{intent_id}/approve` must require the private operator
+  token, approve only manual crypto intents, activate the selected Lite/Pro/Max
+  plan, record a secret-free operator audit event, and preserve sticky
+  suspension so settled payment cannot restore an account under abuse,
+  chargeback, provider-risk, or security review.
 - Capture managed-access beta and Max implementation demand through the
   waitlist `interest` metadata path from `/managed-access` and watch
   `managedAccessBetaInterest` plus `managedAccessShareOfWaitlist` in

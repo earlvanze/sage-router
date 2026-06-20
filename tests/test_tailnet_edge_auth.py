@@ -259,6 +259,7 @@ class TailnetEdgeAuthTests(unittest.TestCase):
             "/billing/crypto/intent",
             "/admin/customers/customer_1/suspend",
             "/admin/customers/customer_1/unsuspend",
+            "/admin/payment-intents/pi_1/approve",
         ):
             with self.subTest(path=path):
                 class Handler:
@@ -385,6 +386,7 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertTrue(self.edge.should_use_control_plane("/analytics/funnel?days=30"))
         self.assertTrue(self.edge.should_use_control_plane("/admin/customers?limit=1"))
         self.assertTrue(self.edge.should_use_control_plane("/admin/customers/customer_1/suspend"))
+        self.assertTrue(self.edge.should_use_control_plane("/admin/payment-intents/pi_1/approve"))
         self.assertTrue(self.edge.should_use_control_plane("/billing/stripe/webhook"))
         self.assertFalse(self.edge.should_use_control_plane("/v1/models"))
         self.assertFalse(self.edge.should_use_control_plane("/health"))

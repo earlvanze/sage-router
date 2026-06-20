@@ -6219,7 +6219,7 @@ OPERATOR_AUDIT_REASON_CODES = {
     'customer_request',
     'other',
 }
-OPERATOR_AUDIT_ACTIONS = {'customer.suspend', 'customer.unsuspend'}
+OPERATOR_AUDIT_ACTIONS = {'customer.suspend', 'customer.unsuspend', 'payment_intent.approve'}
 
 
 def operator_audit_reason(value):
@@ -6305,6 +6305,40 @@ def operator_audit_events_for_customer(customer_id, limit=20):
         rows.sort(key=lambda row: int(row.get('created_at_epoch') or 0), reverse=True)
         rows = rows[:limit]
     return [public_operator_audit_event(row) for row in rows]
+
+
+def bounded_payment_text(value, limit=160):
+    return re.sub(r'\s+', ' ', str(value or '')).strip()[:max(1, int(limit or 160))]
+
+
+def public_payment_intent(row):
+    row = row if isinstance(row, dict) else {}
+    metadata = row.get('metadata') if isinstance(row.get('metadata'), dict) else {}
+    public_metadata = {}
+    for key in (
+        'settlement',
+        'automatic_settlement',
+        'plan',
+        'amount_source',
+        'approved_at_epoch',
+        'settlement_reference',
+    ):
+        if key in metadata:
+            public_metadata[key] = metadata.get(key)
+    return {
+        'id': row.get('id') or '',
+        'kind': row.get('kind') or '',
+        'customer_id': row.get('customer_id') or '',
+        'user_id': row.get('user_id') or '',
+        'status': row.get('status') or '',
+        'asset': row.get('asset') or '',
+        'network': row.get('network') or '',
+        'amount': row.get('amount') or '',
+        'address': row.get('address') or '',
+        'metadata': public_metadata,
+        'created_at_epoch': row.get('created_at_epoch'),
+        'updated_at_epoch': row.get('updated_at_epoch'),
+    }
 
 
 def customer_matches_operator_query(customer, query):
@@ -6870,6 +6904,93 @@ def payment_intent_for_customer(customer_id, intent_id):
         if row.get('id') == intent_id and row.get('customer_id') == customer_id:
             return row
     return None
+
+
+def payment_intent_by_id(intent_id):
+    intent_id = str(intent_id or '').strip()
+    if not intent_id:
+        return None
+    if customer_store_uses_supabase():
+        rows = supabase_select(
+            SUPABASE_PAYMENT_INTENTS_TABLE,
+            f'select=*&id=eq.{urllib.parse.quote(intent_id, safe="")}&limit=1',
+        )
+        return rows[0] if rows else None
+    for row in local_customer_store().get('payment_intents', []):
+        if row.get('id') == intent_id:
+            return row
+    return None
+
+
+def update_payment_intent(intent_id, updates):
+    intent_id = str(intent_id or '').strip()
+    updates = dict(updates or {})
+    updates['updated_at_epoch'] = now_epoch()
+    if not intent_id:
+        return None
+    if customer_store_uses_supabase():
+        rows = supabase_patch(SUPABASE_PAYMENT_INTENTS_TABLE, intent_id, updates)
+        return rows[0] if rows else payment_intent_by_id(intent_id)
+    data = local_customer_store()
+    found = None
+    for row in data.get('payment_intents', []):
+        if row.get('id') == intent_id:
+            row.update(updates)
+            found = row
+            break
+    if found:
+        write_local_customer_store(data)
+    return found
+
+
+def approve_manual_payment_intent(intent_id, settlement_reference='', reason_code='billing_review', requested_plan=''):
+    intent = payment_intent_by_id(intent_id)
+    if not intent:
+        return None, None, None
+    if str(intent.get('kind') or '') != 'crypto_manual':
+        raise ValueError('invalid_payment_intent_kind')
+    customer_id = intent.get('customer_id')
+    customer = customer_by_id(customer_id)
+    if not customer:
+        raise ValueError('customer_not_found')
+    metadata = intent.get('metadata') if isinstance(intent.get('metadata'), dict) else {}
+    plan = (
+        normalize_stripe_plan(requested_plan)
+        or normalize_stripe_plan(metadata.get('plan'))
+        or normalize_stripe_plan(customer.get('plan'))
+    )
+    if not plan:
+        raise ValueError('payment_plan_required')
+    approved_at = now_epoch()
+    updated_metadata = dict(metadata)
+    updated_metadata.update({
+        'settlement': 'manual',
+        'automatic_settlement': False,
+        'plan': plan,
+        'approved_at_epoch': approved_at,
+    })
+    reference = bounded_payment_text(settlement_reference, 160)
+    if reference:
+        updated_metadata['settlement_reference'] = reference
+    updated_intent = update_payment_intent(intent.get('id'), {
+        'status': 'settled_manual_review',
+        'metadata': updated_metadata,
+    })
+    status_before = str(customer.get('status') or '')
+    desired_status = billing_status_for_customer(customer_id, 'active')
+    updated_customer = update_customer(customer_id, {
+        'plan': plan,
+        'status': desired_status,
+    })
+    audit_event = record_operator_audit_event(
+        'payment_intent.approve',
+        customer_id,
+        status_before=status_before,
+        status_after=desired_status,
+        revoked_api_keys_count=0,
+        reason_code=reason_code,
+    )
+    return updated_customer or customer_by_id(customer_id), updated_intent or payment_intent_by_id(intent_id), audit_event
 
 
 def stripe_webhook_event_seen(event_id):
@@ -10575,6 +10696,38 @@ class Handler(BaseHTTPRequestHandler):
                 'auditEvent': audit_event,
                 'revokedApiKeysRemainRevoked': True,
                 'status': customer.get('status') or 'inactive',
+            })
+            return
+        if self.path.startswith('/admin/payment-intents/') and self.path.endswith('/approve'):
+            if not require_trusted_browser_origin(self):
+                return
+            if not require_operator_request(self):
+                return
+            parts = self.path.split('/')
+            intent_id = urllib.parse.unquote(parts[3] if len(parts) > 3 else '')
+            if not intent_id:
+                self.write_json(400, {'error': 'payment_intent_id_required'})
+                return
+            payload = read_json_body(self)
+            try:
+                customer, intent, audit_event = approve_manual_payment_intent(
+                    intent_id,
+                    payload.get('settlementReference') or payload.get('settlement_reference') or '',
+                    payload.get('reasonCode') or payload.get('reason_code') or 'billing_review',
+                    payload.get('plan') or '',
+                )
+            except ValueError as e:
+                self.write_json(400, {'error': str(e)})
+                return
+            if not intent:
+                self.write_json(404, {'error': 'payment_intent_not_found'})
+                return
+            self.write_json(200, {
+                'customer': public_customer(customer),
+                'intent': public_payment_intent(intent),
+                'auditEvent': audit_event,
+                'routingEnabled': customer_is_active(customer),
+                'status': intent.get('status') or 'settled_manual_review',
             })
             return
         if self.path == '/account/api-keys':
