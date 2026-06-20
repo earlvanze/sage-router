@@ -79,6 +79,7 @@ let billingReturnHandled = false;
 let keyVerifiedThisSession = false;
 let activationState = {
   signedIn: false,
+  emailVerified: true,
   routingEnabled: false,
   keyCount: 0,
   keyVerified: false,
@@ -225,6 +226,8 @@ function renderLaunchNextAction(patch = {}) {
 
   if (!activationState.signedIn) {
     set('launch-next-action', 'Next: sign in or create an account.');
+  } else if (!activationState.emailVerified) {
+    set('launch-next-action', 'Next: verify your email before creating API keys or starting checkout.');
   } else if (!activationState.routingEnabled) {
     set('launch-next-action', 'Next: choose a paid plan or finish checkout so generated keys can route.');
   } else if (!activationState.keyCount) {
@@ -236,6 +239,24 @@ function renderLaunchNextAction(patch = {}) {
   } else {
     set('launch-next-action', `Activated: ${fmtNumber(activationState.requestCount)} routed request${activationState.requestCount === 1 ? '' : 's'} recorded this period.`);
   }
+}
+
+function applyEmailVerificationState(state = {}) {
+  const required = state.required === true;
+  const verified = state.verified !== false;
+  const email = state.email || 'your email';
+  const blocked = required && !verified;
+  const message = blocked
+    ? `Verify ${email} before creating API keys or starting checkout.`
+    : (required ? 'Email verified.' : 'Email verification is not required for this deployment.');
+  set('email-verification-status', message);
+  const status = $('email-verification-status');
+  if (status) status.classList.toggle('danger', blocked);
+  ['create-key', 'stripe-checkout', 'crypto-intent'].forEach((id) => {
+    const button = $(id);
+    if (button) button.disabled = blocked;
+  });
+  return !blocked;
 }
 
 function quickstartText(key = 'sk_sage_your_key_here') {
@@ -447,7 +468,7 @@ async function refresh() {
   show('auth-panel', !s);
   show('account-panel', !!s);
   show('sign-out', !!s);
-  renderLaunchNextAction({ signedIn: !!s, routingEnabled: false, keyCount: 0, keyVerified: keyVerifiedThisSession, requestCount: 0 });
+  renderLaunchNextAction({ signedIn: !!s, emailVerified: !s, routingEnabled: false, keyCount: 0, keyVerified: keyVerifiedThisSession, requestCount: 0 });
   try {
     const metadata = await fetch(`${sageRouterUrl}/pricing`).then(response => response.ok ? response.json() : null);
     applyLaunchMetadata(metadata);
@@ -458,14 +479,18 @@ async function refresh() {
   renderQuickstart();
   if (!s) return;
   set('account-status', 'Loading account...');
+  set('email-verification-status', '');
   renderUsage(null);
   try {
-    const [{ customer }, keys, planData, usageData] = await Promise.all([
+    const [accountData, keys, planData, usageData] = await Promise.all([
       api('/account'),
       api('/account/api-keys'),
       api('/account/plan').catch(() => null),
       api('/account/usage').catch(() => null),
     ]);
+    const customer = accountData.customer || {};
+    const emailVerification = accountData.emailVerification || planData?.emailVerification || usageData?.emailVerification || {};
+    const emailVerified = applyEmailVerificationState(emailVerification);
     applyLaunchMetadata(planData);
     renderQuickstart();
     const accountPlan = planData?.plan || customer.plan || 'free';
@@ -486,6 +511,7 @@ async function refresh() {
     $('keys').innerHTML = renderKeys(keys.api_keys || []);
     renderLaunchNextAction({
       signedIn: true,
+      emailVerified,
       routingEnabled: Boolean(activation.routingEnabled ?? (accountPlan !== 'free' && routingEnabled)),
       keyCount,
       keyVerified,
@@ -495,7 +521,7 @@ async function refresh() {
     set('account-status', error.message);
     renderPlans(FALLBACK_PLANS, 'free');
     renderUsage(null, FALLBACK_PLANS, 'free', false);
-    renderLaunchNextAction({ signedIn: true, routingEnabled: false, keyCount: 0, keyVerified: keyVerifiedThisSession, requestCount: 0 });
+    renderLaunchNextAction({ signedIn: true, emailVerified: true, routingEnabled: false, keyCount: 0, keyVerified: keyVerifiedThisSession, requestCount: 0 });
   }
 }
 

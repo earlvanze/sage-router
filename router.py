@@ -164,6 +164,7 @@ SUPABASE_MIRROR_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_MIRROR_ENABLED', 
 # Off by default — the router does not collect user identities. Enable only
 # when running the hosted billing/tenancy tier that requires Supabase Auth.
 SUPABASE_AUTH_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_AUTH_ENABLED', '0').strip().lower() in {'1', 'true', 'yes', 'on'}
+REQUIRE_VERIFIED_EMAIL = os.environ.get('SAGE_ROUTER_REQUIRE_VERIFIED_EMAIL', '1').strip().lower() in {'1', 'true', 'yes', 'on'}
 CLIENT_API_KEYS = [
     key.strip()
     for key in (os.environ.get('SAGE_ROUTER_CLIENT_API_KEYS') or os.environ.get('SAGE_ROUTER_CLIENT_API_KEY') or '').split(',')
@@ -6192,6 +6193,44 @@ def require_user_customer(handler):
     return user, customer
 
 
+def hosted_email_verification_required():
+    return bool(SUPABASE_AUTH_ENABLED and REQUIRE_VERIFIED_EMAIL)
+
+
+def user_email_verified(user):
+    if not user:
+        return False
+    if user.get('email_confirmed_at') or user.get('confirmed_at'):
+        return True
+    for meta_key in ('user_metadata', 'app_metadata'):
+        meta = user.get(meta_key) or {}
+        if meta.get('email_verified') is True or str(meta.get('email_verified') or '').strip().lower() == 'true':
+            return True
+    return False
+
+
+def user_email_verification_state(user):
+    required = hosted_email_verification_required()
+    verified = user_email_verified(user)
+    return {
+        'required': required,
+        'verified': bool(verified or not required),
+        'email': (user or {}).get('email') or ((user or {}).get('user_metadata') or {}).get('email') or '',
+    }
+
+
+def require_verified_account_user(handler, user):
+    state = user_email_verification_state(user)
+    if state.get('required') and not state.get('verified'):
+        handler.write_json(403, {
+            'error': 'email_verification_required',
+            'message': 'Verify your email before creating API keys or starting paid routing.',
+            'emailVerification': state,
+        })
+        return False
+    return True
+
+
 def form_encode(fields):
     return urllib.parse.urlencode({k: v for k, v in fields.items() if v is not None}).encode('utf-8')
 
@@ -9618,12 +9657,12 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == '/features/agent-native':
             self.write_json(200, {'agentNativeFeatures': PUBLIC_AGENT_NATIVE_FEATURES})
         elif self.path == '/account':
-            _user, customer = require_user_customer(self)
+            user, customer = require_user_customer(self)
             if not customer:
                 return
-            self.write_json(200, {'customer': public_customer(customer)})
+            self.write_json(200, {'customer': public_customer(customer), 'emailVerification': user_email_verification_state(user)})
         elif self.path == '/account/plan':
-            _user, customer = require_user_customer(self)
+            user, customer = require_user_customer(self)
             if not customer:
                 return
             self.write_json(200, {
@@ -9631,15 +9670,20 @@ class Handler(BaseHTTPRequestHandler):
                 'status': customer.get('status') or 'inactive',
                 'routing_enabled': customer_is_active(customer),
                 'customer': public_customer(customer),
+                'emailVerification': user_email_verification_state(user),
                 'plans': public_plan_catalog(),
                 **public_launch_metadata(),
             })
         elif self.path == '/account/usage':
-            _user, customer = require_user_customer(self)
+            user, customer = require_user_customer(self)
             if not customer:
                 return
             usage = account_usage_for_customer(customer)
-            self.write_json(200, {'usage': usage, 'activation': account_activation_for_customer(customer, usage=usage)})
+            self.write_json(200, {
+                'usage': usage,
+                'activation': account_activation_for_customer(customer, usage=usage),
+                'emailVerification': user_email_verification_state(user),
+            })
         elif self.path == '/account/api-keys':
             _user, customer = require_user_customer(self)
             if not customer:
@@ -9925,8 +9969,10 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
         if self.path == '/account/api-keys':
-            _user, customer = require_user_customer(self)
+            user, customer = require_user_customer(self)
             if not customer:
+                return
+            if not require_verified_account_user(self, user):
                 return
             payload = read_json_body(self)
             try:
@@ -9956,8 +10002,10 @@ class Handler(BaseHTTPRequestHandler):
             self.write_json(200, {'api_key': public_api_key(row, customer)})
             return
         if self.path == '/billing/stripe/checkout':
-            _user, customer = require_user_customer(self)
+            user, customer = require_user_customer(self)
             if not customer:
+                return
+            if not require_verified_account_user(self, user):
                 return
             payload = read_json_body(self)
             plan = str(payload.get('plan') or 'pro').strip().lower()
@@ -10070,8 +10118,10 @@ class Handler(BaseHTTPRequestHandler):
             self.write_json(200, {'received': True, 'event_id': event_id})
             return
         if self.path == '/billing/crypto/intent':
-            _user, customer = require_user_customer(self)
+            user, customer = require_user_customer(self)
             if not customer:
+                return
+            if not require_verified_account_user(self, user):
                 return
             if CRYPTO_PROCESSOR_URL and CRYPTO_PROCESSOR_KEY:
                 self.write_json(501, {'error': 'crypto_processor_not_implemented', 'message': 'Processor configuration is present, but this incremental build only supports manual crypto intents.'})

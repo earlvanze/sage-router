@@ -37,6 +37,7 @@ class SaaSAuthTests(unittest.TestCase):
             'CLIENT_AUTH_REQUIRED': router.CLIENT_AUTH_REQUIRED,
             'ANALYTICS_TOKEN': router.ANALYTICS_TOKEN,
             'SUPABASE_AUTH_ENABLED': router.SUPABASE_AUTH_ENABLED,
+            'REQUIRE_VERIFIED_EMAIL': router.REQUIRE_VERIFIED_EMAIL,
             'STRIPE_SECRET_KEY': router.STRIPE_SECRET_KEY,
             'STRIPE_PRICE_ID': router.STRIPE_PRICE_ID,
             'STRIPE_PRICE_IDS_RAW': router.STRIPE_PRICE_IDS_RAW,
@@ -66,6 +67,7 @@ class SaaSAuthTests(unittest.TestCase):
         router.CLIENT_AUTH_REQUIRED = True
         router.ANALYTICS_TOKEN = ''
         router.SUPABASE_AUTH_ENABLED = False
+        router.REQUIRE_VERIFIED_EMAIL = True
         router.STRIPE_SECRET_KEY = ''
         router.STRIPE_PRICE_ID = ''
         router.STRIPE_PRICE_IDS_RAW = ''
@@ -93,6 +95,7 @@ class SaaSAuthTests(unittest.TestCase):
         router.CLIENT_AUTH_REQUIRED = self.old['CLIENT_AUTH_REQUIRED']
         router.ANALYTICS_TOKEN = self.old['ANALYTICS_TOKEN']
         router.SUPABASE_AUTH_ENABLED = self.old['SUPABASE_AUTH_ENABLED']
+        router.REQUIRE_VERIFIED_EMAIL = self.old['REQUIRE_VERIFIED_EMAIL']
         router.STRIPE_SECRET_KEY = self.old['STRIPE_SECRET_KEY']
         router.STRIPE_PRICE_ID = self.old['STRIPE_PRICE_ID']
         router.STRIPE_PRICE_IDS_RAW = self.old['STRIPE_PRICE_IDS_RAW']
@@ -197,6 +200,94 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(409, handler.status)
         self.assertEqual('active_api_key_limit_reached', handler.payload['error'])
         self.assertEqual(1, handler.payload['maxActiveApiKeysPerCustomer'])
+
+    def test_hosted_account_reports_unverified_email_state(self):
+        router.SUPABASE_AUTH_ENABLED = True
+        router.REQUIRE_VERIFIED_EMAIL = True
+        router.supabase_user_for_bearer = lambda token: {
+            'id': 'user-verify',
+            'email': 'verify@example.com',
+            'user_metadata': {'email': 'verify@example.com'},
+        } if token == 'valid-user-jwt' else None
+
+        class Dummy:
+            path = '/account'
+            headers = {'Authorization': 'Bearer valid-user-jwt'}
+            status = None
+            payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_GET(handler)
+
+        self.assertEqual(200, handler.status)
+        self.assertEqual('verify@example.com', handler.payload['emailVerification']['email'])
+        self.assertTrue(handler.payload['emailVerification']['required'])
+        self.assertFalse(handler.payload['emailVerification']['verified'])
+
+    def test_unverified_hosted_user_cannot_create_key_or_start_checkout(self):
+        router.SUPABASE_AUTH_ENABLED = True
+        router.REQUIRE_VERIFIED_EMAIL = True
+        router.STRIPE_SECRET_KEY = 'sk_test'
+        router.STRIPE_PRICE_IDS_RAW = 'pro=price_pro'
+        router.supabase_user_for_bearer = lambda token: {
+            'id': 'user-unverified',
+            'email': 'unverified@example.com',
+        } if token == 'valid-user-jwt' else None
+
+        class Dummy:
+            def __init__(self, path, body=b'{}'):
+                self.path = path
+                self.headers = {'Authorization': 'Bearer valid-user-jwt', 'Content-Length': str(len(body))}
+                self.rfile = BytesIO(body)
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        key_handler = Dummy('/account/api-keys', b'{"name":"prod"}')
+        router.Handler.do_POST(key_handler)
+        self.assertEqual(403, key_handler.status)
+        self.assertEqual('email_verification_required', key_handler.payload['error'])
+        customer = router.customer_for_user({'id': 'user-unverified'}, create=False)
+        self.assertEqual(0, router.active_api_key_count_for_customer(customer['id']))
+
+        checkout_handler = Dummy('/billing/stripe/checkout', b'{"plan":"pro"}')
+        router.Handler.do_POST(checkout_handler)
+        self.assertEqual(403, checkout_handler.status)
+        self.assertEqual('email_verification_required', checkout_handler.payload['error'])
+
+    def test_verified_hosted_user_can_create_generated_key(self):
+        router.SUPABASE_AUTH_ENABLED = True
+        router.REQUIRE_VERIFIED_EMAIL = True
+        router.supabase_user_for_bearer = lambda token: {
+            'id': 'user-verified',
+            'email': 'verified@example.com',
+            'email_confirmed_at': '2026-06-20T00:00:00Z',
+        } if token == 'valid-user-jwt' else None
+
+        class Dummy:
+            path = '/account/api-keys'
+            headers = {'Authorization': 'Bearer valid-user-jwt', 'Content-Length': '15'}
+            rfile = BytesIO(b'{"name":"prod"}')
+            status = None
+            payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(201, handler.status)
+        self.assertTrue(handler.payload['key'].startswith('sk_sage_'))
+        self.assertNotIn(handler.payload['key'], json.dumps(router.local_customer_store()))
 
     def test_revoked_and_inactive_generated_keys_do_not_authorize(self):
         customer = self.active_customer()

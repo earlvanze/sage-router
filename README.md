@@ -167,6 +167,15 @@ The hosted web app uses Supabase Auth. Email/password signup and email magic lin
 
 The account, login, and analytics pages read `https://awtangrlqqsdpksarhwo.supabase.co/auth/v1/settings` with the public anon key and hide disabled OAuth providers. This keeps onboarding usable through email signup while GitHub or other providers are still being configured.
 
+Hosted customer actions require verified email by default when
+`SAGE_ROUTER_SUPABASE_AUTH_ENABLED=1`. The account page still loads for
+signed-in users and shows the verification state, but API-key creation, Stripe
+checkout, and manual crypto payment intent creation return
+`email_verification_required` until Supabase reports `email_confirmed_at`,
+`confirmed_at`, or verified email metadata. Set
+`SAGE_ROUTER_REQUIRE_VERIFIED_EMAIL=0` only for trusted private/self-hosted
+deployments.
+
 The account page also renders hosted plan selection before sign-in from public
 `/pricing` metadata. The selected Lite/Pro/Max plan is persisted in browser
 storage, shows quota, rate limit, and estimated cost per 1,000 requests, and is

@@ -186,6 +186,10 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   non-mutating status probe; the bootstrap must verify both Supabase management
   config and the browser-visible `/auth/v1/settings` provider state before
   treating GitHub OAuth as complete.
+- Keep hosted account abuse controls on by default: with Supabase Auth enabled,
+  API-key creation, Stripe checkout, and manual crypto payment intent creation
+  require verified email unless a trusted private deployment explicitly sets
+  `SAGE_ROUTER_REQUIRE_VERIFIED_EMAIL=0`.
 - Track the funnel from waitlist to signup, generated key, first routed request,
   paid conversion, and retained paid account through the operator-only
   `/analytics/funnel` endpoint.
