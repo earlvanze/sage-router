@@ -86,12 +86,12 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
 ## Near-term launch checklist
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
-- Keep `/pricing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/openrouter-migration`, `/docs/codex`, `/status`, `/support`, `/account.html`, `/login.html`,
+- Keep `/pricing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/openrouter-migration`, `/docs/codex`, `/agent-native`, `/status`, `/support`, `/account.html`, `/login.html`,
   `/api/waitlist`, `/models`, `/managed-access`, `/compare/openrouter`, `/model-routing-calculator`, `/terms`,
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
-- Keep the public pricing, calculator, legal, provider-resale, and margin-policy
-  pages in sitemap and LLM discovery.
+- Keep the public pricing, agent-native routing, calculator, legal, provider-resale,
+  and margin-policy pages in sitemap and LLM discovery.
 - Keep public model discovery at `/models` and `/model-catalog`, while live
   `/v1/models` stays authenticated with generated `sk_sage_*` keys.
 - Keep `/quickstart` as the first hosted API request path with

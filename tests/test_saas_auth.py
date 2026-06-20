@@ -681,6 +681,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('sagerouter.dev/pricing', router.PUBLIC_LAUNCH_POSITIONING['conversionSurfaces'])
         self.assertIn('sagerouter.dev/models', router.PUBLIC_LAUNCH_POSITIONING['conversionSurfaces'])
         self.assertIn('https://sagerouter.dev/models', launch['conversionSurfaces'])
+        self.assertIn('sagerouter.dev/agent-native', router.PUBLIC_LAUNCH_POSITIONING['conversionSurfaces'])
+        self.assertIn('https://sagerouter.dev/agent-native', launch['conversionSurfaces'])
         self.assertIn('sagerouter.dev/model-routing-calculator', router.PUBLIC_LAUNCH_POSITIONING['conversionSurfaces'])
         self.assertIn('https://sagerouter.dev/model-routing-calculator', launch['conversionSurfaces'])
         self.assertIn('usage quotas and request-per-minute limits', launch['sells'])

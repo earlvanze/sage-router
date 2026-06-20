@@ -12,6 +12,7 @@ API troubleshooting: https://sagerouter.dev/api-troubleshooting
 Hosted API reference: https://sagerouter.dev/docs/api-reference
 Codex setup: https://sagerouter.dev/docs/codex
 Model catalog: https://sagerouter.dev/models
+Agent-native routing: https://sagerouter.dev/agent-native
 Model Routing Calculator: https://sagerouter.dev/model-routing-calculator
 Managed-access beta interest: https://sagerouter.dev/managed-access
 Security: https://sagerouter.dev/security
@@ -38,6 +39,7 @@ Docs: https://github.com/earlvanze/sage-router#readme
 - Hosted API reference lives at https://sagerouter.dev/docs/api-reference and documents `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public `/model-catalog`, generated `sk_sage_*` keys, quotas, rate-limit headers, and the authenticated model API boundary.
 - Dedicated Codex setup lives at https://sagerouter.dev/docs/codex and shows hosted `https://api.sagerouter.dev/v1/`, local `http://127.0.0.1:8790/v1/`, Tailnet `http://<tailnet-host>:8790/v1/`, `wire_api = "responses"`, and `sage-router/frontier` profiles.
 - Public model discovery lives at https://sagerouter.dev/models and `https://api.sagerouter.dev/model-catalog`; live `/v1/models` still requires an active generated `sk_sage_*` customer key.
+- Agent-native routing lives at https://sagerouter.dev/agent-native and explains profile-based routing, Responses API and Codex compatibility, health-aware fallback, BYOK custody, local/Tailnet/hosted deployment choices, and public feature metadata at `https://api.sagerouter.dev/features/agent-native`.
 - Hosted security requires generated `sk_sage_*` customer keys for model traffic, Supabase sessions for account/billing routes, and private operator tokens for global analytics/admin routes.
 - Hosted support covers account, billing, quota, generated API key, reliability, 503, security, abuse, and private deployment help without collecting prompts, workflow text, provider credentials, OAuth tokens, API keys, private keys, or raw provider responses in public channels.
 - Managed-access private beta intake at https://sagerouter.dev/managed-access stores contact and allowlisted qualification buckets only, including target provider family and commercial preference buckets for one-subscription demand; it must not collect prompts, workflow text, provider credentials, OAuth tokens, generated API keys, private keys, session cookies, raw provider responses, or customer data.
@@ -60,6 +62,7 @@ Managed access boundary: managed provider access, if introduced, is limited to p
 - Sage Router model catalog for OpenAI-compatible, Anthropic-compatible, Gemini, Ollama, Ollama Cloud, NVIDIA NIM, and BYOK routes.
 - Codex CLI with an OpenAI-compatible Sage Router provider on hosted or local port 8790.
 - Hosted OpenAI-compatible API reference for models, chat completions, Responses API, quotas, and rate-limit headers.
+- Agent-native model routing for OpenAI-compatible, Codex-style, local, Tailnet, and BYOK agents.
 - Troubleshooting Sage Router 401/402/429/503 without sharing prompts or secrets.
 - AI model routing calculator for estimating cost leaks, escalation rules, fallback needs, and human-review points.
 

@@ -1000,6 +1000,42 @@ check_marketing_codex_docs_page() {
   fi
 }
 
+check_marketing_agent_native_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/agent-native")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Agent-native model routing" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "sage-router/frontier" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-frontier-profile"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'wire_api = "responses"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-responses-wire-api"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "https://api.sagerouter.dev/features/agent-native" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-feature-metadata"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/agent-native" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-agent-native-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Agent-native routing: ${MARKETING_BASE%/}/agent-native" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-agent-native-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing agent-native routing page is live in sitemap and LLM discovery"
+  else
+    fail "marketing agent-native routing page incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_model_routing_calculator() {
   local page_code sitemap_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/model-routing-calculator")"
@@ -1314,6 +1350,7 @@ check_marketing_quickstart_page
 check_marketing_api_troubleshooting_page
 check_marketing_api_reference_page
 check_marketing_codex_docs_page
+check_marketing_agent_native_page
 check_model_routing_calculator
 check_legal_pages
 check_managed_provider_prerequisite_pages
