@@ -54,14 +54,15 @@ third-party origins before using the Supabase service-role insert.
 The account and standalone login pages use the same endpoint for activation and
 checkout intent: signup/login attempt, OAuth click, wallet connect attempt,
 browser-visible auth-provider state check, selected plan, API-key creation,
-public-edge key verification, first browser test request success, Stripe
+email verification resend recovery, public-edge key verification, first browser test request success, Stripe
 checkout click/return, Stripe portal click/return, and crypto/manual payment
 intent click. Keep the payload limited to event name, plan, sanitized
 source/target URL, and allowlisted metadata; Supabase Auth,
 generated-key records, billing webhooks, route usage, and Supabase customer
 records remain authoritative for activation and paid conversion. Login-page
-events must not include typed emails, passwords, wallet addresses, OAuth codes,
-OAuth secrets, or access tokens.
+events and verification-resend events must not include typed emails, account
+email addresses, passwords, wallet addresses, OAuth codes, OAuth secrets, or
+access tokens.
 The dedicated `/billing` recovery page also sends account, pricing, support,
 troubleshooting, quickstart, and status CTA events through this endpoint so the
 operator funnel can distinguish payment recovery friction from normal

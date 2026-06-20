@@ -591,6 +591,9 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "email-verification-status" /tmp/sage-router-readiness-body; then
     account_code="200:missing-email-verification-status"
   fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "resend-verification-email" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-email-verification-resend"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   analytics_code="$(http_code_follow "${APP_BASE%/}/analytics.html")"
@@ -698,6 +701,12 @@ check_hosted_onboarding_pages() {
   if [[ "$account_js_code" == "200" ]] && ! grep -q "emailVerification" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-email-verification-flow"
   fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "resendVerificationEmail" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-email-verification-resend-flow"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "account_email_verification_resent" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-email-verification-resend-funnel"
+  fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "/account/api-keys/.*revoke" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-api-key-revoke"
   fi
@@ -719,7 +728,7 @@ check_hosted_onboarding_pages() {
   rm -f /tmp/sage-router-readiness-body
 
   if [[ "$login_code" == "200" && "$account_code" == "200" && "$analytics_code" == "200" && "$launch_funnel_code" == "200" && "$launch_funnel_js_code" == "200" && "$status_code" == "200" && "$status_js_code" == "200" && "$analytics_js_code" == "200" && "$account_js_code" == "200" && "$manifest_code" == "200" ]]; then
-    pass "hosted login, account, API-key verification, analytics, operator launch funnel, reliability status, and GitHub auth callback pages are live; self-service API-key revocation, operator customer review, and GitHub credential preservation guidance are live"
+    pass "hosted login, account, API-key verification, analytics, operator launch funnel, reliability status, and GitHub auth callback pages are live; email verification resend, self-service API-key revocation, operator customer review, and GitHub credential preservation guidance are live"
   else
     fail "hosted onboarding pages incomplete: login=${login_code} account=${account_code} account.js=${account_js_code} analytics=${analytics_code} analytics.js=${analytics_js_code} launch-funnel=${launch_funnel_code} launch-funnel.js=${launch_funnel_js_code} status=${status_code} status.js=${status_js_code} github-app-manifest=${manifest_code}"
   fi

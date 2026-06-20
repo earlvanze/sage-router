@@ -138,6 +138,7 @@ let supportContextState = {
   usage: null,
 };
 let emailActionAllowed = true;
+let verificationEmail = '';
 
 function configuredStripePlans() {
   const configured = billingMetadata?.stripe?.configuredPlans || [];
@@ -396,6 +397,7 @@ function applyEmailVerificationState(state = {}) {
   const verified = state.verified !== false;
   const email = state.email || 'your email';
   const blocked = required && !verified;
+  verificationEmail = blocked ? String(state.email || '').trim() : '';
   emailActionAllowed = !blocked;
   const message = blocked
     ? `Verify ${email} before creating API keys or starting checkout.`
@@ -403,6 +405,7 @@ function applyEmailVerificationState(state = {}) {
   set('email-verification-status', message);
   const status = $('email-verification-status');
   if (status) status.classList.toggle('danger', blocked);
+  show('resend-verification-email', blocked && Boolean(verificationEmail));
   ['create-key', 'crypto-intent'].forEach((id) => {
     const button = $(id);
     if (button) button.disabled = blocked;
@@ -881,6 +884,32 @@ async function magicLogin() {
   if (!error) trackAccountFunnelEvent('account_magic_link_sent', { button: 'magic_login', target: '/account.html', state: 'email' });
 }
 
+async function resendVerificationEmail() {
+  if (!verificationEmail) {
+    set('email-verification-status', 'Refresh account state, then try resending verification.');
+    return;
+  }
+  setBusy('resend-verification-email', true, 'Sending...');
+  try {
+    trackAccountFunnelEvent('account_email_verification_resend_clicked', { button: 'resend_verification_email', target: '/auth/v1/resend', state: 'signup' });
+    const { error } = await sb.auth.resend({
+      type: 'signup',
+      email: verificationEmail,
+      options: { emailRedirectTo: `${window.location.origin}/account.html` },
+    });
+    if (error) {
+      set('email-verification-status', error.message);
+      return;
+    }
+    trackAccountFunnelEvent('account_email_verification_resent', { button: 'resend_verification_email', target: '/account.html', state: 'sent' });
+    set('email-verification-status', 'Verification email sent. Check your inbox, then return to this page.');
+  } catch (error) {
+    set('email-verification-status', error.message || 'Could not resend verification email.');
+  } finally {
+    setBusy('resend-verification-email', false);
+  }
+}
+
 async function createKey() {
   set('key-once', '');
   set('test-api-key-status', '');
@@ -1095,6 +1124,7 @@ document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventLis
 $('password-signup')?.addEventListener('click', passwordSignup);
 $('password-login')?.addEventListener('click', passwordLogin);
 $('magic-login')?.addEventListener('click', magicLogin);
+$('resend-verification-email')?.addEventListener('click', resendVerificationEmail);
 $('create-key')?.addEventListener('click', createKey);
 $('test-api-key-button')?.addEventListener('click', testApiKey);
 $('test-chat-button')?.addEventListener('click', sendTestChat);

@@ -174,7 +174,7 @@ provider resale claim, or runtime feature flag.
 - Capture signed-in activation, checkout, and billing intent from the account
   and standalone login pages through the same privacy-safe path, including
   signup/login attempts, OAuth clicks, browser-visible auth-provider state
-  checks, wallet connect attempts, plan selection, API-key creation, public-edge key verification,
+  checks, email verification resend recovery, wallet connect attempts, plan selection, API-key creation, public-edge key verification,
   setup snippet-copy intent, first browser test request success, Stripe checkout clicks and returns,
   Stripe portal clicks and returns, and crypto/manual payment intent clicks.
   Treat Stripe webhooks, Supabase Auth, customer state, generated-key records,
@@ -183,6 +183,12 @@ provider resale claim, or runtime feature flag.
   wallet addresses, generated keys, prompts, provider credentials, OAuth tokens,
   OAuth secrets, completion text, copied snippet bodies, or API keys. Account
   setup snippet-copy events may store only the snippet ID.
+- Keep the verified-email gate recoverable from the signed-in account page:
+  when API-key creation, Stripe checkout, or manual payment is blocked by
+  unverified email, show the current verification state and resend the Supabase
+  verification email using only the authenticated account email returned by the
+  server. Funnel events may record resend click/sent counts, but must not store
+  email addresses or typed email input.
 - Track setup-copy to first-request activation in `/analytics/funnel` from
   privacy-safe snippet IDs, generated-key records, and server-recorded route
   usage so copied Codex/OpenAI snippets become an operator-owned activation

@@ -213,6 +213,11 @@ checkout, and manual crypto payment intent creation return
 `confirmed_at`, or verified email metadata. Set
 `SAGE_ROUTER_REQUIRE_VERIFIED_EMAIL=0` only for trusted private/self-hosted
 deployments.
+When verification is required, the signed-in account page exposes a resend
+verification control backed by Supabase Auth. It uses the authenticated account
+email returned by the server, does not ask the user to retype an email address,
+and records only aggregate resend-click/sent funnel events without storing
+email addresses.
 
 Manual crypto payment recovery is customer-scoped. A signed-in customer can
 reload the account page and recover their latest pending or settled manual
