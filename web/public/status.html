@@ -41,7 +41,7 @@
     .badge.warn{border-color:rgba(243,201,105,.35);background:rgba(243,201,105,.12);color:#ffe7a3}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
     .upstreams,.plans,.controls,.evidenceGrid{display:grid;gap:10px}
-    .evidenceGrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .evidenceGrid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
     .upstream,.planCard{padding:14px;box-shadow:none;background:rgba(255,255,255,.035)}
     .row{display:flex;justify-content:space-between;gap:14px;align-items:center}
     .host{font-weight:900;overflow-wrap:anywhere}
@@ -66,7 +66,7 @@
       <div>
         <span class="eyebrow">Public edge status</span>
         <h1>Live routing health.</h1>
-        <p>Sage Router checks each Tailnet and cloud backend, then sends traffic to the lowest-latency healthy installation.</p>
+        <p>Sage Router checks each Tailnet and cloud backend, sends traffic to the lowest-latency healthy installation, and retries eligible failures on the next healthy route.</p>
       </div>
       <div class="panel">
         <h2 id="headline">Checking edge...</h2>

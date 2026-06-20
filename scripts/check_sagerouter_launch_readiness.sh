@@ -612,6 +612,9 @@ check_hosted_onboarding_pages() {
   if [[ "$status_js_code" == "200" ]] && ! grep -q "cloud fallback" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-cloud-fallback-evidence"
   fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "X-Sage-Router-Retry-Count" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-retry-failover-evidence"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   local analytics_js_code

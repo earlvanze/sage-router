@@ -620,6 +620,12 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("cloud fallback", js)
         self.assertIn("Tailnet", js)
         self.assertIn("Hybrid failover is active", js)
+        self.assertIn("health.failover", js)
+        self.assertIn("healthyUpstreamCount", js)
+        self.assertIn("retryStatuses", js)
+        self.assertIn("X-Sage-Router-Retry-Count", js)
+        self.assertIn("Retry failover", js)
+        self.assertIn("retries eligible failures", html)
         self.assertIn("controlPlane", js)
         self.assertIn("enforcement", js)
         self.assertIn("rateLimitEnabled", js)
@@ -637,6 +643,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("auth-attempt throttling", readiness)
         self.assertIn("authAttemptRateLimitEnabled", readiness)
         self.assertIn("CDN-style reliability evidence", readiness)
+        self.assertIn("missing-retry-failover-evidence", readiness)
         self.assertIn("hosted login, account, API-key verification, analytics, operator launch funnel, reliability status, and GitHub auth callback pages are live", readiness)
 
     def test_security_doc_distinguishes_private_router_from_hosted_public_edge(self):

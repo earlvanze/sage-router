@@ -16,6 +16,12 @@ const host = (url) => {
 const fmtLatency = (value) => Number.isFinite(Number(value)) ? `${Math.round(Number(value))} ms` : '--';
 const fmtNumber = (value) => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '';
 const fmtBool = (value) => value ? 'enabled' : 'disabled';
+const fmtRetryStatuses = (statuses = []) => {
+  const values = (Array.isArray(statuses) ? statuses : [])
+    .map(value => Number(value))
+    .filter(value => Number.isFinite(value));
+  return values.length ? values.join('/') : 'configured retry statuses';
+};
 const originKind = (url = '') => {
   const name = host(url).toLowerCase();
   if (name.endsWith('.ts.net')) return 'tailnet';
@@ -87,6 +93,7 @@ function renderPlans(pricing = {}) {
 function renderReliabilityEvidence(health = {}) {
   const upstreams = health.upstreams || [];
   const healthy = upstreams.filter(row => row.healthy);
+  const failover = health.failover || {};
   const tailnetCount = healthy.filter(row => originKind(row.url) === 'tailnet').length;
   const cloudCount = healthy.filter(row => originKind(row.url) === 'cloud fallback').length;
   const selected = upstreams.find(row => row.url === health.selected) || {};
@@ -94,10 +101,15 @@ function renderReliabilityEvidence(health = {}) {
   const multiOrigin = tailnetCount > 0 && cloudCount > 0;
   const multiHost = healthy.length >= 2;
   const status = multiOrigin && multiHost ? 'resilient' : (multiHost ? 'partial' : 'limited');
+  const reportedHealthyCount = Number.isFinite(Number(failover.healthyUpstreamCount)) ? Number(failover.healthyUpstreamCount) : healthy.length;
+  const retryHeader = failover.retryHeader || 'X-Sage-Router-Retry-Count';
+  const retryStatuses = fmtRetryStatuses(failover.retryStatuses);
+  const retryEnabled = failover.retryEnabled === true;
+  const failoverMode = failover.mode || 'lowest-latency healthy';
   const cards = [
     {
       title: 'Healthy backends',
-      value: `${healthy.length}/${upstreams.length}`,
+      value: `${reportedHealthyCount}/${upstreams.length}`,
       badge: multiHost ? 'failover ready' : 'limited',
       state: multiHost ? 'good' : 'warn',
       meta: 'The public edge selects the lowest-latency healthy backend before proxying model traffic.',
@@ -116,17 +128,33 @@ function renderReliabilityEvidence(health = {}) {
       state: selected.healthy ? 'good' : 'warn',
       meta: `${fmtLatency(selected.latency_ms)} selected latency; checked ${relTime(selected.last_checked)}.`,
     },
+    {
+      title: 'Retry failover',
+      value: failoverMode,
+      badge: retryEnabled ? 'retry enabled' : 'retry unknown',
+      state: retryEnabled ? 'good' : 'warn',
+      meta: retryEnabled
+        ? `Retries ${retryStatuses} responses on the next healthy upstream; successful retries include ${retryHeader}.`
+        : `Retry metadata is not published by this edge yet; expected header is ${retryHeader}.`,
+    },
   ];
   $('reliability-evidence').innerHTML = cards.map(row => `<article class="upstream">
     <div class="row"><div class="host">${esc(row.title)}: ${esc(row.value)}</div>${badge(row.badge, row.state)}</div>
     <div class="meta">${esc(row.meta)}</div>
   </article>`).join('');
-  set('reliability-summary', `${status === 'resilient' ? 'Hybrid failover is active' : 'Failover is limited'}: ${healthy.length}/${upstreams.length} healthy backends, ${tailnetCount} Tailnet origin${tailnetCount === 1 ? '' : 's'}, and ${cloudCount} cloud fallback origin${cloudCount === 1 ? '' : 's'}.`);
+  const retrySummary = retryEnabled ? ` Retry failover is enabled for ${retryStatuses} responses.` : '';
+  set('reliability-summary', `${status === 'resilient' ? 'Hybrid failover is active' : 'Failover is limited'}: ${reportedHealthyCount}/${upstreams.length} healthy backends, ${tailnetCount} Tailnet origin${tailnetCount === 1 ? '' : 's'}, and ${cloudCount} cloud fallback origin${cloudCount === 1 ? '' : 's'}.${retrySummary}`);
 }
 
 function renderControls(health = {}) {
   const upstreams = health.upstreams || [];
-  const healthyCount = upstreams.filter(row => row.healthy).length;
+  const healthyFromRows = upstreams.filter(row => row.healthy).length;
+  const failover = health.failover || {};
+  const healthyCount = Number.isFinite(Number(failover.healthyUpstreamCount)) ? Number(failover.healthyUpstreamCount) : healthyFromRows;
+  const retryHeader = failover.retryHeader || 'X-Sage-Router-Retry-Count';
+  const retryStatuses = fmtRetryStatuses(failover.retryStatuses);
+  const retryEnabled = failover.retryEnabled === true;
+  const failoverMode = failover.mode || (healthyCount >= 2 ? 'multi-upstream' : (healthyCount === 1 ? 'single upstream' : 'no healthy upstreams'));
   const controlPlane = health.controlPlane || {};
   const enforcement = health.enforcement || {};
   const authMode = health.authMode || 'unknown';
@@ -137,10 +165,10 @@ function renderControls(health = {}) {
   const rows = [
     {
       title: 'Failover policy',
-      value: healthyCount >= 2 ? 'multi-upstream' : (healthyCount === 1 ? 'single upstream' : 'no healthy upstreams'),
-      badge: healthyCount >= 2 ? 'active' : 'limited',
-      state: healthyCount >= 2 ? 'good' : 'warn',
-      meta: `${healthyCount}/${upstreams.length} healthy backends; requests use the lowest-latency healthy route.`,
+      value: failoverMode,
+      badge: retryEnabled ? 'retry enabled' : (healthyCount >= 2 ? 'active' : 'limited'),
+      state: retryEnabled && healthyCount >= 2 ? 'good' : 'warn',
+      meta: `${healthyCount}/${upstreams.length} healthy backends; requests use the lowest-latency healthy route and retry ${retryStatuses} responses with ${retryHeader}.`,
     },
     {
       title: 'Control plane',
@@ -190,7 +218,7 @@ function renderControls(health = {}) {
     <div class="row"><div class="host">${esc(row.title)}: ${esc(row.value)}</div>${badge(row.badge, row.state)}</div>
     <div class="meta">${esc(row.meta)}</div>
   </article>`).join('');
-  set('resilience-summary', `${healthyCount}/${upstreams.length} upstreams are healthy; control plane ${controlPlane.healthy ? 'healthy' : 'not healthy'}; auth mode ${authMode}.`);
+  set('resilience-summary', `${healthyCount}/${upstreams.length} upstreams are healthy; control plane ${controlPlane.healthy ? 'healthy' : 'not healthy'}; auth mode ${authMode}; retry failover ${retryEnabled ? 'enabled' : 'not reported'}.`);
 }
 
 async function fetchJson(path) {
