@@ -289,7 +289,9 @@ provider resale claim, or runtime feature flag.
   config and the browser-visible `/auth/v1/settings` provider state before
   treating GitHub OAuth as complete. When GitHub is still disabled, the status
   helper prints the hosted fallback owner handoff and local credential-save path
-  so the manifest secret is not lost during Supabase setup.
+  so the manifest secret is not lost during Supabase setup. Hosted auth panels
+  should tell users GitHub sign-in is pending owner setup instead of presenting
+  it as a broken login path.
 - Keep signup attribution bounded. Email signup and magic-link requests can
   attach Supabase user metadata for selected hosted plan, signup surface, auth
   method, UTM source/medium/campaign, referrer host, and landing path. OAuth

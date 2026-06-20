@@ -110,6 +110,16 @@ function trackAuthProviderState(external = {}, state = 'loaded') {
     ...summarizeOauthProviderState(external),
   });
 }
+function oauthStatusText(external = {}, enabledLabels = [], status = '') {
+  if (status) return status;
+  if (enabledLabels.length) {
+    return `OAuth enabled: ${enabledLabels.join(', ')}. Email sign-in is also available.`;
+  }
+  if (external.github === false) {
+    return 'GitHub sign-in is pending owner setup. Use email magic link or password.';
+  }
+  return 'OAuth is temporarily unavailable. Use email magic link or password.';
+}
 function applyOauthButtons(external = {}, status = '') {
   const enabledLabels = [];
   document.querySelectorAll('[data-oauth]').forEach((button) => {
@@ -118,9 +128,7 @@ function applyOauthButtons(external = {}, status = '') {
     button.disabled = !enabled;
     if (enabled) enabledLabels.push(OAUTH_LABELS[button.dataset.oauth] || button.dataset.oauth);
   });
-  set('oauth-status', status || (enabledLabels.length
-    ? `OAuth enabled: ${enabledLabels.join(', ')}. Email sign-in is also available.`
-    : 'OAuth is temporarily unavailable. Use email magic link or password.'));
+  set('oauth-status', oauthStatusText(external, enabledLabels, status));
 }
 async function applyAuthSettings() {
   applyOauthButtons({}, 'Checking enabled OAuth providers...');

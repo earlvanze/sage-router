@@ -195,7 +195,7 @@ The hosted web app uses Supabase Auth. Email/password signup and email magic lin
 - Homepage URL: `https://app.sagerouter.dev`
 - Authorization callback URL: `https://awtangrlqqsdpksarhwo.supabase.co/auth/v1/callback`
 
-The account, login, and analytics pages read `https://awtangrlqqsdpksarhwo.supabase.co/auth/v1/settings` with the public anon key and hide disabled OAuth providers. This keeps onboarding usable through email signup while GitHub or other providers are still being configured.
+The account, login, and analytics pages read `https://awtangrlqqsdpksarhwo.supabase.co/auth/v1/settings` with the public anon key and hide disabled OAuth providers. When GitHub is disabled but visible in the Supabase settings payload, the UI says GitHub sign-in is pending owner setup and keeps email magic-link/password signup as the supported path. This keeps onboarding usable through email signup while GitHub or other providers are still being configured.
 
 Email signup and magic-link requests attach bounded Supabase user metadata for
 launch attribution: selected hosted plan, signup surface, auth method, UTM
