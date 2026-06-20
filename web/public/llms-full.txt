@@ -84,7 +84,7 @@ The hosted public edge is API-only. `https://api.sagerouter.dev/v1/*` and `/v1be
 Comparison page: https://sagerouter.dev/compare/openrouter
 Migration guide: https://sagerouter.dev/docs/openrouter-migration
 
-Sage Router is positioned as a local-first OpenRouter alternative for agents and teams that want one endpoint, public model discovery, BYOK provider routing, local Ollama support, health-aware fallback, Tailnet/private router resilience, hosted account/API key management, and private credential custody by default. OpenRouter-style hosted APIs are useful for marketplace-style model access with minimal local infrastructure; Sage Router is optimized for agent harnesses, customer-controlled provider access, and hybrid local/cloud deployments.
+Sage Router is positioned as a local-first OpenRouter alternative for agents and teams that want one endpoint, OpenRouter-style model discovery through a searchable public catalog backed by `/model-catalog`, BYOK provider routing, local Ollama support, health-aware fallback, Tailnet/private router resilience, hosted account/API key management, and private credential custody by default. OpenRouter-style hosted APIs are useful for marketplace-style model access with minimal local infrastructure; Sage Router is optimized for agent harnesses, customer-controlled provider access, and hybrid local/cloud deployments.
 
 ## Model routing calculator
 

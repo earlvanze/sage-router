@@ -42,6 +42,10 @@ The homepage, calculator, pricing, launch plan, quickstart, and OpenRouter
 comparison pages send anonymous pre-signup page-view, CTA, and quickstart
 snippet-copy intent to `/api/funnel-event`, backed by Supabase table
 `sage_router_funnel_events`.
+The public model catalog at `/models` uses safe `/model-catalog` metadata for
+OpenRouter-style searchable discovery and falls back to embedded public route
+families; it does not call live `/v1/models` without a generated customer API
+key.
 `GET /api/funnel-event` is a non-mutating health check. The function only
 accepts allowlisted event names, plans, sanitized URLs, and metadata buckets so
 the operator launch funnel can count demand without storing prompts, workflow

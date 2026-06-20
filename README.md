@@ -158,6 +158,7 @@ rate limits, and failover signals,
 base-URL, generated-key, route-profile, and provider-boundary migration path,
 `https://sagerouter.dev/docs/codex` gives Codex CLI users hosted, local port 8790, and Tailnet profile examples, while
 `https://sagerouter.dev/agent-native` explains route profiles, Responses API and Codex compatibility, health-aware fallback, BYOK custody, local/Tailnet/hosted deployment choices, and public feature metadata for agent harnesses, and
+`https://sagerouter.dev/models` gives prospects a searchable public model catalog backed by safe `/model-catalog` metadata with embedded fallback while keeping live `/v1/models` behind generated `sk_sage_*` customer keys, and
 `https://sagerouter.dev/integrations` gives tool-specific setup choices for
 OpenAI-compatible clients, Codex, Cursor, Aider, Continue, Claude Code,
 OpenHands, Anthropic-compatible clients, Ollama, local port `8790`, and Tailnet
