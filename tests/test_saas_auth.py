@@ -667,8 +667,20 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('disabled_pending_provider_terms', managed['status'])
         self.assertIn('provider_resale_terms', managed['requiredControls'])
         self.assertIn('margin_policy', managed['requiredControls'])
+        self.assertIn('positive_unit_economics', managed['requiredControls'])
+        self.assertIn('provider_cost_metering', managed['requiredControls'])
+        self.assertIn('per_plan_usage_caps', managed['requiredControls'])
         self.assertIn('rate_limits_and_durable_quotas', managed['requiredControls'])
+        self.assertIn('generated_key_revocation', managed['requiredControls'])
+        self.assertIn('operator_abuse_review', managed['requiredControls'])
         self.assertIn('acceptable_use_managed_access_terms', managed['requiredControls'])
+        self.assertTrue(managed['requiresPositiveUnitEconomics'])
+        self.assertGreaterEqual(managed['minimumGrossMarginPercent'], 30)
+        self.assertIn('per_plan_monthly_quotas', managed['costControls'])
+        self.assertIn('request_per_minute_limits', managed['costControls'])
+        self.assertIn('durable_usage_accounting', managed['costControls'])
+        self.assertIn('generated_key_revocation', managed['costControls'])
+        self.assertIn('operator_customer_review', managed['costControls'])
         self.assertEqual('https://sagerouter.dev/acceptable-use', managed['acceptableUseUrl'])
 
     def test_public_model_catalog_is_safe_discovery_metadata(self):
@@ -691,22 +703,33 @@ class SaaSAuthTests(unittest.TestCase):
             'SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED': os.environ.get('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED'),
             'SAGEROUTER_PROVIDER_RESALE_TERMS_URL': os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_URL'),
             'SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL': os.environ.get('SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL'),
+            'SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT': os.environ.get('SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT'),
         }
         try:
             os.environ['SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED'] = '1'
             os.environ.pop('SAGEROUTER_PROVIDER_RESALE_TERMS_URL', None)
             os.environ.pop('SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL', None)
+            os.environ.pop('SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT', None)
             managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
             self.assertTrue(managed['enabled'])
             self.assertEqual('requires_readiness_verification', managed['status'])
 
             os.environ['SAGEROUTER_PROVIDER_RESALE_TERMS_URL'] = 'https://sagerouter.dev/provider-resale-terms'
             os.environ['SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL'] = 'https://sagerouter.dev/margin-policy'
+            os.environ['SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT'] = '10'
+            managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
+            self.assertTrue(managed['enabled'])
+            self.assertEqual('requires_readiness_verification', managed['status'])
+            self.assertEqual(10, managed['minimumGrossMarginPercent'])
+
+            os.environ['SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT'] = '35'
             managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
             self.assertTrue(managed['enabled'])
             self.assertEqual('ready_for_private_beta', managed['status'])
             self.assertEqual('https://sagerouter.dev/provider-resale-terms', managed['providerTermsUrl'])
             self.assertEqual('https://sagerouter.dev/margin-policy', managed['marginPolicyUrl'])
+            self.assertEqual(35, managed['minimumGrossMarginPercent'])
+            self.assertTrue(managed['requiresPositiveUnitEconomics'])
         finally:
             for key, value in old_env.items():
                 if value is None:

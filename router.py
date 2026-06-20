@@ -325,8 +325,24 @@ PUBLIC_LAUNCH_POSITIONING = {
         'requiredControls': [
             'provider_resale_terms',
             'margin_policy',
+            'positive_unit_economics',
+            'provider_cost_metering',
+            'per_plan_usage_caps',
             'rate_limits_and_durable_quotas',
+            'generated_key_revocation',
+            'operator_abuse_review',
             'acceptable_use_managed_access_terms',
+        ],
+        'requiresPositiveUnitEconomics': True,
+        'minimumGrossMarginPercent': 35,
+        'costControls': [
+            'per_plan_monthly_quotas',
+            'request_per_minute_limits',
+            'durable_usage_accounting',
+            'generated_key_revocation',
+            'operator_customer_review',
+            'provider_resale_terms',
+            'managed_access_acceptable_use',
         ],
     },
 }
@@ -1925,9 +1941,17 @@ def public_launch_metadata():
     managed_provider_resale_enabled = str(os.environ.get('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED', '')).strip().lower() in {'1', 'true', 'yes', 'on'}
     provider_terms_url = os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_URL', '').strip()
     margin_policy_url = os.environ.get('SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL', '').strip()
+    min_margin = os.environ.get('SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT', '').strip()
+    if min_margin:
+        try:
+            managed_provider_access['minimumGrossMarginPercent'] = max(0, int(float(min_margin)))
+        except (TypeError, ValueError):
+            managed_provider_access['minimumGrossMarginPercent'] = 0
+    requires_positive_unit_economics = bool(managed_provider_access.get('requiresPositiveUnitEconomics'))
+    margin_ready = int(managed_provider_access.get('minimumGrossMarginPercent') or 0) >= 30
     if managed_provider_resale_enabled:
         managed_provider_access['enabled'] = True
-        if provider_terms_url and margin_policy_url:
+        if provider_terms_url and margin_policy_url and requires_positive_unit_economics and margin_ready:
             managed_provider_access['status'] = 'ready_for_private_beta'
         else:
             managed_provider_access['status'] = 'requires_readiness_verification'

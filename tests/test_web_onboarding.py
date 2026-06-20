@@ -798,6 +798,9 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("endpoint, limit, and launch metadata", readiness)
         self.assertIn("check_managed_provider_access_guard", readiness)
         self.assertIn("managed provider access remains disabled until provider resale terms", readiness)
+        self.assertIn("positive unit economics", readiness)
+        self.assertIn("minimumGrossMarginPercent", readiness)
+        self.assertIn("operator_abuse_review", readiness)
         self.assertIn("SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED", readiness)
         self.assertIn("marketing hosted pricing page is live and in sitemap", readiness)
         self.assertIn("Target: `$10,000 MRR`", launch_plan)
@@ -805,8 +808,10 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("`/managed-access`", launch_plan)
         self.assertIn("waitlist `interest` metadata", launch_plan)
         self.assertIn("margin-policy URLs", launch_plan)
+        self.assertIn("minimum gross-margin", launch_plan)
         self.assertIn("docs/saas-launch-10k-mrr.md", readme)
         self.assertIn("managed provider access guard", readme)
+        self.assertIn("positive unit economics", readme)
 
     def test_public_model_catalog_is_discoverable_without_opening_v1_models(self):
         page = self.read_public("models.html")
@@ -1014,6 +1019,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("marketing provider resale terms and margin policy pages are live and in sitemap", readiness)
         self.assertIn("/provider-resale-terms", launch_plan)
         self.assertIn("/margin-policy", launch_plan)
+        self.assertIn("positive unit economics", launch_plan)
         self.assertIn("provider-resale terms and margin-policy prerequisite pages", readme)
 
     def test_public_deploy_helper_pins_pages_production_and_cloud_run_digest(self):

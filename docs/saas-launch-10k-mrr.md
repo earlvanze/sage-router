@@ -58,19 +58,23 @@ Sell one simple Sage Router subscription for:
 
 Provider access remains customer-authorized by default. Managed provider
 resale should only be introduced after explicit provider terms, billing, margin,
-and abuse controls are in place.
+positive unit economics, metering, and abuse controls are in place.
 
 The public `/pricing` metadata must keep `publicLaunch.managedProviderAccess`
 disabled by default. Turning on bundled/managed model access requires explicit
-provider resale terms, a published margin policy, durable quota and rate-limit
-enforcement, and managed-access acceptable-use terms before it can be marketed
-as a launchable offer.
+provider resale terms, a published margin policy, a minimum gross-margin
+threshold, durable quota and rate-limit enforcement, generated-key revocation,
+operator abuse review, and managed-access acceptable-use terms before it can be
+marketed as a launchable offer.
 
 The public prerequisite pages at `/provider-resale-terms` and `/margin-policy`
 document the required legal and unit-economics boundaries for a future private
 beta. They do not activate managed resale by themselves; the runtime must still
 keep `publicLaunch.managedProviderAccess.enabled` false unless the provider
-authorization, billing, quota, and abuse-control checks are explicitly enabled.
+authorization, billing, margin, quota, metering, and abuse-control checks are
+explicitly enabled. A pricing page alone is not enough; the runtime readiness
+guard must prove positive unit economics before bundled access can be treated as
+launchable.
 
 Pricing and comparison pages can still measure demand for the future
 one-subscription path by sending prospects to
@@ -181,8 +185,9 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   by real Ollama, OpenAI, Anthropic, and BYOK-compatible buyer interest.
 - Keep the managed provider access readiness guard active: default disabled,
   with `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` allowed only when provider
-  resale terms and margin-policy URLs are configured and the legal/abuse-control
-  boundary is published.
+  resale terms and margin-policy URLs are configured, the minimum gross-margin
+  threshold is at least 30%, and the legal/metering/abuse-control boundary is
+  published.
 - Keep email/password and magic-link auth as the baseline launch path, then
   enable GitHub OAuth in Supabase after the GitHub App manifest approval code is
   available. Use `bash scripts/check_github_supabase_auth_status.sh` for a

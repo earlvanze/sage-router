@@ -411,7 +411,7 @@ check_public_model_catalog() {
 }
 
 check_managed_provider_access_guard() {
-  local code enabled status terms_url margin_url acceptable_url controls_ok
+  local code enabled status terms_url margin_url acceptable_url controls_ok margin_percent unit_economics_ok cost_controls_ok
   code="$(http_code "${API_BASE%/}/pricing")"
   if [[ "$code" != "200" ]]; then
     rm -f /tmp/sage-router-readiness-body
@@ -423,11 +423,27 @@ check_managed_provider_access_guard() {
   terms_url="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsUrl // empty' /tmp/sage-router-readiness-body)"
   margin_url="$(jq -r '.publicLaunch.managedProviderAccess.marginPolicyUrl // empty' /tmp/sage-router-readiness-body)"
   acceptable_url="$(jq -r '.publicLaunch.managedProviderAccess.acceptableUseUrl // empty' /tmp/sage-router-readiness-body)"
+  margin_percent="$(jq -r '.publicLaunch.managedProviderAccess.minimumGrossMarginPercent // 0' /tmp/sage-router-readiness-body)"
+  unit_economics_ok="$(jq -r '.publicLaunch.managedProviderAccess.requiresPositiveUnitEconomics // false' /tmp/sage-router-readiness-body)"
   controls_ok="$(jq -r '
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("provider_resale_terms")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("margin_policy")) and
+    ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("positive_unit_economics")) and
+    ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("provider_cost_metering")) and
+    ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("per_plan_usage_caps")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("rate_limits_and_durable_quotas")) and
+    ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("generated_key_revocation")) and
+    ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("operator_abuse_review")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("acceptable_use_managed_access_terms"))
+  ' /tmp/sage-router-readiness-body)"
+  cost_controls_ok="$(jq -r '
+    ((.publicLaunch.managedProviderAccess.costControls // []) | index("per_plan_monthly_quotas")) and
+    ((.publicLaunch.managedProviderAccess.costControls // []) | index("request_per_minute_limits")) and
+    ((.publicLaunch.managedProviderAccess.costControls // []) | index("durable_usage_accounting")) and
+    ((.publicLaunch.managedProviderAccess.costControls // []) | index("generated_key_revocation")) and
+    ((.publicLaunch.managedProviderAccess.costControls // []) | index("operator_customer_review")) and
+    ((.publicLaunch.managedProviderAccess.costControls // []) | index("provider_resale_terms")) and
+    ((.publicLaunch.managedProviderAccess.costControls // []) | index("managed_access_acceptable_use"))
   ' /tmp/sage-router-readiness-body)"
   rm -f /tmp/sage-router-readiness-body
 
@@ -440,17 +456,21 @@ check_managed_provider_access_guard() {
             "$terms_url" == "$PROVIDER_RESALE_TERMS_URL" &&
             "$margin_url" == "$PROVIDER_RESALE_MARGIN_POLICY_URL" &&
             "$acceptable_url" == "${MARKETING_BASE%/}/acceptable-use" &&
-            "$controls_ok" == "true" ]]; then
-        pass "managed provider access is explicitly enabled with resale terms, margin policy, quotas, and acceptable-use controls"
+            "$controls_ok" == "true" &&
+            "$cost_controls_ok" == "true" &&
+            "$unit_economics_ok" == "true" &&
+            "$margin_percent" =~ ^[0-9]+$ &&
+            "$margin_percent" -ge 30 ]]; then
+        pass "managed provider access is explicitly enabled with resale terms, positive unit economics, margin policy, quotas, and acceptable-use controls"
       else
-        fail "managed provider access enabled without complete controls, including managed-access acceptable-use boundary: enabled=${enabled} status=${status:-missing} terms=${terms_url:+present} margin=${margin_url:+present} acceptableUse=${acceptable_url:-missing} controls=${controls_ok:-missing}"
+        fail "managed provider access enabled without complete controls, including positive unit economics and managed-access acceptable-use boundary: enabled=${enabled} status=${status:-missing} terms=${terms_url:+present} margin=${margin_url:+present} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} acceptableUse=${acceptable_url:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing}"
       fi
       ;;
     *)
-      if [[ "$enabled" == "false" && "$status" == "disabled_pending_provider_terms" && "$controls_ok" == "true" ]]; then
-        pass "managed provider access remains disabled until provider resale terms, margin policy, quotas, and acceptable-use controls are ready"
+      if [[ "$enabled" == "false" && "$status" == "disabled_pending_provider_terms" && "$controls_ok" == "true" && "$cost_controls_ok" == "true" && "$unit_economics_ok" == "true" && "$margin_percent" =~ ^[0-9]+$ && "$margin_percent" -ge 30 ]]; then
+        pass "managed provider access remains disabled until provider resale terms, positive unit economics, margin policy, quotas, and acceptable-use controls are ready"
       else
-        fail "managed provider access guard unexpected: enabled=${enabled} status=${status:-missing} controls=${controls_ok:-missing}, expected disabled_pending_provider_terms"
+        fail "managed provider access guard unexpected: enabled=${enabled} status=${status:-missing} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing}, expected disabled_pending_provider_terms"
       fi
       ;;
   esac
