@@ -82,6 +82,16 @@
       </div>
 
       <div class="panel">
+        <h3>Safe support context</h3>
+        <p class="small">Copy bounded account, plan, quota, and activation state for support. This packet does not include prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, or customer data.</p>
+        <div class="actions"><button class="btn secondary" data-copy-target="support-context-code" data-copy-label="Copy support context">Copy support context</button><a class="btn secondary" href="/support">Support paths</a></div>
+        <p id="support-context-status" class="status small"></p>
+        <div class="codeBox">
+          <pre id="support-context-code"></pre>
+        </div>
+      </div>
+
+      <div class="panel">
         <h3>Usage</h3>
         <p id="usage-status" class="small">Loading current billing period...</p>
         <div class="usageBar"><div id="usage-fill" class="usageFill"></div></div>

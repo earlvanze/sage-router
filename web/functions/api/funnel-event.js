@@ -60,6 +60,7 @@ const ALLOWED_EVENTS = new Set([
   'account_first_request_clicked',
   'account_first_request_succeeded',
   'account_snippet_copied',
+  'account_support_context_copied',
   'billing_payment_recovery_clicked',
   'billing_account_clicked',
   'billing_pricing_clicked',

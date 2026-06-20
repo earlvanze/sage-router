@@ -131,6 +131,12 @@ let activationState = {
   keyVerified: false,
   requestCount: 0,
 };
+let supportContextState = {
+  plan: selectedPlan,
+  status: 'signed_out',
+  routingEnabled: false,
+  usage: null,
+};
 let emailActionAllowed = true;
 
 function configuredStripePlans() {
@@ -382,6 +388,7 @@ function renderLaunchNextAction(patch = {}) {
   } else {
     set('launch-next-action', `Activated: ${fmtNumber(activationState.requestCount)} routed request${activationState.requestCount === 1 ? '' : 's'} recorded this period.`);
   }
+  renderSupportContext();
 }
 
 function applyEmailVerificationState(state = {}) {
@@ -474,6 +481,59 @@ function renderQuickstart(key) {
   set('client-openai-code', openaiSdkSetupText(displayKey));
   set('client-codex-code', codexSetupText(displayKey));
   set('client-anthropic-code', anthropicSetupText(displayKey));
+}
+
+function supportUsageSummary(usage) {
+  if (!usage) return null;
+  return {
+    period: usage.period || null,
+    plan: usage.plan || null,
+    requests: Number.isFinite(Number(usage.requests)) ? Number(usage.requests) : 0,
+    quota: usage.unlimited ? 'unlimited' : (Number.isFinite(Number(usage.quota)) ? Number(usage.quota) : null),
+    remaining: usage.unlimited ? 'unlimited' : (Number.isFinite(Number(usage.remaining)) ? Number(usage.remaining) : null),
+    rateLimitPerMinute: Number.isFinite(Number(usage.rateLimitPerMinute)) ? Number(usage.rateLimitPerMinute) : null,
+    resetAt: usage.resetAt || usage.reset_at || null,
+  };
+}
+
+function safeSupportContext() {
+  return {
+    service: 'sage-router-hosted',
+    generatedAt: new Date().toISOString(),
+    api: {
+      openaiBaseUrl,
+      anthropicBaseUrl,
+      model: 'sage-router/frontier',
+      apiKeyPrefix: 'sk_sage_',
+    },
+    account: {
+      signedIn: Boolean(activationState.signedIn),
+      emailVerified: Boolean(activationState.emailVerified),
+      plan: supportContextState.plan || selectedPlan || 'unknown',
+      status: supportContextState.status || 'unknown',
+      routingEnabled: Boolean(supportContextState.routingEnabled || activationState.routingEnabled),
+    },
+    activation: {
+      activeKeyCount: Number(activationState.keyCount || 0),
+      keyVerified: Boolean(activationState.keyVerified || activationState.requestCount > 0),
+      routedRequestCount: Number(activationState.requestCount || 0),
+    },
+    usage: supportUsageSummary(supportContextState.usage),
+    supportPaths: {
+      support: 'https://sagerouter.dev/support',
+      status: 'https://sagerouter.dev/status',
+      troubleshooting: 'https://sagerouter.dev/api-troubleshooting',
+      account: 'https://app.sagerouter.dev/account.html',
+    },
+    safeFields: ['plan', 'status', 'routingEnabled', 'activeKeyCount', 'keyVerified', 'routedRequestCount', 'usageQuota', 'rateLimitPerMinute'],
+    redactionNotice: 'Do not include prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, or customer data.',
+  };
+}
+
+function renderSupportContext(patch = {}) {
+  supportContextState = { ...supportContextState, ...patch };
+  const el = $('support-context-code');
+  if (el) el.textContent = JSON.stringify(safeSupportContext(), null, 2);
 }
 
 function planLabel(plans, name) {
@@ -582,6 +642,7 @@ function renderUpgradeRecommendation(usage, plans = FALLBACK_PLANS, currentPlan 
 }
 
 function renderUsage(usage, plans = FALLBACK_PLANS, currentPlan = '', routingEnabled = true) {
+  renderSupportContext({ usage, plan: currentPlan || usage?.plan || supportContextState.plan, routingEnabled });
   const fill = $('usage-fill');
   if (!usage) {
     set('usage-status', 'Usage is unavailable.');
@@ -621,6 +682,7 @@ async function refresh() {
   show('account-panel', !!s);
   show('sign-out', !!s);
   renderLaunchNextAction({ signedIn: !!s, emailVerified: !s, routingEnabled: false, keyCount: 0, keyVerified: keyVerifiedThisSession, requestCount: 0 });
+  renderSupportContext({ plan: selectedPlan, status: s ? 'loading' : 'signed_out', routingEnabled: false, usage: null });
   try {
     const metadata = await fetch(`${sageRouterUrl}/pricing`).then(response => response.ok ? response.json() : null);
     applyLaunchMetadata(metadata);
@@ -632,7 +694,7 @@ async function refresh() {
   if (!s) return;
   set('account-status', 'Loading account...');
   set('email-verification-status', '');
-  renderUsage(null);
+  renderUsage(null, FALLBACK_PLANS, selectedPlan, false);
   try {
     const [accountData, keys, planData, usageData, paymentStatusData] = await Promise.all([
       api('/account'),
@@ -649,6 +711,7 @@ async function refresh() {
     const accountPlan = planData?.plan || customer.plan || 'free';
     const accountStatus = planData?.status || customer.status || 'inactive';
     const routingEnabled = planData?.routing_enabled ?? ['active', 'trialing', 'manual'].includes(accountStatus);
+    renderSupportContext({ plan: accountPlan, status: accountStatus, routingEnabled });
     set('account-status', `${customer.email || customer.user_id} · ${accountPlan} · ${accountStatus}`);
     set('routing-status', routingEnabled ? 'Routing enabled for generated API keys.' : 'Upgrade required before generated API keys can route paid traffic.');
     const plans = planData?.plans || FALLBACK_PLANS;
@@ -1082,6 +1145,7 @@ function snippetIdForCopyTarget(targetId = '') {
     'client-openai-code': 'openai-sdk',
     'client-codex-code': 'codex-cli',
     'client-anthropic-code': 'anthropic-compatible',
+    'support-context-code': 'safe-support-context',
   };
   return snippets[targetId] || String(targetId || 'unknown').replace(/-code$/, '').slice(0, 80);
 }
@@ -1094,10 +1158,12 @@ document.addEventListener('click', async (event) => {
   const text = target?.textContent || '';
   if (!text) return;
   const original = button.textContent;
+  const isSupportContext = copyTarget === 'support-context-code';
   try {
     await navigator.clipboard.writeText(text);
     button.textContent = 'Copied';
-    trackAccountFunnelEvent('account_snippet_copied', {
+    if (isSupportContext) set('support-context-status', 'Safe support context copied.');
+    trackAccountFunnelEvent(isSupportContext ? 'account_support_context_copied' : 'account_snippet_copied', {
       button: button.dataset.copyLabel || original || 'Copy',
       target: `#${copyTarget}`,
       state: 'copied',
@@ -1110,6 +1176,7 @@ document.addEventListener('click', async (event) => {
     selection.removeAllRanges();
     selection.addRange(range);
     button.textContent = 'Selected';
+    if (isSupportContext) set('support-context-status', 'Clipboard unavailable; safe support context selected.');
   }
   setTimeout(() => { button.textContent = button.dataset.copyLabel || original || 'Copy'; }, 1200);
 });

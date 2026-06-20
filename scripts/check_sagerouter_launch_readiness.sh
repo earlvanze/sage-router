@@ -778,7 +778,8 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("calculator_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("calculator_checkout_unavailable") != null) and
     ((.allowedEvents // []) | index("openrouter_compare_migration_clicked") != null) and
-    ((.allowedEvents // []) | index("account_snippet_copied") != null)
+    ((.allowedEvents // []) | index("account_snippet_copied") != null) and
+    ((.allowedEvents // []) | index("account_support_context_copied") != null)
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   write_guard="$(jq -r '.writeGuard.browserOriginRequired == true' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   preview_suffix="$(jq -r '.writeGuard.previewHostSuffix // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"

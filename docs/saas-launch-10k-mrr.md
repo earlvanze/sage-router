@@ -135,7 +135,9 @@ provider resale claim, or runtime feature flag.
   security, abuse, and private deployment issues. Public support channels must
   warn customers not to send prompts, workflow text, provider credentials,
   OAuth tokens, generated API keys, private keys, cookies, raw provider
-  responses, or customer data.
+  responses, or customer data. The signed-in account page should generate a
+  copyable no-secret support context packet from only account plan, routing,
+  quota, activation, endpoint, and support-path state.
 - Keep `/billing` as the hosted billing recovery path for Stripe checkout,
   Stripe billing portal, manual/crypto settlement, activation states,
   generated `sk_sage_*` key behavior before and after payment, payment
