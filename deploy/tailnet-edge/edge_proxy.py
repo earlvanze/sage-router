@@ -51,6 +51,7 @@ AUTH_CACHE_TTL_SECONDS = float(os.environ.get("SAGE_ROUTER_EDGE_AUTH_CACHE_SECON
 API_KEY_AUTH_CACHE_TTL_SECONDS = float(os.environ.get("SAGE_ROUTER_EDGE_API_KEY_AUTH_CACHE_SECONDS", "0"))
 CORS_ORIGIN = os.environ.get("SAGE_ROUTER_CORS_ORIGIN", "https://app.sagerouter.dev,https://sagerouter.dev,https://www.sagerouter.dev")
 CORS_ORIGINS = [origin.strip() for origin in CORS_ORIGIN.split(",") if origin.strip()]
+BROWSER_ALLOWED_ORIGINS_RAW = os.environ.get("SAGE_ROUTER_BROWSER_ALLOWED_ORIGINS", "").strip()
 ACCOUNT_URL = os.environ.get("SAGE_ROUTER_ACCOUNT_URL", "https://app.sagerouter.dev/account.html")
 LOGIN_URL = os.environ.get("SAGE_ROUTER_LOGIN_URL", "https://app.sagerouter.dev/login.html")
 PRICING_URL = os.environ.get("SAGE_ROUTER_PRICING_URL", "https://sagerouter.dev/pricing")
@@ -85,6 +86,7 @@ PUBLIC_CONTROL_PLANE_PATHS = {
 USER_JWT_PREFIXES = (
     "/account",
     "/billing/stripe/checkout",
+    "/billing/stripe/portal",
     "/billing/crypto/intent",
     "/billing/crypto/status",
 )
@@ -99,6 +101,13 @@ OPERATOR_CONTROL_PLANE_PREFIXES = (
 PUBLIC_SIGNED_BACKEND_PREFIXES = (
     "/billing/stripe/webhook",
 )
+DEFAULT_BROWSER_ALLOWED_ORIGIN_HOSTS = {
+    "sagerouter.dev",
+    "www.sagerouter.dev",
+    "app.sagerouter.dev",
+    "localhost",
+    "127.0.0.1",
+}
 
 HOP_BY_HOP_HEADERS = {
     "connection",
@@ -599,6 +608,67 @@ def is_public_api_browser_path(path):
     return clean_path in {"/", "/dashboard"} or clean_path.startswith("/dashboard/")
 
 
+def normalize_browser_origin(value):
+    value = str(value or "").strip()
+    if not value:
+        return ""
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return ""
+    hostname = parsed.hostname or ""
+    if not hostname:
+        return ""
+    port = parsed.port
+    default_port = 443 if parsed.scheme == "https" else 80
+    hostport = hostname.lower()
+    if port and port != default_port:
+        hostport = f"{hostport}:{port}"
+    return f"{parsed.scheme}://{hostport}"
+
+
+def configured_browser_allowed_origins():
+    allowed = set()
+    for value in (
+        CORS_ORIGINS
+        + [BROWSER_ALLOWED_ORIGINS_RAW, ACCOUNT_URL, LOGIN_URL, PRICING_URL, STATUS_URL, API_BASE_URL]
+    ):
+        for item in str(value or "").split(","):
+            normalized = normalize_browser_origin(item)
+            if normalized and "*" not in normalized:
+                allowed.add(normalized)
+    return allowed
+
+
+def browser_origin_allowed(origin):
+    normalized = normalize_browser_origin(origin)
+    if not normalized:
+        return True
+    if normalized in configured_browser_allowed_origins():
+        return True
+    parsed = urlsplit(normalized)
+    host = (parsed.hostname or "").lower()
+    return host in DEFAULT_BROWSER_ALLOWED_ORIGIN_HOSTS or host.endswith(".sage-router-web.pages.dev")
+
+
+def is_browser_account_billing_mutation(path, method):
+    if str(method or "").upper() != "POST":
+        return False
+    clean_path = urlsplit(path).path
+    if clean_path == "/account/api-keys":
+        return True
+    if clean_path.startswith("/account/api-keys/") and clean_path.endswith("/revoke"):
+        return True
+    if clean_path in {
+        "/billing/stripe/checkout",
+        "/billing/stripe/portal",
+        "/billing/crypto/intent",
+    }:
+        return True
+    return clean_path.startswith("/admin/customers/") and (
+        clean_path.endswith("/suspend") or clean_path.endswith("/unsuspend")
+    )
+
+
 def should_use_control_plane(path):
     return (
         is_user_jwt_path(path)
@@ -721,6 +791,7 @@ def edge_enforcement_state():
         "rateLimitWindowSeconds": RATE_LIMIT_WINDOW_SECONDS,
         "authAttemptRateLimit": AUTH_ATTEMPT_RATE_LIMIT_PER_WINDOW,
         "authAttemptRateLimitEnabled": RATE_LIMIT_ENABLED and RATE_LIMIT_WINDOW_SECONDS > 0 and AUTH_ATTEMPT_RATE_LIMIT_PER_WINDOW > 0,
+        "browserOriginGuardEnabled": True,
         "trustClientIpHeaders": TRUST_CLIENT_IP_HEADERS,
         "quotaEnabled": QUOTA_ENABLED,
         "apiKeyAuthCacheSeconds": API_KEY_AUTH_CACHE_TTL_SECONDS,
@@ -790,6 +861,24 @@ class EdgeHandler(BaseHTTPRequestHandler):
 
         return None
 
+    def _reject_untrusted_browser_origin(self):
+        if not is_browser_account_billing_mutation(self.path, self.command):
+            return False
+        origin = self.headers.get("Origin") or ""
+        if browser_origin_allowed(origin):
+            return False
+        self._json(
+            403,
+            edge_error_payload(
+                "origin_not_allowed",
+                self.path,
+                "Browser-originating account and billing mutations must come from a trusted Sage Router app origin.",
+                appBaseUrl=LOGIN_URL.rsplit("/", 1)[0],
+            ),
+            {"X-Sage-Router-Edge-Auth-Type": "origin_guard"},
+        )
+        return True
+
     def _edge_health(self):
         upstreams = [upstream.snapshot() for upstream in UPSTREAMS]
         control_plane = CONTROL_PLANE_UPSTREAM.snapshot() if CONTROL_PLANE_UPSTREAM else None
@@ -812,6 +901,8 @@ class EdgeHandler(BaseHTTPRequestHandler):
             self._cors_headers()
             self.send_header("Content-Length", "0")
             self.end_headers()
+            return
+        if self._reject_untrusted_browser_origin():
             return
         auth_attempt_allowed, auth_attempt_state = check_auth_attempt_rate_limit(self)
         if not auth_attempt_allowed:

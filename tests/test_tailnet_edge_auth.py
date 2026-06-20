@@ -235,11 +235,78 @@ class TailnetEdgeAuthTests(unittest.TestCase):
             "rateLimitWindowSeconds": 60,
             "authAttemptRateLimit": 2,
             "authAttemptRateLimitEnabled": True,
+            "browserOriginGuardEnabled": True,
             "trustClientIpHeaders": True,
             "quotaEnabled": True,
             "apiKeyAuthCacheSeconds": 0.0,
             "apiKeyPrefix": "sk_sage_",
         }, handler.payload["enforcement"])
+
+    def test_browser_origin_guard_rejects_untrusted_account_billing_and_admin_mutations(self):
+        for path in (
+            "/account/api-keys",
+            "/account/api-keys/key_1/revoke",
+            "/billing/stripe/checkout",
+            "/billing/stripe/portal",
+            "/billing/crypto/intent",
+            "/admin/customers/customer_1/suspend",
+            "/admin/customers/customer_1/unsuspend",
+        ):
+            with self.subTest(path=path):
+                class Handler:
+                    command = "POST"
+                    headers = {"Origin": "https://evil.example"}
+                    status = None
+                    payload = None
+                    extra_headers = None
+
+                    def _json(self, status, payload, extra_headers=None):
+                        self.status = status
+                        self.payload = payload
+                        self.extra_headers = extra_headers or {}
+
+                Handler.path = path
+                handler = Handler()
+                blocked = self.edge.EdgeHandler._reject_untrusted_browser_origin(handler)
+
+                self.assertTrue(blocked)
+                self.assertEqual(403, handler.status)
+                self.assertEqual("origin_not_allowed", handler.payload["error"])
+                self.assertEqual("origin_guard", handler.extra_headers["X-Sage-Router-Edge-Auth-Type"])
+
+    def test_browser_origin_guard_allows_trusted_origins_and_non_browser_clients(self):
+        class Handler:
+            command = "POST"
+            path = "/account/api-keys"
+            status = None
+            payload = None
+
+            def _json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        for origin in ("https://app.sagerouter.dev", "http://localhost:3000", ""):
+            with self.subTest(origin=origin or "none"):
+                handler = Handler()
+                handler.headers = {"Origin": origin} if origin else {}
+
+                self.assertFalse(self.edge.EdgeHandler._reject_untrusted_browser_origin(handler))
+                self.assertIsNone(handler.status)
+
+    def test_billing_portal_uses_supabase_user_auth(self):
+        self.edge.verify_supabase_user_jwt = lambda token: {
+            "type": "supabase_user",
+            "user_id": "user-1",
+            "preserve_authorization": True,
+        }
+
+        class Handler:
+            path = "/billing/stripe/portal"
+            headers = {"Authorization": "Bearer jwt"}
+
+        ctx = self.edge.EdgeHandler._auth_context(Handler())
+        self.assertEqual("supabase_user", ctx["type"])
+        self.assertTrue(ctx["preserve_authorization"])
 
     def test_head_json_response_sends_headers_without_body(self):
         class Handler:
