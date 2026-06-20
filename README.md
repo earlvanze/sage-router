@@ -454,7 +454,8 @@ Key env vars:
 
 ## Config Dashboard
 
-Sage Router ships a built-in web dashboard at the root URL (`/`). Open it in a browser to see:
+Local, Tailnet, Umbrel, and Docker installs ship a built-in web dashboard at
+the root URL (`/`). Open that private install URL in a browser to see:
 
 - Provider health status and latency
 - Available models per provider
@@ -462,7 +463,16 @@ Sage Router ships a built-in web dashboard at the root URL (`/`). Open it in a b
 - Provider enable/disable toggles
 - API key management
 
-For programmatic clients (sending `Accept: application/json`), the root URL returns the JSON API descriptor instead. The dashboard is also available at `/dashboard`.
+For programmatic clients (sending `Accept: application/json`), the private
+install root URL returns the JSON API descriptor instead. The dashboard is also
+available at `/dashboard` on private installs.
+
+Hosted SaaS uses a stricter browser boundary: `https://api.sagerouter.dev/`
+and `https://api.sagerouter.dev/dashboard` return JSON auth/onboarding guidance
+instead of serving browser UI. Customer login, account, usage analytics, and
+operator launch-funnel dashboards live on `https://app.sagerouter.dev`, while
+model traffic uses generated `sk_sage_*` API keys at
+`https://api.sagerouter.dev/v1`.
 
 ### outputProviderPrefix
 
