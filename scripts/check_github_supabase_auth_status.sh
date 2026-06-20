@@ -7,6 +7,8 @@ SUPABASE_URL="${SAGE_ROUTER_SUPABASE_URL:-https://${PROJECT_REF}.supabase.co}"
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:-}"
 SUPABASE_ANON_KEY="${SAGE_ROUTER_SUPABASE_ANON_KEY:-}"
 FAILURES=0
+GITHUB_MANAGEMENT_ENABLED=""
+GITHUB_PUBLIC_ENABLED=""
 
 pass() {
   printf 'PASS %s\n' "$1"
@@ -19,6 +21,29 @@ warn() {
 fail() {
   printf 'FAIL %s\n' "$1"
   FAILURES=$((FAILURES + 1))
+}
+
+print_github_oauth_handoff() {
+  if [[ "$GITHUB_MANAGEMENT_ENABLED" == "true" && "$GITHUB_PUBLIC_ENABLED" == "true" ]]; then
+    return
+  fi
+
+  cat <<EOF
+
+GitHub OAuth owner handoff:
+  1. From the sage-router repo, run:
+     set -a; source /home/digit/.openclaw/.env >/dev/null 2>&1; set +a
+     SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 \\
+     SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env \\
+       bash scripts/bootstrap_github_supabase_auth.sh
+  2. Approve the GitHub App in the browser as the owner.
+  3. On https://app.sagerouter.dev/github-app-manifest.html?code=..., run the printed exchange command within one hour.
+  4. Recheck:
+     bash scripts/check_github_supabase_auth_status.sh
+     scripts/check_sagerouter_launch_readiness.sh
+
+Email signup remains enabled while GitHub OAuth is pending.
+EOF
 }
 
 require_tools() {
@@ -101,6 +126,7 @@ check_management_config() {
   [[ "$site" == "$AUTH_SITE_URL" ]] && pass "Supabase site_url is ${AUTH_SITE_URL}" || fail "Supabase site_url is ${site:-missing}, expected ${AUTH_SITE_URL}"
   [[ "$signup_disabled" == "false" && "$email_enabled" == "true" ]] && pass "Supabase email signup is enabled" || fail "Supabase email signup disabled: disable_signup=${signup_disabled:-missing} external_email_enabled=${email_enabled:-missing}"
   [[ "$app_redirect" == "true" && "$api_redirect" == "true" ]] && pass "Supabase redirect allow-list includes app/api hosts" || fail "Supabase redirect allow-list missing app/api hosts"
+  GITHUB_MANAGEMENT_ENABLED="$github"
   [[ "$github" == "true" ]] && pass "Supabase Management API shows GitHub OAuth enabled" || warn "Supabase Management API shows GitHub OAuth disabled"
 }
 
@@ -117,6 +143,7 @@ check_public_settings() {
   github="$(printf '%s' "$settings" | jq -r '.external.github // false')"
 
   [[ "$email" == "true" ]] && pass "Browser-visible Supabase email signup is enabled" || fail "Browser-visible Supabase email signup disabled"
+  GITHUB_PUBLIC_ENABLED="$github"
   [[ "$github" == "true" ]] && pass "Browser-visible Supabase GitHub OAuth is enabled" || warn "Browser-visible Supabase GitHub OAuth is disabled"
 }
 
@@ -130,4 +157,5 @@ if (( FAILURES > 0 )); then
   exit 1
 fi
 
-printf 'GitHub/Supabase auth status check complete. If GitHub is disabled, run: bash scripts/bootstrap_github_supabase_auth.sh\n'
+print_github_oauth_handoff
+printf 'GitHub/Supabase auth status check complete.\n'

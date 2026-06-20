@@ -250,7 +250,11 @@ and app/API redirect allow-list when `SUPABASE_ACCESS_TOKEN` is present, then
 checks browser-visible `/auth/v1/settings` with the project anon key. It prints
 only pass/warn/fail status, never OAuth client secrets, anon keys, service-role
 keys, or management tokens. A GitHub warning means email onboarding still works
-and the owner approval step below is still pending.
+and the owner approval step below is still pending. When GitHub is disabled, the
+status helper prints the hosted fallback command with
+`SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env`
+so the one-time GitHub client secret is preserved locally before Supabase is
+patched.
 
 GitHub requires an owner-approved browser step before it returns app credentials. By default the bootstrap script opens a local browser form, listens on an auto-selected `http://127.0.0.1` port, captures GitHub's one-hour manifest code, exchanges it for the app client id/secret, and patches Supabase Auth in the same run.
 

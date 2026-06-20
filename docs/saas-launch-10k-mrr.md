@@ -227,7 +227,9 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   available. Use `bash scripts/check_github_supabase_auth_status.sh` for a
   non-mutating status probe; the bootstrap must verify both Supabase management
   config and the browser-visible `/auth/v1/settings` provider state before
-  treating GitHub OAuth as complete.
+  treating GitHub OAuth as complete. When GitHub is still disabled, the status
+  helper prints the hosted fallback owner handoff and local credential-save path
+  so the manifest secret is not lost during Supabase setup.
 - Keep hosted account abuse controls on by default: with Supabase Auth enabled,
   API-key creation, Stripe checkout, and manual crypto payment intent creation
   require verified email unless a trusted private deployment explicitly sets
