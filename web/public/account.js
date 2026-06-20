@@ -589,6 +589,7 @@ function renderKeys(keys) {
 
 async function oauthLogin(provider) {
   set('auth-status', `Opening ${provider} sign-in...`);
+  trackAccountFunnelEvent('account_oauth_clicked', { button: provider, target: '/auth/v1/authorize', state: provider });
   const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: `${window.location.origin}/account.html` } });
   if (error) set('auth-status', error.message);
 }
@@ -605,9 +606,13 @@ async function passwordLogin() {
     set('auth-status', 'Enter a password, or use Send magic link.');
     return;
   }
+  trackAccountFunnelEvent('account_login_submitted', { button: 'password_login', target: '/auth/v1/token', state: 'password' });
   const { error } = await sb.auth.signInWithPassword({ email, password });
   set('auth-status', error ? error.message : 'Signed in.');
-  if (!error) refresh();
+  if (!error) {
+    trackAccountFunnelEvent('account_login_succeeded', { button: 'password_login', target: '/account.html', state: 'password' });
+    refresh();
+  }
 }
 
 async function passwordSignup() {
@@ -626,6 +631,7 @@ async function passwordSignup() {
     set('auth-status', 'Use at least 8 characters for the password.');
     return;
   }
+  trackAccountFunnelEvent('account_signup_submitted', { button: 'password_signup', target: '/auth/v1/signup', state: 'password' });
   const { data, error } = await sb.auth.signUp({
     email,
     password,
@@ -635,6 +641,7 @@ async function passwordSignup() {
     set('auth-status', error.message);
     return;
   }
+  trackAccountFunnelEvent('account_signup_succeeded', { button: 'password_signup', target: '/account.html', state: data?.session ? 'signed_in' : 'email_confirmation' });
   set('auth-status', data?.session ? 'Account created and signed in.' : 'Account created. Check your email to confirm, then sign in.');
   refresh();
 }
@@ -646,8 +653,10 @@ async function magicLogin() {
     set('auth-status', 'Enter your email first.');
     return;
   }
+  trackAccountFunnelEvent('account_magic_link_requested', { button: 'magic_login', target: '/auth/v1/otp', state: 'email' });
   const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/account.html` } });
   set('auth-status', error ? error.message : 'Magic link sent. Check your email.');
+  if (!error) trackAccountFunnelEvent('account_magic_link_sent', { button: 'magic_login', target: '/account.html', state: 'email' });
 }
 
 async function createKey() {
@@ -657,9 +666,11 @@ async function createKey() {
   setBusy('create-key', true, 'Creating...');
   try {
     const name = $('key-name')?.value || 'Default';
+    trackAccountFunnelEvent('account_api_key_create_clicked', { button: 'create_key', target: '/account/api-keys', state: 'create' });
     const data = await api('/account/api-keys', { method: 'POST', body: JSON.stringify({ name }) });
     const key = data.key || '';
     renderQuickstart(key);
+    trackAccountFunnelEvent('account_api_key_created', { button: 'create_key', target: '/account/api-keys', state: 'created' });
     $('key-once').innerHTML = `<p>Copy now. This key is only shown once.</p><div class="codeBox"><pre id="raw-api-key-once">${esc(key)}</pre><div class="copyRow"><button class="btn ghost" data-copy-target="raw-api-key-once" data-copy-label="Copy key">Copy key</button><button class="btn ghost" data-copy-target="quickstart-code" data-copy-label="Copy quickstart">Copy quickstart</button></div></div>`;
     refresh();
   } catch (error) {
@@ -692,6 +703,7 @@ async function testApiKey() {
     set('test-api-key-status', 'Create a key or paste an sk_sage key first.');
     return;
   }
+  trackAccountFunnelEvent('account_key_verify_clicked', { button: 'test_api_key', target: '/v1/models', state: 'models' });
   set('test-api-key-status', 'Checking /v1/models through the public edge...');
   setBusy('test-api-key-button', true, 'Testing...');
   try {
@@ -710,6 +722,7 @@ async function testApiKey() {
     const suffix = models.length ? ` ${fmtNumber(models.length)} models visible.` : ' The key reached the model API.';
     keyVerifiedThisSession = true;
     set('test-api-key-status', `Success: /v1/models returned HTTP ${res.status}.${suffix}`);
+    trackAccountFunnelEvent('account_key_verified', { button: 'test_api_key', target: '/v1/models', state: 'success' });
     renderLaunchNextAction({ keyVerified: true });
   } catch (_error) {
     set('test-api-key-status', 'Could not reach the public edge from this browser. Check network access, CORS, or https://app.sagerouter.dev/status.');
@@ -725,6 +738,7 @@ async function sendTestChat() {
     return;
   }
   currentRawKey = key;
+  trackAccountFunnelEvent('account_first_request_clicked', { button: 'test_chat', target: '/v1/chat/completions', state: 'sage-router/frontier' });
   set('test-chat-status', 'Sending sage-router/frontier through the public edge...');
   setBusy('test-chat-button', true, 'Sending...');
   try {
@@ -749,6 +763,7 @@ async function sendTestChat() {
     const text = data?.choices?.[0]?.message?.content || data?.output_text || 'Completion returned.';
     keyVerifiedThisSession = true;
     set('test-chat-status', `First routed completion succeeded: ${String(text).slice(0, 220)}`);
+    trackAccountFunnelEvent('account_first_request_succeeded', { button: 'test_chat', target: '/v1/chat/completions', state: 'success' });
     renderLaunchNextAction({ keyVerified: true, requestCount: Math.max(1, Number(activationState.requestCount || 0)) });
     setTimeout(() => refresh(), 2500);
     setTimeout(() => refresh(), 9000);

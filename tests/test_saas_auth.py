@@ -916,9 +916,10 @@ class SaaSAuthTests(unittest.TestCase):
             },
         }, None)
         router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
-            'total': 6,
+            'total': 7,
             'events': {
                 'landing_account_clicked': 1,
+                'account_api_key_created': 1,
                 'calculator_checkout_clicked': 2,
                 'pricing_checkout_clicked': 1,
                 'managed_access_interest_clicked': 1,
@@ -960,8 +961,9 @@ class SaaSAuthTests(unittest.TestCase):
         snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
 
         self.assertEqual(3, snapshot['stages']['waitlistLeads'])
-        self.assertEqual(6, snapshot['stages']['marketingIntentEvents'])
+        self.assertEqual(7, snapshot['stages']['marketingIntentEvents'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['landing_account_clicked'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['account_api_key_created'])
         self.assertEqual(2, snapshot['marketingIntent']['events']['calculator_checkout_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['openrouter_compare_checkout_clicked'])
         self.assertEqual(3, snapshot['marketingIntent']['plans']['pro'])
@@ -1076,6 +1078,15 @@ class SaaSAuthTests(unittest.TestCase):
                     },
                 },
                 {
+                    'event': 'account_api_key_created',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'account',
+                        'state': 'created',
+                    },
+                },
+                {
                     'event': 'calculator_checkout_clicked',
                     'plan': 'pro',
                     'created_at': '2026-06-19T00:00:00Z',
@@ -1120,26 +1131,28 @@ class SaaSAuthTests(unittest.TestCase):
         metrics, error = router.read_launch_marketing_funnel_counts(0)
 
         self.assertIsNone(error)
-        self.assertEqual(6, metrics['total'])
+        self.assertEqual(7, metrics['total'])
         self.assertEqual(1, metrics['events']['landing_account_clicked'])
+        self.assertEqual(1, metrics['events']['account_api_key_created'])
         self.assertEqual(2, metrics['events']['calculator_checkout_clicked'])
         self.assertEqual(1, metrics['events']['pricing_checkout_clicked'])
         self.assertEqual(1, metrics['events']['billing_payment_recovery_clicked'])
         self.assertEqual(1, metrics['events']['unknown'])
-        self.assertEqual(3, metrics['plans']['pro'])
+        self.assertEqual(4, metrics['plans']['pro'])
         self.assertEqual(1, metrics['plans']['lite'])
         self.assertEqual(1, metrics['plans']['manual'])
         self.assertEqual(1, metrics['sourceSurfaces']['landing'])
         self.assertEqual(1, metrics['sourceSurfaces']['model-routing-calculator'])
         self.assertEqual(1, metrics['sourceSurfaces']['compare-openrouter'])
         self.assertEqual(1, metrics['sourceSurfaces']['pricing'])
+        self.assertEqual(1, metrics['sourceSurfaces']['account'])
         self.assertEqual(1, metrics['sourceSurfaces']['billing'])
         self.assertEqual(1, metrics['sourceSurfaces']['unknown'])
         self.assertEqual(1, metrics['attributionChannels']['github'])
         self.assertEqual(1, metrics['attributionChannels']['openrouter'])
         self.assertEqual(1, metrics['attributionChannels']['google'])
         self.assertEqual(1, metrics['attributionChannels']['discord'])
-        self.assertEqual(2, metrics['attributionChannels']['direct'])
+        self.assertEqual(3, metrics['attributionChannels']['direct'])
         self.assertNotIn('email', json.dumps(metrics))
         self.assertNotIn('buyer@example.com', json.dumps(metrics))
 
