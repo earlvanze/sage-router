@@ -166,6 +166,10 @@ provider resale claim, or runtime feature flag.
   previews, local development, or exact origins configured with
   `SAGEROUTER_FUNNEL_ALLOWED_ORIGINS`; the service-role-backed Supabase insert
   path must not be reusable as a third-party analytics sink.
+- Capture model catalog page-view, filter, CTA, and bucketed search intent from
+  `/models` through the same path. Store only model-family and search-bucket
+  intent such as `openai-codex`, `ollama`, `byok-compatible`, or `other`; do
+  not store raw model search text or live `/v1/models` output.
 - Preserve coarse launch-channel attribution on those CTA events by storing
   only source surface, UTM source/medium/campaign tokens, referrer host, and
   landing path, then report aggregated channel attribution in the private

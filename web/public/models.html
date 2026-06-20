@@ -38,12 +38,12 @@
         <h1>One endpoint across authorized model routes.</h1>
         <p class="lead">Use Sage Router profiles, OpenAI-compatible providers, Anthropic-compatible routes, Gemini, Ollama, Ollama Cloud, NVIDIA NIM, and private BYOK gateways without exposing anonymous model traffic.</p>
         <div class="actions">
-          <a class="button primary" href="/account.html">Create hosted API key</a>
-          <a class="button secondary" href="/quickstart">Read quickstart</a>
-          <a class="button secondary" href="/docs/codex">Configure Codex</a>
-          <a class="button secondary" href="https://api.sagerouter.dev/model-catalog">View catalog JSON</a>
-          <a class="button secondary" href="/pricing">View pricing</a>
-          <a class="button secondary" href="/compare/openrouter">Compare OpenRouter</a>
+          <a class="button primary" href="/account.html" data-model-event="model_catalog_account_clicked" data-model-button="create-key">Create hosted API key</a>
+          <a class="button secondary" href="/quickstart" data-model-event="model_catalog_quickstart_clicked" data-model-button="quickstart">Read quickstart</a>
+          <a class="button secondary" href="/docs/codex" data-model-event="model_catalog_codex_clicked" data-model-button="codex">Configure Codex</a>
+          <a class="button secondary" href="https://api.sagerouter.dev/model-catalog" data-model-event="model_catalog_json_clicked" data-model-button="catalog-json">View catalog JSON</a>
+          <a class="button secondary" href="/pricing" data-model-event="model_catalog_pricing_clicked" data-model-button="pricing">View pricing</a>
+          <a class="button secondary" href="/compare/openrouter" data-model-event="model_catalog_openrouter_clicked" data-model-button="openrouter-compare">Compare OpenRouter</a>
         </div>
         <p class="note">The public catalog is discovery metadata. Live <code>/v1/models</code> and model requests require an active generated <code>sk_sage_*</code> key.</p>
       </section>
@@ -78,7 +78,7 @@
               <span class="eyebrow">Search models</span>
               <input id="model-search" class="searchBox" type="search" autocomplete="off" placeholder="Search frontier, codex, ollama, claude, gemini, BYOK..." />
             </label>
-            <a class="button secondary" href="https://api.sagerouter.dev/model-catalog">Catalog JSON</a>
+            <a class="button secondary" href="https://api.sagerouter.dev/model-catalog" data-model-event="model_catalog_json_clicked" data-model-button="catalog-json-explorer">Catalog JSON</a>
           </div>
           <div id="model-filters" class="filterRow" aria-label="Model family filters"></div>
           <div class="catalogMeta">
@@ -149,7 +149,7 @@
       ],
       safetyBoundary: 'The public catalog is not a promise of bundled model resale. Provider access must be authorized by the customer or explicitly approved for managed access.'
     };
-    const catalogState = { catalog: embeddedCatalog, activeFamily: 'all', query: '' };
+    const catalogState = { catalog: embeddedCatalog, source: 'embedded', activeFamily: 'all', query: '', visibleCount: 0 };
     const familyKeywords = {
       'sage-router-profiles': ['profiles', 'frontier', 'auto', 'balanced', 'agentic'],
       'openai-codex': ['openai', 'codex', 'gpt', 'chatgpt'],
@@ -158,8 +158,72 @@
       ollama: ['ollama', 'local', 'cloud', 'llama', 'qwen'],
       'byok-compatible': ['byok', 'openrouter', 'nvidia', 'nim', 'darkbloom', 'compatible']
     };
+    const safeModelFamilies = new Set(['all', ...Object.keys(familyKeywords)]);
     const $ = (id) => document.getElementById(id);
     const normalize = (value) => String(value || '').toLowerCase();
+    let modelCatalogViewTracked = false;
+    let searchEventTimer = null;
+
+    function attributionContext() {
+      const params = new URLSearchParams(window.location.search);
+      let referrerHost = '';
+      try {
+        referrerHost = document.referrer ? new URL(document.referrer).hostname : '';
+      } catch {
+        referrerHost = '';
+      }
+      return {
+        utmSource: params.get('utm_source') || '',
+        utmMedium: params.get('utm_medium') || '',
+        utmCampaign: params.get('utm_campaign') || '',
+        referrerHost,
+        landingPath: window.location.pathname
+      };
+    }
+
+    function modelFamilyForFilter(value) {
+      const family = String(value || '').trim().toLowerCase();
+      return safeModelFamilies.has(family) ? family : 'other';
+    }
+
+    function queryBucketFor(value) {
+      const query = normalize(value);
+      if (!query.trim()) return 'empty';
+      for (const [family, keywords] of Object.entries(familyKeywords)) {
+        if (keywords.some((keyword) => query.includes(keyword))) return family;
+      }
+      return 'other';
+    }
+
+    function trackModelCatalogEvent(event, metadata = {}, targetUrl = null) {
+      const payload = {
+        event,
+        sourcePage: window.location.href,
+        target: targetUrl,
+        metadata: {
+          source: 'model-catalog',
+          catalogSource: catalogState.source,
+          modelFamily: modelFamilyForFilter(metadata.modelFamily || catalogState.activeFamily),
+          queryBucket: metadata.queryBucket || queryBucketFor(catalogState.query),
+          resultCount: catalogState.visibleCount,
+          ...attributionContext(),
+          ...metadata
+        }
+      };
+      const body = JSON.stringify(payload);
+      if (navigator.sendBeacon) {
+        const blob = new Blob([body], { type: 'application/json' });
+        if (navigator.sendBeacon('/api/funnel-event', blob)) return;
+      }
+      fetch('/api/funnel-event', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'omit',
+        keepalive: true,
+        body
+      }).catch(() => {});
+    }
+
     function familyText(family) {
       return [family.id, family.name, family.access, ...(family.examples || []), ...(familyKeywords[family.id] || [])].map(normalize).join(' ');
     }
@@ -176,7 +240,10 @@
         button.setAttribute('aria-pressed', row.id === catalogState.activeFamily ? 'true' : 'false');
         button.addEventListener('click', () => {
           catalogState.activeFamily = row.id;
-          renderCatalog();
+          catalogState.visibleCount = renderCatalog();
+          trackModelCatalogEvent('model_catalog_filter_clicked', {
+            modelFamily: modelFamilyForFilter(row.id)
+          });
         });
         filters.appendChild(button);
       }
@@ -196,7 +263,7 @@
         empty.className = 'empty';
         empty.textContent = 'No route families match this search. Try frontier, Codex, Ollama, Claude, Gemini, OpenRouter, NVIDIA, or BYOK.';
         results.appendChild(empty);
-        return;
+        return families.length;
       }
       for (const family of families) {
         const card = document.createElement('article');
@@ -216,18 +283,41 @@
         card.append(title, examples, access);
         results.appendChild(card);
       }
+      return families.length;
     }
     function setCatalog(catalog, source) {
       catalogState.catalog = catalog && Array.isArray(catalog.families) ? catalog : embeddedCatalog;
+      catalogState.source = source;
       $('catalog-status').textContent = source === 'live'
         ? `Loaded safe public catalog metadata from ${catalogState.catalog.openaiBaseUrl || 'https://api.sagerouter.dev/v1'}.`
         : 'Using embedded safe catalog metadata while the public API edge is unreachable.';
       renderFilters();
-      renderCatalog();
+      catalogState.visibleCount = renderCatalog();
+      if (!modelCatalogViewTracked) {
+        modelCatalogViewTracked = true;
+        trackModelCatalogEvent('model_catalog_viewed', {
+          catalogSource: source,
+          resultCount: catalogState.visibleCount
+        });
+      }
     }
     $('model-search').addEventListener('input', (event) => {
       catalogState.query = event.target.value;
-      renderCatalog();
+      catalogState.visibleCount = renderCatalog();
+      clearTimeout(searchEventTimer);
+      searchEventTimer = setTimeout(() => {
+        trackModelCatalogEvent('model_catalog_search_bucketed', {
+          queryBucket: queryBucketFor(catalogState.query),
+          resultCount: catalogState.visibleCount
+        });
+      }, 500);
+    });
+    document.querySelectorAll('[data-model-event]').forEach((link) => {
+      link.addEventListener('click', () => {
+        trackModelCatalogEvent(link.dataset.modelEvent, {
+          button: link.dataset.modelButton || 'link'
+        }, link.href);
+      });
     });
     setCatalog(embeddedCatalog, 'embedded');
     fetch('https://api.sagerouter.dev/model-catalog', { credentials: 'omit', headers: { Accept: 'application/json' } })

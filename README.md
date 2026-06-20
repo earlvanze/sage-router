@@ -246,6 +246,9 @@ The public homepage, calculator, pricing, launch plan, quickstart, and
 OpenRouter comparison pages emit anonymous pre-signup page-view, CTA, and
 quickstart snippet-copy intent to `/api/funnel-event` so the private launch
 funnel can count demand before users create accounts.
+The public model catalog also emits page-view, filter, CTA, and bucketed search
+intent so operators can measure model-family demand without storing raw search
+text.
 The event path stores
 event name, selected plan, sanitized source/target URL, and small metadata
 buckets only; it must not store workflow text, prompt bodies, emails, API keys,
@@ -262,12 +265,13 @@ attempts, browser-visible auth-provider state checks, plan selection, API-key
 creation, setup snippet-copy intent, public-edge key verification, first browser test request success,
 Stripe checkout clicks and returns, Stripe portal clicks and returns, and
 crypto/manual payment intent clicks. Pricing,
-calculator, OpenRouter comparison, login, account, and homepage events include
-only coarse attribution buckets such as source surface, UTM
-source/medium/campaign tokens, referrer host, and landing path; the operator
-launch funnel aggregates those into source-surface and channel counts without
-returning raw URLs, emails, prompts, credentials, generated keys, wallet
-addresses, provider credentials, OAuth secrets, completion text, or API keys.
+calculator, OpenRouter comparison, model catalog, login, account, and homepage
+events include only coarse attribution buckets such as source surface, UTM
+source/medium/campaign tokens, referrer host, landing path, model family, and
+search bucket; the operator launch funnel aggregates those into source-surface
+and channel counts without returning raw URLs, raw model search text, emails,
+prompts, credentials, generated keys, wallet addresses, provider credentials,
+OAuth secrets, completion text, or API keys.
 Account setup snippet-copy events store only the snippet identifier, not the
 copied snippet body or generated key. The private launch funnel rolls those
 snippet IDs into setup-copy activation and setup-copy to first-request rates so
