@@ -439,7 +439,7 @@ check_public_model_catalog() {
 }
 
 check_managed_provider_access_guard() {
-  local code enabled status terms_url terms_ack terms_ack_env_ok allowlist_count margin_url acceptable_url controls_ok margin_percent unit_economics_ok cost_controls_ok
+  local code enabled requested readiness_satisfied status terms_url terms_ack terms_ack_env_ok allowlist_count margin_url acceptable_url controls_ok margin_percent unit_economics_ok cost_controls_ok missing_count
   code="$(http_code "${API_BASE%/}/pricing")"
   if [[ "$code" != "200" ]]; then
     rm -f /tmp/sage-router-readiness-body
@@ -447,6 +447,8 @@ check_managed_provider_access_guard() {
     return
   fi
   enabled="$(jq -r '.publicLaunch.managedProviderAccess.enabled // false' /tmp/sage-router-readiness-body)"
+  requested="$(jq -r '.publicLaunch.managedProviderAccess.requested // false' /tmp/sage-router-readiness-body)"
+  readiness_satisfied="$(jq -r '.publicLaunch.managedProviderAccess.readinessSatisfied // false' /tmp/sage-router-readiness-body)"
   status="$(jq -r '.publicLaunch.managedProviderAccess.status // empty' /tmp/sage-router-readiness-body)"
   terms_url="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsUrl // empty' /tmp/sage-router-readiness-body)"
   terms_ack="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsAcknowledged // false' /tmp/sage-router-readiness-body)"
@@ -480,6 +482,7 @@ check_managed_provider_access_guard() {
     ((.publicLaunch.managedProviderAccess.costControls // []) | index("provider_resale_terms")) and
     ((.publicLaunch.managedProviderAccess.costControls // []) | index("managed_access_acceptable_use"))
   ' /tmp/sage-router-readiness-body)"
+  missing_count="$(jq -r '(.publicLaunch.managedProviderAccess.missingControls // []) | length' /tmp/sage-router-readiness-body)"
   rm -f /tmp/sage-router-readiness-body
   case "${PROVIDER_RESALE_TERMS_ACKNOWLEDGED,,}" in
     1|true|yes|on) terms_ack_env_ok="true" ;;
@@ -489,6 +492,8 @@ check_managed_provider_access_guard() {
   case "${MANAGED_PROVIDER_RESALE_ENABLED,,}" in
     1|true|yes|on)
       if [[ "$enabled" == "true" &&
+            "$requested" == "true" &&
+            "$readiness_satisfied" == "true" &&
             "$status" == "ready_for_private_beta" &&
             -n "$PROVIDER_RESALE_TERMS_URL" &&
             -n "$PROVIDER_RESALE_MARGIN_POLICY_URL" &&
@@ -504,17 +509,18 @@ check_managed_provider_access_guard() {
             "$cost_controls_ok" == "true" &&
             "$unit_economics_ok" == "true" &&
             "$margin_percent" =~ ^[0-9]+$ &&
-            "$margin_percent" -ge 30 ]]; then
+            "$margin_percent" -ge 30 &&
+            "$missing_count" == "0" ]]; then
         pass "managed provider access is explicitly enabled with acknowledged resale terms, a provider allowlist, positive unit economics, margin policy, quotas, operator audit events, and acceptable-use controls"
       else
-        fail "managed provider access enabled without complete controls, including acknowledged resale terms, provider allowlist, positive unit economics, operator audit events, and managed-access acceptable-use boundary: enabled=${enabled} status=${status:-missing} terms=${terms_url:+present} termsAcknowledged=${terms_ack:-missing} allowedProviderFamilies=${allowlist_count:-missing} margin=${margin_url:+present} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} acceptableUse=${acceptable_url:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing}"
+        fail "managed provider access enabled without complete controls, including acknowledged resale terms, provider allowlist, positive unit economics, operator audit events, and managed-access acceptable-use boundary: enabled=${enabled} requested=${requested:-missing} readinessSatisfied=${readiness_satisfied:-missing} status=${status:-missing} terms=${terms_url:+present} termsAcknowledged=${terms_ack:-missing} allowedProviderFamilies=${allowlist_count:-missing} margin=${margin_url:+present} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} acceptableUse=${acceptable_url:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing} missingControls=${missing_count:-missing}"
       fi
       ;;
     *)
-      if [[ "$enabled" == "false" && "$status" == "disabled_pending_provider_terms" && "$terms_ack" == "false" && "$allowlist_count" == "0" && "$controls_ok" == "true" && "$cost_controls_ok" == "true" && "$unit_economics_ok" == "true" && "$margin_percent" =~ ^[0-9]+$ && "$margin_percent" -ge 30 ]]; then
+      if [[ "$enabled" == "false" && "$requested" == "false" && "$readiness_satisfied" == "false" && "$status" == "disabled_pending_provider_terms" && "$terms_ack" == "false" && "$allowlist_count" == "0" && "$controls_ok" == "true" && "$cost_controls_ok" == "true" && "$unit_economics_ok" == "true" && "$margin_percent" =~ ^[0-9]+$ && "$margin_percent" -ge 30 && "$missing_count" =~ ^[0-9]+$ && "$missing_count" -gt 0 ]]; then
         pass "managed provider access remains disabled until provider resale terms are acknowledged, provider allowlist, positive unit economics, margin policy, quotas, operator audit events, and acceptable-use controls are ready"
       else
-        fail "managed provider access guard unexpected: enabled=${enabled} status=${status:-missing} termsAcknowledged=${terms_ack:-missing} allowedProviderFamilies=${allowlist_count:-missing} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing}, expected disabled_pending_provider_terms"
+        fail "managed provider access guard unexpected: enabled=${enabled} requested=${requested:-missing} readinessSatisfied=${readiness_satisfied:-missing} status=${status:-missing} termsAcknowledged=${terms_ack:-missing} allowedProviderFamilies=${allowlist_count:-missing} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing} missingControls=${missing_count:-missing}, expected disabled_pending_provider_terms"
       fi
       ;;
   esac

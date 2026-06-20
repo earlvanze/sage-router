@@ -760,6 +760,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('does not grant unauthorized model access', launch['complianceBoundary'])
         managed = launch['managedProviderAccess']
         self.assertFalse(managed['enabled'])
+        self.assertFalse(managed['requested'])
+        self.assertFalse(managed['readinessSatisfied'])
         self.assertEqual('disabled_pending_provider_terms', managed['status'])
         self.assertIn('provider_resale_terms', managed['requiredControls'])
         self.assertIn('margin_policy', managed['requiredControls'])
@@ -776,6 +778,10 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(managed['requiresPositiveUnitEconomics'])
         self.assertFalse(managed['providerTermsAcknowledged'])
         self.assertEqual([], managed['allowedProviderFamilies'])
+        self.assertIn('provider_resale_terms', managed['missingControls'])
+        self.assertIn('provider_terms_acknowledgment', managed['missingControls'])
+        self.assertIn('authorized_provider_allowlist', managed['missingControls'])
+        self.assertIn('margin_policy', managed['missingControls'])
         self.assertGreaterEqual(managed['minimumGrossMarginPercent'], 30)
         self.assertIn('per_plan_monthly_quotas', managed['costControls'])
         self.assertIn('request_per_minute_limits', managed['costControls'])
@@ -818,28 +824,42 @@ class SaaSAuthTests(unittest.TestCase):
             os.environ.pop('SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS', None)
             os.environ.pop('SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT', None)
             managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
-            self.assertTrue(managed['enabled'])
+            self.assertFalse(managed['enabled'])
+            self.assertTrue(managed['requested'])
+            self.assertFalse(managed['readinessSatisfied'])
             self.assertEqual('requires_readiness_verification', managed['status'])
+            self.assertIn('provider_resale_terms', managed['missingControls'])
+            self.assertIn('provider_terms_acknowledgment', managed['missingControls'])
+            self.assertIn('authorized_provider_allowlist', managed['missingControls'])
+            self.assertIn('margin_policy', managed['missingControls'])
 
             os.environ['SAGEROUTER_PROVIDER_RESALE_TERMS_URL'] = 'https://sagerouter.dev/provider-resale-terms'
             os.environ['SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL'] = 'https://sagerouter.dev/margin-policy'
             os.environ['SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT'] = '10'
             managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
-            self.assertTrue(managed['enabled'])
+            self.assertFalse(managed['enabled'])
+            self.assertTrue(managed['requested'])
+            self.assertFalse(managed['readinessSatisfied'])
             self.assertEqual('requires_readiness_verification', managed['status'])
             self.assertEqual(10, managed['minimumGrossMarginPercent'])
+            self.assertIn('minimum_gross_margin', managed['missingControls'])
 
             os.environ['SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT'] = '35'
             managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
-            self.assertTrue(managed['enabled'])
+            self.assertFalse(managed['enabled'])
+            self.assertTrue(managed['requested'])
+            self.assertFalse(managed['readinessSatisfied'])
             self.assertEqual('requires_readiness_verification', managed['status'])
             self.assertFalse(managed['providerTermsAcknowledged'])
             self.assertEqual([], managed['allowedProviderFamilies'])
+            self.assertNotIn('minimum_gross_margin', managed['missingControls'])
 
             os.environ['SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED'] = '1'
             os.environ['SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS'] = 'ollama,openai,anthropic'
             managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
             self.assertTrue(managed['enabled'])
+            self.assertTrue(managed['requested'])
+            self.assertTrue(managed['readinessSatisfied'])
             self.assertEqual('ready_for_private_beta', managed['status'])
             self.assertEqual('https://sagerouter.dev/provider-resale-terms', managed['providerTermsUrl'])
             self.assertTrue(managed['providerTermsAcknowledged'])
@@ -847,6 +867,7 @@ class SaaSAuthTests(unittest.TestCase):
             self.assertEqual('https://sagerouter.dev/margin-policy', managed['marginPolicyUrl'])
             self.assertEqual(35, managed['minimumGrossMarginPercent'])
             self.assertTrue(managed['requiresPositiveUnitEconomics'])
+            self.assertEqual([], managed['missingControls'])
         finally:
             for key, value in old_env.items():
                 if value is None:

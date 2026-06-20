@@ -1974,12 +1974,39 @@ def public_launch_metadata():
     margin_ready = int(managed_provider_access.get('minimumGrossMarginPercent') or 0) >= 30
     provider_terms_ready = bool(provider_terms_url and provider_terms_acknowledged)
     provider_allowlist_ready = bool(allowed_provider_families)
+    managed_provider_ready = bool(
+        provider_terms_ready
+        and provider_allowlist_ready
+        and margin_policy_url
+        and requires_positive_unit_economics
+        and margin_ready
+    )
+    missing_controls = []
+    if not provider_terms_url:
+        missing_controls.append('provider_resale_terms')
+    if not provider_terms_acknowledged:
+        missing_controls.append('provider_terms_acknowledgment')
+    if not provider_allowlist_ready:
+        missing_controls.append('authorized_provider_allowlist')
+    if not margin_policy_url:
+        missing_controls.append('margin_policy')
+    if not requires_positive_unit_economics:
+        missing_controls.append('positive_unit_economics')
+    if not margin_ready:
+        missing_controls.append('minimum_gross_margin')
     if managed_provider_resale_enabled:
-        managed_provider_access['enabled'] = True
-        if provider_terms_ready and provider_allowlist_ready and margin_policy_url and requires_positive_unit_economics and margin_ready:
+        managed_provider_access['requested'] = True
+        managed_provider_access['readinessSatisfied'] = managed_provider_ready
+        if managed_provider_ready:
+            managed_provider_access['enabled'] = True
             managed_provider_access['status'] = 'ready_for_private_beta'
         else:
+            managed_provider_access['enabled'] = False
             managed_provider_access['status'] = 'requires_readiness_verification'
+    else:
+        managed_provider_access['requested'] = False
+        managed_provider_access['readinessSatisfied'] = False
+    managed_provider_access['missingControls'] = missing_controls
     managed_provider_access['providerTermsUrl'] = provider_terms_url
     managed_provider_access['providerTermsAcknowledged'] = provider_terms_acknowledged
     managed_provider_access['allowedProviderFamilies'] = allowed_provider_families

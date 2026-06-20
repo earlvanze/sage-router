@@ -76,6 +76,11 @@ authorization, provider-family allowlist, terms acknowledgment, billing,
 margin, quota, metering, and abuse-control checks are explicitly enabled. A
 pricing page alone is not enough; the runtime readiness guard must prove
 positive unit economics before bundled access can be treated as launchable.
+Likewise, `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` is only an operator
+request until the full prerequisite set is present; the runtime must publish
+`requested: true`, `readinessSatisfied: false`, `enabled: false`, and
+`missingControls` for incomplete configurations instead of advertising bundled
+provider access.
 
 Pricing and comparison pages can still measure demand for the future
 one-subscription path by sending prospects to
