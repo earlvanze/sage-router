@@ -4693,6 +4693,14 @@ def public_plan_monthly_price_usd(plan_name):
     return int(value) if value.is_integer() else value
 
 
+def manual_payment_amount_for_plan(plan_name):
+    plan_name = normalize_stripe_plan(plan_name)
+    if not plan_name:
+        return ''
+    amount = public_plan_monthly_price_usd(plan_name)
+    return str(amount) if amount else ''
+
+
 def launch_revenue_action(plan, customer_gap, mrr_gap):
     plan_name = str(plan or '').strip().lower()
     if plan_name == 'max':
@@ -10750,6 +10758,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.write_json(503, {'error': 'crypto_not_configured', 'required_env': ['SAGE_ROUTER_CRYPTO_PAYMENT_ADDRESS']})
                 return
             payload = read_json_body(self)
+            amount = str(payload.get('amount') or '').strip() or manual_payment_amount_for_plan(payload.get('plan'))
+            plan = normalize_stripe_plan(payload.get('plan'))
             intent = store_payment_intent({
                 'kind': 'crypto_manual',
                 'customer_id': customer.get('id'),
@@ -10757,11 +10767,13 @@ class Handler(BaseHTTPRequestHandler):
                 'status': 'pending_manual_review',
                 'asset': payload.get('asset') or CRYPTO_PAYMENT_ASSET,
                 'network': payload.get('network') or CRYPTO_PAYMENT_NETWORK,
-                'amount': payload.get('amount') or '',
+                'amount': amount,
                 'address': CRYPTO_PAYMENT_ADDRESS,
                 'metadata': {
                     'settlement': 'manual',
                     'automatic_settlement': False,
+                    'plan': plan,
+                    'amount_source': 'request' if str(payload.get('amount') or '').strip() else ('public_plan_catalog' if amount else 'manual_review'),
                     'note': payload.get('note') or '',
                 },
             })

@@ -1961,6 +1961,82 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('active', router.customer_by_id(customer_b['id'])['status'])
         self.assertEqual(0, len(router.local_customer_store()['payment_intents']))
 
+    def test_crypto_intent_derives_amount_from_selected_plan(self):
+        router.SUPABASE_AUTH_ENABLED = True
+        router.REQUIRE_VERIFIED_EMAIL = True
+        router.CRYPTO_PAYMENT_ADDRESS = 'wallet_123'
+        router.supabase_user_for_bearer = lambda token: {
+            'id': 'user-verified',
+            'email': 'verified@example.com',
+            'email_confirmed_at': '2026-06-20T00:00:00Z',
+        } if token == 'valid-user-jwt' else None
+
+        body = b'{"plan":"pro","note":"Sage Router pro subscription"}'
+
+        class Dummy:
+            path = '/billing/crypto/intent'
+            headers = {
+                'Authorization': 'Bearer valid-user-jwt',
+                'Content-Length': str(len(body)),
+                'Origin': 'https://app.sagerouter.dev',
+            }
+            rfile = BytesIO(body)
+            status = None
+            payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(201, handler.status)
+        intent = handler.payload['intent']
+        self.assertEqual('30', intent['amount'])
+        self.assertEqual('USDC', intent['asset'])
+        self.assertEqual('wallet_123', intent['address'])
+        self.assertEqual('pro', intent['metadata']['plan'])
+        self.assertEqual('public_plan_catalog', intent['metadata']['amount_source'])
+
+    def test_crypto_intent_preserves_explicit_amount_override(self):
+        router.SUPABASE_AUTH_ENABLED = True
+        router.REQUIRE_VERIFIED_EMAIL = True
+        router.CRYPTO_PAYMENT_ADDRESS = 'wallet_123'
+        router.supabase_user_for_bearer = lambda token: {
+            'id': 'user-verified',
+            'email': 'verified@example.com',
+            'email_confirmed_at': '2026-06-20T00:00:00Z',
+        } if token == 'valid-user-jwt' else None
+
+        body = b'{"plan":"lite","amount":"27","asset":"USDC","network":"algorand"}'
+
+        class Dummy:
+            path = '/billing/crypto/intent'
+            headers = {
+                'Authorization': 'Bearer valid-user-jwt',
+                'Content-Length': str(len(body)),
+                'Origin': 'https://app.sagerouter.dev',
+            }
+            rfile = BytesIO(body)
+            status = None
+            payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(201, handler.status)
+        intent = handler.payload['intent']
+        self.assertEqual('27', intent['amount'])
+        self.assertEqual('USDC', intent['asset'])
+        self.assertEqual('algorand', intent['network'])
+        self.assertEqual('lite', intent['metadata']['plan'])
+        self.assertEqual('request', intent['metadata']['amount_source'])
+
     def test_stripe_invoice_payment_failure_disables_generated_key_routing(self):
         router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
         customer = self.active_customer()
