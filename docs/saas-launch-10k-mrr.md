@@ -255,6 +255,9 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   operator funnel so GitHub, Google, OpenRouter, Discord, Reddit, newsletter,
   direct, and internal Sage Router traffic can be ranked against the `$10k MRR`
   launch mix without exposing identities.
+- Include browser-visible auth-provider state in the operator funnel so GitHub
+  OAuth setup friction is visible as counts while email signup remains the
+  baseline path, without storing OAuth codes, tokens, secrets, or identities.
 - Return ranked acquisition actions from those source/channel buckets so the
   operator can decide whether the next push should be OpenRouter migration
   content, GitHub/docs conversion, community outreach, pricing-page tuning, or

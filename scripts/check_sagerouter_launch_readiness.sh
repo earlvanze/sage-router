@@ -573,6 +573,9 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Customer Review" /tmp/sage-router-readiness-body; then
     launch_funnel_code="200:missing-customer-review"
   fi
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "OAuth onboarding state" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:missing-auth-provider-state"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   launch_funnel_js_code="$(http_code_follow "${APP_BASE%/}/launch-funnel.js")"
@@ -596,6 +599,9 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderAcquisitionActions" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-acquisition-action-renderer"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderAuthProviderState" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-auth-provider-state-renderer"
   fi
   rm -f /tmp/sage-router-readiness-body
 
@@ -1355,6 +1361,9 @@ check_admin_token() {
     ((.targets.signupToGeneratedKey // {}) | .targetRate == 0.6) and
     ((.bottlenecks // []) | type == "array") and
     ((.acquisitionActions // []) | type == "array") and
+    ((.marketingIntent.authProviderState // {}) | has("total") and has("githubEnabled") and has("githubDisabled")) and
+    ((.marketingIntent.authProviderState.enabledProviders // {}) | has("github") and has("google") and has("discord") and has("none") and has("other")) and
+    ((.marketingIntent.authProviderState.disabledProviders // {}) | has("github") and has("google") and has("discord") and has("none") and has("other")) and
     ((.privacy // {}) | .containsEmails == false) and
     ((.mrr // {}) | .targetMrrUsd == 10000) and
     ((.mrr // {}) | has("estimatedCurrentMrrUsd")) and

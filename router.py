@@ -4967,6 +4967,66 @@ def launch_acquisition_actions(marketing_metrics):
     return rows[:12]
 
 
+def new_auth_provider_state_metrics():
+    provider_buckets = {'github': 0, 'google': 0, 'discord': 0, 'none': 0, 'other': 0}
+    return {
+        'total': 0,
+        'loaded': 0,
+        'unavailable': 0,
+        'unknown': 0,
+        'githubEnabled': 0,
+        'githubDisabled': 0,
+        'enabledProviders': dict(provider_buckets),
+        'disabledProviders': dict(provider_buckets),
+    }
+
+
+def metadata_bool(value):
+    if isinstance(value, bool):
+        return value
+    normalized = str(value or '').strip().lower()
+    if normalized in {'1', 'true', 'yes', 'on', 'enabled'}:
+        return True
+    if normalized in {'0', 'false', 'no', 'off', 'disabled'}:
+        return False
+    return None
+
+
+def provider_state_list(value):
+    if isinstance(value, (list, tuple, set)):
+        parts = value
+    else:
+        parts = str(value or '').split(',')
+    providers = []
+    for part in parts:
+        provider = str(part or '').strip().lower()
+        if not provider:
+            continue
+        providers.append(provider if provider in {'github', 'google', 'discord', 'none'} else 'other')
+    return providers or ['none']
+
+
+def update_auth_provider_state_metrics(metrics, metadata):
+    state = str(metadata.get('state') or '').strip().lower()
+    auth_state = metrics['authProviderState']
+    auth_state['total'] += 1
+    if state in {'loaded', 'unavailable'}:
+        auth_state[state] += 1
+    else:
+        auth_state['unknown'] += 1
+
+    github_enabled = metadata_bool(metadata.get('githubEnabled'))
+    if github_enabled is True:
+        auth_state['githubEnabled'] += 1
+    elif github_enabled is False:
+        auth_state['githubDisabled'] += 1
+
+    for provider in provider_state_list(metadata.get('enabledProviders')):
+        auth_state['enabledProviders'][provider] = auth_state['enabledProviders'].get(provider, 0) + 1
+    for provider in provider_state_list(metadata.get('disabledProviders')):
+        auth_state['disabledProviders'][provider] = auth_state['disabledProviders'].get(provider, 0) + 1
+
+
 def new_managed_access_demand_metrics():
     return {
         'targetProviderFamily': {bucket: 0 for bucket in (*MANAGED_ACCESS_TARGET_PROVIDER_BUCKETS, 'unknown')},
@@ -5055,6 +5115,7 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'plans': {},
         'sourceSurfaces': {bucket: 0 for bucket in (*MARKETING_SOURCE_SURFACE_BUCKETS, 'other', 'unknown')},
         'attributionChannels': {bucket: 0 for bucket in (*MARKETING_ATTRIBUTION_CHANNEL_BUCKETS, 'other', 'unknown')},
+        'authProviderState': new_auth_provider_state_metrics(),
     }
     try:
         try:
@@ -5090,10 +5151,13 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             source_surface = marketing_source_surface_bucket(metadata)
             attribution_channel = marketing_channel_bucket(metadata)
         else:
+            metadata = {}
             source_surface = 'unknown'
             attribution_channel = 'unknown'
         metrics['sourceSurfaces'][source_surface] = metrics['sourceSurfaces'].get(source_surface, 0) + 1
         metrics['attributionChannels'][attribution_channel] = metrics['attributionChannels'].get(attribution_channel, 0) + 1
+        if event == 'auth_provider_state_checked':
+            update_auth_provider_state_metrics(metrics, metadata)
     return metrics, None
 
 

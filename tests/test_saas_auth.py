@@ -1006,7 +1006,7 @@ class SaaSAuthTests(unittest.TestCase):
             },
         }, None)
         router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
-            'total': 7,
+            'total': 9,
             'events': {
                 'landing_account_clicked': 1,
                 'account_api_key_created': 1,
@@ -1014,6 +1014,7 @@ class SaaSAuthTests(unittest.TestCase):
                 'pricing_checkout_clicked': 1,
                 'managed_access_interest_clicked': 1,
                 'openrouter_compare_checkout_clicked': 1,
+                'auth_provider_state_checked': 2,
             },
             'plans': {
                 'pro': 3,
@@ -1030,6 +1031,28 @@ class SaaSAuthTests(unittest.TestCase):
                 'github': 2,
                 'openrouter': 1,
                 'direct': 2,
+            },
+            'authProviderState': {
+                'total': 2,
+                'loaded': 1,
+                'unavailable': 1,
+                'unknown': 0,
+                'githubEnabled': 1,
+                'githubDisabled': 1,
+                'enabledProviders': {
+                    'github': 1,
+                    'google': 0,
+                    'discord': 0,
+                    'none': 1,
+                    'other': 0,
+                },
+                'disabledProviders': {
+                    'github': 1,
+                    'google': 2,
+                    'discord': 2,
+                    'none': 0,
+                    'other': 0,
+                },
             },
         }, None)
         customer = self.active_customer()
@@ -1052,11 +1075,15 @@ class SaaSAuthTests(unittest.TestCase):
         snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
 
         self.assertEqual(3, snapshot['stages']['waitlistLeads'])
-        self.assertEqual(7, snapshot['stages']['marketingIntentEvents'])
+        self.assertEqual(9, snapshot['stages']['marketingIntentEvents'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['landing_account_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['account_api_key_created'])
         self.assertEqual(2, snapshot['marketingIntent']['events']['calculator_checkout_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['openrouter_compare_checkout_clicked'])
+        self.assertEqual(2, snapshot['marketingIntent']['events']['auth_provider_state_checked'])
+        self.assertEqual(2, snapshot['marketingIntent']['authProviderState']['total'])
+        self.assertEqual(1, snapshot['marketingIntent']['authProviderState']['githubEnabled'])
+        self.assertEqual(1, snapshot['marketingIntent']['authProviderState']['githubDisabled'])
         self.assertEqual(3, snapshot['marketingIntent']['plans']['pro'])
         self.assertEqual(1, snapshot['marketingIntent']['sourceSurfaces']['landing'])
         self.assertEqual(2, snapshot['marketingIntent']['sourceSurfaces']['pricing'])
@@ -1202,6 +1229,30 @@ class SaaSAuthTests(unittest.TestCase):
                     },
                 },
                 {
+                    'event': 'auth_provider_state_checked',
+                    'plan': None,
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'login',
+                        'state': 'loaded',
+                        'enabledProviders': 'github',
+                        'disabledProviders': 'google,discord',
+                        'githubEnabled': True,
+                    },
+                },
+                {
+                    'event': 'auth_provider_state_checked',
+                    'plan': None,
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': json.dumps({
+                        'source': 'account',
+                        'state': 'unavailable',
+                        'enabledProviders': 'none',
+                        'disabledProviders': 'github,google,discord',
+                        'githubEnabled': False,
+                    }),
+                },
+                {
                     'event': 'calculator_checkout_clicked',
                     'plan': 'pro',
                     'created_at': '2026-06-19T00:00:00Z',
@@ -1246,10 +1297,11 @@ class SaaSAuthTests(unittest.TestCase):
         metrics, error = router.read_launch_marketing_funnel_counts(0)
 
         self.assertIsNone(error)
-        self.assertEqual(8, metrics['total'])
+        self.assertEqual(10, metrics['total'])
         self.assertEqual(1, metrics['events']['landing_account_clicked'])
         self.assertEqual(1, metrics['events']['account_api_key_created'])
         self.assertEqual(1, metrics['events']['account_login_submitted'])
+        self.assertEqual(2, metrics['events']['auth_provider_state_checked'])
         self.assertEqual(2, metrics['events']['calculator_checkout_clicked'])
         self.assertEqual(1, metrics['events']['pricing_checkout_clicked'])
         self.assertEqual(1, metrics['events']['billing_payment_recovery_clicked'])
@@ -1261,15 +1313,24 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['sourceSurfaces']['model-routing-calculator'])
         self.assertEqual(1, metrics['sourceSurfaces']['compare-openrouter'])
         self.assertEqual(1, metrics['sourceSurfaces']['pricing'])
-        self.assertEqual(1, metrics['sourceSurfaces']['account'])
-        self.assertEqual(1, metrics['sourceSurfaces']['login'])
+        self.assertEqual(2, metrics['sourceSurfaces']['account'])
+        self.assertEqual(2, metrics['sourceSurfaces']['login'])
         self.assertEqual(1, metrics['sourceSurfaces']['billing'])
         self.assertEqual(1, metrics['sourceSurfaces']['unknown'])
         self.assertEqual(1, metrics['attributionChannels']['github'])
         self.assertEqual(1, metrics['attributionChannels']['openrouter'])
         self.assertEqual(1, metrics['attributionChannels']['google'])
         self.assertEqual(1, metrics['attributionChannels']['discord'])
-        self.assertEqual(4, metrics['attributionChannels']['direct'])
+        self.assertEqual(6, metrics['attributionChannels']['direct'])
+        self.assertEqual(2, metrics['authProviderState']['total'])
+        self.assertEqual(1, metrics['authProviderState']['loaded'])
+        self.assertEqual(1, metrics['authProviderState']['unavailable'])
+        self.assertEqual(1, metrics['authProviderState']['githubEnabled'])
+        self.assertEqual(1, metrics['authProviderState']['githubDisabled'])
+        self.assertEqual(1, metrics['authProviderState']['enabledProviders']['github'])
+        self.assertEqual(1, metrics['authProviderState']['enabledProviders']['none'])
+        self.assertEqual(1, metrics['authProviderState']['disabledProviders']['github'])
+        self.assertEqual(2, metrics['authProviderState']['disabledProviders']['google'])
         actions = router.launch_acquisition_actions(metrics)
         buckets = [row['bucket'] for row in actions]
         self.assertIn('direct', buckets)

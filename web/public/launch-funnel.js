@@ -290,6 +290,37 @@ function renderMarketingIntent(marketingIntent = {}) {
   }</div>`;
 }
 
+function renderAuthProviderState(authState = {}) {
+  const total = asNumber(authState.total);
+  if (!total) {
+    $('auth-provider-state').innerHTML = '<div class="empty">No browser-visible auth provider state checks in this window.</div>';
+    return;
+  }
+  const enabledRows = sortedEntries(authState.enabledProviders);
+  const disabledRows = sortedEntries(authState.disabledProviders);
+  const statusRows = [
+    ['Loaded settings', authState.loaded],
+    ['Unavailable settings', authState.unavailable],
+    ['Unknown state', authState.unknown],
+    ['GitHub enabled', authState.githubEnabled],
+    ['GitHub disabled', authState.githubDisabled],
+  ].filter(([, count]) => asNumber(count) > 0);
+  const renderRows = (title, rows, label = (value) => value) => `<div>
+    <h3>${esc(title)}</h3>
+    <table>
+      <thead><tr><th>Bucket</th><th>Checks</th></tr></thead>
+      <tbody>${rows.map(([name, count]) => `<tr><td><span class="pill">${esc(label(name))}</span></td><td>${integer(count)}</td></tr>`).join('')}</tbody>
+    </table>
+  </div>`;
+  $('auth-provider-state').innerHTML = `<div class="grid2">${
+    renderRows('Status', statusRows)
+  }${
+    renderRows('Enabled providers', enabledRows, attributionLabel)
+  }${
+    renderRows('Disabled providers', disabledRows, attributionLabel)
+  }</div>`;
+}
+
 function renderFunnel(data) {
   const stages = data.stages || {};
   const rates = data.rates || {};
@@ -324,6 +355,7 @@ function renderFunnel(data) {
 
   renderBottlenecks(data.bottlenecks || []);
   renderMarketingIntent(marketingIntent);
+  renderAuthProviderState(marketingIntent.authProviderState || {});
   renderAcquisitionActions(data.acquisitionActions || marketingIntent.acquisitionActions || []);
   renderManagedAccessDemand(managedAccessDemand);
   renderPlanMix(mrr.byPlan || {});
