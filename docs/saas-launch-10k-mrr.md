@@ -86,7 +86,7 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
 ## Near-term launch checklist
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
-- Keep `/pricing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/openrouter-migration`, `/docs/codex`, `/agent-native`, `/status`, `/support`, `/account.html`, `/login.html`,
+- Keep `/pricing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/openrouter-migration`, `/docs/codex`, `/agent-native`, `/integrations`, `/status`, `/support`, `/account.html`, `/login.html`,
   `/api/waitlist`, `/models`, `/managed-access`, `/compare/openrouter`, `/model-routing-calculator`, `/terms`,
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
@@ -113,6 +113,11 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
 - Keep `/docs/codex` as the dedicated Codex CLI path with hosted, local port
   `8790`, and Tailnet examples using `wire_api = "responses"` and
   `sage-router/frontier`.
+- Keep `/integrations` as the public setup index for OpenAI-compatible clients,
+  Codex, Cursor, Aider, Continue, Claude Code, OpenHands,
+  Anthropic-compatible clients, Ollama, Ollama Cloud, NVIDIA NIM, OpenClaw,
+  Hermes, Pi agents, local port `8790`, Tailnet routes, and the no-secret
+  support boundary.
 - Keep `/support` as the safe escalation path for account, billing, Stripe
   portal, manual/crypto settlement, quota, generated-key, reliability, 503,
   security, abuse, and private deployment issues. Public support channels must

@@ -155,6 +155,7 @@ function App() {
             <a href="#automation">Automation</a>
             <a href="#analytics">Analytics</a>
             <a href="/compare/openrouter">Compare</a>
+            <a href="/integrations">Integrations</a>
             <a href="/quickstart">Quickstart</a>
             <a href="/models">Models</a>
             <a href="/model-routing-calculator">Calculator</a>
@@ -188,6 +189,9 @@ function App() {
               </a>
               <a className="button secondary" href="/quickstart">
                 Read quickstart
+              </a>
+              <a className="button secondary" href="/integrations">
+                Browse integrations
               </a>
               <a className="button secondary" href="/status">
                 View public status

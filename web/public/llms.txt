@@ -13,6 +13,7 @@ Hosted API reference: https://sagerouter.dev/docs/api-reference
 Codex setup: https://sagerouter.dev/docs/codex
 Model catalog: https://sagerouter.dev/models
 Agent-native routing: https://sagerouter.dev/agent-native
+Integrations: https://sagerouter.dev/integrations
 Model Routing Calculator: https://sagerouter.dev/model-routing-calculator
 Managed-access beta interest: https://sagerouter.dev/managed-access
 Security: https://sagerouter.dev/security
@@ -38,6 +39,7 @@ Docs: https://github.com/earlvanze/sage-router#readme
 - API troubleshooting lives at https://sagerouter.dev/api-troubleshooting and explains safe diagnosis for hosted 401, 402, 429, and 503 responses, including `WWW-Authenticate`, `Retry-After`, `X-RateLimit-*`, `X-Quota-*`, `accountUrl`, `pricingUrl`, `statusUrl`, `openaiBaseUrl`, and the non-secret `apiKeyPrefix`.
 - Hosted API reference lives at https://sagerouter.dev/docs/api-reference and documents `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public `/model-catalog`, generated `sk_sage_*` keys, quotas, rate-limit headers, and the authenticated model API boundary.
 - Dedicated Codex setup lives at https://sagerouter.dev/docs/codex and shows hosted `https://api.sagerouter.dev/v1/`, local `http://127.0.0.1:8790/v1/`, Tailnet `http://<tailnet-host>:8790/v1/`, `wire_api = "responses"`, and `sage-router/frontier` profiles.
+- Public integrations live at https://sagerouter.dev/integrations and collect hosted, local port 8790, and Tailnet setup paths for OpenAI-compatible clients, Codex, Cursor, Aider, Continue, Claude Code, OpenHands, Anthropic-compatible clients, Ollama, Ollama Cloud, NVIDIA NIM, OpenClaw, Hermes, and Pi agents.
 - Public model discovery lives at https://sagerouter.dev/models and `https://api.sagerouter.dev/model-catalog`; live `/v1/models` still requires an active generated `sk_sage_*` customer key.
 - Agent-native routing lives at https://sagerouter.dev/agent-native and explains profile-based routing, Responses API and Codex compatibility, health-aware fallback, BYOK custody, local/Tailnet/hosted deployment choices, and public feature metadata at `https://api.sagerouter.dev/features/agent-native`.
 - Hosted security requires generated `sk_sage_*` customer keys for model traffic, Supabase sessions for account/billing routes, and private operator tokens for global analytics/admin routes.
@@ -63,11 +65,13 @@ Managed access boundary: managed provider access, if introduced, is limited to p
 - Codex CLI with an OpenAI-compatible Sage Router provider on hosted or local port 8790.
 - Hosted OpenAI-compatible API reference for models, chat completions, Responses API, quotas, and rate-limit headers.
 - Agent-native model routing for OpenAI-compatible, Codex-style, local, Tailnet, and BYOK agents.
+- Sage Router integrations for OpenAI-compatible clients, Codex, Cursor, Aider, Continue, Claude Code, OpenHands, Ollama, Anthropic-compatible clients, and Tailnet agents.
 - Troubleshooting Sage Router 401/402/429/503 without sharing prompts or secrets.
 - AI model routing calculator for estimating cost leaks, escalation rules, fallback needs, and human-review points.
 
 
 Integration guides:
+- Public integrations index: https://sagerouter.dev/integrations
 - Public Codex setup: https://sagerouter.dev/docs/codex
 - Codex CLI: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/codex.md
 - Claude Code: https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md

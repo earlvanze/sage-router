@@ -85,6 +85,7 @@ The MVP treats discoverability as first-class. Current static assets include:
 - Dedicated OpenRouter migration guide at `/docs/openrouter-migration` mapping `https://openrouter.ai/api/v1` to `https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, model catalog discovery, and provider terms boundaries.
 - Dedicated Codex setup page at `/docs/codex` with hosted `https://api.sagerouter.dev/v1/`, local `http://127.0.0.1:8790/v1/`, Tailnet `http://<tailnet-host>:8790/v1/`, `wire_api = "responses"`, and `sage-router/frontier` profiles.
 - Dedicated agent-native routing page at `/agent-native` with `sage-router/frontier`, Responses API and Codex compatibility, health-aware fallback, BYOK custody, local/Tailnet/hosted deployment choices, and the public `/features/agent-native` metadata endpoint.
+- Dedicated integrations index at `/integrations` with hosted `https://api.sagerouter.dev/v1`, local `http://127.0.0.1:8790/v1`, Tailnet `http://<tailnet-host>:8790/v1`, `sage-router/frontier`, OpenAI-compatible clients, Codex, Cursor, Aider, Continue, Claude Code, OpenHands, Anthropic-compatible clients, Ollama, Ollama Cloud, NVIDIA NIM, OpenClaw, Hermes, and Pi agents.
 - No-login model routing calculator at `/model-routing-calculator` for acquisition and workflow qualification; it recommends Lite/Pro/Max and sends the selected tier into preselected checkout on `/account.html?plan=...`.
 - FAQ content intended for snippets and LLM ingestion.
 - JSON-LD SoftwareApplication and FAQPage schema in index.html.
@@ -104,6 +105,7 @@ Next recommended additions after MVP:
 - Keep `/api-troubleshooting` aligned with public edge 401/402/429/503 payloads, rate-limit headers, quota headers, sitemap, LLM discovery, and readiness checks.
 - Keep `/docs/api-reference` aligned with the hosted OpenAI-compatible API surface, quota/rate-limit headers, authenticated model API boundary, sitemap, LLM discovery, and readiness checks.
 - Keep `/agent-native` aligned with `/features/agent-native`, Codex setup, public model profiles, sitemap, LLM discovery, and readiness checks.
+- Keep `/integrations` aligned with the public quickstart, Codex setup, integration docs, local port `8790`, Tailnet routing, sitemap, LLM discovery, and readiness checks.
 - Keep the model routing calculator in navigation, sitemap, LLM discovery, and readiness checks.
 - Keep the public `/security` trust page in navigation, sitemap, LLM discovery, and readiness checks whenever hosted edge authentication copy changes.
 - Keep the public `/support` page in navigation, sitemap, LLM discovery, and readiness checks whenever hosted account, billing, quota, reliability, or security escalation copy changes.
