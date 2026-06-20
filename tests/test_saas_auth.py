@@ -1867,6 +1867,7 @@ class SaaSAuthTests(unittest.TestCase):
                 'object': {
                     'customer': 'cus_1',
                     'subscription': 'sub_1',
+                    'payment_status': 'paid',
                     'client_reference_id': customer['id'],
                     'metadata': {'customer_id': customer['id'], 'plan': 'pro'},
                 },
@@ -1887,6 +1888,37 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(200, second.status)
         self.assertTrue(second.payload['duplicate'])
         self.assertEqual('evt_checkout_1', second.payload['event_id'])
+        self.assertEqual(1, len(router.local_customer_store()['payment_intents']))
+
+    def test_stripe_checkout_completed_unpaid_does_not_activate_routing(self):
+        router.STRIPE_WEBHOOK_SECRET = 'whsec_test'
+        customer = router.customer_for_user({'id': 'user-1', 'email': 'u@example.com'})
+        router.update_customer(customer['id'], {'plan': 'lite', 'status': 'inactive'})
+        raw, _row = router.create_api_key_for_customer(router.customer_by_id(customer['id']), 'prepaid')
+
+        event = {
+            'id': 'evt_checkout_unpaid',
+            'type': 'checkout.session.completed',
+            'data': {
+                'object': {
+                    'customer': 'cus_unpaid',
+                    'subscription': 'sub_unpaid',
+                    'payment_status': 'unpaid',
+                    'client_reference_id': customer['id'],
+                    'metadata': {'customer_id': customer['id'], 'plan': 'max'},
+                },
+            },
+        }
+
+        handler = self.signed_stripe_webhook_handler(event)
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(200, handler.status)
+        updated = router.customer_by_id(customer['id'])
+        self.assertEqual('lite', updated['plan'])
+        self.assertEqual('inactive', updated['status'])
+        self.assertFalse(router.customer_is_active(updated))
+        self.assertIsNone(router.verify_generated_api_key(raw))
         self.assertEqual(1, len(router.local_customer_store()['payment_intents']))
 
     def test_stripe_subscription_lifecycle_controls_customer_routing_status(self):

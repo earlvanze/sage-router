@@ -197,10 +197,16 @@ provider resale claim, or runtime feature flag.
   Stripe portal should update Sage Router quotas and routing state from the
   subscription item price before trusting webhook metadata or prior customer
   state.
+- Keep Stripe checkout activation payment-status aware: signed
+  `checkout.session.completed` events should grant generated-key routing only
+  when the Checkout Session reports `payment_status=paid` or
+  `payment_status=no_payment_required`; unpaid or missing payment status events
+  are recorded for idempotency but are not paid-conversion entitlement.
 - Keep Stripe payment recovery automatic: signed `invoice.payment_succeeded`
-  and `invoice.paid` events should restore active generated-key routing after
-  resolving the existing Stripe customer binding and deriving the plan from
-  invoice line price IDs.
+  and `invoice.paid` events, plus delayed
+  `checkout.session.async_payment_succeeded` events, should restore active
+  generated-key routing after resolving the existing Stripe customer binding
+  and deriving the plan from invoice line price IDs or checkout metadata.
 - Keep Stripe webhook customer binding fail-closed: signed webhook metadata
   must agree with any existing `stripe_customer_id` binding before changing
   quota, plan, or routing state.

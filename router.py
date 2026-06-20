@@ -1891,6 +1891,12 @@ def stripe_plan_from_object(obj, fallback_customer_id=None, default='pro'):
     return normalize_stripe_plan(default) or 'pro'
 
 
+def stripe_checkout_session_entitles_routing(obj):
+    obj = obj if isinstance(obj, dict) else {}
+    payment_status = str(obj.get('payment_status') or '').strip().lower()
+    return payment_status in {'paid', 'no_payment_required'}
+
+
 def parse_public_plan_limits(raw):
     limits = {}
     for part in str(raw or '').split(','):
@@ -11141,13 +11147,19 @@ class Handler(BaseHTTPRequestHandler):
                 logger.warning(f'Stripe webhook customer binding rejected: {str(e)} event={event_id or "unknown"}')
                 self.write_json(409, {'error': str(e), 'event_id': event_id})
                 return
-            if customer_id and event_type == 'checkout.session.completed':
-                update_customer(customer_id, {
-                    'plan': stripe_plan_from_object(obj, fallback_customer_id=customer_id),
-                    'status': billing_status_for_customer(customer_id, 'active'),
-                    'stripe_customer_id': obj.get('customer') or '',
-                    'stripe_subscription_id': obj.get('subscription') or '',
-                })
+            if customer_id and event_type in {'checkout.session.completed', 'checkout.session.async_payment_succeeded'}:
+                if event_type == 'checkout.session.async_payment_succeeded' or stripe_checkout_session_entitles_routing(obj):
+                    update_customer(customer_id, {
+                        'plan': stripe_plan_from_object(obj, fallback_customer_id=customer_id),
+                        'status': billing_status_for_customer(customer_id, 'active'),
+                        'stripe_customer_id': obj.get('customer') or '',
+                        'stripe_subscription_id': obj.get('subscription') or '',
+                    })
+                else:
+                    logger.info(
+                        'Stripe checkout session completed without paid fulfillment; '
+                        f'event={event_id or "unknown"} customer={customer_id} payment_status={obj.get("payment_status") or "missing"}'
+                    )
             elif customer_id and event_type in {'customer.subscription.updated', 'customer.subscription.created'}:
                 status = obj.get('status') or 'active'
                 update_customer(customer_id, {
