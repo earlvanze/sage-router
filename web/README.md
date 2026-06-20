@@ -51,6 +51,10 @@ selected plan, Stripe checkout click/return, Stripe portal click/return, and
 crypto/manual payment intent click. Keep the payload limited to event name,
 plan, sanitized source/target URL, and allowlisted metadata; billing webhooks
 and Supabase customer records remain authoritative for paid conversion.
+The dedicated `/billing` recovery page also sends account, pricing, support,
+troubleshooting, quickstart, and status CTA events through this endpoint so the
+operator funnel can distinguish payment recovery friction from normal
+pre-signup checkout interest without collecting secrets or support text.
 
 
 

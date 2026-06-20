@@ -17,6 +17,13 @@ const ALLOWED_EVENTS = new Set([
   'account_billing_portal_clicked',
   'account_billing_portal_returned',
   'account_crypto_intent_clicked',
+  'billing_payment_recovery_clicked',
+  'billing_account_clicked',
+  'billing_pricing_clicked',
+  'billing_support_clicked',
+  'billing_quickstart_clicked',
+  'billing_status_clicked',
+  'billing_troubleshooting_clicked',
 ]);
 
 const ALLOWED_PLANS = new Set(['lite', 'pro', 'max', 'trial', 'manual']);

@@ -1090,6 +1090,15 @@ class SaaSAuthTests(unittest.TestCase):
                         'referrerHost': 'google.com',
                     },
                 },
+                {
+                    'event': 'billing_payment_recovery_clicked',
+                    'plan': 'manual',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'billing',
+                        'billing': 'payment-recovery',
+                    },
+                },
                 {'event': '', 'plan': None, 'created_at': '2026-06-19T00:00:00Z', 'metadata': {}},
             ]
 
@@ -1098,20 +1107,23 @@ class SaaSAuthTests(unittest.TestCase):
         metrics, error = router.read_launch_marketing_funnel_counts(0)
 
         self.assertIsNone(error)
-        self.assertEqual(4, metrics['total'])
+        self.assertEqual(5, metrics['total'])
         self.assertEqual(2, metrics['events']['calculator_checkout_clicked'])
         self.assertEqual(1, metrics['events']['pricing_checkout_clicked'])
+        self.assertEqual(1, metrics['events']['billing_payment_recovery_clicked'])
         self.assertEqual(1, metrics['events']['unknown'])
         self.assertEqual(2, metrics['plans']['pro'])
         self.assertEqual(1, metrics['plans']['lite'])
+        self.assertEqual(1, metrics['plans']['manual'])
         self.assertEqual(1, metrics['sourceSurfaces']['model-routing-calculator'])
         self.assertEqual(1, metrics['sourceSurfaces']['compare-openrouter'])
         self.assertEqual(1, metrics['sourceSurfaces']['pricing'])
+        self.assertEqual(1, metrics['sourceSurfaces']['billing'])
         self.assertEqual(1, metrics['sourceSurfaces']['unknown'])
         self.assertEqual(1, metrics['attributionChannels']['github'])
         self.assertEqual(1, metrics['attributionChannels']['openrouter'])
         self.assertEqual(1, metrics['attributionChannels']['google'])
-        self.assertEqual(1, metrics['attributionChannels']['direct'])
+        self.assertEqual(2, metrics['attributionChannels']['direct'])
         self.assertNotIn('email', json.dumps(metrics))
         self.assertNotIn('buyer@example.com', json.dumps(metrics))
 

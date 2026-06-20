@@ -4753,6 +4753,7 @@ MARKETING_SOURCE_SURFACE_BUCKETS = (
     'model-routing-calculator',
     'compare-openrouter',
     'account',
+    'billing',
 )
 MARKETING_ATTRIBUTION_CHANNEL_BUCKETS = (
     'direct',

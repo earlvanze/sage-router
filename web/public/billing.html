@@ -34,10 +34,10 @@
         <h1>Sage Router Billing</h1>
         <p class="lead">Use this page when checkout, plan activation, Stripe billing portal, manual or crypto settlement, invoice recovery, or generated <code>sk_sage_*</code> routing status is unclear.</p>
         <div class="actions">
-          <a class="button primary" href="/account.html">Open hosted account</a>
-          <a class="button secondary" href="/pricing">Compare plans</a>
-          <a class="button secondary" href="/support">Get support safely</a>
-          <a class="button secondary" href="/api-troubleshooting">Troubleshoot API errors</a>
+          <a class="button primary" href="/account.html" data-billing-event="billing_payment_recovery_clicked" data-billing-state="payment-recovery">Open hosted account</a>
+          <a class="button secondary" href="/pricing" data-billing-event="billing_pricing_clicked" data-billing-state="plan-selection">Compare plans</a>
+          <a class="button secondary" href="/support" data-billing-event="billing_support_clicked" data-billing-state="safe-support">Get support safely</a>
+          <a class="button secondary" href="/api-troubleshooting" data-billing-event="billing_troubleshooting_clicked" data-billing-state="api-errors">Troubleshoot API errors</a>
         </div>
         <p class="note">Hosted account URL: <code>https://app.sagerouter.dev/account.html</code>. Hosted model endpoint: <code>https://api.sagerouter.dev/v1</code>.</p>
       </section>
@@ -47,7 +47,7 @@
           <span class="pill">1</span>
           <h3>Choose a plan</h3>
           <ul>
-            <li>Lite, Pro, and Max are selected from <a href="/pricing">pricing</a> or the account page.</li>
+            <li>Lite, Pro, and Max are selected from <a href="/pricing" data-billing-event="billing_pricing_clicked" data-billing-state="plan-selection">pricing</a> or the account page.</li>
             <li>Plan links such as <code>/account.html?plan=pro</code> preserve the selected tier through sign-in.</li>
             <li>Checkout buys routing, account, quota, analytics, and reliability infrastructure.</li>
           </ul>
@@ -125,12 +125,12 @@
           <li>For <code>401</code>: confirm the key starts with <code>sk_sage_</code> and is active in the account page.</li>
           <li>For <code>402</code>: finish checkout, payment recovery, or manual activation before expecting hosted model traffic.</li>
           <li>For <code>429</code>: check current plan quota and request-per-minute limits.</li>
-          <li>For <code>503</code>: check <a href="/status">public status</a> and include timestamp, request id, route profile, and safe model name only.</li>
+          <li>For <code>503</code>: check <a href="/status" data-billing-event="billing_status_clicked" data-billing-state="provider-availability">public status</a> and include timestamp, request id, route profile, and safe model name only.</li>
         </ul>
         <div class="actions">
-          <a class="button primary" href="/support">Open safe support path</a>
-          <a class="button secondary" href="/quickstart">Run quickstart</a>
-          <a class="button secondary" href="/status">View status</a>
+          <a class="button primary" href="/support" data-billing-event="billing_support_clicked" data-billing-state="safe-support">Open safe support path</a>
+          <a class="button secondary" href="/quickstart" data-billing-event="billing_quickstart_clicked" data-billing-state="activation-check">Run quickstart</a>
+          <a class="button secondary" href="/status" data-billing-event="billing_status_clicked" data-billing-state="provider-availability">View status</a>
         </div>
       </section>
     </main>
@@ -149,5 +149,60 @@
       <a href="https://github.com/earlvanze/sage-router">GitHub</a>
     </footer>
   </div>
+  <script>
+    function billingReferrerHost() {
+      try {
+        const referrer = document.referrer ? new URL(document.referrer) : null;
+        return referrer && referrer.host !== window.location.host ? referrer.host : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function trackBillingFunnelEvent(event, data = {}) {
+      const params = new URLSearchParams(window.location.search);
+      const payload = JSON.stringify({
+        event,
+        plan: data.plan || null,
+        sourcePage: window.location.href,
+        target: data.target || null,
+        metadata: {
+          source: 'billing',
+          button: data.button || null,
+          state: data.state || null,
+          billing: data.billing || null,
+          utmSource: params.get('utm_source') || params.get('utmSource') || null,
+          utmMedium: params.get('utm_medium') || params.get('utmMedium') || null,
+          utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
+          referrerHost: billingReferrerHost(),
+          landingPath: window.location.pathname
+        }
+      });
+      try {
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          if (navigator.sendBeacon('/api/funnel-event', blob)) return;
+        }
+      } catch {}
+      fetch('/api/funnel-event', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: payload,
+        keepalive: true,
+        credentials: 'omit'
+      }).catch(() => {});
+    }
+
+    document.querySelectorAll('[data-billing-event]').forEach((link) => {
+      link.addEventListener('click', () => {
+        trackBillingFunnelEvent(link.dataset.billingEvent, {
+          target: link.getAttribute('href') || null,
+          button: link.textContent.trim().slice(0, 60),
+          state: link.dataset.billingState || null,
+          billing: link.dataset.billingState || null
+        });
+      });
+    });
+  </script>
 </body>
 </html>

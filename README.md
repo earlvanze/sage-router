@@ -205,6 +205,10 @@ channel counts without returning raw URLs, emails, prompts, credentials, or
 API keys. These events help diagnose customer drop-off after login and which
 launch channels produce demand; Stripe webhooks and Supabase customer state
 remain the source of truth for paid conversion, quota, and routing entitlement.
+The hosted `/billing` recovery page uses the same event path for account,
+pricing, support, troubleshooting, quickstart, and status clicks so payment
+recovery friction is visible without collecting invoices, support messages,
+secrets, prompts, generated keys, or provider credentials.
 
 Bootstrap the GitHub app and wire Supabase without opening the Supabase dashboard:
 

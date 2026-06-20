@@ -149,6 +149,11 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   intent clicks. Treat Stripe webhooks and customer state as the source of
   truth for paid conversion; use browser funnel events only to diagnose
   onboarding drop-off.
+- Capture public billing recovery CTA intent from `/billing` through the same
+  privacy-safe path, including account, pricing, support, troubleshooting,
+  quickstart, and status clicks. Use those aggregates to diagnose payment
+  recovery and activation friction without storing prompts, emails, API keys,
+  provider credentials, raw invoices, or support message bodies.
 - Keep hosted positioning limited to routing/control-plane infrastructure until
   provider terms, billing, margin, and abuse controls support any managed
   provider resale offer.
