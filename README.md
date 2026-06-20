@@ -213,18 +213,20 @@ event sink.
 
 The account and standalone login pages also emit privacy-safe activation and
 checkout intent events for signup/login attempts, OAuth clicks, wallet connect
-attempts, plan selection, API-key creation, public-edge key verification, first
-browser test request success, Stripe checkout clicks and returns, Stripe portal
-clicks and returns, and crypto/manual payment intent clicks. Pricing,
+attempts, browser-visible auth-provider state checks, plan selection, API-key
+creation, public-edge key verification, first browser test request success,
+Stripe checkout clicks and returns, Stripe portal clicks and returns, and
+crypto/manual payment intent clicks. Pricing,
 calculator, OpenRouter comparison, login, account, and homepage events include
 only coarse attribution buckets such as source surface, UTM
 source/medium/campaign tokens, referrer host, and landing path; the operator
 launch funnel aggregates those into source-surface and channel counts without
 returning raw URLs, emails, prompts, credentials, generated keys, wallet
-addresses, provider credentials, completion text, or API keys. These events
-help diagnose customer drop-off after login and which launch channels produce
-demand; Stripe webhooks and Supabase customer state remain the source of truth
-for paid conversion, quota, and routing entitlement.
+addresses, provider credentials, OAuth secrets, completion text, or API keys.
+These events help diagnose customer drop-off after login, including whether
+GitHub OAuth is still pending while email onboarding is available, and which
+launch channels produce demand; Stripe webhooks and Supabase customer state
+remain the source of truth for paid conversion, quota, and routing entitlement.
 The hosted `/billing` recovery page uses the same event path for account,
 pricing, support, troubleshooting, quickstart, and status clicks so payment
 recovery friction is visible without collecting invoices, support messages,

@@ -4,6 +4,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (id) => document.getElementById(id);
 const set = (id, text) => { const el = $(id); if (el) el.textContent = text; };
 const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
+const OAUTH_PROVIDER_ORDER = ['github', 'google', 'discord'];
 function trackLoginFunnelEvent(event, data = {}) {
   const params = new URLSearchParams(window.location.search);
   let referrerHost = null;
@@ -22,6 +23,10 @@ function trackLoginFunnelEvent(event, data = {}) {
       source: 'login',
       button: data.button || null,
       state: data.state || null,
+      enabledProviders: data.enabledProviders || null,
+      disabledProviders: data.disabledProviders || null,
+      githubEnabled: data.githubEnabled ?? null,
+      oauthProviderCount: data.oauthProviderCount ?? null,
       utmSource: params.get('utm_source') || params.get('utmSource') || null,
       utmMedium: params.get('utm_medium') || params.get('utmMedium') || null,
       utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
@@ -45,6 +50,23 @@ function trackLoginFunnelEvent(event, data = {}) {
     credentials: 'omit',
   }).catch(() => {});
 }
+function summarizeOauthProviderState(external = {}) {
+  const enabledProviders = OAUTH_PROVIDER_ORDER.filter((provider) => external[provider] === true);
+  const disabledProviders = OAUTH_PROVIDER_ORDER.filter((provider) => external[provider] !== true);
+  return {
+    enabledProviders: enabledProviders.join(',') || 'none',
+    disabledProviders: disabledProviders.join(',') || 'none',
+    githubEnabled: external.github === true,
+    oauthProviderCount: enabledProviders.length,
+  };
+}
+function trackAuthProviderState(external = {}, state = 'loaded') {
+  trackLoginFunnelEvent('auth_provider_state_checked', {
+    target: '/auth/v1/settings',
+    state,
+    ...summarizeOauthProviderState(external),
+  });
+}
 function applyOauthButtons(external = {}, status = '') {
   const enabledLabels = [];
   document.querySelectorAll('[data-oauth]').forEach((button) => {
@@ -63,12 +85,15 @@ async function applyAuthSettings() {
     const res = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_ANON_KEY } });
     if (!res.ok) {
       applyOauthButtons({}, 'OAuth status is unavailable. Use email magic link or password.');
+      trackAuthProviderState({}, 'unavailable');
       return;
     }
     const external = (await res.json()).external || {};
     applyOauthButtons(external);
+    trackAuthProviderState(external, 'loaded');
   } catch (_error) {
     applyOauthButtons({}, 'OAuth status is unavailable. Use email magic link or password.');
+    trackAuthProviderState({}, 'unavailable');
   }
 }
 async function refreshSession() { const { data } = await sb.auth.getSession(); const session = data?.session; if (session?.user) { set('session-status', `Signed in as ${session.user.email || session.user.user_metadata?.full_name || session.user.id}`); $('sign-out')?.classList.remove('hidden'); } else { set('session-status', 'Choose a sign-in method.'); $('sign-out')?.classList.add('hidden'); } }

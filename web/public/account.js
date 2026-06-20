@@ -37,6 +37,7 @@ const setBusy = (id, busy, label = '') => setElementBusy($(id), busy, label);
 const esc = (v) => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const fmtNumber = (value) => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '';
 const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
+const OAUTH_PROVIDER_ORDER = ['github', 'google', 'discord'];
 
 function normalizePlan(plan) {
   const normalized = String(plan || '').trim().toLowerCase();
@@ -115,18 +116,40 @@ function applyOauthButtons(external = {}, status = '') {
     : 'OAuth is temporarily unavailable. Use email magic link or password.'));
 }
 
+function summarizeOauthProviderState(external = {}) {
+  const enabledProviders = OAUTH_PROVIDER_ORDER.filter((provider) => external[provider] === true);
+  const disabledProviders = OAUTH_PROVIDER_ORDER.filter((provider) => external[provider] !== true);
+  return {
+    enabledProviders: enabledProviders.join(',') || 'none',
+    disabledProviders: disabledProviders.join(',') || 'none',
+    githubEnabled: external.github === true,
+    oauthProviderCount: enabledProviders.length,
+  };
+}
+
+function trackAuthProviderState(external = {}, state = 'loaded') {
+  trackAccountFunnelEvent('auth_provider_state_checked', {
+    target: '/auth/v1/settings',
+    state,
+    ...summarizeOauthProviderState(external),
+  });
+}
+
 async function applyAuthSettings() {
   applyOauthButtons({}, 'Checking enabled OAuth providers...');
   try {
     const res = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_ANON_KEY } });
     if (!res.ok) {
       applyOauthButtons({}, 'OAuth status is unavailable. Use email magic link or password.');
+      trackAuthProviderState({}, 'unavailable');
       return;
     }
     const external = (await res.json()).external || {};
     applyOauthButtons(external);
+    trackAuthProviderState(external, 'loaded');
   } catch (_error) {
     applyOauthButtons({}, 'OAuth status is unavailable. Use email magic link or password.');
+    trackAuthProviderState({}, 'unavailable');
   }
 }
 
@@ -149,6 +172,10 @@ function trackAccountFunnelEvent(event, data = {}) {
       button: data.button || null,
       state: data.state || null,
       billing: data.billing || null,
+      enabledProviders: data.enabledProviders || null,
+      disabledProviders: data.disabledProviders || null,
+      githubEnabled: data.githubEnabled ?? null,
+      oauthProviderCount: data.oauthProviderCount ?? null,
       utmSource: params.get('utm_source') || params.get('utmSource') || null,
       utmMedium: params.get('utm_medium') || params.get('utmMedium') || null,
       utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
