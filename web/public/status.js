@@ -133,6 +133,7 @@ function renderControls(health = {}) {
   const cacheSeconds = Number(enforcement.apiKeyAuthCacheSeconds);
   const immediateRevocation = Number.isFinite(cacheSeconds) && cacheSeconds === 0;
   const rateLimitWindow = Number(enforcement.rateLimitWindowSeconds);
+  const authAttemptLimit = Number(enforcement.authAttemptRateLimit);
   const rows = [
     {
       title: 'Failover policy',
@@ -161,6 +162,13 @@ function renderControls(health = {}) {
       badge: Number.isFinite(rateLimitWindow) ? `${rateLimitWindow}s window` : 'window unknown',
       state: enforcement.rateLimitEnabled ? 'good' : 'warn',
       meta: 'Public generated-key traffic is throttled at the edge.',
+    },
+    {
+      title: 'Auth-attempt throttle',
+      value: fmtBool(enforcement.authAttemptRateLimitEnabled),
+      badge: Number.isFinite(authAttemptLimit) ? `${fmtNumber(authAttemptLimit)}/window` : 'limit unknown',
+      state: enforcement.authAttemptRateLimitEnabled ? 'good' : 'warn',
+      meta: 'Invalid generated-key attempts are throttled before they can create unbounded auth lookups.',
     },
     {
       title: 'Durable quotas',

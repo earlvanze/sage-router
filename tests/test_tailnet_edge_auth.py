@@ -23,6 +23,7 @@ def load_edge_proxy():
         "SAGE_ROUTER_EDGE_AUTH_CACHE_SECONDS": "0",
         "SAGE_ROUTER_EDGE_RATE_LIMIT_WINDOW_SECONDS": "60",
         "SAGE_ROUTER_EDGE_RATE_LIMITS": "pro=2,default=1",
+        "SAGE_ROUTER_EDGE_AUTH_ATTEMPT_RATE_LIMIT": "2",
         "SAGE_ROUTER_EDGE_QUOTA_ENABLED": "1",
         "SAGE_ROUTER_EDGE_MONTHLY_QUOTAS": "pro=2,default=0",
     }
@@ -232,6 +233,9 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertEqual({
             "rateLimitEnabled": True,
             "rateLimitWindowSeconds": 60,
+            "authAttemptRateLimit": 2,
+            "authAttemptRateLimitEnabled": True,
+            "trustClientIpHeaders": True,
             "quotaEnabled": True,
             "apiKeyAuthCacheSeconds": 0.0,
             "apiKeyPrefix": "sk_sage_",
@@ -332,6 +336,41 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertFalse(allowed)
         self.assertEqual(2, limited["limit"])
         self.assertEqual(0, limited["remaining"])
+
+    def test_generated_key_auth_attempts_are_rate_limited_before_auth_lookup(self):
+        class Handler:
+            path = "/v1/models"
+            headers = {
+                "Authorization": "Bearer sk_sage_random",
+                "CF-Connecting-IP": "203.0.113.10",
+            }
+            client_address = ("127.0.0.1", 12345)
+
+        allowed, first = self.edge.check_auth_attempt_rate_limit(Handler())
+        self.assertTrue(allowed)
+        self.assertEqual(2, first["limit"])
+        self.assertEqual(1, first["remaining"])
+
+        allowed, second = self.edge.check_auth_attempt_rate_limit(Handler())
+        self.assertTrue(allowed)
+        self.assertEqual(0, second["remaining"])
+
+        allowed, limited = self.edge.check_auth_attempt_rate_limit(Handler())
+        self.assertFalse(allowed)
+        self.assertEqual(0, limited["remaining"])
+
+    def test_auth_attempt_rate_limit_exempts_private_edge_token(self):
+        self.edge.EDGE_TOKEN = "edge-secret"
+
+        class Handler:
+            path = "/v1/models"
+            headers = {"Authorization": "Bearer edge-secret"}
+            client_address = ("203.0.113.10", 12345)
+
+        for _ in range(5):
+            allowed, state = self.edge.check_auth_attempt_rate_limit(Handler())
+            self.assertTrue(allowed)
+            self.assertIsNone(state)
 
     def test_rate_limit_exempts_private_edge_token(self):
         ctx = {"type": "edge_token", "preserve_authorization": False}

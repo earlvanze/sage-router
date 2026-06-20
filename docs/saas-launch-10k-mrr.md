@@ -209,6 +209,11 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   development, or exact origins configured with
   `SAGEROUTER_WAITLIST_ALLOWED_ORIGINS`; Turnstile remains the optional bot
   challenge layer on top of that origin guard.
+- Keep pre-auth generated-key attempts throttled at the public edge before
+  Supabase lookup: `SAGE_ROUTER_EDGE_AUTH_ATTEMPT_RATE_LIMIT` should remain
+  enabled, higher than the highest legitimate per-plan RPM, and visible in
+  `/edge/health` so random invalid `sk_sage_*` traffic cannot create unbounded
+  service-role reads.
 - Capture one-subscription demand with allowlisted target provider family and
   commercial preference buckets, so provider resale conversations can be ranked
   by real Ollama, OpenAI, Anthropic, and BYOK-compatible buyer interest.

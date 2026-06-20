@@ -62,6 +62,13 @@ RATE_LIMITS_RAW = os.environ.get(
     "SAGE_ROUTER_EDGE_RATE_LIMITS",
     "trial=30,lite=60,pro=180,max=600,manual=600,paid=180,active=180,default=60",
 )
+AUTH_ATTEMPT_RATE_LIMIT_PER_WINDOW = int(os.environ.get("SAGE_ROUTER_EDGE_AUTH_ATTEMPT_RATE_LIMIT", "1200"))
+TRUST_CLIENT_IP_HEADERS = os.environ.get("SAGE_ROUTER_EDGE_TRUST_CLIENT_IP_HEADERS", "1").strip().lower() not in {"0", "false", "no", "off"}
+CLIENT_IP_HEADERS = tuple(
+    header.strip()
+    for header in os.environ.get("SAGE_ROUTER_EDGE_CLIENT_IP_HEADERS", "CF-Connecting-IP,X-Real-IP,X-Forwarded-For").split(",")
+    if header.strip()
+)
 QUOTA_ENABLED = os.environ.get("SAGE_ROUTER_EDGE_QUOTA_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
 MONTHLY_QUOTAS_RAW = os.environ.get(
     "SAGE_ROUTER_EDGE_MONTHLY_QUOTAS",
@@ -263,19 +270,15 @@ def rate_limit_identity(auth_context):
     return None
 
 
-def check_rate_limit(auth_context, path):
-    if not RATE_LIMIT_ENABLED:
-        return True, None
-    if RATE_LIMIT_WINDOW_SECONDS <= 0:
-        return True, None
-    identity = rate_limit_identity(auth_context)
-    if not identity:
-        return True, None
-    plan = rate_limit_plan(auth_context)
-    limit = RATE_LIMITS_BY_PLAN.get(plan, RATE_LIMITS_BY_PLAN.get("default", 60))
+def path_rate_segment(path):
+    clean_path = urlsplit(path).path
+    return clean_path.split("/", 2)[1] if clean_path.startswith("/") else ""
+
+
+def check_fixed_window_rate_limit(identity, plan, limit, path):
     now = time.time()
     window = int(now // RATE_LIMIT_WINDOW_SECONDS)
-    bucket_key = (identity, plan, urlsplit(path).path.split("/", 2)[1] if urlsplit(path).path.startswith("/") else "")
+    bucket_key = (identity, plan, path_rate_segment(path))
     reset_at = (window + 1) * RATE_LIMIT_WINDOW_SECONDS
     with RATE_LIMIT_LOCK:
         if len(RATE_LIMIT_BUCKETS) > 20000:
@@ -303,6 +306,63 @@ def check_rate_limit(auth_context, path):
             "reset": int(reset_at),
             "retry_after": max(1, int(reset_at - now)),
         }
+
+
+def check_rate_limit(auth_context, path):
+    if not RATE_LIMIT_ENABLED:
+        return True, None
+    if RATE_LIMIT_WINDOW_SECONDS <= 0:
+        return True, None
+    identity = rate_limit_identity(auth_context)
+    if not identity:
+        return True, None
+    plan = rate_limit_plan(auth_context)
+    limit = RATE_LIMITS_BY_PLAN.get(plan, RATE_LIMITS_BY_PLAN.get("default", 60))
+    return check_fixed_window_rate_limit(identity, plan, limit, path)
+
+
+def first_client_ip_from_header(value):
+    for item in str(value or "").split(","):
+        item = item.strip()
+        if item:
+            return item
+    return ""
+
+
+def client_ip_for_rate_limit(handler):
+    if TRUST_CLIENT_IP_HEADERS:
+        for header in CLIENT_IP_HEADERS:
+            value = handler.headers.get(header)
+            ip = first_client_ip_from_header(value)
+            if ip:
+                return ip
+    client_address = getattr(handler, "client_address", None) or ()
+    return str(client_address[0] if client_address else "unknown")
+
+
+def should_rate_limit_auth_attempt(handler):
+    if not RATE_LIMIT_ENABLED or RATE_LIMIT_WINDOW_SECONDS <= 0 or AUTH_ATTEMPT_RATE_LIMIT_PER_WINDOW <= 0:
+        return False
+    if EDGE_AUTH_MODE not in {"supabase", "saas"}:
+        return False
+    if not is_generated_api_key_path(handler.path):
+        return False
+    token = bearer_token(handler.headers)
+    if token_matches(token, EDGE_TOKEN):
+        return False
+    return token.startswith(API_KEY_PREFIX)
+
+
+def check_auth_attempt_rate_limit(handler):
+    if not should_rate_limit_auth_attempt(handler):
+        return True, None
+    identity = f"auth-attempt:{client_ip_for_rate_limit(handler)}"
+    return check_fixed_window_rate_limit(
+        identity,
+        "auth_attempt",
+        AUTH_ATTEMPT_RATE_LIMIT_PER_WINDOW,
+        handler.path,
+    )
 
 
 def current_usage_period(now=None):
@@ -659,6 +719,9 @@ def edge_enforcement_state():
     return {
         "rateLimitEnabled": RATE_LIMIT_ENABLED,
         "rateLimitWindowSeconds": RATE_LIMIT_WINDOW_SECONDS,
+        "authAttemptRateLimit": AUTH_ATTEMPT_RATE_LIMIT_PER_WINDOW,
+        "authAttemptRateLimitEnabled": RATE_LIMIT_ENABLED and RATE_LIMIT_WINDOW_SECONDS > 0 and AUTH_ATTEMPT_RATE_LIMIT_PER_WINDOW > 0,
+        "trustClientIpHeaders": TRUST_CLIENT_IP_HEADERS,
         "quotaEnabled": QUOTA_ENABLED,
         "apiKeyAuthCacheSeconds": API_KEY_AUTH_CACHE_TTL_SECONDS,
         "apiKeyPrefix": API_KEY_PREFIX,
@@ -749,6 +812,16 @@ class EdgeHandler(BaseHTTPRequestHandler):
             self._cors_headers()
             self.send_header("Content-Length", "0")
             self.end_headers()
+            return
+        auth_attempt_allowed, auth_attempt_state = check_auth_attempt_rate_limit(self)
+        if not auth_attempt_allowed:
+            self._json(429, edge_error_payload("auth_attempt_rate_limited", self.path), {
+                **edge_error_headers("rate_limited", self.path),
+                "Retry-After": auth_attempt_state["retry_after"],
+                "X-RateLimit-Limit": auth_attempt_state["limit"],
+                "X-RateLimit-Remaining": auth_attempt_state["remaining"],
+                "X-RateLimit-Reset": auth_attempt_state["reset"],
+            })
             return
         auth_context = self._auth_context()
         if not auth_context:

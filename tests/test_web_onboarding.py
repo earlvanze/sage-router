@@ -584,6 +584,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("controlPlane", js)
         self.assertIn("enforcement", js)
         self.assertIn("rateLimitEnabled", js)
+        self.assertIn("authAttemptRateLimitEnabled", js)
+        self.assertIn("Auth-attempt throttle", js)
         self.assertIn("quotaEnabled", js)
         self.assertIn("apiKeyAuthCacheSeconds", js)
         self.assertIn("apiKeyPrefix", js)
@@ -593,6 +595,8 @@ class HostedOnboardingTests(unittest.TestCase):
         readme = self.read_text("README.md")
         self.assertIn("CDN-style reliability evidence", readme)
         readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")
+        self.assertIn("auth-attempt throttling", readiness)
+        self.assertIn("authAttemptRateLimitEnabled", readiness)
         self.assertIn("CDN-style reliability evidence", readiness)
         self.assertIn("hosted login, account, API-key verification, analytics, operator launch funnel, reliability status, and GitHub auth callback pages are live", readiness)
 
