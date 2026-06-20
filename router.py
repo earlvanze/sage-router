@@ -4835,6 +4835,18 @@ MANAGED_ACCESS_COMMERCIAL_PREFERENCE_BUCKETS = (
     'byok-plus-routing',
     'private-contract',
 )
+MANAGED_ACCESS_SUPPORT_NEED_BUCKETS = (
+    'implementation-support',
+    'private-deployment',
+    'migration-help',
+    'managed-provider-review',
+)
+MANAGED_ACCESS_TARGET_LAUNCH_WINDOW_BUCKETS = (
+    'this-week',
+    'this-month',
+    'this-quarter',
+    'exploring',
+)
 MARKETING_SOURCE_SURFACE_BUCKETS = (
     'pricing',
     'model-routing-calculator',
@@ -5114,6 +5126,8 @@ def new_managed_access_demand_metrics():
     return {
         'targetProviderFamily': {bucket: 0 for bucket in (*MANAGED_ACCESS_TARGET_PROVIDER_BUCKETS, 'unknown')},
         'commercialPreference': {bucket: 0 for bucket in (*MANAGED_ACCESS_COMMERCIAL_PREFERENCE_BUCKETS, 'unknown')},
+        'supportNeed': {bucket: 0 for bucket in (*MANAGED_ACCESS_SUPPORT_NEED_BUCKETS, 'unknown')},
+        'targetLaunchWindow': {bucket: 0 for bucket in (*MANAGED_ACCESS_TARGET_LAUNCH_WINDOW_BUCKETS, 'unknown')},
     }
 
 
@@ -5171,8 +5185,22 @@ def read_launch_waitlist_counts(since, limit=10000):
                         'commercial_preference',
                         'commercialPreference',
                     )
+                    support_need = waitlist_metadata_bucket(
+                        metadata,
+                        MANAGED_ACCESS_SUPPORT_NEED_BUCKETS,
+                        'support_need',
+                        'supportNeed',
+                    )
+                    target_launch_window = waitlist_metadata_bucket(
+                        metadata,
+                        MANAGED_ACCESS_TARGET_LAUNCH_WINDOW_BUCKETS,
+                        'target_launch_window',
+                        'targetLaunchWindow',
+                    )
                     metrics['managedAccessDemand']['targetProviderFamily'][target_provider] += 1
                     metrics['managedAccessDemand']['commercialPreference'][commercial_preference] += 1
+                    metrics['managedAccessDemand']['supportNeed'][support_need] += 1
+                    metrics['managedAccessDemand']['targetLaunchWindow'][target_launch_window] += 1
         except Exception as e:
             logger.debug(f'Launch funnel waitlist read failed for {table}: {extract_http_error(e)}')
     if tables_read == 0:

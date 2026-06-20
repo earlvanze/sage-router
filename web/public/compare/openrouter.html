@@ -68,7 +68,7 @@
           <a class="button secondary" href="https://github.com/earlvanze/sage-router">Run locally</a>
           <a class="button secondary" href="/status">View public edge status</a>
           <a class="button secondary" href="/model-routing-calculator">Estimate routing savings</a>
-          <a class="button secondary" href="/managed-access">Managed access beta</a>
+          <a class="button secondary" href="/managed-access?intent=max-implementation">Max implementation review</a>
         </div>
         <p class="note">Compliance boundary: Sage Router routes access customers are authorized to use. The hosted service is account, billing, routing, telemetry, and reliability infrastructure, not a promise to bypass provider terms.</p>
       </section>
@@ -138,7 +138,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
           <li><strong>Lite:</strong> simple hosted routing and usage visibility for individual agent workflows.</li>
           <li><strong>Pro:</strong> frontier routing profiles, better fallback policy, and analytics for serious development work.</li>
           <li><strong>Max:</strong> high-volume automation, priority fallback budget, and team use.</li>
-          <li><strong>Managed-access beta:</strong> request future one-subscription model access only after provider authorization, margin, quota, operator-audit, and abuse-control gates are ready. <a href="/managed-access">Request private-beta review</a>.</li>
+          <li><strong>Max implementation review:</strong> request migration help, private deployment support, or future one-subscription model access only after provider authorization, margin, quota, operator-audit, and abuse-control gates are ready. <a href="/managed-access?intent=max-implementation">Request private-beta review</a>.</li>
         </ul>
       </section>
     </main>
@@ -228,7 +228,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
           target: href,
           button
         }));
-      } else if (href === '/managed-access' || href.includes('interest=managed-access')) {
+      } else if (href === '/managed-access' || href.includes('managed-access')) {
         link.addEventListener('click', () => trackOpenRouterComparisonEvent('openrouter_compare_managed_access_clicked', {
           plan: 'max',
           target: href,

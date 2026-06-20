@@ -156,10 +156,10 @@
             <li>Prerequisite boundaries are published as <a href="/provider-resale-terms">provider resale terms</a>, a <a href="/margin-policy">margin policy</a>, and <a href="/acceptable-use">acceptable use</a>.</li>
           </ul>
           <div class="actions">
-            <a class="button primary" href="/managed-access">Request managed-access beta</a>
+            <a class="button primary" href="/managed-access?intent=max-implementation">Request Max implementation review</a>
             <a class="button secondary" href="/account.html?plan=max">Start Max with BYOK</a>
           </div>
-          <p class="note">Beta interest is demand capture only. Public checkout still buys Sage Router routing, account, quota, analytics, and reliability infrastructure.</p>
+          <p class="note">Beta interest and implementation review are demand capture only. Public checkout still buys Sage Router routing, account, quota, analytics, and reliability infrastructure.</p>
         </div>
       </section>
     </main>
@@ -244,7 +244,7 @@
           target: href,
           button: link.textContent.trim().slice(0, 60)
         }));
-      } else if (href === '/managed-access' || href.includes('interest=managed-access')) {
+      } else if (href === '/managed-access' || href.includes('managed-access')) {
         link.addEventListener('click', () => trackPricingFunnelEvent('managed_access_interest_clicked', {
           plan: 'max',
           target: href,

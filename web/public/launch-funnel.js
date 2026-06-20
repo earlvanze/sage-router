@@ -348,7 +348,9 @@ function renderDemandTable(title, rows, emptyText) {
 function renderManagedAccessDemand(demand = {}) {
   const targetProviderRows = sortedEntries(demand.targetProviderFamily);
   const commercialRows = sortedEntries(demand.commercialPreference);
-  if (!targetProviderRows.length && !commercialRows.length) {
+  const supportRows = sortedEntries(demand.supportNeed);
+  const launchWindowRows = sortedEntries(demand.targetLaunchWindow);
+  if (!targetProviderRows.length && !commercialRows.length && !supportRows.length && !launchWindowRows.length) {
     $('managed-access-demand-breakdown').innerHTML = '<div class="empty">No managed-access qualification buckets returned for this window.</div>';
     return;
   }
@@ -356,6 +358,10 @@ function renderManagedAccessDemand(demand = {}) {
     renderDemandTable('Target provider family', targetProviderRows, 'No target provider demand returned.')
   }${
     renderDemandTable('Commercial preference', commercialRows, 'No commercial preference demand returned.')
+  }${
+    renderDemandTable('Support need', supportRows, 'No support need demand returned.')
+  }${
+    renderDemandTable('Target launch window', launchWindowRows, 'No target launch window demand returned.')
   }</div>`;
 }
 

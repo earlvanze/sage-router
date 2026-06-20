@@ -31,7 +31,7 @@
     <main>
       <p class="eyebrow">Private beta intake</p>
       <h1>Sage Router Managed Access Private Beta</h1>
-      <p class="lead">Use this path if your team wants one Sage Router subscription for hosted routing, quotas, fallback reliability, support, and a reviewed managed-provider access pilot when Sage Router has the right provider authorization and unit economics.</p>
+      <p class="lead">Use this path if your team wants one Sage Router subscription for hosted routing, quotas, fallback reliability, Max implementation support, private deployment review, and a managed-provider access pilot only when Sage Router has the right provider authorization and unit economics.</p>
       <div class="actions">
         <a class="button primary" href="#apply">Request review</a>
         <a class="button secondary" href="/account.html?plan=max">Start Max with BYOK</a>
@@ -56,6 +56,10 @@
           <article class="panel">
             <h3>One-subscription demand capture</h3>
             <p>Ollama, OpenAI, and Anthropic are target provider families for private-beta authorization review, not enabled public resale. Tell us which family and commercial model you would buy first.</p>
+          </article>
+          <article class="panel">
+            <h3>Max implementation review</h3>
+            <p>Teams ready to deploy can request migration help, private deployment review, or implementation support while keeping provider access BYOK or contract-authorized.</p>
           </article>
           <article class="panel">
             <h3>Do not send secrets</h3>
@@ -115,6 +119,22 @@
                 <option value="private-contract">Private contract or enterprise agreement</option>
               </select>
             </label>
+            <label>Sales-led support need
+              <select name="supportNeed">
+                <option value="implementation-support">Max implementation support</option>
+                <option value="private-deployment">Private deployment review</option>
+                <option value="migration-help">OpenRouter or gateway migration help</option>
+                <option value="managed-provider-review">Managed provider authorization review</option>
+              </select>
+            </label>
+            <label>Target launch window
+              <select name="targetLaunchWindow">
+                <option value="this-month">This month</option>
+                <option value="this-week">This week</option>
+                <option value="this-quarter">This quarter</option>
+                <option value="exploring">Exploring</option>
+              </select>
+            </label>
             <div id="turnstile-slot" class="turnstileSlot"></div>
             <button type="submit">Request review</button>
             <p id="form-status" class="status" role="status"></p>
@@ -162,6 +182,8 @@
         providerAccess: data.get('providerAccess') || '',
         targetProviderFamily: data.get('targetProviderFamily') || '',
         commercialPreference: data.get('commercialPreference') || '',
+        supportNeed: data.get('supportNeed') || '',
+        targetLaunchWindow: data.get('targetLaunchWindow') || '',
       };
     }
 

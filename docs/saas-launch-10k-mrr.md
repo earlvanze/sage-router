@@ -83,11 +83,12 @@ request until the full prerequisite set is present; the runtime must publish
 provider access.
 
 Pricing and comparison pages can still measure demand for the future
-one-subscription path by sending prospects to
+one-subscription path and Max implementation support by sending prospects to
 `/managed-access`. That private-beta intake stores contact and allowlisted
 qualification buckets only, including target provider family and commercial
-preference demand for Ollama, OpenAI, Anthropic, and BYOK-compatible routes; it
-is not a checkout entitlement, provider resale claim, or runtime feature flag.
+preference demand for Ollama, OpenAI, Anthropic, and BYOK-compatible routes,
+plus support need and target launch window for founder-sales follow-up; it is
+not a checkout entitlement, provider resale claim, or runtime feature flag.
 
 ## Near-term launch checklist
 
@@ -206,15 +207,17 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   only restore active routing when an operator explicitly requests an active
   status, record a secret-free operator audit event, and never un-revoke
   previously revoked generated API keys.
-- Capture managed-access beta demand through the waitlist `interest` metadata
-  path from `/managed-access` and watch `managedAccessBetaInterest` plus
-  `managedAccessShareOfWaitlist` in `/analytics/funnel`; the page also emits
-  anonymous managed-access page-view, form-start, submit, and received events
-  with only allowlisted qualification buckets so one-subscription demand is
-  visible before full contact submission. Use
-  `managedAccessDemand.targetProviderFamily` and
-  `managedAccessDemand.commercialPreference` to rank private-beta provider
-  resale conversations instead of advertising bundled model access as live.
+- Capture managed-access beta and Max implementation demand through the
+  waitlist `interest` metadata path from `/managed-access` and watch
+  `managedAccessBetaInterest` plus `managedAccessShareOfWaitlist` in
+  `/analytics/funnel`; the page also emits anonymous managed-access page-view,
+  form-start, submit, and received events with only allowlisted qualification
+  buckets so one-subscription and implementation demand is visible before full
+  contact submission. Use `managedAccessDemand.targetProviderFamily`,
+  `managedAccessDemand.commercialPreference`, `managedAccessDemand.supportNeed`,
+  and `managedAccessDemand.targetLaunchWindow` to rank private-beta provider
+  resale and implementation conversations instead of advertising bundled model
+  access as live.
 - Keep `/api/waitlist` guarded before Supabase inserts: browser-originating
   writes must come from Sage Router production hosts, Pages previews, local
   development, or exact origins configured with
@@ -225,9 +228,10 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   enabled, higher than the highest legitimate per-plan RPM, and visible in
   `/edge/health` so random invalid `sk_sage_*` traffic cannot create unbounded
   service-role reads.
-- Capture one-subscription demand with allowlisted target provider family and
-  commercial preference buckets, so provider resale conversations can be ranked
-  by real Ollama, OpenAI, Anthropic, and BYOK-compatible buyer interest.
+- Capture one-subscription and Max implementation demand with allowlisted
+  target provider family, commercial preference, support need, and target launch
+  window buckets, so provider resale and implementation conversations can be
+  ranked by real Ollama, OpenAI, Anthropic, and BYOK-compatible buyer interest.
 - Keep the managed provider access readiness guard active: default disabled,
   with `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` allowed only when provider
   resale terms and margin-policy URLs are configured,

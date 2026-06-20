@@ -163,6 +163,8 @@ export async function onRequestGet({ env }) {
       providerAccess: ['byok', 'local-ollama', 'enterprise-contracts', 'needs-managed-access'],
       targetProviderFamily: ['mixed-frontier', 'ollama', 'openai', 'anthropic', 'byok-compatible'],
       commercialPreference: ['one-subscription', 'byok-plus-routing', 'private-contract'],
+      supportNeed: ['implementation-support', 'private-deployment', 'migration-help', 'managed-provider-review'],
+      targetLaunchWindow: ['this-week', 'this-month', 'this-quarter', 'exploring'],
     },
     writeGuard: {
       browserOriginRequired: true,
@@ -195,6 +197,8 @@ export async function onRequestPost({ request, env }) {
   const providerAccess = sanitizeChoice(payload.providerAccess, new Set(['byok', 'local-ollama', 'enterprise-contracts', 'needs-managed-access']));
   const targetProviderFamily = sanitizeChoice(payload.targetProviderFamily, new Set(['mixed-frontier', 'ollama', 'openai', 'anthropic', 'byok-compatible']));
   const commercialPreference = sanitizeChoice(payload.commercialPreference, new Set(['one-subscription', 'byok-plus-routing', 'private-contract']));
+  const supportNeed = sanitizeChoice(payload.supportNeed, new Set(['implementation-support', 'private-deployment', 'migration-help', 'managed-provider-review']));
+  const targetLaunchWindow = sanitizeChoice(payload.targetLaunchWindow, new Set(['this-week', 'this-month', 'this-quarter', 'exploring']));
   const sourcePage = sanitizedUrl(payload.sourcePage) || 'https://sagerouter.dev';
   const turnstileToken = String(payload.turnstileToken || payload['cf-turnstile-response'] || '').trim();
 
@@ -221,6 +225,8 @@ export async function onRequestPost({ request, env }) {
     provider_access: providerAccess,
     target_provider_family: targetProviderFamily,
     commercial_preference: commercialPreference,
+    support_need: supportNeed,
+    target_launch_window: targetLaunchWindow,
   };
 
   const waitlistRecord = {

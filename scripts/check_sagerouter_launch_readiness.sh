@@ -1407,6 +1407,8 @@ check_admin_token() {
     ((.waitlistInterest // {}) | has("managedAccess")) and
     ((.managedAccessDemand.targetProviderFamily // {}) | has("mixed-frontier") and has("ollama") and has("openai") and has("anthropic") and has("byok-compatible") and has("unknown")) and
     ((.managedAccessDemand.commercialPreference // {}) | has("one-subscription") and has("byok-plus-routing") and has("private-contract") and has("unknown")) and
+    ((.managedAccessDemand.supportNeed // {}) | has("implementation-support") and has("private-deployment") and has("migration-help") and has("managed-provider-review") and has("unknown")) and
+    ((.managedAccessDemand.targetLaunchWindow // {}) | has("this-week") and has("this-month") and has("this-quarter") and has("exploring") and has("unknown")) and
     ((.rates // {}) | has("managedAccessShareOfWaitlist")) and
     ((.targets // {}) | has("signupToGeneratedKey") and has("generatedKeyToFirstRequest") and has("signupToPaidConversion") and has("paidRecentUsage") and has("mrrTargetAttainment")) and
     ((.targets.signupToGeneratedKey // {}) | .targetRate == 0.6) and

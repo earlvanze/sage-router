@@ -104,6 +104,8 @@ const ALLOWED_METADATA_KEYS = new Set([
   'providerAccess',
   'targetProviderFamily',
   'commercialPreference',
+  'supportNeed',
+  'targetLaunchWindow',
   'snippet',
 ]);
 
