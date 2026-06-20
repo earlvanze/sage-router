@@ -144,14 +144,16 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   operator funnel. Do not return raw query strings, raw campaign URLs, emails,
   prompts, API keys, provider credentials, or customer data.
 - Capture signed-in activation, checkout, and billing intent from the account
-  page through the same privacy-safe path, including signup/login attempts,
-  OAuth clicks, plan selection, API-key creation, public-edge key verification,
-  first browser test request success, Stripe checkout clicks and returns,
-  Stripe portal clicks and returns, and crypto/manual payment intent clicks.
+  and standalone login pages through the same privacy-safe path, including
+  signup/login attempts, OAuth clicks, wallet connect attempts, plan selection,
+  API-key creation, public-edge key verification, first browser test request
+  success, Stripe checkout clicks and returns, Stripe portal clicks and returns,
+  and crypto/manual payment intent clicks.
   Treat Stripe webhooks, Supabase Auth, customer state, generated-key records,
   and server-recorded route usage as the source of truth; use browser funnel
-  events only to diagnose onboarding drop-off without storing emails, generated
-  keys, prompts, provider credentials, completion text, or API keys.
+  events only to diagnose onboarding drop-off without storing emails, passwords,
+  wallet addresses, generated keys, prompts, provider credentials, OAuth tokens,
+  completion text, or API keys.
 - Capture public billing recovery CTA intent from `/billing` through the same
   privacy-safe path, including account, pricing, support, troubleshooting,
   quickstart, and status clicks. Use those aggregates to diagnose payment

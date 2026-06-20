@@ -934,6 +934,7 @@ class SaaSAuthTests(unittest.TestCase):
                 'pricing': 2,
                 'compare-openrouter': 2,
                 'account': 1,
+                'login': 1,
             },
             'attributionChannels': {
                 'github': 2,
@@ -1087,6 +1088,16 @@ class SaaSAuthTests(unittest.TestCase):
                     },
                 },
                 {
+                    'event': 'account_login_submitted',
+                    'plan': None,
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'login',
+                        'button': 'password_login',
+                        'state': 'password',
+                    },
+                },
+                {
                     'event': 'calculator_checkout_clicked',
                     'plan': 'pro',
                     'created_at': '2026-06-19T00:00:00Z',
@@ -1131,9 +1142,10 @@ class SaaSAuthTests(unittest.TestCase):
         metrics, error = router.read_launch_marketing_funnel_counts(0)
 
         self.assertIsNone(error)
-        self.assertEqual(7, metrics['total'])
+        self.assertEqual(8, metrics['total'])
         self.assertEqual(1, metrics['events']['landing_account_clicked'])
         self.assertEqual(1, metrics['events']['account_api_key_created'])
+        self.assertEqual(1, metrics['events']['account_login_submitted'])
         self.assertEqual(2, metrics['events']['calculator_checkout_clicked'])
         self.assertEqual(1, metrics['events']['pricing_checkout_clicked'])
         self.assertEqual(1, metrics['events']['billing_payment_recovery_clicked'])
@@ -1146,13 +1158,14 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['sourceSurfaces']['compare-openrouter'])
         self.assertEqual(1, metrics['sourceSurfaces']['pricing'])
         self.assertEqual(1, metrics['sourceSurfaces']['account'])
+        self.assertEqual(1, metrics['sourceSurfaces']['login'])
         self.assertEqual(1, metrics['sourceSurfaces']['billing'])
         self.assertEqual(1, metrics['sourceSurfaces']['unknown'])
         self.assertEqual(1, metrics['attributionChannels']['github'])
         self.assertEqual(1, metrics['attributionChannels']['openrouter'])
         self.assertEqual(1, metrics['attributionChannels']['google'])
         self.assertEqual(1, metrics['attributionChannels']['discord'])
-        self.assertEqual(3, metrics['attributionChannels']['direct'])
+        self.assertEqual(4, metrics['attributionChannels']['direct'])
         self.assertNotIn('email', json.dumps(metrics))
         self.assertNotIn('buyer@example.com', json.dumps(metrics))
 

@@ -19,6 +19,8 @@ const ALLOWED_EVENTS = new Set([
   'account_signup_succeeded',
   'account_magic_link_requested',
   'account_magic_link_sent',
+  'login_wallet_clicked',
+  'login_wallet_connected',
   'account_checkout_clicked',
   'account_checkout_returned',
   'account_billing_portal_clicked',
