@@ -609,6 +609,13 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("calculator_qualification", js)
         self.assertIn('rel="noopener noreferrer"', js)
         self.assertIn("Campaign link", js)
+        self.assertIn("Copy link", js)
+        self.assertIn("data-copy-campaign", js)
+        self.assertIn("function renderCampaignActions", js)
+        self.assertIn("function copyCampaignUrl", js)
+        self.assertIn("navigator.clipboard?.writeText", js)
+        self.assertIn("document.execCommand('copy')", js)
+        self.assertIn("Copied campaign link", js)
         self.assertIn("renderManagedAccessDemand", js)
         self.assertIn("renderRevenueActions", js)
         self.assertIn("planRevenueActions", js)
@@ -1032,6 +1039,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("utm_source", js)
         self.assertIn("utm_medium", js)
         self.assertIn("utm_campaign", js)
+        self.assertIn("Copy link", js)
+        self.assertIn("data-copy-campaign", js)
 
     def test_openrouter_comparison_page_is_discoverable(self):
         page = self.read_text("web", "public", "compare", "openrouter.html")

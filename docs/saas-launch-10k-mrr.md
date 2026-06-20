@@ -269,7 +269,8 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   calculator follow-up without reading raw campaign URLs or identities.
 - Render deterministic campaign links for those ranked acquisition actions in
   the private operator dashboard, using only coarse action buckets to generate
-  public UTM URLs instead of storing or replaying raw visitor URLs.
+  public UTM URLs instead of storing or replaying raw visitor URLs, and make
+  those links copyable for founder-sales outreach.
 - Keep `app.sagerouter.dev/account.html` aligned with the same activation
   funnel: signed-in account, paid routing, generated key, public-edge
   `/v1/models` verification, and server-recorded first routed usage.

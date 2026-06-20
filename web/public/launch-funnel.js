@@ -175,6 +175,44 @@ function launchActionUrl(row = {}) {
   return url.toString();
 }
 
+function renderCampaignActions(row = {}) {
+  const url = launchActionUrl(row);
+  return `<div class="campaignActions">
+    <a class="pill good" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Campaign link</a>
+    <button class="btn secondary small" type="button" data-copy-campaign="${esc(url)}">Copy link</button>
+  </div>`;
+}
+
+async function copyCampaignUrl(button) {
+  const url = button.getAttribute('data-copy-campaign') || '';
+  if (!url) return;
+  const original = button.textContent;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = url;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+    button.textContent = 'Copied';
+    setStatus(`Copied campaign link: ${url}`, 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Campaign link copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
 function reviewTone(severity) {
   const normalized = String(severity || '').toLowerCase();
   if (normalized === 'bad') return 'bad';
@@ -243,7 +281,7 @@ function renderAcquisitionActions(actions = []) {
       <td><span class="pill">${esc(attributionLabel(row.bucket || row.kind || 'source'))}</span></td>
       <td>${integer(row.clicks)}</td>
       <td>${esc(customerActionLabel(row.priority || 'review'))}</td>
-      <td>${esc(row.action || '')}<br><a class="pill good" href="${esc(launchActionUrl(row))}" target="_blank" rel="noopener noreferrer">Campaign link</a></td>
+      <td>${esc(row.action || '')}${renderCampaignActions(row)}</td>
     </tr>`).join('')}</tbody>
   </table>`;
 }
@@ -667,6 +705,12 @@ function handleCustomerClick(event) {
   postCustomerAction(customerId, action);
 }
 
+function handleCampaignCopyClick(event) {
+  const button = event.target.closest('[data-copy-campaign]');
+  if (!button) return;
+  copyCampaignUrl(button);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadRememberedToken();
   $('controls').addEventListener('submit', fetchFunnel);
@@ -675,6 +719,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('clear-customer-search').addEventListener('click', clearCustomerSearch);
   $('customers').addEventListener('click', handleCustomerClick);
   $('customer-detail').addEventListener('click', handleCustomerClick);
+  $('acquisition-actions').addEventListener('click', handleCampaignCopyClick);
   if ($('operator-token').value) {
     fetchFunnel();
   }
