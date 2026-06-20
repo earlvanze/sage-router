@@ -293,6 +293,36 @@ class TailnetEdgeAuthTests(unittest.TestCase):
                 self.assertFalse(self.edge.EdgeHandler._reject_untrusted_browser_origin(handler))
                 self.assertIsNone(handler.status)
 
+    def test_browser_origin_guard_drains_rejected_post_body_and_closes_connection(self):
+        class Handler:
+            command = "POST"
+            path = "/account/api-keys"
+            headers = {
+                "Origin": "https://evil.example",
+                "Content-Length": "29",
+            }
+
+            def __init__(self):
+                self.rfile = BytesIO(b'{"name":"origin-guard-probe"}')
+                self.status = None
+                self.payload = None
+                self.extra_headers = None
+                self.close_connection = False
+
+            def _json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+                self.extra_headers = extra_headers or {}
+
+        handler = Handler()
+        blocked = self.edge.EdgeHandler._reject_untrusted_browser_origin(handler)
+
+        self.assertTrue(blocked)
+        self.assertEqual(403, handler.status)
+        self.assertEqual(b"", handler.rfile.read())
+        self.assertTrue(handler.close_connection)
+        self.assertEqual("close", handler.extra_headers["Connection"])
+
     def test_billing_portal_uses_supabase_user_auth(self):
         self.edge.verify_supabase_user_jwt = lambda token: {
             "type": "supabase_user",

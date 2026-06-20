@@ -28,6 +28,7 @@ REQUEST_TIMEOUT = float(os.environ.get(
     os.environ.get("SAGE_ROUTER_REQUEST_CONNECT_TIMEOUT_SECONDS", "120"),
 ))
 READ_CHUNK_SIZE = int(os.environ.get("SAGE_ROUTER_EDGE_READ_CHUNK_SIZE", "65536"))
+MAX_REJECTED_BODY_DRAIN_BYTES = int(os.environ.get("SAGE_ROUTER_EDGE_MAX_REJECTED_BODY_DRAIN_BYTES", "1048576"))
 RETRY_STATUSES = {401, 429, 502, 503, 504}
 SUPABASE_URL = (os.environ.get("SAGE_ROUTER_SUPABASE_URL") or os.environ.get("SUPABASE_URL") or "").rstrip("/")
 SUPABASE_ANON_KEY = (
@@ -669,6 +670,26 @@ def is_browser_account_billing_mutation(path, method):
     )
 
 
+def drain_rejected_request_body(handler):
+    content_length = handler.headers.get("Content-Length")
+    if not content_length:
+        return
+    try:
+        remaining = int(content_length)
+    except ValueError:
+        handler.close_connection = True
+        return
+    if remaining < 0 or remaining > MAX_REJECTED_BODY_DRAIN_BYTES:
+        handler.close_connection = True
+        return
+    while remaining > 0:
+        chunk = handler.rfile.read(min(READ_CHUNK_SIZE, remaining))
+        if not chunk:
+            handler.close_connection = True
+            return
+        remaining -= len(chunk)
+
+
 def should_use_control_plane(path):
     return (
         is_user_jwt_path(path)
@@ -867,6 +888,8 @@ class EdgeHandler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin") or ""
         if browser_origin_allowed(origin):
             return False
+        drain_rejected_request_body(self)
+        self.close_connection = True
         self._json(
             403,
             edge_error_payload(
@@ -875,7 +898,10 @@ class EdgeHandler(BaseHTTPRequestHandler):
                 "Browser-originating account and billing mutations must come from a trusted Sage Router app origin.",
                 appBaseUrl=LOGIN_URL.rsplit("/", 1)[0],
             ),
-            {"X-Sage-Router-Edge-Auth-Type": "origin_guard"},
+            {
+                "Connection": "close",
+                "X-Sage-Router-Edge-Auth-Type": "origin_guard",
+            },
         )
         return True
 
