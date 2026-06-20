@@ -135,7 +135,10 @@ not a checkout entitlement, provider resale claim, or runtime feature flag.
   Stripe billing portal, manual/crypto settlement, activation states,
   generated `sk_sage_*` key behavior before and after payment, payment
   recovery, bounded customer-visible manual payment status, and safe no-secret
-  support context.
+  support context. The signed-in account page should recover the customer's
+  latest pending or settled manual payment intent after reload without requiring
+  the user to retain the intent id, and the status response must remain
+  customer-scoped and free of customer notes or operator-only billing context.
 - Use the calculator as the lightweight qualification path before signup:
   prospects estimate savings, review points, and fallback gaps, then create a
   hosted API key or request implementation support. The calculator should

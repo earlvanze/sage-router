@@ -6906,6 +6906,37 @@ def payment_intent_for_customer(customer_id, intent_id):
     return None
 
 
+def latest_payment_intent_for_customer(customer_id, statuses=None, kinds=None):
+    customer_id = str(customer_id or '').strip()
+    statuses = [str(status or '').strip() for status in (statuses or []) if str(status or '').strip()]
+    kinds = [str(kind or '').strip() for kind in (kinds or []) if str(kind or '').strip()]
+    if not customer_id:
+        return None
+    if customer_store_uses_supabase():
+        filters = [
+            'select=*',
+            f'customer_id=eq.{urllib.parse.quote(customer_id, safe="")}',
+            'order=created_at_epoch.desc',
+            'limit=1',
+        ]
+        if statuses:
+            encoded = ','.join(urllib.parse.quote(status, safe='') for status in statuses)
+            filters.append(f'status=in.({encoded})')
+        if kinds:
+            encoded = ','.join(urllib.parse.quote(kind, safe='') for kind in kinds)
+            filters.append(f'kind=in.({encoded})')
+        rows = supabase_select(SUPABASE_PAYMENT_INTENTS_TABLE, '&'.join(filters), timeout=5)
+        return rows[0] if rows else None
+    rows = [
+        row for row in local_customer_store().get('payment_intents', [])
+        if row.get('customer_id') == customer_id
+        and (not statuses or str(row.get('status') or '') in statuses)
+        and (not kinds or str(row.get('kind') or '') in kinds)
+    ]
+    rows.sort(key=lambda row: int(row.get('created_at_epoch') or 0), reverse=True)
+    return rows[0] if rows else None
+
+
 def payment_intent_by_id(intent_id):
     intent_id = str(intent_id or '').strip()
     if not intent_id:
@@ -10481,7 +10512,14 @@ class Handler(BaseHTTPRequestHandler):
             parsed = urllib.parse.urlparse(self.path)
             qs = urllib.parse.parse_qs(parsed.query)
             intent_id = (qs.get('id') or [''])[0]
-            intent = payment_intent_for_customer(customer.get('id'), intent_id) if intent_id else None
+            intent = (
+                payment_intent_for_customer(customer.get('id'), intent_id)
+                if intent_id else latest_payment_intent_for_customer(
+                    customer.get('id'),
+                    statuses=['pending_manual_review', 'settled_manual_review'],
+                    kinds=['crypto_manual'],
+                )
+            )
             if not intent:
                 self.write_json(404, {'error': 'payment_intent_not_found'})
                 return

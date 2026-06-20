@@ -491,6 +491,13 @@ function renderUsage(usage, plans = FALLBACK_PLANS, currentPlan = '', routingEna
   renderUpgradeRecommendation(usage, plans, currentPlan, routingEnabled);
 }
 
+function applyManualPaymentIntent(intent = {}) {
+  if (!intent?.id) return;
+  lastManualPaymentIntentId = intent.id;
+  show('crypto-status-check', true);
+  set('crypto-status', describeManualPaymentIntent(intent));
+}
+
 async function refresh() {
   const s = await session();
   show('auth-panel', !s);
@@ -510,11 +517,12 @@ async function refresh() {
   set('email-verification-status', '');
   renderUsage(null);
   try {
-    const [accountData, keys, planData, usageData] = await Promise.all([
+    const [accountData, keys, planData, usageData, paymentStatusData] = await Promise.all([
       api('/account'),
       api('/account/api-keys'),
       api('/account/plan').catch(() => null),
       api('/account/usage').catch(() => null),
+      api('/billing/crypto/status').catch(() => null),
     ]);
     const customer = accountData.customer || {};
     const emailVerification = accountData.emailVerification || planData?.emailVerification || usageData?.emailVerification || {};
@@ -537,6 +545,7 @@ async function refresh() {
     const keyVerified = keyVerifiedThisSession || requestCount > 0;
     renderUsage(usage, plans, accountPlan, routingEnabled);
     $('keys').innerHTML = renderKeys(keys.api_keys || []);
+    applyManualPaymentIntent(paymentStatusData?.intent || {});
     renderLaunchNextAction({
       signedIn: true,
       emailVerified,

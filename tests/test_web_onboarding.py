@@ -195,6 +195,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("billing === 'portal'", js)
         self.assertIn('id="crypto-status-check"', html)
         self.assertIn("api(`/billing/crypto/status?id=${encodeURIComponent(lastManualPaymentIntentId)}`)", js)
+        self.assertIn("api('/billing/crypto/status').catch(() => null)", js)
+        self.assertIn("applyManualPaymentIntent(paymentStatusData?.intent || {})", js)
         self.assertIn("describeManualPaymentIntent", js)
 
     def test_pricing_plan_links_preselect_checkout_plan(self):

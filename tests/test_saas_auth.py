@@ -2098,6 +2098,67 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('tx_123', status.payload['intent']['metadata']['settlement_reference'])
         self.assertNotIn('do not echo this manual settlement note', json.dumps(status.payload))
 
+    def test_crypto_status_without_id_recovers_latest_customer_manual_intent(self):
+        router.SUPABASE_AUTH_ENABLED = True
+        router.REQUIRE_VERIFIED_EMAIL = True
+        router.supabase_user_for_bearer = lambda token: {
+            'id': 'user-verified',
+            'email': 'verified@example.com',
+            'email_confirmed_at': '2026-06-20T00:00:00Z',
+        } if token == 'valid-user-jwt' else None
+        customer = router.customer_for_user({'id': 'user-verified', 'email': 'verified@example.com'})
+        other = router.customer_for_user({'id': 'other-user', 'email': 'other@example.com'})
+        router.store_payment_intent({
+            'id': 'older-own',
+            'kind': 'crypto_manual',
+            'customer_id': customer['id'],
+            'user_id': customer['user_id'],
+            'status': 'pending_manual_review',
+            'amount': '6',
+            'metadata': {'plan': 'lite', 'note': 'old private note'},
+            'created_at_epoch': 10,
+        })
+        router.store_payment_intent({
+            'id': 'latest-own',
+            'kind': 'crypto_manual',
+            'customer_id': customer['id'],
+            'user_id': customer['user_id'],
+            'status': 'settled_manual_review',
+            'amount': '30',
+            'metadata': {'plan': 'pro', 'note': 'latest private note', 'approved_at_epoch': 123},
+            'created_at_epoch': 20,
+        })
+        router.store_payment_intent({
+            'id': 'newer-other',
+            'kind': 'crypto_manual',
+            'customer_id': other['id'],
+            'user_id': other['user_id'],
+            'status': 'pending_manual_review',
+            'amount': '72',
+            'metadata': {'plan': 'max', 'note': 'other customer private note'},
+            'created_at_epoch': 30,
+        })
+
+        class GetDummy:
+            path = '/billing/crypto/status'
+            headers = {'Authorization': 'Bearer valid-user-jwt'}
+            status = None
+            payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        status = GetDummy()
+        router.Handler.do_GET(status)
+
+        self.assertEqual(200, status.status)
+        self.assertEqual('latest-own', status.payload['intent']['id'])
+        self.assertEqual('settled_manual_review', status.payload['intent']['status'])
+        self.assertEqual('pro', status.payload['intent']['metadata']['plan'])
+        self.assertNotIn('private note', json.dumps(status.payload))
+        self.assertNotIn('newer-other', json.dumps(status.payload))
+
     def test_operator_can_approve_manual_payment_intent_and_activate_customer(self):
         router.CLIENT_API_KEYS = ['operator-token']
         customer = router.customer_for_user({'id': 'user-1', 'email': 'u@example.com'})

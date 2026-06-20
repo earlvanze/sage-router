@@ -192,6 +192,12 @@ checkout, and manual crypto payment intent creation return
 `SAGE_ROUTER_REQUIRE_VERIFIED_EMAIL=0` only for trusted private/self-hosted
 deployments.
 
+Manual crypto payment recovery is customer-scoped. A signed-in customer can
+reload the account page and recover their latest pending or settled manual
+payment intent through `/billing/crypto/status` without passing an intent id;
+the response uses the same public payment shape as explicit status checks and
+does not echo customer notes or operator-only billing context.
+
 Browser-originating account and billing mutations are also origin-guarded on
 the router before customer, API-key, or billing state is touched. Requests with
 no `Origin` header continue to work for CLI and server clients, while present
