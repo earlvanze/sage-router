@@ -355,6 +355,77 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(handler.payload['key'].startswith('sk_sage_'))
         self.assertNotIn(handler.payload['key'], json.dumps(router.local_customer_store()))
 
+    def test_untrusted_browser_origin_cannot_mutate_account_billing_or_operator_state(self):
+        calls = []
+
+        def fail_if_called(token):
+            calls.append(token)
+            return {'id': 'user-1', 'email': 'u@example.com'}
+
+        router.supabase_user_for_bearer = fail_if_called
+
+        class Dummy:
+            def __init__(self, path, body=b'{}'):
+                self.path = path
+                self.headers = {
+                    'Authorization': 'Bearer valid-user-jwt',
+                    'Content-Length': str(len(body)),
+                    'Origin': 'https://evil.example',
+                }
+                self.rfile = BytesIO(body)
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        for path in (
+            '/account/api-keys',
+            '/account/api-keys/key_1/revoke',
+            '/billing/stripe/checkout',
+            '/billing/stripe/portal',
+            '/billing/crypto/intent',
+            '/admin/customers/customer_1/suspend',
+            '/admin/customers/customer_1/unsuspend',
+        ):
+            handler = Dummy(path)
+            router.Handler.do_POST(handler)
+            self.assertEqual(403, handler.status, path)
+            self.assertEqual('origin_not_allowed', handler.payload['error'], path)
+
+        self.assertEqual([], calls)
+
+    def test_trusted_browser_origin_can_create_generated_key(self):
+        router.SUPABASE_AUTH_ENABLED = True
+        router.REQUIRE_VERIFIED_EMAIL = True
+        router.supabase_user_for_bearer = lambda token: {
+            'id': 'user-trusted-origin',
+            'email': 'trusted@example.com',
+            'email_confirmed_at': '2026-06-20T00:00:00Z',
+        } if token == 'valid-user-jwt' else None
+
+        class Dummy:
+            path = '/account/api-keys'
+            headers = {
+                'Authorization': 'Bearer valid-user-jwt',
+                'Content-Length': '15',
+                'Origin': 'https://app.sagerouter.dev',
+            }
+            rfile = BytesIO(b'{"name":"prod"}')
+            status = None
+            payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(201, handler.status)
+        self.assertTrue(handler.payload['key'].startswith('sk_sage_'))
+
     def test_revoked_and_inactive_generated_keys_do_not_authorize(self):
         customer = self.active_customer()
         raw, row = router.create_api_key_for_customer(customer, 'prod')

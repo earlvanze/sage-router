@@ -174,6 +174,7 @@ CLIENT_API_KEYS = [
 CLIENT_AUTH_REQUIRED = os.environ.get('SAGE_ROUTER_CLIENT_AUTH_REQUIRED', '1' if CLIENT_API_KEYS else '0').strip().lower() in {'1', 'true', 'yes', 'on'}
 CORS_ORIGIN = os.environ.get('SAGE_ROUTER_CORS_ORIGIN', '*')
 CORS_ORIGINS = [o.strip() for o in CORS_ORIGIN.split(',') if o.strip()]
+BROWSER_ALLOWED_ORIGINS_RAW = os.environ.get('SAGE_ROUTER_BROWSER_ALLOWED_ORIGINS', '').strip()
 ROUTE_AUTH_CONTEXT = threading.local()
 CUSTOMER_STORE_PATH = os.path.expanduser(os.environ.get('SAGE_ROUTER_CUSTOMER_STORE_PATH', '~/.cache/sage-router/customers.json'))
 API_KEY_PREFIX = os.environ.get('SAGE_ROUTER_API_KEY_PREFIX', 'sk_sage_')
@@ -354,6 +355,13 @@ PUBLIC_BASE_URL = (os.environ.get('SAGE_ROUTER_PUBLIC_BASE_URL') or 'https://sag
 MARKETING_BASE_URL = (os.environ.get('SAGE_ROUTER_MARKETING_BASE_URL') or 'https://sagerouter.dev').rstrip('/')
 APP_BASE_URL = (os.environ.get('SAGE_ROUTER_APP_BASE_URL') or os.environ.get('SAGE_ROUTER_PUBLIC_BASE_URL') or 'https://app.sagerouter.dev').rstrip('/')
 API_BASE_URL = (os.environ.get('SAGE_ROUTER_API_BASE_URL') or '').rstrip('/')
+DEFAULT_BROWSER_ALLOWED_ORIGIN_HOSTS = {
+    'sagerouter.dev',
+    'www.sagerouter.dev',
+    'app.sagerouter.dev',
+    'localhost',
+    '127.0.0.1',
+}
 CRYPTO_PAYMENT_ADDRESS = os.environ.get('SAGE_ROUTER_CRYPTO_PAYMENT_ADDRESS', '').strip()
 CRYPTO_PAYMENT_ASSET = os.environ.get('SAGE_ROUTER_CRYPTO_PAYMENT_ASSET', 'USDC').strip()
 CRYPTO_PAYMENT_NETWORK = os.environ.get('SAGE_ROUTER_CRYPTO_PAYMENT_NETWORK', 'manual').strip()
@@ -6102,6 +6110,64 @@ def client_request_authorized(handler):
     return bool(client_auth_context(handler))
 
 
+def normalize_browser_origin(value):
+    if not value:
+        return ''
+    try:
+        parsed = urllib.parse.urlparse(str(value).strip())
+    except Exception:
+        return ''
+    if parsed.scheme.lower() not in {'http', 'https'} or not parsed.netloc:
+        return ''
+    return f'{parsed.scheme.lower()}://{parsed.netloc.lower()}'
+
+
+def configured_browser_allowed_origins():
+    origins = set()
+    for raw in (PUBLIC_BASE_URL, MARKETING_BASE_URL, APP_BASE_URL, API_BASE_URL):
+        origin = normalize_browser_origin(raw)
+        if origin:
+            origins.add(origin)
+    for raw in BROWSER_ALLOWED_ORIGINS_RAW.split(','):
+        origin = normalize_browser_origin(raw)
+        if origin:
+            origins.add(origin)
+    for raw in CORS_ORIGINS:
+        if raw == '*':
+            continue
+        origin = normalize_browser_origin(raw)
+        if origin:
+            origins.add(origin)
+    return origins
+
+
+def browser_origin_allowed(origin):
+    origin = normalize_browser_origin(origin)
+    if not origin:
+        return True
+    if origin in configured_browser_allowed_origins():
+        return True
+    try:
+        hostname = urllib.parse.urlparse(origin).hostname or ''
+    except Exception:
+        return False
+    if hostname in DEFAULT_BROWSER_ALLOWED_ORIGIN_HOSTS:
+        return True
+    return hostname.endswith('.sage-router-web.pages.dev')
+
+
+def require_trusted_browser_origin(handler):
+    origin = normalize_browser_origin(handler.headers.get('Origin') or '')
+    if browser_origin_allowed(origin):
+        return True
+    handler.write_json(403, {
+        'error': 'origin_not_allowed',
+        'message': 'Browser-originating account and billing mutations must come from a trusted Sage Router app origin.',
+        'appBaseUrl': APP_BASE_URL,
+    })
+    return False
+
+
 def operator_request_authorized(handler):
     if not CLIENT_AUTH_REQUIRED:
         return True
@@ -10162,6 +10228,8 @@ class Handler(BaseHTTPRequestHandler):
             Thread(target=_die, daemon=True).start()
             return
         if self.path.startswith('/admin/customers/') and self.path.endswith('/suspend'):
+            if not require_trusted_browser_origin(self):
+                return
             if not require_operator_request(self):
                 return
             parts = self.path.split('/')
@@ -10185,6 +10253,8 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
         if self.path.startswith('/admin/customers/') and self.path.endswith('/unsuspend'):
+            if not require_trusted_browser_origin(self):
+                return
             if not require_operator_request(self):
                 return
             parts = self.path.split('/')
@@ -10213,6 +10283,8 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
         if self.path == '/account/api-keys':
+            if not require_trusted_browser_origin(self):
+                return
             user, customer = require_user_customer(self)
             if not customer:
                 return
@@ -10235,6 +10307,8 @@ class Handler(BaseHTTPRequestHandler):
             self.write_json(201, {'api_key': public_api_key(row, customer), 'key': raw_key})
             return
         if self.path.startswith('/account/api-keys/') and self.path.endswith('/revoke'):
+            if not require_trusted_browser_origin(self):
+                return
             _user, customer = require_user_customer(self)
             if not customer:
                 return
@@ -10246,6 +10320,8 @@ class Handler(BaseHTTPRequestHandler):
             self.write_json(200, {'api_key': public_api_key(row, customer)})
             return
         if self.path == '/billing/stripe/checkout':
+            if not require_trusted_browser_origin(self):
+                return
             user, customer = require_user_customer(self)
             if not customer:
                 return
@@ -10283,6 +10359,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.write_json(502, {'error': 'stripe_checkout_failed'})
             return
         if self.path == '/billing/stripe/portal':
+            if not require_trusted_browser_origin(self):
+                return
             _user, customer = require_user_customer(self)
             if not customer:
                 return
@@ -10362,6 +10440,8 @@ class Handler(BaseHTTPRequestHandler):
             self.write_json(200, {'received': True, 'event_id': event_id})
             return
         if self.path == '/billing/crypto/intent':
+            if not require_trusted_browser_origin(self):
+                return
             user, customer = require_user_customer(self)
             if not customer:
                 return

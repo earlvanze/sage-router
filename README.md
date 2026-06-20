@@ -187,6 +187,13 @@ checkout, and manual crypto payment intent creation return
 `SAGE_ROUTER_REQUIRE_VERIFIED_EMAIL=0` only for trusted private/self-hosted
 deployments.
 
+Browser-originating account and billing mutations are also origin-guarded on
+the router before customer, API-key, or billing state is touched. Requests with
+no `Origin` header continue to work for CLI and server clients, while present
+origins must be Sage Router production hosts, Cloudflare Pages previews, local
+development hosts, or exact origins configured with
+`SAGE_ROUTER_BROWSER_ALLOWED_ORIGINS`.
+
 The account page also renders hosted plan selection before sign-in from public
 `/pricing` metadata. The selected Lite/Pro/Max plan is persisted in browser
 storage, shows quota, rate limit, and estimated cost per 1,000 requests, and is

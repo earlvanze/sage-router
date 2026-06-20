@@ -310,6 +310,24 @@ check_browser_api_cors() {
   fi
 }
 
+check_account_mutation_origin_guard() {
+  local code error
+  code="$(curl -sS -o /tmp/sage-router-readiness-body -w '%{http_code}' \
+    -X POST "${API_BASE%/}/account/api-keys" \
+    -H "Origin: https://evil.example" \
+    -H "Authorization: Bearer invalid-readiness-probe" \
+    -H "Content-Type: application/json" \
+    --data '{"name":"origin-guard-probe"}')"
+  error="$(jq -r '.error // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$code" == "403" && "$error" == "origin_not_allowed" ]]; then
+    pass "account and billing browser mutations reject untrusted origins before auth lookup"
+  else
+    fail "account mutation origin guard failed: code=${code} error=${error:-missing}, expected 403 origin_not_allowed"
+  fi
+}
+
 check_static_security_headers() {
   local url="$1"
   local label="$2"
@@ -1430,6 +1448,7 @@ check_edge_health
 check_public_auth_gate
 check_public_api_browser_boundary
 check_browser_api_cors
+check_account_mutation_origin_guard
 check_static_security_headers "${APP_BASE%/}/login" "hosted app"
 check_static_security_headers "${MARKETING_BASE%/}/pricing" "marketing"
 check_public_pricing_metadata
