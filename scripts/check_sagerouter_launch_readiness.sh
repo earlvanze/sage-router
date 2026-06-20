@@ -370,7 +370,7 @@ check_static_security_headers() {
 }
 
 check_public_pricing_metadata() {
-  local code plans api_base openai_base checkout_path portal_path api_key_limit limits_ok stripe_ok launch_ok
+  local code plans api_base openai_base checkout_path portal_path api_key_limit limits_ok stripe_ok billing_ok billing_secret_free launch_ok
   code="$(http_code "${API_BASE%/}/pricing")"
   if [[ "$code" != "200" ]]; then
     rm -f /tmp/sage-router-readiness-body
@@ -396,6 +396,30 @@ check_public_pricing_metadata() {
     (.plans.pro.stripeConfigured == true) and
     (.plans.max.stripeConfigured == true)
   ' /tmp/sage-router-readiness-body)"
+  billing_ok="$(jq -r '
+    (.billing.stripe.configured == true) and
+    (.billing.stripe.checkoutReady == true) and
+    (.billing.stripe.billingPortalReady == true) and
+    (.billing.stripe.checkoutPath == "/billing/stripe/checkout") and
+    (.billing.stripe.billingPortalPath == "/billing/stripe/portal") and
+    (.billing.stripe.requiresSignedInUser == true) and
+    (.billing.stripe.requiresVerifiedEmail == true) and
+    ((.billing.stripe.configuredPlans // []) | index("lite")) and
+    ((.billing.stripe.configuredPlans // []) | index("pro")) and
+    ((.billing.stripe.configuredPlans // []) | index("max")) and
+    (.billing.manualSettlement.intentPath == "/billing/crypto/intent") and
+    (.billing.manualSettlement.statusPath == "/billing/crypto/status") and
+    (.billing.manualSettlement.requiresOperatorApproval == true) and
+    ((.billing.activation.activeStatuses // []) | index("active")) and
+    ((.billing.activation.activeStatuses // []) | index("trialing")) and
+    ((.billing.activation.apiPlans // []) | index("lite")) and
+    ((.billing.activation.apiPlans // []) | index("pro")) and
+    ((.billing.activation.apiPlans // []) | index("max")) and
+    ((.billing.activation.apiPlans // []) | index("metered")) and
+    (.billing.activation.generatedApiKeyPrefix == "sk_sage_") and
+    (.billing.activation.maxActiveApiKeysPerCustomer == 5)
+  ' /tmp/sage-router-readiness-body)"
+  billing_secret_free="$(grep -Eq 'price_|sk_live_|sk_test_|rk_live_|rk_test_' /tmp/sage-router-readiness-body && printf false || printf true)"
   launch_ok="$(jq -r '
     (.publicLaunch.targetMrrUsd == 10000) and
     (.publicLaunch.recommendedMix.monthlyRevenueUsd == 10200) and
@@ -405,10 +429,10 @@ check_public_pricing_metadata() {
     ((.publicLaunch.complianceBoundary // "") | contains("does not grant unauthorized model access"))
   ' /tmp/sage-router-readiness-body)"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$plans" =~ ^[0-9]+$ && "$plans" -gt 0 && "$api_key_limit" =~ ^[0-9]+$ && "$api_key_limit" -gt 0 && "$api_base" == "${API_BASE%/}" && "$openai_base" == "${API_BASE%/}/v1" && "$checkout_path" == "/billing/stripe/checkout" && "$portal_path" == "/billing/stripe/portal" && "$limits_ok" == "true" && "$stripe_ok" == "true" && "$launch_ok" == "true" ]]; then
-    pass "public /pricing exposes hosted plan, Stripe billing, endpoint, limit, and launch metadata"
+  if [[ "$plans" =~ ^[0-9]+$ && "$plans" -gt 0 && "$api_key_limit" =~ ^[0-9]+$ && "$api_key_limit" -gt 0 && "$api_base" == "${API_BASE%/}" && "$openai_base" == "${API_BASE%/}/v1" && "$checkout_path" == "/billing/stripe/checkout" && "$portal_path" == "/billing/stripe/portal" && "$limits_ok" == "true" && "$stripe_ok" == "true" && "$billing_ok" == "true" && "$billing_secret_free" == "true" && "$launch_ok" == "true" ]]; then
+    pass "public /pricing exposes hosted plan, secret-free Stripe checkout readiness, endpoint, limit, and launch metadata"
   else
-    fail "public /pricing metadata incomplete: plans=${plans:-missing} apiBaseUrl=${api_base:-missing} openaiBaseUrl=${openai_base:-missing} checkoutPath=${checkout_path:-missing} billingPortalPath=${portal_path:-missing} apiKeyLimit=${api_key_limit:-missing} limits=${limits_ok:-missing} stripe=${stripe_ok:-missing} launch=${launch_ok:-missing}"
+    fail "public /pricing metadata incomplete: plans=${plans:-missing} apiBaseUrl=${api_base:-missing} openaiBaseUrl=${openai_base:-missing} checkoutPath=${checkout_path:-missing} billingPortalPath=${portal_path:-missing} apiKeyLimit=${api_key_limit:-missing} limits=${limits_ok:-missing} stripe=${stripe_ok:-missing} billing=${billing_ok:-missing} billingSecretFree=${billing_secret_free:-missing} launch=${launch_ok:-missing}"
   fi
 }
 

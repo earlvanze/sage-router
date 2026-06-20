@@ -113,6 +113,12 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("missing-github-credential-save-path", readiness)
         self.assertIn("missing-github-secret-preservation-guidance", readiness)
         self.assertIn("GitHub credential preservation guidance", readiness)
+        self.assertIn("secret-free Stripe checkout readiness", readiness)
+        self.assertIn(".billing.stripe.checkoutReady == true", readiness)
+        self.assertIn(".billing.stripe.requiresVerifiedEmail == true", readiness)
+        self.assertIn(".billing.activation.generatedApiKeyPrefix == \"sk_sage_\"", readiness)
+        self.assertIn("billingSecretFree", readiness)
+        self.assertIn("price_|sk_live_|sk_test_", readiness)
 
     def test_github_supabase_configurator_verifies_management_and_public_state(self):
         script = self.read_text("scripts", "configure_supabase_github_auth.sh")
