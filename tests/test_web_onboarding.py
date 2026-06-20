@@ -1134,6 +1134,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("pricing_checkout_clicked", pricing)
         self.assertIn("check_funnel_event_endpoint", readiness)
         self.assertIn("openrouter_compare_migration_clicked", readiness)
+        self.assertIn("account_snippet_copied", readiness)
         self.assertIn("privacy-safe marketing funnel event endpoint is configured with browser origin guard", readiness)
         self.assertIn(".writeGuard.browserOriginRequired == true", readiness)
         self.assertIn("previewHostSuffix", readiness)
