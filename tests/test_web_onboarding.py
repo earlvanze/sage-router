@@ -655,6 +655,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("commercialPreference", readiness)
         self.assertIn("supportNeed", readiness)
         self.assertIn("targetLaunchWindow", readiness)
+        self.assertIn(".managedAccessDemand.intent", readiness)
         self.assertIn("signupToGeneratedKey", readiness)
         self.assertIn("operator customer review", readiness)
         self.assertIn("missing-revenue-action-renderer", readiness)
@@ -684,6 +685,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("browser-visible auth-provider state", launch_plan)
         self.assertIn("managedAccessDemand.targetProviderFamily", launch_plan)
         self.assertIn("managedAccessDemand.supportNeed", launch_plan)
+        self.assertIn("managedAccessDemand.intent", launch_plan)
         self.assertIn("private admin/analytics token", launch_plan)
         self.assertIn("secret-free operator audit event", launch_plan)
 
