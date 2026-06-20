@@ -173,13 +173,14 @@ provider resale claim, or runtime feature flag.
   and standalone login pages through the same privacy-safe path, including
   signup/login attempts, OAuth clicks, browser-visible auth-provider state
   checks, wallet connect attempts, plan selection, API-key creation, public-edge key verification,
-  first browser test request success, Stripe checkout clicks and returns,
+  setup snippet-copy intent, first browser test request success, Stripe checkout clicks and returns,
   Stripe portal clicks and returns, and crypto/manual payment intent clicks.
   Treat Stripe webhooks, Supabase Auth, customer state, generated-key records,
   and server-recorded route usage as the source of truth; use browser funnel
   events only to diagnose onboarding drop-off without storing emails, passwords,
   wallet addresses, generated keys, prompts, provider credentials, OAuth tokens,
-  OAuth secrets, completion text, or API keys.
+  OAuth secrets, completion text, copied snippet bodies, or API keys. Account
+  setup snippet-copy events may store only the snippet ID.
 - Capture public billing recovery CTA intent from `/billing` through the same
   privacy-safe path, including account, pricing, support, troubleshooting,
   quickstart, and status clicks. Use those aggregates to diagnose payment

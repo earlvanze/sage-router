@@ -239,6 +239,7 @@ function trackAccountFunnelEvent(event, data = {}) {
       disabledProviders: data.disabledProviders || null,
       githubEnabled: data.githubEnabled ?? null,
       oauthProviderCount: data.oauthProviderCount ?? null,
+      snippet: data.snippet || null,
       utmSource: params.get('utm_source') || params.get('utmSource') || null,
       utmMedium: params.get('utm_medium') || params.get('utmMedium') || null,
       utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
@@ -1016,16 +1017,35 @@ $('keys')?.addEventListener('click', async (event) => {
     setElementBusy(button, false);
   }
 });
+
+function snippetIdForCopyTarget(targetId = '') {
+  const snippets = {
+    'raw-api-key-once': 'raw-api-key',
+    'quickstart-code': 'quickstart-curl',
+    'client-openai-code': 'openai-sdk',
+    'client-codex-code': 'codex-cli',
+    'client-anthropic-code': 'anthropic-compatible',
+  };
+  return snippets[targetId] || String(targetId || 'unknown').replace(/-code$/, '').slice(0, 80);
+}
+
 document.addEventListener('click', async (event) => {
   const button = event.target?.closest?.('[data-copy-target]');
   if (!button) return;
-  const target = $(button.dataset.copyTarget);
+  const copyTarget = button.dataset.copyTarget;
+  const target = $(copyTarget);
   const text = target?.textContent || '';
   if (!text) return;
   const original = button.textContent;
   try {
     await navigator.clipboard.writeText(text);
     button.textContent = 'Copied';
+    trackAccountFunnelEvent('account_snippet_copied', {
+      button: button.dataset.copyLabel || original || 'Copy',
+      target: `#${copyTarget}`,
+      state: 'copied',
+      snippet: snippetIdForCopyTarget(copyTarget),
+    });
   } catch (_error) {
     const selection = window.getSelection();
     const range = document.createRange();

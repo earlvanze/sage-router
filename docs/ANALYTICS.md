@@ -67,10 +67,11 @@ PII or request content:
   attainment
 
 The funnel reads only timestamps, allowlisted managed-access qualification
-buckets, coarse CTA attribution buckets, and countable customer/key status
+buckets, coarse CTA attribution buckets, setup snippet IDs, and countable customer/key status
 fields from the customer store, API-key store, waitlist tables, and route
 telemetry. It does not return email addresses, prompts, message bodies, API
-keys, provider credentials, OAuth tokens, raw campaign URLs, or raw responses.
+keys, copied snippet bodies, provider credentials, OAuth tokens, raw campaign
+URLs, or raw responses.
 
 The hosted operator dashboard at
 `https://app.sagerouter.dev/launch-funnel.html` is a static shell for this

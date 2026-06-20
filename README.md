@@ -241,7 +241,7 @@ event sink.
 The account and standalone login pages also emit privacy-safe activation and
 checkout intent events for signup/login attempts, OAuth clicks, wallet connect
 attempts, browser-visible auth-provider state checks, plan selection, API-key
-creation, public-edge key verification, first browser test request success,
+creation, setup snippet-copy intent, public-edge key verification, first browser test request success,
 Stripe checkout clicks and returns, Stripe portal clicks and returns, and
 crypto/manual payment intent clicks. Pricing,
 calculator, OpenRouter comparison, login, account, and homepage events include
@@ -250,6 +250,8 @@ source/medium/campaign tokens, referrer host, and landing path; the operator
 launch funnel aggregates those into source-surface and channel counts without
 returning raw URLs, emails, prompts, credentials, generated keys, wallet
 addresses, provider credentials, OAuth secrets, completion text, or API keys.
+Account setup snippet-copy events store only the snippet identifier, not the
+copied snippet body or generated key.
 These events help diagnose customer drop-off after login, including whether
 GitHub OAuth is still pending while email onboarding is available, and which
 launch channels produce demand; Stripe webhooks and Supabase customer state
