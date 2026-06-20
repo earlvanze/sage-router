@@ -164,8 +164,10 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   status, and never un-revoke previously revoked generated API keys.
 - Capture managed-access beta demand through the waitlist `interest` metadata
   path from `/managed-access` and watch `managedAccessBetaInterest` plus
-  `managedAccessShareOfWaitlist` in `/analytics/funnel` instead of advertising
-  bundled model access as live.
+  `managedAccessShareOfWaitlist` in `/analytics/funnel`; use
+  `managedAccessDemand.targetProviderFamily` and
+  `managedAccessDemand.commercialPreference` to rank private-beta provider
+  resale conversations instead of advertising bundled model access as live.
 - Capture one-subscription demand with allowlisted target provider family and
   commercial preference buckets, so provider resale conversations can be ranked
   by real Ollama, OpenAI, Anthropic, and BYOK-compatible buyer interest.

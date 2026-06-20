@@ -45,6 +45,7 @@ PII or request content:
 
 - waitlist leads
 - managed-access beta interest and share of waitlist
+- managed-access demand by target provider family and commercial preference
 - signups
 - customers with generated API keys
 - customers with a first routed request
@@ -55,10 +56,11 @@ PII or request content:
 - target-aware bottlenecks for signup-to-key, key-to-first-request,
   signup-to-paid, paid recent usage, and `$10k MRR` attainment
 
-The funnel reads only timestamps and countable customer/key status fields from
-the customer store, API-key store, waitlist tables, and route telemetry. It does
-not return email addresses, prompts, message bodies, API keys, provider
-credentials, OAuth tokens, or raw responses.
+The funnel reads only timestamps, allowlisted managed-access qualification
+buckets, and countable customer/key status fields from the customer store,
+API-key store, waitlist tables, and route telemetry. It does not return email
+addresses, prompts, message bodies, API keys, provider credentials, OAuth
+tokens, or raw responses.
 
 The hosted operator dashboard at
 `https://app.sagerouter.dev/launch-funnel.html` is a static shell for this

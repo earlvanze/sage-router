@@ -170,10 +170,41 @@ function eventLabel(name) {
     .replace(/_/g, ' ');
 }
 
+function demandLabel(name) {
+  return String(name || 'unknown').replace(/-/g, ' ');
+}
+
 function sortedEntries(counts = {}) {
   return Object.entries(counts || {})
     .filter(([, count]) => asNumber(count) > 0)
     .sort((a, b) => asNumber(b[1]) - asNumber(a[1]) || String(a[0]).localeCompare(String(b[0])));
+}
+
+function renderDemandTable(title, rows, emptyText) {
+  if (!rows.length) {
+    return `<div><h3>${esc(title)}</h3><div class="empty">${esc(emptyText)}</div></div>`;
+  }
+  return `<div>
+    <h3>${esc(title)}</h3>
+    <table>
+      <thead><tr><th>Bucket</th><th>Leads</th></tr></thead>
+      <tbody>${rows.map(([name, count]) => `<tr><td><span class="pill">${esc(demandLabel(name))}</span></td><td>${integer(count)}</td></tr>`).join('')}</tbody>
+    </table>
+  </div>`;
+}
+
+function renderManagedAccessDemand(demand = {}) {
+  const targetProviderRows = sortedEntries(demand.targetProviderFamily);
+  const commercialRows = sortedEntries(demand.commercialPreference);
+  if (!targetProviderRows.length && !commercialRows.length) {
+    $('managed-access-demand-breakdown').innerHTML = '<div class="empty">No managed-access qualification buckets returned for this window.</div>';
+    return;
+  }
+  $('managed-access-demand-breakdown').innerHTML = `<div class="grid2">${
+    renderDemandTable('Target provider family', targetProviderRows, 'No target provider demand returned.')
+  }${
+    renderDemandTable('Commercial preference', commercialRows, 'No commercial preference demand returned.')
+  }</div>`;
 }
 
 function renderMarketingIntent(marketingIntent = {}) {
@@ -206,6 +237,7 @@ function renderFunnel(data) {
   const mrr = data.mrr || {};
   const waitlistInterest = data.waitlistInterest || {};
   const marketingIntent = data.marketingIntent || {};
+  const managedAccessDemand = data.managedAccessDemand || {};
   const privacy = data.privacy || {};
 
   setText('kpi-marketing-intent', integer(stages.marketingIntentEvents ?? marketingIntent.total));
@@ -233,6 +265,7 @@ function renderFunnel(data) {
 
   renderBottlenecks(data.bottlenecks || []);
   renderMarketingIntent(marketingIntent);
+  renderManagedAccessDemand(managedAccessDemand);
   renderPlanMix(mrr.byPlan || {});
   $('dashboard').classList.remove('hidden');
 }

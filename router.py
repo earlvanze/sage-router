@@ -4706,7 +4706,21 @@ def read_launch_api_key_rows(limit=10000):
         return []
 
 
-def waitlist_interest_bucket(row):
+MANAGED_ACCESS_TARGET_PROVIDER_BUCKETS = (
+    'mixed-frontier',
+    'ollama',
+    'openai',
+    'anthropic',
+    'byok-compatible',
+)
+MANAGED_ACCESS_COMMERCIAL_PREFERENCE_BUCKETS = (
+    'one-subscription',
+    'byok-plus-routing',
+    'private-contract',
+)
+
+
+def waitlist_metadata(row):
     metadata = row.get('metadata') if isinstance(row, dict) else None
     if isinstance(metadata, str):
         try:
@@ -4715,12 +4729,32 @@ def waitlist_interest_bucket(row):
             metadata = {}
     if not isinstance(metadata, dict):
         metadata = {}
+    return metadata
+
+
+def waitlist_interest_bucket(row):
+    metadata = waitlist_metadata(row)
     interest = str(metadata.get('interest') or 'general').strip().lower()
     if interest == 'managed-access':
         return 'managedAccess'
     if interest and interest != 'general':
         return 'other'
     return 'general'
+
+
+def waitlist_metadata_bucket(metadata, allowed, *keys):
+    for key in keys:
+        value = str(metadata.get(key) or '').strip().lower()
+        if value in allowed:
+            return value
+    return 'unknown'
+
+
+def new_managed_access_demand_metrics():
+    return {
+        'targetProviderFamily': {bucket: 0 for bucket in (*MANAGED_ACCESS_TARGET_PROVIDER_BUCKETS, 'unknown')},
+        'commercialPreference': {bucket: 0 for bucket in (*MANAGED_ACCESS_COMMERCIAL_PREFERENCE_BUCKETS, 'unknown')},
+    }
 
 
 def read_launch_waitlist_counts(since, limit=10000):
@@ -4737,6 +4771,7 @@ def read_launch_waitlist_counts(since, limit=10000):
             'other': 0,
             'unknown': 0,
         },
+        'managedAccessDemand': new_managed_access_demand_metrics(),
     }
     tables_read = 0
     for table in [t for t in tables if t]:
@@ -4762,6 +4797,22 @@ def read_launch_waitlist_counts(since, limit=10000):
             for row in rows:
                 bucket = waitlist_interest_bucket(row) if metadata_available else 'unknown'
                 metrics['interest'][bucket] = metrics['interest'].get(bucket, 0) + 1
+                if bucket == 'managedAccess':
+                    metadata = waitlist_metadata(row)
+                    target_provider = waitlist_metadata_bucket(
+                        metadata,
+                        MANAGED_ACCESS_TARGET_PROVIDER_BUCKETS,
+                        'target_provider_family',
+                        'targetProviderFamily',
+                    )
+                    commercial_preference = waitlist_metadata_bucket(
+                        metadata,
+                        MANAGED_ACCESS_COMMERCIAL_PREFERENCE_BUCKETS,
+                        'commercial_preference',
+                        'commercialPreference',
+                    )
+                    metrics['managedAccessDemand']['targetProviderFamily'][target_provider] += 1
+                    metrics['managedAccessDemand']['commercialPreference'][commercial_preference] += 1
         except Exception as e:
             logger.debug(f'Launch funnel waitlist read failed for {table}: {extract_http_error(e)}')
     if tables_read == 0:
@@ -4831,6 +4882,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
     marketing_metrics, marketing_error = read_launch_marketing_funnel_counts(since)
     waitlist_count = waitlist_metrics.get('total', 0) if isinstance(waitlist_metrics, dict) else None
     waitlist_interest = waitlist_metrics.get('interest') if isinstance(waitlist_metrics, dict) else None
+    managed_access_demand = waitlist_metrics.get('managedAccessDemand') if isinstance(waitlist_metrics, dict) else None
     managed_access_interest = waitlist_interest.get('managedAccess', 0) if isinstance(waitlist_interest, dict) else None
     marketing_intent_events = marketing_metrics.get('total', 0) if isinstance(marketing_metrics, dict) else None
 
@@ -4923,6 +4975,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'marketingIntent': marketing_metrics,
         'stages': stages,
         'waitlistInterest': waitlist_interest,
+        'managedAccessDemand': managed_access_demand,
         'mrr': mrr,
         'rates': rates,
         **conversion,

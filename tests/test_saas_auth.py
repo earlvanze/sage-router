@@ -655,6 +655,22 @@ class SaaSAuthTests(unittest.TestCase):
                 'other': 0,
                 'unknown': 0,
             },
+            'managedAccessDemand': {
+                'targetProviderFamily': {
+                    'mixed-frontier': 1,
+                    'ollama': 0,
+                    'openai': 1,
+                    'anthropic': 0,
+                    'byok-compatible': 0,
+                    'unknown': 0,
+                },
+                'commercialPreference': {
+                    'one-subscription': 2,
+                    'byok-plus-routing': 0,
+                    'private-contract': 0,
+                    'unknown': 0,
+                },
+            },
         }, None)
         router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
             'total': 5,
@@ -695,6 +711,9 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(3, snapshot['marketingIntent']['plans']['pro'])
         self.assertEqual(2, snapshot['stages']['managedAccessBetaInterest'])
         self.assertEqual(2, snapshot['waitlistInterest']['managedAccess'])
+        self.assertEqual(1, snapshot['managedAccessDemand']['targetProviderFamily']['mixed-frontier'])
+        self.assertEqual(1, snapshot['managedAccessDemand']['targetProviderFamily']['openai'])
+        self.assertEqual(2, snapshot['managedAccessDemand']['commercialPreference']['one-subscription'])
         self.assertEqual(0.6667, snapshot['rates']['managedAccessShareOfWaitlist'])
         self.assertEqual(2, snapshot['stages']['signups'])
         self.assertEqual(1, snapshot['stages']['customersWithGeneratedApiKeys'])
@@ -735,6 +754,22 @@ class SaaSAuthTests(unittest.TestCase):
             if table == router.SUPABASE_WAITLIST_TABLE:
                 self.assertIn('select=created_at,metadata', query)
                 return [
+                    {
+                        'created_at': '2026-06-19T00:00:00Z',
+                        'metadata': {
+                            'interest': 'managed-access',
+                            'target_provider_family': 'openai',
+                            'commercial_preference': 'one-subscription',
+                        },
+                    },
+                    {
+                        'created_at': '2026-06-19T00:00:00Z',
+                        'metadata': json.dumps({
+                            'interest': 'managed-access',
+                            'targetProviderFamily': 'anthropic',
+                            'commercialPreference': 'private-contract',
+                        }),
+                    },
                     {'created_at': '2026-06-19T00:00:00Z', 'metadata': {'interest': 'managed-access'}},
                     {'created_at': '2026-06-19T00:00:00Z', 'metadata': {'interest': 'general'}},
                     {'created_at': '2026-06-19T00:00:00Z', 'metadata': json.dumps({'interest': 'enterprise'})},
@@ -745,15 +780,21 @@ class SaaSAuthTests(unittest.TestCase):
 
         metrics, error = router.read_launch_waitlist_counts(0)
         self.assertIsNone(error)
-        self.assertEqual(3, metrics['total'])
-        self.assertEqual(1, metrics['interest']['managedAccess'])
+        self.assertEqual(5, metrics['total'])
+        self.assertEqual(3, metrics['interest']['managedAccess'])
         self.assertEqual(1, metrics['interest']['general'])
         self.assertEqual(1, metrics['interest']['other'])
         self.assertEqual(0, metrics['interest']['unknown'])
+        self.assertEqual(1, metrics['managedAccessDemand']['targetProviderFamily']['openai'])
+        self.assertEqual(1, metrics['managedAccessDemand']['targetProviderFamily']['anthropic'])
+        self.assertEqual(1, metrics['managedAccessDemand']['targetProviderFamily']['unknown'])
+        self.assertEqual(1, metrics['managedAccessDemand']['commercialPreference']['one-subscription'])
+        self.assertEqual(1, metrics['managedAccessDemand']['commercialPreference']['private-contract'])
+        self.assertEqual(1, metrics['managedAccessDemand']['commercialPreference']['unknown'])
 
         count, error = router.read_launch_waitlist_count(0)
         self.assertIsNone(error)
-        self.assertEqual(3, count)
+        self.assertEqual(5, count)
 
     def test_launch_marketing_funnel_counts_group_events_without_identity(self):
         router.SUPABASE_URL = 'https://example.supabase.co'
