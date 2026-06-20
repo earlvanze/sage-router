@@ -6,7 +6,7 @@
   <meta name="description" content="Sage Router managed access margin policy for future bundled model-provider access." />
   <link rel="canonical" href="https://sagerouter.dev/margin-policy" />
   <meta property="og:title" content="Sage Router Managed Access Margin Policy" />
-  <meta property="og:description" content="Public margin and billing guardrails for any future managed provider access private beta." />
+  <meta property="og:description" content="Public margin, configured cost-model, and billing guardrails for any future managed provider access private beta." />
   <meta property="og:url" content="https://sagerouter.dev/margin-policy" />
   <meta property="og:type" content="website" />
   <title>Sage Router Managed Access Margin Policy</title>
@@ -35,6 +35,7 @@
       <section class="panel note">
         <h2>Positive Unit Economics Required</h2>
         <p>Managed provider access may only be enabled when expected provider cost, infrastructure cost, payment risk, support load, quota enforcement, operator audit events, and abuse controls support positive unit economics. It is not unlimited unmetered resale.</p>
+        <p>The public guard uses a configured cents-per-thousand-request provider cost model, exposed operationally as <code>SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS</code>, plus plan-margin checks for Lite, Pro, and Max before managed access can be marked ready. Public readiness metadata may show whether the cost model is configured and whether each plan meets the minimum gross-margin threshold, but it must not publish actual provider costs.</p>
       </section>
 
       <section class="panel">
@@ -50,6 +51,8 @@
         <ul>
           <li>Durable usage counters and secret-free operator audit events must track billable routed requests and sensitive operator actions before managed provider access is considered launchable.</li>
           <li>Request-per-minute limits, monthly quotas, generated-key revocation, and inactive-account blocking must remain active at the public edge.</li>
+          <li>Provider cost model, minimum gross-margin threshold, and per-plan monthly quotas must be reviewed together before managed access can move from private-beta demand capture to active service.</li>
+          <li>The public pricing checkpoint may publish cost-model configured status, minimum gross-margin threshold, and per-plan pass/fail state without exposing actual costs.</li>
           <li>Private-beta margin reviews may use aggregate usage, plan, provider, route, and cost metadata, without publishing prompts, message bodies, provider credentials, OAuth tokens, API keys, or raw provider responses.</li>
         </ul>
 

@@ -6,7 +6,7 @@
   <meta name="description" content="Sage Router provider resale terms boundary for any future managed model-provider access offer." />
   <link rel="canonical" href="https://sagerouter.dev/provider-resale-terms" />
   <meta property="og:title" content="Sage Router Provider Resale Terms" />
-  <meta property="og:description" content="Public boundary for future managed provider access: authorized resale only, no pooled accounts, durable quotas, operator audit events, and customer acceptable-use controls." />
+  <meta property="og:description" content="Public boundary for future managed provider access: authorized resale only, provider allowlists, cost-model checks, durable quotas, operator audit events, and customer acceptable-use controls." />
   <meta property="og:url" content="https://sagerouter.dev/provider-resale-terms" />
   <meta property="og:type" content="website" />
   <title>Sage Router Provider Resale Terms</title>
@@ -34,7 +34,7 @@
 
       <section class="panel note">
         <h2>Authorized Resale Only</h2>
-        <p>Sage Router may only route managed provider access that Sage Router is authorized to resell or operate. This page does not create provider resale rights by itself, does not override any provider agreement, and does not make third-party model access available until the applicable provider authorization, billing controls, operator audit events, and abuse controls are in place.</p>
+        <p>Sage Router may only route managed provider access that Sage Router is authorized to resell or operate. A provider family must be explicitly allowlisted and its terms acknowledged before it can be part of a managed-access pilot. This page does not create provider resale rights by itself, does not override any provider agreement, and does not make third-party model access available until the applicable provider authorization, billing controls, operator audit events, and abuse controls are in place.</p>
       </section>
 
       <section class="panel">
@@ -49,8 +49,10 @@
         <h2>Operational Controls Required</h2>
         <ul>
           <li>Durable monthly quotas, request-per-minute limits, and secret-free operator audit events must be enforced before managed access is enabled.</li>
+          <li>A configured provider cost model and public plan-margin checks must pass before bundled model access can become active.</li>
           <li>Accounts, generated API keys, billing state, fraud risk, chargeback risk, and abuse signals may be reviewed before or after activation.</li>
-          <li>Sage Router may throttle, suspend, degrade, change, or remove managed routes when provider capacity, authorization, safety, compliance, payment, or margin controls require it.</li>
+          <li>The public <a href="/pricing">pricing checkpoint</a> may show readiness status, missing controls, cost-model status, and per-plan margin status, but it must not expose provider credentials, provider accounts, upstream billing relationships, actual provider costs, prompts, or raw responses.</li>
+          <li>Sage Router may throttle, suspend, degrade, change, or remove managed routes when provider capacity, authorization, safety, compliance, payment, margin, or cost-model controls require it.</li>
           <li>Private-beta customers may be limited to approved use cases, specific plans, manual onboarding, and lower initial quotas.</li>
         </ul>
 
