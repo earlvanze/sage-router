@@ -34,7 +34,7 @@
 
       <section class="panel note">
         <h2>Positive Unit Economics Required</h2>
-        <p>Managed provider access may only be enabled when expected provider cost, infrastructure cost, payment risk, support load, quota enforcement, and abuse controls support positive unit economics. It is not unlimited unmetered resale.</p>
+        <p>Managed provider access may only be enabled when expected provider cost, infrastructure cost, payment risk, support load, quota enforcement, operator audit events, and abuse controls support positive unit economics. It is not unlimited unmetered resale.</p>
       </section>
 
       <section class="panel">
@@ -48,7 +48,7 @@
 
         <h2>Quota and Cost Controls</h2>
         <ul>
-          <li>Durable usage counters must track billable routed requests before managed provider access is considered launchable.</li>
+          <li>Durable usage counters and secret-free operator audit events must track billable routed requests and sensitive operator actions before managed provider access is considered launchable.</li>
           <li>Request-per-minute limits, monthly quotas, generated-key revocation, and inactive-account blocking must remain active at the public edge.</li>
           <li>Private-beta margin reviews may use aggregate usage, plan, provider, route, and cost metadata, without publishing prompts, message bodies, provider credentials, OAuth tokens, API keys, or raw provider responses.</li>
         </ul>
