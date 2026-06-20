@@ -6198,6 +6198,8 @@ def account_activation_for_customer(customer, usage=None, api_keys=None):
         next_action = 'send_first_request'
     elif quota_used_percent is not None and quota_used_percent >= 90:
         next_action = 'upgrade_before_quota'
+    elif quota_used_percent is not None and quota_used_percent >= 75:
+        next_action = 'watch_quota'
     else:
         next_action = 'monitor_usage'
     return {

@@ -705,6 +705,11 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(activation['firstRequestComplete'])
         self.assertEqual(99.9, activation['quotaUsedPercent'])
 
+        usage.update({'requests': 40000, 'quota': 50000})
+        activation = router.account_activation_for_customer(customer, usage=usage, api_keys=[key])
+        self.assertEqual('watch_quota', activation['nextAction'])
+        self.assertEqual(80.0, activation['quotaUsedPercent'])
+
         inactive_customer = router.customer_for_user({'id': 'user-free', 'email': 'free@example.com'})
         activation = router.account_activation_for_customer(inactive_customer)
         self.assertEqual('choose_plan', activation['nextAction'])

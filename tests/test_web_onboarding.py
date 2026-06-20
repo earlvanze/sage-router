@@ -594,6 +594,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("activation.nextAction", js)
         self.assertIn("renderAccountReadiness", js)
         self.assertIn("Quota is above 90%", js)
+        self.assertIn("nextAction === 'watch_quota'", js)
         self.assertIn("Choose a paid plan or finish checkout", js)
         self.assertIn("/account/usage.activation", readme)
         self.assertIn("plan, usage, generated-key", readme)

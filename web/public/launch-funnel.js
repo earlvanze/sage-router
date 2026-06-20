@@ -130,7 +130,15 @@ function usageLabel(summary = {}) {
 }
 
 function customerActionLabel(action) {
-  return String(action || '').replace(/_/g, ' ');
+  const labels = {
+    choose_plan: 'choose plan',
+    create_key: 'create key',
+    send_first_request: 'send first request',
+    watch_quota: 'watch quota',
+    upgrade_before_quota: 'upgrade before quota',
+    monitor_usage: 'monitor usage',
+  };
+  return labels[action] || String(action || '').replace(/_/g, ' ');
 }
 
 function campaignSlug(value) {

@@ -177,7 +177,7 @@ function renderAccountReadiness(state) {
     setText('readiness-action', 'Keys and routing are ready. Send the first routed request so analytics can prove model performance.');
   } else if (nextAction === 'upgrade_before_quota' || usagePercent >= 90) {
     setText('readiness-action', 'Quota is above 90% for this period. Upgrade before agent traffic is blocked.');
-  } else if (usagePercent >= 75) {
+  } else if (nextAction === 'watch_quota' || usagePercent >= 75) {
     setText('readiness-action', 'Quota is above 75% for this period. Watch usage or move to the next plan before sustained traffic grows.');
   } else {
     setText('readiness-action', 'Account is ready for routed traffic. Use this page to watch model quality, latency, and fallback health.');
