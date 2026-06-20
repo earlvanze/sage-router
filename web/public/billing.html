@@ -123,7 +123,7 @@
         <ul>
           <li>Safe: account email, selected plan, timestamp, HTTP status, safe error class, request id, and non-secret key prefix.</li>
           <li>For <code>401</code>: confirm the key starts with <code>sk_sage_</code> and is active in the account page.</li>
-          <li>For <code>402</code>: finish checkout, payment recovery, or manual activation before expecting hosted model traffic.</li>
+          <li>For <code>402</code>: use the response <code>upgradeUrl</code>, <code>billingUrl</code>, <code>supportUrl</code>, quota headers, and reset epoch to upgrade, recover payment, or request overflow review without sharing prompts or keys.</li>
           <li>For <code>429</code>: check current plan quota and request-per-minute limits.</li>
           <li>For <code>503</code>: check <a href="/status" data-billing-event="billing_status_clicked" data-billing-state="provider-availability">public status</a> and include timestamp, request id, route profile, and safe model name only.</li>
         </ul>

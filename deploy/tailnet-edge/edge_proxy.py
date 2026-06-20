@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import calendar
 import hashlib
 import hmac
 import json
@@ -56,6 +57,8 @@ BROWSER_ALLOWED_ORIGINS_RAW = os.environ.get("SAGE_ROUTER_BROWSER_ALLOWED_ORIGIN
 ACCOUNT_URL = os.environ.get("SAGE_ROUTER_ACCOUNT_URL", "https://app.sagerouter.dev/account.html")
 LOGIN_URL = os.environ.get("SAGE_ROUTER_LOGIN_URL", "https://app.sagerouter.dev/login.html")
 PRICING_URL = os.environ.get("SAGE_ROUTER_PRICING_URL", "https://sagerouter.dev/pricing")
+BILLING_URL = os.environ.get("SAGE_ROUTER_BILLING_URL", "https://sagerouter.dev/billing")
+SUPPORT_URL = os.environ.get("SAGE_ROUTER_SUPPORT_URL", "https://sagerouter.dev/support")
 STATUS_URL = os.environ.get("SAGE_ROUTER_STATUS_URL", "https://app.sagerouter.dev/status")
 API_BASE_URL = os.environ.get("SAGE_ROUTER_PUBLIC_API_BASE_URL", "https://api.sagerouter.dev")
 RATE_LIMIT_ENABLED = os.environ.get("SAGE_ROUTER_EDGE_RATE_LIMIT_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
@@ -379,6 +382,21 @@ def current_usage_period(now=None):
     return time.strftime("%Y-%m", time.gmtime(now or time.time()))
 
 
+def quota_reset_epoch(period):
+    try:
+        year, month = [int(part) for part in str(period or "").split("-", 1)]
+    except ValueError:
+        return None
+    if month < 1 or month > 12:
+        return None
+    if month == 12:
+        year += 1
+        month = 1
+    else:
+        month += 1
+    return calendar.timegm((year, month, 1, 0, 0, 0, 0, 1, 0))
+
+
 def should_count_quota(auth_context, path):
     if not QUOTA_ENABLED:
         return False
@@ -396,6 +414,7 @@ def quota_headers(state):
         "X-Quota-Limit": state.get("quota", ""),
         "X-Quota-Used": state.get("requests", ""),
         "X-Quota-Remaining": state.get("remaining", ""),
+        "X-Quota-Reset": state.get("reset_epoch", ""),
     }
     return {key: value for key, value in headers.items() if value != ""}
 
@@ -403,31 +422,37 @@ def quota_headers(state):
 def check_usage_quota(auth_context, path):
     if not should_count_quota(auth_context, path):
         return True, None
-    _plan, quota = plan_limit(auth_context, MONTHLY_QUOTAS_BY_PLAN)
+    plan, quota = plan_limit(auth_context, MONTHLY_QUOTAS_BY_PLAN)
     if quota <= 0:
         return True, None
+    period = current_usage_period()
+    reset_epoch = quota_reset_epoch(period)
     if not supabase_auth_configured(require_service=True):
         return False, {
             "error": "edge_quota_not_configured",
+            "plan": plan,
             "quota": quota,
             "remaining": 0,
-            "period": current_usage_period(),
+            "period": period,
+            "reset_epoch": reset_epoch,
         }
 
     payload = {
         "p_customer_id": str(auth_context.get("customer_id") or ""),
         "p_user_id": str(auth_context.get("user_id") or ""),
-        "p_plan": str(auth_context.get("plan") or ""),
-        "p_period": current_usage_period(),
+        "p_plan": str(auth_context.get("plan") or plan),
+        "p_period": period,
         "p_increment": 1,
         "p_quota": quota,
     }
     if not payload["p_customer_id"]:
         return False, {
             "error": "edge_quota_missing_customer",
+            "plan": plan,
             "quota": quota,
             "remaining": 0,
             "period": payload["p_period"],
+            "reset_epoch": reset_epoch,
         }
     try:
         result = supabase_post_json(f"/rest/v1/rpc/{SUPABASE_USAGE_RPC}", payload, timeout=6)
@@ -437,19 +462,23 @@ def check_usage_quota(auth_context, path):
         state = {
             "customer_id": row.get("customer_id") or payload["p_customer_id"],
             "period": row.get("period") or payload["p_period"],
+            "plan": plan,
             "requests": int(row.get("requests") or 0),
             "quota": int(row.get("quota") or quota),
             "remaining": max(0, int(row.get("remaining") or 0)),
             "allowed": bool(row.get("allowed")),
         }
+        state["reset_epoch"] = quota_reset_epoch(state["period"])
         return state["allowed"], state
     except Exception as exc:
         print(f"supabase usage quota check failed: {exc}", flush=True)
         return False, {
             "error": "edge_quota_unavailable",
+            "plan": plan,
             "quota": quota,
             "remaining": 0,
             "period": payload["p_period"],
+            "reset_epoch": reset_epoch,
         }
 
 
@@ -733,6 +762,57 @@ def edge_error_payload(error, path, message=None, **extra):
     return payload
 
 
+def append_query(url, **params):
+    parsed = urllib.parse.urlsplit(url)
+    current = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+    current.update({key: value for key, value in params.items() if value not in {None, ""}})
+    query = urllib.parse.urlencode(current)
+    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, query, parsed.fragment))
+
+
+def quota_recovery_payload(error, path, quota_state, auth_context=None):
+    quota_state = quota_state or {}
+    auth_context = auth_context or {}
+    plan = str(quota_state.get("plan") or auth_context.get("plan") or "").strip().lower()
+    reset_epoch = quota_state.get("reset_epoch") or quota_reset_epoch(quota_state.get("period"))
+    is_edge_infra_error = str(error or "").startswith("edge_quota_")
+
+    if is_edge_infra_error:
+        message = (
+            "Sage Router could not verify this account quota right now. "
+            "Check the status page or contact support if the issue persists."
+        )
+    else:
+        message = (
+            "Monthly Sage Router quota is exhausted for this plan. "
+            "Open the account page to upgrade, review billing, or contact support for overflow."
+        )
+
+    payload = edge_error_payload(
+        error,
+        path,
+        message,
+        plan=plan or None,
+        period=quota_state.get("period"),
+        quota=quota_state.get("quota"),
+        used=quota_state.get("requests"),
+        remaining=quota_state.get("remaining"),
+        resetEpoch=reset_epoch,
+        upgradeUrl=append_query(ACCOUNT_URL, upgrade="quota", plan=plan) if plan and not is_edge_infra_error else None,
+        billingUrl=BILLING_URL,
+        supportUrl=SUPPORT_URL,
+    )
+    if not is_edge_infra_error:
+        payload["recovery"] = {
+            "nextAction": "upgrade_or_contact_support",
+            "upgradeUrl": payload.get("upgradeUrl"),
+            "billingUrl": BILLING_URL,
+            "supportUrl": SUPPORT_URL,
+            "statusUrl": STATUS_URL,
+        }
+    return payload
+
+
 def edge_error_headers(error, path):
     headers = {}
     if is_generated_api_key_path(path) or is_public_api_browser_path(path):
@@ -1010,7 +1090,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
             error = (quota_state or {}).get("error") or "quota_exceeded"
             self._json(
                 status,
-                edge_error_payload(error, self.path, quota=quota_state.get("quota") if quota_state else None),
+                quota_recovery_payload(error, self.path, quota_state, auth_context),
                 {**edge_error_headers(error, self.path), **quota_headers(quota_state)},
             )
             return

@@ -148,7 +148,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
           </thead>
           <tbody>
             <tr><td>Authentication</td><td><code>WWW-Authenticate</code>, <code>apiKeyPrefix</code>, <code>accountUrl</code></td><td>Diagnose missing, inactive, malformed, or revoked generated keys.</td></tr>
-            <tr><td>Billing or quota</td><td><code>X-Quota-Limit</code>, <code>X-Quota-Used</code>, <code>X-Quota-Remaining</code>, <code>X-Quota-Period</code></td><td>Show plan usage and monthly routing availability without exposing prompts.</td></tr>
+            <tr><td>Billing or quota</td><td><code>X-Quota-Limit</code>, <code>X-Quota-Used</code>, <code>X-Quota-Remaining</code>, <code>X-Quota-Period</code>, <code>X-Quota-Reset</code>, <code>upgradeUrl</code>, <code>billingUrl</code>, <code>supportUrl</code></td><td>Show plan usage, monthly reset timing, and safe recovery links without exposing prompts or generated keys.</td></tr>
             <tr><td>Rate limit</td><td><code>Retry-After</code>, <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code></td><td>Back off safely when clients exceed request-per-minute limits.</td></tr>
             <tr><td>Reliability</td><td><code>X-Sage-Router-Retry-Count</code>, status page health, selected upstream</td><td>Understand failover behavior when a backend returns <code>401</code>, <code>429</code>, <code>502</code>, <code>503</code>, or <code>504</code>.</td></tr>
           </tbody>

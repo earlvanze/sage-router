@@ -584,6 +584,60 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertEqual(0, state["remaining"])
         self.assertEqual("2", str(self.edge.quota_headers(state)["X-Quota-Limit"]))
 
+    def test_quota_exhaustion_payload_guides_upgrade_without_secrets(self):
+        ctx = {
+            "type": "generated_key",
+            "key_id": "key-1",
+            "customer_id": "customer-1",
+            "user_id": "user-1",
+            "plan": "pro",
+            "customer_status": "active",
+        }
+        state = {
+            "customer_id": "customer-1",
+            "period": "2026-06",
+            "plan": "pro",
+            "requests": 3,
+            "quota": 2,
+            "remaining": 0,
+            "allowed": False,
+            "reset_epoch": self.edge.quota_reset_epoch("2026-06"),
+        }
+
+        payload = self.edge.quota_recovery_payload("quota_exceeded", "/v1/chat/completions", state, ctx)
+        encoded = str(payload)
+
+        self.assertEqual("quota_exceeded", payload["error"])
+        self.assertEqual("pro", payload["plan"])
+        self.assertEqual(3, payload["used"])
+        self.assertEqual(0, payload["remaining"])
+        self.assertIn("upgrade=quota", payload["upgradeUrl"])
+        self.assertIn("plan=pro", payload["upgradeUrl"])
+        self.assertEqual("https://sagerouter.dev/billing", payload["billingUrl"])
+        self.assertEqual("https://sagerouter.dev/support", payload["supportUrl"])
+        self.assertEqual("upgrade_or_contact_support", payload["recovery"]["nextAction"])
+        self.assertNotIn("sk_sage_test_key", encoded)
+        self.assertNotIn("pepper", encoded)
+        self.assertNotIn("service", encoded)
+
+    def test_quota_infrastructure_payload_does_not_suggest_upgrade(self):
+        state = {
+            "error": "edge_quota_unavailable",
+            "period": "2026-06",
+            "plan": "pro",
+            "quota": 2,
+            "remaining": 0,
+            "reset_epoch": self.edge.quota_reset_epoch("2026-06"),
+        }
+
+        payload = self.edge.quota_recovery_payload("edge_quota_unavailable", "/v1/models", state)
+
+        self.assertEqual("edge_quota_unavailable", payload["error"])
+        self.assertNotIn("upgradeUrl", payload)
+        self.assertIn("statusUrl", payload)
+        self.assertIn("supportUrl", payload)
+        self.assertNotIn("recovery", payload)
+
     def test_quota_exempts_edge_token_and_non_model_paths(self):
         self.edge.supabase_post_json = lambda *_args, **_kwargs: self.fail("quota should not call Supabase")
 
