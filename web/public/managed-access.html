@@ -174,9 +174,38 @@
         .slice(0, 80);
     }
 
+    const requestedIntent = attributionValue(new URLSearchParams(window.location.search).get('intent'));
+
+    function setSelectValue(name, value) {
+      if (!value) return;
+      const field = form.elements[name];
+      if (!field) return;
+      const hasOption = Array.from(field.options || []).some((option) => option.value === value);
+      if (hasOption) field.value = value;
+    }
+
+    function applyRequestedIntent() {
+      if (requestedIntent === 'max-implementation') {
+        setSelectValue('supportNeed', 'implementation-support');
+        setSelectValue('commercialPreference', 'private-contract');
+      } else if (requestedIntent === 'private-deployment') {
+        setSelectValue('supportNeed', 'private-deployment');
+        setSelectValue('deployment', 'tailnet-private');
+      } else if (requestedIntent === 'openrouter-migration') {
+        setSelectValue('supportNeed', 'migration-help');
+        setSelectValue('providerAccess', 'byok');
+      } else if (requestedIntent === 'one-subscription') {
+        setSelectValue('commercialPreference', 'one-subscription');
+        setSelectValue('providerAccess', 'needs-managed-access');
+      } else if (['ollama', 'openai', 'anthropic'].includes(requestedIntent)) {
+        setSelectValue('targetProviderFamily', requestedIntent);
+      }
+    }
+
     function currentQualificationBuckets() {
       const data = new FormData(form);
       return {
+        intent: requestedIntent,
         deployment: data.get('deployment') || '',
         monthlyVolume: data.get('monthlyVolume') || '',
         providerAccess: data.get('providerAccess') || '',
@@ -300,6 +329,7 @@
           body: JSON.stringify({
             ...payload,
             interest: 'managed-access',
+            intent: requestedIntent,
             sourcePage: `${window.location.origin}${window.location.pathname}`,
             turnstileToken: turnstileState.token,
           }),
@@ -315,6 +345,7 @@
       }
     });
 
+    applyRequestedIntent();
     trackManagedAccessFunnelEvent('managed_access_viewed', { state: 'page-view' });
     configureTurnstile();
   </script>

@@ -90,6 +90,7 @@ const ALLOWED_METADATA_KEYS = new Set([
   'riskLevel',
   'savingsBucket',
   'source',
+  'intent',
   'button',
   'state',
   'billing',

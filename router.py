@@ -4855,6 +4855,15 @@ MANAGED_ACCESS_TARGET_LAUNCH_WINDOW_BUCKETS = (
     'this-quarter',
     'exploring',
 )
+MANAGED_ACCESS_INTENT_BUCKETS = (
+    'max-implementation',
+    'private-deployment',
+    'openrouter-migration',
+    'one-subscription',
+    'ollama',
+    'openai',
+    'anthropic',
+)
 MARKETING_SOURCE_SURFACE_BUCKETS = (
     'pricing',
     'model-routing-calculator',
@@ -5136,6 +5145,7 @@ def new_managed_access_demand_metrics():
         'commercialPreference': {bucket: 0 for bucket in (*MANAGED_ACCESS_COMMERCIAL_PREFERENCE_BUCKETS, 'unknown')},
         'supportNeed': {bucket: 0 for bucket in (*MANAGED_ACCESS_SUPPORT_NEED_BUCKETS, 'unknown')},
         'targetLaunchWindow': {bucket: 0 for bucket in (*MANAGED_ACCESS_TARGET_LAUNCH_WINDOW_BUCKETS, 'unknown')},
+        'intent': {bucket: 0 for bucket in (*MANAGED_ACCESS_INTENT_BUCKETS, 'unknown')},
     }
 
 
@@ -5205,10 +5215,16 @@ def read_launch_waitlist_counts(since, limit=10000):
                         'target_launch_window',
                         'targetLaunchWindow',
                     )
+                    intent = waitlist_metadata_bucket(
+                        metadata,
+                        MANAGED_ACCESS_INTENT_BUCKETS,
+                        'intent',
+                    )
                     metrics['managedAccessDemand']['targetProviderFamily'][target_provider] += 1
                     metrics['managedAccessDemand']['commercialPreference'][commercial_preference] += 1
                     metrics['managedAccessDemand']['supportNeed'][support_need] += 1
                     metrics['managedAccessDemand']['targetLaunchWindow'][target_launch_window] += 1
+                    metrics['managedAccessDemand']['intent'][intent] += 1
         except Exception as e:
             logger.debug(f'Launch funnel waitlist read failed for {table}: {extract_http_error(e)}')
     if tables_read == 0:

@@ -350,7 +350,8 @@ function renderManagedAccessDemand(demand = {}) {
   const commercialRows = sortedEntries(demand.commercialPreference);
   const supportRows = sortedEntries(demand.supportNeed);
   const launchWindowRows = sortedEntries(demand.targetLaunchWindow);
-  if (!targetProviderRows.length && !commercialRows.length && !supportRows.length && !launchWindowRows.length) {
+  const intentRows = sortedEntries(demand.intent);
+  if (!targetProviderRows.length && !commercialRows.length && !supportRows.length && !launchWindowRows.length && !intentRows.length) {
     $('managed-access-demand-breakdown').innerHTML = '<div class="empty">No managed-access qualification buckets returned for this window.</div>';
     return;
   }
@@ -362,6 +363,8 @@ function renderManagedAccessDemand(demand = {}) {
     renderDemandTable('Support need', supportRows, 'No support need demand returned.')
   }${
     renderDemandTable('Target launch window', launchWindowRows, 'No target launch window demand returned.')
+  }${
+    renderDemandTable('Inbound intent', intentRows, 'No inbound intent demand returned.')
   }</div>`;
 }
 

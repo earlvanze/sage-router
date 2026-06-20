@@ -1024,6 +1024,16 @@ class SaaSAuthTests(unittest.TestCase):
                     'private-contract': 0,
                     'unknown': 0,
                 },
+                'intent': {
+                    'max-implementation': 0,
+                    'private-deployment': 0,
+                    'openrouter-migration': 0,
+                    'one-subscription': 0,
+                    'ollama': 0,
+                    'openai': 0,
+                    'anthropic': 0,
+                    'unknown': 0,
+                },
             },
         }, None)
         router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
@@ -1084,6 +1094,16 @@ class SaaSAuthTests(unittest.TestCase):
                     'one-subscription': 2,
                     'byok-plus-routing': 0,
                     'private-contract': 0,
+                    'unknown': 0,
+                },
+                'intent': {
+                    'max-implementation': 1,
+                    'private-deployment': 0,
+                    'openrouter-migration': 1,
+                    'one-subscription': 0,
+                    'ollama': 0,
+                    'openai': 0,
+                    'anthropic': 0,
                     'unknown': 0,
                 },
             },
@@ -1191,6 +1211,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, snapshot['managedAccessDemand']['targetProviderFamily']['mixed-frontier'])
         self.assertEqual(1, snapshot['managedAccessDemand']['targetProviderFamily']['openai'])
         self.assertEqual(2, snapshot['managedAccessDemand']['commercialPreference']['one-subscription'])
+        self.assertEqual(1, snapshot['managedAccessDemand']['intent']['max-implementation'])
+        self.assertEqual(1, snapshot['managedAccessDemand']['intent']['openrouter-migration'])
         self.assertEqual(0.6667, snapshot['rates']['managedAccessShareOfWaitlist'])
         self.assertEqual(2, snapshot['stages']['signups'])
         self.assertEqual(1, snapshot['stages']['customersWithGeneratedApiKeys'])
@@ -1244,6 +1266,7 @@ class SaaSAuthTests(unittest.TestCase):
                             'interest': 'managed-access',
                             'target_provider_family': 'openai',
                             'commercial_preference': 'one-subscription',
+                            'intent': 'max-implementation',
                         },
                     },
                     {
@@ -1252,6 +1275,7 @@ class SaaSAuthTests(unittest.TestCase):
                             'interest': 'managed-access',
                             'targetProviderFamily': 'anthropic',
                             'commercialPreference': 'private-contract',
+                            'intent': 'openrouter-migration',
                         }),
                     },
                     {'created_at': '2026-06-19T00:00:00Z', 'metadata': {'interest': 'managed-access'}},
@@ -1275,6 +1299,9 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['managedAccessDemand']['commercialPreference']['one-subscription'])
         self.assertEqual(1, metrics['managedAccessDemand']['commercialPreference']['private-contract'])
         self.assertEqual(1, metrics['managedAccessDemand']['commercialPreference']['unknown'])
+        self.assertEqual(1, metrics['managedAccessDemand']['intent']['max-implementation'])
+        self.assertEqual(1, metrics['managedAccessDemand']['intent']['openrouter-migration'])
+        self.assertEqual(1, metrics['managedAccessDemand']['intent']['unknown'])
 
         count, error = router.read_launch_waitlist_count(0)
         self.assertIsNone(error)

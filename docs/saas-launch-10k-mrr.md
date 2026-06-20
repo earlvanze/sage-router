@@ -87,8 +87,9 @@ one-subscription path and Max implementation support by sending prospects to
 `/managed-access`. That private-beta intake stores contact and allowlisted
 qualification buckets only, including target provider family and commercial
 preference demand for Ollama, OpenAI, Anthropic, and BYOK-compatible routes,
-plus support need and target launch window for founder-sales follow-up; it is
-not a checkout entitlement, provider resale claim, or runtime feature flag.
+plus support need and target launch window, and coarse inbound intent from
+known CTA URLs for founder-sales follow-up; it is not a checkout entitlement,
+provider resale claim, or runtime feature flag.
 
 ## Near-term launch checklist
 
@@ -228,9 +229,9 @@ not a checkout entitlement, provider resale claim, or runtime feature flag.
   buckets so one-subscription and implementation demand is visible before full
   contact submission. Use `managedAccessDemand.targetProviderFamily`,
   `managedAccessDemand.commercialPreference`, `managedAccessDemand.supportNeed`,
-  and `managedAccessDemand.targetLaunchWindow` to rank private-beta provider
-  resale and implementation conversations instead of advertising bundled model
-  access as live.
+  `managedAccessDemand.targetLaunchWindow`, and `managedAccessDemand.intent` to
+  rank private-beta provider resale and implementation conversations instead of
+  advertising bundled model access as live.
 - Keep `/api/waitlist` guarded before Supabase inserts: browser-originating
   writes must come from Sage Router production hosts, Pages previews, local
   development, or exact origins configured with
@@ -242,9 +243,10 @@ not a checkout entitlement, provider resale claim, or runtime feature flag.
   `/edge/health` so random invalid `sk_sage_*` traffic cannot create unbounded
   service-role reads.
 - Capture one-subscription and Max implementation demand with allowlisted
-  target provider family, commercial preference, support need, and target launch
-  window buckets, so provider resale and implementation conversations can be
-  ranked by real Ollama, OpenAI, Anthropic, and BYOK-compatible buyer interest.
+  target provider family, commercial preference, support need, target launch
+  window, and inbound intent buckets, so provider resale and implementation
+  conversations can be ranked by real Ollama, OpenAI, Anthropic, and
+  BYOK-compatible buyer interest.
 - Keep the managed provider access readiness guard active: default disabled,
   with `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` allowed only when provider
   resale terms and margin-policy URLs are configured,
