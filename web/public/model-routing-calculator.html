@@ -139,6 +139,7 @@
     .metric b { display: block; font-size: 1.25rem; letter-spacing: 0; }
     .planReco { display: grid; gap: 8px; margin: 18px 0; padding: 14px 0 18px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
     .planReco .actions { margin-top: 4px; }
+    .billingStatus { min-height: 22px; font-size: .9rem; color: var(--muted); }
     .rec-list { display: grid; gap: 12px; margin-top: 16px; }
     .rec { padding: 13px 14px; border-radius: 8px; background: rgba(255,255,255,.05); border: 1px solid var(--line); }
     .rec strong { display: block; margin-bottom: 4px; }
@@ -296,6 +297,7 @@
           <span class="pill">Recommended hosted plan</span>
           <div class="big" id="recommendedPlan">Pro</div>
           <div class="muted" id="recommendedPlanReason">The calculator will match this workflow to Lite, Pro, or Max.</div>
+          <div class="billingStatus" id="recommendedPlanBilling">Checking checkout readiness...</div>
           <div class="actions">
             <button class="primary" type="button" id="startRecommendedPlan">Start recommended plan</button>
             <button class="secondary" type="button" id="comparePlans">Compare plans</button>
@@ -330,17 +332,78 @@
   <script>
     const $ = (id) => document.getElementById(id);
     const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-    const PLAN_LIMITS = {
+    const API_PRICING_URL = 'https://api.sagerouter.dev/pricing';
+    let PLAN_LIMITS = {
       lite: { label: 'Lite', price: 6, requests: 10000, rateLimit: 60 },
       pro: { label: 'Pro', price: 30, requests: 50000, rateLimit: 180 },
       max: { label: 'Max', price: 72, requests: 200000, rateLimit: 600 }
     };
+    let billingMetadata = null;
     let lastCalculation = null;
 
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
     function money(n) { return fmt.format(Number.isFinite(n) ? n : 0); }
     function planCheckoutUrl(planKey) { return `/account.html?plan=${encodeURIComponent(planKey)}`; }
     function planUnitCost(plan) { return plan.requests > 0 ? (plan.price / plan.requests) * 1000 : 0; }
+    function monthlyPlanPrice(plan = {}) {
+      const explicit = Number(plan.monthlyPriceUsd ?? plan.priceUsd ?? plan.priceAmount);
+      if (Number.isFinite(explicit) && explicit >= 0) return explicit;
+      const match = String(plan.price || '').match(/([0-9]+(?:\.[0-9]+)?)/);
+      return match ? Number(match[1]) : 0;
+    }
+    function normalizedConfiguredPlans() {
+      const configured = billingMetadata?.stripe?.configuredPlans || [];
+      return Array.isArray(configured) ? configured.map(plan => String(plan || '').toLowerCase()).filter(Boolean) : [];
+    }
+    function checkoutReadyForPlan(planKey) {
+      const normalized = String(planKey || '').toLowerCase();
+      const stripe = billingMetadata?.stripe || {};
+      const configured = normalizedConfiguredPlans();
+      if (!normalized) return false;
+      if (stripe.configured === false || stripe.checkoutReady === false) return false;
+      if (configured.length && !configured.includes(normalized)) return false;
+      return PLAN_LIMITS[normalized]?.stripeConfigured !== false;
+    }
+    function checkoutUnavailableMessage(planKey) {
+      const plan = PLAN_LIMITS[planKey] || {};
+      const configured = normalizedConfiguredPlans();
+      if (billingMetadata?.stripe?.checkoutReady === false || billingMetadata?.stripe?.configured === false) {
+        return 'Stripe checkout is not ready. Use the account page for manual settlement or billing help.';
+      }
+      if (configured.length && !configured.includes(planKey)) {
+        return `${plan.label || planKey} checkout is not configured yet. Use the account page for manual settlement or billing help.`;
+      }
+      return 'Checkout readiness is unknown. The account page will show the available billing path.';
+    }
+    function applyPricingMetadata(metadata = {}) {
+      billingMetadata = metadata.billing || billingMetadata;
+      const plans = metadata.plans || {};
+      ['lite', 'pro', 'max'].forEach((key) => {
+        const plan = plans[key] || {};
+        const limits = plan.limits || {};
+        PLAN_LIMITS[key] = {
+          ...PLAN_LIMITS[key],
+          label: plan.name || PLAN_LIMITS[key].label,
+          price: monthlyPlanPrice(plan) || PLAN_LIMITS[key].price,
+          requests: Number(limits.monthlyRequests || PLAN_LIMITS[key].requests),
+          rateLimit: Number(limits.rateLimitPerMinute || PLAN_LIMITS[key].rateLimit),
+          stripeConfigured: plan.stripeConfigured !== false
+        };
+      });
+    }
+    async function loadPricingMetadata() {
+      try {
+        const response = await fetch(API_PRICING_URL, { headers: { Accept: 'application/json' } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        applyPricingMetadata(await response.json());
+      } catch {
+        billingMetadata = billingMetadata || null;
+        const status = $('recommendedPlanBilling');
+        if (status) status.textContent = 'Checkout readiness unavailable. The account page will confirm billing options.';
+      } finally {
+        calculate();
+      }
+    }
     function volumeBucket(volume) {
       if (volume < 1000) return 'lt_1k';
       if (volume < 10000) return '1k_10k';
@@ -510,14 +573,18 @@
       $('savingsRange').textContent = `${Math.round(savingsPct * 100)}%`;
       $('recommendedPlan').textContent = `${plan.label} - ${money(plan.price)}/month`;
       $('recommendedPlanReason').textContent = planReason;
-      $('startRecommendedPlan').textContent = `Start ${plan.label}`;
+      const checkoutReady = checkoutReadyForPlan(planKey);
+      $('recommendedPlanBilling').textContent = checkoutReady
+        ? `${plan.label} checkout is configured. Sign in to continue.`
+        : checkoutUnavailableMessage(planKey);
+      $('startRecommendedPlan').textContent = checkoutReady ? `Start ${plan.label}` : `Set up ${plan.label} manually`;
       $('startRecommendedPlan').onclick = () => {
-        trackCurrentIntent('calculator_checkout_clicked', 'start_recommended_plan', checkoutUrl);
+        trackCurrentIntent(checkoutReady ? 'calculator_checkout_clicked' : 'calculator_checkout_unavailable', 'start_recommended_plan', checkoutUrl);
         window.location.href = checkoutUrl;
       };
-      $('createHostedKey').textContent = `Create hosted key on ${plan.label}`;
+      $('createHostedKey').textContent = checkoutReady ? `Create hosted key on ${plan.label}` : `Create key and review billing`;
       $('createHostedKey').onclick = () => {
-        trackCurrentIntent('calculator_checkout_clicked', 'create_hosted_key', checkoutUrl);
+        trackCurrentIntent(checkoutReady ? 'calculator_checkout_clicked' : 'calculator_checkout_unavailable', 'create_hosted_key', checkoutUrl);
         window.location.href = checkoutUrl;
       };
       $('comparePlans').onclick = () => {
@@ -530,7 +597,10 @@
       };
       $('recommendations').innerHTML = recs.map(([title, body]) => `<div class="rec"><strong>${title}</strong><span class="muted">${body}</span></div>`).join('');
 
-      const brief = `AI Ops Routing Brief\n\nWorkflow: ${v.workflow}\nTask type: ${v.taskType}\nRuns/month: ${v.volume}\nCurrent est. monthly cost: ${money(currentMonthly)}\nRouted est. monthly cost: ${money(routedMonthly)}\nPotential directional savings: ${money(rawSavings)} (${Math.round(savingsPct * 100)}%)\nRouting score: ${score}/100, ${label}\nRecommended hosted plan: ${plan.label} (${money(plan.price)}/month, ${plan.requests.toLocaleString()} requests/month)\n\nRecommendation:\n- ${headline}\n- ${summary}\n- Suggested initial human review: ~${reviewSuggested}%\n- Fallback exists: ${v.hasFallback ? 'yes' : 'no'}\n- Checkout handoff: ${window.location.origin}${checkoutUrl}\n\nNote: directional estimate only. Needs real workflow/token/pricing review before decisions.`;
+      const billingLine = checkoutReady
+        ? `Checkout handoff: ${window.location.origin}${checkoutUrl}`
+        : `Account billing handoff: ${window.location.origin}${checkoutUrl} (${checkoutUnavailableMessage(planKey)})`;
+      const brief = `AI Ops Routing Brief\n\nWorkflow: ${v.workflow}\nTask type: ${v.taskType}\nRuns/month: ${v.volume}\nCurrent est. monthly cost: ${money(currentMonthly)}\nRouted est. monthly cost: ${money(routedMonthly)}\nPotential directional savings: ${money(rawSavings)} (${Math.round(savingsPct * 100)}%)\nRouting score: ${score}/100, ${label}\nRecommended hosted plan: ${plan.label} (${money(plan.price)}/month, ${plan.requests.toLocaleString()} requests/month)\n\nRecommendation:\n- ${headline}\n- ${summary}\n- Suggested initial human review: ~${reviewSuggested}%\n- Fallback exists: ${v.hasFallback ? 'yes' : 'no'}\n- ${billingLine}\n\nNote: directional estimate only. Needs real workflow/token/pricing review before decisions.`;
       $('copybox').textContent = brief;
       lastCalculation = {
         planKey,
@@ -572,6 +642,7 @@
       }
     });
     calculate();
+    loadPricingMetadata();
   </script>
 </body>
 </html>

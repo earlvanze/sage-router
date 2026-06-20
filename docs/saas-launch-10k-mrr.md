@@ -148,7 +148,11 @@ provider resale claim, or runtime feature flag.
   prospects estimate savings, review points, and fallback gaps, then create a
   hosted API key or request implementation support. The calculator should
   recommend Lite, Pro, or Max from the workflow profile and send the prospect
-  into preselected checkout with `/account.html?plan=...`.
+  into preselected checkout with `/account.html?plan=...` when public
+  `/pricing` billing readiness metadata says Stripe checkout is configured.
+  When checkout is not ready, record `calculator_checkout_unavailable` and keep
+  the handoff on the account/manual billing path instead of promising a broken
+  Stripe flow.
 - Capture pre-signup page-view and CTA intent from the homepage, calculator,
   pricing, launch plan, quickstart, plus OpenRouter comparison/migration pages
   through the privacy-safe `/api/funnel-event` path. Store only event, plan,

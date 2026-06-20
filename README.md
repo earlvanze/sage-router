@@ -160,7 +160,10 @@ routing savings, escalation rules, fallback gaps, and review rates for one
 workflow before they create a hosted API key. The calculator recommends
 Lite/Pro/Max from workflow volume, risk flags, and routing score, then carries
 that plan into `/account.html?plan=...` for preselected checkout after account
-creation.
+creation. It also reads public `/pricing` billing readiness metadata so it can
+use current plan limits and avoid promising a Stripe checkout when the selected
+plan is not configured; in that case it records `calculator_checkout_unavailable`
+and sends the prospect to the account/manual billing path.
 
 The public homepage now treats hosted signup as live: the homepage primary CTA
 is `Create hosted API key`, links directly to `/account.html?plan=pro`, and

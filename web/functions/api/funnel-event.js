@@ -1,6 +1,7 @@
 const ALLOWED_EVENTS = new Set([
   'calculator_viewed',
   'calculator_checkout_clicked',
+  'calculator_checkout_unavailable',
   'calculator_compare_plans_clicked',
   'calculator_audit_brief_copied',
   'pricing_viewed',

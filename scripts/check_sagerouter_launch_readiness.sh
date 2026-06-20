@@ -764,6 +764,7 @@ check_funnel_event_endpoint() {
   privacy_ok="$(jq -r '(.privacy.promptsStored == false) and (.privacy.messageBodiesStored == false) and (.privacy.containsApiKeys == false)' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   allowed_events="$(jq -r '
     ((.allowedEvents // []) | index("calculator_checkout_clicked") != null) and
+    ((.allowedEvents // []) | index("calculator_checkout_unavailable") != null) and
     ((.allowedEvents // []) | index("openrouter_compare_migration_clicked") != null)
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   write_guard="$(jq -r '.writeGuard.browserOriginRequired == true' /tmp/sage-router-readiness-body 2>/dev/null || true)"
@@ -1294,6 +1295,12 @@ check_model_routing_calculator() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Workflow text and prompt bodies stay in your browser." /tmp/sage-router-readiness-body; then
     page_code="200:missing-private-workflow-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "calculator_checkout_unavailable" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-billing-readiness-fallback"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "https://api.sagerouter.dev/pricing" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-metadata-fetch"
   fi
   rm -f /tmp/sage-router-readiness-body
 
