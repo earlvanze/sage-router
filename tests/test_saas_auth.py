@@ -1063,6 +1063,13 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, snapshot['marketingIntent']['sourceSurfaces']['compare-openrouter'])
         self.assertEqual(2, snapshot['marketingIntent']['attributionChannels']['github'])
         self.assertEqual(1, snapshot['marketingIntent']['attributionChannels']['openrouter'])
+        self.assertEqual(snapshot['acquisitionActions'], snapshot['marketingIntent']['acquisitionActions'])
+        acquisition_buckets = [row['bucket'] for row in snapshot['acquisitionActions']]
+        self.assertIn('github', acquisition_buckets)
+        self.assertIn('pricing', acquisition_buckets)
+        self.assertIn('compare-openrouter', acquisition_buckets)
+        self.assertIn('Publish OpenRouter migration proof', json.dumps(snapshot['acquisitionActions']))
+        self.assertNotIn('buyer@example.com', json.dumps(snapshot['acquisitionActions']))
         self.assertEqual(2, snapshot['stages']['managedAccessBetaInterest'])
         self.assertEqual(2, snapshot['waitlistInterest']['managedAccess'])
         self.assertEqual(1, snapshot['managedAccessDemand']['targetProviderFamily']['mixed-frontier'])
@@ -1263,6 +1270,12 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['attributionChannels']['google'])
         self.assertEqual(1, metrics['attributionChannels']['discord'])
         self.assertEqual(4, metrics['attributionChannels']['direct'])
+        actions = router.launch_acquisition_actions(metrics)
+        buckets = [row['bucket'] for row in actions]
+        self.assertIn('direct', buckets)
+        self.assertIn('pro', json.dumps(metrics['plans']))
+        self.assertIn('pricing', buckets)
+        self.assertIn('Tighten pricing CTAs', json.dumps(actions))
         self.assertNotIn('email', json.dumps(metrics))
         self.assertNotIn('buyer@example.com', json.dumps(metrics))
 

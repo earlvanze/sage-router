@@ -176,6 +176,22 @@ function renderRevenueActions(actions = []) {
   </table>`;
 }
 
+function renderAcquisitionActions(actions = []) {
+  if (!actions.length) {
+    $('acquisition-actions').innerHTML = '<div class="empty">No source or channel acquisition actions returned for this window.</div>';
+    return;
+  }
+  $('acquisition-actions').innerHTML = `<table>
+    <thead><tr><th>Signal</th><th>Clicks</th><th>Priority</th><th>Action</th></tr></thead>
+    <tbody>${actions.map(row => `<tr>
+      <td><span class="pill">${esc(attributionLabel(row.bucket || row.kind || 'source'))}</span></td>
+      <td>${integer(row.clicks)}</td>
+      <td>${esc(customerActionLabel(row.priority || 'review'))}</td>
+      <td>${esc(row.action || '')}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
 function gapLabel(row = {}) {
   if (row.metric === 'mrrTargetAttainment') return money(row.gap);
   return percent(row.gap);
@@ -308,6 +324,7 @@ function renderFunnel(data) {
 
   renderBottlenecks(data.bottlenecks || []);
   renderMarketingIntent(marketingIntent);
+  renderAcquisitionActions(data.acquisitionActions || marketingIntent.acquisitionActions || []);
   renderManagedAccessDemand(managedAccessDemand);
   renderPlanMix(mrr.byPlan || {});
   renderRevenueActions(mrr.planRevenueActions || []);

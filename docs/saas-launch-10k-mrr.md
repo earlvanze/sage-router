@@ -255,6 +255,10 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   operator funnel so GitHub, Google, OpenRouter, Discord, Reddit, newsletter,
   direct, and internal Sage Router traffic can be ranked against the `$10k MRR`
   launch mix without exposing identities.
+- Return ranked acquisition actions from those source/channel buckets so the
+  operator can decide whether the next push should be OpenRouter migration
+  content, GitHub/docs conversion, community outreach, pricing-page tuning, or
+  calculator follow-up without reading raw campaign URLs or identities.
 - Keep `app.sagerouter.dev/account.html` aligned with the same activation
   funnel: signed-in account, paid routing, generated key, public-edge
   `/v1/models` verification, and server-recorded first routed usage.
@@ -265,6 +269,9 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   remaining MRR gap, so the operator can choose between Lite checkout
   conversion, Pro activation upgrades, and founder-led Max sales without
   exposing customer identities.
+- Render the same ranked acquisition actions in the private launch-funnel
+  dashboard alongside marketing attribution, so source/channel demand turns
+  into a concrete acquisition motion instead of another passive count table.
 - Keep `/analytics/funnel` target-aware: it should compare current activation
   rates with the launch assumptions and return privacy-safe bottlenecks for the
   next stage to improve.

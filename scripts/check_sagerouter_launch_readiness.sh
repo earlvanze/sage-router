@@ -588,6 +588,9 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderRevenueActions" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-revenue-action-renderer"
   fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderAcquisitionActions" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-acquisition-action-renderer"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   status_code="$(http_code_follow "${APP_BASE%/}/status")"
@@ -1342,6 +1345,7 @@ check_admin_token() {
     ((.targets // {}) | has("signupToGeneratedKey") and has("generatedKeyToFirstRequest") and has("signupToPaidConversion") and has("paidRecentUsage") and has("mrrTargetAttainment")) and
     ((.targets.signupToGeneratedKey // {}) | .targetRate == 0.6) and
     ((.bottlenecks // []) | type == "array") and
+    ((.acquisitionActions // []) | type == "array") and
     ((.privacy // {}) | .containsEmails == false) and
     ((.mrr // {}) | .targetMrrUsd == 10000) and
     ((.mrr // {}) | has("estimatedCurrentMrrUsd")) and

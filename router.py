@@ -4911,6 +4911,62 @@ def marketing_channel_bucket(metadata):
     return 'other'
 
 
+def launch_acquisition_action(kind, bucket):
+    normalized = str(bucket or '').strip().lower()
+    if kind == 'sourceSurface':
+        actions = {
+            'pricing': 'Tighten pricing CTAs, checkout plan defaults, and proof around hosted key activation.',
+            'model-routing-calculator': 'Turn calculator interest into implementation calls and preselected Pro/Max checkout.',
+            'compare-openrouter': 'Route OpenRouter comparison traffic into the migration guide, model catalog, and hosted checkout.',
+            'landing': 'Keep the homepage focused on account creation, pricing, model catalog, and migration CTAs.',
+            'account': 'Reduce signed-in friction from plan selection to generated key and first routed request.',
+            'login': 'Improve login/signup handoff copy and OAuth/email fallback paths.',
+            'billing': 'Use billing recovery traffic to unblock checkout, portal, manual activation, and quota issues.',
+        }
+        return actions.get(normalized, 'Review this source surface for the next highest-friction CTA.')
+    actions = {
+        'openrouter': 'Publish OpenRouter migration proof and comparison CTAs for users already shopping hosted routers.',
+        'github': 'Convert GitHub traffic with README, issue-template, and docs links into quickstart and pricing paths.',
+        'google': 'Improve search landing pages around OpenAI-compatible routing, model fallback, and hosted API keys.',
+        'discord': 'Use Discord/community traffic for founder-led activation help and first-request debugging.',
+        'reddit': 'Package comparison, migration, and reliability proof for Reddit-style evaluation threads.',
+        'newsletter': 'Turn newsletter traffic into pricing/calculator/account CTAs with a single launch offer.',
+        'docs': 'Add checkout and account next steps to docs pages that already educate qualified traffic.',
+        'direct': 'Clarify the direct landing path from homepage to plan, generated key, and first routed request.',
+        'sagerouter': 'Cross-link internal Sage Router pages toward the current lowest-performing activation step.',
+    }
+    return actions.get(normalized, 'Review this channel for acquisition copy, CTA placement, and checkout friction.')
+
+
+def launch_acquisition_actions(marketing_metrics):
+    if not isinstance(marketing_metrics, dict):
+        return []
+    rows = []
+    specs = (
+        ('sourceSurface', marketing_metrics.get('sourceSurfaces') or {}),
+        ('attributionChannel', marketing_metrics.get('attributionChannels') or {}),
+    )
+    for kind, counts in specs:
+        if not isinstance(counts, dict):
+            continue
+        for bucket, count in counts.items():
+            try:
+                clicks = int(count or 0)
+            except (TypeError, ValueError):
+                clicks = 0
+            if clicks <= 0 or bucket in {'unknown', 'other'}:
+                continue
+            rows.append({
+                'kind': kind,
+                'bucket': str(bucket),
+                'clicks': clicks,
+                'priority': 'scale_existing_signal',
+                'action': launch_acquisition_action(kind, bucket),
+            })
+    rows.sort(key=lambda row: (-int(row.get('clicks') or 0), str(row.get('kind') or ''), str(row.get('bucket') or '')))
+    return rows[:12]
+
+
 def new_managed_access_demand_metrics():
     return {
         'targetProviderFamily': {bucket: 0 for bucket in (*MANAGED_ACCESS_TARGET_PROVIDER_BUCKETS, 'unknown')},
@@ -5062,6 +5118,9 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
     event_source, route_events = route_events_for_window(window_seconds, event_limit)
     waitlist_metrics, waitlist_error = read_launch_waitlist_counts(since)
     marketing_metrics, marketing_error = read_launch_marketing_funnel_counts(since)
+    acquisition_actions = launch_acquisition_actions(marketing_metrics)
+    if isinstance(marketing_metrics, dict):
+        marketing_metrics = {**marketing_metrics, 'acquisitionActions': acquisition_actions}
     waitlist_count = waitlist_metrics.get('total', 0) if isinstance(waitlist_metrics, dict) else None
     waitlist_interest = waitlist_metrics.get('interest') if isinstance(waitlist_metrics, dict) else None
     managed_access_demand = waitlist_metrics.get('managedAccessDemand') if isinstance(waitlist_metrics, dict) else None
@@ -5155,6 +5214,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'containsApiKeys': False,
         },
         'marketingIntent': marketing_metrics,
+        'acquisitionActions': acquisition_actions,
         'stages': stages,
         'waitlistInterest': waitlist_interest,
         'managedAccessDemand': managed_access_demand,
