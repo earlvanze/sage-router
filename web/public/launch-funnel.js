@@ -1,4 +1,5 @@
 const API_BASE = window.SAGE_ROUTER_API_URL || 'https://api.sagerouter.dev';
+const MARKETING_BASE = window.SAGE_ROUTER_MARKETING_URL || 'https://sagerouter.dev';
 const SESSION_TOKEN_KEY = 'sage_router_operator_launch_funnel_token';
 
 const $ = (id) => document.getElementById(id);
@@ -119,6 +120,61 @@ function customerActionLabel(action) {
   return String(action || '').replace(/_/g, ' ');
 }
 
+function campaignSlug(value) {
+  return String(value || 'acquisition')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'acquisition';
+}
+
+function campaignTemplateForAction(kind, bucket) {
+  const normalizedKind = String(kind || '').trim();
+  const normalizedBucket = String(bucket || '').trim().toLowerCase();
+  const templates = {
+    sourceSurface: {
+      pricing: ['/pricing', 'operator', 'launch_funnel', 'pricing_checkout_proof'],
+      'model-routing-calculator': ['/model-routing-calculator', 'operator', 'launch_funnel', 'calculator_qualification'],
+      'compare-openrouter': ['/compare/openrouter', 'openrouter', 'founder', 'launch_openrouter_migration'],
+      'launch-plan': ['/launch-plan', 'operator', 'launch_funnel', 'founder_sales'],
+      landing: ['/', 'operator', 'launch_funnel', 'homepage_activation'],
+      account: ['/account.html', 'operator', 'launch_funnel', 'account_activation'],
+      login: ['/login.html', 'operator', 'launch_funnel', 'signup_onboarding'],
+      billing: ['/billing.html', 'operator', 'launch_funnel', 'billing_recovery'],
+    },
+    attributionChannel: {
+      openrouter: ['/compare/openrouter', 'openrouter', 'founder', 'launch_openrouter_migration'],
+      github: ['/quickstart', 'github', 'readme', 'launch_builder_quickstart'],
+      google: ['/quickstart', 'google', 'search', 'launch_search_router'],
+      discord: ['/support', 'discord', 'community', 'launch_founder_activation'],
+      reddit: ['/compare/openrouter', 'reddit', 'community', 'launch_comparison_threads'],
+      newsletter: ['/pricing', 'newsletter', 'email', 'launch_subscription_offer'],
+      docs: ['/quickstart', 'docs', 'docs', 'launch_docs_conversion'],
+      direct: ['/', 'direct', 'direct', 'launch_homepage_activation'],
+      sagerouter: ['/pricing', 'sagerouter', 'internal', 'launch_internal_conversion'],
+    },
+  };
+  const selected = templates[normalizedKind]?.[normalizedBucket];
+  if (selected) {
+    const [path, source, medium, campaign] = selected;
+    return { path, source, medium, campaign };
+  }
+  return {
+    path: '/quickstart',
+    source: normalizedBucket || 'operator',
+    medium: normalizedKind === 'sourceSurface' ? 'launch_funnel' : 'referral',
+    campaign: `launch_${campaignSlug(normalizedBucket || normalizedKind)}`,
+  };
+}
+
+function launchActionUrl(row = {}) {
+  const template = campaignTemplateForAction(row.kind, row.bucket);
+  const url = new URL(template.path, MARKETING_BASE);
+  url.searchParams.set('utm_source', template.source);
+  url.searchParams.set('utm_medium', template.medium);
+  url.searchParams.set('utm_campaign', template.campaign);
+  return url.toString();
+}
+
 function reviewTone(severity) {
   const normalized = String(severity || '').toLowerCase();
   if (normalized === 'bad') return 'bad';
@@ -187,7 +243,7 @@ function renderAcquisitionActions(actions = []) {
       <td><span class="pill">${esc(attributionLabel(row.bucket || row.kind || 'source'))}</span></td>
       <td>${integer(row.clicks)}</td>
       <td>${esc(customerActionLabel(row.priority || 'review'))}</td>
-      <td>${esc(row.action || '')}</td>
+      <td>${esc(row.action || '')}<br><a class="pill good" href="${esc(launchActionUrl(row))}" target="_blank" rel="noopener noreferrer">Campaign link</a></td>
     </tr>`).join('')}</tbody>
   </table>`;
 }

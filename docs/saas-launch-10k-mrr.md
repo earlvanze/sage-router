@@ -267,6 +267,9 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   operator can decide whether the next push should be OpenRouter migration
   content, GitHub/docs conversion, community outreach, pricing-page tuning, or
   calculator follow-up without reading raw campaign URLs or identities.
+- Render deterministic campaign links for those ranked acquisition actions in
+  the private operator dashboard, using only coarse action buckets to generate
+  public UTM URLs instead of storing or replaying raw visitor URLs.
 - Keep `app.sagerouter.dev/account.html` aligned with the same activation
   funnel: signed-in account, paid routing, generated key, public-edge
   `/v1/models` verification, and server-recorded first routed usage.
