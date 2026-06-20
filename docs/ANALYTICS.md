@@ -102,6 +102,12 @@ The conversion actions table sits between those views and translates
 target-aware bottlenecks into the next owner/surface/success metric to work,
 without returning identities, prompts, keys, provider credentials, or raw
 campaign URLs.
+The dashboard also builds a copyable no-secret operator launch brief from the
+same aggregate funnel snapshot. It condenses `$10k MRR` attainment, activation,
+checkout friction, the top conversion move, revenue motions, deterministic
+acquisition links, managed-access demand, and GitHub OAuth onboarding state for
+founder-sales or support follow-up without emails, prompts, OAuth tokens,
+generated API keys, provider credentials, raw campaign URLs, or raw responses.
 The same dashboard includes an operational readiness panel backed only by
 public `/edge/health` and `/pricing` metadata. It keeps live edge health,
 customer API-key enforcement, Stripe checkout/portal readiness, and

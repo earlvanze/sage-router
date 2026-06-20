@@ -331,6 +331,12 @@ provider resale claim, or runtime feature flag.
   the private operator dashboard, using only coarse action buckets to generate
   public UTM URLs instead of storing or replaying raw visitor URLs, and make
   those links copyable for founder-sales outreach.
+- Render a copyable no-secret launch brief in the private operator dashboard
+  from the same aggregate funnel snapshot, so founder-sales and support
+  follow-up can use the current MRR, activation, checkout friction, conversion,
+  acquisition, managed-access, and OAuth onboarding state without copying
+  emails, prompts, OAuth tokens, generated API keys, provider credentials, raw
+  campaign URLs, or raw responses.
 - Keep `app.sagerouter.dev/account.html` aligned with the same activation
   funnel: signed-in account, paid routing, generated key, public-edge
   `/v1/models` verification, and server-recorded first routed usage.

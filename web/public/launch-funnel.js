@@ -198,6 +198,107 @@ function renderCampaignActions(row = {}) {
   </div>`;
 }
 
+function firstAction(rows = []) {
+  return Array.isArray(rows) && rows.length ? rows[0] : {};
+}
+
+function actionLine(row = {}) {
+  const label = row.label || row.metric || row.surface || row.plan || row.bucket || 'launch action';
+  const action = row.action || 'Review this launch motion.';
+  return `${label}: ${action}`;
+}
+
+function buildLaunchBrief(data = {}) {
+  const stages = data.stages || {};
+  const rates = data.rates || {};
+  const mrr = data.mrr || {};
+  const marketingIntent = data.marketingIntent || {};
+  const checkoutFriction = marketingIntent.checkoutFriction || {};
+  const authState = marketingIntent.authProviderState || {};
+  const managedAccessDemand = data.managedAccessDemand || {};
+  const acquisitionActions = data.acquisitionActions || marketingIntent.acquisitionActions || [];
+  const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+  const bottleneck = firstAction(data.bottlenecks);
+  const conversionAction = firstAction(data.conversionActions);
+  const topAcquisition = acquisitionActions.slice(0, 3);
+  const topRevenue = revenueActions.slice(0, 3);
+  const generatedAt = data.generatedAt ? new Date(data.generatedAt * 1000).toLocaleString() : 'unknown';
+  const lines = [
+    'Sage Router operator launch brief',
+    `Generated: ${generatedAt}`,
+    'Boundary: No secrets or customer data; excludes emails, prompts, OAuth tokens, generated API keys, provider credentials, raw campaign URLs, and raw responses.',
+    '',
+    '$10k MRR snapshot',
+    `- Estimated MRR: ${money(mrr.estimatedCurrentMrrUsd)} / ${money(mrr.targetMrrUsd)} (${percent(mrr.targetAttainment)} attainment)`,
+    `- MRR gap: ${money(Math.max(0, asNumber(mrr.targetMrrUsd) - asNumber(mrr.estimatedCurrentMrrUsd)))}`,
+    `- Paid customers: ${integer(stages.paidCustomers)}; paid conversions: ${integer(stages.paidConversions)}; retained paid with usage: ${integer(stages.retainedPaidCustomers ?? stages.retainedPaidWithUsage)}`,
+    '',
+    'Activation snapshot',
+    `- Signups: ${integer(stages.signups)}; generated-key accounts: ${integer(stages.customersWithGeneratedApiKeys ?? stages.generatedApiKeys)}; first routed request: ${integer(stages.customersWithFirstRoutedRequest ?? stages.firstRoutedRequest)}`,
+    `- Generated-key to first request: ${percent(rates.generatedKeyToFirstRequest)}; setup-copy to first request: ${percent(rates.setupCopyToFirstRequest)}`,
+    `- Checkout unavailable: ${integer(checkoutFriction.unavailableEvents)} / ${integer(checkoutFriction.totalCheckoutIntent)} intent events (${percent(checkoutFriction.unavailableRate)})`,
+    '',
+    'Next conversion move',
+    `- Bottleneck: ${actionLine(bottleneck)}`,
+    `- Owner/surface: ${conversionAction.owner || 'Operator'} / ${conversionAction.surface || 'launch funnel'}`,
+    `- Success metric: ${conversionAction.successMetric || 'Improve the next funnel stage.'}`,
+    '',
+    'Revenue motions',
+    ...(topRevenue.length ? topRevenue.map(row => `- ${row.plan || row.label || 'plan'}: ${integer(row.customerGap)} customers remaining, ${money(row.remainingMrrToTargetUsd)} gap. ${row.action || 'Review plan conversion.'}`) : ['- No remaining revenue actions returned for the launch mix.']),
+    '',
+    'Acquisition motions',
+    ...(topAcquisition.length ? topAcquisition.map(row => `- ${attributionLabel(row.bucket || row.kind || 'source')}: ${integer(row.clicks)} clicks, ${customerActionLabel(row.priority || 'review')}. ${row.action || 'Review this channel.'} Link: ${launchActionUrl(row)}`) : ['- No ranked acquisition actions returned for this window.']),
+    '',
+    'Managed-access demand',
+    `- Beta interest: ${integer(stages.managedAccessBetaInterest)}; waitlist share: ${percent(rates.managedAccessShareOfWaitlist)}`,
+    `- Target-provider buckets: ${sortedEntries(managedAccessDemand.targetProviderFamily).slice(0, 4).map(([name, count]) => `${demandLabel(name)} ${integer(count)}`).join(', ') || 'none'}`,
+    `- Commercial buckets: ${sortedEntries(managedAccessDemand.commercialPreference).slice(0, 4).map(([name, count]) => `${demandLabel(name)} ${integer(count)}`).join(', ') || 'none'}`,
+    '',
+    'OAuth onboarding state',
+    `- GitHub enabled checks: ${integer(authState.githubEnabled)}; GitHub disabled checks: ${integer(authState.githubDisabled)}; email remains the baseline signup path until GitHub is enabled.`,
+  ];
+  return `${lines.join('\n')}\n`;
+}
+
+function renderLaunchBrief(data = {}) {
+  const brief = buildLaunchBrief(data);
+  setText('launch-brief', brief);
+  setText('launch-brief-status', 'No-secret launch brief generated from aggregate funnel data.');
+}
+
+async function copyLaunchBrief() {
+  const brief = $('launch-brief')?.textContent || '';
+  const status = $('launch-brief-status');
+  if (!brief || brief.includes('Load the funnel')) {
+    if (status) status.textContent = 'Load the funnel before copying the launch brief.';
+    return;
+  }
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(brief);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = brief;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+    if (status) {
+      status.className = 'status good';
+      status.textContent = 'Copied no-secret launch brief.';
+    }
+  } catch (error) {
+    if (status) {
+      status.className = 'status bad';
+      status.textContent = `Launch brief copy failed: ${error.message}`;
+    }
+  }
+}
+
 async function copyCampaignUrl(button) {
   const url = button.getAttribute('data-copy-campaign') || '';
   if (!url) return;
@@ -617,6 +718,7 @@ function renderFunnel(data) {
   renderManagedAccessDemand(managedAccessDemand);
   renderPlanMix(mrr.byPlan || {});
   renderRevenueActions(mrr.planRevenueActions || []);
+  renderLaunchBrief(data);
   $('dashboard').classList.remove('hidden');
   fetchOperationalReadiness();
 }
@@ -884,6 +986,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('customers').addEventListener('click', handleCustomerClick);
   $('customer-detail').addEventListener('click', handleCustomerClick);
   $('acquisition-actions').addEventListener('click', handleCampaignCopyClick);
+  $('copy-launch-brief').addEventListener('click', copyLaunchBrief);
   if ($('operator-token').value) {
     fetchFunnel();
   }

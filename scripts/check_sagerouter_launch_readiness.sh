@@ -621,6 +621,9 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "OAuth onboarding state" /tmp/sage-router-readiness-body; then
     launch_funnel_code="200:missing-auth-provider-state"
   fi
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Operator launch brief" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:missing-operator-launch-brief"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   launch_funnel_js_code="$(http_code_follow "${APP_BASE%/}/launch-funnel.js")"
@@ -653,6 +656,12 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "setupSnippetCopiesBySnippet" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-setup-copy-renderer"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "buildLaunchBrief" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-launch-brief-builder"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "No secrets or customer data" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-launch-brief-privacy-boundary"
   fi
   rm -f /tmp/sage-router-readiness-body
 
