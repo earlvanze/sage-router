@@ -188,23 +188,24 @@ The account page also renders hosted plan selection before sign-in from public
 storage, shows quota, rate limit, and estimated cost per 1,000 requests, and is
 used after login when the customer continues to Stripe checkout.
 
-The public calculator, pricing, and OpenRouter comparison pages emit anonymous
-pre-signup CTA intent to `/api/funnel-event` so the private launch funnel can
-count demand before users create accounts. The event path stores event name,
-selected plan, sanitized source/target URL, and small metadata buckets only; it
-must not store workflow text, prompt bodies, emails, API keys, or provider
-credentials.
+The public homepage, calculator, pricing, and OpenRouter comparison pages emit
+anonymous pre-signup CTA intent to `/api/funnel-event` so the private launch
+funnel can count demand before users create accounts. The event path stores
+event name, selected plan, sanitized source/target URL, and small metadata
+buckets only; it must not store workflow text, prompt bodies, emails, API keys,
+or provider credentials.
 
 The account page also emits privacy-safe checkout intent events for plan
 selection, Stripe checkout clicks and returns, Stripe portal clicks and returns,
 and crypto/manual payment intent clicks. Pricing, calculator, OpenRouter
-comparison, and account events include only coarse attribution buckets such as
-source surface, UTM source/medium/campaign tokens, referrer host, and landing
-path; the operator launch funnel aggregates those into source-surface and
-channel counts without returning raw URLs, emails, prompts, credentials, or
-API keys. These events help diagnose customer drop-off after login and which
-launch channels produce demand; Stripe webhooks and Supabase customer state
-remain the source of truth for paid conversion, quota, and routing entitlement.
+comparison, account, and homepage events include only coarse attribution
+buckets such as source surface, UTM source/medium/campaign tokens, referrer
+host, and landing path; the operator launch funnel aggregates those into
+source-surface and channel counts without returning raw URLs, emails, prompts,
+credentials, or API keys. These events help diagnose customer drop-off after
+login and which launch channels produce demand; Stripe webhooks and Supabase
+customer state remain the source of truth for paid conversion, quota, and
+routing entitlement.
 The hosted `/billing` recovery page uses the same event path for account,
 pricing, support, troubleshooting, quickstart, and status clicks so payment
 recovery friction is visible without collecting invoices, support messages,

@@ -4754,6 +4754,7 @@ MARKETING_SOURCE_SURFACE_BUCKETS = (
     'compare-openrouter',
     'account',
     'billing',
+    'landing',
 )
 MARKETING_ATTRIBUTION_CHANNEL_BUCKETS = (
     'direct',

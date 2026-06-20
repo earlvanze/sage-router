@@ -133,11 +133,11 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   hosted API key or request implementation support. The calculator should
   recommend Lite, Pro, or Max from the workflow profile and send the prospect
   into preselected checkout with `/account.html?plan=...`.
-- Capture pre-signup CTA intent from the calculator, pricing, and OpenRouter
-  comparison pages through the privacy-safe `/api/funnel-event` path. Store
-  only event, plan, sanitized source/target URL, and small allowlisted metadata
-  buckets; do not store prompts, workflow text, emails, API keys, or provider
-  credentials.
+- Capture pre-signup CTA intent from the homepage, calculator, pricing, and
+  OpenRouter comparison pages through the privacy-safe `/api/funnel-event`
+  path. Store only event, plan, sanitized source/target URL, and small
+  allowlisted metadata buckets; do not store prompts, workflow text, emails,
+  API keys, or provider credentials.
 - Preserve coarse launch-channel attribution on those CTA events by storing
   only source surface, UTM source/medium/campaign tokens, referrer host, and
   landing path, then report aggregated channel attribution in the private

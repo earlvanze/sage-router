@@ -24,6 +24,21 @@ const ALLOWED_EVENTS = new Set([
   'billing_quickstart_clicked',
   'billing_status_clicked',
   'billing_troubleshooting_clicked',
+  'landing_account_clicked',
+  'landing_pricing_clicked',
+  'landing_billing_clicked',
+  'landing_quickstart_clicked',
+  'landing_integrations_clicked',
+  'landing_status_clicked',
+  'landing_openrouter_compare_clicked',
+  'landing_models_clicked',
+  'landing_calculator_clicked',
+  'landing_managed_access_clicked',
+  'landing_security_clicked',
+  'landing_analytics_clicked',
+  'landing_login_clicked',
+  'landing_github_clicked',
+  'landing_waitlist_submitted',
 ]);
 
 const ALLOWED_PLANS = new Set(['lite', 'pro', 'max', 'trial', 'manual']);

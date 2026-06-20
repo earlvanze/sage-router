@@ -916,8 +916,9 @@ class SaaSAuthTests(unittest.TestCase):
             },
         }, None)
         router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
-            'total': 5,
+            'total': 6,
             'events': {
+                'landing_account_clicked': 1,
                 'calculator_checkout_clicked': 2,
                 'pricing_checkout_clicked': 1,
                 'managed_access_interest_clicked': 1,
@@ -928,6 +929,7 @@ class SaaSAuthTests(unittest.TestCase):
                 'max': 1,
             },
             'sourceSurfaces': {
+                'landing': 1,
                 'pricing': 2,
                 'compare-openrouter': 2,
                 'account': 1,
@@ -958,10 +960,12 @@ class SaaSAuthTests(unittest.TestCase):
         snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
 
         self.assertEqual(3, snapshot['stages']['waitlistLeads'])
-        self.assertEqual(5, snapshot['stages']['marketingIntentEvents'])
+        self.assertEqual(6, snapshot['stages']['marketingIntentEvents'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['landing_account_clicked'])
         self.assertEqual(2, snapshot['marketingIntent']['events']['calculator_checkout_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['openrouter_compare_checkout_clicked'])
         self.assertEqual(3, snapshot['marketingIntent']['plans']['pro'])
+        self.assertEqual(1, snapshot['marketingIntent']['sourceSurfaces']['landing'])
         self.assertEqual(2, snapshot['marketingIntent']['sourceSurfaces']['pricing'])
         self.assertEqual(2, snapshot['marketingIntent']['sourceSurfaces']['compare-openrouter'])
         self.assertEqual(2, snapshot['marketingIntent']['attributionChannels']['github'])
@@ -1063,6 +1067,15 @@ class SaaSAuthTests(unittest.TestCase):
             self.assertIn('created_at=gte.', query)
             return [
                 {
+                    'event': 'landing_account_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'landing',
+                        'utmSource': 'discord',
+                    },
+                },
+                {
                     'event': 'calculator_checkout_clicked',
                     'plan': 'pro',
                     'created_at': '2026-06-19T00:00:00Z',
@@ -1107,14 +1120,16 @@ class SaaSAuthTests(unittest.TestCase):
         metrics, error = router.read_launch_marketing_funnel_counts(0)
 
         self.assertIsNone(error)
-        self.assertEqual(5, metrics['total'])
+        self.assertEqual(6, metrics['total'])
+        self.assertEqual(1, metrics['events']['landing_account_clicked'])
         self.assertEqual(2, metrics['events']['calculator_checkout_clicked'])
         self.assertEqual(1, metrics['events']['pricing_checkout_clicked'])
         self.assertEqual(1, metrics['events']['billing_payment_recovery_clicked'])
         self.assertEqual(1, metrics['events']['unknown'])
-        self.assertEqual(2, metrics['plans']['pro'])
+        self.assertEqual(3, metrics['plans']['pro'])
         self.assertEqual(1, metrics['plans']['lite'])
         self.assertEqual(1, metrics['plans']['manual'])
+        self.assertEqual(1, metrics['sourceSurfaces']['landing'])
         self.assertEqual(1, metrics['sourceSurfaces']['model-routing-calculator'])
         self.assertEqual(1, metrics['sourceSurfaces']['compare-openrouter'])
         self.assertEqual(1, metrics['sourceSurfaces']['pricing'])
@@ -1123,6 +1138,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['attributionChannels']['github'])
         self.assertEqual(1, metrics['attributionChannels']['openrouter'])
         self.assertEqual(1, metrics['attributionChannels']['google'])
+        self.assertEqual(1, metrics['attributionChannels']['discord'])
         self.assertEqual(2, metrics['attributionChannels']['direct'])
         self.assertNotIn('email', json.dumps(metrics))
         self.assertNotIn('buyer@example.com', json.dumps(metrics))

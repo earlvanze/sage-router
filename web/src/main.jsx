@@ -20,6 +20,48 @@ const steps = [
   },
 ];
 
+function referrerHost() {
+  try {
+    const referrer = document.referrer ? new URL(document.referrer) : null;
+    return referrer && referrer.host !== window.location.host ? referrer.host : null;
+  } catch {
+    return null;
+  }
+}
+
+function trackLandingFunnelEvent(event, data = {}) {
+  const params = new URLSearchParams(window.location.search);
+  const payload = JSON.stringify({
+    event,
+    plan: data.plan || null,
+    sourcePage: window.location.href,
+    target: data.target || null,
+    metadata: {
+      source: 'landing',
+      button: data.button || null,
+      state: data.state || null,
+      utmSource: params.get('utm_source') || params.get('utmSource') || null,
+      utmMedium: params.get('utm_medium') || params.get('utmMedium') || null,
+      utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
+      referrerHost: referrerHost(),
+      landingPath: window.location.pathname,
+    },
+  });
+  try {
+    if (navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: 'application/json' });
+      if (navigator.sendBeacon('/api/funnel-event', blob)) return;
+    }
+  } catch {}
+  fetch('/api/funnel-event', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: payload,
+    keepalive: true,
+    credentials: 'omit',
+  }).catch(() => {});
+}
+
 const loadTurnstileScript = () => new Promise((resolve, reject) => {
   if (window.turnstile) {
     resolve(window.turnstile);
@@ -120,6 +162,11 @@ function WaitlistForm() {
         if (!response.ok) throw new Error('Submit failed');
         form.reset();
         resetTurnstile();
+        trackLandingFunnelEvent('landing_waitlist_submitted', {
+          target: '#waitlist',
+          button: 'Join waitlist',
+          state: interest,
+        });
         setStatus('You are on the list.');
       } catch (error) {
         resetTurnstile();
@@ -182,46 +229,103 @@ function App() {
               OpenHands, and OpenAI-compatible clients across authorized providers and local/cloud models.
             </p>
             <div className="heroActions">
-              <a className="button primary" href="/account.html?plan=pro">
+              <a className="button primary" href="/account.html?plan=pro" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
+                plan: 'pro',
+                target: '/account.html?plan=pro',
+                button: 'Create hosted API key',
+                state: 'hero',
+              })}>
                 Create hosted API key
               </a>
-              <a className="button secondary" href="/pricing">
+              <a className="button secondary" href="/pricing" onClick={() => trackLandingFunnelEvent('landing_pricing_clicked', {
+                target: '/pricing',
+                button: 'Compare hosted plans',
+                state: 'hero',
+              })}>
                 Compare hosted plans
               </a>
-              <a className="button secondary" href="/billing">
+              <a className="button secondary" href="/billing" onClick={() => trackLandingFunnelEvent('landing_billing_clicked', {
+                target: '/billing',
+                button: 'Billing help',
+                state: 'hero',
+              })}>
                 Billing help
               </a>
-              <a className="button secondary" href="/quickstart">
+              <a className="button secondary" href="/quickstart" onClick={() => trackLandingFunnelEvent('landing_quickstart_clicked', {
+                target: '/quickstart',
+                button: 'Read quickstart',
+                state: 'hero',
+              })}>
                 Read quickstart
               </a>
-              <a className="button secondary" href="/integrations">
+              <a className="button secondary" href="/integrations" onClick={() => trackLandingFunnelEvent('landing_integrations_clicked', {
+                target: '/integrations',
+                button: 'Browse integrations',
+                state: 'hero',
+              })}>
                 Browse integrations
               </a>
-              <a className="button secondary" href="/status">
+              <a className="button secondary" href="/status" onClick={() => trackLandingFunnelEvent('landing_status_clicked', {
+                target: '/status',
+                button: 'View public status',
+                state: 'hero',
+              })}>
                 View public status
               </a>
-              <a className="button secondary" href="/compare/openrouter">
+              <a className="button secondary" href="/compare/openrouter" onClick={() => trackLandingFunnelEvent('landing_openrouter_compare_clicked', {
+                target: '/compare/openrouter',
+                button: 'Compare OpenRouter',
+                state: 'hero',
+              })}>
                 Compare OpenRouter
               </a>
-              <a className="button secondary" href="/models">
+              <a className="button secondary" href="/models" onClick={() => trackLandingFunnelEvent('landing_models_clicked', {
+                target: '/models',
+                button: 'Browse models',
+                state: 'hero',
+              })}>
                 Browse models
               </a>
-              <a className="button secondary" href="/model-routing-calculator">
+              <a className="button secondary" href="/model-routing-calculator" onClick={() => trackLandingFunnelEvent('landing_calculator_clicked', {
+                target: '/model-routing-calculator',
+                button: 'Estimate routing savings',
+                state: 'hero',
+              })}>
                 Estimate routing savings
               </a>
-              <a className="button secondary" href="/managed-access">
+              <a className="button secondary" href="/managed-access" onClick={() => trackLandingFunnelEvent('landing_managed_access_clicked', {
+                target: '/managed-access',
+                button: 'Managed access beta',
+                state: 'hero',
+              })}>
                 Managed access beta
               </a>
-              <a className="button secondary" href="/security">
+              <a className="button secondary" href="/security" onClick={() => trackLandingFunnelEvent('landing_security_clicked', {
+                target: '/security',
+                button: 'Review security',
+                state: 'hero',
+              })}>
                 Review security
               </a>
-              <a className="button secondary" href="/analytics.html">
+              <a className="button secondary" href="/analytics.html" onClick={() => trackLandingFunnelEvent('landing_analytics_clicked', {
+                target: '/analytics.html',
+                button: 'View analytics dashboard',
+                state: 'hero',
+              })}>
                 View analytics dashboard
               </a>
-              <a className="button secondary" href="/login.html">
+              <a className="button secondary" href="/login.html" onClick={() => trackLandingFunnelEvent('landing_login_clicked', {
+                target: '/login.html',
+                button: 'Sign in',
+                state: 'hero',
+              })}>
                 Sign in
               </a>
-              <a className="button secondary" href="https://github.com/earlvanze/sage-router">
+              <a className="button secondary" href="https://github.com/earlvanze/sage-router" onClick={() => trackLandingFunnelEvent('landing_github_clicked', {
+                target: 'https://github.com/earlvanze/sage-router',
+                button: 'Run locally',
+                state: 'hero',
+              })}>
                 Run locally
               </a>
             </div>
