@@ -65,6 +65,9 @@ PII or request content:
 - target-aware bottlenecks for signup-to-key, key-to-first-request,
   setup-copy activation, signup-to-paid, paid recent usage, checkout
   readiness, and `$10k MRR` attainment
+- conversion actions derived from those bottlenecks, with owner, surface,
+  success metric, and bounded action copy for the next activation or revenue
+  fix
 
 The funnel reads only timestamps, allowlisted managed-access qualification
 buckets, coarse CTA attribution buckets, setup snippet IDs, and countable customer/key status
@@ -87,6 +90,10 @@ The acquisition actions table ranks active source/channel signals by anonymous
 CTA clicks, and the revenue actions table ranks Lite, Pro, and Max plan gaps by
 remaining MRR so the operator can choose the next acquisition motion without
 returning customer identities.
+The conversion actions table sits between those views and translates
+target-aware bottlenecks into the next owner/surface/success metric to work,
+without returning identities, prompts, keys, provider credentials, or raw
+campaign URLs.
 The same dashboard includes an operational readiness panel backed only by
 public `/edge/health` and `/pricing` metadata. It keeps live edge health,
 customer API-key enforcement, Stripe checkout/portal readiness, and

@@ -1,5 +1,6 @@
 const API_BASE = window.SAGE_ROUTER_API_URL || 'https://api.sagerouter.dev';
 const MARKETING_BASE = window.SAGE_ROUTER_MARKETING_URL || 'https://sagerouter.dev';
+const APP_BASE = window.SAGE_ROUTER_APP_URL || window.location.origin;
 const SESSION_TOKEN_KEY = 'sage_router_operator_launch_funnel_token';
 
 const $ = (id) => document.getElementById(id);
@@ -322,6 +323,38 @@ function renderBottlenecks(rows = []) {
   </table>`;
 }
 
+function conversionActionUrl(row = {}) {
+  const path = String(row.ctaPath || '/launch-plan');
+  const base = path.endsWith('.html') || path.startsWith('/analytics') ? APP_BASE : MARKETING_BASE;
+  return new URL(path, base).toString();
+}
+
+function conversionActionValue(row = {}) {
+  if (row.metric === 'mrrTargetAttainment') return money(row.gap);
+  return gapLabel(row);
+}
+
+function renderConversionActions(actions = []) {
+  if (!actions.length) {
+    $('conversion-actions').innerHTML = '<div class="empty">No conversion actions returned for this window.</div>';
+    return;
+  }
+  $('conversion-actions').innerHTML = `<table>
+    <thead><tr><th>Priority</th><th>Owner</th><th>Surface</th><th>Gap</th><th>Action</th><th>Success</th></tr></thead>
+    <tbody>${actions.map(row => {
+      const url = conversionActionUrl(row);
+      return `<tr>
+        <td><span class="pill ${row.priority === 'fix_now' ? 'warn' : ''}">${esc(customerActionLabel(row.priority || 'review'))}</span></td>
+        <td>${esc(row.owner || 'Operator')}</td>
+        <td><a class="pill" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(row.surface || row.label || 'surface')}</a></td>
+        <td>${conversionActionValue(row)}</td>
+        <td>${esc(row.action || '')}</td>
+        <td>${esc(row.successMetric || '')}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
 function eventLabel(name) {
   return String(name || 'unknown')
     .replace(/^openrouter_compare_/, 'openrouter ')
@@ -577,6 +610,7 @@ function renderFunnel(data) {
   privacyEl.className = privacy.containsEmails === false && privacy.containsApiKeys === false ? 'pill good' : 'pill bad';
 
   renderBottlenecks(data.bottlenecks || []);
+  renderConversionActions(data.conversionActions || []);
   renderMarketingIntent(marketingIntent);
   renderAuthProviderState(marketingIntent.authProviderState || {});
   renderAcquisitionActions(data.acquisitionActions || marketingIntent.acquisitionActions || []);

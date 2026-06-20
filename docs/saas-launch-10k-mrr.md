@@ -336,6 +336,9 @@ provider resale claim, or runtime feature flag.
 - Keep `/analytics/funnel` target-aware: it should compare current activation
   rates with the launch assumptions and return privacy-safe bottlenecks for the
   next stage to improve.
+- Return and render conversion actions from those target-aware bottlenecks so
+  the private operator dashboard shows owner, surface, action, and success
+  metric for the next signup, activation, checkout, retention, or MRR fix.
 - Use `https://app.sagerouter.dev/launch-funnel.html` as the private operator
   view for the same data. The page is not a customer dashboard; it requires the
   private admin/analytics token and keeps optional browser persistence scoped to

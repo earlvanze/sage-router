@@ -609,6 +609,9 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Launch bottlenecks" /tmp/sage-router-readiness-body; then
     launch_funnel_code="200:missing-launch-bottlenecks"
   fi
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Conversion Actions" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:missing-conversion-actions"
+  fi
   if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Setup copy to first request" /tmp/sage-router-readiness-body; then
     launch_funnel_code="200:missing-setup-copy-activation"
   fi
@@ -635,6 +638,9 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderBottlenecks" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-bottleneck-renderer"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderConversionActions" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-conversion-action-renderer"
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderRevenueActions" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-revenue-action-renderer"
@@ -1467,6 +1473,8 @@ check_admin_token() {
     ((.targets.signupToGeneratedKey // {}) | .targetRate == 0.6) and
     ((.targets.setupCopyToFirstRequest // {}) | .targetRate == 0.35) and
     ((.bottlenecks // []) | type == "array") and
+    ((.conversionActions // []) | type == "array") and
+    ((.conversionActions // []) | all(has("metric") and has("owner") and has("surface") and has("ctaPath") and has("action") and has("successMetric"))) and
     ((.acquisitionActions // []) | type == "array") and
     ((.marketingIntent.authProviderState // {}) | has("total") and has("githubEnabled") and has("githubDisabled")) and
     ((.marketingIntent // {}) | has("setupSnippetCopies") and has("setupSnippetCopiesBySnippet")) and

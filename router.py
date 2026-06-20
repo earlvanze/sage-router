@@ -4767,6 +4767,59 @@ LAUNCH_CONVERSION_TARGETS = {
 }
 
 
+LAUNCH_CONVERSION_ACTIONS = {
+    'signupToGeneratedKey': {
+        'owner': 'Activation',
+        'surface': 'account',
+        'ctaPath': '/account.html',
+        'action': 'Audit the signed-in account path from verified email to generated key, then simplify copy and key creation CTAs.',
+        'successMetric': 'Raise signup-to-generated-key conversion to at least 60%.',
+    },
+    'generatedKeyToFirstRequest': {
+        'owner': 'Activation',
+        'surface': 'quickstart',
+        'ctaPath': '/quickstart',
+        'action': 'Test the generated-key quickstart, Codex config, and browser first-request check against the public edge.',
+        'successMetric': 'Raise generated-key-to-first-request conversion to at least 50%.',
+    },
+    'setupCopyToFirstRequest': {
+        'owner': 'Activation',
+        'surface': 'setup snippets',
+        'ctaPath': '/docs/codex',
+        'action': 'Tighten copied Codex/OpenAI snippets and route copy events into the first-request troubleshooting flow.',
+        'successMetric': 'Raise setup-copy-to-first-request activation to at least 35%.',
+    },
+    'signupToPaidConversion': {
+        'owner': 'Revenue',
+        'surface': 'pricing',
+        'ctaPath': '/pricing',
+        'action': 'Move active signups toward Lite/Pro/Max checkout with plan-specific proof and manual fallback when Stripe is unavailable.',
+        'successMetric': 'Raise signup-to-paid conversion to at least 15%.',
+    },
+    'paidRecentUsage': {
+        'owner': 'Retention',
+        'surface': 'account analytics',
+        'ctaPath': '/analytics.html',
+        'action': 'Review idle paid accounts for quota, 503, first-request, and value-proof issues before churn shows up.',
+        'successMetric': 'Keep at least 85% of paid customers using the router recently.',
+    },
+    'mrrTargetAttainment': {
+        'owner': 'Revenue',
+        'surface': 'plan mix',
+        'ctaPath': '/launch-plan',
+        'action': 'Work the largest Pro/Max plan gaps with founder-led outreach, OpenRouter migration proof, and managed-access qualification.',
+        'successMetric': 'Close the remaining gap to $10k MRR.',
+    },
+    'checkoutReadinessFriction': {
+        'owner': 'Billing',
+        'surface': 'checkout',
+        'ctaPath': '/billing.html',
+        'action': 'Fix checkout unavailable events or route buyers to manual activation before buying more traffic.',
+        'successMetric': 'Drive checkout-unavailable rate to 0%.',
+    },
+}
+
+
 CHECKOUT_INTENT_EVENTS = {
     'account_checkout_clicked',
     'account_checkout_unavailable',
@@ -4812,6 +4865,32 @@ def launch_checkout_friction(marketing_metrics):
         'unavailableRate': percent_rate(unavailable, total_intent),
         'targetUnavailableRate': 0.0,
         'action': 'Fix Stripe checkout readiness or route demand into manual activation before buying more checkout traffic.',
+    }
+
+
+def launch_conversion_action(row):
+    metric = str((row or {}).get('metric') or '')
+    spec = LAUNCH_CONVERSION_ACTIONS.get(metric, {})
+    status = str((row or {}).get('status') or '')
+    if status == 'on_track':
+        priority = 'monitor'
+    elif status == 'below_target':
+        priority = 'fix_now'
+    else:
+        priority = 'collect_data'
+    return {
+        'metric': metric,
+        'label': (row or {}).get('label') or metric,
+        'status': status,
+        'priority': priority,
+        'owner': spec.get('owner') or 'Operator',
+        'surface': spec.get('surface') or 'launch funnel',
+        'ctaPath': spec.get('ctaPath') or '/launch-plan',
+        'actualRate': (row or {}).get('actualRate'),
+        'targetRate': (row or {}).get('targetRate'),
+        'gap': (row or {}).get('gap'),
+        'action': spec.get('action') or (row or {}).get('action') or '',
+        'successMetric': spec.get('successMetric') or 'Move this conversion metric back on target.',
     }
 
 
@@ -4869,7 +4948,8 @@ def launch_conversion_snapshot(rates, mrr, checkout_friction=None):
             bottlenecks.append(checkout_row)
 
     bottlenecks.sort(key=lambda row: (0 if row.get('status') == 'below_target' else 1, row.get('gap') is None, -(float(row.get('gap') or 0))))
-    return {'targets': targets, 'bottlenecks': bottlenecks[:5]}
+    conversion_actions = [launch_conversion_action(row) for row in bottlenecks]
+    return {'targets': targets, 'bottlenecks': bottlenecks[:5], 'conversionActions': conversion_actions[:7]}
 
 
 def public_plan_monthly_price_usd(plan_name):
