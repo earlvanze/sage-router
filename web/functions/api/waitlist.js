@@ -63,9 +63,7 @@ const originForHeader = (value) => {
 };
 
 const originForRequest = (request) => {
-  const origin = originForHeader(request.headers.get('origin'));
-  if (origin) return origin;
-  return originForHeader(request.headers.get('referer'));
+  return originForHeader(request.headers.get('origin'));
 };
 
 const allowedOrigin = (origin, env) => {
@@ -169,6 +167,7 @@ export async function onRequestGet({ env }) {
     },
     writeGuard: {
       browserOriginRequired: true,
+      refererFallbackAccepted: false,
       allowedHosts: Array.from(DEFAULT_ALLOWED_ORIGIN_HOSTS).sort(),
       previewHostSuffix: '.sage-router-web.pages.dev',
       configurableOriginsEnv: 'SAGEROUTER_WAITLIST_ALLOWED_ORIGINS',

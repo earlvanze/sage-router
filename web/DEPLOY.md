@@ -55,6 +55,10 @@ Cloudflare Pages settings:
 - Optional exact-origin overrides for public insert guards: `SAGEROUTER_WAITLIST_ALLOWED_ORIGINS` and `SAGEROUTER_FUNNEL_ALLOWED_ORIGINS`
 - Optional Cloudflare Turnstile waitlist guard: set both `SAGEROUTER_TURNSTILE_SECRET_KEY` and `SAGEROUTER_TURNSTILE_SITE_KEY`
 
+Waitlist and funnel-event writes require an explicit trusted `Origin`; `Referer`
+is stored only as sanitized attribution metadata and is not accepted as a write
+authorization fallback.
+
 Do not deploy the Python router service or any local provider credentials to Pages. This site is static marketing/docs content only.
 
 ## DNS

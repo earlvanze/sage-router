@@ -191,7 +191,9 @@ authorization review.
 Browser-originating waitlist writes are guarded before Supabase inserts: Sage
 Router production hosts, Cloudflare Pages previews, local development, and exact
 origins configured with `SAGEROUTER_WAITLIST_ALLOWED_ORIGINS` are accepted, and
-Turnstile can be enabled as an additional bot challenge.
+Turnstile can be enabled as an additional bot challenge. Mutating waitlist
+requests must carry an explicit trusted `Origin`; `Referer` is only stored as
+sanitized attribution metadata and is not accepted as an origin fallback.
 
 ### Hosted Auth
 
@@ -255,9 +257,11 @@ buckets only; it must not store workflow text, prompt bodies, emails, API keys,
 or provider credentials. Browser-originating writes are also guarded by allowed
 Sage Router origins: production hosts, Cloudflare Pages preview hosts ending in
 `.sage-router-web.pages.dev`, local development hosts, and any additional exact
-origins configured with `SAGEROUTER_FUNNEL_ALLOWED_ORIGINS`. This keeps the
-service-role-backed Supabase insert path from becoming a generic third-party
-event sink.
+origins configured with `SAGEROUTER_FUNNEL_ALLOWED_ORIGINS`. Mutating funnel
+events must carry an explicit trusted `Origin`; `Referer` is stored only as
+sanitized attribution metadata and is not accepted as an origin fallback. This
+keeps the service-role-backed Supabase insert path from becoming a generic
+third-party event sink.
 
 The account and standalone login pages also emit privacy-safe activation and
 checkout intent events for signup/login attempts, OAuth clicks, wallet connect
