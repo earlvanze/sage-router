@@ -187,8 +187,8 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
 - Keep the managed provider access readiness guard active: default disabled,
   with `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` allowed only when provider
   resale terms and margin-policy URLs are configured, the minimum gross-margin
-  threshold is at least 30%, and the legal/metering/abuse-control boundary is
-  published.
+  threshold is at least 30%, durable operator audit events are installed, and
+  the legal/metering/abuse-control boundary is published.
 - Keep email/password and magic-link auth as the baseline launch path, then
   enable GitHub OAuth in Supabase after the GitHub App manifest approval code is
   available. Use `bash scripts/check_github_supabase_auth_status.sh` for a

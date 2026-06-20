@@ -49,7 +49,7 @@ Sage Router routes only across authorized provider access that customers already
 
 Hosted legal boundary: the hosted service sells routing infrastructure, account management, API key management, quotas, analytics, reliability tooling, and support. Customers remain responsible for provider terms, licenses, credentials, subscriptions, and usage authorization.
 
-Managed access boundary: managed provider access, if introduced, is limited to provider access Sage Router is authorized to resell or operate and is not unlimited unmetered resale.
+Managed access boundary: managed provider access, if introduced, is limited to provider access Sage Router is authorized to resell or operate, is not unlimited unmetered resale, and requires durable operator audit events.
 
 ## Search intents this site answers
 

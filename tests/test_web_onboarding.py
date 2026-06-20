@@ -808,6 +808,9 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("positive unit economics", readiness)
         self.assertIn("minimumGrossMarginPercent", readiness)
         self.assertIn("operator_abuse_review", readiness)
+        self.assertIn("operator_audit_events", readiness)
+        self.assertIn("sage_router_operator_audit_events?select=id&limit=1", readiness)
+        self.assertIn("Supabase operator audit table is installed", readiness)
         self.assertIn("SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED", readiness)
         self.assertIn("marketing hosted pricing page is live and in sitemap", readiness)
         self.assertIn("Target: `$10,000 MRR`", launch_plan)
@@ -816,9 +819,11 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("waitlist `interest` metadata", launch_plan)
         self.assertIn("margin-policy URLs", launch_plan)
         self.assertIn("minimum gross-margin", launch_plan)
+        self.assertIn("durable operator audit events", launch_plan)
         self.assertIn("docs/saas-launch-10k-mrr.md", readme)
         self.assertIn("managed provider access guard", readme)
         self.assertIn("positive unit economics", readme)
+        self.assertIn("durable operator audit events", readme)
 
     def test_public_model_catalog_is_discoverable_without_opening_v1_models(self):
         page = self.read_public("models.html")

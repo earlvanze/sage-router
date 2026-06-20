@@ -434,6 +434,7 @@ check_managed_provider_access_guard() {
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("rate_limits_and_durable_quotas")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("generated_key_revocation")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("operator_abuse_review")) and
+    ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("operator_audit_events")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("acceptable_use_managed_access_terms"))
   ' /tmp/sage-router-readiness-body)"
   cost_controls_ok="$(jq -r '
@@ -442,6 +443,7 @@ check_managed_provider_access_guard() {
     ((.publicLaunch.managedProviderAccess.costControls // []) | index("durable_usage_accounting")) and
     ((.publicLaunch.managedProviderAccess.costControls // []) | index("generated_key_revocation")) and
     ((.publicLaunch.managedProviderAccess.costControls // []) | index("operator_customer_review")) and
+    ((.publicLaunch.managedProviderAccess.costControls // []) | index("operator_audit_events")) and
     ((.publicLaunch.managedProviderAccess.costControls // []) | index("provider_resale_terms")) and
     ((.publicLaunch.managedProviderAccess.costControls // []) | index("managed_access_acceptable_use"))
   ' /tmp/sage-router-readiness-body)"
@@ -461,14 +463,14 @@ check_managed_provider_access_guard() {
             "$unit_economics_ok" == "true" &&
             "$margin_percent" =~ ^[0-9]+$ &&
             "$margin_percent" -ge 30 ]]; then
-        pass "managed provider access is explicitly enabled with resale terms, positive unit economics, margin policy, quotas, and acceptable-use controls"
+        pass "managed provider access is explicitly enabled with resale terms, positive unit economics, margin policy, quotas, operator audit events, and acceptable-use controls"
       else
-        fail "managed provider access enabled without complete controls, including positive unit economics and managed-access acceptable-use boundary: enabled=${enabled} status=${status:-missing} terms=${terms_url:+present} margin=${margin_url:+present} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} acceptableUse=${acceptable_url:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing}"
+        fail "managed provider access enabled without complete controls, including positive unit economics, operator audit events, and managed-access acceptable-use boundary: enabled=${enabled} status=${status:-missing} terms=${terms_url:+present} margin=${margin_url:+present} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} acceptableUse=${acceptable_url:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing}"
       fi
       ;;
     *)
       if [[ "$enabled" == "false" && "$status" == "disabled_pending_provider_terms" && "$controls_ok" == "true" && "$cost_controls_ok" == "true" && "$unit_economics_ok" == "true" && "$margin_percent" =~ ^[0-9]+$ && "$margin_percent" -ge 30 ]]; then
-        pass "managed provider access remains disabled until provider resale terms, positive unit economics, margin policy, quotas, and acceptable-use controls are ready"
+        pass "managed provider access remains disabled until provider resale terms, positive unit economics, margin policy, quotas, operator audit events, and acceptable-use controls are ready"
       else
         fail "managed provider access guard unexpected: enabled=${enabled} status=${status:-missing} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing}, expected disabled_pending_provider_terms"
       fi
@@ -1249,15 +1251,19 @@ check_supabase_auth_config() {
 
 check_quota_schema() {
   if [[ -z "$SUPABASE_SERVICE_ROLE_KEY" ]]; then
-    warn "Supabase service role key not set; skipped quota and funnel-event schema probe"
+    warn "Supabase service role key not set; skipped quota, funnel-event, and operator-audit schema probe"
     return
   fi
-  local table_code rpc_code funnel_table_code
+  local table_code rpc_code funnel_table_code audit_table_code
   table_code="$(http_code "${SUPABASE_URL%/}/rest/v1/sage_router_usage_counters?select=id&limit=1" \
     -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
     -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}")"
   rm -f /tmp/sage-router-readiness-body
   funnel_table_code="$(http_code "${SUPABASE_URL%/}/rest/v1/sage_router_funnel_events?select=id&limit=1" \
+    -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}")"
+  rm -f /tmp/sage-router-readiness-body
+  audit_table_code="$(http_code "${SUPABASE_URL%/}/rest/v1/sage_router_operator_audit_events?select=id&limit=1" \
     -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
     -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}")"
   rm -f /tmp/sage-router-readiness-body
@@ -1276,6 +1282,11 @@ check_quota_schema() {
     pass "Supabase anonymous funnel event table is installed"
   else
     warn "Supabase funnel event schema not ready: table HTTP ${funnel_table_code}; apply supabase/migrations/20260619053000_sage_router_funnel_events.sql before relying on pre-signup conversion analytics"
+  fi
+  if [[ "$audit_table_code" == "200" ]]; then
+    pass "Supabase operator audit table is installed"
+  else
+    warn "Supabase operator audit schema not ready: table HTTP ${audit_table_code}; apply supabase/migrations/20260620092000_operator_audit_events.sql before relying on durable operator audit events"
   fi
 }
 

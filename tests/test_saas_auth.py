@@ -696,6 +696,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('rate_limits_and_durable_quotas', managed['requiredControls'])
         self.assertIn('generated_key_revocation', managed['requiredControls'])
         self.assertIn('operator_abuse_review', managed['requiredControls'])
+        self.assertIn('operator_audit_events', managed['requiredControls'])
         self.assertIn('acceptable_use_managed_access_terms', managed['requiredControls'])
         self.assertTrue(managed['requiresPositiveUnitEconomics'])
         self.assertGreaterEqual(managed['minimumGrossMarginPercent'], 30)
@@ -704,6 +705,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('durable_usage_accounting', managed['costControls'])
         self.assertIn('generated_key_revocation', managed['costControls'])
         self.assertIn('operator_customer_review', managed['costControls'])
+        self.assertIn('operator_audit_events', managed['costControls'])
         self.assertEqual('https://sagerouter.dev/acceptable-use', managed['acceptableUseUrl'])
 
     def test_public_model_catalog_is_safe_discovery_metadata(self):

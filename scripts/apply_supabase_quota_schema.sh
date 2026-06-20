@@ -21,4 +21,4 @@ jq -Rs '{query: ., read_only: false}' "$MIGRATION_PATH" |
     -H "Content-Type: application/json" \
     --data @- >/dev/null
 
-printf 'Applied Supabase quota schema migration to project %s from %s\n' "$PROJECT_REF" "$MIGRATION_PATH"
+printf 'Applied Supabase schema migration to project %s from %s\n' "$PROJECT_REF" "$MIGRATION_PATH"
