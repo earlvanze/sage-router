@@ -1,5 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 3500;
 const DEFAULT_CACHE_SECONDS = 8;
+const PUBLIC_EDGE_HEALTH_ERROR = "origin health did not prove public edge controls";
 const HOP_BY_HOP_HEADERS = new Set([
   "connection",
   "keep-alive",
@@ -52,6 +53,13 @@ function normalizeOrigin(origin) {
 
 function originTarget(origin, incomingUrl) {
   return new URL(incomingUrl.pathname + incomingUrl.search, origin.url);
+}
+
+function truthyEnv(value, defaultValue = true) {
+  if (value === undefined || value === null || value === "") {
+    return defaultValue;
+  }
+  return !["0", "false", "no", "off"].includes(String(value).trim().toLowerCase());
 }
 
 function privateHostname(hostname) {
@@ -113,6 +121,45 @@ function selectedOriginId(checks, selected) {
   return index >= 0 ? publicOriginId(index) : null;
 }
 
+function hasRawOriginUrl(value) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  if (Object.prototype.hasOwnProperty.call(value, "url") || Object.prototype.hasOwnProperty.call(value, "healthPath")) {
+    return true;
+  }
+  return Object.values(value).some((item) => {
+    if (Array.isArray(item)) {
+      return item.some(hasRawOriginUrl);
+    }
+    return hasRawOriginUrl(item);
+  });
+}
+
+function publicEdgeHealthSatisfied(payload) {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+  const enforcement = payload.enforcement || {};
+  const failover = payload.failover || {};
+  const retryStatuses = Array.isArray(failover.retryStatuses) ? failover.retryStatuses : [];
+  return payload.status === "ok"
+    && payload.authMode === "supabase"
+    && enforcement.rateLimitEnabled === true
+    && enforcement.authAttemptRateLimitEnabled === true
+    && Number(enforcement.authAttemptRateLimit || 0) > 0
+    && enforcement.quotaEnabled === true
+    && Number(enforcement.apiKeyAuthCacheSeconds) === 0
+    && failover.mode === "lowest-latency-healthy"
+    && failover.retryEnabled === true
+    && retryStatuses.includes(502)
+    && retryStatuses.includes(503)
+    && retryStatuses.includes(504)
+    && failover.retryHeader === "X-Sage-Router-Retry-Count"
+    && !hasRawOriginUrl(payload.upstreams || [])
+    && !hasRawOriginUrl(payload.controlPlane || {});
+}
+
 async function timedFetch(url, init, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort("timeout"), timeoutMs);
@@ -128,7 +175,7 @@ async function timedFetch(url, init, timeoutMs) {
   }
 }
 
-async function checkOrigin(origin) {
+async function checkOrigin(origin, requirePublicEdgeHealth) {
   const healthUrl = new URL(origin.healthPath, origin.url);
   try {
     const result = await timedFetch(healthUrl, {
@@ -144,15 +191,24 @@ async function checkOrigin(origin) {
       },
     }, origin.timeoutMs);
 
-    await result.response.arrayBuffer();
+    const body = await result.response.text();
+    let health = null;
+    try {
+      health = body ? JSON.parse(body) : null;
+    } catch (_error) {
+      health = null;
+    }
+    const statusHealthy = result.response.status >= 200 && result.response.status < 500;
+    const publicEdgeHealthy = !requirePublicEdgeHealth || publicEdgeHealthSatisfied(health);
     return {
       name: origin.name,
       url: origin.url,
       healthPath: origin.healthPath,
-      healthy: result.response.status >= 200 && result.response.status < 500,
+      healthy: statusHealthy && publicEdgeHealthy,
       status: result.response.status,
       latencyMs: result.latencyMs,
       checkedAt: new Date().toISOString(),
+      error: statusHealthy && !publicEdgeHealthy ? PUBLIC_EDGE_HEALTH_ERROR : null,
     };
   } catch (error) {
     return {
@@ -175,7 +231,8 @@ async function getHealth(env, force = false) {
   }
 
   const origins = parseOrigins(env);
-  const checks = await Promise.all(origins.map(checkOrigin));
+  const requirePublicEdgeHealth = truthyEnv(env.SAGE_ROUTER_REQUIRE_PUBLIC_EDGE_HEALTH, true);
+  const checks = await Promise.all(origins.map((origin) => checkOrigin(origin, requirePublicEdgeHealth)));
   cachedHealth = {
     checks,
     expiresAt: now + Number(env.SAGE_ROUTER_ORIGIN_CACHE_SECONDS || DEFAULT_CACHE_SECONDS) * 1000,

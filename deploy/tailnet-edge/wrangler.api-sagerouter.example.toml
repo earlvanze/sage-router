@@ -17,10 +17,15 @@ SAGE_ROUTER_ORIGINS = """
     "healthPath": "/edge/health"
   },
   {
-    "name": "google-hosted-ghs",
-    "url": "https://sage-router-azg7ltn2iq-uc.a.run.app",
-    "healthPath": "/health"
+    "name": "tailnet-edge-standby",
+    "url": "https://sage-router-edge-standby.example.ts.net",
+    "healthPath": "/edge/health"
   }
 ]
 """
 SAGE_ROUTER_ORIGIN_CACHE_SECONDS = "8"
+# Default true. Candidate origins must expose /edge/health metadata proving
+# Supabase auth, rate limits, auth-attempt throttling, durable quotas,
+# immediate generated-key revocation, retry failover, and redacted health
+# snapshots before the Worker can select them for api.sagerouter.dev.
+SAGE_ROUTER_REQUIRE_PUBLIC_EDGE_HEALTH = "1"

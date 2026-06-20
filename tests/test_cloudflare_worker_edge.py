@@ -6,11 +6,15 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKER = ROOT / "deploy" / "tailnet-edge" / "cloudflare-api-worker.js"
+WRANGLER_EXAMPLE = ROOT / "deploy" / "tailnet-edge" / "wrangler.api-sagerouter.example.toml"
 
 
 class CloudflareWorkerEdgeTests(unittest.TestCase):
     def read_worker(self):
         return WORKER.read_text(encoding="utf-8")
+
+    def read_wrangler_example(self):
+        return WRANGLER_EXAMPLE.read_text(encoding="utf-8")
 
     def test_public_edge_health_uses_redacted_origin_snapshots(self):
         worker = self.read_worker()
@@ -41,6 +45,26 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
         self.assertNotRegex(body, r"\bhealthPath\s*:")
         self.assertIn("id: publicOriginId(index)", body)
         self.assertIn("originKind: originKind(check.url)", body)
+
+    def test_worker_requires_public_edge_health_by_default(self):
+        worker = self.read_worker()
+        self.assertIn("const PUBLIC_EDGE_HEALTH_ERROR", worker)
+        self.assertIn("function publicEdgeHealthSatisfied", worker)
+        self.assertIn("SAGE_ROUTER_REQUIRE_PUBLIC_EDGE_HEALTH", worker)
+        self.assertIn("payload.authMode === \"supabase\"", worker)
+        self.assertIn("enforcement.rateLimitEnabled === true", worker)
+        self.assertIn("enforcement.authAttemptRateLimitEnabled === true", worker)
+        self.assertIn("enforcement.quotaEnabled === true", worker)
+        self.assertIn("Number(enforcement.apiKeyAuthCacheSeconds) === 0", worker)
+        self.assertIn("failover.mode === \"lowest-latency-healthy\"", worker)
+        self.assertIn("!hasRawOriginUrl(payload.upstreams || [])", worker)
+
+    def test_worker_example_uses_edge_health_origins(self):
+        example = self.read_wrangler_example()
+        self.assertIn('SAGE_ROUTER_REQUIRE_PUBLIC_EDGE_HEALTH = "1"', example)
+        self.assertIn('"healthPath": "/edge/health"', example)
+        self.assertNotIn("run.app", example)
+        self.assertNotIn('"healthPath": "/health"', example)
 
 
 if __name__ == "__main__":

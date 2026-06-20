@@ -138,12 +138,13 @@ Do not CNAME `api.sagerouter.dev` directly to a Funnel hostname unless you have 
 ```bash
 cd deploy/tailnet-edge
 cp wrangler.api-sagerouter.example.toml wrangler.toml
-# Edit SAGE_ROUTER_ORIGINS to include the verified https://*.ts.net Funnel URL
-# and the current Google-hosted API origin.
+# Edit SAGE_ROUTER_ORIGINS to include only verified public edge origins whose
+# /edge/health proves Supabase auth, quotas, rate limits, retry failover, and
+# redacted health snapshots.
 npx wrangler deploy --config wrangler.toml
 ```
 
-The Worker exposes `GET /edge/health` on `api.sagerouter.dev` so you can see which public origin ID it selected, the backend class, status, and probe latency. It intentionally does not return raw origin URLs, Tailnet hostnames, health paths, or response headers that reveal the chosen origin URL. Cloudflare can then provide DNS, proxying, WAF, cache rules for cacheable non-streaming paths, and optional Load Balancing if you later expose multiple public edge origins. The Tailnet Edge process still performs the application-aware lowest-latency selection among private Sage Router installs.
+The Worker exposes `GET /edge/health` on `api.sagerouter.dev` so you can see which public origin ID it selected, the backend class, status, and probe latency. It intentionally does not return raw origin URLs, Tailnet hostnames, health paths, or response headers that reveal the chosen origin URL. By default, `SAGE_ROUTER_REQUIRE_PUBLIC_EDGE_HEALTH=1` also prevents the Worker from selecting direct app origins that have not proven the public Sage Router edge controls on `/edge/health`; only disable that flag for private tests where another layer enforces customer auth, quotas, rate limits, and abuse controls. Cloudflare can then provide DNS, proxying, WAF, cache rules for cacheable non-streaming paths, and optional Load Balancing if you later expose multiple public edge origins. The Tailnet Edge process still performs the application-aware lowest-latency selection among private Sage Router installs.
 
 ## Publish publicly with a cloud VM origin
 
