@@ -140,10 +140,12 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   recommend Lite, Pro, or Max from the workflow profile and send the prospect
   into preselected checkout with `/account.html?plan=...`.
 - Capture pre-signup page-view and CTA intent from the homepage, calculator,
-  pricing, launch plan, plus OpenRouter comparison/migration pages through the
-  privacy-safe `/api/funnel-event` path. Store only event, plan, sanitized source/target URL,
-  and small allowlisted metadata buckets; do not store prompts, workflow text,
-  emails, API keys, or provider credentials. Keep the browser-origin guard
+  pricing, launch plan, quickstart, plus OpenRouter comparison/migration pages
+  through the privacy-safe `/api/funnel-event` path. Store only event, plan,
+  sanitized source/target URL, and small allowlisted metadata buckets; do not
+  store prompts, workflow text, emails, API keys, or provider credentials. For
+  quickstart snippet-copy events, store only the snippet ID, not the snippet
+  body or generated keys. Keep the browser-origin guard
   enabled so writes are accepted only from Sage Router production hosts, Pages
   previews, local development, or exact origins configured with
   `SAGEROUTER_FUNNEL_ALLOWED_ORIGINS`; the service-role-backed Supabase insert

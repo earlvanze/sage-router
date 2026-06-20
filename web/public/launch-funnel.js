@@ -134,6 +134,7 @@ function campaignTemplateForAction(kind, bucket) {
     sourceSurface: {
       pricing: ['/pricing', 'operator', 'launch_funnel', 'pricing_checkout_proof'],
       'model-routing-calculator': ['/model-routing-calculator', 'operator', 'launch_funnel', 'calculator_qualification'],
+      quickstart: ['/quickstart', 'operator', 'launch_funnel', 'first_request_activation'],
       'compare-openrouter': ['/compare/openrouter', 'openrouter', 'founder', 'launch_openrouter_migration'],
       'managed-access': ['/managed-access', 'operator', 'launch_funnel', 'managed_access_beta'],
       'launch-plan': ['/launch-plan', 'operator', 'launch_funnel', 'founder_sales'],

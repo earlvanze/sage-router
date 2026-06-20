@@ -4838,6 +4838,7 @@ MANAGED_ACCESS_COMMERCIAL_PREFERENCE_BUCKETS = (
 MARKETING_SOURCE_SURFACE_BUCKETS = (
     'pricing',
     'model-routing-calculator',
+    'quickstart',
     'compare-openrouter',
     'managed-access',
     'launch-plan',
@@ -4946,6 +4947,7 @@ def launch_acquisition_action(kind, bucket):
         actions = {
             'pricing': 'Tighten pricing CTAs, checkout plan defaults, and proof around hosted key activation.',
             'model-routing-calculator': 'Turn calculator interest into implementation calls and preselected Pro/Max checkout.',
+            'quickstart': 'Use copyable quickstart snippets to convert generated-key users into first routed requests.',
             'compare-openrouter': 'Route OpenRouter comparison traffic into the migration guide, model catalog, and hosted checkout.',
             'managed-access': 'Turn managed-access beta demand into authorization review, margin validation, and Max/BYOK activation.',
             'launch-plan': 'Turn launch-plan readers into Pro checkout, calculator qualification, or managed-access beta conversations.',
@@ -4989,6 +4991,11 @@ DEFAULT_LAUNCH_ACQUISITION_ACTIONS = (
         'kind': 'sourceSurface',
         'bucket': 'model-routing-calculator',
         'action': 'Drive early prospects to the calculator so Pro/Max fit and savings claims are captured before signup.',
+    },
+    {
+        'kind': 'sourceSurface',
+        'bucket': 'quickstart',
+        'action': 'Use copyable quickstart snippets to convert generated-key users into first routed requests.',
     },
     {
         'kind': 'sourceSurface',

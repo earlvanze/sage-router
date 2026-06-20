@@ -12,6 +12,16 @@ const ALLOWED_EVENTS = new Set([
   'managed_access_form_started',
   'managed_access_request_submitted',
   'managed_access_request_received',
+  'quickstart_viewed',
+  'quickstart_account_clicked',
+  'quickstart_api_reference_clicked',
+  'quickstart_openrouter_migration_clicked',
+  'quickstart_models_clicked',
+  'quickstart_codex_clicked',
+  'quickstart_troubleshooting_clicked',
+  'quickstart_pricing_clicked',
+  'quickstart_status_clicked',
+  'quickstart_snippet_copied',
   'launch_plan_viewed',
   'launch_plan_checkout_clicked',
   'launch_plan_managed_access_clicked',
@@ -94,6 +104,7 @@ const ALLOWED_METADATA_KEYS = new Set([
   'providerAccess',
   'targetProviderFamily',
   'commercialPreference',
+  'snippet',
 ]);
 
 const DEFAULT_ALLOWED_ORIGIN_HOSTS = new Set([

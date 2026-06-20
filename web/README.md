@@ -38,9 +38,10 @@ Suggested Cloudflare Pages settings:
 
 The waitlist form posts to `/api/waitlist`, a Cloudflare Pages Function that inserts into Supabase table `sage_router_waitlist` and falls back to `funnel_leads` for older AOps schemas. `GET /api/waitlist` is a non-mutating health check used by `scripts/check_sagerouter_launch_readiness.sh`. The managed-access intake posts `interest=managed-access` plus allowlisted qualification buckets for private-beta demand measurement while public managed provider access stays disabled, including target provider family and commercial preference buckets for Ollama, OpenAI, Anthropic, and BYOK-compatible demand. It also sends anonymous page-view, form-start, submit, and received events to `/api/funnel-event` with only those qualification buckets, so operators can see one-subscription demand before full contact submission without sending email or company fields through the marketing-event path. Browser-originating waitlist writes must come from Sage Router-owned production hosts, local development hosts, Cloudflare Pages preview hosts ending in `.sage-router-web.pages.dev`, or exact origins listed in `SAGEROUTER_WAITLIST_ALLOWED_ORIGINS`; the endpoint rejects third-party origins before using the Supabase service-role insert. Set both `SAGEROUTER_TURNSTILE_SECRET_KEY` and `SAGEROUTER_TURNSTILE_SITE_KEY` in Cloudflare Pages to require Cloudflare Turnstile on waitlist submissions; the health check fails if the secret is enabled without a public site key.
 
-The homepage, calculator, pricing, launch plan, and OpenRouter comparison pages
-send anonymous pre-signup page-view and CTA intent to `/api/funnel-event`,
-backed by Supabase table `sage_router_funnel_events`.
+The homepage, calculator, pricing, launch plan, quickstart, and OpenRouter
+comparison pages send anonymous pre-signup page-view, CTA, and quickstart
+snippet-copy intent to `/api/funnel-event`, backed by Supabase table
+`sage_router_funnel_events`.
 `GET /api/funnel-event` is a non-mutating health check. The function only
 accepts allowlisted event names, plans, sanitized URLs, and metadata buckets so
 the operator launch funnel can count demand without storing prompts, workflow
