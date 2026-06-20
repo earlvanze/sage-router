@@ -820,6 +820,17 @@ def edge_enforcement_state():
     }
 
 
+def edge_failover_state():
+    return {
+        "mode": "lowest-latency-healthy",
+        "healthyUpstreamCount": len(healthy_upstreams()),
+        "controlPlanePinned": bool(CONTROL_PLANE_UPSTREAM),
+        "retryEnabled": True,
+        "retryStatuses": sorted(RETRY_STATUSES),
+        "retryHeader": "X-Sage-Router-Retry-Count",
+    }
+
+
 class EdgeHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "sage-router-tailnet-edge"
@@ -916,6 +927,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
             "controlPlane": control_plane,
             "authMode": EDGE_AUTH_MODE,
             "enforcement": edge_enforcement_state(),
+            "failover": edge_failover_state(),
         })
 
     def _proxy(self):

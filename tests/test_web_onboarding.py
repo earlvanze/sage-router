@@ -93,6 +93,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("public browser-visible Supabase auth settings", readme)
         self.assertIn("GitHub OAuth provider disabled; run bash scripts/check_github_supabase_auth_status.sh for the owner handoff", readiness)
         self.assertIn("durable quotas", readiness)
+        self.assertIn("retry failover", readiness)
+        self.assertIn("lowest-latency retry failover metadata", readme)
         self.assertIn("anonymous model and analytics APIs are blocked with hosted onboarding guidance", readiness)
         self.assertIn("accountUrl", readiness)
         self.assertIn("apiKeyPrefix", readiness)

@@ -241,6 +241,14 @@ class TailnetEdgeAuthTests(unittest.TestCase):
             "apiKeyAuthCacheSeconds": 0.0,
             "apiKeyPrefix": "sk_sage_",
         }, handler.payload["enforcement"])
+        self.assertEqual({
+            "mode": "lowest-latency-healthy",
+            "healthyUpstreamCount": 1,
+            "controlPlanePinned": False,
+            "retryEnabled": True,
+            "retryStatuses": [401, 429, 502, 503, 504],
+            "retryHeader": "X-Sage-Router-Retry-Count",
+        }, handler.payload["failover"])
 
     def test_browser_origin_guard_rejects_untrusted_account_billing_and_admin_mutations(self):
         for path in (
