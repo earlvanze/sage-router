@@ -1193,11 +1193,14 @@ $('keys')?.addEventListener('click', async (event) => {
   const button = event.target?.closest?.('[data-revoke]');
   const id = button?.dataset?.revoke;
   if (!id) return;
+  trackAccountFunnelEvent('account_api_key_revoke_clicked', { button: 'revoke_key', target: '/account/api-keys/{id}/revoke', state: 'revoke' });
   setElementBusy(button, true, 'Revoking...');
   try {
     await api(`/account/api-keys/${encodeURIComponent(id)}/revoke`, { method: 'POST', body: '{}' });
+    trackAccountFunnelEvent('account_api_key_revoked', { button: 'revoke_key', target: '/account/api-keys/{id}/revoke', state: 'revoked' });
     refresh();
   } catch (error) {
+    trackAccountFunnelEvent('account_api_key_revoke_failed', { button: 'revoke_key', target: '/account/api-keys/{id}/revoke', state: 'failed' });
     set('account-status', error.message);
     setElementBusy(button, false);
   }

@@ -6527,7 +6527,7 @@ OPERATOR_AUDIT_REASON_CODES = {
     'customer_request',
     'other',
 }
-OPERATOR_AUDIT_ACTIONS = {'customer.suspend', 'customer.unsuspend', 'payment_intent.approve'}
+OPERATOR_AUDIT_ACTIONS = {'customer.suspend', 'customer.unsuspend', 'payment_intent.approve', 'api_key.revoke'}
 
 
 def operator_audit_reason(value):
@@ -6558,13 +6558,13 @@ def public_operator_audit_event(row):
     }
 
 
-def record_operator_audit_event(action, customer_id, status_before='', status_after='', revoked_api_keys_count=0, reason_code='operator_review'):
+def record_operator_audit_event(action, customer_id, status_before='', status_after='', revoked_api_keys_count=0, reason_code='operator_review', actor='operator'):
     if action not in OPERATOR_AUDIT_ACTIONS or not customer_id:
         return None
     row = {
         'id': uuid.uuid4().hex,
         'customer_id': str(customer_id),
-        'actor': 'operator',
+        'actor': 'customer' if str(actor or '').lower() == 'customer' else 'operator',
         'action': action,
         'reason_code': operator_audit_reason(reason_code),
         'status_before': str(status_before or ''),
@@ -11152,11 +11152,23 @@ class Handler(BaseHTTPRequestHandler):
             if not customer:
                 return
             key_id = self.path.split('/')[3]
+            existing_key = next((row for row in api_keys_for_customer(customer.get('id')) if row.get('id') == key_id), None)
             row = revoke_api_key_for_customer(customer.get('id'), key_id)
             if not row:
                 self.write_json(404, {'error': 'api_key_not_found'})
                 return
-            self.write_json(200, {'api_key': public_api_key(row, customer)})
+            audit_event = None
+            if str((existing_key or {}).get('status') or 'active').lower() != 'revoked':
+                audit_event = record_operator_audit_event(
+                    'api_key.revoke',
+                    customer.get('id'),
+                    status_before=customer.get('status') or '',
+                    status_after=customer.get('status') or '',
+                    revoked_api_keys_count=1,
+                    reason_code='customer_request',
+                    actor='customer',
+                )
+            self.write_json(200, {'api_key': public_api_key(row, customer), 'auditEvent': audit_event})
             return
         if self.path == '/billing/stripe/checkout':
             if not require_trusted_browser_origin(self):

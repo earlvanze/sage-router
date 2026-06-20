@@ -316,6 +316,10 @@ provider resale claim, or runtime feature flag.
   their own generated API keys even before email verification is complete, while
   the revoke endpoint still scopes the key lookup to that customer's id so one
   account cannot revoke another customer's key.
+- Record customer-initiated revocation as bounded security telemetry:
+  successful revokes should create an `api_key.revoke` audit event and
+  anonymous account-funnel revoke events without raw generated keys, key hashes,
+  prompts, provider credentials, or raw error payloads.
 - Track the funnel from waitlist to signup, generated key, first routed request,
   paid conversion, and retained paid account through the operator-only
   `/analytics/funnel` endpoint.

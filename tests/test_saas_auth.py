@@ -292,7 +292,19 @@ class SaaSAuthTests(unittest.TestCase):
 
         self.assertEqual(200, handler.status)
         self.assertEqual('revoked', handler.payload['api_key']['status'])
+        self.assertEqual('api_key.revoke', handler.payload['auditEvent']['action'])
+        self.assertEqual('customer', handler.payload['auditEvent']['actor'])
+        self.assertEqual('customer_request', handler.payload['auditEvent']['reason_code'])
+        self.assertEqual(1, handler.payload['auditEvent']['revoked_api_keys_count'])
+        self.assertNotIn('api_key_hash', json.dumps(handler.payload['auditEvent']))
+        self.assertEqual(1, len(router.operator_audit_events_for_customer(customer['id'])))
         self.assertIsNone(router.verify_generated_api_key(raw))
+
+        second = Dummy()
+        router.Handler.do_POST(second)
+        self.assertEqual(200, second.status)
+        self.assertIsNone(second.payload['auditEvent'])
+        self.assertEqual(1, len(router.operator_audit_events_for_customer(customer['id'])))
 
     def test_hosted_user_cannot_revoke_another_customers_key(self):
         router.SUPABASE_AUTH_ENABLED = True
