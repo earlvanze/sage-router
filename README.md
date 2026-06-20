@@ -164,6 +164,10 @@ stores contact and allowlisted qualification buckets so beta demand can be
 measured without enabling public provider resale. The intake asks which target
 provider family and commercial preference a prospect would buy first, including
 Ollama, OpenAI, and Anthropic private-beta interest for authorization review.
+Browser-originating waitlist writes are guarded before Supabase inserts: Sage
+Router production hosts, Cloudflare Pages previews, local development, and exact
+origins configured with `SAGEROUTER_WAITLIST_ALLOWED_ORIGINS` are accepted, and
+Turnstile can be enabled as an additional bot challenge.
 
 ### Hosted Auth
 

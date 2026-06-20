@@ -204,6 +204,11 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   `managedAccessDemand.targetProviderFamily` and
   `managedAccessDemand.commercialPreference` to rank private-beta provider
   resale conversations instead of advertising bundled model access as live.
+- Keep `/api/waitlist` guarded before Supabase inserts: browser-originating
+  writes must come from Sage Router production hosts, Pages previews, local
+  development, or exact origins configured with
+  `SAGEROUTER_WAITLIST_ALLOWED_ORIGINS`; Turnstile remains the optional bot
+  challenge layer on top of that origin guard.
 - Capture one-subscription demand with allowlisted target provider family and
   commercial preference buckets, so provider resale conversations can be ranked
   by real Ollama, OpenAI, Anthropic, and BYOK-compatible buyer interest.

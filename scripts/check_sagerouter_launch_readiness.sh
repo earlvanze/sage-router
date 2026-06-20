@@ -627,12 +627,14 @@ check_public_supabase_auth_settings() {
 }
 
 check_waitlist_endpoint() {
-  local code ok service turnstile_required turnstile_site_key qualification_ok
+  local code ok service turnstile_required turnstile_site_key qualification_ok write_guard preview_suffix
   code="$(http_code "${APP_BASE%/}/api/waitlist")"
   ok="$(jq -r '.ok // false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   service="$(jq -r '.service // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   turnstile_required="$(jq -r '.turnstileRequired // false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   turnstile_site_key="$(jq -r '.turnstileSiteKey // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  write_guard="$(jq -r '.writeGuard.browserOriginRequired == true' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  preview_suffix="$(jq -r '.writeGuard.previewHostSuffix // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   qualification_ok="$(jq -r '
     ((.allowedQualificationBuckets.deployment // []) | index("hybrid")) and
     ((.allowedQualificationBuckets.monthlyVolume // []) | index("1m-plus")) and
@@ -641,10 +643,10 @@ check_waitlist_endpoint() {
     ((.allowedQualificationBuckets.commercialPreference // []) | index("one-subscription"))
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-waitlist" && "$qualification_ok" == "true" && ( "$turnstile_required" != "true" || -n "$turnstile_site_key" ) ]]; then
-    pass "hosted waitlist endpoint is configured"
+  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-waitlist" && "$qualification_ok" == "true" && "$write_guard" == "true" && "$preview_suffix" == ".sage-router-web.pages.dev" && ( "$turnstile_required" != "true" || -n "$turnstile_site_key" ) ]]; then
+    pass "hosted waitlist endpoint is configured with browser origin guard"
   else
-    fail "hosted waitlist endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} qualificationBuckets=${qualification_ok:-missing} turnstileRequired=${turnstile_required:-missing} turnstileSiteKey=${turnstile_site_key:+present}"
+    fail "hosted waitlist endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} qualificationBuckets=${qualification_ok:-missing} writeGuard=${write_guard:-missing} previewSuffix=${preview_suffix:-missing} turnstileRequired=${turnstile_required:-missing} turnstileSiteKey=${turnstile_site_key:+present}"
   fi
 }
 
