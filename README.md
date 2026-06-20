@@ -321,6 +321,17 @@ Windows temp directory, prints both the Windows and WSL paths, and opens the
 Windows `file:///` URL first. This avoids browser handlers that cannot read
 `\\wsl.localhost` or WSL `/tmp` paths. If the browser does not appear, open the
 printed Windows path manually or use the hosted callback fallback below.
+To approve from another Tailnet device, bind the temporary listener on all
+interfaces and advertise the machine's Tailnet IP. The script serves the same
+one-time GitHub app manifest form at the printed Tailnet URL; open that form
+URL, not the callback path directly, because the callback must include GitHub's
+temporary `?code=...` after approval:
+
+```bash
+SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE_BIND=0.0.0.0 \
+SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE_HOST=100.115.208.70 \
+bash scripts/bootstrap_github_supabase_auth.sh
+```
 
 After patching Supabase, the configurator verifies the management API state
 (`site_url`, email auth, GitHub auth, and app/API redirect allow-list entries).

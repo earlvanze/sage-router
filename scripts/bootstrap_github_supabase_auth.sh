@@ -32,6 +32,8 @@ APP_NAME="${SAGEROUTER_GITHUB_APP_NAME:-Sage Router Auth}"
 APP_OWNER="${SAGEROUTER_GITHUB_APP_OWNER:-}"
 LOCAL_CAPTURE="${SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE:-1}"
 LOCAL_CAPTURE_PORT="${SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE_PORT:-0}"
+LOCAL_CAPTURE_BIND="${SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE_BIND:-127.0.0.1}"
+LOCAL_CAPTURE_HOST="${SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE_HOST:-127.0.0.1}"
 MANIFEST_INPUT="${1:-${SAGEROUTER_GITHUB_APP_MANIFEST_URL:-${SAGEROUTER_GITHUB_APP_MANIFEST_CODE:-${GITHUB_APP_MANIFEST_CODE:-}}}}"
 MANIFEST_CODE=""
 GITHUB_CLIENT_ID="${SAGEROUTER_GITHUB_CLIENT_ID:-${GITHUB_CLIENT_ID:-}}"
@@ -186,7 +188,7 @@ with socket.socket() as sock:
 PY
     )"
   fi
-  redirect_url="http://127.0.0.1:${LOCAL_CAPTURE_PORT}/github-app-manifest.html"
+  redirect_url="http://${LOCAL_CAPTURE_HOST}:${LOCAL_CAPTURE_PORT}/github-app-manifest.html"
 fi
 
 manifest="$(
@@ -234,23 +236,33 @@ PY
 
 prepare_windows_form
 
-if [[ "$redirect_url" == http://127.0.0.1:* ]]; then
+if [[ "$LOCAL_CAPTURE" != "0" && "$LOCAL_CAPTURE" != "false" && "$LOCAL_CAPTURE" != "no" ]]; then
   code_file="$(mktemp)"
   capture_log="$(mktemp)"
-  python3 - "$LOCAL_CAPTURE_PORT" "$code_file" >/dev/null 2>"$capture_log" <<'PY' &
+  python3 - "$LOCAL_CAPTURE_BIND" "$LOCAL_CAPTURE_PORT" "$code_file" "$form" >/dev/null 2>"$capture_log" <<'PY' &
 import http.server
 import pathlib
 import sys
 import time
 import urllib.parse
 
-port = int(sys.argv[1])
-code_file = pathlib.Path(sys.argv[2])
+bind = sys.argv[1]
+port = int(sys.argv[2])
+code_file = pathlib.Path(sys.argv[3])
+form_file = pathlib.Path(sys.argv[4])
 deadline = time.time() + 600
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path in ("/", "/github-app-manifest-form.html"):
+            body = form_file.read_text()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body.encode())))
+            self.end_headers()
+            self.wfile.write(body.encode())
+            return
         code = urllib.parse.parse_qs(parsed.query).get("code", [""])[0]
         if code:
             code_file.write_text(code)
@@ -275,7 +287,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 class ReusableHTTPServer(http.server.HTTPServer):
     allow_reuse_address = True
 
-with ReusableHTTPServer(("127.0.0.1", port), Handler) as server:
+with ReusableHTTPServer((bind, port), Handler) as server:
     server.timeout = 1
     server.done = False
     while not server.done and time.time() < deadline:
@@ -303,6 +315,7 @@ GitHub requires an owner-approved browser step before it returns app credentials
 
 1. Opening this local form in a browser signed into the GitHub owner account:
 $(form_location_text)
+   Tailnet/local URL: ${redirect_url%/github-app-manifest.html}/
 2. Approve the app named "${APP_NAME}".
 3. The browser will return to ${redirect_url}; this script will capture the temporary code, configure Supabase, and exit.
 
