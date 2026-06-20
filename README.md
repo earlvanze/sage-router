@@ -250,14 +250,12 @@ secrets, prompts, generated keys, or provider credentials.
 Bootstrap the GitHub app and wire Supabase without opening the Supabase dashboard:
 
 ```bash
-set -a; source /home/digit/.openclaw/.env; set +a
 bash scripts/bootstrap_github_supabase_auth.sh
 ```
 
 Check the current GitHub/Supabase auth state without changing anything:
 
 ```bash
-set -a; source /home/digit/.openclaw/.env; set +a
 bash scripts/check_github_supabase_auth_status.sh
 ```
 
@@ -269,9 +267,14 @@ only pass/warn/fail status, never OAuth client secrets, anon keys, service-role
 keys, or management tokens. A GitHub warning means email onboarding still works
 and the owner approval step below is still pending. When GitHub is disabled, the
 status helper prints the hosted fallback command with
-`SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env`
-so the one-time GitHub client secret is preserved locally before Supabase is
-patched.
+`SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0` while the bootstrapper defaults to
+`/home/digit/.openclaw/sage-router-github-auth.env`, so the one-time GitHub
+client secret is preserved locally before Supabase is patched.
+The auth bootstrap, configurator, and read-only status helper silently load
+only the needed variables from `/home/digit/.openclaw/.env` and
+`/home/digit/.openclaw/sage-router-github-auth.env` when those variables are
+not already set. Override the first path with `SAGEROUTER_SECRET_ENV_FILE` and
+the GitHub credential path with `SAGEROUTER_GITHUB_APP_ENV_OUTPUT`.
 
 GitHub requires an owner-approved browser step before it returns app credentials. By default the bootstrap script opens a local browser form, listens on an auto-selected `http://127.0.0.1` port, captures GitHub's one-hour manifest code, exchanges it for the app client id/secret, and patches Supabase Auth in the same run.
 
@@ -298,12 +301,9 @@ If local capture is not available, fall back to the hosted callback page. After 
 
 ```bash
 SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 \
-SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env \
   bash scripts/bootstrap_github_supabase_auth.sh
-SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env \
-  bash scripts/bootstrap_github_supabase_auth.sh 'https://app.sagerouter.dev/github-app-manifest.html?code=...'
+bash scripts/bootstrap_github_supabase_auth.sh 'https://app.sagerouter.dev/github-app-manifest.html?code=...'
 # or:
-SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env \
 SAGEROUTER_GITHUB_APP_MANIFEST_CODE=... \
   bash scripts/bootstrap_github_supabase_auth.sh
 ```
@@ -312,21 +312,19 @@ If the Supabase Management API token is being refreshed or debugged, preserve
 the one-time GitHub client secret before the Supabase patch runs:
 
 ```bash
-SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env \
-  bash scripts/bootstrap_github_supabase_auth.sh 'https://app.sagerouter.dev/github-app-manifest.html?code=...'
+bash scripts/bootstrap_github_supabase_auth.sh 'https://app.sagerouter.dev/github-app-manifest.html?code=...'
 ```
 
 The callback page prints the exact command, including env loading, credential
 preservation to `/home/digit/.openclaw/sage-router-github-auth.env`, and the
 launch readiness rerun. It also shows the raw temporary code as a fallback if
 clipboard access is blocked by the browser. If the code expires, rerun
-`SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env bash scripts/bootstrap_github_supabase_auth.sh`
+`SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh`
 and approve the app again.
 
 If a GitHub OAuth App already exists, pass its credentials directly:
 
 ```bash
-SUPABASE_ACCESS_TOKEN=... \
 SAGEROUTER_GITHUB_CLIENT_ID=... \
 SAGEROUTER_GITHUB_CLIENT_SECRET=... \
 bash scripts/configure_supabase_github_auth.sh

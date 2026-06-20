@@ -1,6 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+load_local_env_file() {
+  local path="$1"
+  [[ -f "$path" ]] || return 0
+
+  local key value current
+  while IFS='=' read -r -d '' key value; do
+    case "$key" in
+      SUPABASE_ACCESS_TOKEN|SAGEROUTER_GITHUB_CLIENT_ID|SAGEROUTER_GITHUB_CLIENT_SECRET|GITHUB_CLIENT_ID|GITHUB_CLIENT_SECRET)
+        ;;
+      *)
+        continue
+        ;;
+    esac
+    current="${!key:-}"
+    if [[ -z "$current" && -n "$value" ]]; then
+      printf -v "$key" '%s' "$value"
+      export "$key"
+    fi
+  done < <(set +u; set -a; source "$path" >/dev/null 2>&1; env -0)
+}
+
+DEFAULT_GITHUB_CREDENTIALS_OUTPUT="/home/digit/.openclaw/sage-router-github-auth.env"
+load_local_env_file "${SAGEROUTER_SECRET_ENV_FILE:-/home/digit/.openclaw/.env}"
+load_local_env_file "${SAGEROUTER_GITHUB_APP_ENV_OUTPUT:-${DEFAULT_GITHUB_CREDENTIALS_OUTPUT}}"
+
 PROJECT_REF="${SUPABASE_PROJECT_REF:-awtangrlqqsdpksarhwo}"
 AUTH_SITE_URL="${SAGEROUTER_AUTH_SITE_URL:-https://app.sagerouter.dev}"
 APP_NAME="${SAGEROUTER_GITHUB_APP_NAME:-Sage Router Auth}"
@@ -11,7 +36,7 @@ MANIFEST_INPUT="${1:-${SAGEROUTER_GITHUB_APP_MANIFEST_URL:-${SAGEROUTER_GITHUB_A
 MANIFEST_CODE=""
 GITHUB_CLIENT_ID="${SAGEROUTER_GITHUB_CLIENT_ID:-${GITHUB_CLIENT_ID:-}}"
 GITHUB_CLIENT_SECRET="${SAGEROUTER_GITHUB_CLIENT_SECRET:-${GITHUB_CLIENT_SECRET:-}}"
-GITHUB_CREDENTIALS_OUTPUT="${SAGEROUTER_GITHUB_APP_ENV_OUTPUT:-}"
+GITHUB_CREDENTIALS_OUTPUT="${SAGEROUTER_GITHUB_APP_ENV_OUTPUT:-${DEFAULT_GITHUB_CREDENTIALS_OUTPUT}}"
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:?Set SUPABASE_ACCESS_TOKEN to a Supabase Management API token.}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WINDOWS_FORM_PATH=""
@@ -286,7 +311,7 @@ EOF
 
   open_form
   printf 'Waiting up to 10 minutes for the GitHub manifest approval redirect...\n'
-  wait "$capture_pid" || die "Timed out waiting for the GitHub manifest approval redirect. Retry with SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env bash scripts/bootstrap_github_supabase_auth.sh, approve the app, then run the command printed by ${AUTH_SITE_URL}/github-app-manifest.html?code=..."
+  wait "$capture_pid" || die "Timed out waiting for the GitHub manifest approval redirect. Retry with SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh, approve the app, then run the command printed by ${AUTH_SITE_URL}/github-app-manifest.html?code=..."
   MANIFEST_CODE="$(cat "$code_file")"
   trap - EXIT
   rm -f "$code_file" "$capture_log"
@@ -302,7 +327,7 @@ $(form_location_text)
 2. Approve the app named "${APP_NAME}".
 3. GitHub redirects to ${AUTH_SITE_URL}/github-app-manifest.html?code=...
 4. Rerun this script with:
-   SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env bash scripts/bootstrap_github_supabase_auth.sh '${AUTH_SITE_URL}/github-app-manifest.html?code=...'
+   bash scripts/bootstrap_github_supabase_auth.sh '${AUTH_SITE_URL}/github-app-manifest.html?code=...'
 
 The callback configured for Supabase will be:
   ${callback_url}

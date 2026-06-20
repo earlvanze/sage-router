@@ -1,6 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+load_local_env_file() {
+  local path="$1"
+  [[ -f "$path" ]] || return 0
+
+  local key value current
+  while IFS='=' read -r -d '' key value; do
+    case "$key" in
+      SUPABASE_ACCESS_TOKEN|SAGE_ROUTER_SUPABASE_URL|SAGE_ROUTER_SUPABASE_ANON_KEY|PUBLIC_SUPABASE_ANON_KEY|VITE_SUPABASE_PUBLISHABLE_KEY|SUPABASE_ANON_KEY)
+        ;;
+      *)
+        continue
+        ;;
+    esac
+    current="${!key:-}"
+    if [[ -z "$current" && -n "$value" ]]; then
+      printf -v "$key" '%s' "$value"
+      export "$key"
+    fi
+  done < <(set +u; set -a; source "$path" >/dev/null 2>&1; env -0)
+}
+
+load_local_env_file "${SAGEROUTER_SECRET_ENV_FILE:-/home/digit/.openclaw/.env}"
+
 PROJECT_REF="${SUPABASE_PROJECT_REF:-awtangrlqqsdpksarhwo}"
 AUTH_SITE_URL="${SAGEROUTER_AUTH_SITE_URL:-https://app.sagerouter.dev}"
 SUPABASE_URL="${SAGE_ROUTER_SUPABASE_URL:-https://${PROJECT_REF}.supabase.co}"
@@ -32,10 +55,7 @@ print_github_oauth_handoff() {
 
 GitHub OAuth owner handoff:
   1. From the sage-router repo, run:
-     set -a; source /home/digit/.openclaw/.env >/dev/null 2>&1; set +a
-     SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 \\
-     SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env \\
-       bash scripts/bootstrap_github_supabase_auth.sh
+     SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh
   2. Approve the GitHub App in the browser as the owner.
   3. On https://app.sagerouter.dev/github-app-manifest.html?code=..., run the printed exchange command within one hour.
   4. Recheck:

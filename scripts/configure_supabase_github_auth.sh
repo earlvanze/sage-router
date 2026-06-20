@@ -1,6 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+load_local_env_file() {
+  local path="$1"
+  [[ -f "$path" ]] || return 0
+
+  local key value current
+  while IFS='=' read -r -d '' key value; do
+    case "$key" in
+      SUPABASE_ACCESS_TOKEN|SAGEROUTER_GITHUB_CLIENT_ID|SAGEROUTER_GITHUB_CLIENT_SECRET|GITHUB_CLIENT_ID|GITHUB_CLIENT_SECRET|SAGE_ROUTER_SUPABASE_URL|SAGE_ROUTER_SUPABASE_ANON_KEY|PUBLIC_SUPABASE_ANON_KEY|VITE_SUPABASE_PUBLISHABLE_KEY|SUPABASE_ANON_KEY)
+        ;;
+      *)
+        continue
+        ;;
+    esac
+    current="${!key:-}"
+    if [[ -z "$current" && -n "$value" ]]; then
+      printf -v "$key" '%s' "$value"
+      export "$key"
+    fi
+  done < <(set +u; set -a; source "$path" >/dev/null 2>&1; env -0)
+}
+
+load_local_env_file "${SAGEROUTER_SECRET_ENV_FILE:-/home/digit/.openclaw/.env}"
+load_local_env_file "${SAGEROUTER_GITHUB_APP_ENV_OUTPUT:-/home/digit/.openclaw/sage-router-github-auth.env}"
+
 PROJECT_REF="${SUPABASE_PROJECT_REF:-awtangrlqqsdpksarhwo}"
 AUTH_SITE_URL="${SAGEROUTER_AUTH_SITE_URL:-https://app.sagerouter.dev}"
 SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:?Set SUPABASE_ACCESS_TOKEN to a Supabase Management API token.}"
