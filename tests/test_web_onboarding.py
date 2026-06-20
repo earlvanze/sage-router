@@ -110,6 +110,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("missing-api-key-revoke", readiness)
         self.assertIn("self-service API-key revocation", readiness)
         self.assertIn("missing-github-credential-save-command", readiness)
+        self.assertIn("missing-github-credential-save-path", readiness)
         self.assertIn("missing-github-secret-preservation-guidance", readiness)
         self.assertIn("GitHub credential preservation guidance", readiness)
 

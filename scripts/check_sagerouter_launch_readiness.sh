@@ -653,8 +653,11 @@ check_hosted_onboarding_pages() {
   if [[ "$manifest_code" == "200" ]] && ! grep -q "Finish GitHub auth setup" /tmp/sage-router-readiness-body; then
     manifest_code="200:unexpected-body"
   fi
-  if [[ "$manifest_code" == "200" ]] && ! grep -q "SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env" /tmp/sage-router-readiness-body; then
+  if [[ "$manifest_code" == "200" ]] && ! grep -q "bash scripts/bootstrap_github_supabase_auth.sh" /tmp/sage-router-readiness-body; then
     manifest_code="200:missing-github-credential-save-command"
+  fi
+  if [[ "$manifest_code" == "200" ]] && ! grep -q "/home/digit/.openclaw/sage-router-github-auth.env" /tmp/sage-router-readiness-body; then
+    manifest_code="200:missing-github-credential-save-path"
   fi
   if [[ "$manifest_code" == "200" ]] && ! grep -q "preserve the one-time client secret" /tmp/sage-router-readiness-body; then
     manifest_code="200:missing-github-secret-preservation-guidance"
