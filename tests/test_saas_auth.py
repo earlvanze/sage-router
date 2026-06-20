@@ -1000,6 +1000,68 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, provider_requests.get('local'))
         self.assertNotIn('other', provider_requests)
 
+    def test_launch_funnel_snapshot_seeds_acquisition_actions_without_traffic(self):
+        router.read_launch_waitlist_counts = lambda _since, limit=10000: ({
+            'total': 0,
+            'interest': {
+                'general': 0,
+                'managedAccess': 0,
+                'other': 0,
+                'unknown': 0,
+            },
+            'managedAccessDemand': {
+                'targetProviderFamily': {
+                    'mixed-frontier': 0,
+                    'ollama': 0,
+                    'openai': 0,
+                    'anthropic': 0,
+                    'byok-compatible': 0,
+                    'unknown': 0,
+                },
+                'commercialPreference': {
+                    'one-subscription': 0,
+                    'byok-plus-routing': 0,
+                    'private-contract': 0,
+                    'unknown': 0,
+                },
+            },
+        }, None)
+        router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
+            'total': 0,
+            'events': {},
+            'plans': {},
+            'sourceSurfaces': {
+                'pricing': 0,
+                'model-routing-calculator': 0,
+                'compare-openrouter': 0,
+                'launch-plan': 0,
+                'landing': 0,
+                'unknown': 0,
+            },
+            'attributionChannels': {
+                'direct': 0,
+                'github': 0,
+                'openrouter': 0,
+                'unknown': 0,
+            },
+            'authProviderState': router.new_auth_provider_state_metrics(),
+        }, None)
+
+        snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
+
+        self.assertEqual(0, snapshot['stages']['marketingIntentEvents'])
+        self.assertEqual(snapshot['acquisitionActions'], snapshot['marketingIntent']['acquisitionActions'])
+        buckets = [row['bucket'] for row in snapshot['acquisitionActions']]
+        self.assertIn('openrouter', buckets)
+        self.assertIn('github', buckets)
+        self.assertIn('pricing', buckets)
+        self.assertIn('model-routing-calculator', buckets)
+        self.assertIn('launch-plan', buckets)
+        self.assertTrue(all(row['clicks'] == 0 for row in snapshot['acquisitionActions']))
+        self.assertTrue(all(row['priority'] == 'seed_launch_channel' for row in snapshot['acquisitionActions']))
+        self.assertIn('$10k MRR outreach', json.dumps(snapshot['acquisitionActions']))
+        self.assertNotIn('buyer@example.com', json.dumps(snapshot['acquisitionActions']))
+
     def test_launch_funnel_snapshot_counts_private_conversion_stages(self):
         router.read_launch_waitlist_counts = lambda _since, limit=10000: ({
             'total': 3,

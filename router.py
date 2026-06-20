@@ -4967,6 +4967,35 @@ def launch_acquisition_action(kind, bucket):
     return actions.get(normalized, 'Review this channel for acquisition copy, CTA placement, and checkout friction.')
 
 
+DEFAULT_LAUNCH_ACQUISITION_ACTIONS = (
+    {
+        'kind': 'attributionChannel',
+        'bucket': 'openrouter',
+        'action': 'Seed OpenRouter comparison traffic with migration proof, model catalog links, and hosted checkout CTAs.',
+    },
+    {
+        'kind': 'attributionChannel',
+        'bucket': 'github',
+        'action': 'Use README, release notes, and issue templates to route qualified builders into quickstart and pricing.',
+    },
+    {
+        'kind': 'sourceSurface',
+        'bucket': 'pricing',
+        'action': 'Test the Lite/Pro/Max checkout path from pricing before buying broader acquisition.',
+    },
+    {
+        'kind': 'sourceSurface',
+        'bucket': 'model-routing-calculator',
+        'action': 'Drive early prospects to the calculator so Pro/Max fit and savings claims are captured before signup.',
+    },
+    {
+        'kind': 'sourceSurface',
+        'bucket': 'launch-plan',
+        'action': 'Use the launch plan as the founder-led sales artifact for $10k MRR outreach and managed-access beta calls.',
+    },
+)
+
+
 def launch_acquisition_actions(marketing_metrics):
     if not isinstance(marketing_metrics, dict):
         return []
@@ -4993,6 +5022,17 @@ def launch_acquisition_actions(marketing_metrics):
                 'action': launch_acquisition_action(kind, bucket),
             })
     rows.sort(key=lambda row: (-int(row.get('clicks') or 0), str(row.get('kind') or ''), str(row.get('bucket') or '')))
+    if not rows:
+        return [
+            {
+                'kind': row['kind'],
+                'bucket': row['bucket'],
+                'clicks': 0,
+                'priority': 'seed_launch_channel',
+                'action': row['action'],
+            }
+            for row in DEFAULT_LAUNCH_ACQUISITION_ACTIONS
+        ]
     return rows[:16]
 
 
