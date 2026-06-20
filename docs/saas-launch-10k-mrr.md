@@ -137,7 +137,11 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   OpenRouter comparison pages through the privacy-safe `/api/funnel-event`
   path. Store only event, plan, sanitized source/target URL, and small
   allowlisted metadata buckets; do not store prompts, workflow text, emails,
-  API keys, or provider credentials.
+  API keys, or provider credentials. Keep the browser-origin guard enabled so
+  writes are accepted only from Sage Router production hosts, Pages previews,
+  local development, or exact origins configured with
+  `SAGEROUTER_FUNNEL_ALLOWED_ORIGINS`; the service-role-backed Supabase insert
+  path must not be reusable as a third-party analytics sink.
 - Preserve coarse launch-channel attribution on those CTA events by storing
   only source surface, UTM source/medium/campaign tokens, referrer host, and
   landing path, then report aggregated channel attribution in the private

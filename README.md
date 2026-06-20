@@ -193,7 +193,12 @@ anonymous pre-signup CTA intent to `/api/funnel-event` so the private launch
 funnel can count demand before users create accounts. The event path stores
 event name, selected plan, sanitized source/target URL, and small metadata
 buckets only; it must not store workflow text, prompt bodies, emails, API keys,
-or provider credentials.
+or provider credentials. Browser-originating writes are also guarded by allowed
+Sage Router origins: production hosts, Cloudflare Pages preview hosts ending in
+`.sage-router-web.pages.dev`, local development hosts, and any additional exact
+origins configured with `SAGEROUTER_FUNNEL_ALLOWED_ORIGINS`. This keeps the
+service-role-backed Supabase insert path from becoming a generic third-party
+event sink.
 
 The account and standalone login pages also emit privacy-safe activation and
 checkout intent events for signup/login attempts, OAuth clicks, wallet connect

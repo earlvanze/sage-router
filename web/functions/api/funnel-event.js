@@ -73,9 +73,17 @@ const ALLOWED_METADATA_KEYS = new Set([
   'landingPath',
 ]);
 
-const json = (body, status = 200) => new Response(JSON.stringify(body), {
+const DEFAULT_ALLOWED_ORIGIN_HOSTS = new Set([
+  'sagerouter.dev',
+  'www.sagerouter.dev',
+  'app.sagerouter.dev',
+  'localhost',
+  '127.0.0.1',
+]);
+
+const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), {
   status,
-  headers: { 'content-type': 'application/json; charset=utf-8' },
+  headers: { 'content-type': 'application/json; charset=utf-8', ...headers },
 });
 
 const sanitizedUrl = (value) => {
@@ -120,6 +128,49 @@ const attributionValue = (value) => {
   return sanitized || null;
 };
 
+const configuredAllowedOrigins = (env) => String(env.SAGEROUTER_FUNNEL_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/$/, '').toLowerCase())
+  .filter(Boolean);
+
+const originForHeader = (value) => {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return `${url.protocol}//${url.host}`.toLowerCase();
+  } catch {
+    return null;
+  }
+};
+
+const originForRequest = (request) => {
+  const origin = originForHeader(request.headers.get('origin'));
+  if (origin) return origin;
+  return originForHeader(request.headers.get('referer'));
+};
+
+const allowedOrigin = (origin, env) => {
+  if (!origin) return null;
+  const configured = configuredAllowedOrigins(env);
+  if (configured.includes(origin)) return origin;
+  try {
+    const url = new URL(origin);
+    if (DEFAULT_ALLOWED_ORIGIN_HOSTS.has(url.hostname)) return origin;
+    if (url.hostname.endsWith('.sage-router-web.pages.dev')) return origin;
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const corsHeadersForOrigin = (origin) => ({
+  'access-control-allow-origin': origin,
+  'access-control-allow-methods': 'GET,POST,OPTIONS',
+  'access-control-allow-headers': 'content-type',
+  'access-control-max-age': '86400',
+  vary: 'Origin',
+});
+
 const funnelConfig = (env) => {
   const supabaseUrl = env.SAGEROUTER_SUPABASE_URL || env.SUPABASE_URL;
   const serviceKey = env.SAGEROUTER_SUPABASE_SERVICE_ROLE || env.SUPABASE_SERVICE_ROLE_KEY;
@@ -136,6 +187,16 @@ const insert = async (supabaseUrl, serviceKey, record) => fetch(`${supabaseUrl.r
   },
   body: JSON.stringify(record),
 });
+
+export async function onRequestOptions({ request, env }) {
+  const requestOrigin = originForRequest(request);
+  const acceptedOrigin = allowedOrigin(requestOrigin, env);
+  if (!acceptedOrigin) return json({ error: 'origin_not_allowed' }, 403);
+  return new Response(null, {
+    status: 204,
+    headers: corsHeadersForOrigin(acceptedOrigin),
+  });
+}
 
 export async function onRequestGet({ env }) {
   const { supabaseUrl, serviceKey } = funnelConfig(env);
@@ -154,10 +215,20 @@ export async function onRequestGet({ env }) {
       containsApiKeys: false,
       containsProviderCredentials: false,
     },
+    writeGuard: {
+      browserOriginRequired: true,
+      allowedHosts: Array.from(DEFAULT_ALLOWED_ORIGIN_HOSTS).sort(),
+      previewHostSuffix: '.sage-router-web.pages.dev',
+      configurableOriginsEnv: 'SAGEROUTER_FUNNEL_ALLOWED_ORIGINS',
+    },
   });
 }
 
 export async function onRequestPost({ request, env }) {
+  const requestOrigin = originForRequest(request);
+  const acceptedOrigin = allowedOrigin(requestOrigin, env);
+  if (!acceptedOrigin) return json({ error: 'origin_not_allowed' }, 403);
+
   let payload;
   try {
     payload = await request.json();
@@ -192,8 +263,8 @@ export async function onRequestPost({ request, env }) {
   const response = await insert(supabaseUrl, serviceKey, record);
   if (!response.ok) {
     const details = await response.text();
-    return json({ error: 'supabase_insert_failed', details }, 502);
+    return json({ error: 'supabase_insert_failed', details }, 502, corsHeadersForOrigin(acceptedOrigin));
   }
 
-  return json({ ok: true });
+  return json({ ok: true }, 200, corsHeadersForOrigin(acceptedOrigin));
 }

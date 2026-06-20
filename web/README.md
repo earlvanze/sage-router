@@ -44,7 +44,11 @@ table `sage_router_funnel_events`.
 `GET /api/funnel-event` is a non-mutating health check. The function only
 accepts allowlisted event names, plans, sanitized URLs, and metadata buckets so
 the operator launch funnel can count demand without storing prompts, workflow
-text, emails, API keys, or provider credentials.
+text, emails, API keys, or provider credentials. Browser-originating writes must
+come from Sage Router-owned production hosts, local development hosts,
+Cloudflare Pages preview hosts ending in `.sage-router-web.pages.dev`, or exact
+origins listed in `SAGEROUTER_FUNNEL_ALLOWED_ORIGINS`; the endpoint rejects
+third-party origins before using the Supabase service-role insert.
 
 The account and standalone login pages use the same endpoint for activation and
 checkout intent: signup/login attempt, OAuth click, wallet connect attempt,

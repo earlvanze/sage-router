@@ -649,18 +649,20 @@ check_waitlist_endpoint() {
 }
 
 check_funnel_event_endpoint() {
-  local code ok service primary_table privacy_ok allowed_events
+  local code ok service primary_table privacy_ok allowed_events write_guard preview_suffix
   code="$(http_code "${APP_BASE%/}/api/funnel-event")"
   ok="$(jq -r '.ok // false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   service="$(jq -r '.service // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   primary_table="$(jq -r '.primaryTable // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   privacy_ok="$(jq -r '(.privacy.promptsStored == false) and (.privacy.messageBodiesStored == false) and (.privacy.containsApiKeys == false)' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   allowed_events="$(jq -r '(.allowedEvents // []) | index("calculator_checkout_clicked") != null' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  write_guard="$(jq -r '.writeGuard.browserOriginRequired == true' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  preview_suffix="$(jq -r '.writeGuard.previewHostSuffix // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-funnel-event" && "$primary_table" == "sage_router_funnel_events" && "$privacy_ok" == "true" && "$allowed_events" == "true" ]]; then
-    pass "privacy-safe marketing funnel event endpoint is configured"
+  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-funnel-event" && "$primary_table" == "sage_router_funnel_events" && "$privacy_ok" == "true" && "$allowed_events" == "true" && "$write_guard" == "true" && "$preview_suffix" == ".sage-router-web.pages.dev" ]]; then
+    pass "privacy-safe marketing funnel event endpoint is configured with browser origin guard"
   else
-    fail "marketing funnel event endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} table=${primary_table:-missing} privacy=${privacy_ok:-missing} calculatorEvent=${allowed_events:-missing}"
+    fail "marketing funnel event endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} table=${primary_table:-missing} privacy=${privacy_ok:-missing} calculatorEvent=${allowed_events:-missing} writeGuard=${write_guard:-missing} previewSuffix=${preview_suffix:-missing}"
   fi
 }
 
