@@ -485,6 +485,9 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "Verify API key" /tmp/sage-router-readiness-body; then
     account_code="200:missing-api-key-verification"
   fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "email-verification-status" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-email-verification-status"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   analytics_code="$(http_code_follow "${APP_BASE%/}/analytics.html")"
@@ -549,6 +552,9 @@ check_hosted_onboarding_pages() {
   account_js_code="$(http_code_follow "${APP_BASE%/}/account.js")"
   if [[ "$account_js_code" == "200" ]] && ! grep -q "testApiKey" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-api-key-test"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "emailVerification" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-email-verification-flow"
   fi
   rm -f /tmp/sage-router-readiness-body
 
