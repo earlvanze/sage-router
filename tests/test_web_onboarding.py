@@ -193,6 +193,9 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("api('/billing/stripe/portal'", js)
         self.assertIn("params.get('billing')", js)
         self.assertIn("billing === 'portal'", js)
+        self.assertIn('id="crypto-status-check"', html)
+        self.assertIn("api(`/billing/crypto/status?id=${encodeURIComponent(lastManualPaymentIntentId)}`)", js)
+        self.assertIn("describeManualPaymentIntent", js)
 
     def test_pricing_plan_links_preselect_checkout_plan(self):
         pricing = self.read_public("pricing.html")
@@ -917,6 +920,9 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("account_billing_portal_clicked", function_js)
         self.assertIn("account_billing_portal_returned", function_js)
         self.assertIn("account_crypto_intent_clicked", function_js)
+        self.assertIn("account_crypto_intent_created", function_js)
+        self.assertIn("account_crypto_status_clicked", function_js)
+        self.assertIn("account_crypto_status_checked", function_js)
         self.assertIn("account_signup_submitted", function_js)
         self.assertIn("account_signup_succeeded", function_js)
         self.assertIn("account_login_submitted", function_js)
@@ -1019,6 +1025,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("account_api_key_created", account)
         self.assertIn("account_key_verified", account)
         self.assertIn("account_first_request_succeeded", account)
+        self.assertIn("account_crypto_status_checked", account)
         self.assertIn("source: 'account'", account)
         login = self.read_public("auth.js")
         self.assertIn("trackLoginFunnelEvent", login)

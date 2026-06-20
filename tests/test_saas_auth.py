@@ -1971,7 +1971,7 @@ class SaaSAuthTests(unittest.TestCase):
             'email_confirmed_at': '2026-06-20T00:00:00Z',
         } if token == 'valid-user-jwt' else None
 
-        body = b'{"plan":"pro","note":"Sage Router pro subscription"}'
+        body = b'{"plan":"pro","note":"sk-secret customer note should not echo"}'
 
         class Dummy:
             path = '/billing/crypto/intent'
@@ -1998,6 +1998,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('wallet_123', intent['address'])
         self.assertEqual('pro', intent['metadata']['plan'])
         self.assertEqual('public_plan_catalog', intent['metadata']['amount_source'])
+        self.assertNotIn('sk-secret customer note', json.dumps(handler.payload))
 
     def test_crypto_intent_preserves_explicit_amount_override(self):
         router.SUPABASE_AUTH_ENABLED = True
@@ -2036,6 +2037,66 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('algorand', intent['network'])
         self.assertEqual('lite', intent['metadata']['plan'])
         self.assertEqual('request', intent['metadata']['amount_source'])
+
+    def test_crypto_status_returns_public_intent_without_customer_note(self):
+        router.SUPABASE_AUTH_ENABLED = True
+        router.REQUIRE_VERIFIED_EMAIL = True
+        router.CRYPTO_PAYMENT_ADDRESS = 'wallet_123'
+        router.supabase_user_for_bearer = lambda token: {
+            'id': 'user-verified',
+            'email': 'verified@example.com',
+            'email_confirmed_at': '2026-06-20T00:00:00Z',
+        } if token == 'valid-user-jwt' else None
+
+        body = b'{"plan":"max","note":"do not echo this manual settlement note"}'
+
+        class PostDummy:
+            path = '/billing/crypto/intent'
+            headers = {
+                'Authorization': 'Bearer valid-user-jwt',
+                'Content-Length': str(len(body)),
+                'Origin': 'https://app.sagerouter.dev',
+            }
+            rfile = BytesIO(body)
+            status = None
+            payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        created = PostDummy()
+        router.Handler.do_POST(created)
+        self.assertEqual(201, created.status)
+        intent_id = created.payload['intent']['id']
+        router.update_payment_intent(intent_id, {
+            'status': 'settled_manual_review',
+            'metadata': {
+                **router.payment_intent_by_id(intent_id)['metadata'],
+                'approved_at_epoch': 123,
+                'settlement_reference': 'tx_123',
+            },
+        })
+
+        class GetDummy:
+            def __init__(self):
+                self.path = f'/billing/crypto/status?id={intent_id}'
+                self.headers = {'Authorization': 'Bearer valid-user-jwt'}
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        status = GetDummy()
+        router.Handler.do_GET(status)
+
+        self.assertEqual(200, status.status)
+        self.assertEqual('settled_manual_review', status.payload['intent']['status'])
+        self.assertEqual('max', status.payload['intent']['metadata']['plan'])
+        self.assertEqual('tx_123', status.payload['intent']['metadata']['settlement_reference'])
+        self.assertNotIn('do not echo this manual settlement note', json.dumps(status.payload))
 
     def test_operator_can_approve_manual_payment_intent_and_activate_customer(self):
         router.CLIENT_API_KEYS = ['operator-token']

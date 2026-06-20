@@ -134,7 +134,8 @@ not a checkout entitlement, provider resale claim, or runtime feature flag.
 - Keep `/billing` as the hosted billing recovery path for Stripe checkout,
   Stripe billing portal, manual/crypto settlement, activation states,
   generated `sk_sage_*` key behavior before and after payment, payment
-  recovery, and safe no-secret support context.
+  recovery, bounded customer-visible manual payment status, and safe no-secret
+  support context.
 - Use the calculator as the lightweight qualification path before signup:
   prospects estimate savings, review points, and fallback gaps, then create a
   hosted API key or request implementation support. The calculator should
@@ -213,7 +214,9 @@ not a checkout entitlement, provider resale claim, or runtime feature flag.
   Lite/Pro/Max plan, reject replay/stale approvals without duplicate audit
   events, record a secret-free operator audit event, and preserve sticky
   suspension so settled payment cannot restore an account under abuse,
-  chargeback, provider-risk, or security review.
+  chargeback, provider-risk, or security review. Customer-facing manual intent
+  create/status responses must use the bounded public intent shape and avoid
+  echoing arbitrary customer notes or support text.
 - Capture managed-access beta and Max implementation demand through the
   waitlist `interest` metadata path from `/managed-access` and watch
   `managedAccessBetaInterest` plus `managedAccessShareOfWaitlist` in

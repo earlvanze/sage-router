@@ -76,6 +76,7 @@ let selectedPlan = storedPlan() || 'pro';
 let availablePlans = FALLBACK_PLANS;
 let recommendedUpgradePlan = '';
 let currentRawKey = '';
+let lastManualPaymentIntentId = '';
 let billingReturnHandled = false;
 let keyVerifiedThisSession = false;
 let activationState = {
@@ -837,6 +838,21 @@ async function billingPortal() {
   }
 }
 
+function describeManualPaymentIntent(intent = {}) {
+  const metadata = intent.metadata || {};
+  if (intent.status === 'settled_manual_review') {
+    return `Manual payment settled for ${planDisplay(metadata.plan || selectedPlan)}. Routing activation can take a moment to refresh.`;
+  }
+  const pieces = [
+    intent.status || 'pending_manual_review',
+    `Send ${intent.amount || 'the agreed amount'} ${intent.asset || ''}`.trim(),
+    intent.network ? `on ${intent.network}` : '',
+    intent.address ? `to ${intent.address}` : '',
+    intent.id ? `with intent id ${intent.id}` : '',
+  ].filter(Boolean);
+  return `${pieces.join(' ')}. Settlement is manual until an operator approves the payment.`;
+}
+
 async function cryptoIntent() {
   setBusy('crypto-intent', true, 'Creating...');
   try {
@@ -844,11 +860,34 @@ async function cryptoIntent() {
     trackAccountFunnelEvent('account_crypto_intent_clicked', { button: 'crypto_intent', target: '/billing/crypto/intent' });
     const data = await api('/billing/crypto/intent', { method: 'POST', body: JSON.stringify({ note: `Sage Router ${selectedPlan} subscription`, plan: selectedPlan }) });
     const i = data.intent || {};
-    set('crypto-status', `${i.status}. Send ${i.amount || 'the agreed amount'} ${i.asset || ''} on ${i.network || 'the configured network'} to ${i.address}. Include intent id ${i.id} in the memo/reference. Settlement is manual until a processor is configured.`);
+    lastManualPaymentIntentId = i.id || '';
+    show('crypto-status-check', Boolean(lastManualPaymentIntentId));
+    set('crypto-status', describeManualPaymentIntent(i));
+    trackAccountFunnelEvent('account_crypto_intent_created', { button: 'crypto_intent', target: '/billing/crypto/intent', state: i.status || 'pending_manual_review' });
   } catch (error) {
     set('crypto-status', error.message);
   } finally {
     setBusy('crypto-intent', false);
+  }
+}
+
+async function cryptoStatus() {
+  if (!lastManualPaymentIntentId) {
+    set('crypto-status', 'Create a manual payment intent before checking status.');
+    return;
+  }
+  setBusy('crypto-status-check', true, 'Checking...');
+  try {
+    trackAccountFunnelEvent('account_crypto_status_clicked', { button: 'crypto_status', target: '/billing/crypto/status', state: 'manual_payment' });
+    const data = await api(`/billing/crypto/status?id=${encodeURIComponent(lastManualPaymentIntentId)}`);
+    const intent = data.intent || {};
+    set('crypto-status', describeManualPaymentIntent(intent));
+    trackAccountFunnelEvent('account_crypto_status_checked', { button: 'crypto_status', target: '/billing/crypto/status', state: intent.status || 'unknown' });
+    if (intent.status === 'settled_manual_review') refresh();
+  } catch (error) {
+    set('crypto-status', error.message);
+  } finally {
+    setBusy('crypto-status-check', false);
   }
 }
 
@@ -862,6 +901,7 @@ $('test-chat-button')?.addEventListener('click', sendTestChat);
 $('stripe-checkout')?.addEventListener('click', stripeCheckout);
 $('stripe-portal')?.addEventListener('click', billingPortal);
 $('crypto-intent')?.addEventListener('click', cryptoIntent);
+$('crypto-status-check')?.addEventListener('click', cryptoStatus);
 $('sign-out')?.addEventListener('click', async () => { await sb.auth.signOut(); refresh(); });
 $('plans')?.addEventListener('click', (event) => {
   const button = event.target?.closest?.('[data-plan]');

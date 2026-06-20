@@ -10485,7 +10485,7 @@ class Handler(BaseHTTPRequestHandler):
             if not intent:
                 self.write_json(404, {'error': 'payment_intent_not_found'})
                 return
-            self.write_json(200, {'intent': intent})
+            self.write_json(200, {'intent': public_payment_intent(intent)})
         elif self.path == '/admin/clear-blocks':
             if not require_operator_request(self):
                 return
@@ -10939,7 +10939,7 @@ class Handler(BaseHTTPRequestHandler):
                     'note': payload.get('note') or '',
                 },
             })
-            self.write_json(201, {'intent': intent})
+            self.write_json(201, {'intent': public_payment_intent(intent)})
             return
 
         audio_kind = audio_endpoint_kind(self.path)
