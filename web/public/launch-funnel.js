@@ -155,6 +155,7 @@ function campaignTemplateForAction(kind, bucket) {
     sourceSurface: {
       pricing: ['/pricing', 'operator', 'launch_funnel', 'pricing_checkout_proof'],
       'model-routing-calculator': ['/model-routing-calculator', 'operator', 'launch_funnel', 'calculator_qualification'],
+      'model-catalog': ['/models', 'operator', 'launch_funnel', 'model_catalog_demand'],
       quickstart: ['/quickstart', 'operator', 'launch_funnel', 'first_request_activation'],
       'compare-openrouter': ['/compare/openrouter', 'openrouter', 'founder', 'launch_openrouter_migration'],
       'managed-access': ['/managed-access', 'operator', 'launch_funnel', 'managed_access_beta'],
@@ -222,6 +223,7 @@ function buildLaunchBrief(data = {}) {
   const mrr = data.mrr || {};
   const marketingIntent = data.marketingIntent || {};
   const checkoutFriction = marketingIntent.checkoutFriction || {};
+  const modelCatalogDemand = marketingIntent.modelCatalogDemand || {};
   const authState = marketingIntent.authProviderState || {};
   const managedAccessDemand = data.managedAccessDemand || {};
   const acquisitionActions = data.acquisitionActions || marketingIntent.acquisitionActions || [];
@@ -256,6 +258,10 @@ function buildLaunchBrief(data = {}) {
     '',
     'Acquisition motions',
     ...(topAcquisition.length ? topAcquisition.map(row => `- ${attributionLabel(row.bucket || row.kind || 'source')}: ${integer(row.clicks)} clicks, ${customerActionLabel(row.priority || 'review')}. ${row.action || 'Review this channel.'} Link: ${launchActionUrl(row)}`) : ['- No ranked acquisition actions returned for this window.']),
+    '',
+    'Model catalog demand',
+    `- Model-family buckets: ${sortedEntries(modelCatalogDemand.modelFamily).slice(0, 4).map(([name, count]) => `${demandLabel(name)} ${integer(count)}`).join(', ') || 'none'}`,
+    `- Search buckets: ${sortedEntries(modelCatalogDemand.queryBucket).slice(0, 4).map(([name, count]) => `${demandLabel(name)} ${integer(count)}`).join(', ') || 'none'}`,
     '',
     'Managed-access demand',
     `- Beta interest: ${integer(stages.managedAccessBetaInterest)}; waitlist share: ${percent(rates.managedAccessShareOfWaitlist)}`,
@@ -527,6 +533,9 @@ function renderMarketingIntent(marketingIntent = {}) {
   const planRows = sortedEntries(marketingIntent.plans);
   const surfaceRows = sortedEntries(marketingIntent.sourceSurfaces);
   const channelRows = sortedEntries(marketingIntent.attributionChannels);
+  const modelCatalogDemand = marketingIntent.modelCatalogDemand || {};
+  const modelFamilyRows = sortedEntries(modelCatalogDemand.modelFamily);
+  const modelQueryRows = sortedEntries(modelCatalogDemand.queryBucket);
   const setupRows = sortedEntries(marketingIntent.setupSnippetCopiesBySnippet);
   const setupCopyCount = asNumber(marketingIntent.setupSnippetCopies);
   const setupBlock = setupCopyCount || setupRows.length ? `<div>
@@ -555,7 +564,7 @@ function renderMarketingIntent(marketingIntent = {}) {
       }</tbody>
     </table>
   </div>` : '';
-  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length && !setupBlock && !checkoutBlock) {
+  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length && !modelFamilyRows.length && !modelQueryRows.length && !setupBlock && !checkoutBlock) {
     $('marketing-intent-breakdown').innerHTML = '<div class="empty">No anonymous marketing CTA intent events in this window.</div>';
     return;
   }
@@ -574,6 +583,10 @@ function renderMarketingIntent(marketingIntent = {}) {
     renderTable('Source surfaces', surfaceRows)
   }${
     renderTable('Attribution channels', channelRows)
+  }${
+    renderDemandTable('Model catalog families', modelFamilyRows, 'No model catalog family demand returned.')
+  }${
+    renderDemandTable('Catalog search buckets', modelQueryRows, 'No model catalog search demand returned.')
   }${setupBlock}${checkoutBlock}</div>`;
 }
 

@@ -1142,6 +1142,7 @@ class SaaSAuthTests(unittest.TestCase):
             'sourceSurfaces': {
                 'pricing': 0,
                 'model-routing-calculator': 0,
+                'model-catalog': 0,
                 'compare-openrouter': 0,
                 'launch-plan': 0,
                 'landing': 0,
@@ -1154,6 +1155,7 @@ class SaaSAuthTests(unittest.TestCase):
                 'unknown': 0,
             },
             'authProviderState': router.new_auth_provider_state_metrics(),
+            'modelCatalogDemand': router.new_model_catalog_demand_metrics(),
         }, None)
 
         snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
@@ -1165,6 +1167,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('github', buckets)
         self.assertIn('pricing', buckets)
         self.assertIn('model-routing-calculator', buckets)
+        self.assertIn('model-catalog', buckets)
         self.assertIn('launch-plan', buckets)
         self.assertTrue(all(row['clicks'] == 0 for row in snapshot['acquisitionActions']))
         self.assertTrue(all(row['priority'] == 'seed_launch_channel' for row in snapshot['acquisitionActions']))
@@ -1208,9 +1211,12 @@ class SaaSAuthTests(unittest.TestCase):
             },
         }, None)
         router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
-            'total': 18,
+            'total': 22,
             'events': {
                 'landing_account_clicked': 1,
+                'model_catalog_viewed': 1,
+                'model_catalog_search_bucketed': 2,
+                'model_catalog_filter_clicked': 1,
                 'account_api_key_created': 1,
                 'account_snippet_copied': 1,
                 'quickstart_snippet_copied': 1,
@@ -1235,6 +1241,7 @@ class SaaSAuthTests(unittest.TestCase):
                 'landing': 1,
                 'launch-plan': 1,
                 'pricing': 2,
+                'model-catalog': 4,
                 'compare-openrouter': 2,
                 'account': 1,
                 'login': 1,
@@ -1266,6 +1273,18 @@ class SaaSAuthTests(unittest.TestCase):
                     'other': 0,
                 },
             },
+            'modelCatalogDemand': {
+                'modelFamily': {
+                    'ollama': 2,
+                    'openai-codex': 1,
+                    'other': 1,
+                },
+                'queryBucket': {
+                    'ollama': 2,
+                    'empty': 1,
+                    'other': 1,
+                },
+            },
             'setupSnippetCopies': 2,
             'setupSnippetCopiesBySnippet': {
                 'codex-cli': 1,
@@ -1292,8 +1311,11 @@ class SaaSAuthTests(unittest.TestCase):
         snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
 
         self.assertEqual(3, snapshot['stages']['waitlistLeads'])
-        self.assertEqual(18, snapshot['stages']['marketingIntentEvents'])
+        self.assertEqual(22, snapshot['stages']['marketingIntentEvents'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['landing_account_clicked'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['model_catalog_viewed'])
+        self.assertEqual(2, snapshot['marketingIntent']['events']['model_catalog_search_bucketed'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['model_catalog_filter_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['account_api_key_created'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['account_snippet_copied'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['quickstart_snippet_copied'])
@@ -1324,7 +1346,12 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, snapshot['marketingIntent']['sourceSurfaces']['landing'])
         self.assertEqual(1, snapshot['marketingIntent']['sourceSurfaces']['launch-plan'])
         self.assertEqual(2, snapshot['marketingIntent']['sourceSurfaces']['pricing'])
+        self.assertEqual(4, snapshot['marketingIntent']['sourceSurfaces']['model-catalog'])
         self.assertEqual(2, snapshot['marketingIntent']['sourceSurfaces']['compare-openrouter'])
+        self.assertEqual(2, snapshot['marketingIntent']['modelCatalogDemand']['modelFamily']['ollama'])
+        self.assertEqual(1, snapshot['marketingIntent']['modelCatalogDemand']['modelFamily']['openai-codex'])
+        self.assertEqual(2, snapshot['marketingIntent']['modelCatalogDemand']['queryBucket']['ollama'])
+        self.assertEqual(1, snapshot['marketingIntent']['modelCatalogDemand']['queryBucket']['empty'])
         self.assertEqual(2, snapshot['marketingIntent']['attributionChannels']['github'])
         self.assertEqual(1, snapshot['marketingIntent']['attributionChannels']['openrouter'])
         self.assertEqual(snapshot['acquisitionActions'], snapshot['marketingIntent']['acquisitionActions'])
@@ -1332,9 +1359,11 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('github', acquisition_buckets)
         self.assertIn('launch-plan', acquisition_buckets)
         self.assertIn('pricing', acquisition_buckets)
+        self.assertIn('model-catalog', acquisition_buckets)
         self.assertIn('compare-openrouter', acquisition_buckets)
         self.assertIn('Publish OpenRouter migration proof', json.dumps(snapshot['acquisitionActions']))
         self.assertIn('Turn launch-plan readers into Pro checkout', json.dumps(snapshot['acquisitionActions']))
+        self.assertIn('Turn catalog demand into hosted key activation', json.dumps(snapshot['acquisitionActions']))
         self.assertNotIn('buyer@example.com', json.dumps(snapshot['acquisitionActions']))
         self.assertEqual(2, snapshot['stages']['managedAccessBetaInterest'])
         self.assertEqual(2, snapshot['waitlistInterest']['managedAccess'])
@@ -1491,6 +1520,38 @@ class SaaSAuthTests(unittest.TestCase):
                     },
                 },
                 {
+                    'event': 'model_catalog_viewed',
+                    'plan': None,
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'model-catalog',
+                        'modelFamily': 'all',
+                        'queryBucket': 'empty',
+                        'utmSource': 'openrouter',
+                        'search': 'gpt raw text must not appear',
+                    },
+                },
+                {
+                    'event': 'model_catalog_search_bucketed',
+                    'plan': None,
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'model-catalog',
+                        'modelFamily': 'ollama',
+                        'queryBucket': 'ollama',
+                    },
+                },
+                {
+                    'event': 'model_catalog_filter_clicked',
+                    'plan': None,
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': json.dumps({
+                        'source': 'model-catalog',
+                        'modelFamily': 'openai-codex',
+                        'queryBucket': 'openai-codex',
+                    }),
+                },
+                {
                     'event': 'account_snippet_copied',
                     'plan': 'pro',
                     'created_at': '2026-06-19T00:00:00Z',
@@ -1632,10 +1693,13 @@ class SaaSAuthTests(unittest.TestCase):
         metrics, error = router.read_launch_marketing_funnel_counts(0)
 
         self.assertIsNone(error)
-        self.assertEqual(18, metrics['total'])
+        self.assertEqual(21, metrics['total'])
         self.assertEqual(1, metrics['events']['landing_account_clicked'])
         self.assertEqual(1, metrics['events']['landing_viewed'])
         self.assertEqual(1, metrics['events']['account_api_key_created'])
+        self.assertEqual(1, metrics['events']['model_catalog_viewed'])
+        self.assertEqual(1, metrics['events']['model_catalog_search_bucketed'])
+        self.assertEqual(1, metrics['events']['model_catalog_filter_clicked'])
         self.assertEqual(1, metrics['events']['account_snippet_copied'])
         self.assertEqual(1, metrics['events']['quickstart_snippet_copied'])
         self.assertEqual(2, metrics['setupSnippetCopies'])
@@ -1658,6 +1722,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, metrics['sourceSurfaces']['landing'])
         self.assertEqual(2, metrics['sourceSurfaces']['launch-plan'])
         self.assertEqual(2, metrics['sourceSurfaces']['model-routing-calculator'])
+        self.assertEqual(3, metrics['sourceSurfaces']['model-catalog'])
         self.assertEqual(2, metrics['sourceSurfaces']['compare-openrouter'])
         self.assertEqual(2, metrics['sourceSurfaces']['pricing'])
         self.assertEqual(3, metrics['sourceSurfaces']['account'])
@@ -1666,11 +1731,17 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['sourceSurfaces']['billing'])
         self.assertEqual(1, metrics['sourceSurfaces']['unknown'])
         self.assertEqual(2, metrics['attributionChannels']['github'])
-        self.assertEqual(3, metrics['attributionChannels']['openrouter'])
+        self.assertEqual(4, metrics['attributionChannels']['openrouter'])
         self.assertEqual(2, metrics['attributionChannels']['newsletter'])
         self.assertEqual(2, metrics['attributionChannels']['google'])
         self.assertEqual(1, metrics['attributionChannels']['discord'])
-        self.assertEqual(8, metrics['attributionChannels']['direct'])
+        self.assertEqual(10, metrics['attributionChannels']['direct'])
+        self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['all'])
+        self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['ollama'])
+        self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['openai-codex'])
+        self.assertEqual(1, metrics['modelCatalogDemand']['queryBucket']['empty'])
+        self.assertEqual(1, metrics['modelCatalogDemand']['queryBucket']['ollama'])
+        self.assertEqual(1, metrics['modelCatalogDemand']['queryBucket']['openai-codex'])
         self.assertEqual(2, metrics['authProviderState']['total'])
         self.assertEqual(1, metrics['authProviderState']['loaded'])
         self.assertEqual(1, metrics['authProviderState']['unavailable'])
@@ -1686,10 +1757,13 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('pro', json.dumps(metrics['plans']))
         self.assertIn('launch-plan', buckets)
         self.assertIn('pricing', buckets)
+        self.assertIn('model-catalog', buckets)
         self.assertIn('Tighten pricing CTAs', json.dumps(actions))
+        self.assertIn('Turn catalog demand into hosted key activation', json.dumps(actions))
         self.assertIn('Turn launch-plan readers into Pro checkout', json.dumps(actions))
         self.assertNotIn('email', json.dumps(metrics))
         self.assertNotIn('buyer@example.com', json.dumps(metrics))
+        self.assertNotIn('gpt raw text must not appear', json.dumps(metrics))
 
     def test_analytics_funnel_requires_operator_auth_when_hosted_auth_enabled(self):
         router.SUPABASE_AUTH_ENABLED = True

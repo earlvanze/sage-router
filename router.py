@@ -5147,6 +5147,7 @@ MARKETING_SOURCE_SURFACE_BUCKETS = (
     'compare-openrouter',
     'managed-access',
     'launch-plan',
+    'model-catalog',
     'account',
     'login',
     'billing',
@@ -5163,6 +5164,26 @@ MARKETING_ATTRIBUTION_CHANNEL_BUCKETS = (
     'newsletter',
     'docs',
     'sagerouter',
+)
+MARKETING_MODEL_CATALOG_FAMILY_BUCKETS = (
+    'sage-router-profiles',
+    'openai-codex',
+    'anthropic',
+    'gemini',
+    'ollama',
+    'byok-compatible',
+    'all',
+    'other',
+)
+MARKETING_MODEL_CATALOG_QUERY_BUCKETS = (
+    'sage-router-profiles',
+    'openai-codex',
+    'anthropic',
+    'gemini',
+    'ollama',
+    'byok-compatible',
+    'empty',
+    'other',
 )
 
 
@@ -5246,12 +5267,33 @@ def marketing_channel_bucket(metadata):
     return 'other'
 
 
+def marketing_model_catalog_bucket(metadata, allowed, *keys):
+    for key in keys:
+        value = str(metadata.get(key) or '').strip().lower()
+        if not value:
+            continue
+        return value if value in allowed else 'other'
+    return 'unknown'
+
+
+def new_model_catalog_demand_metrics():
+    return {
+        'modelFamily': {bucket: 0 for bucket in (*MARKETING_MODEL_CATALOG_FAMILY_BUCKETS, 'unknown')},
+        'queryBucket': {bucket: 0 for bucket in (*MARKETING_MODEL_CATALOG_QUERY_BUCKETS, 'unknown')},
+    }
+
+
+def marketing_event_is_model_catalog(event, metadata):
+    return str(event or '').startswith('model_catalog_') or str(metadata.get('source') or '').strip().lower() == 'model-catalog'
+
+
 def launch_acquisition_action(kind, bucket):
     normalized = str(bucket or '').strip().lower()
     if kind == 'sourceSurface':
         actions = {
             'pricing': 'Tighten pricing CTAs, checkout plan defaults, and proof around hosted key activation.',
             'model-routing-calculator': 'Turn calculator interest into implementation calls and preselected Pro/Max checkout.',
+            'model-catalog': 'Turn catalog demand into hosted key activation, route-profile proof, and model availability copy.',
             'quickstart': 'Use copyable quickstart snippets to convert generated-key users into first routed requests.',
             'compare-openrouter': 'Route OpenRouter comparison traffic into the migration guide, model catalog, and hosted checkout.',
             'managed-access': 'Turn managed-access beta demand into authorization review, margin validation, and Max/BYOK activation.',
@@ -5296,6 +5338,11 @@ DEFAULT_LAUNCH_ACQUISITION_ACTIONS = (
         'kind': 'sourceSurface',
         'bucket': 'model-routing-calculator',
         'action': 'Drive early prospects to the calculator so Pro/Max fit and savings claims are captured before signup.',
+    },
+    {
+        'kind': 'sourceSurface',
+        'bucket': 'model-catalog',
+        'action': 'Seed model catalog traffic with hosted key activation, frontier profile proof, and OpenRouter migration CTAs.',
     },
     {
         'kind': 'sourceSurface',
@@ -5526,6 +5573,7 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'plans': {},
         'sourceSurfaces': {bucket: 0 for bucket in (*MARKETING_SOURCE_SURFACE_BUCKETS, 'other', 'unknown')},
         'attributionChannels': {bucket: 0 for bucket in (*MARKETING_ATTRIBUTION_CHANNEL_BUCKETS, 'other', 'unknown')},
+        'modelCatalogDemand': new_model_catalog_demand_metrics(),
         'authProviderState': new_auth_provider_state_metrics(),
         'setupSnippetCopies': 0,
         'setupSnippetCopiesBySnippet': {},
@@ -5569,6 +5617,21 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             attribution_channel = 'unknown'
         metrics['sourceSurfaces'][source_surface] = metrics['sourceSurfaces'].get(source_surface, 0) + 1
         metrics['attributionChannels'][attribution_channel] = metrics['attributionChannels'].get(attribution_channel, 0) + 1
+        if marketing_event_is_model_catalog(event, metadata):
+            family = marketing_model_catalog_bucket(
+                metadata,
+                MARKETING_MODEL_CATALOG_FAMILY_BUCKETS,
+                'modelFamily',
+                'model_family',
+            )
+            query_bucket = marketing_model_catalog_bucket(
+                metadata,
+                MARKETING_MODEL_CATALOG_QUERY_BUCKETS,
+                'queryBucket',
+                'query_bucket',
+            )
+            metrics['modelCatalogDemand']['modelFamily'][family] = metrics['modelCatalogDemand']['modelFamily'].get(family, 0) + 1
+            metrics['modelCatalogDemand']['queryBucket'][query_bucket] = metrics['modelCatalogDemand']['queryBucket'].get(query_bucket, 0) + 1
         if event == 'auth_provider_state_checked':
             update_auth_provider_state_metrics(metrics, metadata)
         if event in SETUP_SNIPPET_COPY_EVENTS:

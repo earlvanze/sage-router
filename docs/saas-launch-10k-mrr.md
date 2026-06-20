@@ -329,8 +329,11 @@ provider resale claim, or runtime feature flag.
   `/analytics/funnel` endpoint.
 - Include anonymous `marketingIntentEvents` plus event/plan breakdowns in
   `/analytics/funnel` and the private launch-funnel dashboard so the operator
-  can see whether pricing, calculator, and OpenRouter comparison demand exists
-  before signup.
+  can see whether pricing, calculator, model catalog, and OpenRouter comparison
+  demand exists before signup.
+- Include model catalog family and search-bucket demand in the same private
+  funnel so model interest can drive catalog copy, route-profile proof, and
+  hosted key activation without storing raw search text.
 - Include source-surface and attribution-channel breakdowns in the same
   operator funnel so GitHub, Google, OpenRouter, Discord, Reddit, newsletter,
   direct, and internal Sage Router traffic can be ranked against the `$10k MRR`
