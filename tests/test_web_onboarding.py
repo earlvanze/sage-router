@@ -150,7 +150,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("GitHub OAuth owner handoff", script)
         self.assertIn("SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0", script)
         self.assertIn("bash scripts/bootstrap_github_supabase_auth.sh", script)
-        self.assertIn("https://app.sagerouter.dev/github-app-manifest.html?code=...", script)
+        self.assertIn("https://app.sagerouter.dev/github-app-manifest?code=...", script)
         self.assertIn("Email signup remains enabled while GitHub OAuth is pending.", script)
         self.assertIn("/auth/v1/settings", script)
         self.assertIn("discover_supabase_anon_key", script)
@@ -196,7 +196,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("temporary one-hour `code`", readme)
         self.assertIn("noindex,nofollow", readme)
         self.assertIn("full callback URL or the raw code", readme)
-        self.assertIn("https://app.sagerouter.dev/github-app-manifest.html?code=...", readme)
+        self.assertIn("https://app.sagerouter.dev/github-app-manifest?code=...", readme)
         self.assertIn("credential\npreservation to `/home/digit/.openclaw/sage-router-github-auth.env`", readme)
 
     def test_account_page_has_stripe_billing_management(self):

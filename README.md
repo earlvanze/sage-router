@@ -306,12 +306,12 @@ If you override Supabase settings from the environment, prefer
 anon-key JWT belongs to the same project ref, which avoids false results on
 machines that also work with other Supabase projects.
 
-If local capture is not available, fall back to the hosted callback page. After approving the app, GitHub redirects to `/github-app-manifest.html` with a temporary one-hour `code`; the page is marked `noindex,nofollow`, explains that the browser only holds the short-lived manifest code, and prints the exact local exchange command. Rerun the same script with the full callback URL or the raw code:
+If local capture is not available, fall back to the hosted callback page. After approving the app, GitHub redirects to `/github-app-manifest` with a temporary one-hour `code`; the page is marked `noindex,nofollow`, explains that the browser only holds the short-lived manifest code, and prints the exact local exchange command. Rerun the same script with the full callback URL or the raw code:
 
 ```bash
 SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 \
   bash scripts/bootstrap_github_supabase_auth.sh
-bash scripts/bootstrap_github_supabase_auth.sh 'https://app.sagerouter.dev/github-app-manifest.html?code=...'
+bash scripts/bootstrap_github_supabase_auth.sh 'https://app.sagerouter.dev/github-app-manifest?code=...'
 # or:
 SAGEROUTER_GITHUB_APP_MANIFEST_CODE=... \
   bash scripts/bootstrap_github_supabase_auth.sh
@@ -321,7 +321,7 @@ If the Supabase Management API token is being refreshed or debugged, preserve
 the one-time GitHub client secret before the Supabase patch runs:
 
 ```bash
-bash scripts/bootstrap_github_supabase_auth.sh 'https://app.sagerouter.dev/github-app-manifest.html?code=...'
+bash scripts/bootstrap_github_supabase_auth.sh 'https://app.sagerouter.dev/github-app-manifest?code=...'
 ```
 
 The callback page prints the exact command, including env loading, credential

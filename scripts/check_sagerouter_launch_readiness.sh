@@ -682,7 +682,7 @@ check_hosted_onboarding_pages() {
   fi
   rm -f /tmp/sage-router-readiness-body
 
-  manifest_code="$(http_code_follow "${APP_BASE%/}/github-app-manifest.html")"
+  manifest_code="$(http_code_follow "${APP_BASE%/}/github-app-manifest")"
   if [[ "$manifest_code" == "200" ]] && ! grep -q "Finish GitHub auth setup" /tmp/sage-router-readiness-body; then
     manifest_code="200:unexpected-body"
   fi

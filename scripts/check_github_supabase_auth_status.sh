@@ -57,7 +57,7 @@ GitHub OAuth owner handoff:
   1. From the sage-router repo, run:
      SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh
   2. Approve the GitHub App in the browser as the owner.
-  3. On https://app.sagerouter.dev/github-app-manifest.html?code=..., run the printed exchange command within one hour.
+  3. On https://app.sagerouter.dev/github-app-manifest?code=..., run the printed exchange command within one hour.
   4. Recheck:
      bash scripts/check_github_supabase_auth_status.sh
      scripts/check_sagerouter_launch_readiness.sh

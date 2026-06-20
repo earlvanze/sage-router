@@ -172,7 +172,8 @@ import secrets
 print(secrets.token_urlsafe(24))
 PY
 )"
-redirect_url="$AUTH_SITE_URL/github-app-manifest.html"
+hosted_manifest_path="/github-app-manifest"
+redirect_url="${AUTH_SITE_URL%/}${hosted_manifest_path}"
 if [[ "$LOCAL_CAPTURE" != "0" && "$LOCAL_CAPTURE" != "false" && "$LOCAL_CAPTURE" != "no" ]]; then
   if [[ "$LOCAL_CAPTURE_PORT" == "0" || "$LOCAL_CAPTURE_PORT" == "auto" ]]; then
     LOCAL_CAPTURE_PORT="$(
@@ -311,7 +312,7 @@ EOF
 
   open_form
   printf 'Waiting up to 10 minutes for the GitHub manifest approval redirect...\n'
-  wait "$capture_pid" || die "Timed out waiting for the GitHub manifest approval redirect. Retry with SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh, approve the app, then run the command printed by ${AUTH_SITE_URL}/github-app-manifest.html?code=..."
+  wait "$capture_pid" || die "Timed out waiting for the GitHub manifest approval redirect. Retry with SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh, approve the app, then run the command printed by ${AUTH_SITE_URL%/}${hosted_manifest_path}?code=..."
   MANIFEST_CODE="$(cat "$code_file")"
   trap - EXIT
   rm -f "$code_file" "$capture_log"
@@ -325,9 +326,9 @@ GitHub requires an owner-approved browser step before it returns app credentials
 1. Open this local form in a browser signed into the GitHub owner account:
 $(form_location_text)
 2. Approve the app named "${APP_NAME}".
-3. GitHub redirects to ${AUTH_SITE_URL}/github-app-manifest.html?code=...
+3. GitHub redirects to ${AUTH_SITE_URL%/}${hosted_manifest_path}?code=...
 4. Rerun this script with:
-   bash scripts/bootstrap_github_supabase_auth.sh '${AUTH_SITE_URL}/github-app-manifest.html?code=...'
+   bash scripts/bootstrap_github_supabase_auth.sh '${AUTH_SITE_URL%/}${hosted_manifest_path}?code=...'
 
 The callback configured for Supabase will be:
   ${callback_url}
