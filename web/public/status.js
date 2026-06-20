@@ -68,6 +68,10 @@ function renderUpstreams(health = {}) {
 
 function renderPlans(pricing = {}) {
   const plans = pricing.plans || {};
+  const billing = pricing.billing || {};
+  const stripe = billing.stripe || {};
+  const checkoutReady = stripe.checkoutReady === true;
+  const checkoutPlans = new Set(Array.isArray(stripe.configuredPlans) ? stripe.configuredPlans : []);
   const preferred = ['free', 'lite', 'pro', 'max', 'metered'].filter(name => plans[name]);
   const names = preferred.length ? preferred : Object.keys(plans);
   if (!names.length) {
@@ -81,8 +85,9 @@ function renderPlans(pricing = {}) {
       limits.monthlyRequests === 0 ? 'local/free only' : (limits.monthlyRequests ? `${fmtNumber(limits.monthlyRequests)} requests/month` : ''),
       limits.rateLimitPerMinute ? `${fmtNumber(limits.rateLimitPerMinute)} rpm` : '',
     ].filter(Boolean).join(' · ');
-    const state = plan.apiAccess ? (plan.stripeConfigured ? 'good' : 'warn') : '';
-    const access = plan.apiAccess ? (plan.stripeConfigured ? 'self-serve' : 'manual') : 'no API';
+    const selfServe = plan.apiAccess && checkoutReady && checkoutPlans.has(name);
+    const state = plan.apiAccess ? (selfServe ? 'good' : 'warn') : '';
+    const access = plan.apiAccess ? (selfServe ? 'self-serve' : 'manual review') : 'no API';
     return `<article class="planCard">
       <div class="row"><div class="host">${esc(plan.name || name)}</div>${badge(access, state)}</div>
       <div class="meta">${esc(plan.price || '')}${limitText ? ` · ${esc(limitText)}` : ''}</div>

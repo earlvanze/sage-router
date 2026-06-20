@@ -2583,6 +2583,43 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('sk_sage_', metadata['apiKeyPrefix'])
         self.assertEqual(5, metadata['maxActiveApiKeysPerCustomer'])
 
+    def test_public_launch_metadata_exposes_secret_free_billing_readiness(self):
+        router.STRIPE_SECRET_KEY = 'sk_test'
+        router.STRIPE_PRICE_IDS_RAW = 'lite=price_lite,pro=price_pro,max=price_max'
+        router.SUPABASE_AUTH_ENABLED = True
+        router.REQUIRE_VERIFIED_EMAIL = True
+        router.CRYPTO_PAYMENT_ADDRESS = '0xsettlement'
+
+        metadata = router.public_launch_metadata()
+        billing = metadata['billing']
+        self.assertEqual('/billing/stripe/checkout', billing['stripe']['checkoutPath'])
+        self.assertEqual('/billing/stripe/portal', billing['stripe']['billingPortalPath'])
+        self.assertTrue(billing['stripe']['configured'])
+        self.assertTrue(billing['stripe']['checkoutReady'])
+        self.assertTrue(billing['stripe']['billingPortalReady'])
+        self.assertEqual(['lite', 'max', 'pro'], billing['stripe']['configuredPlans'])
+        self.assertTrue(billing['stripe']['requiresSignedInUser'])
+        self.assertTrue(billing['stripe']['requiresVerifiedEmail'])
+        self.assertNotIn('price_lite', json.dumps(billing))
+        self.assertNotIn('sk_test', json.dumps(billing))
+        self.assertTrue(billing['manualSettlement']['enabled'])
+        self.assertEqual('/billing/crypto/intent', billing['manualSettlement']['intentPath'])
+        self.assertEqual('/billing/crypto/status', billing['manualSettlement']['statusPath'])
+        self.assertTrue(billing['manualSettlement']['requiresOperatorApproval'])
+        self.assertEqual('sk_sage_', billing['activation']['generatedApiKeyPrefix'])
+        self.assertIn('pro', billing['activation']['apiPlans'])
+
+    def test_public_billing_metadata_distinguishes_price_ids_from_checkout_ready(self):
+        router.STRIPE_SECRET_KEY = ''
+        router.STRIPE_PRICE_IDS_RAW = 'pro=price_pro'
+
+        billing = router.public_billing_metadata()
+        self.assertFalse(billing['stripe']['configured'])
+        self.assertFalse(billing['stripe']['checkoutReady'])
+        self.assertFalse(billing['stripe']['billingPortalReady'])
+        self.assertEqual(['pro'], billing['stripe']['configuredPlans'])
+        self.assertFalse(billing['manualSettlement']['enabled'])
+
     def test_public_plan_catalog_exposes_edge_limits(self):
         plans = router.public_plan_catalog()
         self.assertEqual(10000, plans['lite']['limits']['monthlyRequests'])

@@ -2004,6 +2004,43 @@ def public_plan_catalog():
     return plans
 
 
+def public_billing_metadata():
+    plans = public_plan_catalog()
+    stripe_ready_plans = sorted(
+        name
+        for name, plan in plans.items()
+        if plan.get('apiAccess') and plan.get('stripeConfigured')
+    )
+    api_plan_names = sorted(name for name, plan in plans.items() if plan.get('apiAccess'))
+    return {
+        'stripe': {
+            'configured': bool(STRIPE_SECRET_KEY and stripe_ready_plans),
+            'checkoutReady': bool(STRIPE_SECRET_KEY and stripe_ready_plans),
+            'billingPortalReady': bool(STRIPE_SECRET_KEY),
+            'checkoutPath': '/billing/stripe/checkout',
+            'billingPortalPath': '/billing/stripe/portal',
+            'configuredPlans': stripe_ready_plans,
+            'requiresSignedInUser': True,
+            'requiresVerifiedEmail': hosted_email_verification_required(),
+        },
+        'manualSettlement': {
+            'enabled': bool(CRYPTO_PAYMENT_ADDRESS),
+            'intentPath': '/billing/crypto/intent',
+            'statusPath': '/billing/crypto/status',
+            'asset': CRYPTO_PAYMENT_ASSET,
+            'network': CRYPTO_PAYMENT_NETWORK,
+            'automaticSettlement': bool(CRYPTO_PROCESSOR_URL and CRYPTO_PROCESSOR_KEY),
+            'requiresOperatorApproval': True,
+        },
+        'activation': {
+            'activeStatuses': ['active', 'trialing', 'manual', 'paid'],
+            'apiPlans': api_plan_names,
+            'generatedApiKeyPrefix': API_KEY_PREFIX,
+            'maxActiveApiKeysPerCustomer': MAX_ACTIVE_API_KEYS_PER_CUSTOMER,
+        },
+    }
+
+
 def public_model_catalog():
     catalog = json.loads(json.dumps(PUBLIC_MODEL_CATALOG))
     catalog['catalogPage'] = f"{MARKETING_BASE_URL}/models"
@@ -2109,6 +2146,7 @@ def public_launch_metadata():
         'loginUrl': f"{APP_BASE_URL}/login.html",
         'checkoutPath': '/billing/stripe/checkout',
         'billingPortalPath': '/billing/stripe/portal',
+        'billing': public_billing_metadata(),
         'apiKeyPrefix': API_KEY_PREFIX,
         'maxActiveApiKeysPerCustomer': MAX_ACTIVE_API_KEYS_PER_CUSTOMER,
         'recommendedModel': 'sage-router/frontier',
