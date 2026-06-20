@@ -78,6 +78,7 @@ The MVP treats discoverability as first-class. Current static assets include:
 - Keyword coverage for AI model router, LLM router, provider routing, model selection automation, AI agent model routing, OpenAI-compatible router, Anthropic-compatible router, Ollama routing, BYOK AI gateway, local-first AI router, and OpenRouter alternative.
 - Structured page sections for automation, BYOK routing, OpenRouter comparison, and Ollama/Ollama Cloud roadmap language.
 - Dedicated hosted pricing page at `/pricing` with plan limits, compliance-safe positioning, and $10k MRR launch math.
+- Dedicated billing help page at `/billing` with Stripe checkout, Stripe billing portal, manual/crypto settlement, activation states, generated key behavior, payment recovery, and no-secret support boundaries.
 - Dedicated managed-access private beta intake at `/managed-access` with no-secret qualification buckets for one-subscription demand capture, target provider family, and commercial preference.
 - Dedicated API quickstart page at `/quickstart` with hosted `sk_sage_*` key setup, `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, `sage-router/frontier`, curl, JavaScript, Python, Codex, and error troubleshooting.
 - Dedicated API troubleshooting page at `/api-troubleshooting` with no-secret guidance for hosted 401/402/429/503 responses, safe curl probes, `WWW-Authenticate`, `Retry-After`, `X-RateLimit-*`, `X-Quota-*`, and account/pricing/status onboarding links.
@@ -100,6 +101,7 @@ Next recommended additions after MVP:
 - Dedicated `/compare/openrouter` page for OpenRouter-alternative acquisition traffic.
 - Keep `/docs/openrouter-migration` aligned with the OpenRouter comparison page, hosted quickstart, API reference, sitemap, LLM discovery, and readiness checks.
 - Keep the hosted pricing page aligned with `/pricing` API metadata and the account checkout plans.
+- Keep `/billing` aligned with Stripe checkout, Stripe billing portal, manual/crypto settlement, generated-key activation behavior, sitemap, LLM discovery, and readiness checks.
 - Keep `/managed-access` aligned with provider-resale terms, margin policy, waitlist metadata, sitemap, LLM discovery, and readiness checks.
 - Keep `/quickstart` aligned with the hosted account page and public edge error guidance.
 - Keep `/api-troubleshooting` aligned with public edge 401/402/429/503 payloads, rate-limit headers, quota headers, sitemap, LLM discovery, and readiness checks.

@@ -16,7 +16,7 @@
   <nav class="nav">
     <div class="container navInner">
       <a class="brand" href="/"><span class="brandMark">S</span><span>Sage Router</span></a>
-      <div class="links"><a href="/">Home</a><a href="/status">Status</a><a href="/account.html" class="active">Account</a><a href="/analytics.html">Dashboard</a><button id="sign-out" class="hidden">Sign out</button></div>
+      <div class="links"><a href="/">Home</a><a href="/status">Status</a><a href="/billing">Billing</a><a href="/account.html" class="active">Account</a><a href="/analytics.html">Dashboard</a><button id="sign-out" class="hidden">Sign out</button></div>
     </div>
   </nav>
   <main class="container layout">
@@ -98,7 +98,7 @@
         <h3>Choose plan</h3>
         <p class="small">Checkout uses the selected plan. The API keeps generated keys blocked from paid routing until the account is active, trialing, or manually enabled.</p>
         <div id="plans" class="plans"></div>
-        <div class="actions"><button id="stripe-checkout" class="btn">Continue to Stripe</button><button id="stripe-portal" class="btn secondary">Manage billing</button><button id="crypto-intent" class="btn secondary">Pay with crypto</button></div>
+        <div class="actions"><button id="stripe-checkout" class="btn">Continue to Stripe</button><button id="stripe-portal" class="btn secondary">Manage billing</button><button id="crypto-intent" class="btn secondary">Pay with crypto</button><a class="btn secondary" href="/billing">Billing help</a></div>
         <p id="billing-status" class="status"></p>
         <p id="crypto-status" class="status"></p>
       </div>

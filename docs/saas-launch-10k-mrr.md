@@ -86,7 +86,7 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
 ## Near-term launch checklist
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
-- Keep `/pricing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/openrouter-migration`, `/docs/codex`, `/agent-native`, `/integrations`, `/status`, `/support`, `/account.html`, `/login.html`,
+- Keep `/pricing`, `/billing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/openrouter-migration`, `/docs/codex`, `/agent-native`, `/integrations`, `/status`, `/support`, `/account.html`, `/login.html`,
   `/api/waitlist`, `/models`, `/managed-access`, `/compare/openrouter`, `/model-routing-calculator`, `/terms`,
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
@@ -124,6 +124,10 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   warn customers not to send prompts, workflow text, provider credentials,
   OAuth tokens, generated API keys, private keys, cookies, raw provider
   responses, or customer data.
+- Keep `/billing` as the hosted billing recovery path for Stripe checkout,
+  Stripe billing portal, manual/crypto settlement, activation states,
+  generated `sk_sage_*` key behavior before and after payment, payment
+  recovery, and safe no-secret support context.
 - Use the calculator as the lightweight qualification path before signup:
   prospects estimate savings, review points, and fallback gaps, then create a
   hosted API key or request implementation support. The calculator should

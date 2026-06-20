@@ -751,6 +751,51 @@ check_marketing_pricing_page() {
   fi
 }
 
+check_marketing_billing_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/billing")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router Billing" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Stripe billing portal" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-stripe-portal"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "manual or crypto settlement" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-manual-crypto-settlement"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Payment recovery" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-payment-recovery"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "sk_sage_" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-generated-key-guidance"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-hosted-account-url"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Do not send prompts" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-no-secrets-boundary"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/billing" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-billing-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Billing help: ${MARKETING_BASE%/}/billing" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-billing-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing billing help page is live in sitemap and LLM discovery"
+  else
+    fail "marketing billing help page incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_managed_access_page() {
   local page_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/managed-access")"
@@ -1392,6 +1437,7 @@ check_funnel_event_endpoint
 check_marketing_comparison_page
 check_marketing_openrouter_migration_page
 check_marketing_pricing_page
+check_marketing_billing_page
 check_marketing_managed_access_page
 check_marketing_model_catalog_page
 check_marketing_quickstart_page

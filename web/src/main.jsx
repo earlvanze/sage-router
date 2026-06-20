@@ -160,6 +160,7 @@ function App() {
             <a href="/models">Models</a>
             <a href="/model-routing-calculator">Calculator</a>
             <a href="/managed-access">Managed Access</a>
+            <a href="/billing">Billing</a>
             <a href="/pricing">Pricing</a>
             <a href="/security">Security</a>
             <a href="/status">Status</a>
@@ -186,6 +187,9 @@ function App() {
               </a>
               <a className="button secondary" href="/pricing">
                 Compare hosted plans
+              </a>
+              <a className="button secondary" href="/billing">
+                Billing help
               </a>
               <a className="button secondary" href="/quickstart">
                 Read quickstart
