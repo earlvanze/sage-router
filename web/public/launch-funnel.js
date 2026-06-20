@@ -174,6 +174,12 @@ function demandLabel(name) {
   return String(name || 'unknown').replace(/-/g, ' ');
 }
 
+function attributionLabel(name) {
+  return String(name || 'unknown')
+    .replace(/^compare-/, 'compare ')
+    .replace(/-/g, ' ');
+}
+
 function sortedEntries(counts = {}) {
   return Object.entries(counts || {})
     .filter(([, count]) => asNumber(count) > 0)
@@ -210,25 +216,28 @@ function renderManagedAccessDemand(demand = {}) {
 function renderMarketingIntent(marketingIntent = {}) {
   const eventRows = sortedEntries(marketingIntent.events);
   const planRows = sortedEntries(marketingIntent.plans);
-  if (!eventRows.length && !planRows.length) {
+  const surfaceRows = sortedEntries(marketingIntent.sourceSurfaces);
+  const channelRows = sortedEntries(marketingIntent.attributionChannels);
+  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length) {
     $('marketing-intent-breakdown').innerHTML = '<div class="empty">No anonymous marketing CTA intent events in this window.</div>';
     return;
   }
-  const eventsTable = eventRows.length ? `<div>
-    <h3>Events</h3>
+  const renderTable = (title, rows, labeler = attributionLabel) => rows.length ? `<div>
+    <h3>${esc(title)}</h3>
     <table>
-      <thead><tr><th>Event</th><th>Clicks</th></tr></thead>
-      <tbody>${eventRows.map(([name, count]) => `<tr><td><span class="pill">${esc(eventLabel(name))}</span></td><td>${integer(count)}</td></tr>`).join('')}</tbody>
+      <thead><tr><th>Bucket</th><th>Clicks</th></tr></thead>
+      <tbody>${rows.map(([name, count]) => `<tr><td><span class="pill">${esc(labeler(name))}</span></td><td>${integer(count)}</td></tr>`).join('')}</tbody>
     </table>
   </div>` : '<div class="empty">No event breakdown returned.</div>';
-  const plansTable = planRows.length ? `<div>
-    <h3>Plans</h3>
-    <table>
-      <thead><tr><th>Plan</th><th>Clicks</th></tr></thead>
-      <tbody>${planRows.map(([name, count]) => `<tr><td><span class="pill">${esc(name)}</span></td><td>${integer(count)}</td></tr>`).join('')}</tbody>
-    </table>
-  </div>` : '<div class="empty">No plan breakdown returned.</div>';
-  $('marketing-intent-breakdown').innerHTML = `<div class="grid2">${eventsTable}${plansTable}</div>`;
+  $('marketing-intent-breakdown').innerHTML = `<div class="grid2">${
+    renderTable('Events', eventRows, eventLabel)
+  }${
+    renderTable('Plans', planRows)
+  }${
+    renderTable('Source surfaces', surfaceRows)
+  }${
+    renderTable('Attribution channels', channelRows)
+  }</div>`;
 }
 
 function renderFunnel(data) {

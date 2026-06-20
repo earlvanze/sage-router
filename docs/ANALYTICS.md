@@ -53,14 +53,16 @@ PII or request content:
 - paid customers with recent routed usage
 - estimated current MRR, target attainment, and per-plan gaps against the
   public `$10k MRR` recommended launch mix
+- anonymous marketing intent by event, plan, source surface, and coarse
+  attribution channel
 - target-aware bottlenecks for signup-to-key, key-to-first-request,
   signup-to-paid, paid recent usage, and `$10k MRR` attainment
 
 The funnel reads only timestamps, allowlisted managed-access qualification
-buckets, and countable customer/key status fields from the customer store,
-API-key store, waitlist tables, and route telemetry. It does not return email
-addresses, prompts, message bodies, API keys, provider credentials, OAuth
-tokens, or raw responses.
+buckets, coarse CTA attribution buckets, and countable customer/key status
+fields from the customer store, API-key store, waitlist tables, and route
+telemetry. It does not return email addresses, prompts, message bodies, API
+keys, provider credentials, OAuth tokens, raw campaign URLs, or raw responses.
 
 The hosted operator dashboard at
 `https://app.sagerouter.dev/launch-funnel.html` is a static shell for this

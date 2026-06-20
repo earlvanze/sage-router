@@ -130,6 +130,14 @@ async function applyAuthSettings() {
 }
 
 function trackAccountFunnelEvent(event, data = {}) {
+  const params = new URLSearchParams(window.location.search);
+  let referrerHost = null;
+  try {
+    const referrer = document.referrer ? new URL(document.referrer) : null;
+    referrerHost = referrer && referrer.host !== window.location.host ? referrer.host : null;
+  } catch (_error) {
+    referrerHost = null;
+  }
   const payload = JSON.stringify({
     event,
     plan: data.plan || selectedPlan || null,
@@ -140,6 +148,11 @@ function trackAccountFunnelEvent(event, data = {}) {
       button: data.button || null,
       state: data.state || null,
       billing: data.billing || null,
+      utmSource: params.get('utm_source') || params.get('utmSource') || null,
+      utmMedium: params.get('utm_medium') || params.get('utmMedium') || null,
+      utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
+      referrerHost,
+      landingPath: window.location.pathname,
     },
   });
   try {

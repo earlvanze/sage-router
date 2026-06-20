@@ -4718,6 +4718,24 @@ MANAGED_ACCESS_COMMERCIAL_PREFERENCE_BUCKETS = (
     'byok-plus-routing',
     'private-contract',
 )
+MARKETING_SOURCE_SURFACE_BUCKETS = (
+    'pricing',
+    'model-routing-calculator',
+    'compare-openrouter',
+    'account',
+)
+MARKETING_ATTRIBUTION_CHANNEL_BUCKETS = (
+    'direct',
+    'github',
+    'google',
+    'openrouter',
+    'x',
+    'discord',
+    'reddit',
+    'newsletter',
+    'docs',
+    'sagerouter',
+)
 
 
 def waitlist_metadata(row):
@@ -4748,6 +4766,56 @@ def waitlist_metadata_bucket(metadata, allowed, *keys):
         if value in allowed:
             return value
     return 'unknown'
+
+
+def marketing_event_metadata(row):
+    metadata = row.get('metadata') if isinstance(row, dict) else None
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except Exception:
+            metadata = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    return metadata
+
+
+def marketing_source_surface_bucket(metadata):
+    source = str(metadata.get('source') or '').strip().lower()
+    if source in MARKETING_SOURCE_SURFACE_BUCKETS:
+        return source
+    if source:
+        return 'other'
+    return 'unknown'
+
+
+def marketing_channel_bucket(metadata):
+    utm_source = str(metadata.get('utmSource') or metadata.get('utm_source') or '').strip().lower()
+    referrer_host = str(metadata.get('referrerHost') or '').strip().lower()
+    referer = str(metadata.get('referer') or '').strip().lower()
+    candidates = [utm_source, referrer_host, referer]
+    if not any(candidates):
+        return 'direct'
+    haystack = ' '.join(value for value in candidates if value)
+    if 'github' in haystack:
+        return 'github'
+    if 'openrouter' in haystack:
+        return 'openrouter'
+    if 'discord' in haystack:
+        return 'discord'
+    if 'reddit' in haystack:
+        return 'reddit'
+    if 'newsletter' in haystack or 'email' in haystack:
+        return 'newsletter'
+    if 'google' in haystack:
+        return 'google'
+    if 'twitter' in haystack or 'x.com' in haystack:
+        return 'x'
+    if 'docs' in haystack:
+        return 'docs'
+    if 'sagerouter.dev' in haystack or 'app.sagerouter.dev' in haystack:
+        return 'sagerouter'
+    return 'other'
 
 
 def new_managed_access_demand_metrics():
@@ -4836,13 +4904,25 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'total': 0,
         'events': {},
         'plans': {},
+        'sourceSurfaces': {bucket: 0 for bucket in (*MARKETING_SOURCE_SURFACE_BUCKETS, 'other', 'unknown')},
+        'attributionChannels': {bucket: 0 for bucket in (*MARKETING_ATTRIBUTION_CHANNEL_BUCKETS, 'other', 'unknown')},
     }
     try:
-        rows = supabase_select(
-            SUPABASE_FUNNEL_EVENTS_TABLE,
-            f'select=event,plan,created_at&created_at=gte.{quoted_since}&limit={int(limit)}',
-            timeout=6,
-        ) or []
+        try:
+            rows = supabase_select(
+                SUPABASE_FUNNEL_EVENTS_TABLE,
+                f'select=event,plan,created_at,metadata&created_at=gte.{quoted_since}&limit={int(limit)}',
+                timeout=6,
+            ) or []
+            metadata_available = True
+        except Exception as e:
+            logger.debug(f'Launch funnel marketing event metadata read failed: {extract_http_error(e)}')
+            rows = supabase_select(
+                SUPABASE_FUNNEL_EVENTS_TABLE,
+                f'select=event,plan,created_at&created_at=gte.{quoted_since}&limit={int(limit)}',
+                timeout=6,
+            ) or []
+            metadata_available = False
     except Exception as e:
         logger.debug(f'Launch funnel marketing event read failed: {extract_http_error(e)}')
         return None, 'marketing_funnel_events_unavailable'
@@ -4856,6 +4936,15 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         metrics['events'][event] = metrics['events'].get(event, 0) + 1
         if plan:
             metrics['plans'][plan] = metrics['plans'].get(plan, 0) + 1
+        if metadata_available:
+            metadata = marketing_event_metadata(row)
+            source_surface = marketing_source_surface_bucket(metadata)
+            attribution_channel = marketing_channel_bucket(metadata)
+        else:
+            source_surface = 'unknown'
+            attribution_channel = 'unknown'
+        metrics['sourceSurfaces'][source_surface] = metrics['sourceSurfaces'].get(source_surface, 0) + 1
+        metrics['attributionChannels'][attribution_channel] = metrics['attributionChannels'].get(attribution_channel, 0) + 1
     return metrics, None
 
 

@@ -684,6 +684,16 @@ class SaaSAuthTests(unittest.TestCase):
                 'pro': 3,
                 'max': 1,
             },
+            'sourceSurfaces': {
+                'pricing': 2,
+                'compare-openrouter': 2,
+                'account': 1,
+            },
+            'attributionChannels': {
+                'github': 2,
+                'openrouter': 1,
+                'direct': 2,
+            },
         }, None)
         customer = self.active_customer()
         raw, _row = router.create_api_key_for_customer(customer, 'prod')
@@ -709,6 +719,10 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, snapshot['marketingIntent']['events']['calculator_checkout_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['openrouter_compare_checkout_clicked'])
         self.assertEqual(3, snapshot['marketingIntent']['plans']['pro'])
+        self.assertEqual(2, snapshot['marketingIntent']['sourceSurfaces']['pricing'])
+        self.assertEqual(2, snapshot['marketingIntent']['sourceSurfaces']['compare-openrouter'])
+        self.assertEqual(2, snapshot['marketingIntent']['attributionChannels']['github'])
+        self.assertEqual(1, snapshot['marketingIntent']['attributionChannels']['openrouter'])
         self.assertEqual(2, snapshot['stages']['managedAccessBetaInterest'])
         self.assertEqual(2, snapshot['waitlistInterest']['managedAccess'])
         self.assertEqual(1, snapshot['managedAccessDemand']['targetProviderFamily']['mixed-frontier'])
@@ -802,13 +816,38 @@ class SaaSAuthTests(unittest.TestCase):
 
         def fake_select(table, query, timeout=8):
             self.assertEqual(router.SUPABASE_FUNNEL_EVENTS_TABLE, table)
-            self.assertIn('select=event,plan,created_at', query)
+            self.assertIn('select=event,plan,created_at,metadata', query)
             self.assertIn('created_at=gte.', query)
             return [
-                {'event': 'calculator_checkout_clicked', 'plan': 'pro', 'created_at': '2026-06-19T00:00:00Z'},
-                {'event': 'calculator_checkout_clicked', 'plan': 'pro', 'created_at': '2026-06-19T00:00:00Z'},
-                {'event': 'pricing_checkout_clicked', 'plan': 'lite', 'created_at': '2026-06-19T00:00:00Z'},
-                {'event': '', 'plan': None, 'created_at': '2026-06-19T00:00:00Z'},
+                {
+                    'event': 'calculator_checkout_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'model-routing-calculator',
+                        'utmSource': 'github',
+                        'email': 'buyer@example.com',
+                    },
+                },
+                {
+                    'event': 'calculator_checkout_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': json.dumps({
+                        'source': 'compare-openrouter',
+                        'referrerHost': 'openrouter.ai',
+                    }),
+                },
+                {
+                    'event': 'pricing_checkout_clicked',
+                    'plan': 'lite',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'pricing',
+                        'referrerHost': 'google.com',
+                    },
+                },
+                {'event': '', 'plan': None, 'created_at': '2026-06-19T00:00:00Z', 'metadata': {}},
             ]
 
         router.supabase_select = fake_select
@@ -822,7 +861,16 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['events']['unknown'])
         self.assertEqual(2, metrics['plans']['pro'])
         self.assertEqual(1, metrics['plans']['lite'])
+        self.assertEqual(1, metrics['sourceSurfaces']['model-routing-calculator'])
+        self.assertEqual(1, metrics['sourceSurfaces']['compare-openrouter'])
+        self.assertEqual(1, metrics['sourceSurfaces']['pricing'])
+        self.assertEqual(1, metrics['sourceSurfaces']['unknown'])
+        self.assertEqual(1, metrics['attributionChannels']['github'])
+        self.assertEqual(1, metrics['attributionChannels']['openrouter'])
+        self.assertEqual(1, metrics['attributionChannels']['google'])
+        self.assertEqual(1, metrics['attributionChannels']['direct'])
         self.assertNotIn('email', json.dumps(metrics))
+        self.assertNotIn('buyer@example.com', json.dumps(metrics))
 
     def test_analytics_funnel_requires_operator_auth_when_hosted_auth_enabled(self):
         router.SUPABASE_AUTH_ENABLED = True

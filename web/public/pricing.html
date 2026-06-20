@@ -181,6 +181,12 @@
   </div>
   <script>
     function trackPricingFunnelEvent(event, data = {}) {
+      const params = new URLSearchParams(window.location.search);
+      let referrerHost = null;
+      try {
+        const referrer = document.referrer ? new URL(document.referrer) : null;
+        referrerHost = referrer && referrer.host !== window.location.host ? referrer.host : null;
+      } catch {}
       const payload = JSON.stringify({
         event,
         plan: data.plan || null,
@@ -188,7 +194,12 @@
         target: data.target || null,
         metadata: {
           source: 'pricing',
-          button: data.button || null
+          button: data.button || null,
+          utmSource: params.get('utm_source') || params.get('utmSource') || null,
+          utmMedium: params.get('utm_medium') || params.get('utmMedium') || null,
+          utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
+          referrerHost,
+          landingPath: window.location.pathname
         }
       });
       try {

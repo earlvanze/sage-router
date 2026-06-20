@@ -125,6 +125,11 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   only event, plan, sanitized source/target URL, and small allowlisted metadata
   buckets; do not store prompts, workflow text, emails, API keys, or provider
   credentials.
+- Preserve coarse launch-channel attribution on those CTA events by storing
+  only source surface, UTM source/medium/campaign tokens, referrer host, and
+  landing path, then report aggregated channel attribution in the private
+  operator funnel. Do not return raw query strings, raw campaign URLs, emails,
+  prompts, API keys, provider credentials, or customer data.
 - Capture signed-in checkout and billing intent from the account page through
   the same privacy-safe path, including plan selection, Stripe checkout clicks
   and returns, Stripe portal clicks and returns, and crypto/manual payment
@@ -188,6 +193,10 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   `/analytics/funnel` and the private launch-funnel dashboard so the operator
   can see whether pricing, calculator, and OpenRouter comparison demand exists
   before signup.
+- Include source-surface and attribution-channel breakdowns in the same
+  operator funnel so GitHub, Google, OpenRouter, Discord, Reddit, newsletter,
+  direct, and internal Sage Router traffic can be ranked against the `$10k MRR`
+  launch mix without exposing identities.
 - Keep `app.sagerouter.dev/account.html` aligned with the same activation
   funnel: signed-in account, paid routing, generated key, public-edge
   `/v1/models` verification, and server-recorded first routed usage.

@@ -29,6 +29,11 @@ const ALLOWED_METADATA_KEYS = new Set([
   'button',
   'state',
   'billing',
+  'utmSource',
+  'utmMedium',
+  'utmCampaign',
+  'referrerHost',
+  'landingPath',
 ]);
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), {
@@ -67,6 +72,15 @@ const sanitizeMetadata = (value) => {
     }
   }
   return out;
+};
+
+const attributionValue = (value) => {
+  const sanitized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._/-]+/g, '-')
+    .slice(0, 80);
+  return sanitized || null;
 };
 
 const funnelConfig = (env) => {
@@ -127,6 +141,11 @@ export async function onRequestPost({ request, env }) {
     target: sanitizedUrl(payload.target),
     metadata: {
       ...sanitizeMetadata(payload.metadata),
+      utmSource: attributionValue(payload.metadata?.utmSource),
+      utmMedium: attributionValue(payload.metadata?.utmMedium),
+      utmCampaign: attributionValue(payload.metadata?.utmCampaign),
+      referrerHost: attributionValue(payload.metadata?.referrerHost),
+      landingPath: attributionValue(payload.metadata?.landingPath),
       user_agent: String(request.headers.get('user-agent') || '').slice(0, 160) || null,
       referer: sanitizedUrl(request.headers.get('referer')),
       origin: sanitizedUrl(request.headers.get('origin')),
