@@ -202,9 +202,10 @@ The account page also renders hosted plan selection before sign-in from public
 storage, shows quota, rate limit, and estimated cost per 1,000 requests, and is
 used after login when the customer continues to Stripe checkout.
 
-The public homepage, calculator, pricing, and OpenRouter comparison pages emit
-anonymous pre-signup CTA intent to `/api/funnel-event` so the private launch
-funnel can count demand before users create accounts. The event path stores
+The public homepage, calculator, pricing, launch plan, and OpenRouter comparison
+pages emit anonymous pre-signup page-view and CTA intent to `/api/funnel-event`
+so the private launch funnel can count demand before users create accounts.
+The event path stores
 event name, selected plan, sanitized source/target URL, and small metadata
 buckets only; it must not store workflow text, prompt bodies, emails, API keys,
 or provider credentials. Browser-originating writes are also guarded by allowed

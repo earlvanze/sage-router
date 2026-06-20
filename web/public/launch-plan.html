@@ -93,7 +93,7 @@
         </div>
         <div class="panel">
           <ul>
-            <li>Homepage, pricing, calculator, and OpenRouter migration pages capture privacy-safe CTA intent.</li>
+            <li>Homepage, pricing, calculator, launch plan, and OpenRouter migration pages capture privacy-safe page-view and CTA intent.</li>
             <li>Account onboarding tracks signup, plan selection, generated key creation, public-edge key verification, and the first browser-side <code>sage-router/frontier</code> request.</li>
             <li>The private launch funnel ranks source/channel acquisition actions, activation bottlenecks, managed-access demand, and per-plan revenue actions without returning emails, prompts, keys, OAuth tokens, or raw responses.</li>
             <li>Before traffic exists, the same funnel seeds launch actions for OpenRouter migration proof, GitHub builder traffic, pricing checkout proof, calculator qualification, and founder-led launch-plan outreach.</li>
@@ -193,6 +193,8 @@
         credentials: 'omit'
       }).catch(() => {});
     }
+
+    trackLaunchPlanEvent('launch_plan_viewed', { state: 'page-view' });
 
     document.querySelectorAll('a[href]').forEach((link) => {
       const href = link.getAttribute('href') || '';

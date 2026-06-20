@@ -139,10 +139,9 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   hosted API key or request implementation support. The calculator should
   recommend Lite, Pro, or Max from the workflow profile and send the prospect
   into preselected checkout with `/account.html?plan=...`.
-- Capture pre-signup CTA intent from the homepage, calculator, pricing, and
-  launch plan, plus
-  OpenRouter comparison/migration pages through the privacy-safe
-  `/api/funnel-event` path. Store only event, plan, sanitized source/target URL,
+- Capture pre-signup page-view and CTA intent from the homepage, calculator,
+  pricing, launch plan, plus OpenRouter comparison/migration pages through the
+  privacy-safe `/api/funnel-event` path. Store only event, plan, sanitized source/target URL,
   and small allowlisted metadata buckets; do not store prompts, workflow text,
   emails, API keys, or provider credentials. Keep the browser-origin guard
   enabled so writes are accepted only from Sage Router production hosts, Pages

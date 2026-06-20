@@ -223,6 +223,8 @@
       }).catch(() => {});
     }
 
+    trackPricingFunnelEvent('pricing_viewed', { state: 'page-view' });
+
     document.querySelectorAll('a[href]').forEach((link) => {
       const href = link.getAttribute('href') || '';
       const planMatch = href.match(/\/account\.html\?plan=(lite|pro|max)\b/);

@@ -408,6 +408,7 @@
         savingsBucket: savingsBucket(current.savingsPct)
       });
     }
+    trackFunnelEvent('calculator_viewed', { button: 'page-view' });
 
     function recommendedPlanFor(v, score, riskPoints) {
       if (v.volume > PLAN_LIMITS.pro.requests || (riskPoints >= 6 && v.volume > PLAN_LIMITS.lite.requests)) return 'max';

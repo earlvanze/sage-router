@@ -188,6 +188,10 @@ function WaitlistForm() {
 }
 
 function App() {
+  useEffect(() => {
+    trackLandingFunnelEvent('landing_viewed', { state: 'page-view' });
+  }, []);
+
   return (
     <main>
       <section className="hero">

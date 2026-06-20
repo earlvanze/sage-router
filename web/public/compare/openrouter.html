@@ -196,6 +196,8 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       }).catch(() => {});
     }
 
+    trackOpenRouterComparisonEvent('openrouter_compare_viewed', { state: 'page-view' });
+
     document.querySelectorAll('a[href]').forEach((link) => {
       const href = link.getAttribute('href') || '';
       const button = link.textContent.trim().slice(0, 60);
