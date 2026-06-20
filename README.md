@@ -93,6 +93,12 @@ The hosted account page at `https://app.sagerouter.dev/account.html` is the cust
 2. Choose Lite, Pro, or Max. Stripe checkout posts the selected plan to `/billing/stripe/checkout`; after checkout links a Stripe customer, the account page opens `/billing/stripe/portal` for self-service billing, payment-method changes, cancellation, and subscription management. Crypto/manual settlement stays available for accounts that are not ready for Stripe, with default settlement amounts derived from the selected monthly plan unless an agreed override is supplied. The account page can create a manual intent and refresh its bounded public status without echoing customer notes. Operators approve pending manual intents through the private `/admin/payment-intents/{intent_id}/approve` path; approval activates the selected plan, records a secret-free audit event, rejects replay/stale approvals, and still leaves suspended customers suspended.
 3. Generate an `sk_sage_*` API key, copy the raw key while it is shown once, test it against `/v1/models`, send a first browser-side `sage-router/frontier` chat completion from the account page, and use the copyable OpenAI SDK, Codex CLI, Anthropic-compatible, or curl quickstart.
 
+The account page consumes the secret-free `/pricing.billing` readiness metadata
+before opening checkout. If Stripe or the selected plan is not configured, the
+Stripe button is disabled, the funnel records `account_checkout_unavailable`,
+and the customer is directed to manual settlement or billing help instead of a
+known failing checkout path.
+
 Plan-specific pricing links such as `/account.html?plan=pro` preselect that
 checkout plan, remember it locally through signup/login, and restore the plan
 from Stripe success/cancel return URLs so new customers do not accidentally

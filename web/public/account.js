@@ -74,6 +74,7 @@ function planDisplay(plan) {
 
 let selectedPlan = storedPlan() || 'pro';
 let availablePlans = FALLBACK_PLANS;
+let billingMetadata = null;
 let recommendedUpgradePlan = '';
 let currentRawKey = '';
 let lastManualPaymentIntentId = '';
@@ -87,11 +88,71 @@ let activationState = {
   keyVerified: false,
   requestCount: 0,
 };
+let emailActionAllowed = true;
+
+function configuredStripePlans() {
+  const configured = billingMetadata?.stripe?.configuredPlans || [];
+  return Array.isArray(configured) ? configured.map(normalizePlan).filter(Boolean) : [];
+}
+
+function stripeCheckoutReadyForPlan(plan = selectedPlan) {
+  const normalized = normalizePlan(plan);
+  const stripe = billingMetadata?.stripe || {};
+  const configured = configuredStripePlans();
+  if (!normalized) return false;
+  if (stripe.configured === false || stripe.checkoutReady === false) return false;
+  if (configured.length && !configured.includes(normalized)) return false;
+  if (availablePlans?.[normalized]?.stripeConfigured === false) return false;
+  return true;
+}
+
+function stripeCheckoutUnavailableMessage(plan = selectedPlan) {
+  const normalized = normalizePlan(plan) || selectedPlan;
+  const stripe = billingMetadata?.stripe || {};
+  const configured = configuredStripePlans();
+  if (stripe.configured === false || stripe.checkoutReady === false) {
+    return 'Stripe checkout is not ready yet. Use manual settlement or billing help.';
+  }
+  if (configured.length && !configured.includes(normalized)) {
+    return `${planDisplay(normalized)} checkout is not configured yet. Use manual settlement or billing help.`;
+  }
+  if (availablePlans?.[normalized]?.stripeConfigured === false) {
+    return `${planDisplay(normalized)} checkout is manual for this deployment. Use manual settlement or billing help.`;
+  }
+  return 'Stripe checkout is temporarily unavailable. Use manual settlement or billing help.';
+}
+
+function updateBillingControls(status = '') {
+  const checkoutReady = stripeCheckoutReadyForPlan(selectedPlan);
+  const portalReady = billingMetadata?.stripe?.billingPortalReady !== false;
+  const checkout = $('stripe-checkout');
+  const portal = $('stripe-portal');
+  if (checkout) {
+    checkout.disabled = !emailActionAllowed || !checkoutReady;
+    checkout.title = checkoutReady ? '' : stripeCheckoutUnavailableMessage(selectedPlan);
+  }
+  if (portal) {
+    portal.disabled = !portalReady;
+    portal.title = portalReady ? '' : 'Stripe billing management is not ready yet.';
+  }
+  const next = !emailActionAllowed
+    ? 'Verify email first'
+    : (checkoutReady ? (activationState.signedIn ? 'Continue to Stripe' : 'Sign in to continue to checkout') : 'Manual settlement available');
+  set('plan-preview-next', next);
+  if (status) {
+    set('billing-status', status);
+  } else if (!checkoutReady && $('billing-status')) {
+    set('billing-status', stripeCheckoutUnavailableMessage(selectedPlan));
+  }
+}
 
 function applyLaunchMetadata(data) {
   if (!data) return;
   if (data.plans) {
     availablePlans = data.plans;
+  }
+  if (data.billing) {
+    billingMetadata = data.billing;
   }
   sageRouterUrl = data.apiBaseUrl || sageRouterUrl;
   openaiBaseUrl = data.openaiBaseUrl || `${sageRouterUrl}/v1`;
@@ -102,6 +163,7 @@ function applyLaunchMetadata(data) {
     set('key-limit-note', `Limit: ${data.maxActiveApiKeysPerCustomer} active keys per account.`);
   }
   renderPreauthPlanPreview(availablePlans);
+  updateBillingControls();
 }
 
 function applyOauthButtons(external = {}, status = '') {
@@ -274,16 +336,18 @@ function applyEmailVerificationState(state = {}) {
   const verified = state.verified !== false;
   const email = state.email || 'your email';
   const blocked = required && !verified;
+  emailActionAllowed = !blocked;
   const message = blocked
     ? `Verify ${email} before creating API keys or starting checkout.`
     : (required ? 'Email verified.' : 'Email verification is not required for this deployment.');
   set('email-verification-status', message);
   const status = $('email-verification-status');
   if (status) status.classList.toggle('danger', blocked);
-  ['create-key', 'stripe-checkout', 'crypto-intent'].forEach((id) => {
+  ['create-key', 'crypto-intent'].forEach((id) => {
     const button = $(id);
     if (button) button.disabled = blocked;
   });
+  updateBillingControls();
   return !blocked;
 }
 
@@ -403,7 +467,7 @@ function renderPreauthPlanPreview(plans = availablePlans) {
   set('plan-preview-quota', limits.monthlyRequests ? `${fmtNumber(limits.monthlyRequests)}/month` : 'Manual');
   set('plan-preview-rate', limits.rateLimitPerMinute ? `${fmtNumber(limits.rateLimitPerMinute)}/min` : 'Manual');
   set('plan-preview-route-cost', costPerThousandRequests(plan) || 'Manual');
-  set('plan-preview-next', 'Sign in to continue to checkout');
+  updateBillingControls();
 }
 
 function nextPaidPlan(currentPlan, plans = FALLBACK_PLANS) {
@@ -420,7 +484,7 @@ function selectPlan(plan, status = '') {
   selectedPlan = rememberSelectedPlan(normalized);
   document.querySelectorAll('.planCard').forEach(card => card.classList.toggle('active', card.dataset.plan === selectedPlan));
   renderPreauthPlanPreview(availablePlans);
-  if (status) set('billing-status', status);
+  updateBillingControls(status);
 }
 
 function applyRequestedPlanFromUrl() {
@@ -428,7 +492,7 @@ function applyRequestedPlanFromUrl() {
   if (!requested) return '';
   selectedPlan = rememberSelectedPlan(requested);
   renderPreauthPlanPreview(availablePlans);
-  set('billing-status', `${planDisplay(selectedPlan)} selected. Sign in or continue to checkout when ready.`);
+  updateBillingControls(`${planDisplay(selectedPlan)} selected. Sign in or continue to checkout when ready.`);
   return selectedPlan;
 }
 
@@ -813,6 +877,12 @@ async function sendTestChat() {
 
 async function stripeCheckout() {
   let redirecting = false;
+  if (!stripeCheckoutReadyForPlan(selectedPlan)) {
+    const message = stripeCheckoutUnavailableMessage(selectedPlan);
+    set('billing-status', message);
+    trackAccountFunnelEvent('account_checkout_unavailable', { button: 'stripe_checkout', target: '/billing/stripe/checkout', state: 'checkout_unavailable' });
+    return;
+  }
   setBusy('stripe-checkout', true, 'Opening...');
   try {
     set('billing-status', `Opening ${selectedPlan} checkout...`);
