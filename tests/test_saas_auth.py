@@ -782,7 +782,18 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('provider_terms_acknowledgment', managed['missingControls'])
         self.assertIn('authorized_provider_allowlist', managed['missingControls'])
         self.assertIn('margin_policy', managed['missingControls'])
+        self.assertIn('provider_cost_model', managed['missingControls'])
+        self.assertIn('positive_unit_economics', managed['missingControls'])
         self.assertGreaterEqual(managed['minimumGrossMarginPercent'], 30)
+        self.assertFalse(managed['unitEconomics']['costModelConfigured'])
+        self.assertFalse(managed['unitEconomics']['satisfied'])
+        self.assertEqual(
+            'SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS',
+            managed['unitEconomics']['costModelEnv'],
+        )
+        plan_margins = {row['plan']: row for row in managed['unitEconomics']['evaluatedPlans']}
+        self.assertEqual(60.0, plan_margins['lite']['revenueCentsPerThousandRequests'])
+        self.assertEqual(36.0, plan_margins['max']['revenueCentsPerThousandRequests'])
         self.assertIn('per_plan_monthly_quotas', managed['costControls'])
         self.assertIn('request_per_minute_limits', managed['costControls'])
         self.assertIn('durable_usage_accounting', managed['costControls'])
@@ -815,6 +826,7 @@ class SaaSAuthTests(unittest.TestCase):
             'SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED': os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED'),
             'SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS': os.environ.get('SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS'),
             'SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT': os.environ.get('SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT'),
+            'SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS': os.environ.get('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS'),
         }
         try:
             os.environ['SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED'] = '1'
@@ -823,6 +835,7 @@ class SaaSAuthTests(unittest.TestCase):
             os.environ.pop('SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED', None)
             os.environ.pop('SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS', None)
             os.environ.pop('SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT', None)
+            os.environ.pop('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS', None)
             managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
             self.assertFalse(managed['enabled'])
             self.assertTrue(managed['requested'])
@@ -832,10 +845,13 @@ class SaaSAuthTests(unittest.TestCase):
             self.assertIn('provider_terms_acknowledgment', managed['missingControls'])
             self.assertIn('authorized_provider_allowlist', managed['missingControls'])
             self.assertIn('margin_policy', managed['missingControls'])
+            self.assertIn('provider_cost_model', managed['missingControls'])
+            self.assertIn('positive_unit_economics', managed['missingControls'])
 
             os.environ['SAGEROUTER_PROVIDER_RESALE_TERMS_URL'] = 'https://sagerouter.dev/provider-resale-terms'
             os.environ['SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL'] = 'https://sagerouter.dev/margin-policy'
             os.environ['SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT'] = '10'
+            os.environ['SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS'] = '30'
             managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
             self.assertFalse(managed['enabled'])
             self.assertTrue(managed['requested'])
@@ -843,6 +859,8 @@ class SaaSAuthTests(unittest.TestCase):
             self.assertEqual('requires_readiness_verification', managed['status'])
             self.assertEqual(10, managed['minimumGrossMarginPercent'])
             self.assertIn('minimum_gross_margin', managed['missingControls'])
+            self.assertTrue(managed['unitEconomics']['costModelConfigured'])
+            self.assertTrue(managed['unitEconomics']['satisfied'])
 
             os.environ['SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT'] = '35'
             managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
@@ -853,9 +871,19 @@ class SaaSAuthTests(unittest.TestCase):
             self.assertFalse(managed['providerTermsAcknowledged'])
             self.assertEqual([], managed['allowedProviderFamilies'])
             self.assertNotIn('minimum_gross_margin', managed['missingControls'])
+            self.assertIn('positive_unit_economics', managed['missingControls'])
+            self.assertFalse(managed['unitEconomics']['satisfied'])
 
             os.environ['SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED'] = '1'
             os.environ['SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS'] = 'ollama,openai,anthropic'
+            managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
+            self.assertFalse(managed['enabled'])
+            self.assertTrue(managed['requested'])
+            self.assertFalse(managed['readinessSatisfied'])
+            self.assertEqual('requires_readiness_verification', managed['status'])
+            self.assertIn('positive_unit_economics', managed['missingControls'])
+
+            os.environ['SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS'] = '1'
             managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
             self.assertTrue(managed['enabled'])
             self.assertTrue(managed['requested'])
@@ -867,6 +895,8 @@ class SaaSAuthTests(unittest.TestCase):
             self.assertEqual('https://sagerouter.dev/margin-policy', managed['marginPolicyUrl'])
             self.assertEqual(35, managed['minimumGrossMarginPercent'])
             self.assertTrue(managed['requiresPositiveUnitEconomics'])
+            self.assertTrue(managed['unitEconomics']['costModelConfigured'])
+            self.assertTrue(managed['unitEconomics']['satisfied'])
             self.assertEqual([], managed['missingControls'])
         finally:
             for key, value in old_env.items():

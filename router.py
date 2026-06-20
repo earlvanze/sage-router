@@ -1920,6 +1920,69 @@ def limit_for_public_plan(plan_name, limits, fallback=0):
     return fallback
 
 
+def parse_monthly_price_usd(plan):
+    price = str((plan or {}).get('price') or '').strip().lower()
+    if not price.startswith('$'):
+        return None
+    amount = price.split('/', 1)[0].lstrip('$').strip()
+    try:
+        return float(amount)
+    except ValueError:
+        return None
+
+
+def parse_provider_resale_cost_cents_per_thousand_requests():
+    raw = (
+        os.environ.get('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS')
+        or os.environ.get('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K')
+        or ''
+    ).strip()
+    if not raw:
+        return None
+    try:
+        parsed = float(raw)
+    except ValueError:
+        return None
+    if parsed < 0:
+        return None
+    return parsed
+
+
+def managed_provider_unit_economics(cost_cents_per_thousand, minimum_gross_margin_percent):
+    plans = public_plan_catalog()
+    evaluated = []
+    cost_configured = cost_cents_per_thousand is not None
+    for name, plan in plans.items():
+        monthly_requests = int((plan.get('limits') or {}).get('monthlyRequests') or 0)
+        monthly_price_usd = parse_monthly_price_usd(plan)
+        if not monthly_requests or monthly_price_usd is None or monthly_price_usd <= 0:
+            continue
+        revenue_cents_per_thousand = (monthly_price_usd * 100.0) / (monthly_requests / 1000.0)
+        row = {
+            'plan': name,
+            'monthlyRequests': monthly_requests,
+            'monthlyPriceUsd': monthly_price_usd,
+            'revenueCentsPerThousandRequests': round(revenue_cents_per_thousand, 4),
+            'minimumGrossMarginPercent': minimum_gross_margin_percent,
+        }
+        if cost_configured and revenue_cents_per_thousand > 0:
+            gross_margin = ((revenue_cents_per_thousand - cost_cents_per_thousand) / revenue_cents_per_thousand) * 100.0
+            row['grossMarginPercent'] = round(gross_margin, 2)
+            row['meetsMinimumGrossMargin'] = gross_margin >= minimum_gross_margin_percent
+        else:
+            row['grossMarginPercent'] = None
+            row['meetsMinimumGrossMargin'] = False
+        evaluated.append(row)
+    return {
+        'costModel': 'cents_per_thousand_requests',
+        'costModelConfigured': cost_configured,
+        'costModelEnv': 'SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS',
+        'minimumGrossMarginPercent': minimum_gross_margin_percent,
+        'evaluatedPlans': evaluated,
+        'satisfied': bool(cost_configured and evaluated and all(row.get('meetsMinimumGrossMargin') for row in evaluated)),
+    }
+
+
 def current_usage_period(now=None):
     return time.strftime('%Y-%m', time.gmtime(now or time.time()))
 
@@ -1972,6 +2035,10 @@ def public_launch_metadata():
             managed_provider_access['minimumGrossMarginPercent'] = 0
     requires_positive_unit_economics = bool(managed_provider_access.get('requiresPositiveUnitEconomics'))
     margin_ready = int(managed_provider_access.get('minimumGrossMarginPercent') or 0) >= 30
+    unit_economics = managed_provider_unit_economics(
+        parse_provider_resale_cost_cents_per_thousand_requests(),
+        int(managed_provider_access.get('minimumGrossMarginPercent') or 0),
+    )
     provider_terms_ready = bool(provider_terms_url and provider_terms_acknowledged)
     provider_allowlist_ready = bool(allowed_provider_families)
     managed_provider_ready = bool(
@@ -1980,6 +2047,7 @@ def public_launch_metadata():
         and margin_policy_url
         and requires_positive_unit_economics
         and margin_ready
+        and unit_economics.get('satisfied')
     )
     missing_controls = []
     if not provider_terms_url:
@@ -1990,7 +2058,9 @@ def public_launch_metadata():
         missing_controls.append('authorized_provider_allowlist')
     if not margin_policy_url:
         missing_controls.append('margin_policy')
-    if not requires_positive_unit_economics:
+    if not unit_economics.get('costModelConfigured'):
+        missing_controls.append('provider_cost_model')
+    if not requires_positive_unit_economics or not unit_economics.get('satisfied'):
         missing_controls.append('positive_unit_economics')
     if not margin_ready:
         missing_controls.append('minimum_gross_margin')
@@ -2011,6 +2081,7 @@ def public_launch_metadata():
     managed_provider_access['providerTermsAcknowledged'] = provider_terms_acknowledged
     managed_provider_access['allowedProviderFamilies'] = allowed_provider_families
     managed_provider_access['marginPolicyUrl'] = margin_policy_url
+    managed_provider_access['unitEconomics'] = unit_economics
     managed_provider_access['acceptableUseUrl'] = f"{MARKETING_BASE_URL}/acceptable-use"
     launch['managedProviderAccess'] = managed_provider_access
     launch['pricingPage'] = f"{MARKETING_BASE_URL}/pricing"

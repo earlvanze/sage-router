@@ -64,9 +64,11 @@ The public `/pricing` metadata must keep `publicLaunch.managedProviderAccess`
 disabled by default. Turning on bundled/managed model access requires explicit
 provider resale terms, an explicit operator acknowledgment of those terms, an
 authorized provider-family allowlist, a published margin policy, a minimum
-gross-margin threshold, durable quota and rate-limit enforcement, generated-key
-revocation, operator abuse review, and managed-access acceptable-use terms
-before it can be marketed as a launchable offer.
+gross-margin threshold, a configured provider cost model
+(`SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS`), durable quota and
+rate-limit enforcement, generated-key revocation, operator abuse review, and
+managed-access acceptable-use terms before it can be marketed as a launchable
+offer.
 
 The public prerequisite pages at `/provider-resale-terms` and `/margin-policy`
 document the required legal and unit-economics boundaries for a future private
@@ -75,7 +77,9 @@ keep `publicLaunch.managedProviderAccess.enabled` false unless the provider
 authorization, provider-family allowlist, terms acknowledgment, billing,
 margin, quota, metering, and abuse-control checks are explicitly enabled. A
 pricing page alone is not enough; the runtime readiness guard must prove
-positive unit economics before bundled access can be treated as launchable.
+positive unit economics by comparing public plan price/quotas against the
+configured provider cost model before bundled access can be treated as
+launchable.
 Likewise, `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` is only an operator
 request until the full prerequisite set is present; the runtime must publish
 `requested: true`, `readinessSatisfied: false`, `enabled: false`, and
@@ -252,9 +256,10 @@ provider resale claim, or runtime feature flag.
   resale terms and margin-policy URLs are configured,
   `SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=1` is set,
   `SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS` names the authorized provider
-  families, the minimum gross-margin threshold is at least 30%, durable operator
-  audit events are installed, and the legal/metering/abuse-control boundary is
-  published.
+  families, `SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS` is set,
+  every fixed API plan clears the minimum gross-margin threshold of at least
+  30%, durable operator audit events are installed, and the
+  legal/metering/abuse-control boundary is published.
   Keep durable operator audit events enabled before any managed-access private
   beta customer can receive bundled provider access.
 - Keep email/password and magic-link auth as the baseline launch path, then

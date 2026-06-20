@@ -439,7 +439,7 @@ check_public_model_catalog() {
 }
 
 check_managed_provider_access_guard() {
-  local code enabled requested readiness_satisfied status terms_url terms_ack terms_ack_env_ok allowlist_count margin_url acceptable_url controls_ok margin_percent unit_economics_ok cost_controls_ok missing_count
+  local code enabled requested readiness_satisfied status terms_url terms_ack terms_ack_env_ok allowlist_count margin_url acceptable_url controls_ok margin_percent unit_economics_ok cost_model_configured unit_economics_satisfied unit_economics_plans_ok cost_controls_ok missing_count
   code="$(http_code "${API_BASE%/}/pricing")"
   if [[ "$code" != "200" ]]; then
     rm -f /tmp/sage-router-readiness-body
@@ -457,6 +457,12 @@ check_managed_provider_access_guard() {
   acceptable_url="$(jq -r '.publicLaunch.managedProviderAccess.acceptableUseUrl // empty' /tmp/sage-router-readiness-body)"
   margin_percent="$(jq -r '.publicLaunch.managedProviderAccess.minimumGrossMarginPercent // 0' /tmp/sage-router-readiness-body)"
   unit_economics_ok="$(jq -r '.publicLaunch.managedProviderAccess.requiresPositiveUnitEconomics // false' /tmp/sage-router-readiness-body)"
+  cost_model_configured="$(jq -r '.publicLaunch.managedProviderAccess.unitEconomics.costModelConfigured // false' /tmp/sage-router-readiness-body)"
+  unit_economics_satisfied="$(jq -r '.publicLaunch.managedProviderAccess.unitEconomics.satisfied // false' /tmp/sage-router-readiness-body)"
+  unit_economics_plans_ok="$(jq -r '
+    ((.publicLaunch.managedProviderAccess.unitEconomics.evaluatedPlans // []) | length) >= 3 and
+    ((.publicLaunch.managedProviderAccess.unitEconomics.evaluatedPlans // []) | all(.meetsMinimumGrossMargin == true))
+  ' /tmp/sage-router-readiness-body)"
   controls_ok="$(jq -r '
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("provider_resale_terms")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("margin_policy")) and
@@ -508,12 +514,15 @@ check_managed_provider_access_guard() {
             "$controls_ok" == "true" &&
             "$cost_controls_ok" == "true" &&
             "$unit_economics_ok" == "true" &&
+            "$cost_model_configured" == "true" &&
+            "$unit_economics_satisfied" == "true" &&
+            "$unit_economics_plans_ok" == "true" &&
             "$margin_percent" =~ ^[0-9]+$ &&
             "$margin_percent" -ge 30 &&
             "$missing_count" == "0" ]]; then
         pass "managed provider access is explicitly enabled with acknowledged resale terms, a provider allowlist, positive unit economics, margin policy, quotas, operator audit events, and acceptable-use controls"
       else
-        fail "managed provider access enabled without complete controls, including acknowledged resale terms, provider allowlist, positive unit economics, operator audit events, and managed-access acceptable-use boundary: enabled=${enabled} requested=${requested:-missing} readinessSatisfied=${readiness_satisfied:-missing} status=${status:-missing} terms=${terms_url:+present} termsAcknowledged=${terms_ack:-missing} allowedProviderFamilies=${allowlist_count:-missing} margin=${margin_url:+present} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} acceptableUse=${acceptable_url:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing} missingControls=${missing_count:-missing}"
+        fail "managed provider access enabled without complete controls, including acknowledged resale terms, provider allowlist, positive unit economics, operator audit events, and managed-access acceptable-use boundary: enabled=${enabled} requested=${requested:-missing} readinessSatisfied=${readiness_satisfied:-missing} status=${status:-missing} terms=${terms_url:+present} termsAcknowledged=${terms_ack:-missing} allowedProviderFamilies=${allowlist_count:-missing} margin=${margin_url:+present} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} costModelConfigured=${cost_model_configured:-missing} unitEconomicsSatisfied=${unit_economics_satisfied:-missing} unitEconomicsPlans=${unit_economics_plans_ok:-missing} acceptableUse=${acceptable_url:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing} missingControls=${missing_count:-missing}"
       fi
       ;;
     *)
