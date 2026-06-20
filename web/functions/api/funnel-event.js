@@ -8,6 +8,10 @@ const ALLOWED_EVENTS = new Set([
   'pricing_account_clicked',
   'pricing_quickstart_clicked',
   'managed_access_interest_clicked',
+  'managed_access_viewed',
+  'managed_access_form_started',
+  'managed_access_request_submitted',
+  'managed_access_request_received',
   'launch_plan_viewed',
   'launch_plan_checkout_clicked',
   'launch_plan_managed_access_clicked',
@@ -85,6 +89,11 @@ const ALLOWED_METADATA_KEYS = new Set([
   'utmCampaign',
   'referrerHost',
   'landingPath',
+  'deployment',
+  'monthlyVolume',
+  'providerAccess',
+  'targetProviderFamily',
+  'commercialPreference',
 ]);
 
 const DEFAULT_ALLOWED_ORIGIN_HOSTS = new Set([

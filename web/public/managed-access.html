@@ -146,6 +146,57 @@
       statusEl.textContent = message;
     }
 
+    function attributionValue(value) {
+      return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9._/-]+/g, '-')
+        .slice(0, 80);
+    }
+
+    function currentQualificationBuckets() {
+      const data = new FormData(form);
+      return {
+        deployment: data.get('deployment') || '',
+        monthlyVolume: data.get('monthlyVolume') || '',
+        providerAccess: data.get('providerAccess') || '',
+        targetProviderFamily: data.get('targetProviderFamily') || '',
+        commercialPreference: data.get('commercialPreference') || '',
+      };
+    }
+
+    function trackManagedAccessFunnelEvent(eventName, extra = {}) {
+      const params = new URLSearchParams(window.location.search);
+      const sourcePage = `${window.location.origin}${window.location.pathname}`;
+      let referrerHost = '';
+      try {
+        referrerHost = document.referrer ? new URL(document.referrer).hostname : '';
+      } catch {}
+      const body = JSON.stringify({
+        event: eventName,
+        sourcePage,
+        target: extra.target || sourcePage,
+        metadata: {
+          source: 'managed-access',
+          state: extra.state || '',
+          ...currentQualificationBuckets(),
+          utmSource: attributionValue(params.get('utm_source')),
+          utmMedium: attributionValue(params.get('utm_medium')),
+          utmCampaign: attributionValue(params.get('utm_campaign')),
+          referrerHost: attributionValue(referrerHost),
+          landingPath: attributionValue(window.location.pathname),
+        },
+      });
+      const blob = new Blob([body], { type: 'application/json' });
+      if (navigator.sendBeacon?.('/api/funnel-event', blob)) return;
+      fetch('/api/funnel-event', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'omit',
+        body,
+      }).catch(() => {});
+    }
+
     function loadTurnstileScript() {
       return new Promise((resolve, reject) => {
         if (window.turnstile) {
@@ -198,6 +249,18 @@
       } catch {}
     }
 
+    let formStarted = false;
+    form.addEventListener('input', () => {
+      if (formStarted) return;
+      formStarted = true;
+      trackManagedAccessFunnelEvent('managed_access_form_started', { state: 'started' });
+    });
+    form.addEventListener('change', () => {
+      if (formStarted) return;
+      formStarted = true;
+      trackManagedAccessFunnelEvent('managed_access_form_started', { state: 'started' });
+    });
+
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (turnstileState.required && !turnstileState.token) {
@@ -206,6 +269,7 @@
       }
       const payload = Object.fromEntries(new FormData(form));
       setStatus('Submitting private-beta request...');
+      trackManagedAccessFunnelEvent('managed_access_request_submitted', { state: 'submitted' });
       try {
         const response = await fetch('/api/waitlist', {
           method: 'POST',
@@ -219,6 +283,7 @@
           }),
         });
         if (!response.ok) throw new Error('submit_failed');
+        trackManagedAccessFunnelEvent('managed_access_request_received', { state: 'received' });
         form.reset();
         resetTurnstile();
         setStatus('Request received. Use Max with BYOK for immediate hosted routing while private-beta review is pending.');
@@ -228,6 +293,7 @@
       }
     });
 
+    trackManagedAccessFunnelEvent('managed_access_viewed', { state: 'page-view' });
     configureTurnstile();
   </script>
 </body>

@@ -135,6 +135,7 @@ function campaignTemplateForAction(kind, bucket) {
       pricing: ['/pricing', 'operator', 'launch_funnel', 'pricing_checkout_proof'],
       'model-routing-calculator': ['/model-routing-calculator', 'operator', 'launch_funnel', 'calculator_qualification'],
       'compare-openrouter': ['/compare/openrouter', 'openrouter', 'founder', 'launch_openrouter_migration'],
+      'managed-access': ['/managed-access', 'operator', 'launch_funnel', 'managed_access_beta'],
       'launch-plan': ['/launch-plan', 'operator', 'launch_funnel', 'founder_sales'],
       landing: ['/', 'operator', 'launch_funnel', 'homepage_activation'],
       account: ['/account.html', 'operator', 'launch_funnel', 'account_activation'],

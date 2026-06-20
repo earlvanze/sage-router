@@ -206,7 +206,10 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   previously revoked generated API keys.
 - Capture managed-access beta demand through the waitlist `interest` metadata
   path from `/managed-access` and watch `managedAccessBetaInterest` plus
-  `managedAccessShareOfWaitlist` in `/analytics/funnel`; use
+  `managedAccessShareOfWaitlist` in `/analytics/funnel`; the page also emits
+  anonymous managed-access page-view, form-start, submit, and received events
+  with only allowlisted qualification buckets so one-subscription demand is
+  visible before full contact submission. Use
   `managedAccessDemand.targetProviderFamily` and
   `managedAccessDemand.commercialPreference` to rank private-beta provider
   resale conversations instead of advertising bundled model access as live.
