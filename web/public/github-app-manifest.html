@@ -60,10 +60,10 @@
     if (code) {
       const text = `cd /home/digit/Dropbox/Projects/sage-router
 set -a; source /home/digit/.openclaw/.env >/dev/null 2>&1; set +a
-bash scripts/bootstrap_github_supabase_auth.sh ${shellQuote(window.location.href)}
+SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env bash scripts/bootstrap_github_supabase_auth.sh ${shellQuote(window.location.href)}
 scripts/check_sagerouter_launch_readiness.sh`;
-      status.textContent = 'GitHub returned a temporary manifest code. Run the command below within one hour to exchange it for app credentials and enable GitHub login in Supabase.';
-      nextSteps.innerHTML = '<strong>Keep this secure:</strong> the command uses your local Supabase management token from <code>/home/digit/.openclaw/.env</code>; the browser only holds the short-lived GitHub manifest code. If the command reports that the manifest code is expired, rerun <code>SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh</code> and approve the app again.';
+      status.textContent = 'GitHub returned a temporary manifest code. Run the command below within one hour to exchange it for app credentials, preserve the one-time client secret locally, and enable GitHub login in Supabase.';
+      nextSteps.innerHTML = '<strong>Keep this secure:</strong> the command uses your local Supabase management token from <code>/home/digit/.openclaw/.env</code> and saves the GitHub client secret to <code>/home/digit/.openclaw/sage-router-github-auth.env</code>; the browser only holds the short-lived GitHub manifest code. If the command reports that the manifest code is expired, rerun <code>SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env bash scripts/bootstrap_github_supabase_auth.sh</code> and approve the app again.';
       nextSteps.classList.remove('hidden');
       manifestCode.textContent = code;
       manifestCode.classList.remove('hidden');
@@ -77,7 +77,7 @@ scripts/check_sagerouter_launch_readiness.sh`;
       setCopy(copyCode, code, 'Code copied');
     } else {
       status.textContent = 'No manifest code was found in this URL.';
-      nextSteps.innerHTML = '<ol><li>From the sage-router repo, run <code>set -a; source /home/digit/.openclaw/.env >/dev/null 2>&1; set +a</code>.</li><li>Run <code>SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 bash scripts/bootstrap_github_supabase_auth.sh</code>.</li><li>Approve the GitHub App as the owner. GitHub will redirect back here with <code>?code=...</code>, and this page will show the exchange command.</li></ol>';
+      nextSteps.innerHTML = '<ol><li>From the sage-router repo, run <code>set -a; source /home/digit/.openclaw/.env >/dev/null 2>&1; set +a</code>.</li><li>Run <code>SAGEROUTER_GITHUB_APP_LOCAL_CAPTURE=0 SAGEROUTER_GITHUB_APP_ENV_OUTPUT=/home/digit/.openclaw/sage-router-github-auth.env bash scripts/bootstrap_github_supabase_auth.sh</code>.</li><li>Approve the GitHub App as the owner. GitHub will redirect back here with <code>?code=...</code>, and this page will show the exchange command.</li></ol>';
       nextSteps.classList.remove('hidden');
     }
   </script>
