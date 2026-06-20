@@ -154,6 +154,7 @@ SUPABASE_CUSTOMERS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_CUSTOMERS_TABLE'
 SUPABASE_API_KEYS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_API_KEYS_TABLE', 'sage_router_api_keys')
 SUPABASE_PAYMENT_INTENTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_PAYMENT_INTENTS_TABLE', 'sage_router_payment_intents')
 SUPABASE_USAGE_COUNTERS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_USAGE_COUNTERS_TABLE', 'sage_router_usage_counters')
+SUPABASE_OPERATOR_AUDIT_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_OPERATOR_AUDIT_TABLE', 'sage_router_operator_audit_events')
 SUPABASE_WAITLIST_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_WAITLIST_TABLE', 'sage_router_waitlist')
 SUPABASE_WAITLIST_FALLBACK_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_WAITLIST_FALLBACK_TABLE', 'funnel_leads')
 SUPABASE_FUNNEL_EVENTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_FUNNEL_EVENTS_TABLE', 'sage_router_funnel_events')
@@ -5356,12 +5357,13 @@ def local_customer_store():
             data.setdefault('customers', [])
             data.setdefault('api_keys', [])
             data.setdefault('payment_intents', [])
+            data.setdefault('operator_audit_events', [])
             return data
     except FileNotFoundError:
         pass
     except Exception as e:
         logger.debug(f'Local customer store read failed: {e}')
-    return {'customers': [], 'api_keys': [], 'payment_intents': []}
+    return {'customers': [], 'api_keys': [], 'payment_intents': [], 'operator_audit_events': []}
 
 
 def write_local_customer_store(data):
@@ -5746,25 +5748,45 @@ def revoke_active_api_keys_for_customer(customer_id):
     return revoked
 
 
-def suspend_customer_for_operator(customer_id):
+def suspend_customer_for_operator(customer_id, reason_code='operator_review'):
     customer = customer_by_id(customer_id)
     if not customer:
-        return None, []
+        return None, [], None
+    status_before = str(customer.get('status') or '')
     revoked = revoke_active_api_keys_for_customer(customer_id)
     updated = update_customer(customer_id, {'status': 'suspended'})
-    return updated or customer_by_id(customer_id), revoked
+    current = updated or customer_by_id(customer_id)
+    audit_event = record_operator_audit_event(
+        'customer.suspend',
+        customer_id,
+        status_before=status_before,
+        status_after='suspended',
+        revoked_api_keys_count=len(revoked),
+        reason_code=reason_code,
+    )
+    return current, revoked, audit_event
 
 
-def unsuspend_customer_for_operator(customer_id, desired_status='inactive'):
+def unsuspend_customer_for_operator(customer_id, desired_status='inactive', reason_code='operator_review'):
     customer = customer_by_id(customer_id)
     if not customer:
-        return None
+        return None, None
+    status_before = str(customer.get('status') or '')
     status = str(desired_status or 'inactive').strip().lower()
     allowed = {'inactive', 'active', 'trialing', 'manual', 'paid', 'past_due'}
     if status not in allowed:
         raise ValueError('invalid_customer_status')
     updated = update_customer(customer_id, {'status': status})
-    return updated or customer_by_id(customer_id)
+    current = updated or customer_by_id(customer_id)
+    audit_event = record_operator_audit_event(
+        'customer.unsuspend',
+        customer_id,
+        status_before=status_before,
+        status_after=status,
+        revoked_api_keys_count=0,
+        reason_code=reason_code,
+    )
+    return current, audit_event
 
 
 def billing_status_for_customer(customer_id, desired_status):
@@ -5877,6 +5899,104 @@ def update_customer(customer_id, updates):
     return normalize_customer(found)
 
 
+OPERATOR_AUDIT_REASON_CODES = {
+    'operator_review',
+    'abuse_review',
+    'chargeback',
+    'security',
+    'provider_risk',
+    'billing_review',
+    'customer_request',
+    'other',
+}
+OPERATOR_AUDIT_ACTIONS = {'customer.suspend', 'customer.unsuspend'}
+
+
+def operator_audit_reason(value):
+    reason = str(value or 'operator_review').strip().lower().replace('-', '_')
+    return reason if reason in OPERATOR_AUDIT_REASON_CODES else 'operator_review'
+
+
+def public_operator_audit_event(row):
+    row = row if isinstance(row, dict) else {}
+    metadata = row.get('metadata') if isinstance(row.get('metadata'), dict) else {}
+
+    def int_or_zero(value):
+        try:
+            return max(0, int(value or 0))
+        except Exception:
+            return 0
+
+    return {
+        'id': row.get('id') or '',
+        'customer_id': row.get('customer_id') or '',
+        'actor': row.get('actor') or 'operator',
+        'action': row.get('action') if row.get('action') in OPERATOR_AUDIT_ACTIONS else 'customer.suspend',
+        'reason_code': operator_audit_reason(row.get('reason_code') or metadata.get('reason_code')),
+        'status_before': row.get('status_before') or metadata.get('status_before') or '',
+        'status_after': row.get('status_after') or metadata.get('status_after') or '',
+        'revoked_api_keys_count': int_or_zero(row.get('revoked_api_keys_count') or metadata.get('revoked_api_keys_count')),
+        'created_at_epoch': int_or_zero(row.get('created_at_epoch')),
+    }
+
+
+def record_operator_audit_event(action, customer_id, status_before='', status_after='', revoked_api_keys_count=0, reason_code='operator_review'):
+    if action not in OPERATOR_AUDIT_ACTIONS or not customer_id:
+        return None
+    row = {
+        'id': uuid.uuid4().hex,
+        'customer_id': str(customer_id),
+        'actor': 'operator',
+        'action': action,
+        'reason_code': operator_audit_reason(reason_code),
+        'status_before': str(status_before or ''),
+        'status_after': str(status_after or ''),
+        'revoked_api_keys_count': max(0, int(revoked_api_keys_count or 0)),
+        'created_at_epoch': now_epoch(),
+    }
+    if customer_store_uses_supabase():
+        try:
+            rows = supabase_insert(SUPABASE_OPERATOR_AUDIT_TABLE, row, timeout=5)
+            return public_operator_audit_event(rows[0] if rows else row)
+        except Exception as e:
+            logger.warning(f'Operator audit Supabase write failed: {extract_http_error(e)}')
+            return public_operator_audit_event(row)
+    data = local_customer_store()
+    data['operator_audit_events'].append(row)
+    write_local_customer_store(data)
+    return public_operator_audit_event(row)
+
+
+def operator_audit_events_for_customer(customer_id, limit=20):
+    try:
+        limit = int(limit or 20)
+    except Exception:
+        limit = 20
+    limit = max(1, min(limit, 50))
+    if not customer_id:
+        return []
+    rows = []
+    if customer_store_uses_supabase():
+        try:
+            quoted = urllib.parse.quote(str(customer_id), safe='')
+            rows = supabase_select(
+                SUPABASE_OPERATOR_AUDIT_TABLE,
+                f'select=*&customer_id=eq.{quoted}&order=created_at_epoch.desc&limit={limit}',
+                timeout=5,
+            )
+        except Exception as e:
+            logger.warning(f'Operator audit Supabase lookup failed: {extract_http_error(e)}')
+            rows = []
+    else:
+        rows = [
+            row for row in local_customer_store().get('operator_audit_events', [])
+            if row.get('customer_id') == customer_id
+        ]
+        rows.sort(key=lambda row: int(row.get('created_at_epoch') or 0), reverse=True)
+        rows = rows[:limit]
+    return [public_operator_audit_event(row) for row in rows]
+
+
 def customer_matches_operator_query(customer, query):
     query = str(query or '').strip().lower()
     if not query:
@@ -5927,17 +6047,20 @@ def operator_customer_rows(query='', status='', limit=50):
     return out
 
 
-def operator_customer_summary(customer):
+def operator_customer_summary(customer, include_audit=True):
     customer = normalize_customer(customer) or {}
     keys = api_keys_for_customer(customer.get('id')) if customer.get('id') else []
     usage = account_usage_for_customer(customer)
     activation = account_activation_for_customer(customer, usage=usage, api_keys=keys)
+    audit_events = operator_audit_events_for_customer(customer.get('id'), limit=20) if include_audit and customer.get('id') else []
     return {
         'customer': public_customer(customer),
         'usage': usage,
         'activation': activation,
         'review': operator_customer_review(customer, usage=usage, api_keys=keys),
         'api_keys': [public_api_key(row, customer) for row in keys],
+        'auditEvents': audit_events if include_audit else [],
+        'latestAuditEvent': audit_events[0] if audit_events else None,
     }
 
 
@@ -9805,14 +9928,14 @@ class Handler(BaseHTTPRequestHandler):
                 if not customer:
                     self.write_json(404, {'error': 'customer_not_found'})
                     return
-                self.write_json(200, operator_customer_summary(customer))
+                self.write_json(200, operator_customer_summary(customer, include_audit=True))
                 return
             query = (qs.get('q') or [''])[0]
             status = (qs.get('status') or [''])[0]
             limit = (qs.get('limit') or ['50'])[0]
             rows = operator_customer_rows(query=query, status=status, limit=limit)
             self.write_json(200, {
-                'customers': [operator_customer_summary(row) for row in rows],
+                'customers': [operator_customer_summary(row, include_audit=False) for row in rows],
                 'count': len(rows),
                 'limit': max(1, min(int(limit or 50) if str(limit or '').isdigit() else 50, 100)),
                 'query': query,
@@ -10039,13 +10162,18 @@ class Handler(BaseHTTPRequestHandler):
             if not customer_id:
                 self.write_json(400, {'error': 'customer_id_required'})
                 return
-            customer, revoked = suspend_customer_for_operator(customer_id)
+            payload = read_json_body(self)
+            customer, revoked, audit_event = suspend_customer_for_operator(
+                customer_id,
+                payload.get('reasonCode') or payload.get('reason_code') or 'operator_review',
+            )
             if not customer:
                 self.write_json(404, {'error': 'customer_not_found'})
                 return
             self.write_json(200, {
                 'customer': public_customer(customer),
                 'revokedApiKeys': len(revoked),
+                'auditEvent': audit_event,
                 'status': 'suspended',
             })
             return
@@ -10059,7 +10187,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             payload = read_json_body(self)
             try:
-                customer = unsuspend_customer_for_operator(customer_id, payload.get('status') or 'inactive')
+                customer, audit_event = unsuspend_customer_for_operator(
+                    customer_id,
+                    payload.get('status') or 'inactive',
+                    payload.get('reasonCode') or payload.get('reason_code') or 'operator_review',
+                )
             except ValueError as e:
                 self.write_json(400, {'error': str(e)})
                 return
@@ -10068,6 +10200,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self.write_json(200, {
                 'customer': public_customer(customer),
+                'auditEvent': audit_event,
                 'revokedApiKeysRemainRevoked': True,
                 'status': customer.get('status') or 'inactive',
             })

@@ -370,12 +370,13 @@ class SaaSAuthTests(unittest.TestCase):
         customer = self.active_customer()
         first_raw, _first = router.create_api_key_for_customer(customer, 'first')
         second_raw, _second = router.create_api_key_for_customer(customer, 'second')
+        body = b'{"reasonCode":"provider_risk"}'
 
         class Dummy:
             def __init__(self):
                 self.path = f'/admin/customers/{customer["id"]}/suspend'
-                self.headers = {'Authorization': 'Bearer operator-token', 'Content-Length': '2'}
-                self.rfile = BytesIO(b'{}')
+                self.headers = {'Authorization': 'Bearer operator-token', 'Content-Length': str(len(body))}
+                self.rfile = BytesIO(body)
                 self.status = None
                 self.payload = None
 
@@ -389,10 +390,17 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(200, handler.status)
         self.assertEqual('suspended', handler.payload['status'])
         self.assertEqual(2, handler.payload['revokedApiKeys'])
+        self.assertEqual('customer.suspend', handler.payload['auditEvent']['action'])
+        self.assertEqual('provider_risk', handler.payload['auditEvent']['reason_code'])
+        self.assertEqual('active', handler.payload['auditEvent']['status_before'])
+        self.assertEqual('suspended', handler.payload['auditEvent']['status_after'])
+        self.assertEqual(2, handler.payload['auditEvent']['revoked_api_keys_count'])
+        self.assertNotIn('api_key_hash', json.dumps(handler.payload['auditEvent']))
         self.assertEqual('suspended', router.customer_by_id(customer['id'])['status'])
         self.assertEqual(0, router.active_api_key_count_for_customer(customer['id']))
         self.assertIsNone(router.verify_generated_api_key(first_raw))
         self.assertIsNone(router.verify_generated_api_key(second_raw))
+        self.assertEqual(1, len(router.operator_audit_events_for_customer(customer['id'])))
 
     def test_operator_unsuspend_defaults_to_inactive_and_keeps_keys_revoked(self):
         router.CLIENT_API_KEYS = ['operator-token']
@@ -419,6 +427,9 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(200, handler.status)
         self.assertEqual('inactive', handler.payload['status'])
         self.assertTrue(handler.payload['revokedApiKeysRemainRevoked'])
+        self.assertEqual('customer.unsuspend', handler.payload['auditEvent']['action'])
+        self.assertEqual('suspended', handler.payload['auditEvent']['status_before'])
+        self.assertEqual('inactive', handler.payload['auditEvent']['status_after'])
         self.assertEqual('inactive', updated['status'])
         self.assertFalse(router.customer_is_active(updated))
         self.assertEqual(0, router.active_api_key_count_for_customer(customer['id']))
@@ -449,6 +460,8 @@ class SaaSAuthTests(unittest.TestCase):
         updated = router.customer_by_id(customer['id'])
         self.assertEqual(200, handler.status)
         self.assertEqual('active', handler.payload['status'])
+        self.assertEqual('customer.unsuspend', handler.payload['auditEvent']['action'])
+        self.assertEqual('active', handler.payload['auditEvent']['status_after'])
         self.assertEqual('active', updated['status'])
         self.assertTrue(router.customer_is_active(updated))
         self.assertEqual(0, router.active_api_key_count_for_customer(customer['id']))
@@ -495,6 +508,16 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(other['id'], detail.payload['customer']['id'])
         self.assertEqual('inactive', detail.payload['activation']['status'])
         self.assertIn('new_signup', detail.payload['review']['flagCodes'])
+        self.assertEqual([], detail.payload['auditEvents'])
+
+        router.suspend_customer_for_operator(customer['id'], reason_code='security')
+        detail = Dummy(f'/admin/customers/{customer["id"]}')
+        router.Handler.do_GET(detail)
+        self.assertEqual(200, detail.status)
+        self.assertEqual('customer.suspend', detail.payload['latestAuditEvent']['action'])
+        self.assertEqual('security', detail.payload['latestAuditEvent']['reason_code'])
+        self.assertEqual(1, len(detail.payload['auditEvents']))
+        self.assertNotIn('api_key_hash', json.dumps(detail.payload['auditEvents']))
 
     def test_operator_customer_review_flags_are_bounded_and_actionable(self):
         customer = self.active_customer()

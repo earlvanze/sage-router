@@ -79,9 +79,9 @@ The same hosted operator dashboard includes a customer review panel backed by
 funnel, and the public edge pins `/admin` traffic to the control-plane origin
 instead of the lowest-latency model backend. The customer review table is for
 support, abuse, chargeback, and activation review only; it renders bounded
-customer, usage, activation, server-derived review flags, and public API-key
-metadata without raw generated keys, key hashes, provider credentials, prompts,
-or raw responses.
+customer, usage, activation, server-derived review flags, secret-free operator
+audit events, and public API-key metadata without raw generated keys, key
+hashes, provider credentials, prompts, or raw responses.
 
 ## Account readiness
 

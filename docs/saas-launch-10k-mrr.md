@@ -156,16 +156,16 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
   quota, plan, or routing state.
 - Keep operator suspension fail-closed: `POST /admin/customers/{customer_id}/suspend`
   must require the private operator token, revoke active generated keys, block
-  generated-key routing immediately, and remain sticky across later Stripe
-  subscription or payment-recovery webhooks.
+  generated-key routing immediately, record a secret-free operator audit event,
+  and remain sticky across later Stripe subscription or payment-recovery webhooks.
 - Keep operator customer review bounded and privacy-safe:
   `GET /admin/customers` and `GET /admin/customers/{customer_id}` must require
   the private operator token and return only customer, usage, activation,
-  server-derived review flags, and public API-key metadata, without raw
-  generated keys, key hashes, provider credentials, prompts, or raw provider
-  responses. Review flags may identify bounded operational states such as
-  suspended, routing blocked, no active key, no first request, quota pressure,
-  and paid-but-idle accounts.
+  server-derived review flags, secret-free operator audit events, and public
+  API-key metadata, without raw generated keys, key hashes, provider
+  credentials, prompts, or raw provider responses. Review flags may identify
+  bounded operational states such as suspended, routing blocked, no active key,
+  no first request, quota pressure, and paid-but-idle accounts.
 - Keep the hosted operator customer review on
   `https://app.sagerouter.dev/launch-funnel.html` and route `/admin/customers`
   through the public edge control-plane path, not the latency-selected model
@@ -173,7 +173,8 @@ is not a checkout entitlement, provider resale claim, or runtime feature flag.
 - Keep operator review release fail-closed: `POST /admin/customers/{customer_id}/unsuspend`
   must require the private operator token, default the customer to `inactive`,
   only restore active routing when an operator explicitly requests an active
-  status, and never un-revoke previously revoked generated API keys.
+  status, record a secret-free operator audit event, and never un-revoke
+  previously revoked generated API keys.
 - Capture managed-access beta demand through the waitlist `interest` metadata
   path from `/managed-access` and watch `managedAccessBetaInterest` plus
   `managedAccessShareOfWaitlist` in `/analytics/funnel`; use

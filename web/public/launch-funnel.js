@@ -312,6 +312,28 @@ function renderApiKeys(keys = []) {
   </table></div>`;
 }
 
+function auditActionLabel(action) {
+  const labels = {
+    'customer.suspend': 'Suspended',
+    'customer.unsuspend': 'Unsuspended',
+  };
+  return labels[action] || action || 'Operator action';
+}
+
+function renderAuditEvents(events = []) {
+  if (!events.length) return '<div class="empty">No operator audit events recorded for this customer.</div>';
+  return `<div class="tableWrap"><table>
+    <thead><tr><th>Time</th><th>Action</th><th>Reason</th><th>Status change</th><th>Keys revoked</th></tr></thead>
+    <tbody>${events.map(event => `<tr>
+      <td>${formatDate(event.created_at_epoch)}</td>
+      <td>${esc(auditActionLabel(event.action))}</td>
+      <td><span class="pill">${esc(event.reason_code || 'operator_review')}</span></td>
+      <td>${esc(event.status_before || '--')} -> ${esc(event.status_after || '--')}</td>
+      <td>${integer(event.revoked_api_keys_count)}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
 function renderCustomerDetail(summary = {}) {
   const customer = summary.customer || {};
   const activation = summary.activation || {};
@@ -341,6 +363,9 @@ function renderCustomerDetail(summary = {}) {
       <button class="btn secondary" type="button" data-customer-action="unsuspend" data-customer-id="${esc(customer.id || '')}" ${isSuspended ? '' : 'disabled'}>Unsuspend inactive</button>
       <button class="btn secondary" type="button" data-customer-action="unsuspend-active" data-customer-id="${esc(customer.id || '')}" ${isSuspended ? '' : 'disabled'}>Unsuspend active</button>
     </div>
+    <h4>Operator audit</h4>
+    ${renderAuditEvents(summary.auditEvents || [])}
+    <h4>Generated API keys</h4>
     ${renderApiKeys(summary.api_keys || [])}`;
 }
 
@@ -465,7 +490,10 @@ async function postCustomerAction(customerId, action) {
     return;
   }
   const endpointAction = action === 'unsuspend-active' ? 'unsuspend' : action;
-  const body = action === 'unsuspend-active' ? { status: 'active' } : {};
+  const body = {
+    reasonCode: 'operator_review',
+    ...(action === 'unsuspend-active' ? { status: 'active' } : {}),
+  };
   if (action === 'suspend' && !confirm('Suspend this customer and revoke active generated API keys?')) {
     return;
   }

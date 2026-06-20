@@ -1172,12 +1172,13 @@ check_admin_token() {
   customer_ok="$(jq -r '
     (.count | type == "number") and
     ((.customers // []) | type == "array") and
+    ((.customers // []) | all(has("auditEvents") and has("latestAuditEvent"))) and
     ((.privacy // {}) | .containsRawApiKeys == false and .containsApiKeyHashes == false and .containsProviderCredentials == false and .containsPrompts == false and .operatorOnly == true) and
     ((tostring | contains("api_key_hash")) | not)
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   rm -f /tmp/sage-router-readiness-body
   if [[ "$code" == "200" && "$funnel_code" == "200" && "$funnel_ok" == "true" && "$customer_code" == "200" && "$customer_ok" == "true" ]]; then
-    pass "private admin token can reach /v1/models, privacy-safe launch funnel, and bounded customer review"
+    pass "private admin token can reach /v1/models, privacy-safe launch funnel, and bounded customer review with audit envelope"
   else
     fail "private admin token probe failed: /v1/models=${code} /analytics/funnel=${funnel_code} funnel=${funnel_ok:-missing} /admin/customers=${customer_code} customer=${customer_ok:-missing}, expected 200/true"
   fi
