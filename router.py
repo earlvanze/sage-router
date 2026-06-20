@@ -329,6 +329,8 @@ PUBLIC_LAUNCH_POSITIONING = {
             'provider_resale_terms',
             'margin_policy',
             'positive_unit_economics',
+            'provider_terms_acknowledgment',
+            'authorized_provider_allowlist',
             'provider_cost_metering',
             'per_plan_usage_caps',
             'rate_limits_and_durable_quotas',
@@ -338,6 +340,8 @@ PUBLIC_LAUNCH_POSITIONING = {
             'acceptable_use_managed_access_terms',
         ],
         'requiresPositiveUnitEconomics': True,
+        'providerTermsAcknowledged': False,
+        'allowedProviderFamilies': [],
         'minimumGrossMarginPercent': 35,
         'costControls': [
             'per_plan_monthly_quotas',
@@ -346,6 +350,7 @@ PUBLIC_LAUNCH_POSITIONING = {
             'generated_key_revocation',
             'operator_customer_review',
             'operator_audit_events',
+            'authorized_provider_allowlist',
             'provider_resale_terms',
             'managed_access_acceptable_use',
         ],
@@ -1953,6 +1958,12 @@ def public_launch_metadata():
     managed_provider_resale_enabled = str(os.environ.get('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED', '')).strip().lower() in {'1', 'true', 'yes', 'on'}
     provider_terms_url = os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_URL', '').strip()
     margin_policy_url = os.environ.get('SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL', '').strip()
+    provider_terms_acknowledged = str(os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED', '')).strip().lower() in {'1', 'true', 'yes', 'on'}
+    allowed_provider_families = [
+        item.strip()
+        for item in os.environ.get('SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS', '').split(',')
+        if item.strip()
+    ]
     min_margin = os.environ.get('SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT', '').strip()
     if min_margin:
         try:
@@ -1961,13 +1972,17 @@ def public_launch_metadata():
             managed_provider_access['minimumGrossMarginPercent'] = 0
     requires_positive_unit_economics = bool(managed_provider_access.get('requiresPositiveUnitEconomics'))
     margin_ready = int(managed_provider_access.get('minimumGrossMarginPercent') or 0) >= 30
+    provider_terms_ready = bool(provider_terms_url and provider_terms_acknowledged)
+    provider_allowlist_ready = bool(allowed_provider_families)
     if managed_provider_resale_enabled:
         managed_provider_access['enabled'] = True
-        if provider_terms_url and margin_policy_url and requires_positive_unit_economics and margin_ready:
+        if provider_terms_ready and provider_allowlist_ready and margin_policy_url and requires_positive_unit_economics and margin_ready:
             managed_provider_access['status'] = 'ready_for_private_beta'
         else:
             managed_provider_access['status'] = 'requires_readiness_verification'
     managed_provider_access['providerTermsUrl'] = provider_terms_url
+    managed_provider_access['providerTermsAcknowledged'] = provider_terms_acknowledged
+    managed_provider_access['allowedProviderFamilies'] = allowed_provider_families
     managed_provider_access['marginPolicyUrl'] = margin_policy_url
     managed_provider_access['acceptableUseUrl'] = f"{MARKETING_BASE_URL}/acceptable-use"
     launch['managedProviderAccess'] = managed_provider_access

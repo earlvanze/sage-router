@@ -19,6 +19,8 @@ OPERATOR_TOKEN="${SAGE_ROUTER_OPERATOR_TOKEN:-${SAGE_ROUTER_CLIENT_API_KEY:-}}"
 MANAGED_PROVIDER_RESALE_ENABLED="${SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED:-0}"
 PROVIDER_RESALE_TERMS_URL="${SAGEROUTER_PROVIDER_RESALE_TERMS_URL:-}"
 PROVIDER_RESALE_MARGIN_POLICY_URL="${SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL:-}"
+PROVIDER_RESALE_TERMS_ACKNOWLEDGED="${SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED:-0}"
+PROVIDER_RESALE_ALLOWED_PROVIDERS="${SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS:-}"
 SUPABASE_PUBLIC_GITHUB_ENABLED=""
 FAILURES=0
 
@@ -431,7 +433,7 @@ check_public_model_catalog() {
 }
 
 check_managed_provider_access_guard() {
-  local code enabled status terms_url margin_url acceptable_url controls_ok margin_percent unit_economics_ok cost_controls_ok
+  local code enabled status terms_url terms_ack terms_ack_env_ok allowlist_count margin_url acceptable_url controls_ok margin_percent unit_economics_ok cost_controls_ok
   code="$(http_code "${API_BASE%/}/pricing")"
   if [[ "$code" != "200" ]]; then
     rm -f /tmp/sage-router-readiness-body
@@ -441,6 +443,8 @@ check_managed_provider_access_guard() {
   enabled="$(jq -r '.publicLaunch.managedProviderAccess.enabled // false' /tmp/sage-router-readiness-body)"
   status="$(jq -r '.publicLaunch.managedProviderAccess.status // empty' /tmp/sage-router-readiness-body)"
   terms_url="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsUrl // empty' /tmp/sage-router-readiness-body)"
+  terms_ack="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsAcknowledged // false' /tmp/sage-router-readiness-body)"
+  allowlist_count="$(jq -r '(.publicLaunch.managedProviderAccess.allowedProviderFamilies // []) | length' /tmp/sage-router-readiness-body)"
   margin_url="$(jq -r '.publicLaunch.managedProviderAccess.marginPolicyUrl // empty' /tmp/sage-router-readiness-body)"
   acceptable_url="$(jq -r '.publicLaunch.managedProviderAccess.acceptableUseUrl // empty' /tmp/sage-router-readiness-body)"
   margin_percent="$(jq -r '.publicLaunch.managedProviderAccess.minimumGrossMarginPercent // 0' /tmp/sage-router-readiness-body)"
@@ -449,6 +453,8 @@ check_managed_provider_access_guard() {
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("provider_resale_terms")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("margin_policy")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("positive_unit_economics")) and
+    ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("provider_terms_acknowledgment")) and
+    ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("authorized_provider_allowlist")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("provider_cost_metering")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("per_plan_usage_caps")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("rate_limits_and_durable_quotas")) and
@@ -464,10 +470,15 @@ check_managed_provider_access_guard() {
     ((.publicLaunch.managedProviderAccess.costControls // []) | index("generated_key_revocation")) and
     ((.publicLaunch.managedProviderAccess.costControls // []) | index("operator_customer_review")) and
     ((.publicLaunch.managedProviderAccess.costControls // []) | index("operator_audit_events")) and
+    ((.publicLaunch.managedProviderAccess.costControls // []) | index("authorized_provider_allowlist")) and
     ((.publicLaunch.managedProviderAccess.costControls // []) | index("provider_resale_terms")) and
     ((.publicLaunch.managedProviderAccess.costControls // []) | index("managed_access_acceptable_use"))
   ' /tmp/sage-router-readiness-body)"
   rm -f /tmp/sage-router-readiness-body
+  case "${PROVIDER_RESALE_TERMS_ACKNOWLEDGED,,}" in
+    1|true|yes|on) terms_ack_env_ok="true" ;;
+    *) terms_ack_env_ok="false" ;;
+  esac
 
   case "${MANAGED_PROVIDER_RESALE_ENABLED,,}" in
     1|true|yes|on)
@@ -475,24 +486,29 @@ check_managed_provider_access_guard() {
             "$status" == "ready_for_private_beta" &&
             -n "$PROVIDER_RESALE_TERMS_URL" &&
             -n "$PROVIDER_RESALE_MARGIN_POLICY_URL" &&
+            -n "$PROVIDER_RESALE_ALLOWED_PROVIDERS" &&
             "$terms_url" == "$PROVIDER_RESALE_TERMS_URL" &&
+            "$terms_ack" == "true" &&
+            "$terms_ack_env_ok" == "true" &&
             "$margin_url" == "$PROVIDER_RESALE_MARGIN_POLICY_URL" &&
             "$acceptable_url" == "${MARKETING_BASE%/}/acceptable-use" &&
+            "$allowlist_count" =~ ^[0-9]+$ &&
+            "$allowlist_count" -gt 0 &&
             "$controls_ok" == "true" &&
             "$cost_controls_ok" == "true" &&
             "$unit_economics_ok" == "true" &&
             "$margin_percent" =~ ^[0-9]+$ &&
             "$margin_percent" -ge 30 ]]; then
-        pass "managed provider access is explicitly enabled with resale terms, positive unit economics, margin policy, quotas, operator audit events, and acceptable-use controls"
+        pass "managed provider access is explicitly enabled with acknowledged resale terms, a provider allowlist, positive unit economics, margin policy, quotas, operator audit events, and acceptable-use controls"
       else
-        fail "managed provider access enabled without complete controls, including positive unit economics, operator audit events, and managed-access acceptable-use boundary: enabled=${enabled} status=${status:-missing} terms=${terms_url:+present} margin=${margin_url:+present} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} acceptableUse=${acceptable_url:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing}"
+        fail "managed provider access enabled without complete controls, including acknowledged resale terms, provider allowlist, positive unit economics, operator audit events, and managed-access acceptable-use boundary: enabled=${enabled} status=${status:-missing} terms=${terms_url:+present} termsAcknowledged=${terms_ack:-missing} allowedProviderFamilies=${allowlist_count:-missing} margin=${margin_url:+present} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} acceptableUse=${acceptable_url:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing}"
       fi
       ;;
     *)
-      if [[ "$enabled" == "false" && "$status" == "disabled_pending_provider_terms" && "$controls_ok" == "true" && "$cost_controls_ok" == "true" && "$unit_economics_ok" == "true" && "$margin_percent" =~ ^[0-9]+$ && "$margin_percent" -ge 30 ]]; then
-        pass "managed provider access remains disabled until provider resale terms, positive unit economics, margin policy, quotas, operator audit events, and acceptable-use controls are ready"
+      if [[ "$enabled" == "false" && "$status" == "disabled_pending_provider_terms" && "$terms_ack" == "false" && "$allowlist_count" == "0" && "$controls_ok" == "true" && "$cost_controls_ok" == "true" && "$unit_economics_ok" == "true" && "$margin_percent" =~ ^[0-9]+$ && "$margin_percent" -ge 30 ]]; then
+        pass "managed provider access remains disabled until provider resale terms are acknowledged, provider allowlist, positive unit economics, margin policy, quotas, operator audit events, and acceptable-use controls are ready"
       else
-        fail "managed provider access guard unexpected: enabled=${enabled} status=${status:-missing} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing}, expected disabled_pending_provider_terms"
+        fail "managed provider access guard unexpected: enabled=${enabled} status=${status:-missing} termsAcknowledged=${terms_ack:-missing} allowedProviderFamilies=${allowlist_count:-missing} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing}, expected disabled_pending_provider_terms"
       fi
       ;;
   esac
