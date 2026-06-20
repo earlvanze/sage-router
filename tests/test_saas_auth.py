@@ -962,6 +962,58 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(customer['id'], snapshot['scope']['customer_id'])
         self.assertIn('test', [p['id'] for p in snapshot['providers']])
 
+    def test_route_events_keep_edge_verified_customer_identity_behind_backend_token(self):
+        router.CLIENT_API_KEYS = ['backend-token']
+        customer = self.active_customer()
+
+        class Dummy:
+            headers = {
+                'Authorization': 'Bearer backend-token',
+                'X-Sage-Router-Edge-Auth-Type': 'generated_key',
+                'X-Sage-Router-Customer-Id': customer['id'],
+                'X-Sage-Router-Customer-Plan': customer['plan'],
+                'X-Sage-Router-Customer-Status': customer['status'],
+                'X-Sage-Router-User-Id': customer['user_id'],
+            }
+
+        ctx = router.client_auth_context(Dummy())
+        self.assertEqual('generated_key', ctx['type'])
+        self.assertTrue(ctx['edge_authenticated'])
+        self.assertEqual(customer['id'], ctx['customer']['id'])
+        self.assertEqual('pro', ctx['customer']['plan'])
+
+        router.set_route_auth_context(ctx)
+        try:
+            router.append_route_event({
+                'request_id': 'r-edge',
+                'status': 'ok',
+                'intent': 'GENERAL',
+                'selected': {'provider': 'edge', 'model': 'frontier'},
+                'attempts': [{'provider': 'edge', 'model': 'frontier', 'ok': True, 'elapsedMs': 10}],
+                'totalElapsedMs': 10,
+            })
+        finally:
+            router.clear_route_auth_context()
+
+        snapshot = router.build_analytics_snapshot(7 * 24 * 3600, customer_id=customer['id'])
+        self.assertEqual(1, snapshot['eventsAnalyzed'])
+        self.assertEqual(customer['id'], snapshot['scope']['customer_id'])
+        self.assertEqual('generated_key', router.read_recent_route_events()[0]['auth_type'])
+        self.assertEqual('pro', router.read_recent_route_events()[0]['customer_plan'])
+
+    def test_edge_customer_headers_are_ignored_without_backend_token_auth(self):
+        customer = self.active_customer()
+
+        class Dummy:
+            headers = {
+                'Authorization': 'Bearer not-backend-token',
+                'X-Sage-Router-Edge-Auth-Type': 'generated_key',
+                'X-Sage-Router-Customer-Id': customer['id'],
+                'X-Sage-Router-Customer-Plan': customer['plan'],
+            }
+
+        self.assertIsNone(router.client_auth_context(Dummy()))
+
     def test_global_analytics_rejects_customer_generated_key_when_hosted_auth_enabled(self):
         router.SUPABASE_AUTH_ENABLED = True
         customer = self.active_customer()

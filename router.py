@@ -4453,8 +4453,12 @@ def route_auth_metadata_from_context(ctx):
     meta = {'auth_type': ctx.get('type') or 'unknown'}
     if customer.get('id'):
         meta['customer_id'] = customer.get('id')
+    elif ctx.get('customer_id'):
+        meta['customer_id'] = ctx.get('customer_id')
     if customer.get('plan'):
         meta['customer_plan'] = customer.get('plan')
+    elif ctx.get('customer_plan'):
+        meta['customer_plan'] = ctx.get('customer_plan')
     return meta
 
 
@@ -6605,6 +6609,39 @@ def token_matches_any(token, allowed_tokens):
     return any(hmac.compare_digest(token, allowed) for allowed in allowed_tokens if allowed)
 
 
+def safe_trusted_header(handler, name, limit=160):
+    value = str((getattr(handler, 'headers', {}) or {}).get(name) or '').strip()
+    if not value or '\r' in value or '\n' in value:
+        return ''
+    return value[:max(1, int(limit or 160))]
+
+
+def trusted_edge_generated_key_context(handler):
+    edge_auth_type = safe_trusted_header(handler, 'X-Sage-Router-Edge-Auth-Type', 64).lower()
+    if edge_auth_type != 'generated_key':
+        return None
+    customer_id = safe_trusted_header(handler, 'X-Sage-Router-Customer-Id', 128)
+    if not customer_id:
+        return None
+    plan = safe_trusted_header(handler, 'X-Sage-Router-Customer-Plan', 64)
+    customer_status = safe_trusted_header(handler, 'X-Sage-Router-Customer-Status', 64)
+    user_id = safe_trusted_header(handler, 'X-Sage-Router-User-Id', 128)
+    customer = customer_by_id(customer_id) or {'id': customer_id}
+    if plan and not customer.get('plan'):
+        customer = {**customer, 'plan': plan}
+    if customer_status and not customer.get('status'):
+        customer = {**customer, 'status': customer_status}
+    if user_id and not customer.get('user_id'):
+        customer = {**customer, 'user_id': user_id}
+    return {
+        'type': 'generated_key',
+        'customer': customer,
+        'customer_id': customer_id,
+        'customer_plan': customer.get('plan') or plan,
+        'edge_authenticated': True,
+    }
+
+
 def analytics_authorized(handler):
     bearer = bearer_token(handler)
     if ANALYTICS_TOKEN and hmac.compare_digest(bearer, ANALYTICS_TOKEN):
@@ -6619,6 +6656,9 @@ def client_auth_context(handler):
         return {'type': 'disabled'}
     bearer = bearer_token(handler)
     if token_matches_any(bearer, CLIENT_API_KEYS):
+        edge_context = trusted_edge_generated_key_context(handler)
+        if edge_context:
+            return edge_context
         return {'type': 'legacy_key'}
     generated = verify_generated_api_key(bearer)
     if generated:

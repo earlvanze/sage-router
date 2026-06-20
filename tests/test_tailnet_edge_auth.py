@@ -422,6 +422,22 @@ class TailnetEdgeAuthTests(unittest.TestCase):
             self.edge.outbound_bearer_token("/account/api-keys", {"type": "supabase_user", "preserve_authorization": True})
         )
 
+    def test_edge_identity_headers_forward_generated_key_customer_context(self):
+        headers = self.edge.edge_identity_headers({
+            "type": "generated_key",
+            "key_id": "key-1",
+            "customer_id": "customer-1",
+            "user_id": "user-1",
+            "plan": "pro",
+            "customer_status": "active",
+        })
+
+        self.assertEqual("generated_key", headers["X-Sage-Router-Edge-Auth-Type"])
+        self.assertEqual("customer-1", headers["X-Sage-Router-Customer-Id"])
+        self.assertEqual("user-1", headers["X-Sage-Router-User-Id"])
+        self.assertEqual("pro", headers["X-Sage-Router-Customer-Plan"])
+        self.assertEqual("active", headers["X-Sage-Router-Customer-Status"])
+
     def test_generated_api_key_rate_limit_uses_plan_limit(self):
         ctx = {
             "type": "generated_key",

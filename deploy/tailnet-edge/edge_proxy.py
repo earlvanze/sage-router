@@ -833,6 +833,23 @@ def edge_failover_state():
     }
 
 
+def edge_identity_headers(auth_context):
+    auth_context = auth_context or {}
+    headers = {
+        "X-Sage-Router-Edge-Auth-Type": str(auth_context.get("type") or ""),
+    }
+    for header, key in (
+        ("X-Sage-Router-Customer-Id", "customer_id"),
+        ("X-Sage-Router-User-Id", "user_id"),
+        ("X-Sage-Router-Customer-Plan", "plan"),
+        ("X-Sage-Router-Customer-Status", "customer_status"),
+    ):
+        value = auth_context.get(key)
+        if value:
+            headers[header] = str(value)
+    return headers
+
+
 class EdgeHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "sage-router-tailnet-edge"
@@ -1027,11 +1044,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
             headers["Host"] = upstream.hostport
             headers["X-Sage-Router-Edge"] = "tailnet-lowest-latency"
             headers["X-Sage-Router-Selected-Upstream"] = upstream.raw_url
-            headers["X-Sage-Router-Edge-Auth-Type"] = str(auth_context.get("type") or "")
-            if auth_context.get("customer_id"):
-                headers["X-Sage-Router-Customer-Id"] = str(auth_context.get("customer_id"))
-            if auth_context.get("user_id"):
-                headers["X-Sage-Router-User-Id"] = str(auth_context.get("user_id"))
+            headers.update(edge_identity_headers(auth_context))
             outbound_token = outbound_bearer_token(self.path, auth_context)
             if outbound_token:
                 headers["Authorization"] = f"Bearer {outbound_token}"
