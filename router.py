@@ -4749,6 +4749,11 @@ LAUNCH_CONVERSION_TARGETS = {
         'targetRate': 0.50,
         'action': 'Improve quickstart examples, browser first-request testing, and 401/402/429/503 guidance.',
     },
+    'setupCopyToFirstRequest': {
+        'label': 'Setup copy to first routed request',
+        'targetRate': 0.35,
+        'action': 'Tighten copied setup snippets, Codex/OpenAI client examples, and first-request diagnostics.',
+    },
     'signupToPaidConversion': {
         'label': 'Signup to paid conversion',
         'targetRate': 0.15,
@@ -4774,6 +4779,10 @@ CHECKOUT_INTENT_EVENTS = {
 CHECKOUT_UNAVAILABLE_EVENTS = {
     'account_checkout_unavailable',
     'calculator_checkout_unavailable',
+}
+SETUP_SNIPPET_COPY_EVENTS = {
+    'quickstart_snippet_copied',
+    'account_snippet_copied',
 }
 
 
@@ -5431,6 +5440,8 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'sourceSurfaces': {bucket: 0 for bucket in (*MARKETING_SOURCE_SURFACE_BUCKETS, 'other', 'unknown')},
         'attributionChannels': {bucket: 0 for bucket in (*MARKETING_ATTRIBUTION_CHANNEL_BUCKETS, 'other', 'unknown')},
         'authProviderState': new_auth_provider_state_metrics(),
+        'setupSnippetCopies': 0,
+        'setupSnippetCopiesBySnippet': {},
     }
     try:
         try:
@@ -5473,6 +5484,10 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         metrics['attributionChannels'][attribution_channel] = metrics['attributionChannels'].get(attribution_channel, 0) + 1
         if event == 'auth_provider_state_checked':
             update_auth_provider_state_metrics(metrics, metadata)
+        if event in SETUP_SNIPPET_COPY_EVENTS:
+            metrics['setupSnippetCopies'] += 1
+            snippet = str(metadata.get('snippet') or 'unknown').strip().lower()[:80] or 'unknown'
+            metrics['setupSnippetCopiesBySnippet'][snippet] = metrics['setupSnippetCopiesBySnippet'].get(snippet, 0) + 1
     return metrics, None
 
 
@@ -5509,6 +5524,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
     managed_access_demand = waitlist_metrics.get('managedAccessDemand') if isinstance(waitlist_metrics, dict) else None
     managed_access_interest = waitlist_interest.get('managedAccess', 0) if isinstance(waitlist_interest, dict) else None
     marketing_intent_events = marketing_metrics.get('total', 0) if isinstance(marketing_metrics, dict) else None
+    setup_snippet_copies = marketing_metrics.get('setupSnippetCopies', 0) if isinstance(marketing_metrics, dict) else None
 
     customer_ids = {str(c.get('id')) for c in customers if c and c.get('id')}
     signup_ids = {
@@ -5555,6 +5571,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'signups': len(signup_ids),
         'customersWithActiveApiKeys': len(active_key_customer_ids & customer_ids),
         'customersWithGeneratedApiKeys': len(generated_key_customer_ids & customer_ids),
+        'setupSnippetCopies': setup_snippet_copies,
         'customersWithFirstRoutedRequest': len(first_request_customer_ids & customer_ids),
         'paidConversions': len(paid_conversion_ids),
         'paidCustomers': len(paid_customer_ids),
@@ -5572,6 +5589,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'managedAccessShareOfWaitlist': percent_rate(stages['managedAccessBetaInterest'], stages['waitlistLeads']) if stages['waitlistLeads'] is not None else None,
         'signupToGeneratedKey': percent_rate(stages['customersWithGeneratedApiKeys'], stages['signups']),
         'generatedKeyToFirstRequest': percent_rate(stages['customersWithFirstRoutedRequest'], stages['customersWithGeneratedApiKeys']),
+        'setupCopyToFirstRequest': percent_rate(stages['customersWithFirstRoutedRequest'], stages['setupSnippetCopies']),
         'signupToPaidConversion': percent_rate(stages['paidConversions'], stages['signups']),
         'paidRecentUsage': percent_rate(stages['retainedPaidCustomers'], stages['paidCustomers']),
     }

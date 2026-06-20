@@ -63,8 +63,8 @@ PII or request content:
   choose the next outreach or page-improvement motion without identities or raw
   campaign URLs
 - target-aware bottlenecks for signup-to-key, key-to-first-request,
-  signup-to-paid, paid recent usage, checkout readiness, and `$10k MRR`
-  attainment
+  setup-copy activation, signup-to-paid, paid recent usage, checkout
+  readiness, and `$10k MRR` attainment
 
 The funnel reads only timestamps, allowlisted managed-access qualification
 buckets, coarse CTA attribution buckets, setup snippet IDs, and countable customer/key status
@@ -80,8 +80,9 @@ an `Authorization: Bearer` header, and stores the token only in tab-scoped
 `sessionStorage` when the operator explicitly enables that option. Customer
 accounts never use this page; signed-in customer analytics remain scoped to
 `/account/analytics`. The bottleneck table compares current rates with the
-launch-plan targets, including checkout-readiness friction from aggregate
-`account_checkout_unavailable` and `calculator_checkout_unavailable` counts.
+launch-plan targets, including setup-copy to first-request activation and
+checkout-readiness friction from aggregate `account_checkout_unavailable` and
+`calculator_checkout_unavailable` counts.
 The acquisition actions table ranks active source/channel signals by anonymous
 CTA clicks, and the revenue actions table ranks Lite, Pro, and Max plan gaps by
 remaining MRR so the operator can choose the next acquisition motion without

@@ -251,7 +251,9 @@ launch funnel aggregates those into source-surface and channel counts without
 returning raw URLs, emails, prompts, credentials, generated keys, wallet
 addresses, provider credentials, OAuth secrets, completion text, or API keys.
 Account setup snippet-copy events store only the snippet identifier, not the
-copied snippet body or generated key.
+copied snippet body or generated key. The private launch funnel rolls those
+snippet IDs into setup-copy activation and setup-copy to first-request rates so
+operators can tighten Codex/OpenAI snippets without storing customer secrets.
 These events help diagnose customer drop-off after login, including whether
 GitHub OAuth is still pending while email onboarding is available, and which
 launch channels produce demand; Stripe webhooks and Supabase customer state

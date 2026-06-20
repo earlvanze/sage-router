@@ -1191,10 +1191,12 @@ class SaaSAuthTests(unittest.TestCase):
             },
         }, None)
         router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
-            'total': 12,
+            'total': 14,
             'events': {
                 'landing_account_clicked': 1,
                 'account_api_key_created': 1,
+                'account_snippet_copied': 1,
+                'quickstart_snippet_copied': 1,
                 'calculator_checkout_clicked': 2,
                 'calculator_checkout_unavailable': 1,
                 'account_checkout_unavailable': 1,
@@ -1243,6 +1245,11 @@ class SaaSAuthTests(unittest.TestCase):
                     'other': 0,
                 },
             },
+            'setupSnippetCopies': 2,
+            'setupSnippetCopiesBySnippet': {
+                'codex-cli': 1,
+                'quickstart-curl': 1,
+            },
         }, None)
         customer = self.active_customer()
         raw, _row = router.create_api_key_for_customer(customer, 'prod')
@@ -1264,9 +1271,14 @@ class SaaSAuthTests(unittest.TestCase):
         snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
 
         self.assertEqual(3, snapshot['stages']['waitlistLeads'])
-        self.assertEqual(12, snapshot['stages']['marketingIntentEvents'])
+        self.assertEqual(14, snapshot['stages']['marketingIntentEvents'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['landing_account_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['account_api_key_created'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['account_snippet_copied'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['quickstart_snippet_copied'])
+        self.assertEqual(2, snapshot['marketingIntent']['setupSnippetCopies'])
+        self.assertEqual(1, snapshot['marketingIntent']['setupSnippetCopiesBySnippet']['codex-cli'])
+        self.assertEqual(1, snapshot['marketingIntent']['setupSnippetCopiesBySnippet']['quickstart-curl'])
         self.assertEqual(2, snapshot['marketingIntent']['events']['calculator_checkout_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['calculator_checkout_unavailable'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['account_checkout_unavailable'])
@@ -1308,6 +1320,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, snapshot['stages']['signups'])
         self.assertEqual(1, snapshot['stages']['customersWithGeneratedApiKeys'])
         self.assertEqual(1, snapshot['stages']['customersWithActiveApiKeys'])
+        self.assertEqual(2, snapshot['stages']['setupSnippetCopies'])
         self.assertEqual(1, snapshot['stages']['customersWithFirstRoutedRequest'])
         self.assertEqual(1, snapshot['stages']['paidConversions'])
         self.assertEqual(1, snapshot['stages']['paidCustomers'])
@@ -1328,6 +1341,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertFalse(snapshot['mrr']['assumptions']['managedProviderAccessIncluded'])
         self.assertEqual(0.60, snapshot['targets']['signupToGeneratedKey']['targetRate'])
         self.assertEqual(0.50, snapshot['targets']['generatedKeyToFirstRequest']['targetRate'])
+        self.assertEqual(0.35, snapshot['targets']['setupCopyToFirstRequest']['targetRate'])
         self.assertEqual(0.15, snapshot['targets']['signupToPaidConversion']['targetRate'])
         self.assertEqual(0.85, snapshot['targets']['paidRecentUsage']['targetRate'])
         self.assertEqual(1.0, snapshot['targets']['mrrTargetAttainment']['targetRate'])
@@ -1337,6 +1351,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(0.5, snapshot['targets']['signupToGeneratedKey']['actualRate'])
         self.assertEqual('below_target', snapshot['targets']['signupToGeneratedKey']['status'])
         self.assertEqual('on_track', snapshot['targets']['generatedKeyToFirstRequest']['status'])
+        self.assertEqual(0.5, snapshot['rates']['setupCopyToFirstRequest'])
+        self.assertEqual('on_track', snapshot['targets']['setupCopyToFirstRequest']['status'])
         bottleneck_metrics = [row['metric'] for row in snapshot['bottlenecks']]
         self.assertIn('mrrTargetAttainment', bottleneck_metrics)
         self.assertIn('checkoutReadinessFriction', bottleneck_metrics)
@@ -1436,6 +1452,24 @@ class SaaSAuthTests(unittest.TestCase):
                     'metadata': {
                         'source': 'account',
                         'state': 'created',
+                    },
+                },
+                {
+                    'event': 'account_snippet_copied',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'account',
+                        'snippet': 'codex-cli',
+                    },
+                },
+                {
+                    'event': 'quickstart_snippet_copied',
+                    'plan': None,
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'quickstart',
+                        'snippet': 'quickstart-curl',
                     },
                 },
                 {
@@ -1562,10 +1596,15 @@ class SaaSAuthTests(unittest.TestCase):
         metrics, error = router.read_launch_marketing_funnel_counts(0)
 
         self.assertIsNone(error)
-        self.assertEqual(16, metrics['total'])
+        self.assertEqual(18, metrics['total'])
         self.assertEqual(1, metrics['events']['landing_account_clicked'])
         self.assertEqual(1, metrics['events']['landing_viewed'])
         self.assertEqual(1, metrics['events']['account_api_key_created'])
+        self.assertEqual(1, metrics['events']['account_snippet_copied'])
+        self.assertEqual(1, metrics['events']['quickstart_snippet_copied'])
+        self.assertEqual(2, metrics['setupSnippetCopies'])
+        self.assertEqual(1, metrics['setupSnippetCopiesBySnippet']['codex-cli'])
+        self.assertEqual(1, metrics['setupSnippetCopiesBySnippet']['quickstart-curl'])
         self.assertEqual(1, metrics['events']['account_login_submitted'])
         self.assertEqual(2, metrics['events']['auth_provider_state_checked'])
         self.assertEqual(2, metrics['events']['calculator_checkout_clicked'])
@@ -1577,7 +1616,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['events']['pricing_viewed'])
         self.assertEqual(1, metrics['events']['billing_payment_recovery_clicked'])
         self.assertEqual(1, metrics['events']['unknown'])
-        self.assertEqual(5, metrics['plans']['pro'])
+        self.assertEqual(6, metrics['plans']['pro'])
         self.assertEqual(1, metrics['plans']['lite'])
         self.assertEqual(1, metrics['plans']['manual'])
         self.assertEqual(2, metrics['sourceSurfaces']['landing'])
@@ -1585,8 +1624,9 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, metrics['sourceSurfaces']['model-routing-calculator'])
         self.assertEqual(2, metrics['sourceSurfaces']['compare-openrouter'])
         self.assertEqual(2, metrics['sourceSurfaces']['pricing'])
-        self.assertEqual(2, metrics['sourceSurfaces']['account'])
+        self.assertEqual(3, metrics['sourceSurfaces']['account'])
         self.assertEqual(2, metrics['sourceSurfaces']['login'])
+        self.assertEqual(1, metrics['sourceSurfaces']['quickstart'])
         self.assertEqual(1, metrics['sourceSurfaces']['billing'])
         self.assertEqual(1, metrics['sourceSurfaces']['unknown'])
         self.assertEqual(2, metrics['attributionChannels']['github'])
@@ -1594,7 +1634,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, metrics['attributionChannels']['newsletter'])
         self.assertEqual(2, metrics['attributionChannels']['google'])
         self.assertEqual(1, metrics['attributionChannels']['discord'])
-        self.assertEqual(6, metrics['attributionChannels']['direct'])
+        self.assertEqual(8, metrics['attributionChannels']['direct'])
         self.assertEqual(2, metrics['authProviderState']['total'])
         self.assertEqual(1, metrics['authProviderState']['loaded'])
         self.assertEqual(1, metrics['authProviderState']['unavailable'])

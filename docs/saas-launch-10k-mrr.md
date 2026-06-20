@@ -181,6 +181,10 @@ provider resale claim, or runtime feature flag.
   wallet addresses, generated keys, prompts, provider credentials, OAuth tokens,
   OAuth secrets, completion text, copied snippet bodies, or API keys. Account
   setup snippet-copy events may store only the snippet ID.
+- Track setup-copy to first-request activation in `/analytics/funnel` from
+  privacy-safe snippet IDs, generated-key records, and server-recorded route
+  usage so copied Codex/OpenAI snippets become an operator-owned activation
+  target instead of an unmeasured onboarding hint.
 - Capture public billing recovery CTA intent from `/billing` through the same
   privacy-safe path, including account, pricing, support, troubleshooting,
   quickstart, and status clicks. Use those aggregates to diagnose payment

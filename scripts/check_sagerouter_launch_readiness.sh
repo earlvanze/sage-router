@@ -609,6 +609,9 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Launch bottlenecks" /tmp/sage-router-readiness-body; then
     launch_funnel_code="200:missing-launch-bottlenecks"
   fi
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Setup copy to first request" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:missing-setup-copy-activation"
+  fi
   if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Customer Review" /tmp/sage-router-readiness-body; then
     launch_funnel_code="200:missing-customer-review"
   fi
@@ -641,6 +644,9 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderAuthProviderState" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-auth-provider-state-renderer"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "setupSnippetCopiesBySnippet" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-setup-copy-renderer"
   fi
   rm -f /tmp/sage-router-readiness-body
 
@@ -1455,11 +1461,15 @@ check_admin_token() {
     ((.managedAccessDemand.targetLaunchWindow // {}) | has("this-week") and has("this-month") and has("this-quarter") and has("exploring") and has("unknown")) and
     ((.managedAccessDemand.intent // {}) | has("max-implementation") and has("private-deployment") and has("openrouter-migration") and has("one-subscription") and has("ollama") and has("openai") and has("anthropic") and has("unknown")) and
     ((.rates // {}) | has("managedAccessShareOfWaitlist")) and
-    ((.targets // {}) | has("signupToGeneratedKey") and has("generatedKeyToFirstRequest") and has("signupToPaidConversion") and has("paidRecentUsage") and has("mrrTargetAttainment")) and
+    ((.stages // {}) | has("setupSnippetCopies")) and
+    ((.rates // {}) | has("setupCopyToFirstRequest")) and
+    ((.targets // {}) | has("signupToGeneratedKey") and has("generatedKeyToFirstRequest") and has("setupCopyToFirstRequest") and has("signupToPaidConversion") and has("paidRecentUsage") and has("mrrTargetAttainment")) and
     ((.targets.signupToGeneratedKey // {}) | .targetRate == 0.6) and
+    ((.targets.setupCopyToFirstRequest // {}) | .targetRate == 0.35) and
     ((.bottlenecks // []) | type == "array") and
     ((.acquisitionActions // []) | type == "array") and
     ((.marketingIntent.authProviderState // {}) | has("total") and has("githubEnabled") and has("githubDisabled")) and
+    ((.marketingIntent // {}) | has("setupSnippetCopies") and has("setupSnippetCopiesBySnippet")) and
     ((.marketingIntent.authProviderState.enabledProviders // {}) | has("github") and has("google") and has("discord") and has("none") and has("other")) and
     ((.marketingIntent.authProviderState.disabledProviders // {}) | has("github") and has("google") and has("discord") and has("none") and has("other")) and
     ((.privacy // {}) | .containsEmails == false) and

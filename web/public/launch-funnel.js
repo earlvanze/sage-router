@@ -385,6 +385,17 @@ function renderMarketingIntent(marketingIntent = {}) {
   const planRows = sortedEntries(marketingIntent.plans);
   const surfaceRows = sortedEntries(marketingIntent.sourceSurfaces);
   const channelRows = sortedEntries(marketingIntent.attributionChannels);
+  const setupRows = sortedEntries(marketingIntent.setupSnippetCopiesBySnippet);
+  const setupCopyCount = asNumber(marketingIntent.setupSnippetCopies);
+  const setupBlock = setupCopyCount || setupRows.length ? `<div>
+    <h3>Setup copies</h3>
+    <table>
+      <thead><tr><th>Snippet</th><th>Copies</th></tr></thead>
+      <tbody><tr><td><span class="pill">Total setup copies</span></td><td>${integer(setupCopyCount)}</td></tr>${
+        setupRows.map(([name, count]) => `<tr><td><span class="pill">${esc(demandLabel(name))}</span></td><td>${integer(count)}</td></tr>`).join('')
+      }</tbody>
+    </table>
+  </div>` : '';
   const checkoutFriction = marketingIntent.checkoutFriction || {};
   const hasCheckoutFriction = asNumber(checkoutFriction.totalCheckoutIntent) > 0 || asNumber(checkoutFriction.unavailableEvents) > 0;
   const checkoutRows = hasCheckoutFriction ? [
@@ -402,7 +413,7 @@ function renderMarketingIntent(marketingIntent = {}) {
       }</tbody>
     </table>
   </div>` : '';
-  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length && !checkoutBlock) {
+  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length && !setupBlock && !checkoutBlock) {
     $('marketing-intent-breakdown').innerHTML = '<div class="empty">No anonymous marketing CTA intent events in this window.</div>';
     return;
   }
@@ -421,7 +432,7 @@ function renderMarketingIntent(marketingIntent = {}) {
     renderTable('Source surfaces', surfaceRows)
   }${
     renderTable('Attribution channels', channelRows)
-  }${checkoutBlock}</div>`;
+  }${setupBlock}${checkoutBlock}</div>`;
 }
 
 function renderAuthProviderState(authState = {}) {
@@ -547,11 +558,13 @@ function renderFunnel(data) {
   setText('kpi-mrr', money(mrr.estimatedCurrentMrrUsd));
 
   setText('metric-generated-keys', integer(stages.customersWithGeneratedApiKeys ?? stages.generatedApiKeys));
+  setText('metric-setup-copies', integer(stages.setupSnippetCopies ?? marketingIntent.setupSnippetCopies));
   setText('metric-first-request', integer(stages.customersWithFirstRoutedRequest ?? stages.firstRoutedRequest));
   setText('metric-paid-conversions', integer(stages.paidConversions));
   setText('metric-paid-customers', integer(stages.paidCustomers));
   setText('metric-retained-paid', integer(stages.retainedPaidCustomers ?? stages.retainedPaidWithUsage));
   setText('metric-key-to-first', percent(rates.generatedKeyToFirstRequest));
+  setText('metric-copy-to-first', percent(rates.setupCopyToFirstRequest));
   setText('metric-marketing-intent', integer(stages.marketingIntentEvents ?? marketingIntent.total));
   setText('metric-target-mrr', money(mrr.targetMrrUsd));
   setText('metric-attainment', percent(mrr.targetAttainment));
