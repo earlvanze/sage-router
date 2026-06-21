@@ -8,8 +8,8 @@ const SELECTED_PLAN_STORAGE_KEY = 'sage_router_selected_plan';
 const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
 const FALLBACK_PLANS = {
   lite: { name: 'Lite', price: '$6/month', limits: { monthlyRequests: 10000, rateLimitPerMinute: 60 }, features: ['agent-native routing', 'API keys', 'usage analytics'] },
-  pro: { name: 'Pro', price: '$30/month', limits: { monthlyRequests: 50000, rateLimitPerMinute: 180 }, features: ['frontier routing', 'agentic tool-use preference', 'analytics snapshots'] },
-  max: { name: 'Max', price: '$72/month', limits: { monthlyRequests: 200000, rateLimitPerMinute: 600 }, features: ['highest quality routing', 'priority fallback budget', 'team/automation use'] },
+  pro: { name: 'Pro', price: '$30/month', limits: { monthlyRequests: 50000, rateLimitPerMinute: 180 }, features: ['frontier routing', 'agentic tool-use preference', 'Fusion synthesis', 'analytics snapshots'] },
+  max: { name: 'Max', price: '$72/month', limits: { monthlyRequests: 200000, rateLimitPerMinute: 600 }, features: ['highest quality routing', 'Fusion synthesis budget', 'team/automation use'] },
 };
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

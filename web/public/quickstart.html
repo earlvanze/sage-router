@@ -66,7 +66,7 @@
         <article class="card">
           <span class="pill">Profile</span>
           <h3>Pick a route</h3>
-          <p class="muted">Start with <code>sage-router/frontier</code> for high-quality agent work or use the model catalog for provider-family routes.</p>
+          <p class="muted">Start with <code>sage-router/frontier</code> for high-quality agent work. Pro/Max users can use <code>sage-router/fusion</code> when a prompt benefits from a parallel model panel and judge synthesis.</p>
         </article>
       </section>
 
@@ -160,6 +160,26 @@ codex --profile sage-router-frontier</code></pre>
         </article>
       </section>
       <p id="copy-status" class="copyStatus" role="status" aria-live="polite"></p>
+
+      <section class="section grid2">
+        <div>
+          <p class="eyebrow">Premium synthesis</p>
+          <h2>Call Fusion when one answer is not enough.</h2>
+          <p class="muted">On Pro, Max, metered, manual, or operator-enabled accounts, <code>sage-router/fusion</code> runs a small panel of eligible authorized routes, then asks a judge route to synthesize one final answer. Lite keys receive <code>402 fusion_plan_required</code>.</p>
+        </div>
+        <div class="panel">
+          <div class="snippetHeader"><span>Curl</span><button class="copyCodeButton" type="button" data-copy-code="quickstart-fusion">Copy</button></div>
+          <pre><code id="quickstart-fusion">curl https://api.sagerouter.dev/v1/chat/completions \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "sage-router/fusion",
+    "messages": [
+      {"role": "user", "content": "Compare the strongest launch risks and give one recommendation."}
+    ]
+  }'</code></pre>
+        </div>
+      </section>
 
       <section class="section tableWrap">
         <table>

@@ -14,8 +14,8 @@ Current public plan ladder:
 | Plan | Price | Included requests | Rate limit | Best fit |
 | --- | ---: | ---: | ---: | --- |
 | Lite | $6/month | 10,000/month | 60/minute | Individual agent experiments |
-| Pro | $30/month | 50,000/month | 180/minute | Daily agent development |
-| Max | $72/month | 200,000/month | 600/minute | Automation, teams, and high-volume agents |
+| Pro | $30/month | 50,000/month | 180/minute | Daily agent development, frontier routing, and Fusion synthesis |
+| Max | $72/month | 200,000/month | 600/minute | Automation, teams, high-volume agents, and priority Fusion budget |
 
 Straight-line paths:
 
@@ -122,8 +122,8 @@ provider resale claim, or runtime feature flag.
 - Keep `/docs/openrouter-migration` as the OpenRouter customer migration path
   with `OPENAI_BASE_URL=https://openrouter.ai/api/v1` to
   `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys,
-  `sage-router/frontier`, model catalog discovery, and the provider terms
-  boundary.
+  `sage-router/frontier`, premium `sage-router/fusion`, model catalog
+  discovery, and the provider terms boundary.
 - Keep `/docs/codex` as the dedicated Codex CLI path with hosted, local port
   `8790`, and Tailnet examples using `wire_api = "responses"` and
   `sage-router/frontier`.

@@ -79,10 +79,10 @@ The current public deployment is intentionally split:
 - `https://api.sagerouter.dev` is a Cloudflare-proxied GCP edge VM. The edge health-checks Tailnet Sage Router installs plus the Google-hosted Sage Router API origin, then routes to the lowest-latency healthy backend. Public health and response headers identify the edge layer and selected backend only with stable public IDs such as `upstream-1`, never configured upstream URLs or Tailnet hostnames.
 - Tailnet Edge is the reliability layer for routing to healthy Sage Router installs on a Tailnet. In public mode, set `SAGE_ROUTER_EDGE_AUTH_MODE=supabase`: `/pricing`, `/plans`, `/model-catalog`, and `/features/agent-native` are public control-plane metadata; `/pricing` also exposes a `billing` object with secret-free Stripe checkout readiness, configured plan names, billing portal readiness, manual settlement status paths, activation statuses, and generated-key limits. The same metadata exposes `publicLaunch.managedProviderAccess`, which must stay disabled until provider resale terms are acknowledged, a provider-family allowlist is configured, a margin policy, positive unit economics backed by a positive `SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS`, durable quota/rate-limit enforcement, generated-key revocation, operator abuse review, durable operator audit events, and managed-access acceptable-use terms are ready. Public unit-economics rows expose plan revenue and derived maximum safe provider cost per 1,000 requests without exposing actual configured provider costs. `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` is treated as an operator request only; public metadata keeps `enabled: false` and reports missing controls until every prerequisite is satisfied. The marketing site publishes `/models`, `/provider-resale-terms`, and `/margin-policy` as reviewable prerequisites, but those pages do not enable managed resale by themselves; `/v1/*` and `/v1beta/*` model APIs accept active generated `sk_sage_*` customer API keys; anonymous model API failures stay fail-closed but include account, pricing, status, OpenAI base URL, and API-key-prefix guidance for setup debugging; account/billing UI requests preserve Supabase user JWTs and should be pinned to a hosted control-plane origin with `SAGE_ROUTER_CONTROL_PLANE_UPSTREAM`; operator analytics such as `/analytics/funnel` requires the private edge admin token, is pinned to the control plane, and can inject `SAGE_ROUTER_CONTROL_PLANE_TOKEN` separately from the Tailnet backend token. Browser login belongs on `app.sagerouter.dev`; `api.sagerouter.dev` should remain API-only. Browser-originating account, billing, and customer-suspension mutations are rejected at the edge unless `Origin` is a trusted Sage Router app/local/preview origin; CLI and server clients without `Origin` still pass through normal auth. Generated keys and account/billing JWT routes are rate-limited by `SAGE_ROUTER_EDGE_RATE_LIMITS`; generated-key-looking model API attempts are also throttled by client IP through `SAGE_ROUTER_EDGE_AUTH_ATTEMPT_RATE_LIMIT` before Supabase generated-key lookup, so random invalid keys cannot create unbounded service-role reads; generated model API keys can also be counted against durable monthly Supabase quotas with `SAGE_ROUTER_EDGE_QUOTA_ENABLED=1` after applying `supabase/migrations/20260619021500_sage_router_usage_quotas.sql`. Supabase user JWT validation uses `SAGE_ROUTER_EDGE_AUTH_CACHE_SECONDS`, but generated customer API keys default to `SAGE_ROUTER_EDGE_API_KEY_AUTH_CACHE_SECONDS=0` so revocation takes effect on the next request. The private edge admin token is exempt for recovery. Hosted origins should also set `SAGE_ROUTER_CLIENT_AUTH_REQUIRED=1`; direct origin requests to `/v1/models`, setup, admin, discovery, and dashboard config routes must fail closed unless they carry a valid operator token, and generated customer keys are only accepted for model metadata/traffic.
 - After the edge validates a generated customer API key, it forwards customer id, user id, plan, and status as trusted internal headers while replacing the customer key with the private backend token. Hosted routers use those headers only after backend-token auth, keeping route telemetry, account analytics, first-request activation, quota support, and operator review attributed to the paying customer without exposing raw generated keys to Tailnet model backends.
-- `https://sagerouter.dev/quickstart` is the hosted API first-request path. It shows `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` key setup, the `sage-router/frontier` profile, curl, JavaScript, Python, and Codex examples, plus 401/402/429/503 troubleshooting.
+- `https://sagerouter.dev/quickstart` is the hosted API first-request path. It shows `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` key setup, the `sage-router/frontier` profile, premium `sage-router/fusion`, curl, JavaScript, Python, and Codex examples, plus 401/402/429/503 troubleshooting.
 - `https://sagerouter.dev/api-troubleshooting` is the no-secret diagnostic path for hosted 401/402/429/503 responses. It documents safe probes, `WWW-Authenticate`, `Retry-After`, `X-RateLimit-*`, `X-Quota-*`, account/pricing/status onboarding links, and the non-secret `apiKeyPrefix` without asking customers to paste prompts or credentials.
 - `https://sagerouter.dev/docs/api-reference` is the hosted API reference for OpenAI-compatible customers. It documents `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public `/model-catalog`, generated `sk_sage_*` keys, quotas, rate limits, and failover signals.
-- `https://sagerouter.dev/docs/openrouter-migration` is the OpenRouter migration guide for OpenAI-compatible customers. It maps `OPENAI_BASE_URL=https://openrouter.ai/api/v1` to `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, model catalog discovery, and the provider terms boundary.
+- `https://sagerouter.dev/docs/openrouter-migration` is the OpenRouter migration guide for OpenAI-compatible customers. It maps `OPENAI_BASE_URL=https://openrouter.ai/api/v1` to `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, premium `sage-router/fusion`, model catalog discovery, and the provider terms boundary.
 - `https://sagerouter.dev/docs/codex` is the dedicated Codex CLI setup path. It shows hosted `https://api.sagerouter.dev/v1/`, local `http://127.0.0.1:8790/v1/`, and Tailnet `http://<tailnet-host>:8790/v1/` profiles using `wire_api = "responses"` and `sage-router/frontier`.
 - `https://sagerouter.dev/integrations` is the public integrations index. It collects hosted, local port `8790`, and Tailnet setup paths for OpenAI-compatible clients, Codex, Cursor, Aider, Continue, Claude Code, OpenHands, Anthropic-compatible clients, Ollama, Ollama Cloud, NVIDIA NIM, OpenClaw, Hermes, and Pi agents while preserving the no-secret support boundary.
 
@@ -134,6 +134,30 @@ curl "$OPENAI_BASE_URL/chat/completions" \
 
 Keep anonymous `/v1/*` traffic blocked at the edge. New users should reach account, billing, and API key workflows through the hosted control plane, then use generated API keys for model traffic.
 
+### Sage Router Fusion
+
+Pro, Max, metered, manual, and operator-enabled customers can use
+`sage-router/fusion` as a premium compound model:
+
+```bash
+curl "$OPENAI_BASE_URL/chat/completions" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "sage-router/fusion",
+    "messages": [{"role": "user", "content": "Compare the safest launch options and recommend one."}]
+  }'
+```
+
+Fusion fans the prompt to a small parallel panel of eligible high-quality
+routes, then asks a judge route to synthesize consensus, contradictions, gaps,
+and useful details into one OpenAI-compatible response. Lite/free generated
+keys receive `402 fusion_plan_required`; tool-call workloads should keep using
+`sage-router/agentic` or `sage-router/frontier`. Fusion route telemetry records
+only selected provider/model IDs, elapsed times, status, plan, and auth type;
+it does not store prompts, panel answers, final answers, API keys, OAuth tokens,
+provider credentials, or raw provider responses.
+
 Hosted plan limits are exposed from `/pricing` and enforced at the public edge:
 
 | Plan | Price | Included requests | Rate limit |
@@ -158,7 +182,7 @@ rate limits, and failover signals,
 base-URL, generated-key, route-profile, and provider-boundary migration path,
 `https://sagerouter.dev/docs/codex` gives Codex CLI users hosted, local port 8790, and Tailnet profile examples, while
 `https://sagerouter.dev/agent-native` explains route profiles, Responses API and Codex compatibility, health-aware fallback, BYOK custody, local/Tailnet/hosted deployment choices, and public feature metadata for agent harnesses, and
-`https://sagerouter.dev/models` gives prospects a searchable public model catalog backed by safe `/model-catalog` metadata with embedded fallback while keeping live `/v1/models` behind generated `sk_sage_*` customer keys, and
+`https://sagerouter.dev/models` gives prospects a searchable public model catalog backed by safe `/model-catalog` metadata with embedded fallback, including `sage-router/fusion` as a Pro/Max synthesis route, while keeping live `/v1/models` behind generated `sk_sage_*` customer keys, and
 `https://sagerouter.dev/integrations` gives tool-specific setup choices for
 OpenAI-compatible clients, Codex, Cursor, Aider, Continue, Claude Code,
 OpenHands, Anthropic-compatible clients, Ollama, local port `8790`, and Tailnet
@@ -1118,6 +1142,7 @@ Profiles live in `router-profiles.json` and can set:
 Bundled profiles:
 
 - `frontier` — public-channel quality profile, high thinking, quality/reasoning required, tiny/free filler models blocked, tool-call narration suppressed
+- `fusion` — premium multi-model panel plus judge synthesis for chat prompts where several authorized routes are worth the extra latency and cost
 - `frontier-large` — strict frontier/large-model-only routing
 - `fast-local` — low-latency local-first routing
 - `coding-max` — high-thinking coding route with weak model exclusions

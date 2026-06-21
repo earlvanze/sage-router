@@ -2889,6 +2889,9 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(600, plans['max']['limits']['rateLimitPerMinute'])
         self.assertFalse(plans['free']['apiAccess'])
         self.assertTrue(plans['pro']['apiAccess'])
+        self.assertNotIn('fusion', plans['lite']['routingProfiles'])
+        self.assertIn('fusion', plans['pro']['routingProfiles'])
+        self.assertIn('fusion', plans['max']['routingProfiles'])
 
     def test_public_plan_catalog_uses_edge_limit_overrides(self):
         router.PUBLIC_PLAN_RATE_LIMITS_RAW = 'lite=7,pro=8,max=9,default=3'
@@ -2897,6 +2900,94 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual({'monthlyRequests': 70, 'rateLimitPerMinute': 7}, plans['lite']['limits'])
         self.assertEqual({'monthlyRequests': 80, 'rateLimitPerMinute': 8}, plans['pro']['limits'])
         self.assertEqual({'monthlyRequests': 90, 'rateLimitPerMinute': 9}, plans['max']['limits'])
+
+    def test_fusion_rejects_lite_generated_key_plan(self):
+        class Dummy:
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+                self.headers = extra_headers or {}
+
+        router.set_route_auth_context({'type': 'generated_key', 'customer': {'id': 'customer_1', 'plan': 'lite'}})
+        try:
+            handler = Dummy()
+            router.handle_sage_router_fusion(
+                handler,
+                {'model': 'sage-router/fusion', 'messages': [{'role': 'user', 'content': 'Compare these options.'}]},
+                'req-fusion-lite',
+                router.time.time(),
+            )
+        finally:
+            router.clear_route_auth_context()
+
+        self.assertEqual(402, handler.status)
+        self.assertEqual('fusion_plan_required', handler.payload['error']['code'])
+        self.assertEqual('lite', handler.payload['error']['plan'])
+
+    def test_fusion_synthesizes_paid_plan_without_logging_panel_content(self):
+        original_select = router.select_fusion_panel_chain
+        original_run = router.run_fusion_panel_candidate
+
+        class Dummy:
+            def routing_headers(self, payload=None, request_id=''):
+                return router.Handler.routing_headers(self, payload, request_id)
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+                self.headers = extra_headers or {}
+
+        def fake_select(messages, request_id, thinking, route_mode, requirements, want_json):
+            return [('provider-a', 'model-a'), ('provider-b', 'model-b')]
+
+        def fake_run(provider_name, model, payload, request_id, thinking, debug_mode=False):
+            if request_id.endswith('-judge'):
+                return {
+                    'provider': provider_name,
+                    'model': model,
+                    'ok': True,
+                    'elapsedMs': 7,
+                    'detail': '',
+                    'content': 'fused answer',
+                    'usage': {'prompt_tokens': 3, 'completion_tokens': 4, 'total_tokens': 7},
+                }
+            return {
+                'provider': provider_name,
+                'model': model,
+                'ok': True,
+                'elapsedMs': 5,
+                'detail': '',
+                'content': f'private panel answer from {provider_name}',
+                'usage': {'prompt_tokens': 1, 'completion_tokens': 2, 'total_tokens': 3},
+            }
+
+        router.select_fusion_panel_chain = fake_select
+        router.run_fusion_panel_candidate = fake_run
+        router.set_route_auth_context({'type': 'generated_key', 'customer': {'id': 'customer_1', 'plan': 'pro'}})
+        try:
+            handler = Dummy()
+            router.handle_sage_router_fusion(
+                handler,
+                {'model': 'sage-router/fusion', 'messages': [{'role': 'user', 'content': 'high stakes prompt text'}], 'debug': True},
+                'req-fusion-pro',
+                router.time.time(),
+            )
+        finally:
+            router.select_fusion_panel_chain = original_select
+            router.run_fusion_panel_candidate = original_run
+            router.clear_route_auth_context()
+
+        self.assertEqual(200, handler.status)
+        self.assertEqual('sage-router/fusion', handler.payload['model'])
+        self.assertEqual('fused answer', handler.payload['choices'][0]['message']['content'])
+        self.assertEqual('1', handler.headers['X-Sage-Router-Fusion'])
+        self.assertEqual(2, handler.payload['sage_router']['fusion']['panelSize'])
+        with open(router.ROUTE_EVENTS_PATH) as f:
+            event = json.loads(f.read())
+        self.assertEqual({'provider': 'sage-router', 'model': 'fusion'}, event['selected'])
+        self.assertEqual('pro', event['customer_plan'])
+        self.assertNotIn('high stakes prompt text', json.dumps(event))
+        self.assertNotIn('private panel answer', json.dumps(event))
 
 
 class AnalyticsModelConsolidationTests(unittest.TestCase):

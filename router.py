@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Sage Router - Dynamic provider discovery and routing"""
 import argparse, base64, datetime, hashlib, hmac, ipaddress, json, logging, math, os, re, secrets, shutil, socket, subprocess, threading, time, urllib.error, urllib.parse, urllib.request, uuid
+import concurrent.futures
 from dataclasses import dataclass
 from enum import Enum, auto
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -31,6 +32,14 @@ LOCAL_STRICT_PROXY_PROVIDER_NAMES = {'dario', 'openai-codex'}
 LOCAL_STRICT_PROXY_API_TYPES = {'openclaw-gateway', 'openai-codex-responses'}
 LOCAL_STRICT_DECENTRALIZED_PROVIDER_NAMES = {'darkbloom'}
 SHOW_MODEL_PREFIX = os.environ.get('SAGE_ROUTER_SHOW_MODEL_PREFIX', '').strip().lower() in {'1', 'true', 'yes', 'on'}  # Show provider/model at start of final text responses by default
+FUSION_MODEL_ALIASES = {'fusion', 'sage-router/fusion'}
+FUSION_ALLOWED_PLANS = {
+    p.strip().lower()
+    for p in os.environ.get('SAGE_ROUTER_FUSION_ALLOWED_PLANS', 'pro,max,metered,manual,paid,active').split(',')
+    if p.strip()
+}
+FUSION_PANEL_SIZE = max(2, min(8, int(os.environ.get('SAGE_ROUTER_FUSION_PANEL_SIZE', '3') or '3')))
+FUSION_PANEL_TIMEOUT_SECONDS = max(15, int(os.environ.get('SAGE_ROUTER_FUSION_PANEL_TIMEOUT_SECONDS', '90') or '90'))
 
 # Provider name aliases: normalize ollama variants to just "ollama"
 _OLLAMA_PROVIDER_ALIASES = {'ollama-cloud', 'ollama-cyber', 'ollama-cyber-fast'}
@@ -215,23 +224,23 @@ PUBLIC_PLAN_CATALOG = {
         'name': 'Pro',
         'price': '$30/month',
         'quarterly': '$81/quarter',
-        'features': ['frontier routing', 'agentic tool-use preference', 'analytics snapshots', 'subscription failover'],
-        'routingProfiles': ['balanced', 'premium', 'frontier', 'agentic'],
+        'features': ['frontier routing', 'agentic tool-use preference', 'Fusion multi-model synthesis', 'analytics snapshots', 'subscription failover'],
+        'routingProfiles': ['balanced', 'premium', 'frontier', 'agentic', 'fusion'],
     },
     'max': {
         'name': 'Max',
         'price': '$72/month',
         'quarterly': '$216/quarter',
-        'features': ['highest quality routing', 'large/frontier model preference', 'priority fallback budget', 'team/automation use'],
-        'routingProfiles': ['premium', 'frontier', 'frontier-large', 'agentic'],
+        'features': ['highest quality routing', 'large/frontier model preference', 'priority Fusion budget', 'team/automation use'],
+        'routingProfiles': ['premium', 'frontier', 'frontier-large', 'agentic', 'fusion'],
     },
     'metered': {
         'name': 'Metered',
         'price': 'usage-based',
         'minimumPaymentUsd': 0.001,
         'serverMarginPercent': 5,
-        'features': ['per-request cost attribution', 'wallet/x402-ready payment intents', 'free-tier fallback policy'],
-        'routingProfiles': ['eco', 'balanced', 'premium', 'agentic'],
+        'features': ['per-request cost attribution', 'Fusion multi-model synthesis', 'wallet/x402-ready payment intents', 'free-tier fallback policy'],
+        'routingProfiles': ['eco', 'balanced', 'premium', 'agentic', 'fusion'],
     },
 }
 PUBLIC_AGENT_NATIVE_FEATURES = {
@@ -244,6 +253,7 @@ PUBLIC_AGENT_NATIVE_FEATURES = {
     'sessionSafeFallback': {'description': 'Each request builds an ordered fallback chain and retries failed providers without mid-stream handoff.'},
     'costAndPlanTelemetry': {'description': 'Route events include selected model, attempts, elapsed time, customer plan, and auth type for pricing analytics.'},
     'freeTierFallbackPolicy': {'description': 'Eco/local/free profiles can be used for zero or low-balance workflows without blocking agent execution.'},
+    'fusionRouting': {'description': 'Paid plans can request sage-router/fusion for parallel panel responses and judge synthesis on high-stakes research or review prompts.'},
 }
 PUBLIC_MODEL_CATALOG = {
     'description': 'Public model-family catalog for Sage Router hosted routing. This is discovery metadata only; live /v1/models remains authenticated with generated sk_sage_* customer API keys.',
@@ -255,7 +265,7 @@ PUBLIC_MODEL_CATALOG = {
         {
             'id': 'sage-router-profiles',
             'name': 'Sage Router profiles',
-            'examples': ['sage-router/auto', 'sage-router/balanced', 'sage-router/frontier', 'sage-router/agentic'],
+            'examples': ['sage-router/auto', 'sage-router/balanced', 'sage-router/frontier', 'sage-router/agentic', 'sage-router/fusion'],
             'access': 'Hosted profile aliases select across authorized providers, local models, and healthy fallback routes.',
         },
         {
@@ -3174,6 +3184,300 @@ def openai_completion_has_visible_output(result):
     has_text = bool(str(content or '').strip())
     has_tools = bool(message.get('tool_calls'))
     return has_text or has_tools
+
+
+def is_sage_router_fusion_request(payload):
+    if not isinstance(payload, dict):
+        return False
+    model = str(payload.get('model') or '').strip().lower()
+    profile = str(payload.get('profile') or payload.get('routerProfile') or payload.get('sageRouterProfile') or '').strip().lower()
+    return model in FUSION_MODEL_ALIASES or profile == 'fusion'
+
+
+def current_route_customer_plan():
+    ctx = getattr(ROUTE_AUTH_CONTEXT, 'value', {}) or {}
+    return str(ctx.get('customer_plan') or '').strip().lower()
+
+
+def fusion_plan_allowed():
+    ctx = getattr(ROUTE_AUTH_CONTEXT, 'value', {}) or {}
+    auth_type = str(ctx.get('auth_type') or '').strip().lower()
+    plan = current_route_customer_plan()
+    if auth_type == 'generated_key':
+        return plan in FUSION_ALLOWED_PLANS
+    # Operator/self-hosted tokens are allowed so local deployments can use
+    # their own provider credentials without the hosted billing control plane.
+    return True
+
+
+def fusion_messages_excerpt(messages, limit=6000):
+    parts = []
+    for message in messages or []:
+        if not isinstance(message, dict):
+            continue
+        role = str(message.get('role') or 'user')[:24]
+        text = normalize_content(message.get('content', ''))
+        if text.strip():
+            parts.append(f'{role}: {text.strip()}')
+    return '\n'.join(parts)[-limit:]
+
+
+def fusion_panel_messages(messages):
+    return [
+        {
+            'role': 'system',
+            'content': (
+                'You are one independent Sage Router Fusion panelist. Answer the user request directly, '
+                'with concise reasoning and concrete caveats. Do not mention other panelists or the fusion process.'
+            ),
+        },
+        *normalize_messages(messages or []),
+    ]
+
+
+def fusion_judge_messages(original_messages, panel_rows):
+    response_blocks = []
+    for index, row in enumerate(panel_rows, start=1):
+        text = str(row.get('content') or '').strip()
+        if not text:
+            continue
+        response_blocks.append(
+            f'Panel {index} ({row.get("provider")}/{row.get("model")}):\n{text[:5000]}'
+        )
+    panel_text = '\n\n'.join(response_blocks)
+    return [
+        {
+            'role': 'system',
+            'content': (
+                'You are Sage Router Fusion. Synthesize the panel into one best final answer. '
+                'Use consensus, contradictions, missing coverage, and unique useful details. '
+                'Do not expose hidden chain-of-thought. Do not name panel providers unless the user asks.'
+            ),
+        },
+        {
+            'role': 'user',
+            'content': (
+                'Original conversation excerpt:\n'
+                f'{fusion_messages_excerpt(original_messages)}\n\n'
+                'Panel responses:\n'
+                f'{panel_text}\n\n'
+                'Write the final answer now.'
+            ),
+        },
+    ]
+
+
+def call_provider_completion_once(provider_name, model, payload, request_id, thinking, debug_mode=False):
+    if provider_name in DISABLED_PROVIDERS or provider_name not in PROVIDERS:
+        return False, f'provider unavailable: {provider_name}'
+    prov = PROVIDERS[provider_name]
+    supports_reasoning = provider_supports_reasoning(prov, model)
+    if prov.api_type == 'ollama':
+        return call_ollama_completion(prov.base_url, model, payload, prov.api_key, thinking, provider_name=provider_name, debug_mode=debug_mode, request_id=request_id)
+    if prov.api_type == 'openclaw-gateway':
+        ok_text, text = call_openclaw_gateway(model, payload.get('messages', []), provider_name, thinking, payload.get('response_format', {}).get('type') == 'json_object')
+        if not ok_text:
+            return False, text
+        return True, build_openai_completion(provider_name, model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode)
+    if prov.api_type == 'anthropic-messages':
+        return call_anthropic_completion(prov.base_url, model, payload, prov.api_key, thinking, supports_reasoning, debug_mode=debug_mode, request_id=request_id, provider_name=provider_name)
+    if prov.api_type == 'google-generative-language':
+        return call_google_completion(prov.base_url, model, payload, prov.api_key, thinking, debug_mode=debug_mode, request_id=request_id, provider_name=provider_name)
+    if prov.api_type == 'google-vertex-ai':
+        return call_google_vertex_completion(prov.base_url, model, payload, thinking, debug_mode=debug_mode, request_id=request_id)
+    if prov.api_type == 'cloudflare-workers-ai':
+        return call_cloudflare_workers_ai_completion(prov.base_url, model, payload, prov.api_key, thinking, debug_mode=debug_mode, request_id=request_id)
+    if prov.api_type == 'openai-codex-responses':
+        return call_codex_completion(prov.base_url, model, payload, prov.api_key, provider_name, thinking, supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+    return call_openai_compat_completion(prov.base_url, model, payload, prov.api_key, provider_name, thinking, supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+
+
+def select_fusion_panel_chain(messages, request_id, thinking, route_mode, requirements, want_json):
+    req = dict(requirements or {})
+    req.update({'qualitySensitive': True, 'reasoning': True})
+    _messages, _intent, _complexity, _tokens, chain = prepare_route(
+        messages,
+        request_id=f'{request_id}-fusion-select',
+        thinking=thinking,
+        route_mode=route_mode if route_mode != 'local-first' else 'balanced',
+        requirements=req,
+        want_json=want_json,
+        streaming_mode='fusion-buffered',
+    )
+    picked = []
+    seen = set()
+    for provider_name, model in chain:
+        key = (provider_name, model)
+        if key in seen:
+            continue
+        seen.add(key)
+        picked.append(key)
+        if len(picked) >= FUSION_PANEL_SIZE:
+            break
+    return picked
+
+
+def run_fusion_panel_candidate(provider_name, model, payload, request_id, thinking, debug_mode=False):
+    started = time.time()
+    ok = False
+    result = None
+    error_detail = ''
+    try:
+        ok, result = call_provider_completion_once(provider_name, model, payload, request_id, thinking, debug_mode=debug_mode)
+        if ok and not openai_completion_has_visible_output(result):
+            ok = False
+            error_detail = 'empty visible content'
+        elif not ok:
+            error_detail = result
+    except Exception as e:
+        error_detail = extract_http_error(e)
+    elapsed = time.time() - started
+    row = {
+        'provider': provider_name,
+        'model': model,
+        'ok': bool(ok),
+        'elapsedMs': round(elapsed * 1000.0, 2),
+        'detail': '' if ok else str(error_detail or '')[:240],
+    }
+    if ok:
+        choice = (result.get('choices') or [{}])[0] or {}
+        message = choice.get('message') or {}
+        row['content'] = sanitize_visible_output(message.get('content') or '')
+        row['usage'] = result.get('usage') or {}
+    return row
+
+
+def handle_sage_router_fusion(self, payload, request_id, started, return_result=False):
+    if not fusion_plan_allowed():
+        plan = current_route_customer_plan() or 'free'
+        failure = {
+            'error': {
+                'type': 'billing_error',
+                'code': 'fusion_plan_required',
+                'message': 'sage-router/fusion is available on Pro, Max, metered, manual, or operator-enabled plans.',
+                'plan': plan,
+            },
+            'request_id': request_id,
+        }
+        headers = {'X-Sage-Router-Request-Id': request_id, 'X-Sage-Router-Model': 'sage-router/fusion'}
+        if return_result:
+            return 402, failure, headers
+        self.write_json(402, failure, extra_headers=headers)
+        return
+    if payload.get('tools') or payload.get('tool_choice'):
+        failure = {
+            'error': {
+                'type': 'invalid_request_error',
+                'code': 'fusion_tools_unsupported',
+                'message': 'sage-router/fusion currently supports plain chat synthesis; send tool calls to sage-router/agentic or sage-router/frontier.',
+            },
+            'request_id': request_id,
+        }
+        headers = {'X-Sage-Router-Request-Id': request_id, 'X-Sage-Router-Model': 'sage-router/fusion'}
+        if return_result:
+            return 400, failure, headers
+        self.write_json(400, failure, extra_headers=headers)
+        return
+
+    messages = normalize_messages(payload.get('messages', []))
+    thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning') or {'effort': 'high'})
+    route_mode = normalize_route_mode(payload.get('route') or 'best')
+    requirements = normalize_requirements(payload, thinking)
+    want_json = str(payload.get('responseFormat') or '').lower() == 'json' or payload.get('response_format', {}).get('type') == 'json_object'
+    debug_mode = normalize_debug_mode(payload)
+    panel_chain = select_fusion_panel_chain(messages, request_id, thinking, route_mode, requirements, want_json)
+    if not panel_chain:
+        failure = {'error': 'Fusion panel has no eligible providers', 'request_id': request_id, 'attempts': []}
+        headers = {'X-Sage-Router-Request-Id': request_id, 'X-Sage-Router-Model': 'sage-router/fusion'}
+        if return_result:
+            return 503, failure, headers
+        self.write_json(503, failure, extra_headers=headers)
+        return
+
+    panel_payload = dict(payload)
+    panel_payload.pop('provider', None)
+    panel_payload.pop('tools', None)
+    panel_payload.pop('tool_choice', None)
+    panel_payload['model'] = 'sage-router/auto'
+    panel_payload['messages'] = fusion_panel_messages(messages)
+    panel_payload['stream'] = False
+    panel_payload['requirements'] = {**requirements, 'qualitySensitive': True, 'reasoning': True}
+    panel_rows = []
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=len(panel_chain))
+    try:
+        futures = [
+            executor.submit(run_fusion_panel_candidate, provider_name, model, panel_payload, f'{request_id}-p{index}', thinking, debug_mode)
+            for index, (provider_name, model) in enumerate(panel_chain, start=1)
+        ]
+        done, pending = concurrent.futures.wait(futures, timeout=FUSION_PANEL_TIMEOUT_SECONDS)
+        for future in done:
+            try:
+                panel_rows.append(future.result())
+            except Exception as e:
+                panel_rows.append({'provider': 'unknown', 'model': 'unknown', 'ok': False, 'elapsedMs': 0, 'detail': extract_http_error(e)[:240]})
+        for future in pending:
+            future.cancel()
+            panel_rows.append({'provider': 'unknown', 'model': 'unknown', 'ok': False, 'elapsedMs': FUSION_PANEL_TIMEOUT_SECONDS * 1000, 'detail': 'fusion panel timeout'})
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+    successful = [row for row in panel_rows if row.get('ok') and str(row.get('content') or '').strip()]
+    if not successful:
+        total_elapsed = time.time() - started
+        safe_attempts = [{k: row.get(k) for k in ('provider', 'model', 'ok', 'elapsedMs', 'detail')} for row in panel_rows[-12:]]
+        append_route_event({'request_id': request_id, 'status': 'failed', 'intent': 'FUSION', 'complexity': 'COMPLEX', 'thinking': thinking.value, 'routeMode': 'fusion', 'estimatedTokens': estimate_prompt_tokens(messages), 'json': want_json, 'stream': False, 'requirements': {'fusion': True}, 'selected': None, 'attempts': safe_attempts, 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': p, 'model': m} for p, m in panel_chain], 'error': 'Fusion panel failed'})
+        failure = {'error': 'Fusion panel failed', 'request_id': request_id, 'attempts': safe_attempts}
+        headers = {'X-Sage-Router-Request-Id': request_id, 'X-Sage-Router-Model': 'sage-router/fusion'}
+        if return_result:
+            return 503, failure, headers
+        self.write_json(503, failure, extra_headers=headers)
+        return
+
+    judge_messages = fusion_judge_messages(messages, successful)
+    judge_chain = select_fusion_panel_chain(judge_messages, f'{request_id}-judge', ThinkingLevel.HIGH, 'best', {'qualitySensitive': True, 'reasoning': True}, want_json)
+    judge_provider, judge_model = (judge_chain[0] if judge_chain else panel_chain[0])
+    judge_payload = {
+        'model': 'sage-router/auto',
+        'messages': judge_messages,
+        'response_format': {'type': 'json_object'} if want_json else {},
+        'requirements': {'qualitySensitive': True, 'reasoning': True},
+    }
+    judge_row = run_fusion_panel_candidate(judge_provider, judge_model, judge_payload, f'{request_id}-judge', ThinkingLevel.HIGH, debug_mode)
+    if judge_row.get('ok') and str(judge_row.get('content') or '').strip():
+        content = judge_row.get('content') or ''
+    else:
+        content = successful[0].get('content') or ''
+
+    total_usage = {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0}
+    for row in [*successful, judge_row]:
+        usage = row.get('usage') or {}
+        total_usage['prompt_tokens'] += int(usage.get('prompt_tokens') or 0)
+        total_usage['completion_tokens'] += int(usage.get('completion_tokens') or 0)
+        total_usage['total_tokens'] += int(usage.get('total_tokens') or 0)
+    if not total_usage['total_tokens']:
+        total_usage.pop('total_tokens', None)
+    result = build_openai_completion('sage-router', 'fusion', request_id, content, [], 'stop', total_usage, debug_mode=debug_mode, allow_debug_prefix=False)
+    if debug_mode:
+        result.setdefault('sage_router', {})['fusion'] = {
+            'panelSize': len(panel_chain),
+            'successfulPanelists': len(successful),
+            'panel': [{k: row.get(k) for k in ('provider', 'model', 'ok', 'elapsedMs', 'detail')} for row in panel_rows],
+            'judge': {k: judge_row.get(k) for k in ('provider', 'model', 'ok', 'elapsedMs', 'detail')},
+            'access': {'allowedPlans': sorted(FUSION_ALLOWED_PLANS), 'plan': current_route_customer_plan() or 'operator'},
+        }
+    total_elapsed = time.time() - started
+    safe_panel_attempts = [{k: row.get(k) for k in ('provider', 'model', 'ok', 'elapsedMs', 'detail')} for row in panel_rows[-12:]]
+    attempts = safe_panel_attempts + [{k: judge_row.get(k) for k in ('provider', 'model', 'ok', 'elapsedMs', 'detail')}]
+    LAST_ROUTE_DEBUG.update({'selected': {'provider': 'sage-router', 'model': 'fusion'}, 'attempts': attempts, 'status': 'ok', 'error': None, 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'routeMode': 'fusion'})
+    append_route_event({'request_id': request_id, 'status': 'ok', 'intent': 'FUSION', 'complexity': 'COMPLEX', 'thinking': thinking.value, 'routeMode': 'fusion', 'estimatedTokens': estimate_prompt_tokens(messages), 'json': want_json, 'stream': False, 'requirements': {'fusion': True, 'panelSize': len(panel_chain)}, 'selected': {'provider': 'sage-router', 'model': 'fusion'}, 'attempts': attempts, 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': p, 'model': m} for p, m in panel_chain]})
+    headers = self.routing_headers(result, request_id)
+    headers['X-Sage-Router-Fusion'] = '1'
+    if return_result:
+        return 200, result, headers
+    if payload.get('stream'):
+        write_openai_completion_as_sse(self, result, request_id)
+        return
+    self.write_json(200, result, extra_headers=headers)
 
 
 def build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=False, thinking=DEFAULT_THINKING_LEVEL):
@@ -9989,6 +10293,8 @@ def write_openai_completion_as_sse(self, result, request_id):
 
 def handle_openai_chat_completions(self, payload, request_id, started, force_realtime=False, return_result=False):
     message_count = len(payload.get('messages', []) or [])
+    if is_sage_router_fusion_request(payload):
+        return handle_sage_router_fusion(self, payload, request_id, started, return_result=return_result)
     router_profile = apply_router_profile(payload)
     discord_public_profile = apply_discord_public_route_profile(payload)
     thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning'))

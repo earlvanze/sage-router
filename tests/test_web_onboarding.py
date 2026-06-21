@@ -1755,6 +1755,34 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("https://sagerouter.dev/docs/api-reference", readme)
         self.assertIn("Dedicated hosted API reference page at `/docs/api-reference`", web_readme)
 
+    def test_premium_fusion_onboarding_is_discoverable(self):
+        readme = self.read_text("README.md")
+        profiles = self.read_text("router-profiles.json")
+        pricing = self.read_public("pricing.html")
+        account_js = self.read_public("account.js")
+        quickstart = self.read_public("quickstart.html")
+        models = self.read_public("models.html")
+        api_reference = self.read_text("web", "public", "docs", "api-reference.html")
+        migration = self.read_text("web", "public", "docs", "openrouter-migration.html")
+        compare = self.read_text("web", "public", "compare", "openrouter.html")
+        agent_native = self.read_public("agent-native.html")
+        llms = self.read_public("llms.txt")
+        llms_full = self.read_public("llms-full.txt")
+        pricing_doc = self.read_text("docs", "agent-native-pricing.md")
+        launch_plan = self.read_text("docs", "saas-launch-10k-mrr.md")
+
+        for text in (readme, quickstart, models, api_reference, migration, agent_native, llms, llms_full):
+            self.assertIn("sage-router/fusion", text)
+        self.assertIn('"fusion"', profiles)
+        self.assertIn("Premium multi-model panel plus judge synthesis", profiles)
+        for text in (readme, quickstart, pricing, account_js, compare, pricing_doc, launch_plan, llms, llms_full):
+            self.assertIn("Fusion", text)
+        self.assertIn("fusion_plan_required", quickstart)
+        self.assertIn("Pro/Max", models)
+        self.assertIn("Pro/Max", migration)
+        self.assertIn("panel", profiles)
+        self.assertIn("judge", profiles)
+
     def test_acceptable_use_covers_managed_provider_access(self):
         page = self.read_public("acceptable-use.html")
         readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")

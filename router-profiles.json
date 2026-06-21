@@ -59,6 +59,29 @@
         "expandOnlyWhenAsked": true
       }
     },
+    "fusion": {
+      "description": "Premium multi-model panel plus judge synthesis for high-stakes prompts.",
+      "route": "best",
+      "thinking": "high",
+      "requiresQuality": true,
+      "requiresReasoning": true,
+      "frontierLargeOnly": true,
+      "suppressIntermediateToolText": true,
+      "allowProviders": [
+        "ollama-cloud"
+      ],
+      "fallbackProviders": [
+        "ollama-cloud"
+      ],
+      "denyModels": [
+        "*-mini*", "*:mini*", "*mini/*",
+        "*haiku*",
+        "*1.2b*",
+        "*3b*",
+        "*7b*",
+        "*8b*"
+      ]
+    },
     "agentic": {
       "description": "Agentic routing — prefers models with reliable tool-calling and autonomous task behavior via OpenClaw Codex OAuth.",
       "route": "best",

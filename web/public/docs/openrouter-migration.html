@@ -64,8 +64,8 @@
             </tr>
             <tr>
               <td>Provider-prefixed model IDs from the hosted catalog</td>
-              <td>Start with <code>sage-router/frontier</code></td>
-              <td>Provider-specific routes remain available only when your Sage Router profile has authorized provider access configured.</td>
+              <td>Start with <code>sage-router/frontier</code>; use <code>sage-router/fusion</code> on Pro/Max for premium synthesis.</td>
+              <td>Provider-specific routes remain available only when your Sage Router profile has authorized provider access configured. Fusion fans out across eligible authorized routes and returns one judged answer.</td>
             </tr>
             <tr>
               <td>OpenRouter <code>/models</code></td>
@@ -139,6 +139,7 @@ await client.chat.completions.create({
           <h3>Profile migration</h3>
           <ul>
             <li>Use <code>sage-router/frontier</code> for high-quality hosted agent work.</li>
+            <li>Use <code>sage-router/fusion</code> when Pro/Max prompts need a parallel panel plus judge synthesis.</li>
             <li>Use <code>sage-router/local</code> when the router has local Ollama routes available.</li>
             <li>Use <a href="/models">model catalog</a> discovery before mapping provider-specific IDs.</li>
           </ul>

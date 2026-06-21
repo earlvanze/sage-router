@@ -8,6 +8,7 @@ Sage Router now mirrors the useful agent-native pieces from BlockRunAI/ClawRoute
 - **Tool-aware routing**: forced tool calls remain hard requirements; ordinary tool arrays become a soft preference so casual chat is not over-constrained.
 - **Context-aware routing**: document, vision, and long-context signals are folded into requirements before candidate scoring.
 - **Session-safe fallback**: each request gets an ordered fallback chain; failed providers are retried sequentially with no mid-stream model handoff.
+- **Fusion synthesis**: premium chat requests can call `sage-router/fusion`, which runs a small parallel panel of eligible authorized routes and asks a judge route to synthesize one final answer.
 - **Cost/plan telemetry**: route events retain selected model, attempts, elapsed time, auth type, and customer plan.
 - **Free/eco fallback policy**: low-cost workflows can select `eco` or `local-first` profiles to avoid paid frontier calls.
 
@@ -21,6 +22,7 @@ curl http://localhost:8790/features/agent-native
 
 - `sage-router/agentic`: best-route profile for multi-step agent work, tool preference, and strong model families such as Kimi, Codex, GPT-5, Claude/Sonnet/Opus, and Gemini Pro/3.
 - `sage-router/eco`: cost-first/local-first profile that avoids expensive frontier defaults.
+- `sage-router/fusion`: Pro/Max/metered multi-model panel plus judge synthesis for prompts where multiple perspectives are worth the extra latency and cost.
 - `sage-router/premium`: quality-first paid profile for frontier/large model usage.
 
 ## Pricing structure
@@ -29,8 +31,8 @@ The public catalog uses the ClawRouter-style plan ladder:
 
 - `free`: $0/month, local/free providers when available.
 - `lite`: $6/month or $27/quarter, agent-native routing, API keys, usage analytics, standard fallback chains.
-- `pro`: $30/month or $81/quarter, frontier routing, agentic tool-use preference, analytics snapshots, subscription failover.
-- `max`: $72/month or $216/quarter, highest-quality routing, frontier/large-model preference, priority fallback budget.
+- `pro`: $30/month or $81/quarter, frontier routing, agentic tool-use preference, Fusion synthesis, analytics snapshots, subscription failover.
+- `max`: $72/month or $216/quarter, highest-quality routing, frontier/large-model preference, priority fallback and Fusion budget.
 - `metered`: usage-based, $0.001 minimum payment and 5% server margin for x402/wallet-style metering.
 
 Public endpoint:
