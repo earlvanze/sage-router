@@ -277,7 +277,7 @@ PUBLIC_AGENT_NATIVE_FEATURES = {
     'sessionSafeFallback': {'description': 'Each request builds an ordered fallback chain and retries failed providers without mid-stream handoff.'},
     'costAndPlanTelemetry': {'description': 'Route events include selected model, attempts, elapsed time, customer plan, and auth type for pricing analytics.'},
     'freeTierFallbackPolicy': {'description': 'Eco/local/free profiles can be used for zero or low-balance workflows without blocking agent execution.'},
-    'fusionRouting': {'description': 'Paid plans can request sage-router/fusion or the openrouter:fusion-compatible server tool for parallel panel responses and judge synthesis on high-stakes research or review prompts.'},
+    'fusionRouting': {'description': 'Paid plans can request sage-router/fusion, the OpenRouter-compatible openrouter/fusion alias, or the openrouter:fusion-compatible server tool for parallel panel responses and judge synthesis on high-stakes research or review prompts.'},
 }
 PUBLIC_MODEL_CATALOG = {
     'description': 'Public model-family catalog for Sage Router hosted routing. This is discovery metadata only; live /v1/models remains authenticated with generated sk_sage_* customer API keys.',
@@ -289,8 +289,8 @@ PUBLIC_MODEL_CATALOG = {
         {
             'id': 'sage-router-profiles',
             'name': 'Sage Router profiles',
-            'examples': ['sage-router/auto', 'sage-router/balanced', 'sage-router/frontier', 'sage-router/agentic', 'sage-router/fusion'],
-            'access': 'Hosted profile aliases select across authorized providers, local models, and healthy fallback routes.',
+            'examples': ['sage-router/auto', 'sage-router/balanced', 'sage-router/frontier', 'sage-router/agentic', 'sage-router/fusion', 'openrouter/fusion'],
+            'access': 'Hosted profile aliases select across authorized providers, local models, and healthy fallback routes. Fusion is Pro/Max gated and accepts the OpenRouter-compatible openrouter/fusion alias.',
         },
         {
             'id': 'openai-codex',

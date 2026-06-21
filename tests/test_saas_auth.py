@@ -835,6 +835,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('sage-router-profiles', family_ids)
         self.assertIn('ollama', family_ids)
         self.assertIn('byok-compatible', family_ids)
+        profile_family = next(row for row in catalog['families'] if row['id'] == 'sage-router-profiles')
+        self.assertIn('openrouter/fusion', profile_family['examples'])
         self.assertIn('not a promise of bundled model resale', catalog['safetyBoundary'])
 
     def test_managed_provider_access_requires_terms_and_margin_policy(self):
