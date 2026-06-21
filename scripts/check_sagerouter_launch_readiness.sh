@@ -190,6 +190,37 @@ check_edge_health() {
   fi
 }
 
+check_public_edge_layer_headers() {
+  local headers code tailnet_edge selected_upstream worker_edge worker_origin worker_origin_kind content_type
+  headers="$(mktemp)"
+  code="$(
+    curl -sS -o /tmp/sage-router-readiness-body -D "$headers" -w '%{http_code}' \
+      "${API_BASE%/}/edge/health"
+  )"
+  tailnet_edge="$(awk 'tolower($1)=="x-sage-router-edge:" {sub(/\r$/,"",$2); print $2}' "$headers" | tail -n1)"
+  selected_upstream="$(awk 'tolower($1)=="x-sage-router-selected-upstream:" {sub(/\r$/,"",$2); print $2}' "$headers" | tail -n1)"
+  worker_edge="$(awk 'tolower($1)=="x-sage-router-cloudflare-edge:" {sub(/\r$/,"",$2); print $2}' "$headers" | tail -n1)"
+  worker_origin="$(awk 'tolower($1)=="x-sage-router-api-origin:" {sub(/\r$/,"",$2); print $2}' "$headers" | tail -n1)"
+  worker_origin_kind="$(awk 'tolower($1)=="x-sage-router-api-origin-kind:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$headers" | tail -n1)"
+  content_type="$(awk 'tolower($1)=="content-type:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$headers" | tail -n1)"
+  rm -f "$headers" /tmp/sage-router-readiness-body
+
+  if [[ "$code" == "200" &&
+        "$content_type" == application/json* &&
+        "$tailnet_edge" == "tailnet-lowest-latency" &&
+        "$selected_upstream" == upstream-* ]]; then
+    pass "public edge layer is visible as Tailnet lowest-latency router without exposing raw upstream URLs"
+  elif [[ "$code" == "200" &&
+          "$content_type" == application/json* &&
+          "$worker_edge" == "api.sagerouter.dev" &&
+          "$worker_origin" == origin-* &&
+          -n "$worker_origin_kind" ]]; then
+    pass "public edge layer is visible as Cloudflare Worker origin selector without exposing raw upstream URLs"
+  else
+    fail "public edge layer headers missing or unsafe: code=${code} type=${content_type:-missing} tailnetEdge=${tailnet_edge:-missing} selectedUpstream=${selected_upstream:-missing} workerEdge=${worker_edge:-missing} workerOrigin=${worker_origin:-missing} workerOriginKind=${worker_origin_kind:-missing}"
+  fi
+}
+
 check_public_auth_gate() {
   local code analytics_code funnel_code account_analytics_code error account_url pricing_url api_key_prefix
   code="$(http_code "${API_BASE%/}/v1/models")"
@@ -1639,6 +1670,7 @@ check_quota_schema() {
 
 require_jq
 check_edge_health
+check_public_edge_layer_headers
 check_public_auth_gate
 check_public_api_browser_boundary
 check_browser_api_cors

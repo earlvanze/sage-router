@@ -861,6 +861,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("auth-attempt throttling", readiness)
         self.assertIn("authAttemptRateLimitEnabled", readiness)
         self.assertIn("CDN-style reliability evidence", readiness)
+        self.assertIn("public edge layer is visible", readiness)
+        self.assertIn("selectedUpstream", readiness)
         self.assertIn("missing-retry-failover-evidence", readiness)
         self.assertIn("hosted login, account, API-key verification, analytics, operator launch funnel, reliability status, and GitHub auth callback pages are live", readiness)
 

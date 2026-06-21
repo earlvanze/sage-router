@@ -262,11 +262,13 @@ async function chooseOrigin(env) {
   };
 }
 
-function responseJson(payload, status = 200) {
+function responseJson(payload, status = 200, extraHeaders = {}) {
   return Response.json(payload, {
     status,
     headers: {
       "cache-control": "no-store",
+      "x-sage-router-cloudflare-edge": "api.sagerouter.dev",
+      ...extraHeaders,
     },
   });
 }
@@ -297,7 +299,10 @@ export default {
           selected: selectedId,
           selectedOriginId: selectedId,
           origins: publicOriginsSnapshot(checks),
-        }, healthy.length ? 200 : 503);
+        }, healthy.length ? 200 : 503, {
+          "x-sage-router-api-origin": selectedId || "origin-none",
+          "x-sage-router-api-origin-kind": healthy[0] ? originKind(healthy[0].url) : "none",
+        });
       }
 
       const { origin, checks, originId, originKind: selectedKind } = await chooseOrigin(env);

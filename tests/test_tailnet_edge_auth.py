@@ -219,10 +219,12 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         class Handler:
             payload = None
             status = None
+            extra_headers = None
 
             def _json(self, status, payload, extra_headers=None):
                 self.status = status
                 self.payload = payload
+                self.extra_headers = extra_headers or {}
 
         handler = Handler()
         self.edge.EdgeHandler._edge_health(handler)
@@ -231,6 +233,8 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertEqual("supabase", handler.payload["authMode"])
         self.assertEqual("upstream-1", handler.payload["selected"])
         self.assertEqual("upstream-1", handler.payload["selectedUpstreamId"])
+        self.assertEqual("tailnet-lowest-latency", handler.extra_headers["X-Sage-Router-Edge"])
+        self.assertEqual("upstream-1", handler.extra_headers["X-Sage-Router-Selected-Upstream"])
         self.assertEqual("upstream-1", handler.payload["upstreams"][0]["id"])
         self.assertEqual("Upstream 1", handler.payload["upstreams"][0]["label"])
         self.assertEqual("custom", handler.payload["upstreams"][0]["originKind"])
@@ -258,6 +262,12 @@ class TailnetEdgeAuthTests(unittest.TestCase):
             "retryStatuses": [401, 429, 502, 503, 504],
             "retryHeader": "X-Sage-Router-Retry-Count",
         }, handler.payload["failover"])
+
+    def test_public_response_headers_use_redacted_upstream_id(self):
+        source = EDGE_PROXY.read_text(encoding="utf-8")
+
+        self.assertIn('self.send_header("X-Sage-Router-Upstream", public_upstream_id(upstream))', source)
+        self.assertNotIn('self.send_header("X-Sage-Router-Upstream", upstream.raw_url)', source)
 
     def test_edge_health_flags_wildcard_cors_as_not_launch_ready(self):
         self.edge.CORS_ORIGINS = ["*"]

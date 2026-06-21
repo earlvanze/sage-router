@@ -23,6 +23,9 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
         self.assertIn("function selectedOriginId", worker)
         self.assertIn("originKind", worker)
         self.assertIn("selectedOriginId: selectedId", worker)
+        self.assertIn('"x-sage-router-cloudflare-edge": "api.sagerouter.dev"', worker)
+        self.assertIn('"x-sage-router-api-origin": selectedId || "origin-none"', worker)
+        self.assertIn('"x-sage-router-api-origin-kind": healthy[0] ? originKind(healthy[0].url) : "none"', worker)
         self.assertNotRegex(worker, r"selected:\s*healthy\[0\]")
         self.assertNotRegex(worker, r"origins:\s*checks")
 

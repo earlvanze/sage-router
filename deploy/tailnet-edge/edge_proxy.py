@@ -954,6 +954,13 @@ def public_upstream_snapshot(upstream, index, label_prefix="Upstream"):
     }
 
 
+def public_upstream_id(upstream):
+    for index, candidate in enumerate(UPSTREAMS):
+        if candidate is upstream:
+            return f"upstream-{index + 1}"
+    return "upstream-unknown"
+
+
 def edge_identity_headers(auth_context):
     auth_context = auth_context or {}
     headers = {
@@ -1062,10 +1069,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
         fastest = choose_upstream()
         selected_id = None
         if fastest:
-            for index, upstream in enumerate(UPSTREAMS):
-                if upstream is fastest:
-                    selected_id = f"upstream-{index + 1}"
-                    break
+            selected_id = public_upstream_id(fastest)
         self._json(200, {
             "status": "ok" if fastest else "degraded",
             "selected": selected_id,
@@ -1075,6 +1079,9 @@ class EdgeHandler(BaseHTTPRequestHandler):
             "authMode": EDGE_AUTH_MODE,
             "enforcement": edge_enforcement_state(),
             "failover": edge_failover_state(),
+        }, {
+            "X-Sage-Router-Edge": "tailnet-lowest-latency",
+            "X-Sage-Router-Selected-Upstream": selected_id or "",
         })
 
     def _proxy(self):
@@ -1200,7 +1207,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
                         continue
                     self.send_header(key, value)
                 self.send_header("X-Sage-Router-Edge", "tailnet-lowest-latency")
-                self.send_header("X-Sage-Router-Upstream", upstream.raw_url)
+                self.send_header("X-Sage-Router-Upstream", public_upstream_id(upstream))
                 if attempts:
                     self.send_header("X-Sage-Router-Retry-Count", str(len(attempts)))
                 if rate_state:
