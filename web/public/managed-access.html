@@ -127,7 +127,7 @@
               <select name="supportNeed">
                 <option value="implementation-support">Max implementation support</option>
                 <option value="private-deployment">Private deployment review</option>
-                <option value="migration-help">OpenRouter or gateway migration help</option>
+                <option value="migration-help">Gateway migration help</option>
                 <option value="managed-provider-review">Managed provider authorization review</option>
               </select>
             </label>
@@ -195,7 +195,7 @@
       } else if (requestedIntent === 'private-deployment') {
         setSelectValue('supportNeed', 'private-deployment');
         setSelectValue('deployment', 'tailnet-private');
-      } else if (requestedIntent === 'openrouter-migration') {
+      } else if (requestedIntent === 'gateway-migration') {
         setSelectValue('supportNeed', 'migration-help');
         setSelectValue('providerAccess', 'byok');
       } else if (requestedIntent === 'one-subscription') {

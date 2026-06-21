@@ -25,13 +25,13 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://sagerouter.dev/compare/openrouter</loc>
+    <loc>https://sagerouter.dev/compare/model-gateways</loc>
     <lastmod>2026-06-19</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://sagerouter.dev/docs/openrouter-migration</loc>
+    <loc>https://sagerouter.dev/docs/gateway-migration</loc>
     <lastmod>2026-06-19</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>

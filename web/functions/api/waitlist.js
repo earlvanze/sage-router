@@ -163,7 +163,7 @@ export async function onRequestGet({ env }) {
       commercialPreference: ['one-subscription', 'byok-plus-routing', 'private-contract'],
       supportNeed: ['implementation-support', 'private-deployment', 'migration-help', 'managed-provider-review'],
       targetLaunchWindow: ['this-week', 'this-month', 'this-quarter', 'exploring'],
-      intent: ['max-implementation', 'private-deployment', 'openrouter-migration', 'one-subscription', 'ollama', 'openai', 'anthropic'],
+      intent: ['max-implementation', 'private-deployment', 'gateway-migration', 'one-subscription', 'ollama', 'openai', 'anthropic'],
     },
     writeGuard: {
       browserOriginRequired: true,
@@ -199,7 +199,7 @@ export async function onRequestPost({ request, env }) {
   const commercialPreference = sanitizeChoice(payload.commercialPreference, new Set(['one-subscription', 'byok-plus-routing', 'private-contract']));
   const supportNeed = sanitizeChoice(payload.supportNeed, new Set(['implementation-support', 'private-deployment', 'migration-help', 'managed-provider-review']));
   const targetLaunchWindow = sanitizeChoice(payload.targetLaunchWindow, new Set(['this-week', 'this-month', 'this-quarter', 'exploring']));
-  const intent = sanitizeChoice(payload.intent, new Set(['max-implementation', 'private-deployment', 'openrouter-migration', 'one-subscription', 'ollama', 'openai', 'anthropic']));
+  const intent = sanitizeChoice(payload.intent, new Set(['max-implementation', 'private-deployment', 'gateway-migration', 'one-subscription', 'ollama', 'openai', 'anthropic']));
   const sourcePage = sanitizedUrl(payload.sourcePage) || 'https://sagerouter.dev';
   const turnstileToken = String(payload.turnstileToken || payload['cf-turnstile-response'] || '').trim();
 

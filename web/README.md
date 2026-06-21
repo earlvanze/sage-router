@@ -38,12 +38,12 @@ Suggested Cloudflare Pages settings:
 
 The waitlist form posts to `/api/waitlist`, a Cloudflare Pages Function that inserts into Supabase table `sage_router_waitlist` and falls back to `funnel_leads` for older AOps schemas. `GET /api/waitlist` is a non-mutating health check used by `scripts/check_sagerouter_launch_readiness.sh`. The managed-access intake posts `interest=managed-access` plus allowlisted qualification buckets for private-beta demand measurement while public managed provider access stays disabled, including target provider family and commercial preference buckets for Ollama, OpenAI, Anthropic, and BYOK-compatible demand, plus support need, target launch window, and coarse inbound intent from known CTA URLs for Max implementation follow-up. It also sends anonymous page-view, form-start, submit, and received events to `/api/funnel-event` with only those qualification buckets, so operators can see one-subscription and implementation demand before full contact submission without sending email or company fields through the marketing-event path. Browser-originating waitlist and funnel-event writes must come from Sage Router-owned production hosts, local development hosts, Cloudflare Pages preview hosts ending in `.sage-router-web.pages.dev`, or exact origins listed in `SAGEROUTER_WAITLIST_ALLOWED_ORIGINS`/`SAGEROUTER_FUNNEL_ALLOWED_ORIGINS`; the endpoints require an explicit trusted `Origin` and reject third-party or missing-origin writes before using the Supabase service-role insert. `Referer` is stored only as sanitized attribution metadata and is not accepted as an origin fallback. Set both `SAGEROUTER_TURNSTILE_SECRET_KEY` and `SAGEROUTER_TURNSTILE_SITE_KEY` in Cloudflare Pages to require Cloudflare Turnstile on waitlist submissions; the health check fails if the secret is enabled without a public site key.
 
-The homepage, calculator, pricing, Fusion, launch plan, quickstart, OpenRouter
+The homepage, calculator, pricing, Fusion, launch plan, quickstart, model-gateway
 comparison, and model catalog pages send anonymous pre-signup page-view, CTA,
 quickstart snippet-copy, filter, and bucketed search intent to
 `/api/funnel-event`, backed by Supabase table `sage_router_funnel_events`.
 The public model catalog at `/models` uses safe `/model-catalog` metadata for
-OpenRouter-style searchable discovery and falls back to embedded public route
+gateway-style searchable discovery and falls back to embedded public route
 families; it does not call live `/v1/models` without a generated customer API
 key. Catalog search telemetry stores only coarse model-family and query-bucket
 labels, not raw search text.
@@ -79,7 +79,7 @@ pre-signup checkout interest without collecting secrets or support text.
 
 The primary homepage CTA is `Create hosted API key`, which links to
 `/account.html?plan=pro`. The hero keeps pricing, quickstart, public status,
-OpenRouter comparison, model catalog, calculator, security, analytics, login,
+model-gateway comparison, model catalog, calculator, security, analytics, login,
 managed-access private beta review, support, and local GitHub install paths
 visible so a prospect can move from discovery to generated `sk_sage_*` key setup
 without joining a waitlist first. The waitlist remains secondary for release
@@ -97,16 +97,16 @@ The MVP treats discoverability as first-class. Current static assets include:
 
 - Canonical placeholder: https://sagerouter.ai/
 - OpenGraph and Twitter metadata.
-- Keyword coverage for AI model router, LLM router, provider routing, model selection automation, AI agent model routing, OpenAI-compatible router, Anthropic-compatible router, Ollama routing, BYOK AI gateway, local-first AI router, and OpenRouter alternative.
-- Structured page sections for automation, BYOK routing, OpenRouter comparison, and Ollama/Ollama Cloud roadmap language.
+- Keyword coverage for AI model router, LLM router, provider routing, model selection automation, AI agent model routing, OpenAI-compatible router, Anthropic-compatible router, Ollama routing, BYOK AI gateway, local-first AI router, and model gateway alternatives.
+- Structured page sections for automation, BYOK routing, model-gateway comparison, and Ollama/Ollama Cloud roadmap language.
 - Dedicated hosted pricing page at `/pricing` with plan limits, compliance-safe positioning, and $10k MRR launch math.
-- Dedicated Fusion page at `/fusion` with `sage-router/fusion`, OpenRouter-compatible `openrouter/fusion`, the `openrouter:fusion` server tool, `tool_choice: "required"`, Pro/Max gating, and `fusion_plan_required` upgrade guidance.
+- Dedicated Fusion page at `/fusion` with `sage-router/fusion`, the `sage-router:fusion` server tool, `tool_choice: "required"`, Pro/Max gating, and `fusion_plan_required` upgrade guidance.
 - Dedicated billing help page at `/billing` with Stripe checkout, Stripe billing portal, manual/crypto settlement, activation states, generated key behavior, payment recovery, and no-secret support boundaries.
 - Dedicated managed-access private beta and Max implementation intake at `/managed-access` with no-secret qualification buckets for one-subscription demand capture, target provider family, commercial preference, support need, target launch window, and coarse inbound CTA intent. The page points to the public pricing readiness checkpoint and keeps activation conditioned on provider authorization, terms acknowledgment, an authorized provider allowlist, configured provider cost model, and plan-margin checks.
 - Dedicated API quickstart page at `/quickstart` with hosted `sk_sage_*` key setup, `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, `sage-router/frontier`, curl, JavaScript, Python, Codex, and error troubleshooting.
 - Dedicated API troubleshooting page at `/api-troubleshooting` with no-secret guidance for hosted 401/402/429/503 responses, safe curl probes, `WWW-Authenticate`, `Retry-After`, `X-RateLimit-*`, `X-Quota-*`, and account/pricing/status onboarding links.
 - Dedicated hosted API reference page at `/docs/api-reference` with OpenAI-compatible endpoint docs for `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public `/model-catalog`, generated keys, quotas, rate limits, and failover signals.
-- Dedicated OpenRouter migration guide at `/docs/openrouter-migration` mapping `https://openrouter.ai/api/v1` to `https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, model catalog discovery, and provider terms boundaries.
+- Dedicated Gateway migration guide at `/docs/gateway-migration` mapping `https://gateway.example/api/v1` to `https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, model catalog discovery, and provider terms boundaries.
 - Dedicated Codex setup page at `/docs/codex` with hosted `https://api.sagerouter.dev/v1/`, local `http://127.0.0.1:8790/v1/`, Tailnet `http://<tailnet-host>:8790/v1/`, `wire_api = "responses"`, and `sage-router/frontier` profiles.
 - Dedicated agent-native routing page at `/agent-native` with `sage-router/frontier`, Responses API and Codex compatibility, health-aware fallback, BYOK custody, local/Tailnet/hosted deployment choices, and the public `/features/agent-native` metadata endpoint.
 - Dedicated integrations index at `/integrations` with hosted `https://api.sagerouter.dev/v1`, local `http://127.0.0.1:8790/v1`, Tailnet `http://<tailnet-host>:8790/v1`, `sage-router/frontier`, OpenAI-compatible clients, Codex, Cursor, Aider, Continue, Claude Code, OpenHands, Anthropic-compatible clients, Ollama, Ollama Cloud, NVIDIA NIM, OpenClaw, Hermes, and Pi agents.
@@ -121,8 +121,8 @@ The MVP treats discoverability as first-class. Current static assets include:
 
 Next recommended additions after MVP:
 
-- Dedicated `/compare/openrouter` page for OpenRouter-alternative acquisition traffic.
-- Keep `/docs/openrouter-migration` aligned with the OpenRouter comparison page, hosted quickstart, API reference, sitemap, LLM discovery, and readiness checks.
+- Dedicated `/compare/model-gateways` page for model-gateway acquisition traffic.
+- Keep `/docs/gateway-migration` aligned with the model-gateway comparison page, hosted quickstart, API reference, sitemap, LLM discovery, and readiness checks.
 - Keep the hosted pricing page aligned with `/pricing` API metadata and the account checkout plans.
 - Keep `/fusion` aligned with premium route aliases, server-tool compatibility, Pro/Max gating, sitemap, LLM discovery, and readiness checks.
 - Keep `/billing` aligned with Stripe checkout, Stripe billing portal, manual/crypto settlement, generated-key activation behavior, sitemap, LLM discovery, and readiness checks.

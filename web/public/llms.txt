@@ -3,8 +3,8 @@
 Sage Router is an open-source, local-first AI model router and BYOK AI gateway for serious AI agents and developer tools. It gives agents a hot-swappable model layer: one endpoint that can switch or fail over between authorized providers and local/cloud models without rewiring the agent harness.
 
 Canonical site: https://sagerouter.dev/
-OpenRouter comparison: https://sagerouter.dev/compare/openrouter
-OpenRouter migration: https://sagerouter.dev/docs/openrouter-migration
+model gateway comparison: https://sagerouter.dev/compare/model-gateways
+Gateway migration: https://sagerouter.dev/docs/gateway-migration
 Hosted pricing: https://sagerouter.dev/pricing
 Fusion: https://sagerouter.dev/fusion
 Launch plan: https://sagerouter.dev/launch-plan
@@ -37,10 +37,10 @@ Docs: https://github.com/earlvanze/sage-router#readme
 - Supports local Ollama and Ollama Cloud today through Ollama running locally. Sage Router discovers available `:cloud` models, can auto-pull discovered cloud models, and routes between local Ollama, Ollama Cloud, NVIDIA NIM, and other cloud APIs according to policy and health.
 - Provides provider health, fallback, observability, and routing policy infrastructure for agents.
 - Hosted plans sell account management, API keys, usage quotas, analytics, reliability infrastructure, and premium Fusion synthesis on Pro/Max: Lite $6/month, Pro $30/month, and Max $72/month.
-- Dedicated Fusion onboarding lives at https://sagerouter.dev/fusion and documents `sage-router/fusion`, OpenRouter-compatible `openrouter/fusion`, the `openrouter:fusion` server tool, `tool_choice: "required"`, Pro/Max gating, and the `fusion_plan_required` upgrade path.
+- Dedicated Fusion onboarding lives at https://sagerouter.dev/fusion and documents `sage-router/fusion`, the `sage-router:fusion` server tool, `tool_choice: "required"`, Pro/Max gating, and the `fusion_plan_required` upgrade path.
 - Billing help lives at https://sagerouter.dev/billing and explains Stripe checkout, Stripe billing portal, manual/crypto settlement, plan activation, payment recovery, generated `sk_sage_*` API-key behavior, and no-secret support boundaries.
 - API quickstart lives at https://sagerouter.dev/quickstart and shows `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, premium `sage-router/fusion`, curl, JavaScript, Python, and Codex setup.
-- OpenRouter migration lives at https://sagerouter.dev/docs/openrouter-migration and maps `OPENAI_BASE_URL=https://openrouter.ai/api/v1` to `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, premium `sage-router/fusion`, public model catalog discovery, and the provider terms boundary.
+- Gateway migration lives at https://sagerouter.dev/docs/gateway-migration and maps `OPENAI_BASE_URL=https://gateway.example/api/v1` to `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, premium `sage-router/fusion`, public model catalog discovery, and the provider terms boundary.
 - API troubleshooting lives at https://sagerouter.dev/api-troubleshooting and explains safe diagnosis for hosted 401, 402, 429, and 503 responses, including `WWW-Authenticate`, `Retry-After`, `X-RateLimit-*`, `X-Quota-*`, `accountUrl`, `pricingUrl`, `statusUrl`, `openaiBaseUrl`, and the non-secret `apiKeyPrefix`.
 - Hosted API reference lives at https://sagerouter.dev/docs/api-reference and documents `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public `/model-catalog`, generated `sk_sage_*` keys, quotas, rate-limit headers, and the authenticated model API boundary.
 - Dedicated Codex setup lives at https://sagerouter.dev/docs/codex and shows hosted `https://api.sagerouter.dev/v1/`, local `http://127.0.0.1:8790/v1/`, Tailnet `http://<tailnet-host>:8790/v1/`, `wire_api = "responses"`, and `sage-router/frontier` profiles.
@@ -65,7 +65,7 @@ Managed access boundary: managed provider access, if introduced, is limited to p
 - How to automate AI model selection.
 - How to route requests across OpenAI, Anthropic, Gemini, Ollama, BYOK-compatible endpoints, and local models.
 - Local-first BYOK model routing for AI agents.
-- Sage Router vs OpenRouter for AI agent routing, local model fallback, and private provider credential custody.
+- Sage Router model gateway for AI agent routing, local model fallback, and private provider credential custody.
 - Sage Router model catalog for OpenAI-compatible, Anthropic-compatible, Gemini, Ollama, Ollama Cloud, NVIDIA NIM, and BYOK routes.
 - Codex CLI with an OpenAI-compatible Sage Router provider on hosted or local port 8790.
 - Hosted OpenAI-compatible API reference for models, chat completions, Responses API, quotas, and rate-limit headers.

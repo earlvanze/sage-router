@@ -6,7 +6,7 @@ Sage Router is an open-source local-first routing layer for AI agents and develo
 
 ## Primary categories
 
-AI model router; LLM router; provider routing; model selection automation; AI agent model routing; OpenAI-compatible router; Anthropic-compatible router; Ollama routing; BYOK AI gateway; local-first AI router; OpenRouter alternative for agents.
+AI model router; LLM router; provider routing; model selection automation; AI agent model routing; OpenAI-compatible router; Anthropic-compatible router; Ollama routing; BYOK AI gateway; local-first AI router; Model gateway for agents.
 
 ## Product promise
 
@@ -26,11 +26,11 @@ Codex setup page: https://sagerouter.dev/docs/codex
 Model catalog page: https://sagerouter.dev/models
 Agent-native routing page: https://sagerouter.dev/agent-native
 Integrations page: https://sagerouter.dev/integrations
-OpenRouter migration guide: https://sagerouter.dev/docs/openrouter-migration
+Gateway migration guide: https://sagerouter.dev/docs/gateway-migration
 
 The hosted Sage Router plans sell account management, generated API keys, quotas, route telemetry, fallback reliability, premium Fusion synthesis on Pro/Max, and support. Lite is $6/month for 10,000 included requests, Pro is $30/month for 50,000 included requests, and Max is $72/month for 200,000 included requests. A balanced path to $10k MRR is 100 Lite, 200 Pro, and 50 Max customers, which equals $10,200 MRR.
 
-The dedicated Fusion page at https://sagerouter.dev/fusion positions Sage Router Fusion as the premium compound route for multi-model panel answers and judge synthesis. It documents `sage-router/fusion`, OpenRouter-compatible `openrouter/fusion`, the compatible `openrouter:fusion` server tool, `tool_choice: "required"` for deterministic invocation, Pro/Max gating, and the `fusion_plan_required` upgrade response for Lite/free generated keys.
+The dedicated Fusion page at https://sagerouter.dev/fusion positions Sage Router Fusion as the premium compound route for multi-model panel answers and judge synthesis. It documents `sage-router/fusion`, the compatible `sage-router:fusion` server tool, `tool_choice: "required"` for deterministic invocation, Pro/Max gating, and the `fusion_plan_required` upgrade response for Lite/free generated keys.
 
 The public launch plan at https://sagerouter.dev/launch-plan turns the $10k MRR operating plan into a buyer-facing conversion path. It explains the Lite/Pro/Max plan ladder, the signup to first routed request activation funnel, private operator evidence from `/analytics/funnel`, `/edge/health`, and `/admin/customers`, and the boundary that managed provider access is a separate guarded beta path rather than a public pooled-provider entitlement.
 
@@ -38,7 +38,7 @@ The billing help page at https://sagerouter.dev/billing is the customer recovery
 
 The public API quickstart at https://sagerouter.dev/quickstart is the first-request path for hosted customers. It shows `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, premium `sage-router/fusion`, curl, JavaScript, Python, and Codex examples, and troubleshooting for 401, 402, 429, and 503 responses.
 
-The OpenRouter migration guide at https://sagerouter.dev/docs/openrouter-migration is the hosted onboarding path for OpenRouter users. It maps `OPENAI_BASE_URL=https://openrouter.ai/api/v1` to `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, uses generated `sk_sage_*` keys, recommends `sage-router/frontier` for the first route profile and `sage-router/fusion` for premium multi-model synthesis, points discovery to `https://api.sagerouter.dev/model-catalog` plus authenticated `GET /v1/models`, and states that Sage Router does not grant unauthorized provider access or bypass provider terms.
+The Gateway migration guide at https://sagerouter.dev/docs/gateway-migration is the hosted onboarding path for gateway users. It maps `OPENAI_BASE_URL=https://gateway.example/api/v1` to `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, uses generated `sk_sage_*` keys, recommends `sage-router/frontier` for the first route profile and `sage-router/fusion` for premium multi-model synthesis, points discovery to `https://api.sagerouter.dev/model-catalog` plus authenticated `GET /v1/models`, and states that Sage Router does not grant unauthorized provider access or bypass provider terms.
 
 The API troubleshooting page at https://sagerouter.dev/api-troubleshooting is the no-secret diagnostic path for hosted API failures. It explains 401, 402, 429, and 503 responses; safe probes for `/v1/models` and `/v1/chat/completions`; response signals such as `WWW-Authenticate`, `Retry-After`, `X-RateLimit-*`, `X-Quota-*`, `accountUrl`, `pricingUrl`, `statusUrl`, `openaiBaseUrl`, and `apiKeyPrefix`; and the support boundary against sharing prompts, workflow text, provider credentials, OAuth tokens, generated keys, private keys, session cookies, raw provider responses, or customer data.
 
@@ -54,7 +54,7 @@ Managed provider access is a future/private-beta path, not an active public plan
 
 ## Public model catalog
 
-Sage Router publishes OpenRouter-style model discovery at https://sagerouter.dev/models and safe JSON metadata at https://api.sagerouter.dev/model-catalog. The catalog describes model families and route profiles such as `sage-router/frontier`, `sage-router/fusion`, OpenAI/Codex-compatible routes, Anthropic-compatible routes, Gemini, Ollama, Ollama Cloud, NVIDIA NIM, and BYOK OpenAI-compatible providers.
+Sage Router publishes gateway-style model discovery at https://sagerouter.dev/models and safe JSON metadata at https://api.sagerouter.dev/model-catalog. The catalog describes model families and route profiles such as `sage-router/frontier`, `sage-router/fusion`, OpenAI/Codex-compatible routes, Anthropic-compatible routes, Gemini, Ollama, Ollama Cloud, NVIDIA NIM, OpenRouter BYOK, and other OpenAI-compatible providers.
 
 The catalog is discovery metadata only. Live `https://api.sagerouter.dev/v1/models` and model traffic remain authenticated with active generated `sk_sage_*` customer API keys, and the public catalog is not a promise of bundled provider resale.
 
@@ -82,12 +82,12 @@ Default architecture keeps provider credentials on the customer machine or serve
 
 The hosted public edge is API-only. `https://api.sagerouter.dev/v1/*` and `/v1beta/*` model routes require active generated `sk_sage_*` customer API keys, account and billing UI routes require Supabase user sessions on the hosted control plane, and global analytics/admin/setup routes require the private operator token. Anonymous model and analytics requests should fail closed with onboarding guidance, not provider access. Customer dashboards use `/account/analytics` scoped to the signed-in account.
 
-## Sage Router vs OpenRouter
+## Sage Router model gateway
 
-Comparison page: https://sagerouter.dev/compare/openrouter
-Migration guide: https://sagerouter.dev/docs/openrouter-migration
+Comparison page: https://sagerouter.dev/compare/model-gateways
+Migration guide: https://sagerouter.dev/docs/gateway-migration
 
-Sage Router is positioned as a local-first OpenRouter alternative for agents and teams that want one endpoint, OpenRouter-style model discovery through a searchable public catalog backed by `/model-catalog`, BYOK provider routing, local Ollama support, health-aware fallback, Tailnet/private router resilience, hosted account/API key management, and private credential custody by default. OpenRouter-style hosted APIs are useful for marketplace-style model access with minimal local infrastructure; Sage Router is optimized for agent harnesses, customer-controlled provider access, and hybrid local/cloud deployments.
+Sage Router is positioned as a local-first Model gateway for agents and teams that want one endpoint, gateway-style model discovery through a searchable public catalog backed by `/model-catalog`, BYOK provider routing, local Ollama support, health-aware fallback, Tailnet/private router resilience, hosted account/API key management, and private credential custody by default. gateway-style hosted APIs are useful for marketplace-style model access with minimal local infrastructure; Sage Router is optimized for agent harnesses, customer-controlled provider access, and hybrid local/cloud deployments.
 
 ## Model routing calculator
 

@@ -25,10 +25,10 @@
         <a href="/fusion">Fusion</a>
         <a href="/models">Models</a>
         <a href="/docs/api-reference">API Reference</a>
-        <a href="/docs/openrouter-migration">Migration</a>
+        <a href="/docs/gateway-migration">Migration</a>
         <a href="/docs/codex">Codex</a>
         <a href="/api-troubleshooting">Troubleshooting</a>
-        <a href="/compare/openrouter">Compare</a>
+        <a href="/compare/model-gateways">Compare</a>
         <a href="/status">Status</a>
         <a href="/account.html">Account</a>
         <a href="https://github.com/earlvanze/sage-router">GitHub</a>
@@ -43,7 +43,7 @@
         <div class="actions">
           <a class="button primary" href="/account.html" data-quickstart-event="quickstart_account_clicked" data-quickstart-button="account">Create hosted API key</a>
           <a class="button secondary" href="/docs/api-reference" data-quickstart-event="quickstart_api_reference_clicked" data-quickstart-button="api-reference">API reference</a>
-          <a class="button secondary" href="/docs/openrouter-migration" data-quickstart-event="quickstart_openrouter_migration_clicked" data-quickstart-button="openrouter-migration">OpenRouter migration</a>
+          <a class="button secondary" href="/docs/gateway-migration" data-quickstart-event="quickstart_gateway_migration_clicked" data-quickstart-button="gateway-migration">Gateway migration</a>
           <a class="button secondary" href="/fusion" data-quickstart-event="quickstart_pricing_clicked" data-quickstart-button="fusion">Fusion</a>
           <a class="button secondary" href="/models" data-quickstart-event="quickstart_models_clicked" data-quickstart-button="models">Browse models</a>
           <a class="button secondary" href="/docs/codex" data-quickstart-event="quickstart_codex_clicked" data-quickstart-button="codex">Codex setup</a>
@@ -167,7 +167,7 @@ codex --profile sage-router-frontier</code></pre>
         <div>
           <p class="eyebrow">Premium synthesis</p>
           <h2>Call Fusion when one answer is not enough.</h2>
-          <p class="muted">On Pro, Max, metered, manual, or operator-enabled accounts, <code>sage-router/fusion</code> runs a small panel of eligible authorized routes, then asks a judge route to synthesize one final answer. OpenRouter-style clients can use the <code>openrouter/fusion</code> model alias or attach <code>{"type":"openrouter:fusion"}</code> as a premium server tool. Lite keys receive <code>402 fusion_plan_required</code>. <a href="/fusion">Read the Fusion guide</a>.</p>
+          <p class="muted">On Pro, Max, metered, manual, or operator-enabled accounts, <code>sage-router/fusion</code> runs a small panel of eligible authorized routes, then asks a judge route to synthesize one final answer. Clients can request the model directly or attach <code>{"type":"sage-router:fusion"}</code> as a premium server tool. Lite keys receive <code>402 fusion_plan_required</code>. <a href="/fusion">Read the Fusion guide</a>.</p>
         </div>
         <div class="panel">
           <div class="snippetHeader"><span>Curl</span><button class="copyCodeButton" type="button" data-copy-code="quickstart-fusion">Copy</button></div>
@@ -189,7 +189,7 @@ codex --profile sage-router-frontier</code></pre>
     "messages": [
       {"role": "user", "content": "Survey the strongest arguments for and against this launch."}
     ],
-    "tools": [{"type": "openrouter:fusion"}],
+    "tools": [{"type": "sage-router:fusion"}],
     "tool_choice": "required"
   }'</code></pre>
         </div>
@@ -227,7 +227,7 @@ codex --profile sage-router-frontier</code></pre>
       <a href="/pricing">Pricing</a>
       <a href="/quickstart">Quickstart</a>
       <a href="/docs/api-reference">API Reference</a>
-      <a href="/docs/openrouter-migration">Migration</a>
+      <a href="/docs/gateway-migration">Migration</a>
       <a href="/api-troubleshooting">Troubleshooting</a>
       <a href="/docs/codex">Codex</a>
       <a href="/models">Models</a>

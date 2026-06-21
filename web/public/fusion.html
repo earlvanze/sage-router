@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Sage Router Fusion is a premium OpenRouter-compatible compound model route for multi-model panel answers and judge synthesis on high-stakes agent work." />
+  <meta name="description" content="Sage Router Fusion is a premium compound model route for multi-model panel answers and judge synthesis on high-stakes agent work." />
   <link rel="canonical" href="https://sagerouter.dev/fusion" />
   <meta property="og:title" content="Sage Router Fusion" />
   <meta property="og:description" content="Run a panel of eligible models, then synthesize the strongest answer through one OpenAI-compatible Sage Router response." />
@@ -38,8 +38,8 @@
         <a href="/quickstart">Quickstart</a>
         <a href="/models">Models</a>
         <a href="/pricing">Pricing</a>
-        <a href="/compare/openrouter">Compare</a>
-        <a href="/docs/openrouter-migration">Migration</a>
+        <a href="/compare/model-gateways">Compare</a>
+        <a href="/docs/gateway-migration">Migration</a>
         <a href="/status">Status</a>
         <a href="/account.html">Account</a>
         <a href="https://github.com/earlvanze/sage-router">GitHub</a>
@@ -50,12 +50,12 @@
       <section class="hero">
         <p class="eyebrow">Premium compound routing</p>
         <h1>Sage Router Fusion</h1>
-        <p class="lead">Run multiple eligible models side by side, then synthesize consensus, contradictions, and the strongest final answer through one OpenAI-compatible response. Use <code>sage-router/fusion</code>, the OpenRouter-style <code>openrouter/fusion</code> alias, or the compatible <code>openrouter:fusion</code> server tool.</p>
+        <p class="lead">Run multiple eligible models side by side, then synthesize consensus, contradictions, and the strongest final answer through one OpenAI-compatible response. Use <code>sage-router/fusion</code> or the compatible <code>sage-router:fusion</code> server tool.</p>
         <div class="actions">
           <a class="button primary" href="/account.html?plan=pro">Start Pro</a>
           <a class="button secondary" href="/account.html?plan=max">Start Max</a>
           <a class="button secondary" href="/quickstart">Quickstart</a>
-          <a class="button secondary" href="/docs/openrouter-migration">OpenRouter migration</a>
+          <a class="button secondary" href="/docs/gateway-migration">Gateway migration</a>
           <a class="button secondary" href="/models">Model catalog</a>
         </div>
         <p class="note">Fusion is available to Pro, Max, metered, manual, and operator-enabled customers. Lite/free generated keys receive <code>402 fusion_plan_required</code>.</p>
@@ -88,7 +88,7 @@
         <div>
           <p class="eyebrow">Direct model alias</p>
           <h2>Use Fusion as a premium model.</h2>
-          <p class="muted">For new Sage Router clients, call <code>sage-router/fusion</code>. For OpenRouter migration tests, <code>openrouter/fusion</code> is accepted as a compatibility alias and returns the canonical Sage Router Fusion response.</p>
+          <p class="muted">For new Sage Router clients, call <code>sage-router/fusion</code>. Sage Router returns the canonical Fusion response shape for premium synthesis requests.</p>
         </div>
         <div class="code">
           <pre><code>curl "https://api.sagerouter.dev/v1/chat/completions" \
@@ -106,8 +106,8 @@
       <section class="section split">
         <div>
           <p class="eyebrow">Server tool compatibility</p>
-          <h2>Attach <code>openrouter:fusion</code> to agent requests.</h2>
-          <p class="muted">OpenRouter-style clients can request the Fusion server tool without forwarding unknown tool markers downstream. Set <code>tool_choice</code> to <code>required</code> when you want deterministic invocation.</p>
+          <h2>Attach <code>sage-router:fusion</code> to agent requests.</h2>
+          <p class="muted">gateway-style clients can request the Fusion server tool without forwarding unknown tool markers downstream. Set <code>tool_choice</code> to <code>required</code> when you want deterministic invocation.</p>
         </div>
         <div class="code">
           <pre><code>{
@@ -115,7 +115,7 @@
   "messages": [
     {"role": "user", "content": "Survey the strongest arguments for and against this launch."}
   ],
-  "tools": [{"type": "openrouter:fusion"}],
+  "tools": [{"type": "sage-router:fusion"}],
   "tool_choice": "required"
 }</code></pre>
         </div>
@@ -158,7 +158,7 @@
           <a class="button primary" href="/account.html?plan=pro">Create Pro API key</a>
           <a class="button secondary" href="/pricing">Compare pricing</a>
           <a class="button secondary" href="/quickstart">Copy first request</a>
-          <a class="button secondary" href="/docs/openrouter-migration">Migrate from OpenRouter</a>
+          <a class="button secondary" href="/docs/gateway-migration">Migrate from an existing gateway</a>
         </div>
       </section>
     </main>
@@ -169,8 +169,8 @@
       <a href="/quickstart">Quickstart</a>
       <a href="/models">Models</a>
       <a href="/pricing">Pricing</a>
-      <a href="/compare/openrouter">Compare</a>
-      <a href="/docs/openrouter-migration">Migration</a>
+      <a href="/compare/model-gateways">Compare</a>
+      <a href="/docs/gateway-migration">Migration</a>
       <a href="/terms">Terms</a>
       <a href="/privacy">Privacy</a>
       <a href="/acceptable-use">Acceptable Use</a>
@@ -229,8 +229,8 @@
         }));
       } else if (href === '/quickstart') {
         link.addEventListener('click', () => trackFusionFunnelEvent('fusion_quickstart_clicked', { target: href, button }));
-      } else if (href === '/docs/openrouter-migration') {
-        link.addEventListener('click', () => trackFusionFunnelEvent('fusion_openrouter_migration_clicked', { target: href, button }));
+      } else if (href === '/docs/gateway-migration') {
+        link.addEventListener('click', () => trackFusionFunnelEvent('fusion_gateway_migration_clicked', { target: href, button }));
       } else if (href === '/pricing') {
         link.addEventListener('click', () => trackFusionFunnelEvent('fusion_pricing_clicked', { target: href, button }));
       } else if (href === '/models') {

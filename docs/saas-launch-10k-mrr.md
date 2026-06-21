@@ -34,7 +34,7 @@ single buyer type.
 
 | Stage | Target metric | Product surface |
 | --- | ---: | --- |
-| Visitor to waitlist/signup | 5% | `sagerouter.dev`, `/pricing`, `/compare/openrouter` |
+| Visitor to waitlist/signup | 5% | `sagerouter.dev`, `/pricing`, `/compare/model-gateways` |
 | Signup to generated key | 60% | `app.sagerouter.dev/account.html` |
 | Generated key to first routed request | 50% | `/quickstart` OpenAI-compatible setup |
 | Trial/free to paid | 15% | Stripe checkout and plan gating |
@@ -100,8 +100,8 @@ provider resale claim, or runtime feature flag.
 ## Near-term launch checklist
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
-- Keep `/pricing`, `/launch-plan`, `/billing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/openrouter-migration`, `/docs/codex`, `/agent-native`, `/integrations`, `/status`, `/support`, `/account.html`, `/login.html`,
-  `/api/waitlist`, `/models`, `/managed-access`, `/compare/openrouter`, `/model-routing-calculator`, `/terms`,
+- Keep `/pricing`, `/launch-plan`, `/billing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/gateway-migration`, `/docs/codex`, `/agent-native`, `/integrations`, `/status`, `/support`, `/account.html`, `/login.html`,
+  `/api/waitlist`, `/models`, `/managed-access`, `/compare/model-gateways`, `/model-routing-calculator`, `/terms`,
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
 - Keep the public pricing, launch-plan, agent-native routing, calculator, legal, provider-resale,
@@ -119,8 +119,8 @@ provider resale claim, or runtime feature flag.
   `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public
   `/model-catalog`, generated `sk_sage_*` keys, quota headers, rate-limit
   headers, failover signals, and the authenticated model API boundary.
-- Keep `/docs/openrouter-migration` as the OpenRouter customer migration path
-  with `OPENAI_BASE_URL=https://openrouter.ai/api/v1` to
+- Keep `/docs/gateway-migration` as the model gateway customer migration path
+  with `OPENAI_BASE_URL=https://gateway.example/api/v1` to
   `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys,
   `sage-router/frontier`, premium `sage-router/fusion`, model catalog
   discovery, and the provider terms boundary.
@@ -158,7 +158,7 @@ provider resale claim, or runtime feature flag.
   the handoff on the account/manual billing path instead of promising a broken
   Stripe flow.
 - Capture pre-signup page-view and CTA intent from the homepage, calculator,
-  pricing, launch plan, quickstart, plus OpenRouter comparison/migration pages
+  pricing, launch plan, quickstart, plus model gateway comparison/migration pages
   through the privacy-safe `/api/funnel-event` path. Store only event, plan,
   sanitized source/target URL, and small allowlisted metadata buckets; do not
   store prompts, workflow text, emails, API keys, or provider credentials. For
@@ -337,20 +337,20 @@ provider resale claim, or runtime feature flag.
   `/analytics/funnel` endpoint.
 - Include anonymous `marketingIntentEvents` plus event/plan breakdowns in
   `/analytics/funnel` and the private launch-funnel dashboard so the operator
-  can see whether pricing, calculator, model catalog, and OpenRouter comparison
+  can see whether pricing, calculator, model catalog, and model gateway comparison
   demand exists before signup.
 - Include model catalog family and search-bucket demand in the same private
   funnel so model interest can drive catalog copy, route-profile proof, and
   hosted key activation without storing raw search text.
 - Include source-surface and attribution-channel breakdowns in the same
-  operator funnel so GitHub, Google, OpenRouter, Discord, Reddit, newsletter,
+  operator funnel so GitHub, Google, model gateways, Discord, Reddit, newsletter,
   direct, and internal Sage Router traffic can be ranked against the `$10k MRR`
   launch mix without exposing identities.
 - Include browser-visible auth-provider state in the operator funnel so GitHub
   OAuth setup friction is visible as counts while email signup remains the
   baseline path, without storing OAuth codes, tokens, secrets, or identities.
 - Return ranked acquisition actions from those source/channel buckets so the
-  operator can decide whether the next push should be OpenRouter migration
+  operator can decide whether the next push should be Gateway migration
   content, GitHub/docs conversion, community outreach, pricing-page tuning, or
   calculator follow-up without reading raw campaign URLs or identities.
 - Render deterministic campaign links for those ranked acquisition actions in

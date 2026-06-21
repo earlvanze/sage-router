@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Migrate from OpenRouter to Sage Router with an OpenAI-compatible base URL, generated sk_sage keys, route profiles, model discovery, and safe provider authorization boundaries." />
-  <link rel="canonical" href="https://sagerouter.dev/docs/openrouter-migration" />
-  <meta property="og:title" content="Migrate from OpenRouter to Sage Router" />
-  <meta property="og:description" content="Switch OpenAI-compatible clients from OpenRouter to Sage Router using https://api.sagerouter.dev/v1, generated sk_sage keys, and sage-router/frontier." />
-  <meta property="og:url" content="https://sagerouter.dev/docs/openrouter-migration" />
+  <meta name="description" content="Migrate from an existing gateway to Sage Router with an OpenAI-compatible base URL, generated sk_sage keys, route profiles, model discovery, and safe provider authorization boundaries." />
+  <link rel="canonical" href="https://sagerouter.dev/docs/gateway-migration" />
+  <meta property="og:title" content="Migrate from an existing gateway to Sage Router" />
+  <meta property="og:description" content="Switch OpenAI-compatible clients from an existing model gateway to Sage Router using https://api.sagerouter.dev/v1, generated sk_sage keys, and sage-router/frontier." />
+  <meta property="og:url" content="https://sagerouter.dev/docs/gateway-migration" />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
-  <title>Migrate from OpenRouter to Sage Router</title>
+  <title>Migrate from an existing gateway to Sage Router</title>
   <style>
     :root{color-scheme:dark;--bg:#07100d;--panel:rgba(13,29,24,.84);--panel2:rgba(255,255,255,.04);--border:rgba(166,255,207,.16);--muted:#a9c5b8;--text:#edfdf5;--brand:#8df0b2;--blue:#8ab4ff;--amber:#f7d57a;--danger:#ff9f9f;--shadow:0 24px 80px rgba(0,0,0,.36)}*{box-sizing:border-box}body{margin:0;min-width:320px;background:linear-gradient(180deg,#07100d 0%,#0b1518 48%,#07100d 100%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}a{color:inherit;text-decoration:none}.wrap{max-width:1180px;margin:0 auto;padding:0 clamp(20px,5vw,72px)}.nav{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 0;color:var(--muted)}.brand{display:inline-flex;align-items:center;gap:12px;font-weight:900;color:var(--text)}.brandMark{display:grid;place-items:center;width:36px;height:36px;border:1px solid rgba(141,240,178,.42);border-radius:8px;color:#062016;background:linear-gradient(135deg,var(--brand),var(--amber))}.navLinks{display:flex;gap:22px;flex-wrap:wrap;font-size:14px;font-weight:750}.navLinks a:hover{color:var(--text)}.hero{padding:74px 0 48px}.eyebrow{color:var(--brand);text-transform:uppercase;letter-spacing:.16em;font-weight:900;font-size:12px;margin:0 0 16px}h1,h2,h3,p{margin-top:0}h1{font-size:clamp(44px,8vw,84px);line-height:.94;margin-bottom:24px;max-width:980px}h2{font-size:clamp(28px,4vw,46px);line-height:1;margin-bottom:18px}h3{font-size:21px;margin-bottom:10px}.lead{font-size:clamp(20px,2.2vw,27px);line-height:1.35;color:#d2eadf;max-width:920px}.actions{display:flex;flex-wrap:wrap;gap:14px;margin-top:28px}.button{min-height:48px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:0 22px;font-weight:900}.primary{background:linear-gradient(135deg,var(--brand),#50d891);color:#04150d}.secondary{border:1px solid var(--border);background:rgba(255,255,255,.04)}.section{padding:48px 0}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.grid2{display:grid;grid-template-columns:.9fr 1.1fr;gap:24px}.card,.panel,.tableWrap{background:var(--panel);border:1px solid var(--border);border-radius:8px;box-shadow:0 18px 60px rgba(0,0,0,.18)}.card,.panel{padding:24px}.muted,.card li,td{color:var(--muted)}ul,ol{padding-left:18px;margin:0;display:grid;gap:8px}.pill{display:inline-flex;width:max-content;border:1px solid rgba(138,180,255,.3);border-radius:999px;padding:6px 10px;color:var(--blue);font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:.08em}.tableWrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:860px}th,td{text-align:left;border-bottom:1px solid rgba(166,255,207,.12);padding:16px 18px;vertical-align:top}th{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--text);background:rgba(255,255,255,.035)}td:first-child{color:var(--text);font-weight:850}.note{font-size:14px;color:var(--muted);max-width:900px}code{color:#d9f8e6}pre{overflow:auto;margin:0;border:1px solid rgba(166,255,207,.12);border-radius:8px;background:#050807;padding:16px;color:#d9f8e6}.warn{border-color:rgba(247,213,122,.34);background:rgba(247,213,122,.06)}footer{display:flex;gap:18px;flex-wrap:wrap;padding:34px 0 54px;color:var(--muted);border-top:1px solid rgba(166,255,207,.1)}footer span{margin-right:auto}@media(max-width:920px){.grid,.grid2{grid-template-columns:1fr}.nav{align-items:flex-start;flex-direction:column}.button{width:100%}}@media(max-width:560px){.hero{padding-top:42px}.navLinks{gap:14px}}
   </style>
@@ -24,7 +24,7 @@
         <a href="/quickstart">Quickstart</a>
         <a href="/docs/api-reference">API Reference</a>
         <a href="/models">Models</a>
-        <a href="/compare/openrouter">Compare</a>
+        <a href="/compare/model-gateways">Compare</a>
         <a href="/pricing">Pricing</a>
         <a href="/status">Status</a>
         <a href="/account.html">Account</a>
@@ -33,14 +33,14 @@
 
     <main>
       <section class="hero">
-        <p class="eyebrow">OpenRouter migration</p>
+        <p class="eyebrow">Gateway migration</p>
         <h1>Move OpenAI-compatible clients to Sage Router.</h1>
         <p class="lead">Switch the base URL, use a generated <code>sk_sage_*</code> key, and start with <code>sage-router/frontier</code>. Sage Router keeps the OpenAI-compatible client shape while adding local-first BYOK routing, hosted account keys, Tailnet resilience, and explicit provider authorization boundaries.</p>
         <div class="actions">
           <a class="button primary" href="/account.html?plan=pro">Create hosted API key</a>
           <a class="button secondary" href="/quickstart">Quickstart</a>
           <a class="button secondary" href="/docs/api-reference">API reference</a>
-          <a class="button secondary" href="/compare/openrouter">Compare OpenRouter</a>
+          <a class="button secondary" href="/compare/model-gateways">Compare gateways</a>
           <a class="button secondary" href="/status">Check status</a>
         </div>
         <p class="note">Hosted Sage Router routes only authorized provider access, local models, customer subscriptions, API keys, cloud accounts, or endpoints. It does not grant unauthorized provider access, pool personal accounts, or bypass provider terms.</p>
@@ -49,26 +49,26 @@
       <section class="section tableWrap">
         <table>
           <thead>
-            <tr><th>OpenRouter setup</th><th>Sage Router hosted setup</th><th>Migration note</th></tr>
+            <tr><th>Existing gateway setup</th><th>Sage Router hosted setup</th><th>Migration note</th></tr>
           </thead>
           <tbody>
             <tr>
-              <td><code>OPENAI_BASE_URL=https://openrouter.ai/api/v1</code></td>
+              <td><code>OPENAI_BASE_URL=https://gateway.example/api/v1</code></td>
               <td><code>OPENAI_BASE_URL=https://api.sagerouter.dev/v1</code></td>
               <td>Most OpenAI-compatible SDKs only need the base URL changed.</td>
             </tr>
             <tr>
-              <td><code>OPENROUTER_API_KEY</code> or a Bearer key</td>
+              <td><code>LEGACY_GATEWAY_API_KEY</code> or a Bearer key</td>
               <td><code>OPENAI_API_KEY=sk_sage_your_key_here</code></td>
               <td>Generate the Sage Router key on the hosted account page. Raw keys are shown once.</td>
             </tr>
             <tr>
               <td>Provider-prefixed model IDs from the hosted catalog</td>
-              <td>Start with <code>sage-router/frontier</code>; use <code>sage-router/fusion</code> or OpenRouter-compatible <code>openrouter/fusion</code> on Pro/Max for premium synthesis.</td>
+              <td>Start with <code>sage-router/frontier</code>; use <code>sage-router/fusion</code> on Pro/Max for premium synthesis.</td>
               <td>Provider-specific routes remain available only when your Sage Router profile has authorized provider access configured. Fusion fans out across eligible authorized routes and returns one judged answer.</td>
             </tr>
             <tr>
-              <td>OpenRouter <code>/models</code></td>
+              <td>Gateway <code>/models</code></td>
               <td>Public <code>https://api.sagerouter.dev/model-catalog</code> and authenticated <code>GET /v1/models</code></td>
               <td>Discovery metadata is public; live model APIs still require an active generated key.</td>
             </tr>
@@ -79,11 +79,11 @@
       <section class="section grid2">
         <div>
           <p class="eyebrow">Before</p>
-          <h2>Typical OpenRouter environment.</h2>
+          <h2>Typical gateway environment.</h2>
         </div>
         <div class="panel">
-          <pre><code>export OPENAI_BASE_URL=https://openrouter.ai/api/v1
-export OPENAI_API_KEY=$OPENROUTER_API_KEY</code></pre>
+          <pre><code>export OPENAI_BASE_URL=https://gateway.example/api/v1
+export OPENAI_API_KEY=$LEGACY_GATEWAY_API_KEY</code></pre>
         </div>
       </section>
 
@@ -139,8 +139,8 @@ await client.chat.completions.create({
           <h3>Profile migration</h3>
           <ul>
             <li>Use <code>sage-router/frontier</code> for high-quality hosted agent work.</li>
-            <li>Use <code>sage-router/fusion</code> or <code>openrouter/fusion</code> when Pro/Max prompts need a parallel panel plus judge synthesis. The dedicated Fusion page lives at <a href="/fusion">/fusion</a>.</li>
-            <li>Existing OpenRouter Fusion tool calls can keep <code>{"type":"openrouter:fusion"}</code>; Sage Router handles that server tool before downstream provider routing and applies the same Fusion plan gate.</li>
+            <li>Use <code>sage-router/fusion</code> when Pro/Max prompts need a parallel panel plus judge synthesis. The dedicated Fusion page lives at <a href="/fusion">/fusion</a>.</li>
+            <li>Existing Fusion tool calls can keep <code>{"type":"sage-router:fusion"}</code>; Sage Router handles that server tool before downstream provider routing and applies the same Fusion plan gate.</li>
             <li>Use <code>sage-router/local</code> when the router has local Ollama routes available.</li>
             <li>Use <a href="/models">model catalog</a> discovery before mapping provider-specific IDs.</li>
           </ul>
@@ -178,7 +178,7 @@ await client.chat.completions.create({
             <li>Set <code>OPENAI_BASE_URL=https://api.sagerouter.dev/v1</code> in one development client.</li>
             <li>Send a <code>sage-router/frontier</code> chat completion.</li>
             <li>Confirm usage, quota, and status before moving agent jobs.</li>
-            <li>Keep OpenRouter fallback in your deployment plan until Sage Router provider credentials and profiles are healthy.</li>
+            <li>Keep existing gateway fallback in your deployment plan until Sage Router provider credentials and profiles are healthy.</li>
           </ol>
         </div>
       </section>
@@ -190,7 +190,7 @@ await client.chat.completions.create({
       <a href="/quickstart">Quickstart</a>
       <a href="/docs/api-reference">API Reference</a>
       <a href="/api-troubleshooting">Troubleshooting</a>
-      <a href="/compare/openrouter">Compare</a>
+      <a href="/compare/model-gateways">Compare</a>
       <a href="/pricing">Pricing</a>
       <a href="/status">Status</a>
       <a href="/support">Support</a>

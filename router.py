@@ -277,7 +277,7 @@ PUBLIC_AGENT_NATIVE_FEATURES = {
     'sessionSafeFallback': {'description': 'Each request builds an ordered fallback chain and retries failed providers without mid-stream handoff.'},
     'costAndPlanTelemetry': {'description': 'Route events include selected model, attempts, elapsed time, customer plan, and auth type for pricing analytics.'},
     'freeTierFallbackPolicy': {'description': 'Eco/local/free profiles can be used for zero or low-balance workflows without blocking agent execution.'},
-    'fusionRouting': {'description': 'Paid plans can request sage-router/fusion, the OpenRouter-compatible openrouter/fusion alias, or the openrouter:fusion-compatible server tool for parallel panel responses and judge synthesis on high-stakes research or review prompts.'},
+    'fusionRouting': {'description': 'Paid plans can request sage-router/fusion or the sage-router:fusion server tool for parallel panel responses and judge synthesis on high-stakes research or review prompts.'},
 }
 PUBLIC_MODEL_CATALOG = {
     'description': 'Public model-family catalog for Sage Router hosted routing. This is discovery metadata only; live /v1/models remains authenticated with generated sk_sage_* customer API keys.',
@@ -289,8 +289,8 @@ PUBLIC_MODEL_CATALOG = {
         {
             'id': 'sage-router-profiles',
             'name': 'Sage Router profiles',
-            'examples': ['sage-router/auto', 'sage-router/balanced', 'sage-router/frontier', 'sage-router/agentic', 'sage-router/fusion', 'openrouter/fusion'],
-            'access': 'Hosted profile aliases select across authorized providers, local models, and healthy fallback routes. Fusion is Pro/Max gated and accepts the OpenRouter-compatible openrouter/fusion alias.',
+            'examples': ['sage-router/auto', 'sage-router/balanced', 'sage-router/frontier', 'sage-router/agentic', 'sage-router/fusion'],
+            'access': 'Hosted profile aliases select across authorized providers, local models, and healthy fallback routes. Fusion is Pro/Max gated.',
         },
         {
             'id': 'openai-codex',
@@ -320,7 +320,7 @@ PUBLIC_MODEL_CATALOG = {
             'id': 'byok-compatible',
             'name': 'BYOK OpenAI-compatible providers',
             'examples': ['nvidia-nim/nemotron', 'openrouter/free-models', 'darkbloom/custom'],
-            'access': 'Bring authorized provider keys for OpenAI-compatible endpoints such as NVIDIA NIM, OpenRouter-compatible, or private gateways.',
+            'access': 'Bring authorized provider keys for OpenAI-compatible endpoints such as NVIDIA NIM, OpenRouter, private gateways, or other compatible APIs.',
         },
     ],
     'safetyBoundary': 'The public catalog is not a promise of bundled model resale. Provider access must be authorized by the customer or explicitly approved for managed access.',
@@ -329,7 +329,7 @@ PUBLIC_LAUNCH_POSITIONING = {
     'targetMrrUsd': 10000,
     'primaryRevenueModel': 'hosted_routing_control_plane',
     'pricingPage': 'https://sagerouter.dev/pricing',
-    'comparisonPage': 'https://sagerouter.dev/compare/openrouter',
+    'comparisonPage': 'https://sagerouter.dev/compare/model-gateways',
     'modelCatalogPage': 'https://sagerouter.dev/models',
     'accountPage': 'https://app.sagerouter.dev/account.html',
     'recommendedMix': {
@@ -343,7 +343,7 @@ PUBLIC_LAUNCH_POSITIONING = {
         'sagerouter.dev/pricing',
         'sagerouter.dev/models',
         'sagerouter.dev/agent-native',
-        'sagerouter.dev/compare/openrouter',
+        'sagerouter.dev/compare/model-gateways',
         'sagerouter.dev/model-routing-calculator',
         'app.sagerouter.dev/account.html',
     ],
@@ -2166,7 +2166,7 @@ def public_launch_metadata():
     managed_provider_access['acceptableUseUrl'] = f"{MARKETING_BASE_URL}/acceptable-use"
     launch['managedProviderAccess'] = managed_provider_access
     launch['pricingPage'] = f"{MARKETING_BASE_URL}/pricing"
-    launch['comparisonPage'] = f"{MARKETING_BASE_URL}/compare/openrouter"
+    launch['comparisonPage'] = f"{MARKETING_BASE_URL}/compare/model-gateways"
     launch['modelCatalogPage'] = f"{MARKETING_BASE_URL}/models"
     launch['calculatorPage'] = f"{MARKETING_BASE_URL}/model-routing-calculator"
     launch['accountPage'] = f"{APP_BASE_URL}/account.html"
@@ -2175,7 +2175,7 @@ def public_launch_metadata():
         f"{MARKETING_BASE_URL}/pricing",
         f"{MARKETING_BASE_URL}/models",
         f"{MARKETING_BASE_URL}/agent-native",
-        f"{MARKETING_BASE_URL}/compare/openrouter",
+        f"{MARKETING_BASE_URL}/compare/model-gateways",
         f"{MARKETING_BASE_URL}/model-routing-calculator",
         f"{APP_BASE_URL}/account.html",
     ]
@@ -5216,7 +5216,7 @@ LAUNCH_CONVERSION_ACTIONS = {
         'owner': 'Revenue',
         'surface': 'plan mix',
         'ctaPath': '/launch-plan',
-        'action': 'Work the largest Pro/Max plan gaps with founder-led outreach, OpenRouter migration proof, and managed-access qualification.',
+        'action': 'Work the largest Pro/Max plan gaps with founder-led outreach, gateway migration proof, and managed-access qualification.',
         'successMetric': 'Close the remaining gap to $10k MRR.',
     },
     'checkoutReadinessFriction': {
@@ -5239,7 +5239,7 @@ CHECKOUT_INTENT_EVENTS = {
     'calculator_checkout_clicked',
     'calculator_checkout_unavailable',
     'launch_plan_checkout_clicked',
-    'openrouter_compare_checkout_clicked',
+    'gateway_compare_checkout_clicked',
     'pricing_checkout_clicked',
 }
 CHECKOUT_UNAVAILABLE_EVENTS = {
@@ -5543,7 +5543,7 @@ MANAGED_ACCESS_TARGET_LAUNCH_WINDOW_BUCKETS = (
 MANAGED_ACCESS_INTENT_BUCKETS = (
     'max-implementation',
     'private-deployment',
-    'openrouter-migration',
+    'gateway-migration',
     'one-subscription',
     'ollama',
     'openai',
@@ -5554,7 +5554,7 @@ MARKETING_SOURCE_SURFACE_BUCKETS = (
     'model-routing-calculator',
     'quickstart',
     'fusion',
-    'compare-openrouter',
+    'compare-gateways',
     'managed-access',
     'launch-plan',
     'model-catalog',
@@ -5567,7 +5567,7 @@ MARKETING_ATTRIBUTION_CHANNEL_BUCKETS = (
     'direct',
     'github',
     'google',
-    'openrouter',
+    'model-gateway',
     'x',
     'discord',
     'reddit',
@@ -5658,8 +5658,8 @@ def marketing_channel_bucket(metadata):
     haystack = ' '.join(value for value in candidates if value)
     if 'github' in haystack:
         return 'github'
-    if 'openrouter' in haystack:
-        return 'openrouter'
+    if 'openrouter' in haystack or 'model-gateway' in haystack or 'modelgateway' in haystack:
+        return 'model-gateway'
     if 'discord' in haystack:
         return 'discord'
     if 'reddit' in haystack:
@@ -5705,8 +5705,8 @@ def launch_acquisition_action(kind, bucket):
             'model-routing-calculator': 'Turn calculator interest into implementation calls and preselected Pro/Max checkout.',
             'model-catalog': 'Turn catalog demand into hosted key activation, route-profile proof, and model availability copy.',
             'quickstart': 'Use copyable quickstart snippets to convert generated-key users into first routed requests.',
-            'fusion': 'Convert Fusion page demand into Pro/Max checkout, OpenRouter-compatible migration proof, and first high-stakes synthesis requests.',
-            'compare-openrouter': 'Route OpenRouter comparison traffic into the migration guide, model catalog, and hosted checkout.',
+            'fusion': 'Convert Fusion page demand into Pro/Max checkout, gateway migration proof, and first high-stakes synthesis requests.',
+            'compare-gateways': 'Route gateway comparison traffic into the migration guide, model catalog, and hosted checkout.',
             'managed-access': 'Turn managed-access beta demand into authorization review, margin validation, and Max/BYOK activation.',
             'launch-plan': 'Turn launch-plan readers into Pro checkout, calculator qualification, or managed-access beta conversations.',
             'landing': 'Keep the homepage focused on account creation, pricing, model catalog, and migration CTAs.',
@@ -5716,7 +5716,7 @@ def launch_acquisition_action(kind, bucket):
         }
         return actions.get(normalized, 'Review this source surface for the next highest-friction CTA.')
     actions = {
-        'openrouter': 'Publish OpenRouter migration proof and comparison CTAs for users already shopping hosted routers.',
+        'model-gateway': 'Publish gateway migration proof and comparison CTAs for users already shopping hosted routers.',
         'github': 'Convert GitHub traffic with README, issue-template, and docs links into quickstart and pricing paths.',
         'google': 'Improve search landing pages around OpenAI-compatible routing, model fallback, and hosted API keys.',
         'discord': 'Use Discord/community traffic for founder-led activation help and first-request debugging.',
@@ -5732,8 +5732,8 @@ def launch_acquisition_action(kind, bucket):
 DEFAULT_LAUNCH_ACQUISITION_ACTIONS = (
     {
         'kind': 'attributionChannel',
-        'bucket': 'openrouter',
-        'action': 'Seed OpenRouter comparison traffic with migration proof, model catalog links, and hosted checkout CTAs.',
+        'bucket': 'model-gateway',
+        'action': 'Seed gateway comparison traffic with migration proof, model catalog links, and hosted checkout CTAs.',
     },
     {
         'kind': 'attributionChannel',
@@ -5753,7 +5753,7 @@ DEFAULT_LAUNCH_ACQUISITION_ACTIONS = (
     {
         'kind': 'sourceSurface',
         'bucket': 'model-catalog',
-        'action': 'Seed model catalog traffic with hosted key activation, frontier profile proof, and OpenRouter migration CTAs.',
+        'action': 'Seed model catalog traffic with hosted key activation, frontier profile proof, and gateway migration CTAs.',
     },
     {
         'kind': 'sourceSurface',
@@ -5763,7 +5763,7 @@ DEFAULT_LAUNCH_ACQUISITION_ACTIONS = (
     {
         'kind': 'sourceSurface',
         'bucket': 'fusion',
-        'action': 'Drive OpenRouter Fusion evaluators into Pro/Max checkout and migration snippets.',
+        'action': 'Drive Fusion evaluators into Pro/Max checkout and migration snippets.',
     },
     {
         'kind': 'sourceSurface',

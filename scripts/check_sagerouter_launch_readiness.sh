@@ -844,7 +844,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("calculator_checkout_unavailable") != null) and
     ((.allowedEvents // []) | index("fusion_viewed") != null) and
     ((.allowedEvents // []) | index("fusion_checkout_clicked") != null) and
-    ((.allowedEvents // []) | index("openrouter_compare_migration_clicked") != null) and
+    ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
     ((.allowedEvents // []) | index("account_snippet_copied") != null) and
     ((.allowedEvents // []) | index("account_support_context_copied") != null)
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
@@ -861,33 +861,33 @@ check_funnel_event_endpoint() {
 
 check_marketing_comparison_page() {
   local page_code sitemap_code
-  page_code="$(http_code_follow "${MARKETING_BASE%/}/compare/openrouter")"
-  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router vs OpenRouter" /tmp/sage-router-readiness-body; then
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/compare/model-gateways")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router model gateway" /tmp/sage-router-readiness-body; then
     page_code="200:unexpected-body"
   fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
-  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/compare/openrouter" /tmp/sage-router-readiness-body; then
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/compare/model-gateways" /tmp/sage-router-readiness-body; then
     sitemap_code="200:missing-compare-url"
   fi
   rm -f /tmp/sage-router-readiness-body
 
   if [[ "$page_code" == "200" && "$sitemap_code" == "200" ]]; then
-    pass "marketing OpenRouter comparison page is live and in sitemap"
+    pass "marketing model gateway comparison page is live and in sitemap"
   else
-    fail "marketing OpenRouter comparison incomplete: page=${page_code} sitemap=${sitemap_code}"
+    fail "marketing model gateway comparison incomplete: page=${page_code} sitemap=${sitemap_code}"
   fi
 }
 
-check_marketing_openrouter_migration_page() {
+check_marketing_gateway_migration_page() {
   local page_code sitemap_code llms_code
-  page_code="$(http_code_follow "${MARKETING_BASE%/}/docs/openrouter-migration")"
-  if [[ "$page_code" == "200" ]] && ! grep -q "Migrate from OpenRouter to Sage Router" /tmp/sage-router-readiness-body; then
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/docs/gateway-migration")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Migrate from an existing gateway to Sage Router" /tmp/sage-router-readiness-body; then
     page_code="200:unexpected-body"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "OPENAI_BASE_URL=https://openrouter.ai/api/v1" /tmp/sage-router-readiness-body; then
-    page_code="200:missing-openrouter-before"
+  if [[ "$page_code" == "200" ]] && ! grep -q "OPENAI_BASE_URL=https://gateway.example/api/v1" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-legacy-gateway-before"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "OPENAI_BASE_URL=https://api.sagerouter.dev/v1" /tmp/sage-router-readiness-body; then
     page_code="200:missing-sage-router-after"
@@ -907,21 +907,21 @@ check_marketing_openrouter_migration_page() {
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
-  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/docs/openrouter-migration" /tmp/sage-router-readiness-body; then
-    sitemap_code="200:missing-openrouter-migration-url"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/docs/gateway-migration" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-gateway-migration-url"
   fi
   rm -f /tmp/sage-router-readiness-body
 
   llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
-  if [[ "$llms_code" == "200" ]] && ! grep -q "OpenRouter migration: ${MARKETING_BASE%/}/docs/openrouter-migration" /tmp/sage-router-readiness-body; then
-    llms_code="200:missing-openrouter-migration-discovery"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Gateway migration: ${MARKETING_BASE%/}/docs/gateway-migration" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-gateway-migration-discovery"
   fi
   rm -f /tmp/sage-router-readiness-body
 
   if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
-    pass "marketing OpenRouter migration guide is live in sitemap and LLM discovery"
+    pass "marketing Gateway migration guide is live in sitemap and LLM discovery"
   else
-    fail "marketing OpenRouter migration guide incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+    fail "marketing Gateway migration guide incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
   fi
 }
 
@@ -952,11 +952,11 @@ check_marketing_fusion_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router Fusion" /tmp/sage-router-readiness-body; then
     page_code="200:unexpected-body"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "openrouter/fusion" /tmp/sage-router-readiness-body; then
-    page_code="200:missing-openrouter-fusion-alias"
+  if [[ "$page_code" == "200" ]] && ! grep -q "sage-router/fusion" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-fusion-model"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "openrouter:fusion" /tmp/sage-router-readiness-body; then
-    page_code="200:missing-openrouter-fusion-tool"
+  if [[ "$page_code" == "200" ]] && ! grep -q "sage-router:fusion" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-fusion-tool"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "fusion_plan_required" /tmp/sage-router-readiness-body; then
     page_code="200:missing-fusion-plan-gate"
@@ -1573,7 +1573,7 @@ check_admin_token() {
     ((.managedAccessDemand.commercialPreference // {}) | has("one-subscription") and has("byok-plus-routing") and has("private-contract") and has("unknown")) and
     ((.managedAccessDemand.supportNeed // {}) | has("implementation-support") and has("private-deployment") and has("migration-help") and has("managed-provider-review") and has("unknown")) and
     ((.managedAccessDemand.targetLaunchWindow // {}) | has("this-week") and has("this-month") and has("this-quarter") and has("exploring") and has("unknown")) and
-    ((.managedAccessDemand.intent // {}) | has("max-implementation") and has("private-deployment") and has("openrouter-migration") and has("one-subscription") and has("ollama") and has("openai") and has("anthropic") and has("unknown")) and
+    ((.managedAccessDemand.intent // {}) | has("max-implementation") and has("private-deployment") and has("gateway-migration") and has("one-subscription") and has("ollama") and has("openai") and has("anthropic") and has("unknown")) and
     ((.rates // {}) | has("managedAccessShareOfWaitlist")) and
     ((.stages // {}) | has("setupSnippetCopies")) and
     ((.rates // {}) | has("setupCopyToFirstRequest")) and
@@ -1735,7 +1735,7 @@ check_public_supabase_auth_settings
 check_waitlist_endpoint
 check_funnel_event_endpoint
 check_marketing_comparison_page
-check_marketing_openrouter_migration_page
+check_marketing_gateway_migration_page
 check_marketing_pricing_page
 check_marketing_fusion_page
 check_marketing_launch_plan_page

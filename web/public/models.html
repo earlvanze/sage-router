@@ -6,7 +6,7 @@
   <meta name="description" content="Sage Router model catalog for OpenAI-compatible, Anthropic-compatible, Gemini, Ollama, Ollama Cloud, NVIDIA NIM, and BYOK routes." />
   <link rel="canonical" href="https://sagerouter.dev/models" />
   <meta property="og:title" content="Sage Router Model Catalog" />
-  <meta property="og:description" content="OpenRouter-style model discovery for Sage Router without anonymous provider access or pooled credentials." />
+  <meta property="og:description" content="gateway-style model discovery for Sage Router without anonymous provider access or pooled credentials." />
   <meta property="og:url" content="https://sagerouter.dev/models" />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -25,7 +25,7 @@
         <a href="/fusion">Fusion</a>
         <a href="/docs/codex">Codex</a>
         <a href="/pricing">Pricing</a>
-        <a href="/compare/openrouter">Compare</a>
+        <a href="/compare/model-gateways">Compare</a>
         <a href="/model-routing-calculator">Calculator</a>
         <a href="/status">Status</a>
         <a href="/account.html">Account</a>
@@ -37,7 +37,7 @@
       <section class="hero">
         <p class="eyebrow">Model catalog</p>
         <h1>One endpoint across authorized model routes.</h1>
-        <p class="lead">Use Sage Router profiles, OpenAI-compatible providers, Anthropic-compatible routes, Gemini, Ollama, Ollama Cloud, NVIDIA NIM, and private BYOK gateways without exposing anonymous model traffic.</p>
+        <p class="lead">Use Sage Router profiles, OpenAI-compatible providers, Anthropic-compatible routes, Gemini, Ollama, Ollama Cloud, NVIDIA NIM, OpenRouter BYOK, and private gateways without exposing anonymous model traffic.</p>
         <div class="actions">
           <a class="button primary" href="/account.html" data-model-event="model_catalog_account_clicked" data-model-button="create-key">Create hosted API key</a>
           <a class="button secondary" href="/quickstart" data-model-event="model_catalog_quickstart_clicked" data-model-button="quickstart">Read quickstart</a>
@@ -45,7 +45,7 @@
           <a class="button secondary" href="/docs/codex" data-model-event="model_catalog_codex_clicked" data-model-button="codex">Configure Codex</a>
           <a class="button secondary" href="https://api.sagerouter.dev/model-catalog" data-model-event="model_catalog_json_clicked" data-model-button="catalog-json">View catalog JSON</a>
           <a class="button secondary" href="/pricing" data-model-event="model_catalog_pricing_clicked" data-model-button="pricing">View pricing</a>
-          <a class="button secondary" href="/compare/openrouter" data-model-event="model_catalog_openrouter_clicked" data-model-button="openrouter-compare">Compare OpenRouter</a>
+          <a class="button secondary" href="/compare/model-gateways" data-model-event="model_catalog_gateway_clicked" data-model-button="gateway-compare">Compare gateways</a>
         </div>
         <p class="note">The public catalog is discovery metadata. Live <code>/v1/models</code> and model requests require an active generated <code>sk_sage_*</code> key.</p>
       </section>
@@ -54,7 +54,7 @@
         <article class="card">
           <span class="pill">Profiles</span>
           <h3>Sage Router aliases</h3>
-          <p class="muted"><code>sage-router/auto</code>, <code>sage-router/balanced</code>, <code>sage-router/frontier</code>, <code>sage-router/agentic</code>, premium <code>sage-router/fusion</code>, and OpenRouter-compatible <code>openrouter/fusion</code> keep clients stable while the router selects the best healthy backend.</p>
+          <p class="muted"><code>sage-router/auto</code>, <code>sage-router/balanced</code>, <code>sage-router/frontier</code>, <code>sage-router/agentic</code>, and premium <code>sage-router/fusion</code> keep clients stable while the router selects the best healthy backend.</p>
         </article>
         <article class="card">
           <span class="pill">BYOK</span>
@@ -70,7 +70,7 @@
 
       <section class="section catalogPanel" aria-labelledby="catalog-explorer-title">
         <div>
-          <p class="eyebrow">OpenRouter-style discovery</p>
+          <p class="eyebrow">gateway-style discovery</p>
           <h2 id="catalog-explorer-title">Search public route families.</h2>
           <p class="muted">This explorer reads safe public <code>/model-catalog</code> metadata only. It never calls authenticated <code>/v1/models</code> without a customer key.</p>
         </div>
@@ -97,12 +97,12 @@
             <tr><th>Family</th><th>Example models</th><th>Access boundary</th></tr>
           </thead>
           <tbody>
-            <tr><td>Sage Router profiles</td><td><code>sage-router/auto</code>, <code>sage-router/frontier</code>, <code>sage-router/agentic</code>, <code>sage-router/fusion</code>, <code>openrouter/fusion</code></td><td>Stable aliases select across authorized providers and healthy fallback routes. Fusion is a Pro/Max multi-model synthesis route with a <a href="/fusion">dedicated guide</a>.</td></tr>
+            <tr><td>Sage Router profiles</td><td><code>sage-router/auto</code>, <code>sage-router/frontier</code>, <code>sage-router/agentic</code>, <code>sage-router/fusion</code></td><td>Stable aliases select across authorized providers and healthy fallback routes. Fusion is a Pro/Max multi-model synthesis route with a <a href="/fusion">dedicated guide</a>.</td></tr>
             <tr><td>OpenAI and Codex-compatible</td><td><code>gpt-5.5</code>, <code>gpt-5.4</code>, <code>gpt-5.4-mini</code></td><td>Bring an authorized API key or compatible Codex/OpenClaw auth profile. <a href="/docs/codex">Codex setup</a> supports hosted and local port <code>8790</code> profiles.</td></tr>
             <tr><td>Anthropic-compatible</td><td><code>claude-opus</code>, <code>claude-sonnet</code>, <code>claude-haiku</code></td><td>Bring authorized Anthropic/Dario access. Public plans do not pool personal accounts.</td></tr>
             <tr><td>Google Gemini</td><td><code>gemini-3-pro</code>, <code>gemini-3-flash</code>, <code>gemini-2.5-pro</code></td><td>Bring authorized Google API or Vertex credentials.</td></tr>
             <tr><td>Ollama and Ollama Cloud</td><td><code>llama3.3</code>, <code>qwen3-coder</code>, <code>gpt-oss:cloud</code></td><td>Use customer-controlled local Ollama or authorized Ollama Cloud models discovered through the runtime.</td></tr>
-            <tr><td>OpenAI-compatible BYOK</td><td><code>nvidia-nim/nemotron</code>, <code>openrouter/free-models</code>, <code>darkbloom/custom</code></td><td>Bring authorized provider keys for compatible endpoints such as NVIDIA NIM, OpenRouter-compatible, or private gateways.</td></tr>
+            <tr><td>OpenAI-compatible BYOK</td><td><code>nvidia-nim/nemotron</code>, <code>openrouter/free-models</code>, <code>darkbloom/custom</code></td><td>Bring authorized provider keys for compatible endpoints such as NVIDIA NIM, OpenRouter, or private gateways.</td></tr>
           </tbody>
         </table>
       </section>
@@ -142,12 +142,12 @@
       openaiBaseUrl: 'https://api.sagerouter.dev/v1',
       apiKeyPrefix: 'sk_sage_',
       families: [
-        { id: 'sage-router-profiles', name: 'Sage Router profiles', examples: ['sage-router/auto', 'sage-router/balanced', 'sage-router/frontier', 'sage-router/agentic', 'sage-router/fusion', 'openrouter/fusion'], access: 'Stable aliases select across authorized providers and healthy fallback routes. Fusion is a Pro/Max multi-model synthesis route.' },
+        { id: 'sage-router-profiles', name: 'Sage Router profiles', examples: ['sage-router/auto', 'sage-router/balanced', 'sage-router/frontier', 'sage-router/agentic', 'sage-router/fusion'], access: 'Stable aliases select across authorized providers and healthy fallback routes. Fusion is a Pro/Max multi-model synthesis route.' },
         { id: 'openai-codex', name: 'OpenAI and Codex-compatible routes', examples: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'], access: 'Bring an authorized API key or compatible Codex/OpenClaw auth profile.' },
         { id: 'anthropic', name: 'Anthropic-compatible routes', examples: ['claude-opus', 'claude-sonnet', 'claude-haiku'], access: 'Bring authorized Anthropic/Dario access; hosted public plans do not pool personal provider accounts.' },
         { id: 'gemini', name: 'Google Gemini-compatible routes', examples: ['gemini-3-pro', 'gemini-3-flash', 'gemini-2.5-pro'], access: 'Bring authorized Google API or Vertex credentials.' },
         { id: 'ollama', name: 'Ollama local and Ollama Cloud routes', examples: ['llama3.3', 'qwen3-coder', 'gpt-oss:cloud'], access: 'Use customer-controlled local Ollama or authorized Ollama Cloud models discovered through the runtime.' },
-        { id: 'byok-compatible', name: 'BYOK OpenAI-compatible providers', examples: ['nvidia-nim/nemotron', 'openrouter/free-models', 'darkbloom/custom'], access: 'Bring authorized provider keys for OpenAI-compatible endpoints such as NVIDIA NIM, OpenRouter-compatible, or private gateways.' }
+        { id: 'byok-compatible', name: 'BYOK OpenAI-compatible providers', examples: ['nvidia-nim/nemotron', 'openrouter/free-models', 'darkbloom/custom'], access: 'Bring authorized provider keys for OpenAI-compatible endpoints such as NVIDIA NIM, OpenRouter, or private gateways.' }
       ],
       safetyBoundary: 'The public catalog is not a promise of bundled model resale. Provider access must be authorized by the customer or explicitly approved for managed access.'
     };
@@ -158,7 +158,7 @@
       anthropic: ['anthropic', 'claude', 'dario'],
       gemini: ['google', 'gemini', 'vertex'],
       ollama: ['ollama', 'local', 'cloud', 'llama', 'qwen'],
-      'byok-compatible': ['byok', 'openrouter', 'nvidia', 'nim', 'darkbloom', 'compatible']
+      'byok-compatible': ['byok', 'gateway', 'openrouter', 'nvidia', 'nim', 'darkbloom', 'compatible']
     };
     const safeModelFamilies = new Set(['all', ...Object.keys(familyKeywords)]);
     const $ = (id) => document.getElementById(id);
@@ -263,7 +263,7 @@
       if (!families.length) {
         const empty = document.createElement('div');
         empty.className = 'empty';
-        empty.textContent = 'No route families match this search. Try frontier, Codex, Ollama, Claude, Gemini, OpenRouter, NVIDIA, or BYOK.';
+        empty.textContent = 'No route families match this search. Try frontier, Codex, Ollama, Claude, Gemini, model gateway, NVIDIA, or BYOK.';
         results.appendChild(empty);
         return families.length;
       }

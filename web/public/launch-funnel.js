@@ -165,7 +165,7 @@ function campaignTemplateForAction(kind, bucket) {
       'model-routing-calculator': ['/model-routing-calculator', 'operator', 'launch_funnel', 'calculator_qualification'],
       'model-catalog': ['/models', 'operator', 'launch_funnel', 'model_catalog_demand'],
       quickstart: ['/quickstart', 'operator', 'launch_funnel', 'first_request_activation'],
-      'compare-openrouter': ['/compare/openrouter', 'openrouter', 'founder', 'launch_openrouter_migration'],
+      'compare-gateways': ['/compare/model-gateways', 'model-gateway', 'founder', 'launch_gateway_migration'],
       'managed-access': ['/managed-access', 'operator', 'launch_funnel', 'managed_access_beta'],
       'launch-plan': ['/launch-plan', 'operator', 'launch_funnel', 'founder_sales'],
       landing: ['/', 'operator', 'launch_funnel', 'homepage_activation'],
@@ -174,11 +174,11 @@ function campaignTemplateForAction(kind, bucket) {
       billing: ['/billing.html', 'operator', 'launch_funnel', 'billing_recovery'],
     },
     attributionChannel: {
-      openrouter: ['/compare/openrouter', 'openrouter', 'founder', 'launch_openrouter_migration'],
+      'model-gateway': ['/compare/model-gateways', 'model-gateway', 'founder', 'launch_gateway_migration'],
       github: ['/quickstart', 'github', 'readme', 'launch_builder_quickstart'],
       google: ['/quickstart', 'google', 'search', 'launch_search_router'],
       discord: ['/support', 'discord', 'community', 'launch_founder_activation'],
-      reddit: ['/compare/openrouter', 'reddit', 'community', 'launch_comparison_threads'],
+      reddit: ['/compare/model-gateways', 'reddit', 'community', 'launch_comparison_threads'],
       newsletter: ['/pricing', 'newsletter', 'email', 'launch_subscription_offer'],
       docs: ['/quickstart', 'docs', 'docs', 'launch_docs_conversion'],
       direct: ['/', 'direct', 'direct', 'launch_homepage_activation'],
@@ -483,7 +483,7 @@ function renderConversionActions(actions = []) {
 
 function eventLabel(name) {
   return String(name || 'unknown')
-    .replace(/^openrouter_compare_/, 'openrouter ')
+    .replace(/^gateway_compare_/, 'gateway ')
     .replace(/_/g, ' ');
 }
 

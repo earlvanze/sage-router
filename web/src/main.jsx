@@ -205,7 +205,7 @@ function App() {
             <a href="#security">Security</a>
             <a href="#automation">Automation</a>
             <a href="#analytics">Analytics</a>
-            <a href="/compare/openrouter">Compare</a>
+            <a href="/compare/model-gateways">Compare</a>
             <a href="/integrations">Integrations</a>
             <a href="/quickstart">Quickstart</a>
             <a href="/models">Models</a>
@@ -277,12 +277,12 @@ function App() {
               })}>
                 View public status
               </a>
-              <a className="button secondary" href="/compare/openrouter" onClick={() => trackLandingFunnelEvent('landing_openrouter_compare_clicked', {
-                target: '/compare/openrouter',
-                button: 'Compare OpenRouter',
+              <a className="button secondary" href="/compare/model-gateways" onClick={() => trackLandingFunnelEvent('landing_gateway_compare_clicked', {
+                target: '/compare/model-gateways',
+                button: 'Compare gateways',
                 state: 'hero',
               })}>
-                Compare OpenRouter
+                Compare gateways
               </a>
               <a className="button secondary" href="/models" onClick={() => trackLandingFunnelEvent('landing_models_clicked', {
                 target: '/models',
@@ -434,7 +434,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
             and alerts when a provider degrades.
           </p>
           <p><a className="inlineLink" href="/analytics.html">Open the private analytics dashboard →</a></p>
-          <p><a className="inlineLink" href="/compare/openrouter">Read the Sage Router vs OpenRouter comparison →</a></p>
+          <p><a className="inlineLink" href="/compare/model-gateways">Read the model gateway comparison →</a></p>
           <p><a className="inlineLink" href="/model-routing-calculator">Estimate routing savings for one workflow →</a></p>
           <p><a className="inlineLink" href="/managed-access">Request managed-access private beta review →</a></p>
           <p><a className="inlineLink" href="/pricing">See hosted routing pricing and plan limits →</a></p>
@@ -596,7 +596,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="https://github.com/earlvanze/sage-router">GitHub</a>
         <a href="/login.html">Login</a>
         <a href="/pricing">Pricing</a>
-        <a href="/compare/openrouter">Compare OpenRouter</a>
+        <a href="/compare/model-gateways">Compare gateways</a>
         <a href="/model-routing-calculator">Calculator</a>
         <a href="/launch-plan">Launch Plan</a>
         <a href="/managed-access">Managed Access</a>

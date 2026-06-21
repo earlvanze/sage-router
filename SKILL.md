@@ -59,7 +59,7 @@ Flow:
 - rank candidates by API type, model-name hints, complexity, and measured latency
 - attempt the top `SAGE_ROUTER_MAX_PROVIDER_ATTEMPTS` candidates in order
 - `sage-router` provider (the router itself, model `auto`) is scored as a low-priority recursive fallback, never preferred
-- paid plans can request premium Fusion with `model: "sage-router/fusion"`, the OpenRouter-compatible `model: "openrouter/fusion"` alias, or the server tool `{"type":"openrouter:fusion"}`; server-tool markers are handled before downstream provider routing and gated with the same plan checks
+- paid plans can request premium Fusion with `model: "sage-router/fusion"` or the server tool `{"type":"sage-router:fusion"}`; server-tool markers are handled before downstream provider routing and gated with the same plan checks
 
 Intent scoring is generic, for example:
 - code and analysis strongly favor Anthropic/OpenAI-style reasoning models

@@ -761,7 +761,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(10000, launch['targetMrrUsd'])
         self.assertEqual('hosted_routing_control_plane', launch['primaryRevenueModel'])
         self.assertEqual('https://sagerouter.dev/pricing', launch['pricingPage'])
-        self.assertEqual('https://sagerouter.dev/compare/openrouter', launch['comparisonPage'])
+        self.assertEqual('https://sagerouter.dev/compare/model-gateways', launch['comparisonPage'])
         self.assertEqual('https://sagerouter.dev/models', launch['modelCatalogPage'])
         self.assertEqual('https://sagerouter.dev/model-routing-calculator', launch['calculatorPage'])
         self.assertEqual('https://app.sagerouter.dev/account.html', launch['accountPage'])
@@ -836,7 +836,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('ollama', family_ids)
         self.assertIn('byok-compatible', family_ids)
         profile_family = next(row for row in catalog['families'] if row['id'] == 'sage-router-profiles')
-        self.assertIn('openrouter/fusion', profile_family['examples'])
+        self.assertIn('sage-router/fusion', profile_family['examples'])
         self.assertIn('not a promise of bundled model resale', catalog['safetyBoundary'])
 
     def test_managed_provider_access_requires_terms_and_margin_policy(self):
@@ -1140,7 +1140,7 @@ class SaaSAuthTests(unittest.TestCase):
                 'intent': {
                     'max-implementation': 0,
                     'private-deployment': 0,
-                    'openrouter-migration': 0,
+                    'gateway-migration': 0,
                     'one-subscription': 0,
                     'ollama': 0,
                     'openai': 0,
@@ -1157,7 +1157,7 @@ class SaaSAuthTests(unittest.TestCase):
                 'pricing': 0,
                 'model-routing-calculator': 0,
                 'model-catalog': 0,
-                'compare-openrouter': 0,
+                'compare-gateways': 0,
                 'launch-plan': 0,
                 'landing': 0,
                 'unknown': 0,
@@ -1165,7 +1165,7 @@ class SaaSAuthTests(unittest.TestCase):
             'attributionChannels': {
                 'direct': 0,
                 'github': 0,
-                'openrouter': 0,
+                'model-gateway': 0,
                 'unknown': 0,
             },
             'authProviderState': router.new_auth_provider_state_metrics(),
@@ -1177,7 +1177,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(0, snapshot['stages']['marketingIntentEvents'])
         self.assertEqual(snapshot['acquisitionActions'], snapshot['marketingIntent']['acquisitionActions'])
         buckets = [row['bucket'] for row in snapshot['acquisitionActions']]
-        self.assertIn('openrouter', buckets)
+        self.assertIn('model-gateway', buckets)
         self.assertIn('github', buckets)
         self.assertIn('pricing', buckets)
         self.assertIn('model-routing-calculator', buckets)
@@ -1215,7 +1215,7 @@ class SaaSAuthTests(unittest.TestCase):
                 'intent': {
                     'max-implementation': 1,
                     'private-deployment': 0,
-                    'openrouter-migration': 1,
+                    'gateway-migration': 1,
                     'one-subscription': 0,
                     'ollama': 0,
                     'openai': 0,
@@ -1244,7 +1244,7 @@ class SaaSAuthTests(unittest.TestCase):
                 'launch_plan_checkout_clicked': 1,
                 'pricing_checkout_clicked': 1,
                 'managed_access_interest_clicked': 1,
-                'openrouter_compare_checkout_clicked': 1,
+                'gateway_compare_checkout_clicked': 1,
                 'auth_provider_state_checked': 2,
             },
             'plans': {
@@ -1256,13 +1256,13 @@ class SaaSAuthTests(unittest.TestCase):
                 'launch-plan': 1,
                 'pricing': 2,
                 'model-catalog': 4,
-                'compare-openrouter': 2,
+                'compare-gateways': 2,
                 'account': 1,
                 'login': 1,
             },
             'attributionChannels': {
                 'github': 2,
-                'openrouter': 1,
+                'model-gateway': 1,
                 'direct': 2,
             },
             'authProviderState': {
@@ -1351,7 +1351,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, snapshot['marketingIntent']['checkoutFriction']['unavailableByEvent']['account_billing_portal_failed'])
         self.assertEqual(1, snapshot['marketingIntent']['checkoutFriction']['unavailableByEvent']['account_crypto_intent_failed'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['launch_plan_checkout_clicked'])
-        self.assertEqual(1, snapshot['marketingIntent']['events']['openrouter_compare_checkout_clicked'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['gateway_compare_checkout_clicked'])
         self.assertEqual(2, snapshot['marketingIntent']['events']['auth_provider_state_checked'])
         self.assertEqual(2, snapshot['marketingIntent']['authProviderState']['total'])
         self.assertEqual(1, snapshot['marketingIntent']['authProviderState']['githubEnabled'])
@@ -1361,21 +1361,21 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, snapshot['marketingIntent']['sourceSurfaces']['launch-plan'])
         self.assertEqual(2, snapshot['marketingIntent']['sourceSurfaces']['pricing'])
         self.assertEqual(4, snapshot['marketingIntent']['sourceSurfaces']['model-catalog'])
-        self.assertEqual(2, snapshot['marketingIntent']['sourceSurfaces']['compare-openrouter'])
+        self.assertEqual(2, snapshot['marketingIntent']['sourceSurfaces']['compare-gateways'])
         self.assertEqual(2, snapshot['marketingIntent']['modelCatalogDemand']['modelFamily']['ollama'])
         self.assertEqual(1, snapshot['marketingIntent']['modelCatalogDemand']['modelFamily']['openai-codex'])
         self.assertEqual(2, snapshot['marketingIntent']['modelCatalogDemand']['queryBucket']['ollama'])
         self.assertEqual(1, snapshot['marketingIntent']['modelCatalogDemand']['queryBucket']['empty'])
         self.assertEqual(2, snapshot['marketingIntent']['attributionChannels']['github'])
-        self.assertEqual(1, snapshot['marketingIntent']['attributionChannels']['openrouter'])
+        self.assertEqual(1, snapshot['marketingIntent']['attributionChannels']['model-gateway'])
         self.assertEqual(snapshot['acquisitionActions'], snapshot['marketingIntent']['acquisitionActions'])
         acquisition_buckets = [row['bucket'] for row in snapshot['acquisitionActions']]
         self.assertIn('github', acquisition_buckets)
         self.assertIn('launch-plan', acquisition_buckets)
         self.assertIn('pricing', acquisition_buckets)
         self.assertIn('model-catalog', acquisition_buckets)
-        self.assertIn('compare-openrouter', acquisition_buckets)
-        self.assertIn('Publish OpenRouter migration proof', json.dumps(snapshot['acquisitionActions']))
+        self.assertIn('compare-gateways', acquisition_buckets)
+        self.assertIn('Publish gateway migration proof', json.dumps(snapshot['acquisitionActions']))
         self.assertIn('Turn launch-plan readers into Pro checkout', json.dumps(snapshot['acquisitionActions']))
         self.assertIn('Turn catalog demand into hosted key activation', json.dumps(snapshot['acquisitionActions']))
         self.assertNotIn('buyer@example.com', json.dumps(snapshot['acquisitionActions']))
@@ -1385,7 +1385,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, snapshot['managedAccessDemand']['targetProviderFamily']['openai'])
         self.assertEqual(2, snapshot['managedAccessDemand']['commercialPreference']['one-subscription'])
         self.assertEqual(1, snapshot['managedAccessDemand']['intent']['max-implementation'])
-        self.assertEqual(1, snapshot['managedAccessDemand']['intent']['openrouter-migration'])
+        self.assertEqual(1, snapshot['managedAccessDemand']['intent']['gateway-migration'])
         self.assertEqual(0.6667, snapshot['rates']['managedAccessShareOfWaitlist'])
         self.assertEqual(2, snapshot['stages']['signups'])
         self.assertEqual(1, snapshot['stages']['customersWithGeneratedApiKeys'])
@@ -1465,7 +1465,7 @@ class SaaSAuthTests(unittest.TestCase):
                             'interest': 'managed-access',
                             'targetProviderFamily': 'anthropic',
                             'commercialPreference': 'private-contract',
-                            'intent': 'openrouter-migration',
+                            'intent': 'gateway-migration',
                         }),
                     },
                     {'created_at': '2026-06-19T00:00:00Z', 'metadata': {'interest': 'managed-access'}},
@@ -1490,7 +1490,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['managedAccessDemand']['commercialPreference']['private-contract'])
         self.assertEqual(1, metrics['managedAccessDemand']['commercialPreference']['unknown'])
         self.assertEqual(1, metrics['managedAccessDemand']['intent']['max-implementation'])
-        self.assertEqual(1, metrics['managedAccessDemand']['intent']['openrouter-migration'])
+        self.assertEqual(1, metrics['managedAccessDemand']['intent']['gateway-migration'])
         self.assertEqual(1, metrics['managedAccessDemand']['intent']['unknown'])
 
         count, error = router.read_launch_waitlist_count(0)
@@ -1541,7 +1541,7 @@ class SaaSAuthTests(unittest.TestCase):
                         'source': 'model-catalog',
                         'modelFamily': 'all',
                         'queryBucket': 'empty',
-                        'utmSource': 'openrouter',
+                        'utmSource': 'model-gateway',
                         'search': 'gpt raw text must not appear',
                     },
                 },
@@ -1633,7 +1633,7 @@ class SaaSAuthTests(unittest.TestCase):
                     'created_at': '2026-06-19T00:00:00Z',
                     'metadata': {
                         'source': 'model-routing-calculator',
-                        'utmSource': 'openrouter',
+                        'utmSource': 'model-gateway',
                     },
                 },
                 {
@@ -1641,17 +1641,17 @@ class SaaSAuthTests(unittest.TestCase):
                     'plan': 'pro',
                     'created_at': '2026-06-19T00:00:00Z',
                     'metadata': json.dumps({
-                        'source': 'compare-openrouter',
-                        'referrerHost': 'openrouter.ai',
+                        'source': 'compare-gateways',
+                        'referrerHost': 'model-gateway.example',
                     }),
                 },
                 {
-                    'event': 'openrouter_compare_viewed',
+                    'event': 'gateway_compare_viewed',
                     'plan': None,
                     'created_at': '2026-06-19T00:00:00Z',
                     'metadata': json.dumps({
-                        'source': 'compare-openrouter',
-                        'referrerHost': 'openrouter.ai',
+                        'source': 'compare-gateways',
+                        'referrerHost': 'model-gateway.example',
                     }),
                 },
                 {
@@ -1723,7 +1723,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, metrics['events']['auth_provider_state_checked'])
         self.assertEqual(2, metrics['events']['calculator_checkout_clicked'])
         self.assertEqual(1, metrics['events']['calculator_viewed'])
-        self.assertEqual(1, metrics['events']['openrouter_compare_viewed'])
+        self.assertEqual(1, metrics['events']['gateway_compare_viewed'])
         self.assertEqual(1, metrics['events']['launch_plan_checkout_clicked'])
         self.assertEqual(1, metrics['events']['launch_plan_viewed'])
         self.assertEqual(1, metrics['events']['pricing_checkout_clicked'])
@@ -1737,7 +1737,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, metrics['sourceSurfaces']['launch-plan'])
         self.assertEqual(2, metrics['sourceSurfaces']['model-routing-calculator'])
         self.assertEqual(3, metrics['sourceSurfaces']['model-catalog'])
-        self.assertEqual(2, metrics['sourceSurfaces']['compare-openrouter'])
+        self.assertEqual(2, metrics['sourceSurfaces']['compare-gateways'])
         self.assertEqual(2, metrics['sourceSurfaces']['pricing'])
         self.assertEqual(3, metrics['sourceSurfaces']['account'])
         self.assertEqual(2, metrics['sourceSurfaces']['login'])
@@ -1745,7 +1745,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['sourceSurfaces']['billing'])
         self.assertEqual(1, metrics['sourceSurfaces']['unknown'])
         self.assertEqual(2, metrics['attributionChannels']['github'])
-        self.assertEqual(4, metrics['attributionChannels']['openrouter'])
+        self.assertEqual(4, metrics['attributionChannels']['model-gateway'])
         self.assertEqual(2, metrics['attributionChannels']['newsletter'])
         self.assertEqual(2, metrics['attributionChannels']['google'])
         self.assertEqual(1, metrics['attributionChannels']['discord'])
@@ -2926,11 +2926,12 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('fusion_plan_required', handler.payload['error']['code'])
         self.assertEqual('lite', handler.payload['error']['plan'])
 
-    def test_openrouter_fusion_model_alias_is_accepted(self):
+    def test_legacy_gateway_fusion_model_alias_is_accepted(self):
+        self.assertTrue(router.is_sage_router_fusion_request({'model': 'sage-router/fusion'}))
         self.assertTrue(router.is_sage_router_fusion_request({'model': 'openrouter/fusion'}))
         self.assertTrue(router.is_sage_router_fusion_request({'profile': 'fusion'}))
 
-    def test_openrouter_fusion_server_tool_rejects_lite_generated_key_plan(self):
+    def test_fusion_server_tool_rejects_lite_generated_key_plan(self):
         class Dummy:
             def write_json(self, status, payload, extra_headers=None):
                 self.status = status
@@ -2945,7 +2946,7 @@ class SaaSAuthTests(unittest.TestCase):
                 {
                     'model': 'sage-router/frontier',
                     'messages': [{'role': 'user', 'content': 'Compare these options.'}],
-                    'tools': [{'type': 'openrouter:fusion'}],
+                    'tools': [{'type': 'sage-router:fusion'}],
                     'tool_choice': 'required',
                 },
                 'req-fusion-tool-lite',
@@ -3023,7 +3024,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertNotIn('high stakes prompt text', json.dumps(event))
         self.assertNotIn('private panel answer', json.dumps(event))
 
-    def test_openrouter_fusion_server_tool_synthesizes_paid_plan(self):
+    def test_fusion_server_tool_synthesizes_paid_plan(self):
         original_select = router.select_fusion_panel_chain
         original_run = router.run_fusion_panel_candidate
 
@@ -3072,7 +3073,7 @@ class SaaSAuthTests(unittest.TestCase):
                 {
                     'model': 'sage-router/frontier',
                     'messages': [{'role': 'user', 'content': 'Survey the strongest arguments for and against launch sequencing.'}],
-                    'tools': [{'type': 'openrouter:fusion', 'parameters': {'analysis_models': ['model-a', 'model-b']}}],
+                    'tools': [{'type': 'sage-router:fusion', 'parameters': {'analysis_models': ['model-a', 'model-b']}}],
                     'tool_choice': 'required',
                     'debug': True,
                 },
@@ -3097,7 +3098,7 @@ class SaaSAuthTests(unittest.TestCase):
         payload = {
             'model': 'sage-router/frontier',
             'messages': [{'role': 'user', 'content': 'Say hello.'}],
-            'tools': [{'type': 'openrouter:fusion'}],
+            'tools': [{'type': 'sage-router:fusion'}],
         }
 
         self.assertFalse(router.fusion_server_tool_should_invoke(payload))
@@ -3110,7 +3111,7 @@ class SaaSAuthTests(unittest.TestCase):
         payload = {
             'model': 'sage-router/frontier',
             'messages': [{'role': 'user', 'content': 'Compare the strongest arguments for and against this launch.'}],
-            'tools': [{'type': 'openrouter:fusion'}],
+            'tools': [{'type': 'sage-router:fusion'}],
         }
 
         self.assertTrue(router.fusion_server_tool_should_invoke(payload))

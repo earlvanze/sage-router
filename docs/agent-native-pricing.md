@@ -8,7 +8,7 @@ Sage Router now mirrors the useful agent-native pieces from BlockRunAI/ClawRoute
 - **Tool-aware routing**: forced tool calls remain hard requirements; ordinary tool arrays become a soft preference so casual chat is not over-constrained.
 - **Context-aware routing**: document, vision, and long-context signals are folded into requirements before candidate scoring.
 - **Session-safe fallback**: each request gets an ordered fallback chain; failed providers are retried sequentially with no mid-stream model handoff.
-- **Fusion synthesis**: premium chat requests can call `sage-router/fusion` or attach the OpenRouter-compatible `{"type":"openrouter:fusion"}` server tool, which runs a small parallel panel of eligible authorized routes and asks a judge route to synthesize one final answer.
+- **Fusion synthesis**: premium chat requests can call `sage-router/fusion` or attach the `{"type":"sage-router:fusion"}` server tool, which runs a small parallel panel of eligible authorized routes and asks a judge route to synthesize one final answer.
 - **Cost/plan telemetry**: route events retain selected model, attempts, elapsed time, auth type, and customer plan.
 - **Free/eco fallback policy**: low-cost workflows can select `eco` or `local-first` profiles to avoid paid frontier calls.
 
@@ -22,7 +22,7 @@ curl http://localhost:8790/features/agent-native
 
 - `sage-router/agentic`: best-route profile for multi-step agent work, tool preference, and strong model families such as Kimi, Codex, GPT-5, Claude/Sonnet/Opus, and Gemini Pro/3.
 - `sage-router/eco`: cost-first/local-first profile that avoids expensive frontier defaults.
-- `sage-router/fusion`: Pro/Max/metered multi-model panel plus judge synthesis for prompts where multiple perspectives are worth the extra latency and cost. OpenRouter-compatible clients can also request the same route with the `openrouter:fusion` server tool.
+- `sage-router/fusion`: Pro/Max/metered multi-model panel plus judge synthesis for prompts where multiple perspectives are worth the extra latency and cost. Gateway-style clients can also request the same route with the `sage-router:fusion` server tool.
 - `sage-router/premium`: quality-first paid profile for frontier/large model usage.
 
 ## Pricing structure

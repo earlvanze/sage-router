@@ -22,7 +22,7 @@
       <div class="navLinks">
         <a href="/">Home</a>
         <a href="/quickstart">Quickstart</a>
-        <a href="/docs/openrouter-migration">Migration</a>
+        <a href="/docs/gateway-migration">Migration</a>
         <a href="/api-troubleshooting">Troubleshooting</a>
         <a href="/docs/codex">Codex</a>
         <a href="/models">Models</a>
@@ -40,7 +40,7 @@
         <div class="actions">
           <a class="button primary" href="/account.html">Create API key</a>
           <a class="button secondary" href="/quickstart">Quickstart</a>
-          <a class="button secondary" href="/docs/openrouter-migration">OpenRouter migration</a>
+          <a class="button secondary" href="/docs/gateway-migration">Gateway migration</a>
           <a class="button secondary" href="/api-troubleshooting">Troubleshooting</a>
           <a class="button secondary" href="/models">Model catalog</a>
           <a class="button secondary" href="/pricing">Pricing</a>
@@ -57,7 +57,7 @@
         <article class="card">
           <span class="pill">OpenAI</span>
           <h3>Drop-in clients</h3>
-          <p class="muted">Point OpenAI-compatible SDKs and tools at <code>https://api.sagerouter.dev/v1</code>. Use <code>sage-router/frontier</code> as the first route profile, or <code>sage-router/fusion</code> and OpenRouter-compatible <code>openrouter/fusion</code> on Pro/Max for judged multi-model synthesis.</p>
+          <p class="muted">Point OpenAI-compatible SDKs and tools at <code>https://api.sagerouter.dev/v1</code>. Use <code>sage-router/frontier</code> as the first route profile, or <code>sage-router/fusion</code> on Pro/Max for judged multi-model synthesis.</p>
         </article>
         <article class="card">
           <span class="pill">Limits</span>
@@ -101,7 +101,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
               <td><code>POST /v1/chat/completions</code></td>
               <td>Generated key</td>
               <td>OpenAI-compatible chat completions with routing profiles and provider fallback.</td>
-              <td>Supports common chat client flows, including streaming-shaped compatibility responses. <code>sage-router/fusion</code> and <code>openrouter/fusion</code> are premium chat model aliases, and <code>{"type":"openrouter:fusion"}</code> is accepted as an OpenRouter-compatible premium server tool for Pro/Max-style synthesis.</td>
+              <td>Supports common chat client flows, including streaming-shaped compatibility responses. <code>sage-router/fusion</code> is a premium chat model alias, and <code>{"type":"sage-router:fusion"}</code> is accepted as a premium server tool for Pro/Max-style synthesis.</td>
             </tr>
             <tr>
               <td><code>POST /v1/responses</code></td>
@@ -112,7 +112,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
             <tr>
               <td><code>GET /model-catalog</code></td>
               <td>Public metadata</td>
-              <td>OpenRouter-style discovery metadata for route families and model catalog pages.</td>
+              <td>gateway-style discovery metadata for route families and model catalog pages.</td>
               <td>Discovery only. Live <code>/v1/models</code> and model traffic still require an active generated key.</td>
             </tr>
             <tr>
@@ -175,7 +175,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       <a href="/">Home</a>
       <a href="/pricing">Pricing</a>
       <a href="/quickstart">Quickstart</a>
-      <a href="/docs/openrouter-migration">Migration</a>
+      <a href="/docs/gateway-migration">Migration</a>
       <a href="/api-troubleshooting">Troubleshooting</a>
       <a href="/docs/codex">Codex</a>
       <a href="/models">Models</a>
