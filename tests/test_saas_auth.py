@@ -1899,15 +1899,25 @@ class SaaSAuthTests(unittest.TestCase):
                 self.headers = {'Authorization': authorization} if authorization else {}
                 self.status = None
                 self.payload = None
+                self.extra_headers = None
 
             def write_json(self, status, payload, extra_headers=None):
                 self.status = status
                 self.payload = payload
+                self.extra_headers = extra_headers
 
         anonymous = Dummy()
         router.Handler.do_GET(anonymous)
         self.assertEqual(401, anonymous.status)
         self.assertEqual('unauthorized', anonymous.payload['error'])
+        self.assertEqual('https://app.sagerouter.dev/account.html', anonymous.payload['accountUrl'])
+        self.assertEqual('https://sagerouter.dev/pricing', anonymous.payload['pricingUrl'])
+        self.assertEqual('https://app.sagerouter.dev/status', anonymous.payload['statusUrl'])
+        self.assertEqual('https://api.sagerouter.dev/v1', anonymous.payload['openaiBaseUrl'])
+        self.assertEqual('sk_sage_', anonymous.payload['apiKeyPrefix'])
+        self.assertIn('WWW-Authenticate', anonymous.extra_headers)
+        self.assertIn('Sage Router', anonymous.extra_headers['WWW-Authenticate'])
+        self.assertIn('rel="account"', anonymous.extra_headers['Link'])
 
         customer = self.active_customer()
         raw, _row = router.create_api_key_for_customer(customer, 'prod')
@@ -1921,6 +1931,35 @@ class SaaSAuthTests(unittest.TestCase):
         router.Handler.do_GET(operator)
         self.assertEqual(200, operator.status)
         self.assertIn('models', operator.payload)
+
+    def test_origin_model_post_auth_error_includes_onboarding_guidance(self):
+        body = b'{}'
+
+        class Dummy:
+            path = '/v1/chat/completions?cb=smoke'
+            command = 'POST'
+            headers = {'Content-Length': str(len(body))}
+            rfile = BytesIO(body)
+            status = None
+            payload = None
+            extra_headers = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+                self.extra_headers = extra_headers
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(401, handler.status)
+        self.assertEqual('unauthorized', handler.payload['error'])
+        self.assertEqual('https://app.sagerouter.dev/account.html', handler.payload['accountUrl'])
+        self.assertEqual('https://sagerouter.dev/pricing', handler.payload['pricingUrl'])
+        self.assertEqual('https://api.sagerouter.dev/v1', handler.payload['openaiBaseUrl'])
+        self.assertEqual('sk_sage_', handler.payload['apiKeyPrefix'])
+        self.assertIn('WWW-Authenticate', handler.extra_headers)
+        self.assertIn('rel="pricing"', handler.extra_headers['Link'])
 
     def test_operator_origin_routes_reject_generated_customer_keys(self):
         customer = self.active_customer()
@@ -2994,9 +3033,9 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('fusion_plan_required', handler.payload['error']['code'])
         self.assertEqual('lite', handler.payload['error']['plan'])
 
-    def test_legacy_gateway_fusion_model_alias_is_accepted(self):
+    def test_fusion_uses_sage_router_product_aliases_only(self):
         self.assertTrue(router.is_sage_router_fusion_request({'model': 'sage-router/fusion'}))
-        self.assertTrue(router.is_sage_router_fusion_request({'model': 'openrouter/fusion'}))
+        self.assertFalse(router.is_sage_router_fusion_request({'model': 'openrouter/fusion'}))
         self.assertTrue(router.is_sage_router_fusion_request({'profile': 'fusion'}))
 
     def test_fusion_server_tool_rejects_lite_generated_key_plan(self):

@@ -32,8 +32,8 @@ LOCAL_STRICT_PROXY_PROVIDER_NAMES = {'dario', 'openai-codex'}
 LOCAL_STRICT_PROXY_API_TYPES = {'openclaw-gateway', 'openai-codex-responses'}
 LOCAL_STRICT_DECENTRALIZED_PROVIDER_NAMES = {'darkbloom'}
 SHOW_MODEL_PREFIX = os.environ.get('SAGE_ROUTER_SHOW_MODEL_PREFIX', '').strip().lower() in {'1', 'true', 'yes', 'on'}  # Show provider/model at start of final text responses by default
-FUSION_MODEL_ALIASES = {'fusion', 'sage-router/fusion', 'openrouter/fusion'}
-FUSION_SERVER_TOOL_TYPES = {'openrouter:fusion', 'sage-router:fusion'}
+FUSION_MODEL_ALIASES = {'fusion', 'sage-router/fusion'}
+FUSION_SERVER_TOOL_TYPES = {'sage-router:fusion'}
 FUSION_AUTO_TRIGGER_TERMS = (
     'compare',
     'tradeoff',
@@ -7354,6 +7354,32 @@ def client_request_authorized(handler):
     return bool(client_auth_context(handler))
 
 
+def model_api_auth_error_payload():
+    api_base_url = API_BASE_URL or 'https://api.sagerouter.dev'
+    return {
+        'error': 'unauthorized',
+        'message': 'Use an active Sage Router API key from the hosted account page.',
+        'accountUrl': f"{APP_BASE_URL}/account.html",
+        'pricingUrl': f"{MARKETING_BASE_URL}/pricing",
+        'statusUrl': f"{APP_BASE_URL}/status",
+        'openaiBaseUrl': f"{api_base_url.rstrip('/')}/v1",
+        'apiKeyPrefix': API_KEY_PREFIX,
+    }
+
+
+def model_api_auth_error_headers():
+    account_url = f"{APP_BASE_URL}/account.html"
+    pricing_url = f"{MARKETING_BASE_URL}/pricing"
+    status_url = f"{APP_BASE_URL}/status"
+    return {
+        'WWW-Authenticate': (
+            'Bearer realm="Sage Router", error="invalid_token", '
+            'error_description="Use an active Sage Router API key from app.sagerouter.dev/account.html"'
+        ),
+        'Link': f'<{account_url}>; rel="account", <{pricing_url}>; rel="pricing", <{status_url}>; rel="status"',
+    }
+
+
 def normalize_browser_origin(value):
     if not value:
         return ''
@@ -11506,7 +11532,7 @@ class Handler(BaseHTTPRequestHandler):
             })
         elif request_path.startswith('/v1beta/models') or request_path.startswith('/v1/models'):
             if not client_request_authorized(self):
-                self.write_json(401, {'error': 'unauthorized'})
+                self.write_json(401, model_api_auth_error_payload(), extra_headers=model_api_auth_error_headers())
                 return
             # Google Generative AI models listing endpoint
             models_data = []
@@ -11929,7 +11955,7 @@ class Handler(BaseHTTPRequestHandler):
         if model_endpoint:
             auth_context = client_auth_context(self)
             if not auth_context:
-                self.write_json(401, {'error': 'unauthorized'})
+                self.write_json(401, model_api_auth_error_payload(), extra_headers=model_api_auth_error_headers())
                 return
             set_route_auth_context(auth_context)
 
