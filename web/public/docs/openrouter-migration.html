@@ -140,6 +140,7 @@ await client.chat.completions.create({
           <ul>
             <li>Use <code>sage-router/frontier</code> for high-quality hosted agent work.</li>
             <li>Use <code>sage-router/fusion</code> when Pro/Max prompts need a parallel panel plus judge synthesis.</li>
+            <li>Existing OpenRouter Fusion tool calls can keep <code>{"type":"openrouter:fusion"}</code>; Sage Router handles that server tool before downstream provider routing and applies the same Fusion plan gate.</li>
             <li>Use <code>sage-router/local</code> when the router has local Ollama routes available.</li>
             <li>Use <a href="/models">model catalog</a> discovery before mapping provider-specific IDs.</li>
           </ul>

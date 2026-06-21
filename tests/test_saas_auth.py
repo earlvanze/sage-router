@@ -2924,6 +2924,34 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('fusion_plan_required', handler.payload['error']['code'])
         self.assertEqual('lite', handler.payload['error']['plan'])
 
+    def test_openrouter_fusion_server_tool_rejects_lite_generated_key_plan(self):
+        class Dummy:
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+                self.headers = extra_headers or {}
+
+        router.set_route_auth_context({'type': 'generated_key', 'customer': {'id': 'customer_1', 'plan': 'lite'}})
+        try:
+            handler = Dummy()
+            router.handle_openai_chat_completions(
+                handler,
+                {
+                    'model': 'sage-router/frontier',
+                    'messages': [{'role': 'user', 'content': 'Compare these options.'}],
+                    'tools': [{'type': 'openrouter:fusion'}],
+                    'tool_choice': 'required',
+                },
+                'req-fusion-tool-lite',
+                router.time.time(),
+            )
+        finally:
+            router.clear_route_auth_context()
+
+        self.assertEqual(402, handler.status)
+        self.assertEqual('fusion_plan_required', handler.payload['error']['code'])
+        self.assertEqual('lite', handler.payload['error']['plan'])
+
     def test_fusion_synthesizes_paid_plan_without_logging_panel_content(self):
         original_select = router.select_fusion_panel_chain
         original_run = router.run_fusion_panel_candidate
@@ -2988,6 +3016,98 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('pro', event['customer_plan'])
         self.assertNotIn('high stakes prompt text', json.dumps(event))
         self.assertNotIn('private panel answer', json.dumps(event))
+
+    def test_openrouter_fusion_server_tool_synthesizes_paid_plan(self):
+        original_select = router.select_fusion_panel_chain
+        original_run = router.run_fusion_panel_candidate
+
+        class Dummy:
+            def routing_headers(self, payload=None, request_id=''):
+                return router.Handler.routing_headers(self, payload, request_id)
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+                self.headers = extra_headers or {}
+
+        def fake_select(messages, request_id, thinking, route_mode, requirements, want_json):
+            return [('provider-a', 'model-a'), ('provider-b', 'model-b')]
+
+        def fake_run(provider_name, model, payload, request_id, thinking, debug_mode=False):
+            self.assertNotIn('tools', payload)
+            self.assertNotIn('tool_choice', payload)
+            if request_id.endswith('-judge'):
+                return {
+                    'provider': provider_name,
+                    'model': model,
+                    'ok': True,
+                    'elapsedMs': 8,
+                    'detail': '',
+                    'content': 'server tool fused answer',
+                    'usage': {'prompt_tokens': 3, 'completion_tokens': 4, 'total_tokens': 7},
+                }
+            return {
+                'provider': provider_name,
+                'model': model,
+                'ok': True,
+                'elapsedMs': 5,
+                'detail': '',
+                'content': f'private panel answer from {provider_name}',
+                'usage': {'prompt_tokens': 1, 'completion_tokens': 2, 'total_tokens': 3},
+            }
+
+        router.select_fusion_panel_chain = fake_select
+        router.run_fusion_panel_candidate = fake_run
+        router.set_route_auth_context({'type': 'generated_key', 'customer': {'id': 'customer_1', 'plan': 'pro'}})
+        try:
+            handler = Dummy()
+            router.handle_openai_chat_completions(
+                handler,
+                {
+                    'model': 'sage-router/frontier',
+                    'messages': [{'role': 'user', 'content': 'Survey the strongest arguments for and against launch sequencing.'}],
+                    'tools': [{'type': 'openrouter:fusion', 'parameters': {'analysis_models': ['model-a', 'model-b']}}],
+                    'tool_choice': 'required',
+                    'debug': True,
+                },
+                'req-fusion-tool-pro',
+                router.time.time(),
+            )
+        finally:
+            router.select_fusion_panel_chain = original_select
+            router.run_fusion_panel_candidate = original_run
+            router.clear_route_auth_context()
+
+        self.assertEqual(200, handler.status)
+        self.assertEqual('sage-router/fusion', handler.payload['model'])
+        self.assertEqual('server tool fused answer', handler.payload['choices'][0]['message']['content'])
+        self.assertEqual('1', handler.headers['X-Sage-Router-Fusion'])
+        with open(router.ROUTE_EVENTS_PATH) as f:
+            event = json.loads(f.read())
+        self.assertEqual({'provider': 'sage-router', 'model': 'fusion'}, event['selected'])
+        self.assertNotIn('private panel answer', json.dumps(event))
+
+    def test_fusion_server_tool_auto_strips_tool_when_not_triggered(self):
+        payload = {
+            'model': 'sage-router/frontier',
+            'messages': [{'role': 'user', 'content': 'Say hello.'}],
+            'tools': [{'type': 'openrouter:fusion'}],
+        }
+
+        self.assertFalse(router.fusion_server_tool_should_invoke(payload))
+        stripped = router.strip_fusion_server_tools_from_payload(payload)
+        self.assertNotIn('tools', stripped)
+        self.assertNotIn('tool_choice', stripped)
+        self.assertEqual('sage-router/frontier', stripped['model'])
+
+    def test_fusion_server_tool_auto_triggers_for_comparison_prompt(self):
+        payload = {
+            'model': 'sage-router/frontier',
+            'messages': [{'role': 'user', 'content': 'Compare the strongest arguments for and against this launch.'}],
+            'tools': [{'type': 'openrouter:fusion'}],
+        }
+
+        self.assertTrue(router.fusion_server_tool_should_invoke(payload))
 
 
 class AnalyticsModelConsolidationTests(unittest.TestCase):

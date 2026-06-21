@@ -33,6 +33,30 @@ LOCAL_STRICT_PROXY_API_TYPES = {'openclaw-gateway', 'openai-codex-responses'}
 LOCAL_STRICT_DECENTRALIZED_PROVIDER_NAMES = {'darkbloom'}
 SHOW_MODEL_PREFIX = os.environ.get('SAGE_ROUTER_SHOW_MODEL_PREFIX', '').strip().lower() in {'1', 'true', 'yes', 'on'}  # Show provider/model at start of final text responses by default
 FUSION_MODEL_ALIASES = {'fusion', 'sage-router/fusion'}
+FUSION_SERVER_TOOL_TYPES = {'openrouter:fusion', 'sage-router:fusion'}
+FUSION_AUTO_TRIGGER_TERMS = (
+    'compare',
+    'tradeoff',
+    'trade-off',
+    'for and against',
+    'strongest arguments',
+    'where do experts disagree',
+    'consensus',
+    'contradiction',
+    'blind spot',
+    'risk',
+    'risks',
+    'audit',
+    'review',
+    'evaluate',
+    'research',
+    'recommend',
+    'decision',
+    'high stakes',
+    'high-stakes',
+    'multiple perspectives',
+    'panel',
+)
 FUSION_ALLOWED_PLANS = {
     p.strip().lower()
     for p in os.environ.get('SAGE_ROUTER_FUSION_ALLOWED_PLANS', 'pro,max,metered,manual,paid,active').split(',')
@@ -253,7 +277,7 @@ PUBLIC_AGENT_NATIVE_FEATURES = {
     'sessionSafeFallback': {'description': 'Each request builds an ordered fallback chain and retries failed providers without mid-stream handoff.'},
     'costAndPlanTelemetry': {'description': 'Route events include selected model, attempts, elapsed time, customer plan, and auth type for pricing analytics.'},
     'freeTierFallbackPolicy': {'description': 'Eco/local/free profiles can be used for zero or low-balance workflows without blocking agent execution.'},
-    'fusionRouting': {'description': 'Paid plans can request sage-router/fusion for parallel panel responses and judge synthesis on high-stakes research or review prompts.'},
+    'fusionRouting': {'description': 'Paid plans can request sage-router/fusion or the openrouter:fusion-compatible server tool for parallel panel responses and judge synthesis on high-stakes research or review prompts.'},
 }
 PUBLIC_MODEL_CATALOG = {
     'description': 'Public model-family catalog for Sage Router hosted routing. This is discovery metadata only; live /v1/models remains authenticated with generated sk_sage_* customer API keys.',
@@ -3192,6 +3216,83 @@ def is_sage_router_fusion_request(payload):
     model = str(payload.get('model') or '').strip().lower()
     profile = str(payload.get('profile') or payload.get('routerProfile') or payload.get('sageRouterProfile') or '').strip().lower()
     return model in FUSION_MODEL_ALIASES or profile == 'fusion'
+
+
+def is_fusion_server_tool(tool):
+    return isinstance(tool, dict) and str(tool.get('type') or '').strip().lower() in FUSION_SERVER_TOOL_TYPES
+
+
+def fusion_server_tools(payload):
+    if not isinstance(payload, dict):
+        return []
+    return [tool for tool in payload.get('tools') or [] if is_fusion_server_tool(tool)]
+
+
+def tool_choice_targets_fusion(tool_choice):
+    if isinstance(tool_choice, str):
+        return tool_choice.strip().lower() in FUSION_SERVER_TOOL_TYPES
+    if not isinstance(tool_choice, dict):
+        return False
+    choice_type = str(tool_choice.get('type') or '').strip().lower()
+    if choice_type in FUSION_SERVER_TOOL_TYPES:
+        return True
+    name = str(tool_choice.get('name') or (tool_choice.get('function') or {}).get('name') or '').strip().lower()
+    return name in FUSION_SERVER_TOOL_TYPES
+
+
+def fusion_server_tool_required(payload):
+    if not fusion_server_tools(payload):
+        return False
+    tool_choice = payload.get('tool_choice')
+    if isinstance(tool_choice, str) and tool_choice.strip().lower() == 'required':
+        return True
+    return tool_choice_targets_fusion(tool_choice)
+
+
+def fusion_prompt_benefits_from_panel(payload):
+    requirements = payload.get('requirements') or {}
+    if isinstance(requirements, dict) and (
+        requirements.get('fusion') or requirements.get('qualitySensitive') or requirements.get('highStakes')
+    ):
+        return True
+    text = fusion_messages_excerpt(payload.get('messages') or [], limit=2400).lower()
+    return any(term in text for term in FUSION_AUTO_TRIGGER_TERMS)
+
+
+def fusion_server_tool_should_invoke(payload):
+    if not fusion_server_tools(payload):
+        return False
+    tool_choice = payload.get('tool_choice')
+    if isinstance(tool_choice, str) and tool_choice.strip().lower() == 'none':
+        return False
+    if fusion_server_tool_required(payload):
+        return True
+    return fusion_prompt_benefits_from_panel(payload)
+
+
+def strip_fusion_server_tools_from_payload(payload):
+    if not fusion_server_tools(payload):
+        return payload
+    stripped = dict(payload)
+    remaining_tools = [tool for tool in payload.get('tools') or [] if not is_fusion_server_tool(tool)]
+    if remaining_tools:
+        stripped['tools'] = remaining_tools
+    else:
+        stripped.pop('tools', None)
+    if fusion_server_tool_required(payload) or not remaining_tools:
+        stripped.pop('tool_choice', None)
+    return stripped
+
+
+def fusion_payload_from_server_tool(payload):
+    fusion_payload = strip_fusion_server_tools_from_payload(payload)
+    fusion_payload = dict(fusion_payload)
+    fusion_payload['model'] = 'sage-router/fusion'
+    fusion_payload.pop('tools', None)
+    fusion_payload.pop('tool_choice', None)
+    metadata = fusion_payload.get('metadata') if isinstance(fusion_payload.get('metadata'), dict) else {}
+    fusion_payload['metadata'] = {**metadata, 'fusionServerTool': True}
+    return fusion_payload
 
 
 def current_route_customer_plan():
@@ -10295,6 +10396,9 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
     message_count = len(payload.get('messages', []) or [])
     if is_sage_router_fusion_request(payload):
         return handle_sage_router_fusion(self, payload, request_id, started, return_result=return_result)
+    if fusion_server_tool_should_invoke(payload):
+        return handle_sage_router_fusion(self, fusion_payload_from_server_tool(payload), request_id, started, return_result=return_result)
+    payload = strip_fusion_server_tools_from_payload(payload)
     router_profile = apply_router_profile(payload)
     discord_public_profile = apply_discord_public_route_profile(payload)
     thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning'))

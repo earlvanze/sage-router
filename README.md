@@ -152,11 +152,29 @@ curl "$OPENAI_BASE_URL/chat/completions" \
 Fusion fans the prompt to a small parallel panel of eligible high-quality
 routes, then asks a judge route to synthesize consensus, contradictions, gaps,
 and useful details into one OpenAI-compatible response. Lite/free generated
-keys receive `402 fusion_plan_required`; tool-call workloads should keep using
-`sage-router/agentic` or `sage-router/frontier`. Fusion route telemetry records
-only selected provider/model IDs, elapsed times, status, plan, and auth type;
-it does not store prompts, panel answers, final answers, API keys, OAuth tokens,
-provider credentials, or raw provider responses.
+keys receive `402 fusion_plan_required`.
+
+OpenRouter-style clients can also attach Fusion as a premium server tool:
+
+```json
+{
+  "model": "sage-router/frontier",
+  "messages": [{"role": "user", "content": "Survey the strongest arguments for and against this launch."}],
+  "tools": [{"type": "openrouter:fusion"}],
+  "tool_choice": "required"
+}
+```
+
+`openrouter:fusion` and `sage-router:fusion` server-tool entries are handled by
+Sage Router before provider routing, so unknown server-tool markers are not
+forwarded to downstream providers. `tool_choice: "required"` always invokes
+Fusion; automatic tool choice invokes Fusion only for prompts that look like
+multi-perspective research, comparison, review, risk, or decision work.
+Ordinary function-tool workloads should keep using `sage-router/agentic` or
+`sage-router/frontier`. Fusion route telemetry records only selected
+provider/model IDs, elapsed times, status, plan, and auth type; it does not
+store prompts, panel answers, final answers, API keys, OAuth tokens, provider
+credentials, or raw provider responses.
 
 Hosted plan limits are exposed from `/pricing` and enforced at the public edge:
 

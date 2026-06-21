@@ -101,7 +101,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
               <td><code>POST /v1/chat/completions</code></td>
               <td>Generated key</td>
               <td>OpenAI-compatible chat completions with routing profiles and provider fallback.</td>
-              <td>Supports common chat client flows, including streaming-shaped compatibility responses. <code>sage-router/fusion</code> is a premium non-tool chat model for Pro/Max-style synthesis.</td>
+              <td>Supports common chat client flows, including streaming-shaped compatibility responses. <code>sage-router/fusion</code> is a premium chat model, and <code>{"type":"openrouter:fusion"}</code> is accepted as an OpenRouter-compatible premium server tool for Pro/Max-style synthesis.</td>
             </tr>
             <tr>
               <td><code>POST /v1/responses</code></td>

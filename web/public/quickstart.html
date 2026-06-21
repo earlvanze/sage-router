@@ -165,7 +165,7 @@ codex --profile sage-router-frontier</code></pre>
         <div>
           <p class="eyebrow">Premium synthesis</p>
           <h2>Call Fusion when one answer is not enough.</h2>
-          <p class="muted">On Pro, Max, metered, manual, or operator-enabled accounts, <code>sage-router/fusion</code> runs a small panel of eligible authorized routes, then asks a judge route to synthesize one final answer. Lite keys receive <code>402 fusion_plan_required</code>.</p>
+          <p class="muted">On Pro, Max, metered, manual, or operator-enabled accounts, <code>sage-router/fusion</code> runs a small panel of eligible authorized routes, then asks a judge route to synthesize one final answer. OpenRouter-style clients can also attach <code>{"type":"openrouter:fusion"}</code> as a premium server tool. Lite keys receive <code>402 fusion_plan_required</code>.</p>
         </div>
         <div class="panel">
           <div class="snippetHeader"><span>Curl</span><button class="copyCodeButton" type="button" data-copy-code="quickstart-fusion">Copy</button></div>
@@ -177,6 +177,18 @@ codex --profile sage-router-frontier</code></pre>
     "messages": [
       {"role": "user", "content": "Compare the strongest launch risks and give one recommendation."}
     ]
+  }'</code></pre>
+          <div class="snippetHeader"><span>Server tool</span><button class="copyCodeButton" type="button" data-copy-code="quickstart-fusion-tool">Copy</button></div>
+          <pre><code id="quickstart-fusion-tool">curl https://api.sagerouter.dev/v1/chat/completions \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "sage-router/frontier",
+    "messages": [
+      {"role": "user", "content": "Survey the strongest arguments for and against this launch."}
+    ],
+    "tools": [{"type": "openrouter:fusion"}],
+    "tool_choice": "required"
   }'</code></pre>
         </div>
       </section>
