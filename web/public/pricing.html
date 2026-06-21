@@ -201,6 +201,20 @@
               </tbody>
             </table>
           </div>
+          <div class="tableWrap">
+            <table id="provider-family-readiness-table">
+              <thead>
+                <tr><th>Provider family</th><th>Managed access status</th><th>Boundary</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Ollama</td><td>Not allowlisted</td><td>Eligible only after provider authorization, cost, quota, audit, and abuse controls</td></tr>
+                <tr><td>OpenAI</td><td>Not allowlisted</td><td>Eligible only after provider authorization, cost, quota, audit, and abuse controls</td></tr>
+                <tr><td>Anthropic</td><td>Not allowlisted</td><td>Eligible only after provider authorization, cost, quota, audit, and abuse controls</td></tr>
+                <tr><td>OpenRouter</td><td>BYOK supported; not bundled resale</td><td>Supported routing provider, but not part of the managed subscription offer</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note" id="one-subscription-readiness">oneSubscriptionReadiness keeps the commercial preference visible while providerFamilyReadiness keeps OpenRouter available as BYOK routing without bundling it into managed resale.</p>
           <div class="missingControls" id="readiness-missing-controls">
             <span>provider_resale_terms</span>
             <span>provider_terms_acknowledgment</span>
@@ -261,6 +275,7 @@
       const status = document.getElementById('managed-readiness-status');
       const missingControls = document.getElementById('readiness-missing-controls');
       const tbody = document.querySelector('#readiness-plan-table tbody');
+      const familyTbody = document.querySelector('#provider-family-readiness-table tbody');
 
       if (status) {
         status.textContent = managed.enabled ? 'Ready for private beta' : (managed.requested ? 'Requested, incomplete' : 'Disabled pending provider terms');
@@ -298,6 +313,63 @@
             ? `Meets ${row.minimumGrossMarginPercent}% minimum`
             : (unitEconomics.costModelConfigured ? `Below ${row.minimumGrossMarginPercent}% minimum` : 'Waiting on provider cost model');
           tr.append(plan, revenue, maxCost, margin);
+          return tr;
+        }));
+      }
+
+      if (familyTbody) {
+        const fallbackRows = [
+          {
+            label: 'Ollama',
+            status: 'not_allowlisted',
+            resaleEligible: true,
+            byokOnly: false,
+            missingControls: ['authorized_provider_allowlist']
+          },
+          {
+            label: 'OpenAI',
+            status: 'not_allowlisted',
+            resaleEligible: true,
+            byokOnly: false,
+            missingControls: ['authorized_provider_allowlist']
+          },
+          {
+            label: 'Anthropic',
+            status: 'not_allowlisted',
+            resaleEligible: true,
+            byokOnly: false,
+            missingControls: ['authorized_provider_allowlist']
+          },
+          {
+            label: 'OpenRouter',
+            status: 'byok_supported_not_managed_resale',
+            resaleEligible: false,
+            byokOnly: true,
+            missingControls: ['provider_resale_authorization']
+          }
+        ];
+        const providerRows = Array.isArray(managed.providerFamilyReadiness) && managed.providerFamilyReadiness.length
+          ? managed.providerFamilyReadiness
+          : fallbackRows;
+        familyTbody.replaceChildren(...providerRows.map((row) => {
+          const tr = document.createElement('tr');
+          const family = document.createElement('td');
+          const statusCell = document.createElement('td');
+          const boundary = document.createElement('td');
+          family.textContent = row.label || row.family || 'Provider';
+          statusCell.textContent = row.status === 'ready_for_private_beta'
+            ? 'Ready for private beta'
+            : (row.byokOnly ? 'BYOK supported; not bundled resale' : formatControlName(row.status || 'not_allowlisted'));
+          if (row.byokOnly) {
+            boundary.textContent = 'Supported routing provider, but not part of the managed subscription offer';
+          } else if (row.resaleEligible) {
+            boundary.textContent = row.ready
+              ? 'Eligible managed-access family after global controls remain satisfied'
+              : 'Eligible only after provider authorization, cost, quota, audit, and abuse controls';
+          } else {
+            boundary.textContent = 'Review required before managed subscription resale';
+          }
+          tr.append(family, statusCell, boundary);
           return tr;
         }));
       }

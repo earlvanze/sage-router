@@ -71,6 +71,10 @@ managed-access acceptable-use terms before it can be marketed as a launchable
 offer. OpenRouter remains a supported BYOK-compatible provider and model
 discovery source, but it does not count as a managed subscription resale family
 unless separate provider authorization is added later.
+`providerFamilyReadiness` and `oneSubscriptionReadiness` make that boundary
+machine-readable: Ollama, OpenAI, and Anthropic can become managed-access
+families only after authorization and cost controls, while OpenRouter remains
+discoverable and routable through customer-authorized BYOK configuration.
 
 The public prerequisite pages at `/provider-resale-terms` and `/margin-policy`
 document the required legal and unit-economics boundaries for a future private

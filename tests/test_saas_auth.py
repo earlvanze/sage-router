@@ -795,6 +795,20 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(managed['requiresPositiveUnitEconomics'])
         self.assertFalse(managed['providerTermsAcknowledged'])
         self.assertEqual([], managed['allowedProviderFamilies'])
+        self.assertEqual(['ollama', 'openai', 'anthropic'], managed['resaleEligibleProviderFamilies'])
+        self.assertIn('openrouter', managed['byokOnlyProviderFamilies'])
+        family_rows = {row['family']: row for row in managed['providerFamilyReadiness']}
+        self.assertEqual('not_allowlisted', family_rows['ollama']['status'])
+        self.assertTrue(family_rows['ollama']['resaleEligible'])
+        self.assertFalse(family_rows['ollama']['ready'])
+        self.assertEqual('byok_supported_not_managed_resale', family_rows['openrouter']['status'])
+        self.assertTrue(family_rows['openrouter']['byokOnly'])
+        self.assertFalse(family_rows['openrouter']['ready'])
+        self.assertEqual('one-subscription', managed['oneSubscriptionReadiness']['commercialPreference'])
+        self.assertTrue(managed['oneSubscriptionReadiness']['safeForPublicDisplay'])
+        self.assertEqual([], managed['oneSubscriptionReadiness']['readyProviderFamilies'])
+        self.assertIn('openrouter', managed['oneSubscriptionReadiness']['blockedProviderFamilies'])
+        self.assertIn('openrouter', managed['oneSubscriptionReadiness']['byokOnlyProviderFamilies'])
         self.assertIn('provider_resale_terms', managed['missingControls'])
         self.assertIn('provider_terms_acknowledgment', managed['missingControls'])
         self.assertIn('authorized_provider_allowlist', managed['missingControls'])
@@ -906,6 +920,11 @@ class SaaSAuthTests(unittest.TestCase):
             self.assertEqual([], managed['allowedProviderFamilies'])
             self.assertIn('openrouter', managed['byokOnlyProviderFamilies'])
             self.assertEqual(['openrouter'], managed['byokOnlyConfiguredProviderFamilies'])
+            family_rows = {row['family']: row for row in managed['providerFamilyReadiness']}
+            self.assertTrue(family_rows['openrouter']['configured'])
+            self.assertEqual('byok_supported_not_managed_resale', family_rows['openrouter']['status'])
+            self.assertFalse(family_rows['openrouter']['ready'])
+            self.assertIn('openrouter', managed['oneSubscriptionReadiness']['blockedProviderFamilies'])
             self.assertIn('authorized_provider_allowlist', managed['missingControls'])
 
             os.environ['SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS'] = 'ollama,openai,anthropic'
@@ -941,6 +960,17 @@ class SaaSAuthTests(unittest.TestCase):
             self.assertTrue(managed['requiresPositiveUnitEconomics'])
             self.assertTrue(managed['unitEconomics']['costModelConfigured'])
             self.assertTrue(managed['unitEconomics']['satisfied'])
+            family_rows = {row['family']: row for row in managed['providerFamilyReadiness']}
+            self.assertTrue(family_rows['ollama']['ready'])
+            self.assertTrue(family_rows['openai']['ready'])
+            self.assertTrue(family_rows['anthropic']['ready'])
+            self.assertFalse(family_rows['openrouter']['ready'])
+            self.assertEqual('byok_supported_not_managed_resale', family_rows['openrouter']['status'])
+            self.assertEqual(
+                ['ollama', 'openai', 'anthropic'],
+                managed['oneSubscriptionReadiness']['readyProviderFamilies'],
+            )
+            self.assertIn('openrouter', managed['oneSubscriptionReadiness']['blockedProviderFamilies'])
             self.assertEqual([], managed['missingControls'])
         finally:
             for key, value in old_env.items():

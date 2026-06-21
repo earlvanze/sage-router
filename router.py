@@ -334,6 +334,13 @@ MANAGED_PROVIDER_BYOK_ONLY_PROVIDER_FAMILIES = (
     'openrouter',
     'byok-compatible',
 )
+MANAGED_PROVIDER_FAMILY_LABELS = {
+    'ollama': 'Ollama',
+    'openai': 'OpenAI',
+    'anthropic': 'Anthropic',
+    'openrouter': 'OpenRouter',
+    'byok-compatible': 'BYOK-compatible gateways',
+}
 PUBLIC_LAUNCH_POSITIONING = {
     'targetMrrUsd': 10000,
     'primaryRevenueModel': 'hosted_routing_control_plane',
@@ -388,6 +395,14 @@ PUBLIC_LAUNCH_POSITIONING = {
         'allowedProviderFamilies': [],
         'resaleEligibleProviderFamilies': list(MANAGED_PROVIDER_RESALE_ELIGIBLE_PROVIDER_FAMILIES),
         'byokOnlyProviderFamilies': list(MANAGED_PROVIDER_BYOK_ONLY_PROVIDER_FAMILIES),
+        'providerFamilyReadiness': [],
+        'oneSubscriptionReadiness': {
+            'commercialPreference': 'one-subscription',
+            'enabled': False,
+            'readyProviderFamilies': [],
+            'blockedProviderFamilies': [],
+            'byokOnlyProviderFamilies': list(MANAGED_PROVIDER_BYOK_ONLY_PROVIDER_FAMILIES),
+        },
         'minimumGrossMarginPercent': 35,
         'costControls': [
             'per_plan_monthly_quotas',
@@ -2165,6 +2180,36 @@ def public_launch_metadata():
         missing_controls.append('positive_unit_economics')
     if not margin_ready:
         missing_controls.append('minimum_gross_margin')
+    provider_family_readiness = []
+    for family in (
+        *MANAGED_PROVIDER_RESALE_ELIGIBLE_PROVIDER_FAMILIES,
+        *MANAGED_PROVIDER_BYOK_ONLY_PROVIDER_FAMILIES,
+    ):
+        resale_eligible = family in MANAGED_PROVIDER_RESALE_ELIGIBLE_PROVIDER_FAMILIES
+        configured = family in configured_provider_families
+        byok_only = family in MANAGED_PROVIDER_BYOK_ONLY_PROVIDER_FAMILIES
+        family_missing_controls = []
+        if byok_only:
+            status = 'byok_supported_not_managed_resale'
+            family_missing_controls.append('provider_resale_authorization')
+        elif not configured:
+            status = 'not_allowlisted'
+            family_missing_controls.append('authorized_provider_allowlist')
+        elif managed_provider_ready:
+            status = 'ready_for_private_beta'
+        else:
+            status = 'blocked_global_controls'
+            family_missing_controls.extend(missing_controls)
+        provider_family_readiness.append({
+            'family': family,
+            'label': MANAGED_PROVIDER_FAMILY_LABELS.get(family, family),
+            'configured': configured,
+            'resaleEligible': resale_eligible,
+            'byokOnly': byok_only,
+            'ready': bool(resale_eligible and configured and managed_provider_ready),
+            'status': status,
+            'missingControls': sorted(set(family_missing_controls)),
+        })
     if managed_provider_resale_enabled:
         managed_provider_access['requested'] = True
         managed_provider_access['readinessSatisfied'] = managed_provider_ready
@@ -2185,6 +2230,24 @@ def public_launch_metadata():
     managed_provider_access['resaleEligibleProviderFamilies'] = list(MANAGED_PROVIDER_RESALE_ELIGIBLE_PROVIDER_FAMILIES)
     managed_provider_access['byokOnlyProviderFamilies'] = list(MANAGED_PROVIDER_BYOK_ONLY_PROVIDER_FAMILIES)
     managed_provider_access['byokOnlyConfiguredProviderFamilies'] = byok_only_configured_provider_families
+    managed_provider_access['providerFamilyReadiness'] = provider_family_readiness
+    managed_provider_access['oneSubscriptionReadiness'] = {
+        'commercialPreference': 'one-subscription',
+        'enabled': bool(managed_provider_access.get('enabled')),
+        'requested': bool(managed_provider_access.get('requested')),
+        'readyProviderFamilies': [
+            row['family'] for row in provider_family_readiness
+            if row.get('ready')
+        ],
+        'blockedProviderFamilies': [
+            row['family'] for row in provider_family_readiness
+            if not row.get('ready')
+        ],
+        'resaleEligibleProviderFamilies': list(MANAGED_PROVIDER_RESALE_ELIGIBLE_PROVIDER_FAMILIES),
+        'byokOnlyProviderFamilies': list(MANAGED_PROVIDER_BYOK_ONLY_PROVIDER_FAMILIES),
+        'managedAccessUrl': f"{MARKETING_BASE_URL}/managed-access",
+        'safeForPublicDisplay': True,
+    }
     managed_provider_access['providerBoundary'] = (
         'OpenRouter and other BYOK-compatible gateways remain supported routing providers, '
         'but they do not satisfy managed provider resale readiness unless separately promoted '
