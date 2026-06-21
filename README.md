@@ -775,7 +775,10 @@ Models are auto-discovered via `/v1/models`.
 
 OpenRouter remains a supported OpenAI-compatible provider. Configure it only
 with an authorized customer-controlled key; Sage Router does not sell bundled
-OpenRouter access.
+OpenRouter access. OpenRouter models stay discoverable and routable through
+the BYOK-compatible provider path, but OpenRouter does not count as a managed
+provider resale family for Sage Router subscription packaging unless a separate
+provider authorization is added later.
 
 ```json
 {

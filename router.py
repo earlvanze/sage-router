@@ -325,6 +325,15 @@ PUBLIC_MODEL_CATALOG = {
     ],
     'safetyBoundary': 'The public catalog is not a promise of bundled model resale. Provider access must be authorized by the customer or explicitly approved for managed access.',
 }
+MANAGED_PROVIDER_RESALE_ELIGIBLE_PROVIDER_FAMILIES = (
+    'ollama',
+    'openai',
+    'anthropic',
+)
+MANAGED_PROVIDER_BYOK_ONLY_PROVIDER_FAMILIES = (
+    'openrouter',
+    'byok-compatible',
+)
 PUBLIC_LAUNCH_POSITIONING = {
     'targetMrrUsd': 10000,
     'primaryRevenueModel': 'hosted_routing_control_plane',
@@ -375,7 +384,10 @@ PUBLIC_LAUNCH_POSITIONING = {
         ],
         'requiresPositiveUnitEconomics': True,
         'providerTermsAcknowledged': False,
+        'configuredProviderFamilies': [],
         'allowedProviderFamilies': [],
+        'resaleEligibleProviderFamilies': list(MANAGED_PROVIDER_RESALE_ELIGIBLE_PROVIDER_FAMILIES),
+        'byokOnlyProviderFamilies': list(MANAGED_PROVIDER_BYOK_ONLY_PROVIDER_FAMILIES),
         'minimumGrossMarginPercent': 35,
         'costControls': [
             'per_plan_monthly_quotas',
@@ -2103,10 +2115,18 @@ def public_launch_metadata():
     provider_terms_url = os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_URL', '').strip()
     margin_policy_url = os.environ.get('SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL', '').strip()
     provider_terms_acknowledged = str(os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED', '')).strip().lower() in {'1', 'true', 'yes', 'on'}
+    configured_provider_families = []
+    for item in os.environ.get('SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS', '').split(','):
+        normalized = item.strip().lower()
+        if normalized and normalized not in configured_provider_families:
+            configured_provider_families.append(normalized)
     allowed_provider_families = [
-        item.strip()
-        for item in os.environ.get('SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS', '').split(',')
-        if item.strip()
+        item for item in configured_provider_families
+        if item in MANAGED_PROVIDER_RESALE_ELIGIBLE_PROVIDER_FAMILIES
+    ]
+    byok_only_configured_provider_families = [
+        item for item in configured_provider_families
+        if item in MANAGED_PROVIDER_BYOK_ONLY_PROVIDER_FAMILIES
     ]
     min_margin = os.environ.get('SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT', '').strip()
     if min_margin:
@@ -2160,7 +2180,16 @@ def public_launch_metadata():
     managed_provider_access['missingControls'] = missing_controls
     managed_provider_access['providerTermsUrl'] = provider_terms_url
     managed_provider_access['providerTermsAcknowledged'] = provider_terms_acknowledged
+    managed_provider_access['configuredProviderFamilies'] = configured_provider_families
     managed_provider_access['allowedProviderFamilies'] = allowed_provider_families
+    managed_provider_access['resaleEligibleProviderFamilies'] = list(MANAGED_PROVIDER_RESALE_ELIGIBLE_PROVIDER_FAMILIES)
+    managed_provider_access['byokOnlyProviderFamilies'] = list(MANAGED_PROVIDER_BYOK_ONLY_PROVIDER_FAMILIES)
+    managed_provider_access['byokOnlyConfiguredProviderFamilies'] = byok_only_configured_provider_families
+    managed_provider_access['providerBoundary'] = (
+        'OpenRouter and other BYOK-compatible gateways remain supported routing providers, '
+        'but they do not satisfy managed provider resale readiness unless separately promoted '
+        'into the resale-eligible provider-family allowlist.'
+    )
     managed_provider_access['marginPolicyUrl'] = margin_policy_url
     managed_provider_access['unitEconomics'] = unit_economics
     managed_provider_access['acceptableUseUrl'] = f"{MARKETING_BASE_URL}/acceptable-use"

@@ -896,7 +896,20 @@ class SaaSAuthTests(unittest.TestCase):
             self.assertFalse(managed['unitEconomics']['satisfied'])
 
             os.environ['SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED'] = '1'
+            os.environ['SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS'] = 'openrouter'
+            os.environ['SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS'] = '1'
+            managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
+            self.assertFalse(managed['enabled'])
+            self.assertTrue(managed['requested'])
+            self.assertFalse(managed['readinessSatisfied'])
+            self.assertEqual(['openrouter'], managed['configuredProviderFamilies'])
+            self.assertEqual([], managed['allowedProviderFamilies'])
+            self.assertIn('openrouter', managed['byokOnlyProviderFamilies'])
+            self.assertEqual(['openrouter'], managed['byokOnlyConfiguredProviderFamilies'])
+            self.assertIn('authorized_provider_allowlist', managed['missingControls'])
+
             os.environ['SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS'] = 'ollama,openai,anthropic'
+            os.environ['SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS'] = '30'
             managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
             self.assertFalse(managed['enabled'])
             self.assertTrue(managed['requested'])

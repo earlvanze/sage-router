@@ -68,7 +68,9 @@ gross-margin threshold, a configured provider cost model with a positive value
 (`SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS`), durable quota and
 rate-limit enforcement, generated-key revocation, operator abuse review, and
 managed-access acceptable-use terms before it can be marketed as a launchable
-offer.
+offer. OpenRouter remains a supported BYOK-compatible provider and model
+discovery source, but it does not count as a managed subscription resale family
+unless separate provider authorization is added later.
 
 The public prerequisite pages at `/provider-resale-terms` and `/margin-policy`
 document the required legal and unit-economics boundaries for a future private

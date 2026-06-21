@@ -153,6 +153,7 @@
           <p class="muted">Managed provider access is not active in the public plans yet. It will stay disabled until Sage Router has explicit provider resale terms, a published margin policy, durable quotas and rate limits, durable operator audit events, and acceptable-use terms for managed model access.</p>
           <ul>
             <li>Default launch: customer-authorized providers and local models.</li>
+            <li>OpenRouter remains supported for customer-authorized BYOK routing, not bundled public resale.</li>
             <li>Future path: private-beta managed access after contract, billing, and abuse-control readiness checks pass.</li>
             <li>Readiness is exposed in the public <code>/pricing</code> metadata as <code>managedProviderAccess</code>.</li>
             <li>Positive unit economics must be backed by a configured cost model and plan-margin checks before bundled model access can become active.</li>
@@ -209,6 +210,7 @@
             <span>positive_unit_economics</span>
           </div>
           <p class="note">This checkpoint is public metadata only. It does not expose provider credentials, costs, OAuth tokens, customer prompts, raw responses, or generated API keys.</p>
+          <p class="note" id="managed-provider-boundary">OpenRouter and other BYOK-compatible gateways can be routed with authorized customer keys, but they do not satisfy the managed resale allowlist.</p>
         </div>
       </section>
     </main>
