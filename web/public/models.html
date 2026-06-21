@@ -22,6 +22,7 @@
       <div class="navLinks">
         <a href="/">Home</a>
         <a href="/quickstart">Quickstart</a>
+        <a href="/fusion">Fusion</a>
         <a href="/docs/codex">Codex</a>
         <a href="/pricing">Pricing</a>
         <a href="/compare/openrouter">Compare</a>
@@ -40,6 +41,7 @@
         <div class="actions">
           <a class="button primary" href="/account.html" data-model-event="model_catalog_account_clicked" data-model-button="create-key">Create hosted API key</a>
           <a class="button secondary" href="/quickstart" data-model-event="model_catalog_quickstart_clicked" data-model-button="quickstart">Read quickstart</a>
+          <a class="button secondary" href="/fusion" data-model-event="model_catalog_pricing_clicked" data-model-button="fusion">Fusion</a>
           <a class="button secondary" href="/docs/codex" data-model-event="model_catalog_codex_clicked" data-model-button="codex">Configure Codex</a>
           <a class="button secondary" href="https://api.sagerouter.dev/model-catalog" data-model-event="model_catalog_json_clicked" data-model-button="catalog-json">View catalog JSON</a>
           <a class="button secondary" href="/pricing" data-model-event="model_catalog_pricing_clicked" data-model-button="pricing">View pricing</a>
@@ -52,7 +54,7 @@
         <article class="card">
           <span class="pill">Profiles</span>
           <h3>Sage Router aliases</h3>
-          <p class="muted"><code>sage-router/auto</code>, <code>sage-router/balanced</code>, <code>sage-router/frontier</code>, <code>sage-router/agentic</code>, and premium <code>sage-router/fusion</code> keep clients stable while the router selects the best healthy backend.</p>
+          <p class="muted"><code>sage-router/auto</code>, <code>sage-router/balanced</code>, <code>sage-router/frontier</code>, <code>sage-router/agentic</code>, premium <code>sage-router/fusion</code>, and OpenRouter-compatible <code>openrouter/fusion</code> keep clients stable while the router selects the best healthy backend.</p>
         </article>
         <article class="card">
           <span class="pill">BYOK</span>
@@ -95,7 +97,7 @@
             <tr><th>Family</th><th>Example models</th><th>Access boundary</th></tr>
           </thead>
           <tbody>
-            <tr><td>Sage Router profiles</td><td><code>sage-router/auto</code>, <code>sage-router/frontier</code>, <code>sage-router/agentic</code>, <code>sage-router/fusion</code></td><td>Stable aliases select across authorized providers and healthy fallback routes. Fusion is a Pro/Max multi-model synthesis route.</td></tr>
+            <tr><td>Sage Router profiles</td><td><code>sage-router/auto</code>, <code>sage-router/frontier</code>, <code>sage-router/agentic</code>, <code>sage-router/fusion</code>, <code>openrouter/fusion</code></td><td>Stable aliases select across authorized providers and healthy fallback routes. Fusion is a Pro/Max multi-model synthesis route with a <a href="/fusion">dedicated guide</a>.</td></tr>
             <tr><td>OpenAI and Codex-compatible</td><td><code>gpt-5.5</code>, <code>gpt-5.4</code>, <code>gpt-5.4-mini</code></td><td>Bring an authorized API key or compatible Codex/OpenClaw auth profile. <a href="/docs/codex">Codex setup</a> supports hosted and local port <code>8790</code> profiles.</td></tr>
             <tr><td>Anthropic-compatible</td><td><code>claude-opus</code>, <code>claude-sonnet</code>, <code>claude-haiku</code></td><td>Bring authorized Anthropic/Dario access. Public plans do not pool personal accounts.</td></tr>
             <tr><td>Google Gemini</td><td><code>gemini-3-pro</code>, <code>gemini-3-flash</code>, <code>gemini-2.5-pro</code></td><td>Bring authorized Google API or Vertex credentials.</td></tr>
@@ -140,7 +142,7 @@
       openaiBaseUrl: 'https://api.sagerouter.dev/v1',
       apiKeyPrefix: 'sk_sage_',
       families: [
-        { id: 'sage-router-profiles', name: 'Sage Router profiles', examples: ['sage-router/auto', 'sage-router/balanced', 'sage-router/frontier', 'sage-router/agentic', 'sage-router/fusion'], access: 'Stable aliases select across authorized providers and healthy fallback routes. Fusion is a Pro/Max multi-model synthesis route.' },
+        { id: 'sage-router-profiles', name: 'Sage Router profiles', examples: ['sage-router/auto', 'sage-router/balanced', 'sage-router/frontier', 'sage-router/agentic', 'sage-router/fusion', 'openrouter/fusion'], access: 'Stable aliases select across authorized providers and healthy fallback routes. Fusion is a Pro/Max multi-model synthesis route.' },
         { id: 'openai-codex', name: 'OpenAI and Codex-compatible routes', examples: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'], access: 'Bring an authorized API key or compatible Codex/OpenClaw auth profile.' },
         { id: 'anthropic', name: 'Anthropic-compatible routes', examples: ['claude-opus', 'claude-sonnet', 'claude-haiku'], access: 'Bring authorized Anthropic/Dario access; hosted public plans do not pool personal provider accounts.' },
         { id: 'gemini', name: 'Google Gemini-compatible routes', examples: ['gemini-3-pro', 'gemini-3-flash', 'gemini-2.5-pro'], access: 'Bring authorized Google API or Vertex credentials.' },

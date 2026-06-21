@@ -74,6 +74,7 @@ The current public deployment is intentionally split:
 - `https://app.sagerouter.dev` is the hosted account/login surface, served by the same Cloudflare Pages project with Supabase Auth redirects pointed at this host.
 - `https://app.sagerouter.dev/status` is the public reliability page. It reads `/edge/health` and `/pricing` from the public API edge to show selected upstream ID, Tailnet/cloud backend class, CDN-style reliability evidence, lowest-latency retry failover policy, control-plane health, auth mode, rate-limit/quota enforcement, pre-auth generated-key attempt throttling, generated-key revocation posture, customer endpoint, plan limits, and secret-free billing readiness without exposing customer data, internal upstream URLs, Tailnet hostnames, Stripe price IDs, provider credentials, or secrets.
 - `https://sagerouter.dev/billing` is the dedicated billing recovery page. It explains Stripe checkout, Stripe billing portal, manual/crypto settlement, activation states, generated `sk_sage_*` key behavior before and after payment, payment recovery, and safe no-secret support context.
+- `https://sagerouter.dev/fusion` is the premium compound-model page. It documents `sage-router/fusion`, OpenRouter-compatible `openrouter/fusion`, the `openrouter:fusion` server tool, `tool_choice: "required"`, Pro/Max gating, and the `fusion_plan_required` upgrade path.
 - `https://sagerouter.dev/support` is the public support and billing help page. It routes customers to account setup, Stripe billing portal, manual/crypto settlement, quota/API-key troubleshooting, 503 reliability checks, security reporting, and abuse reporting while explicitly telling users not to send prompts, workflow text, provider credentials, OAuth tokens, API keys, private keys, cookies, raw provider responses, or customer data in public support channels.
 - `https://sagerouter.dev/managed-access` is the managed-provider-access private beta and Max implementation intake page. It captures contact plus allowlisted qualification buckets such as deployment preference, expected monthly routed request volume, provider access posture, target provider family, commercial preference, support need, and target launch window; it explains that managed access still requires provider authorization, provider terms acknowledgment, an authorized provider allowlist, a configured provider cost model, and plan-margin checks before activation; it does not collect prompts, workflow text, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, actual provider costs, or customer data.
 - `https://api.sagerouter.dev` is a Cloudflare-proxied GCP edge VM. The edge health-checks Tailnet Sage Router installs plus the Google-hosted Sage Router API origin, then routes to the lowest-latency healthy backend. Public health and response headers identify the edge layer and selected backend only with stable public IDs such as `upstream-1`, never configured upstream URLs or Tailnet hostnames.
@@ -136,6 +137,8 @@ Keep anonymous `/v1/*` traffic blocked at the edge. New users should reach accou
 
 ### Sage Router Fusion
 
+Dedicated onboarding: `https://sagerouter.dev/fusion`.
+
 Pro, Max, metered, manual, and operator-enabled customers can use
 `sage-router/fusion` as a premium compound model:
 
@@ -175,6 +178,9 @@ Ordinary function-tool workloads should keep using `sage-router/agentic` or
 provider/model IDs, elapsed times, status, plan, and auth type; it does not
 store prompts, panel answers, final answers, API keys, OAuth tokens, provider
 credentials, or raw provider responses.
+
+For OpenRouter migration tests, `openrouter/fusion` is accepted as a model alias
+and returns the canonical `sage-router/fusion` response shape.
 
 Hosted plan limits are exposed from `/pricing` and enforced at the public edge:
 

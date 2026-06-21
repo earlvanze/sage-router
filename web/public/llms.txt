@@ -6,6 +6,7 @@ Canonical site: https://sagerouter.dev/
 OpenRouter comparison: https://sagerouter.dev/compare/openrouter
 OpenRouter migration: https://sagerouter.dev/docs/openrouter-migration
 Hosted pricing: https://sagerouter.dev/pricing
+Fusion: https://sagerouter.dev/fusion
 Launch plan: https://sagerouter.dev/launch-plan
 Billing help: https://sagerouter.dev/billing
 Managed-access private beta: https://sagerouter.dev/managed-access
@@ -36,6 +37,7 @@ Docs: https://github.com/earlvanze/sage-router#readme
 - Supports local Ollama and Ollama Cloud today through Ollama running locally. Sage Router discovers available `:cloud` models, can auto-pull discovered cloud models, and routes between local Ollama, Ollama Cloud, NVIDIA NIM, and other cloud APIs according to policy and health.
 - Provides provider health, fallback, observability, and routing policy infrastructure for agents.
 - Hosted plans sell account management, API keys, usage quotas, analytics, reliability infrastructure, and premium Fusion synthesis on Pro/Max: Lite $6/month, Pro $30/month, and Max $72/month.
+- Dedicated Fusion onboarding lives at https://sagerouter.dev/fusion and documents `sage-router/fusion`, OpenRouter-compatible `openrouter/fusion`, the `openrouter:fusion` server tool, `tool_choice: "required"`, Pro/Max gating, and the `fusion_plan_required` upgrade path.
 - Billing help lives at https://sagerouter.dev/billing and explains Stripe checkout, Stripe billing portal, manual/crypto settlement, plan activation, payment recovery, generated `sk_sage_*` API-key behavior, and no-secret support boundaries.
 - API quickstart lives at https://sagerouter.dev/quickstart and shows `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, premium `sage-router/fusion`, curl, JavaScript, Python, and Codex setup.
 - OpenRouter migration lives at https://sagerouter.dev/docs/openrouter-migration and maps `OPENAI_BASE_URL=https://openrouter.ai/api/v1` to `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, premium `sage-router/fusion`, public model catalog discovery, and the provider terms boundary.

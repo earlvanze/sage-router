@@ -46,6 +46,7 @@
       <div class="navLinks">
         <a href="/">Home</a>
         <a href="/docs/openrouter-migration">Migration</a>
+        <a href="/fusion">Fusion</a>
         <a href="/model-routing-calculator">Calculator</a>
         <a href="/pricing">Pricing</a>
         <a href="/managed-access">Managed Access</a>
@@ -64,6 +65,7 @@
         <div class="actions">
           <a class="button primary" href="/account.html?plan=pro">Create hosted API key</a>
           <a class="button secondary" href="/docs/openrouter-migration">Migration guide</a>
+          <a class="button secondary" href="/fusion">Fusion compatibility</a>
           <a class="button secondary" href="/pricing">Compare plans</a>
           <a class="button secondary" href="https://github.com/earlvanze/sage-router">Run locally</a>
           <a class="button secondary" href="/status">View public edge status</a>
@@ -100,6 +102,7 @@
               <tr><td>Agent harness support</td><td>OpenAI-compatible, Anthropic-compatible, Codex, OpenClaw, Cursor, Aider, Continue, OpenHands, and harness fallback docs.</td><td>Strong hosted OpenAI-compatible API story.</td></tr>
               <tr><td>Local models</td><td><span class="good">First-class.</span> Route local Ollama and local/cloud hybrid profiles beside hosted providers.</td><td>Usually focused on remote hosted model providers.</td></tr>
               <tr><td>Provider selection</td><td>Policy, health, latency, capability, task intent, route profiles, and fallback chains.</td><td>Model catalog selection and provider routing through hosted infrastructure.</td></tr>
+              <tr><td>Fusion / compound answers</td><td><span class="good">Premium Pro/Max route.</span> Use <code>sage-router/fusion</code>, OpenRouter-compatible <code>openrouter/fusion</code>, or the <code>openrouter:fusion</code> server tool for panel-plus-judge synthesis.</td><td>OpenRouter Fusion exposes a hosted compound model and server tool for multi-model deliberation.</td></tr>
               <tr><td>Resilience model</td><td>Tailnet and edge routing can select the healthiest Sage Router installation and keep private routers behind the public API edge.</td><td>Depends on the hosted provider platform and upstream provider health.</td></tr>
               <tr><td>Hosted SaaS</td><td>Hosted signup, Stripe checkout, API keys, usage quotas, status page, analytics, and Supabase-backed auth.</td><td>Mature hosted account and billing experience.</td></tr>
               <tr><td>Best fit</td><td><span class="good">AI agents, teams with existing provider access, local-first deployments, private routing, and policy control.</span></td><td><span class="warn">Hosted model marketplace access with minimal local infrastructure.</span></td></tr>
@@ -148,6 +151,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       <a href="/">Home</a>
       <a href="/docs/openrouter-migration">Migration</a>
       <a href="/account.html">Account</a>
+      <a href="/fusion">Fusion</a>
       <a href="/pricing">Pricing</a>
       <a href="/status">Status</a>
       <a href="/model-routing-calculator">Calculator</a>

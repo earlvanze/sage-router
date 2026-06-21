@@ -57,7 +57,7 @@
         <article class="card">
           <span class="pill">OpenAI</span>
           <h3>Drop-in clients</h3>
-          <p class="muted">Point OpenAI-compatible SDKs and tools at <code>https://api.sagerouter.dev/v1</code>. Use <code>sage-router/frontier</code> as the first route profile, or <code>sage-router/fusion</code> on Pro/Max for judged multi-model synthesis.</p>
+          <p class="muted">Point OpenAI-compatible SDKs and tools at <code>https://api.sagerouter.dev/v1</code>. Use <code>sage-router/frontier</code> as the first route profile, or <code>sage-router/fusion</code> and OpenRouter-compatible <code>openrouter/fusion</code> on Pro/Max for judged multi-model synthesis.</p>
         </article>
         <article class="card">
           <span class="pill">Limits</span>
@@ -101,7 +101,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
               <td><code>POST /v1/chat/completions</code></td>
               <td>Generated key</td>
               <td>OpenAI-compatible chat completions with routing profiles and provider fallback.</td>
-              <td>Supports common chat client flows, including streaming-shaped compatibility responses. <code>sage-router/fusion</code> is a premium chat model, and <code>{"type":"openrouter:fusion"}</code> is accepted as an OpenRouter-compatible premium server tool for Pro/Max-style synthesis.</td>
+              <td>Supports common chat client flows, including streaming-shaped compatibility responses. <code>sage-router/fusion</code> and <code>openrouter/fusion</code> are premium chat model aliases, and <code>{"type":"openrouter:fusion"}</code> is accepted as an OpenRouter-compatible premium server tool for Pro/Max-style synthesis.</td>
             </tr>
             <tr>
               <td><code>POST /v1/responses</code></td>

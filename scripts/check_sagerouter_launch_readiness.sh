@@ -842,6 +842,8 @@ check_funnel_event_endpoint() {
   allowed_events="$(jq -r '
     ((.allowedEvents // []) | index("calculator_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("calculator_checkout_unavailable") != null) and
+    ((.allowedEvents // []) | index("fusion_viewed") != null) and
+    ((.allowedEvents // []) | index("fusion_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("openrouter_compare_migration_clicked") != null) and
     ((.allowedEvents // []) | index("account_snippet_copied") != null) and
     ((.allowedEvents // []) | index("account_support_context_copied") != null)
@@ -941,6 +943,45 @@ check_marketing_pricing_page() {
     pass "marketing hosted pricing page is live and in sitemap"
   else
     fail "marketing hosted pricing page incomplete: page=${page_code} sitemap=${sitemap_code}"
+  fi
+}
+
+check_marketing_fusion_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/fusion")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router Fusion" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "openrouter/fusion" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-openrouter-fusion-alias"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "openrouter:fusion" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-openrouter-fusion-tool"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "fusion_plan_required" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-fusion-plan-gate"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "fusion_checkout_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-funnel-event"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/fusion" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-fusion-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Fusion: ${MARKETING_BASE%/}/fusion" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-fusion-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing Fusion premium page is live in sitemap and LLM discovery"
+  else
+    fail "marketing Fusion premium page incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
   fi
 }
 
@@ -1696,6 +1737,7 @@ check_funnel_event_endpoint
 check_marketing_comparison_page
 check_marketing_openrouter_migration_page
 check_marketing_pricing_page
+check_marketing_fusion_page
 check_marketing_launch_plan_page
 check_marketing_billing_page
 check_marketing_managed_access_page

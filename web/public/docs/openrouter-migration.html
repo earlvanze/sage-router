@@ -64,7 +64,7 @@
             </tr>
             <tr>
               <td>Provider-prefixed model IDs from the hosted catalog</td>
-              <td>Start with <code>sage-router/frontier</code>; use <code>sage-router/fusion</code> on Pro/Max for premium synthesis.</td>
+              <td>Start with <code>sage-router/frontier</code>; use <code>sage-router/fusion</code> or OpenRouter-compatible <code>openrouter/fusion</code> on Pro/Max for premium synthesis.</td>
               <td>Provider-specific routes remain available only when your Sage Router profile has authorized provider access configured. Fusion fans out across eligible authorized routes and returns one judged answer.</td>
             </tr>
             <tr>
@@ -139,7 +139,7 @@ await client.chat.completions.create({
           <h3>Profile migration</h3>
           <ul>
             <li>Use <code>sage-router/frontier</code> for high-quality hosted agent work.</li>
-            <li>Use <code>sage-router/fusion</code> when Pro/Max prompts need a parallel panel plus judge synthesis.</li>
+            <li>Use <code>sage-router/fusion</code> or <code>openrouter/fusion</code> when Pro/Max prompts need a parallel panel plus judge synthesis. The dedicated Fusion page lives at <a href="/fusion">/fusion</a>.</li>
             <li>Existing OpenRouter Fusion tool calls can keep <code>{"type":"openrouter:fusion"}</code>; Sage Router handles that server tool before downstream provider routing and applies the same Fusion plan gate.</li>
             <li>Use <code>sage-router/local</code> when the router has local Ollama routes available.</li>
             <li>Use <a href="/models">model catalog</a> discovery before mapping provider-specific IDs.</li>

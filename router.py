@@ -32,7 +32,7 @@ LOCAL_STRICT_PROXY_PROVIDER_NAMES = {'dario', 'openai-codex'}
 LOCAL_STRICT_PROXY_API_TYPES = {'openclaw-gateway', 'openai-codex-responses'}
 LOCAL_STRICT_DECENTRALIZED_PROVIDER_NAMES = {'darkbloom'}
 SHOW_MODEL_PREFIX = os.environ.get('SAGE_ROUTER_SHOW_MODEL_PREFIX', '').strip().lower() in {'1', 'true', 'yes', 'on'}  # Show provider/model at start of final text responses by default
-FUSION_MODEL_ALIASES = {'fusion', 'sage-router/fusion'}
+FUSION_MODEL_ALIASES = {'fusion', 'sage-router/fusion', 'openrouter/fusion'}
 FUSION_SERVER_TOOL_TYPES = {'openrouter:fusion', 'sage-router:fusion'}
 FUSION_AUTO_TRIGGER_TERMS = (
     'compare',
@@ -5553,6 +5553,7 @@ MARKETING_SOURCE_SURFACE_BUCKETS = (
     'pricing',
     'model-routing-calculator',
     'quickstart',
+    'fusion',
     'compare-openrouter',
     'managed-access',
     'launch-plan',
@@ -5704,6 +5705,7 @@ def launch_acquisition_action(kind, bucket):
             'model-routing-calculator': 'Turn calculator interest into implementation calls and preselected Pro/Max checkout.',
             'model-catalog': 'Turn catalog demand into hosted key activation, route-profile proof, and model availability copy.',
             'quickstart': 'Use copyable quickstart snippets to convert generated-key users into first routed requests.',
+            'fusion': 'Convert Fusion page demand into Pro/Max checkout, OpenRouter-compatible migration proof, and first high-stakes synthesis requests.',
             'compare-openrouter': 'Route OpenRouter comparison traffic into the migration guide, model catalog, and hosted checkout.',
             'managed-access': 'Turn managed-access beta demand into authorization review, margin validation, and Max/BYOK activation.',
             'launch-plan': 'Turn launch-plan readers into Pro checkout, calculator qualification, or managed-access beta conversations.',
@@ -5757,6 +5759,11 @@ DEFAULT_LAUNCH_ACQUISITION_ACTIONS = (
         'kind': 'sourceSurface',
         'bucket': 'quickstart',
         'action': 'Use copyable quickstart snippets to convert generated-key users into first routed requests.',
+    },
+    {
+        'kind': 'sourceSurface',
+        'bucket': 'fusion',
+        'action': 'Drive OpenRouter Fusion evaluators into Pro/Max checkout and migration snippets.',
     },
     {
         'kind': 'sourceSurface',

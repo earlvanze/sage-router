@@ -2924,6 +2924,10 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('fusion_plan_required', handler.payload['error']['code'])
         self.assertEqual('lite', handler.payload['error']['plan'])
 
+    def test_openrouter_fusion_model_alias_is_accepted(self):
+        self.assertTrue(router.is_sage_router_fusion_request({'model': 'openrouter/fusion'}))
+        self.assertTrue(router.is_sage_router_fusion_request({'profile': 'fusion'}))
+
     def test_openrouter_fusion_server_tool_rejects_lite_generated_key_plan(self):
         class Dummy:
             def write_json(self, status, payload, extra_headers=None):
