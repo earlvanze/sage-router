@@ -5,7 +5,7 @@
 One endpoint. Any provider. The router figures out the rest.
 
 [![Umbrel](https://img.shields.io/badge/Umbrel-1.0.4-purple)](https://github.com/getumbrel/umbrel-apps/pull/5720)
-[![ClawHub](https://img.shields.io/badge/ClawHub-v4.157.4-blue)](https://clawhub.ai/earlvanze/sage-router)
+[![ClawHub](https://img.shields.io/badge/ClawHub-v4.157.5-blue)](https://clawhub.ai/earlvanze/sage-router)
 [![GitHub](https://img.shields.io/badge/GitHub-earlvanze%2Fsage--router-black)](https://github.com/earlvanze/sage-router)
 
 ---

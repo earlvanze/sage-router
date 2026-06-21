@@ -1,7 +1,7 @@
 ---
 name: sage-router
 description: Local-first AI model routing for serious agents. One endpoint. Any provider. The router figures out the rest.
-version: 4.157.4
+version: 4.157.5
 env:
   - SAGE_ROUTER_HOME (required: path to sage-router repo)
   - SAGE_ROUTER_DISABLED_PROVIDERS (optional: comma-separated provider names to suppress)
@@ -59,6 +59,7 @@ Flow:
 - rank candidates by API type, model-name hints, complexity, and measured latency
 - attempt the top `SAGE_ROUTER_MAX_PROVIDER_ATTEMPTS` candidates in order
 - `sage-router` provider (the router itself, model `auto`) is scored as a low-priority recursive fallback, never preferred
+- paid plans can request premium Fusion with `model: "sage-router/fusion"` or the OpenRouter-compatible server tool `{"type":"openrouter:fusion"}`; server-tool markers are handled before downstream provider routing and gated with the same plan checks
 
 Intent scoring is generic, for example:
 - code and analysis strongly favor Anthropic/OpenAI-style reasoning models
