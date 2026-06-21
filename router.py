@@ -1949,7 +1949,7 @@ def parse_provider_resale_cost_cents_per_thousand_requests():
         parsed = float(raw)
     except ValueError:
         return None
-    if parsed < 0:
+    if parsed <= 0:
         return None
     return parsed
 
@@ -1970,6 +1970,10 @@ def managed_provider_unit_economics(cost_cents_per_thousand, minimum_gross_margi
             'monthlyPriceUsd': monthly_price_usd,
             'revenueCentsPerThousandRequests': round(revenue_cents_per_thousand, 4),
             'minimumGrossMarginPercent': minimum_gross_margin_percent,
+            'maximumProviderCostCentsPerThousandRequests': round(
+                revenue_cents_per_thousand * max(0, 100 - minimum_gross_margin_percent) / 100.0,
+                4,
+            ),
         }
         if cost_configured and revenue_cents_per_thousand > 0:
             gross_margin = ((revenue_cents_per_thousand - cost_cents_per_thousand) / revenue_cents_per_thousand) * 100.0

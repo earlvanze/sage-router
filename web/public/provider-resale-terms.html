@@ -49,9 +49,9 @@
         <h2>Operational Controls Required</h2>
         <ul>
           <li>Durable monthly quotas, request-per-minute limits, and secret-free operator audit events must be enforced before managed access is enabled.</li>
-          <li>A configured provider cost model and public plan-margin checks must pass before bundled model access can become active.</li>
+          <li>A configured positive provider cost model and public plan-margin checks must pass before bundled model access can become active.</li>
           <li>Accounts, generated API keys, billing state, fraud risk, chargeback risk, and abuse signals may be reviewed before or after activation.</li>
-          <li>The public <a href="/pricing">pricing checkpoint</a> may show readiness status, missing controls, cost-model status, and per-plan margin status, but it must not expose provider credentials, provider accounts, upstream billing relationships, actual provider costs, prompts, or raw responses.</li>
+          <li>The public <a href="/pricing">pricing checkpoint</a> may show readiness status, missing controls, cost-model status, public revenue per 1,000 requests, derived maximum safe provider cost per plan, and per-plan margin status, but it must not expose provider credentials, provider accounts, upstream billing relationships, actual provider costs, prompts, or raw responses.</li>
           <li>Sage Router may throttle, suspend, degrade, change, or remove managed routes when provider capacity, authorization, safety, compliance, payment, margin, or cost-model controls require it.</li>
           <li>Private-beta customers may be limited to approved use cases, specific plans, manual onboarding, and lower initial quotas.</li>
         </ul>

@@ -189,12 +189,12 @@
           <div class="tableWrap">
             <table id="readiness-plan-table">
               <thead>
-                <tr><th>Plan</th><th>Public revenue / 1k requests</th><th>Managed-access margin status</th></tr>
+                <tr><th>Plan</th><th>Public revenue / 1k requests</th><th>Max safe provider cost / 1k</th><th>Managed-access margin status</th></tr>
               </thead>
               <tbody>
-                <tr><td>Lite</td><td>60 cents</td><td>Waiting on provider cost model</td></tr>
-                <tr><td>Pro</td><td>60 cents</td><td>Waiting on provider cost model</td></tr>
-                <tr><td>Max</td><td>36 cents</td><td>Waiting on provider cost model</td></tr>
+                <tr><td>Lite</td><td>60 cents</td><td>39 cents</td><td>Waiting on provider cost model</td></tr>
+                <tr><td>Pro</td><td>60 cents</td><td>39 cents</td><td>Waiting on provider cost model</td></tr>
+                <tr><td>Max</td><td>36 cents</td><td>23.4 cents</td><td>Waiting on provider cost model</td></tr>
               </tbody>
             </table>
           </div>
@@ -284,13 +284,15 @@
           const tr = document.createElement('tr');
           const plan = document.createElement('td');
           const revenue = document.createElement('td');
+          const maxCost = document.createElement('td');
           const margin = document.createElement('td');
           plan.textContent = String(row.plan || '').toUpperCase();
           revenue.textContent = formatCents(row.revenueCentsPerThousandRequests);
+          maxCost.textContent = formatCents(row.maximumProviderCostCentsPerThousandRequests);
           margin.textContent = row.meetsMinimumGrossMargin
             ? `Meets ${row.minimumGrossMarginPercent}% minimum`
             : (unitEconomics.costModelConfigured ? `Below ${row.minimumGrossMarginPercent}% minimum` : 'Waiting on provider cost model');
-          tr.append(plan, revenue, margin);
+          tr.append(plan, revenue, maxCost, margin);
           return tr;
         }));
       }

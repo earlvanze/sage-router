@@ -810,7 +810,9 @@ class SaaSAuthTests(unittest.TestCase):
         )
         plan_margins = {row['plan']: row for row in managed['unitEconomics']['evaluatedPlans']}
         self.assertEqual(60.0, plan_margins['lite']['revenueCentsPerThousandRequests'])
+        self.assertEqual(39.0, plan_margins['lite']['maximumProviderCostCentsPerThousandRequests'])
         self.assertEqual(36.0, plan_margins['max']['revenueCentsPerThousandRequests'])
+        self.assertEqual(23.4, plan_margins['max']['maximumProviderCostCentsPerThousandRequests'])
         self.assertIn('per_plan_monthly_quotas', managed['costControls'])
         self.assertIn('request_per_minute_limits', managed['costControls'])
         self.assertIn('durable_usage_accounting', managed['costControls'])
@@ -899,6 +901,16 @@ class SaaSAuthTests(unittest.TestCase):
             self.assertFalse(managed['readinessSatisfied'])
             self.assertEqual('requires_readiness_verification', managed['status'])
             self.assertIn('positive_unit_economics', managed['missingControls'])
+
+            os.environ['SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS'] = '0'
+            managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
+            self.assertFalse(managed['enabled'])
+            self.assertTrue(managed['requested'])
+            self.assertFalse(managed['readinessSatisfied'])
+            self.assertIn('provider_cost_model', managed['missingControls'])
+            self.assertIn('positive_unit_economics', managed['missingControls'])
+            self.assertFalse(managed['unitEconomics']['costModelConfigured'])
+            self.assertFalse(managed['unitEconomics']['satisfied'])
 
             os.environ['SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS'] = '1'
             managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
