@@ -11203,12 +11203,15 @@ class Handler(BaseHTTPRequestHandler):
             logger.warning("Client disconnected during audio streaming")
 
     def do_GET(self):
+        parsed_request = urllib.parse.urlparse(self.path or '')
+        request_path = parsed_request.path or '/'
+        query_params = urllib.parse.parse_qs(parsed_request.query)
         # Serve the bundled config dashboard when the browser hits the
         # root URL with an Accept: text/html header (Umbrel launches the
         # app at path: "" and expects the dashboard to come up).  Programmatic
         # clients that send Accept: application/json still get the JSON
         # root descriptor below.
-        if self.path in ('', '/') and 'text/html' in (self.headers.get('Accept') or ''):
+        if request_path in ('', '/') and 'text/html' in (self.headers.get('Accept') or ''):
             if not require_operator_request(self):
                 return
             try:
@@ -11224,7 +11227,7 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:
                 self.write_json(500, {'error': 'dashboard_not_found'})
             return
-        if self.path in ('', '/'):
+        if request_path in ('', '/'):
             self.write_json(200, {
                 "name": "Sage Router",
                 "status": "ok",
@@ -11252,7 +11255,7 @@ class Handler(BaseHTTPRequestHandler):
                 "docs": "https://sagerouter.dev",
                 "source": "https://github.com/earlvanze/sage-router"
             })
-        elif self.path == '/health':
+        elif request_path == '/health':
             self.write_json(200, {
                 "status": "ok",
                 "providers": available_provider_names(),
@@ -11302,11 +11305,11 @@ class Handler(BaseHTTPRequestHandler):
                 "lastRoute": LAST_ROUTE_DEBUG,
                 "blocks": {key: {"until": info["until"], "reason": info["reason"]} for key, info in TEMP_MODEL_BLOCKS.items()},
             })
-        elif self.path == '/setup/state':
+        elif request_path == '/setup/state':
             if not require_operator_request(self):
                 return
             self.write_json(200, setup_state_payload())
-        elif self.path == '/dashboard':
+        elif request_path == '/dashboard':
             if not require_operator_request(self):
                 return
             try:
@@ -11322,18 +11325,18 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:
                 self.write_json(500, {'error': 'dashboard_not_found'})
             return
-        elif self.path in {'/pricing', '/plans'}:
+        elif request_path in {'/pricing', '/plans'}:
             self.write_json(200, {**public_launch_metadata(), 'plans': public_plan_catalog(), 'agentNativeFeatures': PUBLIC_AGENT_NATIVE_FEATURES})
-        elif self.path == '/model-catalog':
+        elif request_path == '/model-catalog':
             self.write_json(200, {'modelCatalog': public_model_catalog(), **public_launch_metadata()})
-        elif self.path == '/features/agent-native':
+        elif request_path == '/features/agent-native':
             self.write_json(200, {'agentNativeFeatures': PUBLIC_AGENT_NATIVE_FEATURES})
-        elif self.path == '/account':
+        elif request_path == '/account':
             user, customer = require_user_customer(self)
             if not customer:
                 return
             self.write_json(200, {'customer': public_customer(customer), 'emailVerification': user_email_verification_state(user)})
-        elif self.path == '/account/plan':
+        elif request_path == '/account/plan':
             user, customer = require_user_customer(self)
             if not customer:
                 return
@@ -11346,7 +11349,7 @@ class Handler(BaseHTTPRequestHandler):
                 'plans': public_plan_catalog(),
                 **public_launch_metadata(),
             })
-        elif self.path == '/account/usage':
+        elif request_path == '/account/usage':
             user, customer = require_user_customer(self)
             if not customer:
                 return
@@ -11356,17 +11359,16 @@ class Handler(BaseHTTPRequestHandler):
                 'activation': account_activation_for_customer(customer, usage=usage),
                 'emailVerification': user_email_verification_state(user),
             })
-        elif self.path == '/account/api-keys':
+        elif request_path == '/account/api-keys':
             _user, customer = require_user_customer(self)
             if not customer:
                 return
             self.write_json(200, {'api_keys': [public_api_key(k, customer) for k in api_keys_for_customer(customer.get('id'))]})
-        elif self.path.startswith('/admin/customers'):
+        elif request_path.startswith('/admin/customers'):
             if not require_operator_request(self):
                 return
-            parsed = urllib.parse.urlparse(self.path)
-            parts = parsed.path.strip('/').split('/')
-            qs = urllib.parse.parse_qs(parsed.query)
+            parts = request_path.strip('/').split('/')
+            qs = query_params
             if len(parts) >= 3 and parts[2]:
                 customer_id = urllib.parse.unquote(parts[2])
                 customer = customer_by_id(customer_id)
@@ -11393,44 +11395,40 @@ class Handler(BaseHTTPRequestHandler):
                     'operatorOnly': True,
                 },
             })
-        elif self.path.startswith('/analytics/funnel'):
+        elif request_path.startswith('/analytics/funnel'):
             if not analytics_authorized(self):
                 self.write_json(401, {'error': 'unauthorized'})
                 return
-            parsed = urllib.parse.urlparse(self.path)
-            qs = urllib.parse.parse_qs(parsed.query)
+            qs = query_params
             days = float((qs.get('days') or ['30'])[0] or 30)
             limit = int((qs.get('limit') or [ANALYTICS_EVENT_LIMIT])[0] or ANALYTICS_EVENT_LIMIT)
             self.write_json(200, build_launch_funnel_snapshot(days * 24 * 3600, limit))
-        elif self.path.startswith('/analytics'):
+        elif request_path.startswith('/analytics'):
             if not analytics_authorized(self):
                 self.write_json(401, {'error': 'unauthorized'})
                 return
-            parsed = urllib.parse.urlparse(self.path)
-            qs = urllib.parse.parse_qs(parsed.query)
+            qs = query_params
             days = float((qs.get('days') or ['7'])[0] or 7)
             limit = int((qs.get('limit') or [ANALYTICS_EVENT_LIMIT])[0] or ANALYTICS_EVENT_LIMIT)
             self.write_json(200, build_analytics_snapshot(days * 24 * 3600, limit))
-        elif self.path.startswith('/account/analytics'):
+        elif request_path.startswith('/account/analytics'):
             user = authenticated_user(self)
             generated = verify_generated_api_key(bearer_token(self))
             customer = customer_for_user(user, create=False) if user else (generated or {}).get('customer')
             if not customer_is_active(customer):
                 self.write_json(401, {'error': 'unauthorized'})
                 return
-            parsed = urllib.parse.urlparse(self.path)
-            qs = urllib.parse.parse_qs(parsed.query)
+            qs = query_params
             days = float((qs.get('days') or ['7'])[0] or 7)
             limit = int((qs.get('limit') or [ANALYTICS_EVENT_LIMIT])[0] or ANALYTICS_EVENT_LIMIT)
             snapshot = build_analytics_snapshot(days * 24 * 3600, limit, customer_id=customer.get('id'))
             snapshot['account'] = {'customer_id': customer.get('id'), 'plan': customer.get('plan'), 'status': customer.get('status')}
             self.write_json(200, snapshot)
-        elif self.path.startswith('/billing/crypto/status'):
+        elif request_path.startswith('/billing/crypto/status'):
             _user, customer = require_user_customer(self)
             if not customer:
                 return
-            parsed = urllib.parse.urlparse(self.path)
-            qs = urllib.parse.parse_qs(parsed.query)
+            qs = query_params
             intent_id = (qs.get('id') or [''])[0]
             intent = (
                 payment_intent_for_customer(customer.get('id'), intent_id)
@@ -11444,21 +11442,21 @@ class Handler(BaseHTTPRequestHandler):
                 self.write_json(404, {'error': 'payment_intent_not_found'})
                 return
             self.write_json(200, {'intent': public_payment_intent(intent)})
-        elif self.path == '/admin/clear-blocks':
+        elif request_path == '/admin/clear-blocks':
             if not require_operator_request(self):
                 return
             count = len(TEMP_MODEL_BLOCKS)
             TEMP_MODEL_BLOCKS.clear()
             MODEL_HEALTH_CACHE.clear()
             self.write_json(200, {"cleared": count, "status": "ok"})
-        elif self.path == '/admin/blocks':
+        elif request_path == '/admin/blocks':
             if not require_operator_request(self):
                 return
             self.write_json(200, {
                 "blocks": {key: {"until": info["until"], "reason": info["reason"], "expiresInSeconds": max(0, info["until"] - time.time())} for key, info in TEMP_MODEL_BLOCKS.items()},
                 "count": len(TEMP_MODEL_BLOCKS)
             })
-        elif self.path == '/discovery':
+        elif request_path == '/discovery':
             if not require_operator_request(self):
                 return
             # Return discovered providers from GitHub manifests, CLI, and fallbacks
@@ -11506,7 +11504,7 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 "totalProviders": len(openclaw_file) + len(hermes_file)
             })
-        elif self.path.startswith('/v1beta/models') or self.path.startswith('/v1/models'):
+        elif request_path.startswith('/v1beta/models') or request_path.startswith('/v1/models'):
             if not client_request_authorized(self):
                 self.write_json(401, {'error': 'unauthorized'})
                 return
@@ -11528,7 +11526,9 @@ class Handler(BaseHTTPRequestHandler):
         self.do_GET()
 
     def do_POST(self):
-        if self.path == '/setup/provider':
+        parsed_request = urllib.parse.urlparse(self.path or '')
+        request_path = parsed_request.path or '/'
+        if request_path == '/setup/provider':
             if not require_operator_request(self):
                 return
             try:
@@ -11539,7 +11539,7 @@ class Handler(BaseHTTPRequestHandler):
                 logger.exception('Provider setup failed')
                 self.write_json(500, {'error': 'provider_setup_failed', 'detail': str(e)})
             return
-        if self.path == '/setup/codex-auth':
+        if request_path == '/setup/codex-auth':
             if not require_operator_request(self):
                 return
             try:
@@ -11552,7 +11552,7 @@ class Handler(BaseHTTPRequestHandler):
                 logger.exception('Codex auth setup failed')
                 self.write_json(500, {'error': 'codex_auth_setup_failed', 'detail': str(e)})
             return
-        if self.path == '/setup/codex-oauth/start':
+        if request_path == '/setup/codex-oauth/start':
             if not require_operator_request(self):
                 return
             try:
@@ -11563,7 +11563,7 @@ class Handler(BaseHTTPRequestHandler):
                 logger.exception('Codex OAuth start failed')
                 self.write_json(500, {'error': 'codex_oauth_start_failed', 'detail': str(e)})
             return
-        if self.path == '/setup/codex-oauth/poll':
+        if request_path == '/setup/codex-oauth/poll':
             if not require_operator_request(self):
                 return
             try:
@@ -11574,7 +11574,7 @@ class Handler(BaseHTTPRequestHandler):
                 logger.exception('Codex OAuth poll failed')
                 self.write_json(500, {'error': 'codex_oauth_poll_failed', 'detail': str(e)})
             return
-        if self.path == '/setup/codex-oauth/cancel':
+        if request_path == '/setup/codex-oauth/cancel':
             if not require_operator_request(self):
                 return
             try:
@@ -11582,7 +11582,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 self.write_json(200, {'status': 'cancelled'})
             return
-        if self.path == '/api/restart':
+        if request_path == '/api/restart':
             if not require_operator_request(self):
                 return
             # Restart the router process. Only honored in environments where
@@ -11606,12 +11606,12 @@ class Handler(BaseHTTPRequestHandler):
                     pass
             Thread(target=_die, daemon=True).start()
             return
-        if self.path.startswith('/admin/customers/') and self.path.endswith('/suspend'):
+        if request_path.startswith('/admin/customers/') and request_path.endswith('/suspend'):
             if not require_trusted_browser_origin(self):
                 return
             if not require_operator_request(self):
                 return
-            parts = self.path.split('/')
+            parts = request_path.split('/')
             customer_id = urllib.parse.unquote(parts[3] if len(parts) > 3 else '')
             if not customer_id:
                 self.write_json(400, {'error': 'customer_id_required'})
@@ -11631,12 +11631,12 @@ class Handler(BaseHTTPRequestHandler):
                 'status': 'suspended',
             })
             return
-        if self.path.startswith('/admin/customers/') and self.path.endswith('/unsuspend'):
+        if request_path.startswith('/admin/customers/') and request_path.endswith('/unsuspend'):
             if not require_trusted_browser_origin(self):
                 return
             if not require_operator_request(self):
                 return
-            parts = self.path.split('/')
+            parts = request_path.split('/')
             customer_id = urllib.parse.unquote(parts[3] if len(parts) > 3 else '')
             if not customer_id:
                 self.write_json(400, {'error': 'customer_id_required'})
@@ -11661,12 +11661,12 @@ class Handler(BaseHTTPRequestHandler):
                 'status': customer.get('status') or 'inactive',
             })
             return
-        if self.path.startswith('/admin/payment-intents/') and self.path.endswith('/approve'):
+        if request_path.startswith('/admin/payment-intents/') and request_path.endswith('/approve'):
             if not require_trusted_browser_origin(self):
                 return
             if not require_operator_request(self):
                 return
-            parts = self.path.split('/')
+            parts = request_path.split('/')
             intent_id = urllib.parse.unquote(parts[3] if len(parts) > 3 else '')
             if not intent_id:
                 self.write_json(400, {'error': 'payment_intent_id_required'})
@@ -11697,7 +11697,7 @@ class Handler(BaseHTTPRequestHandler):
                 'status': intent.get('status') or 'settled_manual_review',
             })
             return
-        if self.path == '/account/api-keys':
+        if request_path == '/account/api-keys':
             if not require_trusted_browser_origin(self):
                 return
             user, customer = require_user_customer(self)
@@ -11721,13 +11721,13 @@ class Handler(BaseHTTPRequestHandler):
                 raise
             self.write_json(201, {'api_key': public_api_key(row, customer), 'key': raw_key})
             return
-        if self.path.startswith('/account/api-keys/') and self.path.endswith('/revoke'):
+        if request_path.startswith('/account/api-keys/') and request_path.endswith('/revoke'):
             if not require_trusted_browser_origin(self):
                 return
             _user, customer = require_user_customer(self)
             if not customer:
                 return
-            key_id = self.path.split('/')[3]
+            key_id = request_path.split('/')[3]
             existing_key = next((row for row in api_keys_for_customer(customer.get('id')) if row.get('id') == key_id), None)
             row = revoke_api_key_for_customer(customer.get('id'), key_id)
             if not row:
@@ -11746,7 +11746,7 @@ class Handler(BaseHTTPRequestHandler):
                 )
             self.write_json(200, {'api_key': public_api_key(row, customer), 'auditEvent': audit_event})
             return
-        if self.path == '/billing/stripe/checkout':
+        if request_path == '/billing/stripe/checkout':
             if not require_trusted_browser_origin(self):
                 return
             user, customer = require_user_customer(self)
@@ -11794,7 +11794,7 @@ class Handler(BaseHTTPRequestHandler):
                 logger.warning(f'Stripe checkout failed: {extract_http_error(e)}')
                 self.write_json(502, {'error': 'stripe_checkout_failed'})
             return
-        if self.path == '/billing/stripe/portal':
+        if request_path == '/billing/stripe/portal':
             if not require_trusted_browser_origin(self):
                 return
             _user, customer = require_user_customer(self)
@@ -11817,7 +11817,7 @@ class Handler(BaseHTTPRequestHandler):
                 logger.warning(f'Stripe billing portal failed: {extract_http_error(e)}')
                 self.write_json(502, {'error': 'stripe_portal_failed'})
             return
-        if self.path == '/billing/stripe/webhook':
+        if request_path == '/billing/stripe/webhook':
             length = int(self.headers.get('Content-Length', 0) or 0)
             raw = self.rfile.read(length) if length else b'{}'
             if not STRIPE_WEBHOOK_SECRET:
@@ -11881,7 +11881,7 @@ class Handler(BaseHTTPRequestHandler):
             store_stripe_webhook_event(event, customer_id=customer_id)
             self.write_json(200, {'received': True, 'event_id': event_id})
             return
-        if self.path == '/billing/crypto/intent':
+        if request_path == '/billing/crypto/intent':
             if not require_trusted_browser_origin(self):
                 return
             user, customer = require_user_customer(self)
@@ -11918,12 +11918,12 @@ class Handler(BaseHTTPRequestHandler):
             self.write_json(201, {'intent': public_payment_intent(intent)})
             return
 
-        audio_kind = audio_endpoint_kind(self.path)
+        audio_kind = audio_endpoint_kind(request_path)
         model_endpoint = (
-            self.path in ['/v1/responses', '/responses', '/v1/chat/completions', '/chat/completions', '/v1/messages', '/messages', '/v1/realtime', '/realtime']
+            request_path in ['/v1/responses', '/responses', '/v1/chat/completions', '/chat/completions', '/v1/messages', '/messages', '/v1/realtime', '/realtime']
             or bool(audio_kind)
-            or ':generateContent' in self.path
-            or ':streamGenerateContent' in self.path
+            or ':generateContent' in request_path
+            or ':streamGenerateContent' in request_path
         )
         auth_context = None
         if model_endpoint:
@@ -11934,7 +11934,7 @@ class Handler(BaseHTTPRequestHandler):
             set_route_auth_context(auth_context)
 
         try:
-            if self.path in ['/v1/responses', '/responses']:
+            if request_path in ['/v1/responses', '/responses']:
                 body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
                 request_id = uuid.uuid4().hex[:8]
                 started = time.time()
@@ -11944,7 +11944,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     logger.exception(f"[{request_id}] Responses request handling failed")
                     self.write_json(500, {"error": str(e)}, extra_headers={'X-Sage-Router-Request-Id': request_id})
-            elif self.path in ['/v1/chat/completions', '/chat/completions']:
+            elif request_path in ['/v1/chat/completions', '/chat/completions']:
                 body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
                 request_id = uuid.uuid4().hex[:8]
                 started = time.time()
@@ -11954,12 +11954,12 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     logger.exception(f"[{request_id}] Request handling failed")
                     self.write_json(500, {"error": str(e)}, extra_headers={'X-Sage-Router-Request-Id': request_id})
-            elif self.path in ['/v1/messages', '/messages']:
+            elif request_path in ['/v1/messages', '/messages']:
                 body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
                 request_id = uuid.uuid4().hex[:8]
                 started = time.time()
                 handle_anthropic_messages(self, body, request_id, started)
-            elif self.path in ['/v1/realtime', '/realtime']:
+            elif request_path in ['/v1/realtime', '/realtime']:
                 # Ultra-low-latency realtime endpoint with aggressive streaming
                 body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
                 request_id = uuid.uuid4().hex[:8]
@@ -11981,10 +11981,10 @@ class Handler(BaseHTTPRequestHandler):
                 body = self.rfile.read(int(content_length))
                 request_id = uuid.uuid4().hex[:8]
                 proxy_audio_request(self, audio_kind, body, request_id)
-            elif ':generateContent' in self.path or ':streamGenerateContent' in self.path:
+            elif ':generateContent' in request_path or ':streamGenerateContent' in request_path:
                 # Google Generative AI compat: /v1beta/models/{model}:generateContent
                 import re
-                match = re.match(r'.*/models/([^:]+):(generateContent|streamGenerateContent)', self.path)
+                match = re.match(r'.*/models/([^:]+):(generateContent|streamGenerateContent)', request_path)
                 if match:
                     body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
                     request_id = uuid.uuid4().hex[:8]

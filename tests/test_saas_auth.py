@@ -836,6 +836,31 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('authorized_provider_allowlist', managed['costControls'])
         self.assertEqual('https://sagerouter.dev/acceptable-use', managed['acceptableUseUrl'])
 
+    def test_public_get_routes_ignore_cachebuster_query_strings(self):
+        class Dummy:
+            def __init__(self, path):
+                self.path = path
+                self.headers = {}
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        cases = {
+            '/pricing?cb=deploy-smoke': 'publicLaunch',
+            '/plans?utm_source=pages': 'plans',
+            '/model-catalog?cb=deploy-smoke': 'modelCatalog',
+            '/features/agent-native?preview=true': 'agentNativeFeatures',
+        }
+        for path, expected_key in cases.items():
+            handler = Dummy(path)
+            router.Handler.do_GET(handler)
+
+            self.assertEqual(200, handler.status, path)
+            self.assertIn(expected_key, handler.payload, path)
+
     def test_public_model_catalog_is_safe_discovery_metadata(self):
         catalog = router.public_model_catalog()
 
