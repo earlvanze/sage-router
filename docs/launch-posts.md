@@ -118,6 +118,55 @@ Codex guide: https://github.com/earlvanze/sage-router/blob/master/docs/integrati
 
 How are you handling failover between local Ollama and cloud providers today?
 
+
+## Indie Hackers
+
+**Title:** Launched Sage Router — open-source local-first AI model router for agents
+
+**Body:**
+
+I just launched Sage Router, an open-source local-first routing layer for AI agents.
+
+One OpenAI/Anthropic-compatible endpoint. It picks the best model per request by task type, capability, latency, and policy, then fails over across your own providers with no mid-stream handoff.
+
+The angle: routing is local-first infrastructure for access you already control, not a hosted marketplace. Your provider keys stay on your machine by default. The core is free and open source (MIT). Sage Cloud (paid) adds team config sync, health monitoring, dashboards, and a reliability layer — no model resale.
+
+- Repo: https://github.com/earlvanze/sage-router
+- Site: https://sagerouter.dev
+- vs OpenRouter: https://sagerouter.dev/vs-openrouter.html
+- Pricing: free / lite $6 / pro $30 / max $72 + metered
+
+Happy to answer questions on routing policy, the custody model, and how it differs from OpenRouter.
+
+## Dev.to
+
+**Title:** Showoff Saturday: Sage Router — open-source local-first AI model router with automatic provider failover
+
+**Tags:** `#ai`, `#opensource`, `#routing`, `#ollama`, `#selfhosted`, `#agents`
+
+**Body:**
+
+I open-sourced Sage Router, the model router I run between my agent tools and my providers.
+
+Sage Router is a local-first routing layer: one OpenAI/Anthropic-compatible endpoint that selects the best model per request by task type, capability, latency, and policy, then fails over across your own providers with no mid-stream handoff.
+
+The bet: routing is local-first infrastructure for access you already control, not a hosted marketplace. Your provider keys stay on your machine by default. The core is free and open source (MIT). Sage Cloud (paid) adds team config sync, health monitoring, dashboards, and a reliability layer — no model resale.
+
+- Repo: https://github.com/earlvanze/sage-router
+- Site: https://sagerouter.dev
+- vs OpenRouter: https://sagerouter.dev/vs-openrouter.html
+
+30-second start:
+
+```bash
+python3 router.py --port 8790
+export OPENAI_BASE_URL=http://localhost:8790/v1
+export OPENAI_API_KEY=local-router
+codex --model openai/gpt-4.1
+```
+
+What's your current provider-failover setup? Genuinely curious what people cobbled together.
+
 ## X / Twitter (thread)
 
 1/ I open-sourced Sage Router: a local-first AI model router for agents. One endpoint. Any provider. It picks the best model per request and fails over when a provider dies.
