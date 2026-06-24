@@ -96,12 +96,17 @@ API `input` items, images nested in tool calls/results, or `data:image/` URIs)
 set a `vision` requirement via a deep payload scan. Vision requests are routed
 strictly to image-capable models:
 
-- non-vision models are rejected (`vision unsupported`)
-- GLM-family models (`glm-5`, `glm-5.2`, `glm-4v`, `autoglm`, …) are hard-excluded
-  from image routing even when a variant nominally claims vision
-- if a forced provider/profile only offers non-vision or GLM models, profile
-  allow-lists (`allowProviders`/`allowModels`/`frontierLargeOnly`) are relaxed so
-  an image-capable model serves instead of failing
+- non-vision (text-only) models are rejected (`vision unsupported`) — this
+  excludes text-only GLM models such as `glm-5` / `glm-5.2:cloud`
+- genuinely image-capable GLM variants (e.g. `glm-4v`) are allowed
+- if a forced provider/profile only offers non-vision models, profile allow-lists
+  (`allowProviders`/`allowModels`/`frontierLargeOnly`) are relaxed so an
+  image-capable model serves instead of failing
+
+`GET /health` exposes `imageCapable`: the exact models currently treated as
+image/vision-capable (per provider, flagged `glm` for GLM-family variants), so
+operators can see which models image requests may route to. The dashboard Health
+card renders this summary.
 
 ## Routing Logic
 

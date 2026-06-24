@@ -522,6 +522,17 @@
       if (health.dario) {
         healthHtml += `<div class="stat"><span class="stat-label">Dario (Anthropic)</span><span class="stat-value" style="color:${health.dario.reachable ? 'var(--success)' : 'var(--danger)'}">${health.dario.reachable ? '✓' : '✗'} ${health.dario.autostart ? 'auto' : 'manual'}</span></div>`;
       }
+      if (health.imageCapable && Object.keys(health.imageCapable).length) {
+        const imgEntries = Object.entries(health.imageCapable);
+        const totalImg = imgEntries.reduce((n, [, ms]) => n + (ms.length || 0), 0);
+        healthHtml += `<div class="stat"><span class="stat-label">Image-capable models</span><span class="stat-value" style="color:var(--accent)">${totalImg} across ${imgEntries.length} provider(s)</span></div>`;
+        healthHtml += imgEntries.map(([prov, ms]) => {
+          const tags = (ms || []).slice(0, 12).map(m => `<span class="model-tag" style="${m.glm ? 'border:1px solid var(--warning);' : ''}">${escapeHtml(m.id)}${m.glm ? ' ·glm' : ''}</span>`).join('');
+          return `<div class="models" style="margin-top:6px"><strong>${escapeHtml(prov)}</strong> ${tags}${(ms||[]).length > 12 ? `<span class="model-tag">+${ms.length-12} more</span>` : ''}</div>`;
+        }).join('');
+      } else {
+        healthHtml += `<div class="stat"><span class="stat-label">Image-capable models</span><span class="stat-value" style="color:var(--warning)">none — image requests will fail</span></div>`;
+      }
       document.getElementById('health').innerHTML = healthHtml || '<div style="color:#888">No health data</div>';
       // Analytics
       const a = analytics || {};

@@ -4416,13 +4416,12 @@ def model_meets_requirements(provider, model, requirements, estimated_tokens):
     if requirements.get('frontierOrReasoningTools') and not (model_is_frontier_large(model) or (caps['reasoning'] and caps['tools'])):
         return False, 'requires frontier large model or reasoning+tools'
     if requirements.get('vision'):
+        # Route image requests strictly to genuinely image-capable models.
+        # Text-only GLM models (glm-5, glm-5.2:cloud, ...) are rejected here
+        # because they are not vision-capable; image-capable GLM variants
+        # (e.g. glm-4v) pass this check and may serve vision requests.
         if not caps['vision']:
             return False, 'vision unsupported'
-        # GLM-family models must never serve image/vision requests, even when a
-        # variant nominally claims vision. Route image requests strictly to
-        # other image-capable models.
-        if is_glm_model(model):
-            return False, 'glm excluded from image routing'
     if requirements.get('document') and not caps['document']:
         return False, 'document parsing unsupported'
     if requirements.get('streaming') and not caps['streaming']:
@@ -9406,6 +9405,36 @@ def ensure_background_refresh_started():
     BACKGROUND_REFRESH_STARTED = True
 
 
+def image_capable_models_summary():
+    """Diagnostic: which models are currently treated as image/vision-capable.
+
+    Returns {provider: [{id, glm, reasoning, reachable}]} for every model whose
+    `model_capabilities` reports vision support. Used by /health so operators can
+    see exactly which models image requests may route to (including image-capable
+    GLM variants such as glm-4v).
+    """
+    summary = {}
+    for name, provider in PROVIDERS.items():
+        if name in DISABLED_PROVIDERS:
+            continue
+        reachable = provider_endpoint_reachable(provider)
+        models = []
+        for model in dedupe_keep_order(provider.models or []):
+            caps = model_capabilities(provider, model)
+            if not caps.get('vision'):
+                continue
+            models.append({
+                'id': model,
+                'glm': is_glm_model(model),
+                'reasoning': bool(caps.get('reasoning')),
+                'servable': bool(caps.get('servable')),
+                'reachable': reachable,
+            })
+        if models:
+            summary[name] = models
+    return summary
+
+
 def reasoning_capabilities_summary():
     summary = {}
     for name, provider in PROVIDERS.items():
@@ -12182,6 +12211,7 @@ class Handler(BaseHTTPRequestHandler):
                     if provider.api_type == 'ollama'
                 },
                 "reasoningCapabilities": reasoning_capabilities_summary(),
+                "imageCapable": image_capable_models_summary(),
                 "lastRoute": LAST_ROUTE_DEBUG,
                 "blocks": {key: {"until": info["until"], "reason": info["reason"]} for key, info in TEMP_MODEL_BLOCKS.items()},
             })

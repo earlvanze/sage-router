@@ -86,13 +86,14 @@ class VisionRoutingTests(unittest.TestCase):
         router.TEMP_MODEL_BLOCKS.clear()
         router.TEMP_MODEL_BLOCKS.update(self._old_blocks)
 
-    def test_glm_rejected_for_vision_even_if_vision_capable(self):
+    def test_image_capable_glm_allowed_for_vision(self):
+        # Image-capable GLM variants (e.g. glm-4v / glm-5v) may serve vision
+        # requests again; only text-only GLM models are excluded.
         prov = router.PROVIDERS['ollama-cloud']
         prov.models.append('glm-5v:cloud')
         prov.model_meta['glm-5v:cloud'] = {**prov.model_meta['glm-5.2:cloud'], 'input': ['text', 'image'], 'supportsVision': True}
         ok, reason = router.model_meets_requirements(prov, 'glm-5v:cloud', {'vision': True}, 100)
-        self.assertFalse(ok)
-        self.assertIn('glm', reason)
+        self.assertTrue(ok, f'image-capable GLM should be allowed for vision: {reason}')
 
     def test_non_vision_glm_rejected_for_vision(self):
         prov = router.PROVIDERS['ollama-cloud']
@@ -117,11 +118,14 @@ class VisionRoutingTests(unittest.TestCase):
             requested_model='glm-5.2:cloud',
         )
         self.assertTrue(chain, 'expected a vision fallback chain, got empty')
+        # The forced provider only has text-only GLM, so the relaxed fallback
+        # must land on a vision-capable non-text-glm model (openai).
         for pn, model in chain:
-            self.assertFalse(router.is_glm_model(model), f'GLM routed for image request: {pn}/{model}')
+            caps = router.model_capabilities(router.PROVIDERS[pn], model)
+            self.assertTrue(caps.get('vision'), f'non-vision model in image chain: {pn}/{model}')
         self.assertEqual(chain[0][0], 'openai')
 
-    def test_prepare_route_auto_avoids_glm_for_vision(self):
+    def test_prepare_route_auto_only_uses_vision_models(self):
         _m, _i, _c, _t, chain = router.prepare_route(
             _img_msg(),
             request_id='test-vision-auto',
@@ -130,7 +134,25 @@ class VisionRoutingTests(unittest.TestCase):
         )
         self.assertTrue(chain)
         for pn, model in chain:
-            self.assertFalse(router.is_glm_model(model), f'GLM routed for image request: {pn}/{model}')
+            caps = router.model_capabilities(router.PROVIDERS[pn], model)
+            self.assertTrue(caps.get('vision'), f'non-vision model in image chain: {pn}/{model}')
+
+    def test_image_capable_models_summary_lists_vision_models(self):
+        summary = router.image_capable_models_summary()
+        self.assertIn('openai', summary)
+        ids = [m['id'] for m in summary['openai']]
+        self.assertIn('gpt-5.4', ids)
+        # Text-only GLM models must NOT appear as image-capable.
+        glm_text = [m for m in summary.get('ollama-cloud', []) if m['id'] in ('glm-5.2:cloud', 'glm-5:cloud')]
+        self.assertEqual(glm_text, [])
+        # An image-capable GLM variant should appear, flagged as glm.
+        prov = router.PROVIDERS['ollama-cloud']
+        prov.models.append('glm-5v:cloud')
+        prov.model_meta['glm-5v:cloud'] = {**prov.model_meta['glm-5.2:cloud'], 'input': ['text', 'image'], 'supportsVision': True}
+        summary2 = router.image_capable_models_summary()
+        glm_vis = [m for m in summary2.get('ollama-cloud', []) if m['id'] == 'glm-5v:cloud']
+        self.assertEqual(len(glm_vis), 1)
+        self.assertTrue(glm_vis[0]['glm'])
 
 
 if __name__ == '__main__':
