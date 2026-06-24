@@ -89,6 +89,20 @@ OpenAI (`openai-completions`/`openai-codex-responses`), and Anthropic
 - `providers`: reachable providers with model lists
 - `disabled`: providers suppressed by env
 
+## Image / vision routing
+
+Requests carrying image inputs (chat `image_url`/`input_image` blocks, Responses
+API `input` items, images nested in tool calls/results, or `data:image/` URIs)
+set a `vision` requirement via a deep payload scan. Vision requests are routed
+strictly to image-capable models:
+
+- non-vision models are rejected (`vision unsupported`)
+- GLM-family models (`glm-5`, `glm-5.2`, `glm-4v`, `autoglm`, …) are hard-excluded
+  from image routing even when a variant nominally claims vision
+- if a forced provider/profile only offers non-vision or GLM models, profile
+  allow-lists (`allowProviders`/`allowModels`/`frontierLargeOnly`) are relaxed so
+  an image-capable model serves instead of failing
+
 ## Routing Logic
 
 The router does **not** perform mid-stream switching. Once a request is sent to a provider, the full response is returned or the attempt fails. If it fails, the next candidate in the chain is tried sequentially. There is no partial-output fallback or streaming handoff between providers.

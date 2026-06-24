@@ -2122,11 +2122,11 @@ def payload_document_signal(payload):
 def payload_vision_signal(payload):
     blocks = _content_blocks(payload)
     for block in blocks:
-        btype = str(block.get('type') or '').lower()
-        mime = str(block.get('mime_type') or block.get('mimeType') or block.get('media_type') or block.get('mediaType') or '').lower()
-        if btype in {'image', 'image_url', 'input_image'} or mime.startswith('image/'):
+        if _block_is_image_input(block):
             return True
-    return False
+    # Deep scan catches images nested in Responses `input`, tool calls/results,
+    # and other structures that _content_blocks (messages-only) does not reach.
+    return payload_has_image_input(payload)
 
 
 def payload_quality_sensitive_signal(payload):
@@ -2982,6 +2982,69 @@ def is_multimodal_model(model: str) -> bool:
     if any(model_l.endswith(suffix) for suffix in (':vl', '-vl', '_vl', '-vision', ':vision')):
         return True
     return False
+
+
+def is_glm_model(model: str) -> bool:
+    """True for any GLM-family model (glm-5, glm-5.2, glm-4v, autoglm, glmocr, ...)."""
+    return 'glm' in (model or '').lower()
+
+
+IMAGE_INPUT_BLOCK_TYPES = {'image', 'image_url', 'input_image', 'input_file'}
+
+
+def _block_is_image_input(block):
+    if not isinstance(block, dict):
+        return False
+    btype = str(block.get('type') or '').lower()
+    if btype in IMAGE_INPUT_BLOCK_TYPES:
+        # input_file counts only when it carries image mime/data
+        if btype == 'input_file':
+            mime = str(block.get('mime_type') or block.get('mimeType') or block.get('media_type') or block.get('mediaType') or '').lower()
+            return mime.startswith('image/') or bool(block.get('image_url'))
+        return True
+    mime = str(block.get('mime_type') or block.get('mimeType') or block.get('media_type') or block.get('mediaType') or '').lower()
+    if mime.startswith('image/'):
+        return True
+    # Bare image_url / image fields pointing at image data
+    for key in ('image_url', 'image', 'url'):
+        val = block.get(key)
+        if isinstance(val, dict):
+            val = val.get('url') or val.get('image_url')
+        if isinstance(val, str) and (val.startswith('data:image/') or '/image' in val.lower()):
+            return True
+    return False
+
+
+def payload_has_image_input(payload):
+    """Deep scan any payload shape (chat messages, Responses `input`, tool
+    messages/results) for image inputs. Catches image tool requests where
+    images live inside tool calls or Responses-API item arrays."""
+    seen = set()
+
+    def visit(node):
+        if id(node) in seen:
+            return False
+        seen.add(id(node))
+        if isinstance(node, dict):
+            if _block_is_image_input(node):
+                return True
+            for v in node.values():
+                if visit(v):
+                    return True
+        elif isinstance(node, list):
+            for item in node:
+                if visit(item):
+                    return True
+        elif isinstance(node, str):
+            if node.startswith('data:image/'):
+                return True
+        return False
+
+    try:
+        return visit(payload)
+    except Exception:
+        return False
+
 
 
 
@@ -4352,8 +4415,14 @@ def model_meets_requirements(provider, model, requirements, estimated_tokens):
         return False, 'tools unsupported'
     if requirements.get('frontierOrReasoningTools') and not (model_is_frontier_large(model) or (caps['reasoning'] and caps['tools'])):
         return False, 'requires frontier large model or reasoning+tools'
-    if requirements.get('vision') and not caps['vision']:
-        return False, 'vision unsupported'
+    if requirements.get('vision'):
+        if not caps['vision']:
+            return False, 'vision unsupported'
+        # GLM-family models must never serve image/vision requests, even when a
+        # variant nominally claims vision. Route image requests strictly to
+        # other image-capable models.
+        if is_glm_model(model):
+            return False, 'glm excluded from image routing'
     if requirements.get('document') and not caps['document']:
         return False, 'document parsing unsupported'
     if requirements.get('streaming') and not caps['streaming']:
@@ -11605,6 +11674,20 @@ def prepare_route(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_
             score_debug = [{'provider': force_provider, 'model': model, 'score': 100} for _, model in chain]
             rejections = forced_rejections
             logger.info(f"[{request_id}] Chain (forced): {chain}")
+            # Image/vision requests must route strictly to image-capable models.
+            # If the forced provider/profile only offered non-vision or GLM
+            # models, relax profile allow-lists and re-select globally so an
+            # image-capable model can serve instead of failing.
+            if requirements.get('vision') and not chain:
+                relaxed = dict(requirements)
+                relaxed.pop('allowProviders', None)
+                relaxed.pop('allowModels', None)
+                relaxed.pop('frontierLargeOnly', None)
+                fb_chain, fb_scores, fb_rejections = select_model(intent, complexity, thinking, route_mode, relaxed, estimated_tokens)
+                if fb_chain:
+                    logger.info(f"[{request_id}] Forced provider had no image-capable model; vision-relaxed fallback chain: {fb_chain}")
+                    LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': fb_chain, 'scores': fb_scores[:12], 'rejections': (forced_rejections + fb_rejections)[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider, 'visionRelaxed': True})
+                    return normalized_messages, intent, complexity, estimated_tokens, fb_chain
             LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug, 'rejections': rejections[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider})
             return normalized_messages, intent, complexity, estimated_tokens, chain
     
