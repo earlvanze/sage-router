@@ -2129,6 +2129,76 @@ def payload_vision_signal(payload):
     return payload_has_image_input(payload)
 
 
+AUDIO_INPUT_BLOCK_TYPES = {'input_audio', 'audio', 'audio_url'}
+VIDEO_INPUT_BLOCK_TYPES = {'input_video', 'video', 'video_url'}
+
+
+def _block_is_audio_input(block):
+    if not isinstance(block, dict):
+        return False
+    btype = str(block.get('type') or '').lower()
+    if btype in AUDIO_INPUT_BLOCK_TYPES:
+        return True
+    mime = str(block.get('mime_type') or block.get('mimeType') or block.get('media_type') or block.get('mediaType') or '').lower()
+    if mime.startswith('audio/'):
+        return True
+    return False
+
+
+def _block_is_video_input(block):
+    if not isinstance(block, dict):
+        return False
+    btype = str(block.get('type') or '').lower()
+    if btype in VIDEO_INPUT_BLOCK_TYPES:
+        return True
+    mime = str(block.get('mime_type') or block.get('mimeType') or block.get('media_type') or block.get('mediaType') or '').lower()
+    if mime.startswith('video/'):
+        return True
+    return False
+
+
+def _payload_has_block_type(payload, predicate):
+    seen = set()
+    def visit(node):
+        if id(node) in seen:
+            return False
+        seen.add(id(node))
+        if isinstance(node, dict):
+            if predicate(node):
+                return True
+            for v in node.values():
+                if visit(v):
+                    return True
+        elif isinstance(node, list):
+            for item in node:
+                if visit(item):
+                    return True
+        elif isinstance(node, str):
+            if node.startswith('data:audio/') and predicate.__name__ == '_block_is_audio_input':
+                return True
+            if node.startswith('data:video/') and predicate.__name__ == '_block_is_video_input':
+                return True
+        return False
+    try:
+        return visit(payload)
+    except Exception:
+        return False
+
+
+def payload_audio_signal(payload):
+    for block in _content_blocks(payload):
+        if _block_is_audio_input(block):
+            return True
+    return _payload_has_block_type(payload, _block_is_audio_input)
+
+
+def payload_video_signal(payload):
+    for block in _content_blocks(payload):
+        if _block_is_video_input(block):
+            return True
+    return _payload_has_block_type(payload, _block_is_video_input)
+
+
 def payload_quality_sensitive_signal(payload):
     if not isinstance(payload, dict):
         return False
@@ -2168,6 +2238,8 @@ def normalize_requirements(payload, thinking_level=DEFAULT_THINKING_LEVEL):
     requested_stream = bool(payload.get('stream'))
     document_signal = bool(req.get('document') or payload.get('requiresDocumentParsing') or payload_document_signal(payload))
     vision_signal = bool(req.get('vision') or payload.get('requiresVision') or payload_vision_signal(payload))
+    audio_signal = bool(req.get('audio') or payload.get('requiresAudio') or payload_audio_signal(payload))
+    video_signal = bool(req.get('video') or payload.get('requiresVideo') or payload_video_signal(payload))
     normalized = {
         'reasoning': bool(req.get('reasoning') or payload.get('requiresReasoning') or requires_reasoning),
         'json': bool(req.get('json') or payload.get('requiresJson')),
@@ -2176,6 +2248,8 @@ def normalize_requirements(payload, thinking_level=DEFAULT_THINKING_LEVEL):
         'longContext': bool(req.get('longContext') or payload.get('requiresLongContext') or document_signal),
         'document': document_signal,
         'vision': vision_signal,
+        'audio': audio_signal,
+        'video': video_signal,
         'streaming': bool(explicit_streaming or (requested_stream and not has_tools)),
         'qualitySensitive': bool(req.get('qualitySensitive') or payload.get('requiresQuality') or payload_quality_sensitive_signal(payload)),
         'frontierOrReasoningTools': bool(req.get('frontierOrReasoningTools') or payload.get('requiresFrontierOrReasoningTools')),
@@ -4368,6 +4442,8 @@ def model_capabilities(provider, model):
         'tools': bool(meta.get('supportsTools', default_tools)),
         'streaming': bool(meta.get('supportsStreaming', default_streaming)),
         'vision': bool(meta.get('supportsVision') or ('image' in (meta.get('input') or [])) or is_multimodal_model(model)),
+        'audio': bool(meta.get('supportsAudio') or ('audio' in (meta.get('input') or []))),
+        'video': bool(meta.get('supportsVideo') or ('video' in (meta.get('input') or []))),
         # Document parsing here means extracted-text document work. Native binary PDF ingestion
         # is still handled by OpenClaw/pdf tooling before it reaches this router.
         'document': bool(meta.get('supportsDocument') or meta.get('supportsFiles') or default_chat),
@@ -4422,6 +4498,10 @@ def model_meets_requirements(provider, model, requirements, estimated_tokens):
         # (e.g. glm-4v) pass this check and may serve vision requests.
         if not caps['vision']:
             return False, 'vision unsupported'
+    if requirements.get('audio') and not caps.get('audio'):
+        return False, 'audio input unsupported'
+    if requirements.get('video') and not caps.get('video'):
+        return False, 'video input unsupported'
     if requirements.get('document') and not caps['document']:
         return False, 'document parsing unsupported'
     if requirements.get('streaming') and not caps['streaming']:
@@ -9405,14 +9485,8 @@ def ensure_background_refresh_started():
     BACKGROUND_REFRESH_STARTED = True
 
 
-def image_capable_models_summary():
-    """Diagnostic: which models are currently treated as image/vision-capable.
-
-    Returns {provider: [{id, glm, reasoning, reachable}]} for every model whose
-    `model_capabilities` reports vision support. Used by /health so operators can
-    see exactly which models image requests may route to (including image-capable
-    GLM variants such as glm-4v).
-    """
+def _capable_models_summary(cap_key):
+    """Generic diagnostic: models whose model_capabilities[cap_key] is true."""
     summary = {}
     for name, provider in PROVIDERS.items():
         if name in DISABLED_PROVIDERS:
@@ -9421,7 +9495,7 @@ def image_capable_models_summary():
         models = []
         for model in dedupe_keep_order(provider.models or []):
             caps = model_capabilities(provider, model)
-            if not caps.get('vision'):
+            if not caps.get(cap_key):
                 continue
             models.append({
                 'id': model,
@@ -9429,10 +9503,25 @@ def image_capable_models_summary():
                 'reasoning': bool(caps.get('reasoning')),
                 'servable': bool(caps.get('servable')),
                 'reachable': reachable,
+                'audio': bool(caps.get('audio')),
+                'video': bool(caps.get('video')),
             })
         if models:
             summary[name] = models
     return summary
+
+
+def image_capable_models_summary():
+    """Which models are currently treated as image/vision-capable (incl. image-capable GLM variants)."""
+    return _capable_models_summary('vision')
+
+
+def audio_capable_models_summary():
+    return _capable_models_summary('audio')
+
+
+def video_capable_models_summary():
+    return _capable_models_summary('video')
 
 
 def reasoning_capabilities_summary():
@@ -9808,7 +9897,7 @@ def apply_router_profile(payload):
     req = payload.get('requirements')
     if not isinstance(req, dict):
         req = {}
-    for key in ('qualitySensitive', 'reasoning', 'tools', 'preferTools', 'json', 'vision', 'document', 'longContext', 'frontierOrReasoningTools', 'suppressToolCallContent', 'agentic'):
+    for key in ('qualitySensitive', 'reasoning', 'tools', 'preferTools', 'json', 'vision', 'audio', 'video', 'document', 'longContext', 'frontierOrReasoningTools', 'suppressToolCallContent', 'agentic'):
         if key in profile:
             req[key] = bool(profile.get(key))
     if profile.get('suppressIntermediateToolText'):
@@ -10260,6 +10349,28 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
 
 def payload_tools_soft_preference(requirements):
     return bool((requirements or {}).get('preferTools'))
+
+MODALITY_REQUIREMENT_KEYS = ('vision', 'audio', 'video', 'document', 'ocr')
+
+
+def has_modality_requirement(requirements):
+    requirements = requirements or {}
+    return any(requirements.get(k) for k in MODALITY_REQUIREMENT_KEYS)
+
+
+def modality_relaxed_requirements(requirements):
+    """Drop profile allow-lists/size gates that block capable multimodal models.
+
+    Keeps safety deny-lists (denyModels/denyProviders) and the modality
+    requirements themselves; removes allowProviders/allowModels/frontierLargeOnly
+    /minParamsB so a vision/audio/video/document-capable model can serve when a
+    profile (e.g. auto/agentic) would otherwise leave no capable candidate.
+    """
+    relaxed = dict(requirements or {})
+    for key in ('allowProviders', 'allowModels', 'frontierLargeOnly', 'minParamsB'):
+        relaxed.pop(key, None)
+    return relaxed
+
 
 def select_model(intent, complexity, thinking=DEFAULT_THINKING_LEVEL, route_mode='balanced', requirements=None, estimated_tokens=0):
     """Score ALL models across ALL providers globally, then rank.
@@ -11707,20 +11818,28 @@ def prepare_route(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_
             # If the forced provider/profile only offered non-vision or GLM
             # models, relax profile allow-lists and re-select globally so an
             # image-capable model can serve instead of failing.
-            if requirements.get('vision') and not chain:
-                relaxed = dict(requirements)
-                relaxed.pop('allowProviders', None)
-                relaxed.pop('allowModels', None)
-                relaxed.pop('frontierLargeOnly', None)
+            if has_modality_requirement(requirements) and not chain:
+                relaxed = modality_relaxed_requirements(requirements)
                 fb_chain, fb_scores, fb_rejections = select_model(intent, complexity, thinking, route_mode, relaxed, estimated_tokens)
                 if fb_chain:
-                    logger.info(f"[{request_id}] Forced provider had no image-capable model; vision-relaxed fallback chain: {fb_chain}")
-                    LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': fb_chain, 'scores': fb_scores[:12], 'rejections': (forced_rejections + fb_rejections)[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider, 'visionRelaxed': True})
+                    logger.info(f"[{request_id}] Forced provider had no multimodal-capable model; modality-relaxed fallback chain: {fb_chain}")
+                    LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': fb_chain, 'scores': fb_scores[:12], 'rejections': (forced_rejections + fb_rejections)[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider, 'modalityRelaxed': True})
                     return normalized_messages, intent, complexity, estimated_tokens, fb_chain
             LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug, 'rejections': rejections[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider})
             return normalized_messages, intent, complexity, estimated_tokens, chain
     
     chain, score_debug, rejections = select_model(intent, complexity, thinking, route_mode, requirements, estimated_tokens)
+    # auto/agentic profiles constrain allowProviders/allowModels/frontierLargeOnly.
+    # If a multimodal (image/audio/video/document) request has no capable model
+    # under those constraints, relax them and re-select globally so the request
+    # routes to a capable model instead of failing.
+    if has_modality_requirement(requirements) and not chain:
+        relaxed = modality_relaxed_requirements(requirements)
+        fb_chain, fb_scores, fb_rejections = select_model(intent, complexity, thinking, route_mode, relaxed, estimated_tokens)
+        if fb_chain:
+            chain, score_debug = fb_chain, fb_scores
+            rejections = (rejections + fb_rejections)
+            logger.info(f"[{request_id}] Profile had no multimodal-capable model; modality-relaxed fallback chain: {chain}")
     LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug[:12], 'rejections': rejections[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None})
     logger.info(f"[{request_id}] Chain: {chain} (no mid-stream switching; each candidate tried sequentially until one succeeds)")
     return normalized_messages, intent, complexity, estimated_tokens, chain
@@ -12212,6 +12331,8 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 "reasoningCapabilities": reasoning_capabilities_summary(),
                 "imageCapable": image_capable_models_summary(),
+                "audioCapable": audio_capable_models_summary(),
+                "videoCapable": video_capable_models_summary(),
                 "lastRoute": LAST_ROUTE_DEBUG,
                 "blocks": {key: {"until": info["until"], "reason": info["reason"]} for key, info in TEMP_MODEL_BLOCKS.items()},
             })

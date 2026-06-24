@@ -64,6 +64,8 @@ class VisionRoutingTests(unittest.TestCase):
                             'supportsTools': True, 'supportsJson': True, 'reasoning': True}
         vis_meta = lambda: {'input': ['text', 'image'], 'supportsVision': True, 'supportsChat': True,
                             'supportsTools': True, 'supportsJson': True, 'reasoning': True}
+        aud_meta = lambda: {**vis_meta(), 'input': ['text', 'image', 'audio'], 'supportsAudio': True}
+        vid_meta = lambda: {**vis_meta(), 'input': ['text', 'image', 'video'], 'supportsVideo': True}
         router.PROVIDERS = {
             'ollama-cloud': router.Provider(
                 'ollama-cloud', 'ollama', 'https://ollama.com', 'k',
@@ -72,8 +74,13 @@ class VisionRoutingTests(unittest.TestCase):
             ),
             'openai': router.Provider(
                 'openai', 'openai-completions', 'https://api.openai.com/v1', 'sk',
-                ['gpt-5.4', 'gpt-4o'],
-                model_meta={'gpt-5.4': vis_meta(), 'gpt-4o': {**vis_meta(), 'reasoning': False}},
+                ['gpt-5.4', 'gpt-4o', 'gpt-4o-audio', 'gpt-4o-video'],
+                model_meta={
+                    'gpt-5.4': vis_meta(),
+                    'gpt-4o': {**vis_meta(), 'reasoning': False},
+                    'gpt-4o-audio': aud_meta(),
+                    'gpt-4o-video': vid_meta(),
+                },
             ),
         }
 
@@ -153,6 +160,97 @@ class VisionRoutingTests(unittest.TestCase):
         glm_vis = [m for m in summary2.get('ollama-cloud', []) if m['id'] == 'glm-5v:cloud']
         self.assertEqual(len(glm_vis), 1)
         self.assertTrue(glm_vis[0]['glm'])
+
+
+
+class MultimodalInputTests(unittest.TestCase):
+    def setUp(self):
+        self._old_providers = router.PROVIDERS
+        self._old_disabled = set(router.DISABLED_PROVIDERS)
+        self._old_fetch = router.fetch_ollama_models
+        self._old_reach = router.provider_endpoint_reachable
+        self._old_blocks = dict(router.TEMP_MODEL_BLOCKS)
+        router.DISABLED_PROVIDERS.clear()
+        router.fetch_ollama_models = lambda provider: provider.models
+        router.provider_endpoint_reachable = lambda provider: True
+        router.TEMP_MODEL_BLOCKS.clear()
+        txt = lambda: {'input': ['text'], 'supportsVision': False, 'supportsChat': True,
+                       'supportsTools': True, 'supportsJson': True, 'reasoning': True}
+        vis = lambda: {**txt(), 'input': ['text', 'image'], 'supportsVision': True}
+        aud = lambda: {**vis(), 'input': ['text', 'image', 'audio'], 'supportsAudio': True}
+        vid = lambda: {**vis(), 'input': ['text', 'image', 'video'], 'supportsVideo': True}
+        router.PROVIDERS = {
+            'ollama-cloud': router.Provider('ollama-cloud', 'ollama', 'https://ollama.com', 'k',
+                                            ['glm-5.2:cloud'], model_meta={'glm-5.2:cloud': txt()}),
+            'openai': router.Provider('openai', 'openai-completions', 'https://api.openai.com/v1', 'sk',
+                                      ['gpt-5.4', 'gpt-4o-audio', 'gpt-4o-video'],
+                                      model_meta={'gpt-5.4': vis(), 'gpt-4o-audio': aud(), 'gpt-4o-video': vid()}),
+        }
+
+    def tearDown(self):
+        router.PROVIDERS = self._old_providers
+        router.DISABLED_PROVIDERS.clear()
+        router.DISABLED_PROVIDERS.update(self._old_disabled)
+        router.fetch_ollama_models = self._old_fetch
+        router.provider_endpoint_reachable = self._old_reach
+        router.TEMP_MODEL_BLOCKS.clear()
+        router.TEMP_MODEL_BLOCKS.update(self._old_blocks)
+
+    def test_audio_input_detected(self):
+        payload = {'messages': [{'role': 'user', 'content': [
+            {'type': 'text', 'text': 'transcribe'},
+            {'type': 'input_audio', 'input_audio': {'data': 'data:audio/wav;base64,UklGR'}}]}]}
+        self.assertTrue(router.payload_audio_signal(payload))
+        req = router.normalize_requirements(payload, router.ThinkingLevel.LOW)
+        self.assertTrue(req['audio'])
+
+    def test_video_input_detected(self):
+        payload = {'messages': [{'role': 'user', 'content': [
+            {'type': 'input_video', 'video_url': 'https://x/clip.mp4'}]}]}
+        self.assertTrue(router.payload_video_signal(payload))
+        req = router.normalize_requirements(payload, router.ThinkingLevel.LOW)
+        self.assertTrue(req['video'])
+
+    def test_audio_routes_to_audio_capable_model(self):
+        prov = router.PROVIDERS['openai']
+        ok, _ = router.model_meets_requirements(prov, 'gpt-4o-audio', {'audio': True}, 100)
+        self.assertTrue(ok)
+        # text-only GLM cannot serve audio
+        glm = router.PROVIDERS['ollama-cloud']
+        ok2, reason = router.model_meets_requirements(glm, 'glm-5.2:cloud', {'audio': True}, 100)
+        self.assertFalse(ok2)
+
+    def test_auto_profile_relaxes_for_vision(self):
+        # auto-style profile constraints restrict to ollama-cloud (text-only GLM);
+        # a vision request must relax and route to a vision-capable provider.
+        _m, _i, _c, _t, chain = router.prepare_route(
+            [{'role': 'user', 'content': [
+                {'type': 'text', 'text': 'describe this image'},
+                {'type': 'image_url', 'image_url': {'url': 'https://x/y.png'}}]}],
+            request_id='test-auto-vision',
+            route_mode='best',
+            requirements={'vision': True, 'allowProviders': ['ollama-cloud'], 'frontierLargeOnly': True},
+        )
+        self.assertTrue(chain)
+        for pn, model in chain:
+            self.assertTrue(router.model_capabilities(router.PROVIDERS[pn], model).get('vision'),
+                            f'non-vision model in image chain: {pn}/{model}')
+        self.assertEqual(chain[0][0], 'openai')
+
+    def test_auto_profile_relaxes_for_audio(self):
+        _m, _i, _c, _t, chain = router.prepare_route(
+            [{'role': 'user', 'content': [
+                {'type': 'text', 'text': 'transcribe this'},
+                {'type': 'input_audio', 'input_audio': {'data': 'data:audio/wav;base64,UklGR'}}]}],
+            request_id='test-auto-audio',
+            route_mode='best',
+            requirements={'audio': True, 'allowProviders': ['ollama-cloud']},
+        )
+        self.assertTrue(chain)
+        for pn, model in chain:
+            self.assertTrue(router.model_capabilities(router.PROVIDERS[pn], model).get('audio'),
+                            f'non-audio model in audio chain: {pn}/{model}')
+        self.assertEqual(chain[0][1], 'gpt-4o-audio')
 
 
 if __name__ == '__main__':

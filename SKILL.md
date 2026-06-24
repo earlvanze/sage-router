@@ -89,24 +89,34 @@ OpenAI (`openai-completions`/`openai-codex-responses`), and Anthropic
 - `providers`: reachable providers with model lists
 - `disabled`: providers suppressed by env
 
-## Image / vision routing
+## Multimodal input routing
 
-Requests carrying image inputs (chat `image_url`/`input_image` blocks, Responses
-API `input` items, images nested in tool calls/results, or `data:image/` URIs)
-set a `vision` requirement via a deep payload scan. Vision requests are routed
-strictly to image-capable models:
+Requests carrying multimodal inputs are detected via a deep payload scan (chat
+content blocks, Responses API `input` items, tool calls/results, and `data:`
+URIs) and set the corresponding requirement:
 
-- non-vision (text-only) models are rejected (`vision unsupported`) — this
-  excludes text-only GLM models such as `glm-5` / `glm-5.2:cloud`
-- genuinely image-capable GLM variants (e.g. `glm-4v`) are allowed
-- if a forced provider/profile only offers non-vision models, profile allow-lists
-  (`allowProviders`/`allowModels`/`frontierLargeOnly`) are relaxed so an
-  image-capable model serves instead of failing
+- images (`image_url` / `input_image` / `data:image/`) -> `vision`
+- audio (`input_audio` / `audio` / `data:audio/`) -> `audio`
+- video (`input_video` / `video` / `data:video/`) -> `video`
+- documents/files -> `document` (and `longContext`)
 
-`GET /health` exposes `imageCapable`: the exact models currently treated as
-image/vision-capable (per provider, flagged `glm` for GLM-family variants), so
-operators can see which models image requests may route to. The dashboard Health
-card renders this summary.
+Routing is strictly capability-based. `model_capabilities` reports `vision`,
+`audio`, and `video` from each model's declared `input` modalities / flags, and
+`model_meets_requirements` rejects models that lack the required modality:
+
+- text-only GLM models (`glm-5`, `glm-5.2:cloud`) are rejected for image requests
+  (`vision unsupported`); image-capable GLM variants (e.g. `glm-4v`) are allowed
+- audio/video inputs route only to models declaring that input modality
+
+`auto` and `agentic` profiles constrain `allowProviders`/`allowModels`/
+`frontierLargeOnly`. When a multimodal request has no capable model under those
+constraints, the router relaxes the profile allow-lists (keeping safety
+deny-lists) and re-selects globally in both the forced-provider and auto-route
+paths, so multimodal requests route to a capable model instead of failing.
+
+`GET /health` exposes `imageCapable`, `audioCapable`, and `videoCapable`: the
+exact models currently treated as capable of each modality (per provider, GLM
+flagged). The dashboard Health card renders all three summaries.
 
 ## Routing Logic
 
