@@ -650,7 +650,7 @@ DEFAULT_THINKING_LEVEL = ThinkingLevel.HIGH
 
 @dataclass
 class Provider:
-    name: str; api_type: str; base_url: str; api_key: str; models: List[str]; reasoning_models: set[str] | None = None; model_meta: dict[str, dict[str, Any]] | None = None
+    name: str; api_type: str; base_url: str; api_key: str; models: List[str]; reasoning_models: set[str] | None = None; model_meta: dict[str, dict[str, Any]] | None = None; credentials: list[dict[str, Any]] | None = None; credential_strategy: str = ''
 
 
 def dedupe_keep_order(items):
@@ -671,6 +671,8 @@ def merge_provider(providers, provider):
         return
     merged_meta = dict(existing.model_meta or {})
     merged_meta.update(provider.model_meta or {})
+    merged_creds = dedupe_credentials((existing.credentials or []) + (provider.credentials or []))
+    merged_strategy = provider.credential_strategy or existing.credential_strategy or ''
     providers[provider.name] = Provider(
         provider.name,
         provider.api_type or existing.api_type,
@@ -679,12 +681,356 @@ def merge_provider(providers, provider):
         dedupe_keep_order((existing.models or []) + (provider.models or [])),
         set(existing.reasoning_models or set()) | set(provider.reasoning_models or set()),
         merged_meta,
+        merged_creds,
+        merged_strategy,
     )
 
 def resolve_config_value(value):
     if isinstance(value, str) and value.startswith('${') and value.endswith('}'):
         return os.environ.get(value[2:-1], '')
     return value
+
+
+# ---------------------------------------------------------------------------
+# Multi-credential support: a provider may carry an ordered pool of
+# credentials (multiple API keys and/or multiple OAuth subscription paths).
+# The pool is failover-ordered: the router tries credentials in order and
+# falls over to the next on auth/quota/transient failures. The legacy single
+# `apiKey` field is preserved as the first credential for backward compat.
+# ---------------------------------------------------------------------------
+
+CRED_FAILOVER_HTTP_CODES = {'401', '402', '403', '404', '408', '409', '418', '425', '429', '500', '502', '503', '504'}
+CRED_FAILOVER_TERMS = (
+    'unauthorized', 'forbidden', 'rate limit', 'rate_limit', 'ratelimit',
+    'quota', 'insufficient_quota', 'billing', 'overloaded', 'capacity',
+    'temporarily unavailable', 'timed out', 'timeout', 'connection reset',
+    'connection refused', 'auth', 'invalid api key', 'invalid_api_key',
+    'expired', 'revoked', 'permission',
+)
+
+
+def normalize_credential(raw):
+    """Normalize a raw config credential entry into a canonical dict.
+
+    Accepts either a plain string (treated as an API key) or a dict with
+    type/label/key/accessToken/refreshToken/expires/profile fields.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        raw = raw.strip()
+        if not raw:
+            return None
+        return {'type': 'api_key', 'label': '', 'key': raw}
+    if not isinstance(raw, dict):
+        return None
+    cred = dict(raw)
+    ctype = str(cred.get('type') or '').strip().lower() or 'api_key'
+    label = str(cred.get('label') or cred.get('name') or '').strip()
+    if ctype == 'oauth':
+        access = str(cred.get('accessToken') or cred.get('access') or cred.get('token') or '').strip()
+        if not access and cred.get('key'):
+            access = str(cred.get('key')).strip()
+        if not access:
+            return None
+        return {
+            'type': 'oauth',
+            'label': label,
+            'accessToken': access,
+            'refreshToken': str(cred.get('refreshToken') or cred.get('refresh') or '').strip(),
+            'expires': int(cred.get('expires') or 0),
+            'profile': str(cred.get('profile') or '').strip(),
+        }
+    # api_key (default)
+    key = str(cred.get('key') or cred.get('apiKey') or cred.get('token') or cred.get('value') or '').strip()
+    if not key:
+        return None
+    return {'type': 'api_key', 'label': label, 'key': key}
+
+
+def dedupe_credentials(creds):
+    """Dedupe an ordered credential list by resolved secret value."""
+    seen = set()
+    out = []
+    for raw in creds or []:
+        cred = normalize_credential(raw)
+        if not cred:
+            continue
+        sig = cred.get('key') or cred.get('accessToken') or ''
+        if sig and sig in seen:
+            continue
+        if sig:
+            seen.add(sig)
+        out.append(cred)
+    return out
+
+
+def build_provider_credentials(cfg, legacy_api_key=''):
+    """Build the ordered credential pool for a provider config entry.
+
+    Order: explicit `apiKeys` + `oauthPaths` first, then the legacy single
+    `apiKey`. Env references (`${VAR}`) are resolved for API keys.
+    """
+    creds = []
+    for raw in (cfg.get('apiKeys') or []):
+        cred = normalize_credential(raw)
+        if cred:
+            creds.append(cred)
+    for raw in (cfg.get('oauthPaths') or []):
+        cred = normalize_credential(raw)
+        if cred:
+            cred.setdefault('type', 'oauth')
+            if 'type' not in raw and 'accessToken' in raw:
+                cred['type'] = 'oauth'
+            creds.append(cred)
+    if legacy_api_key:
+        cred = normalize_credential({'type': 'api_key', 'label': 'default', 'key': legacy_api_key})
+        if cred:
+            creds.append(cred)
+    return dedupe_credentials(creds)
+
+
+def resolve_credential_key(cred):
+    """Return the runtime secret string to send upstream for a credential."""
+    if not cred:
+        return ''
+    if cred.get('type') == 'oauth':
+        return str(cred.get('accessToken') or '').strip()
+    key = cred.get('key') or ''
+    return resolve_config_value(key) if isinstance(key, str) and key.startswith('${') and key.endswith('}') else str(key).strip()
+
+
+def credential_is_expired(cred, now_ms=None):
+    if not cred or cred.get('type') != 'oauth':
+        return False
+    expires = int(cred.get('expires') or 0)
+    if not expires:
+        return False
+    if now_ms is None:
+        now_ms = time.time() * 1000
+    return (expires - now_ms) <= 0
+
+
+def provider_credentials(prov):
+    """Return the ordered list of credential dicts for a Provider.
+
+    Falls back to a single-credential pool built from `prov.api_key` when no
+    explicit credentials pool is configured (backward compatibility).
+    """
+    creds = prov.credentials if getattr(prov, 'credentials', None) else None
+    if creds:
+        return list(creds)
+    if prov.api_key:
+        return [{'type': 'api_key', 'label': 'default', 'key': prov.api_key}]
+    return []
+
+
+def provider_credential_keys(prov):
+    """Ordered list of resolved runtime secret strings for a provider."""
+    keys = []
+    seen = set()
+    for cred in provider_credentials(prov):
+        key = resolve_credential_key(cred)
+        if key and key not in seen:
+            seen.add(key)
+            keys.append(key)
+    return keys
+
+
+def is_credential_failover_error(error_text):
+    """Decide whether an upstream error should trigger credential failover."""
+    text = str(error_text or '').lower()
+    if not text:
+        return False
+    for code in CRED_FAILOVER_HTTP_CODES:
+        if f'http {code}' in text:
+            return True
+    for term in CRED_FAILOVER_TERMS:
+        if term in text:
+            return True
+    return False
+
+
+def mask_secret(value, visible=4):
+    value = str(value or '')
+    if not value:
+        return ''
+    if len(value) <= visible:
+        return '•' * len(value)
+    return value[:visible] + '•' * (min(len(value) - visible, 16)) + f'…({len(value)})'
+
+
+def mask_credential(cred):
+    cred = dict(cred or {})
+    secret = cred.get('key') or cred.get('accessToken') or ''
+    cred.pop('key', None)
+    cred.pop('accessToken', None)
+    cred.pop('refreshToken', None)
+    cred['masked'] = mask_secret(secret)
+    return cred
+
+
+# ---------------------------------------------------------------------------
+# Credential load balancing. Beyond ordered failover, a provider's credential
+# pool can be distributed across keys with one of:
+#   - failover   : try pool in order, primary key first (default; backward compat)
+#   - round-robin: rotate the starting key per request to spread quota/load
+#   - lru        : pick the least-recently-used key first
+#   - random     : pick a random order
+# Keys that recently failed a failover-classified error enter a short cooldown
+# and are deprioritized (tried last) until they recover. The strategy is set
+# per-provider via `credentialStrategy` in config or the dashboard.
+# ---------------------------------------------------------------------------
+
+CREDENTIAL_STRATEGIES = {'failover', 'round-robin', 'lru', 'random'}
+DEFAULT_CREDENTIAL_STRATEGY = (os.environ.get('SAGE_ROUTER_CREDENTIAL_STRATEGY') or 'failover').strip().lower() or 'failover'
+CREDENTIAL_COOLDOWN_SECONDS = float(os.environ.get('SAGE_ROUTER_CREDENTIAL_COOLDOWN_SECONDS') or '60')
+CREDENTIAL_STATE: dict[tuple, dict] = {}
+CREDENTIAL_RR_INDEX: dict[str, int] = {}
+CREDENTIAL_STATE_LOCK = threading.Lock()
+
+
+def _credential_identity(cred, index):
+    label = str((cred or {}).get('label') or '').strip()
+    return label or f'#{index}'
+
+
+def provider_credential_strategy(prov):
+    raw = str(getattr(prov, 'credential_strategy', '') or '').strip().lower()
+    if not raw:
+        raw = DEFAULT_CREDENTIAL_STRATEGY
+    return raw if raw in CREDENTIAL_STRATEGIES else 'failover'
+
+
+def _credential_state(provider_name, ident):
+    return CREDENTIAL_STATE.setdefault((provider_name, ident), {'lastUsed': 0, 'lastError': 0, 'uses': 0, 'errors': 0})
+
+
+def mark_credential_used(provider_name, key_or_ident):
+    if not key_or_ident:
+        return
+    with CREDENTIAL_STATE_LOCK:
+        st = _credential_state(provider_name, key_or_ident)
+        st['lastUsed'] = int(time.time() * 1000)
+        st['uses'] = int(st.get('uses', 0)) + 1
+
+
+def mark_credential_success(provider_name, key_or_ident):
+    if not key_or_ident:
+        return
+    with CREDENTIAL_STATE_LOCK:
+        st = _credential_state(provider_name, key_or_ident)
+        st['lastError'] = 0
+        st['errors'] = 0
+
+
+def mark_credential_error(provider_name, key_or_ident):
+    if not key_or_ident:
+        return
+    with CREDENTIAL_STATE_LOCK:
+        st = _credential_state(provider_name, key_or_ident)
+        st['lastError'] = int(time.time() * 1000)
+        st['errors'] = int(st.get('errors', 0)) + 1
+
+
+def select_credential_order(prov):
+    """Return the ordered, cooldown-aware list of credential dicts to try."""
+    creds = provider_credentials(prov)
+    if not creds:
+        return []
+    strategy = provider_credential_strategy(prov)
+    now_ms = time.time() * 1000
+    cooldown_ms = CREDENTIAL_COOLDOWN_SECONDS * 1000.0
+    enriched = []
+    for i, cred in enumerate(creds):
+        ident = _credential_identity(cred, i)
+        with CREDENTIAL_STATE_LOCK:
+            st = dict(CREDENTIAL_STATE.get((prov.name, ident), {'lastUsed': 0, 'lastError': 0, 'uses': 0, 'errors': 0}))
+        last_err = st.get('lastError', 0)
+        in_cooldown = bool(last_err and (now_ms - last_err) < cooldown_ms)
+        enriched.append({'cred': cred, 'ident': ident, 'lastUsed': st.get('lastUsed', 0), 'lastError': last_err, 'uses': st.get('uses', 0), 'errors': st.get('errors', 0), 'in_cooldown': in_cooldown})
+
+    if strategy == 'round-robin':
+        with CREDENTIAL_STATE_LOCK:
+            start = CREDENTIAL_RR_INDEX.get(prov.name, 0) % max(len(enriched), 1)
+            CREDENTIAL_RR_INDEX[prov.name] = (start + 1) % max(len(enriched), 1)
+        order = enriched[start:] + enriched[:start]
+    elif strategy == 'lru':
+        order = sorted(enriched, key=lambda e: (e['lastUsed'] or 0))
+    elif strategy == 'random':
+        order = list(enriched)
+        # Lightweight shuffle without importing random at module top.
+        for i in range(len(order) - 1, 0, -1):
+            j = int.from_bytes(os.urandom(2), 'big') % (i + 1)
+            order[i], order[j] = order[j], order[i]
+    else:
+        order = enriched  # failover: pool order
+
+    # Deprioritize cooled-down keys; if all are cooling, keep selection order
+    # but try the one that errored longest ago first.
+    active = [e for e in order if not e['in_cooldown']]
+    cooled = sorted([e for e in order if e['in_cooldown']], key=lambda e: e['lastError'] or 0)
+    return active + cooled if active else (cooled or order)
+
+
+def select_credential_keys(prov):
+    """Ordered, strategy-aware resolved secret strings to try for a provider."""
+    strategy = provider_credential_strategy(prov)
+    if strategy == 'failover':
+        # Preserve exact legacy behavior: pool order with the (possibly
+        # refreshed) primary api_key tried first.
+        keys = provider_credential_keys(prov)
+        if prov.api_key:
+            if prov.api_key in keys:
+                keys.remove(prov.api_key)
+            keys = [prov.api_key] + keys
+        return keys or [prov.api_key]
+    order = select_credential_order(prov)
+    keys = []
+    seen = set()
+    for e in order:
+        key = resolve_credential_key(e['cred'])
+        if key and key not in seen:
+            seen.add(key)
+            keys.append(key)
+    return keys
+
+
+def select_credential_identities(prov):
+    """Ordered identities parallel to select_credential_keys (for state hooks)."""
+    strategy = provider_credential_strategy(prov)
+    if strategy == 'failover':
+        return []  # failover does not use LB state hooks
+    order = select_credential_order(prov)
+    out = []
+    seen = set()
+    for e in order:
+        key = resolve_credential_key(e['cred'])
+        if key and key not in seen:
+            seen.add(key)
+            out.append(e['ident'])
+    return out
+
+
+def credential_state_snapshot(provider_name, creds):
+    """Dashboard-safe per-credential state (no secrets)."""
+    now_ms = time.time() * 1000
+    cooldown_ms = CREDENTIAL_COOLDOWN_SECONDS * 1000.0
+    snap = []
+    for i, cred in enumerate(creds):
+        ident = _credential_identity(cred, i)
+        with CREDENTIAL_STATE_LOCK:
+            st = dict(CREDENTIAL_STATE.get((provider_name, ident), {'lastUsed': 0, 'lastError': 0, 'uses': 0, 'errors': 0}))
+        last_err = st.get('lastError', 0)
+        snap.append({
+            'label': ident,
+            'uses': st.get('uses', 0),
+            'errors': st.get('errors', 0),
+            'lastUsedMs': st.get('lastUsed', 0),
+            'lastErrorMs': last_err,
+            'inCooldown': bool(last_err and (now_ms - last_err) < cooldown_ms),
+        })
+    return snap
 
 
 def is_self_provider(name, base_url):
@@ -3465,24 +3811,66 @@ def call_provider_completion_once(provider_name, model, payload, request_id, thi
         return False, f'provider unavailable: {provider_name}'
     prov = PROVIDERS[provider_name]
     supports_reasoning = provider_supports_reasoning(prov, model)
-    if prov.api_type == 'ollama':
-        return call_ollama_completion(prov.base_url, model, payload, prov.api_key, thinking, provider_name=provider_name, debug_mode=debug_mode, request_id=request_id)
-    if prov.api_type == 'openclaw-gateway':
-        ok_text, text = call_openclaw_gateway(model, payload.get('messages', []), provider_name, thinking, payload.get('response_format', {}).get('type') == 'json_object')
-        if not ok_text:
-            return False, text
-        return True, build_openai_completion(provider_name, model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode)
-    if prov.api_type == 'anthropic-messages':
-        return call_anthropic_completion(prov.base_url, model, payload, prov.api_key, thinking, supports_reasoning, debug_mode=debug_mode, request_id=request_id, provider_name=provider_name)
-    if prov.api_type == 'google-generative-language':
-        return call_google_completion(prov.base_url, model, payload, prov.api_key, thinking, debug_mode=debug_mode, request_id=request_id, provider_name=provider_name)
-    if prov.api_type == 'google-vertex-ai':
-        return call_google_vertex_completion(prov.base_url, model, payload, thinking, debug_mode=debug_mode, request_id=request_id)
-    if prov.api_type == 'cloudflare-workers-ai':
-        return call_cloudflare_workers_ai_completion(prov.base_url, model, payload, prov.api_key, thinking, debug_mode=debug_mode, request_id=request_id)
-    if prov.api_type == 'openai-codex-responses':
-        return call_codex_completion(prov.base_url, model, payload, prov.api_key, provider_name, thinking, supports_reasoning, debug_mode=debug_mode, request_id=request_id)
-    return call_openai_compat_completion(prov.base_url, model, payload, prov.api_key, provider_name, thinking, supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+
+    def dispatch(api_key):
+        if prov.api_type == 'ollama':
+            return call_ollama_completion(prov.base_url, model, payload, api_key, thinking, provider_name=provider_name, debug_mode=debug_mode, request_id=request_id)
+        if prov.api_type == 'openclaw-gateway':
+            ok_text, text = call_openclaw_gateway(model, payload.get('messages', []), provider_name, thinking, payload.get('response_format', {}).get('type') == 'json_object')
+            if not ok_text:
+                return False, text
+            return True, build_openai_completion(provider_name, model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode)
+        if prov.api_type == 'anthropic-messages':
+            return call_anthropic_completion(prov.base_url, model, payload, api_key, thinking, supports_reasoning, debug_mode=debug_mode, request_id=request_id, provider_name=provider_name)
+        if prov.api_type == 'google-generative-language':
+            return call_google_completion(prov.base_url, model, payload, api_key, thinking, debug_mode=debug_mode, request_id=request_id, provider_name=provider_name)
+        if prov.api_type == 'google-vertex-ai':
+            return call_google_vertex_completion(prov.base_url, model, payload, thinking, debug_mode=debug_mode, request_id=request_id)
+        if prov.api_type == 'cloudflare-workers-ai':
+            return call_cloudflare_workers_ai_completion(prov.base_url, model, payload, api_key, thinking, debug_mode=debug_mode, request_id=request_id)
+        if prov.api_type == 'openai-codex-responses':
+            return call_codex_completion(prov.base_url, model, payload, api_key, provider_name, thinking, supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+        return call_openai_compat_completion(prov.base_url, model, payload, api_key, provider_name, thinking, supports_reasoning, debug_mode=debug_mode, request_id=request_id)
+
+    # Provider types whose credential is not a simple bearer/x-api-key token
+    # (gateway supplies its own credential; Vertex uses ADC). Skip the
+    # multi-credential failover loop for those and dispatch once.
+    non_keyed_types = {'openclaw-gateway', 'google-vertex-ai'}
+    if prov.api_type in non_keyed_types:
+        return dispatch(prov.api_key)
+
+    # Multi-credential selection: order is decided by the provider's
+    # credential strategy (failover / round-robin / lru / random). Failover
+    # tries pool order with the (possibly refreshed) primary key first; load
+    # balancing strategies distribute across keys and deprioritize cooled-down
+    # ones. On auth/quota/transient errors we fall over to the next credential.
+    strategy = provider_credential_strategy(prov)
+    candidate_keys = select_credential_keys(prov)
+    identities = select_credential_identities(prov) if strategy != 'failover' else []
+    if not candidate_keys:
+        candidate_keys = [prov.api_key]
+    if len(candidate_keys) <= 1:
+        return dispatch(prov.api_key)
+
+    last_err = ''
+    for idx, key in enumerate(candidate_keys):
+        ident = identities[idx] if idx < len(identities) else ''
+        if ident:
+            mark_credential_used(provider_name, ident)
+        ok, result = dispatch(key)
+        if ok:
+            if ident:
+                mark_credential_success(provider_name, ident)
+            if idx > 0:
+                logger.info(f"Provider {provider_name} credential #{idx + 1} succeeded after failover (strategy={strategy})")
+            return ok, result
+        last_err = result if isinstance(result, str) else str(result)
+        if not is_credential_failover_error(last_err):
+            return ok, result
+        if ident:
+            mark_credential_error(provider_name, ident)
+        logger.warning(f"Provider {provider_name} credential #{idx + 1} failed ({last_err[:120]}); trying next credential (strategy={strategy})")
+    return False, last_err
 
 
 def select_fusion_panel_chain(messages, request_id, thinking, route_mode, requirements, want_json):
@@ -4291,6 +4679,55 @@ def model_meta_for_defaults(models, base_meta):
     return {m: dict(base_meta) for m in dedupe_keep_order(models or [])}
 
 
+def load_openclaw_oauth_credentials(provider_name):
+    """Return ordered OAuth credential dicts for a provider from auth-profiles.
+
+    Used to fold existing multi-account OAuth subscription paths (e.g. multiple
+    ChatGPT/Codex accounts) into a provider's credential pool so they are
+    usable with credential failover and visible in the dashboard.
+    """
+    auth_path = os.path.expanduser('~/.openclaw/agents/main/agent/auth-profiles.json')
+    try:
+        with open(auth_path) as af:
+            auth = json.load(af)
+    except Exception:
+        return []
+    profiles = auth.get('profiles', {}) if isinstance(auth, dict) else {}
+    if not isinstance(profiles, dict):
+        return []
+    now_ms = time.time() * 1000
+    creds = []
+    for name, profile in profiles.items():
+        if not isinstance(profile, dict) or profile.get('type') != 'oauth':
+            continue
+        prof_provider = profile.get('provider')
+        match = prof_provider == provider_name or (
+            provider_name == 'openai-codex' and prof_provider == 'openai'
+        )
+        if not match:
+            continue
+        access = profile.get('access') or profile.get('access_token') or ''
+        if not access:
+            continue
+        expires = profile.get('expires')
+        if isinstance(expires, (int, float)) and expires <= now_ms:
+            # Keep expired OAuth paths in the pool; the refresh layer can
+            # renew them and failover covers the gap.
+            pass
+        label = name
+        if '@' in name:
+            label = '<email-profile>'
+        creds.append({
+            'type': 'oauth',
+            'label': label or prof_provider,
+            'accessToken': access,
+            'refreshToken': profile.get('refresh') or profile.get('refresh_token') or '',
+            'expires': int(expires or 0),
+            'profile': name,
+        })
+    return dedupe_credentials(creds)
+
+
 def load_openclaw_auth_access_token(provider_name):
     """Return the current non-expired OpenClaw auth token for a provider.
 
@@ -4637,12 +5074,37 @@ def merge_harness_discovered_providers(providers):
         logger.info(f"Loaded harness provider {name} from {cfg.get('harness', 'unknown')}:{cfg.get('source_path', '')}")
 
 
+def _merge_app_provider_config(config):
+    """Merge the dashboard-managed provider config (APP_PROVIDER_CONFIG) into
+    the loaded OpenClaw config so dashboard-configured providers and their
+    multi-credential pools (apiKeys/oauthPaths) are authoritative."""
+    try:
+        if not APP_PROVIDER_CONFIG or APP_PROVIDER_CONFIG == OPENCLAW_CONFIG:
+            return config
+        if not os.path.exists(APP_PROVIDER_CONFIG):
+            return config
+        with open(APP_PROVIDER_CONFIG) as f:
+            app_cfg = json.load(f)
+    except Exception as e:
+        logger.debug(f'APP_PROVIDER_CONFIG merge skipped: {e}')
+        return config
+    if not isinstance(app_cfg, dict):
+        return config
+    config.setdefault('models', {}).setdefault('providers', {})
+    app_providers = (app_cfg.get('models') or {}).get('providers', {}) or {}
+    for name, cfg in app_providers.items():
+        if isinstance(cfg, dict):
+            config['models']['providers'][name] = cfg
+    return config
+
+
 def load_openclaw_providers():
     providers = load_hosted_secret_providers()
     merge_harness_discovered_providers(providers)
     try:
         with open(OPENCLAW_CONFIG) as f:
             config = json.load(f)
+        config = _merge_app_provider_config(config)
         for name, cfg in config.get('models', {}).get('providers', {}).items():
             base_url = resolve_config_value(cfg.get('baseUrl', '') or '')
             if is_self_provider(name, base_url):
@@ -4678,13 +5140,27 @@ def load_openclaw_providers():
             # Prefer OpenClaw's current auth profile over stale OPENAI_CODEX_API_KEY env values.
             if name == 'openai-codex' and api_type == 'openai-codex-responses':
                 api_key = load_openclaw_auth_access_token('openai-codex') or api_key
-            
+
+            # Build the ordered multi-credential pool (apiKeys + oauthPaths +
+            # legacy single apiKey) and keep `api_key` as the first resolved
+            # secret so discovery, streaming, and legacy callers still work.
+            cred_pool = build_provider_credentials(cfg, api_key)
+            if name == 'openai-codex' and api_type == 'openai-codex-responses':
+                # Fold in OAuth subscription paths discovered from auth-profiles
+                # so Codex OAuth accounts are usable alongside API keys.
+                for cred in list(load_openclaw_oauth_credentials('openai-codex')):
+                    cred_pool.append(cred)
+                cred_pool = dedupe_credentials(cred_pool)
+            if not api_key and cred_pool:
+                api_key = resolve_credential_key(cred_pool[0])
+            cred_strategy = str(cfg.get('credentialStrategy') or cfg.get('credential_strategy') or '').strip().lower()
+
             # Add multimodal metadata for GPT-5.4/5.5 which support vision
             multimodal_models = {'gpt-5.5', 'gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini'}
             extra_meta = {m: {'input': ['text', 'image'], 'supportsVision': True} for m in multimodal_models if m in (models or [])}
             if extra_meta:
                 model_meta = {**(model_meta or {}), **extra_meta}
-            
+
             merge_provider(providers, Provider(
                 name,
                 api_type,
@@ -4693,6 +5169,8 @@ def load_openclaw_providers():
                 models,
                 reasoning_models,
                 model_meta,
+                cred_pool,
+                cred_strategy,
             ))
 
         auth_profiles = config.get('auth', {}).get('profiles', {})
@@ -7494,6 +7972,7 @@ def setup_state_payload():
         'codexOAuthAvailable': OPENAI_CODEX_OAUTH_ENABLED,
         'clientAuthRequired': CLIENT_AUTH_REQUIRED,
         'port': int(os.environ.get('PORT') or os.environ.get('APP_PORT') or 8790),
+        'credentials': list_setup_credentials(),
     }
 
 
@@ -7596,6 +8075,238 @@ def save_codex_setup_auth(payload):
         'status': 'saved',
         'target': target,
         'codexConfigured': bool(read_openai_codex_oauth_token_from_file()),
+        'configured': sorted(PROVIDERS.keys()),
+    }
+
+
+def _load_app_provider_config_safe():
+    try:
+        if os.path.exists(APP_PROVIDER_CONFIG):
+            with open(APP_PROVIDER_CONFIG) as f:
+                return json.load(f) or {}
+    except Exception:
+        pass
+    return {}
+
+
+def _save_app_provider_config(config):
+    atomic_write_json(APP_PROVIDER_CONFIG, config)
+
+
+def _app_provider_credentials(cfg):
+    """Return the raw (unmasked) credential entries stored for a provider cfg."""
+    creds = []
+    for raw in (cfg.get('apiKeys') or []):
+        c = normalize_credential(raw)
+        if c:
+            creds.append({'slot': 'apiKeys', **c})
+    for raw in (cfg.get('oauthPaths') or []):
+        c = normalize_credential(raw)
+        if c:
+            creds.append({'slot': 'oauthPaths', **c})
+    legacy = cfg.get('apiKey') or cfg.get('api_key')
+    if legacy:
+        c = normalize_credential({'type': 'api_key', 'label': 'default', 'key': legacy})
+        if c:
+            creds.append({'slot': 'apiKey', **c})
+    return dedupe_credentials(creds)
+
+
+def list_setup_credentials():
+    """Return a masked, dashboard-safe summary of every provider's credentials."""
+    config = _load_app_provider_config_safe()
+    providers_cfg = (config.get('models') or {}).get('providers', {}) or {}
+    summary = []
+    for name in sorted(providers_cfg.keys()):
+        cfg = providers_cfg.get(name) or {}
+        creds = _app_provider_credentials(cfg)
+        if not creds:
+            continue
+        raw_creds = [(c.get('key') or c.get('accessToken') or '') for c in creds]
+        strategy = str(cfg.get('credentialStrategy') or cfg.get('credential_strategy') or '').strip().lower() or DEFAULT_CREDENTIAL_STRATEGY
+        if strategy not in CREDENTIAL_STRATEGIES:
+            strategy = 'failover'
+        masked = []
+        snap = credential_state_snapshot(name, creds)
+        for i, c in enumerate(creds):
+            mc = mask_credential(c)
+            st = snap[i] if i < len(snap) else {}
+            mc['state'] = st
+            masked.append(mc)
+        summary.append({
+            'provider': name,
+            'api': cfg.get('api') or infer_api_type(name, cfg, cfg.get('baseUrl', '')),
+            'baseUrl': cfg.get('baseUrl', ''),
+            'strategy': strategy,
+            'strategies': sorted(CREDENTIAL_STRATEGIES),
+            'credentials': masked,
+        })
+    return summary
+
+
+def set_setup_credential_strategy(payload):
+    """Set the credential load-balancing strategy for a provider."""
+    provider_name = str(payload.get('provider') or payload.get('name') or '').strip().lower()
+    provider_name = re.sub(r'[^a-z0-9_.-]+', '-', provider_name).strip('-')
+    if not provider_name:
+        raise ValueError('provider_name_required')
+    strategy = str(payload.get('strategy') or '').strip().lower()
+    if strategy not in CREDENTIAL_STRATEGIES:
+        raise ValueError(f'invalid_strategy (one of {sorted(CREDENTIAL_STRATEGIES)})')
+    config = _load_app_provider_config_safe()
+    config.setdefault('models', {}).setdefault('providers', {})
+    providers_cfg = config['models']['providers']
+    cfg = providers_cfg.get(provider_name)
+    if not isinstance(cfg, dict):
+        raise ValueError('provider_not_found')
+    cfg['credentialStrategy'] = strategy
+    providers_cfg[provider_name] = cfg
+    _save_app_provider_config(config)
+    # Reset round-robin index so a strategy change starts fresh.
+    with CREDENTIAL_STATE_LOCK:
+        CREDENTIAL_RR_INDEX.pop(provider_name, None)
+    reload_configured_providers()
+    return {
+        'status': 'saved',
+        'provider': provider_name,
+        'strategy': strategy,
+        'configured': sorted(PROVIDERS.keys()),
+    }
+
+
+def save_setup_credential(payload):
+    """Add an API key or OAuth subscription path to a provider's credential pool.
+
+    Creates the provider entry if it does not yet exist. Never overwrites
+    existing credentials — the new credential is appended to the pool.
+    """
+    provider_name = str(payload.get('provider') or payload.get('name') or '').strip().lower()
+    provider_name = re.sub(r'[^a-z0-9_.-]+', '-', provider_name).strip('-')
+    if not provider_name:
+        raise ValueError('provider_name_required')
+    if provider_name in SELF_PROVIDER_NAMES:
+        raise ValueError('self_provider_not_allowed')
+
+    cred_type = str(payload.get('type') or 'api_key').strip().lower()
+    label = str(payload.get('label') or '').strip()
+    raw = {
+        'type': cred_type,
+        'label': label or (cred_type if cred_type == 'oauth' else 'api-key'),
+    }
+    if cred_type == 'oauth':
+        access = str(payload.get('accessToken') or payload.get('access') or payload.get('token') or '').strip()
+        if not access:
+            raise ValueError('oauth_access_token_required')
+        raw['accessToken'] = access
+        refresh = str(payload.get('refreshToken') or payload.get('refresh') or '').strip()
+        if refresh:
+            raw['refreshToken'] = refresh
+        expires = payload.get('expires')
+        if expires is not None:
+            try:
+                raw['expires'] = int(expires)
+            except (TypeError, ValueError):
+                pass
+        profile = str(payload.get('profile') or '').strip()
+        if profile:
+            raw['profile'] = profile
+        slot = 'oauthPaths'
+    else:
+        key = str(payload.get('key') or payload.get('apiKey') or payload.get('token') or '').strip()
+        if not key:
+            raise ValueError('api_key_required')
+        raw['key'] = key
+        slot = 'apiKeys'
+
+    config = _load_app_provider_config_safe()
+    config.setdefault('models', {}).setdefault('providers', {})
+    providers_cfg = config['models']['providers']
+    cfg = providers_cfg.get(provider_name)
+    if not isinstance(cfg, dict):
+        cfg = {}
+    # If creating a new provider, fill in defaults so it is usable.
+    if not cfg:
+        api_type = str(payload.get('api') or '').strip()
+        if not api_type:
+            api_type = infer_api_type(provider_name, {}, '')
+        cfg.setdefault('api', api_type)
+        base_url = str(payload.get('baseUrl') or '').strip()
+        if not base_url:
+            base_url = default_base_url_for_api(cfg.get('api') or '')
+        if base_url:
+            cfg.setdefault('baseUrl', base_url)
+        models = parse_model_list(payload.get('models'))
+        if models:
+            cfg.setdefault('models', models)
+        else:
+            cfg.setdefault('models', [])
+        strategy = str(payload.get('credentialStrategy') or payload.get('strategy') or '').strip().lower()
+        if strategy and strategy in CREDENTIAL_STRATEGIES:
+            cfg.setdefault('credentialStrategy', strategy)
+    existing = list(cfg.get(slot, []) or [])
+    existing.append(raw)
+    cfg[slot] = existing
+    providers_cfg[provider_name] = cfg
+    _save_app_provider_config(config)
+    reload_configured_providers()
+    return {
+        'status': 'saved',
+        'provider': provider_name,
+        'slot': slot,
+        'credentials': [mask_credential(c) for c in _app_provider_credentials(cfg)],
+        'configured': sorted(PROVIDERS.keys()),
+    }
+
+
+def remove_setup_credential(payload):
+    """Remove a credential from a provider's pool by label (and slot)."""
+    provider_name = str(payload.get('provider') or payload.get('name') or '').strip().lower()
+    provider_name = re.sub(r'[^a-z0-9_.-]+', '-', provider_name).strip('-')
+    if not provider_name:
+        raise ValueError('provider_name_required')
+    label = str(payload.get('label') or '').strip()
+    slot = str(payload.get('slot') or '').strip().lower()  # apiKeys | oauthPaths | apiKey
+    if not label and not slot:
+        raise ValueError('label_or_slot_required')
+
+    config = _load_app_provider_config_safe()
+    providers_cfg = (config.get('models') or {}).get('providers', {}) or {}
+    cfg = providers_cfg.get(provider_name)
+    if not isinstance(cfg, dict):
+        raise ValueError('provider_not_found')
+    removed = 0
+
+    def _filter_list(key):
+        nonlocal removed
+        items = cfg.get(key)
+        if not isinstance(items, list):
+            return
+        kept = []
+        for raw in items:
+            c = normalize_credential(raw)
+            cur_label = (c or {}).get('label') or ''
+            if label and cur_label == label:
+                removed += 1
+                continue
+            kept.append(raw)
+        cfg[key] = kept
+
+    if slot == 'apikey' or slot == 'legacy':
+        if cfg.get('apiKey'):
+            cfg.pop('apiKey', None)
+            removed += 1
+    if slot in ('', 'apikeys'):
+        _filter_list('apiKeys')
+    if slot in ('', 'oauthpaths'):
+        _filter_list('oauthPaths')
+    providers_cfg[provider_name] = cfg
+    _save_app_provider_config(config)
+    reload_configured_providers()
+    return {
+        'status': 'removed' if removed else 'not_found',
+        'provider': provider_name,
+        'removed': removed,
+        'credentials': [mask_credential(c) for c in _app_provider_credentials(cfg)],
         'configured': sorted(PROVIDERS.keys()),
     }
 
@@ -10287,15 +10998,63 @@ def call_google_vertex_completion(base_url, model, payload, thinking=DEFAULT_THI
     return True, build_openai_completion(provider_name, model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
 
 
+def open_upstream_with_credential_failover(provider, build_request, timeout, stream=True):
+    """Open an upstream HTTP connection, failing over across the provider's
+    credential pool on auth/quota/transient errors (notably HTTP 429).
+
+    ``build_request(api_key)`` must return a fresh ``urllib.request.Request``
+    for a given credential. Returns the opened response object. The failover
+    loop runs entirely before any bytes are committed to the downstream client,
+    so a rate-limited (429) key transparently yields to the next credential.
+    Providers with a single key behave exactly as before (one attempt).
+    """
+    strategy = provider_credential_strategy(provider)
+    candidate_keys = select_credential_keys(provider)
+    identities = select_credential_identities(provider) if strategy != 'failover' else []
+    if not candidate_keys:
+        candidate_keys = [provider.api_key]
+    last_exc = None
+    for idx, key in enumerate(candidate_keys):
+        ident = identities[idx] if idx < len(identities) else ''
+        if ident:
+            mark_credential_used(provider.name, ident)
+        req = build_request(key)
+        try:
+            resp = urllib.request.urlopen(req, timeout=timeout)
+            if ident:
+                mark_credential_success(provider.name, ident)
+            return resp, key
+        except urllib.error.HTTPError as e:
+            err = extract_http_error(e)
+            last_exc = e
+            if ident:
+                mark_credential_error(provider.name, ident)
+            if is_credential_failover_error(err) and idx < len(candidate_keys) - 1:
+                logger.warning(f"Provider {provider.name} credential #{idx + 1} failed at {'stream' if stream else 'request'} open ({err[:120]}); trying next credential (strategy={strategy})")
+                continue
+            raise
+        except Exception:
+            raise
+    if last_exc:
+        raise last_exc
+    raise RuntimeError('no_upstream_response')
+
+
 def stream_openai_compat_to_client(self, provider, model, payload, request_id, thinking=DEFAULT_THINKING_LEVEL, supports_reasoning=False, debug_mode=False):
     url = openai_chat_completions_url(provider.base_url)
     proxied = build_openai_proxy_payload(payload, model, stream=True, supports_reasoning=supports_reasoning, thinking=thinking)
-    hdrs = {'Content-Type': 'application/json'}
-    add_openai_compat_headers(hdrs, provider.name)
-    if provider.api_key:
-        hdrs['Authorization'] = f'Bearer {provider.api_key}'
-    req = urllib.request.Request(url, data=json.dumps(proxied).encode(), headers=hdrs)
-    with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+    base_hdrs = {'Content-Type': 'application/json'}
+    add_openai_compat_headers(base_hdrs, provider.name)
+    body_data = json.dumps(proxied).encode()
+
+    def _build_oa_req(key):
+        hdrs = dict(base_hdrs)
+        if key:
+            hdrs['Authorization'] = f'Bearer {key}'
+        return urllib.request.Request(url, data=body_data, headers=hdrs)
+
+    resp, _used_key = open_upstream_with_credential_failover(provider, _build_oa_req, OPENAI_COMPAT_TIMEOUT_SECONDS)
+    with resp:
         self.send_response(200)
         self.send_header('Content-Type', 'text/event-stream')
         self.send_header('Cache-Control', 'no-cache')
@@ -10324,14 +11083,19 @@ def stream_openai_compat_to_client(self, provider, model, payload, request_id, t
 
 def stream_ollama_to_client(self, provider, model, payload, request_id, thinking=DEFAULT_THINKING_LEVEL, debug_mode=False):
     url = provider.base_url.rstrip('/') + '/api/chat'
-    hdrs = {'Content-Type': 'application/json'}
-    if provider.api_key:
-        hdrs['Authorization'] = f'Bearer {provider.api_key}'
-    req = urllib.request.Request(url, data=json.dumps(build_ollama_payload(model, payload, thinking=thinking, stream=True)).encode(), headers=hdrs)
+    body_data = json.dumps(build_ollama_payload(model, payload, thinking=thinking, stream=True)).encode()
+
+    def _build_ollama_req(key):
+        hdrs = {'Content-Type': 'application/json'}
+        if key:
+            hdrs['Authorization'] = f'Bearer {key}'
+        return urllib.request.Request(url, data=body_data, headers=hdrs)
+
+    resp, _used_key = open_upstream_with_credential_failover(provider, _build_ollama_req, OLLAMA_TIMEOUT_SECONDS)
     chat_id = f'chatcmpl-{int(time.time())}'
     router_model = f'{provider.name}/{model}'
     sent_role = False
-    with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT_SECONDS) as resp:
+    with resp:
         self.send_response(200)
         self.send_header('Content-Type', 'text/event-stream')
         self.send_header('Cache-Control', 'no-cache')
@@ -10388,10 +11152,10 @@ def stream_google_to_client(self, provider, model, payload, request_id, thinking
     if 'generativelanguage.googleapis.com' in base_url and '/v1beta' not in base_url:
         base_url = base_url.rstrip('/') + '/v1beta'
     
-    # Build URL with API key as query param (required for streaming)
-    api_key_param = f"?key={urllib.parse.quote(provider.api_key)}" if provider.api_key else ""
-    url = base_url.rstrip('/') + f'/models/{urllib.parse.quote(model, safe="")}:streamGenerateContent' + api_key_param
-    
+    # Build URL with API key as query param (required for streaming).
+    # The key is selected per-credential by the failover opener below.
+    stream_path = base_url.rstrip('/') + f'/models/{urllib.parse.quote(model, safe="")}:streamGenerateContent'
+
     # Build Google payload from OpenAI messages
     system_text = ''
     contents = []
@@ -10425,12 +11189,19 @@ def stream_google_to_client(self, provider, model, payload, request_id, thinking
     if system_text.strip():
         google_payload['systemInstruction'] = {'parts': [{'text': system_text.strip()}]}
     
-    # API key is in URL query param for streaming
-    req = urllib.request.Request(url, data=json.dumps(google_payload).encode(), headers={'Content-Type': 'application/json'})
+    # API key is in URL query param for streaming; fail over across the
+    # provider's credential pool (e.g. on 429) before committing to the client.
+    google_body = json.dumps(google_payload).encode()
+
+    def _build_google_req(key):
+        api_key_param = f"?key={urllib.parse.quote(key)}" if key else ""
+        return urllib.request.Request(stream_path + api_key_param, data=google_body, headers={'Content-Type': 'application/json'})
+
+    resp, _used_key = open_upstream_with_credential_failover(provider, _build_google_req, GOOGLE_TIMEOUT_SECONDS)
     chat_id = f'chatcmpl-{int(time.time())}'
     router_model = f'{provider.name}/{model}'
-    
-    with urllib.request.urlopen(req, timeout=GOOGLE_TIMEOUT_SECONDS) as resp:
+
+    with resp:
         self.send_response(200)
         self.send_header('Content-Type', 'text/event-stream')
         self.send_header('Cache-Control', 'no-cache')
@@ -11335,6 +12106,10 @@ class Handler(BaseHTTPRequestHandler):
             if not require_operator_request(self):
                 return
             self.write_json(200, setup_state_payload())
+        elif request_path == '/setup/credentials':
+            if not require_operator_request(self):
+                return
+            self.write_json(200, {'credentials': list_setup_credentials(), 'configured': sorted(PROVIDERS.keys())})
         elif request_path == '/dashboard':
             if not require_operator_request(self):
                 return
@@ -11607,6 +12382,39 @@ class Handler(BaseHTTPRequestHandler):
                 self.write_json(200, cancel_codex_oauth_session(read_json_body(self)))
             except Exception:
                 self.write_json(200, {'status': 'cancelled'})
+            return
+        if request_path == '/setup/credentials/add':
+            if not require_operator_request(self):
+                return
+            try:
+                self.write_json(200, save_setup_credential(read_json_body(self)))
+            except ValueError as e:
+                self.write_json(400, {'error': str(e)})
+            except Exception as e:
+                logger.exception('Credential add failed')
+                self.write_json(500, {'error': 'credential_add_failed', 'detail': str(e)})
+            return
+        if request_path == '/setup/credentials/remove':
+            if not require_operator_request(self):
+                return
+            try:
+                self.write_json(200, remove_setup_credential(read_json_body(self)))
+            except ValueError as e:
+                self.write_json(400, {'error': str(e)})
+            except Exception as e:
+                logger.exception('Credential remove failed')
+                self.write_json(500, {'error': 'credential_remove_failed', 'detail': str(e)})
+            return
+        if request_path == '/setup/credentials/strategy':
+            if not require_operator_request(self):
+                return
+            try:
+                self.write_json(200, set_setup_credential_strategy(read_json_body(self)))
+            except ValueError as e:
+                self.write_json(400, {'error': str(e)})
+            except Exception as e:
+                logger.exception('Credential strategy set failed')
+                self.write_json(500, {'error': 'credential_strategy_failed', 'detail': str(e)})
             return
         if request_path == '/api/restart':
             if not require_operator_request(self):

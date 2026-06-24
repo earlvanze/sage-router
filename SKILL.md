@@ -41,6 +41,49 @@ Rules:
 - starts the Dario user service when Anthropic compatibility is needed and the service is not already running; in Docker, the image bundles `@askalf/dario` and autostarts `dario proxy` when credentials are mounted at `/root/.dario`
 - supports temporary provider suppression via `SAGE_ROUTER_DISABLED_PROVIDERS=name1,name2`
 
+## Multiple credentials per provider
+
+A single provider may carry an ordered pool of credentials — multiple API keys
+and/or multiple OAuth subscription paths (e.g. several ChatGPT/Codex accounts).
+The router tries them in order and fails over to the next on auth/quota/transient
+errors (`401`/`403`/`429`/`5xx`, rate-limit, quota, billing, overload). Failover
+runs in both the non-streaming completion path and the streaming open path: a
+rate-limited (429) key transparently yields to the next credential before any
+bytes are committed to the client. Mid-stream failures (after the SSE response
+has started) cannot be retried and fall back to the next provider in the route
+chain as before.
+
+Provider config entries accept, alongside the legacy single `apiKey`:
+
+- `apiKeys`: list of `{label, key}` API key credentials
+- `oauthPaths`: list of `{label, accessToken, refreshToken?, expires?, profile?}` OAuth subscription paths
+- `credentialStrategy`: how the pool is selected each request — `failover`
+  (ordered, primary first; default), `round-robin` (rotate the starting key to
+  spread load/quota), `lru` (least-recently-used first), or `random`
+
+The legacy single `apiKey` is preserved as the `default` credential for backward
+compatibility. `${ENV_VAR}` references are resolved at request time. A global
+default strategy can be set via `SAGE_ROUTER_CREDENTIAL_STRATEGY`; the per-key
+cooldown window is `SAGE_ROUTER_CREDENTIAL_COOLDOWN_SECONDS` (default 60).
+
+For `openai-codex`, existing multi-account OAuth profiles in
+`~/.openclaw/agents/main/agent/auth-profiles.json` are folded into the pool
+automatically, so ChatGPT subscription paths are usable with failover.
+
+Dashboard (operator) configuration:
+
+- `GET /setup/credentials` — masked summary of every provider's credentials
+- `POST /setup/credentials/add` — add an API key or OAuth subscription path to a
+  provider (creates the provider if it does not exist; never overwrites existing
+  credentials)
+- `POST /setup/credentials/remove` — remove a credential by `provider` + `label`/`slot`
+- `POST /setup/credentials/strategy` — set a provider's `credentialStrategy`
+
+The web dashboard exposes a **Credentials** card to add, list, and remove
+credentials per provider, with primary targets Ollama (`ollama`/`ollama-cloud`),
+OpenAI (`openai-completions`/`openai-codex-responses`), and Anthropic
+(`anthropic-messages`, routed through Dario).
+
 `GET /health` shows:
 - `configured`: all discovered providers
 - `providers`: reachable providers with model lists

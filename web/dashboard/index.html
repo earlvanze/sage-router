@@ -61,6 +61,30 @@
     .field textarea { min-height: 94px; resize: vertical; }
     .setup-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
     .muted { color: #8898a8; font-size: 12px; line-height: 1.4; }
+    .cred-prov { border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; margin: 8px 0; background: rgba(255,255,255,0.02); }
+    .cred-prov-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .cred-prov-head .pn { font-weight: 600; font-size: 13px; }
+    .cred-prov-head .pm { color: #8898a8; font-size: 11px; }
+    .cred-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .cred-row:last-child { border: none; }
+    .cred-badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: rgba(0,180,216,0.15); color: var(--accent); text-transform: uppercase; letter-spacing: .3px; }
+    .cred-badge.oauth { background: rgba(255,193,7,0.15); color: var(--warning); }
+    .cred-masked { color: #a9b8c8; font-family: monospace; font-size: 11px; overflow-wrap: anywhere; }
+    .cred-label { color: var(--text); font-size: 12px; }
+    .cred-remove { background: none; border: 1px solid var(--danger); color: var(--danger); border-radius: 5px; padding: 2px 8px; cursor: pointer; font-size: 11px; }
+    .cred-remove:hover { background: rgba(230,57,70,0.15); }
+    .cred-add { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+    .cred-add h3 { font-size: 13px; color: var(--text); margin-bottom: 8px; }
+    .cred-segmented { display: flex; gap: 6px; margin-bottom: 8px; }
+    .cred-segmented button { flex: 1; padding: 6px; border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .cred-segmented button.active { border-color: var(--accent); color: var(--accent); background: rgba(0,180,216,0.08); }
+    .cred-status { margin-top: 6px; font-size: 12px; }
+    .cred-strategy { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .cred-strategy label { color: #8898a8; font-size: 11px; }
+    .cred-strategy select { background: #101c2a; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px; font-size: 12px; }
+    .cred-state { font-size: 10px; color: #6f8197; margin-left: 6px; }
+    .cred-state.cooldown { color: var(--warning); }
+    .cred-state.err { color: var(--danger); }
   </style>
 </head>
 <body>
@@ -135,6 +159,69 @@
     <div class="card">
       <h2>Providers</h2>
       <div id="providers"></div>
+    </div>
+    <div class="card">
+      <h2>Credentials</h2>
+      <p class="muted" style="margin-bottom:8px">Multiple API keys and OAuth subscription paths per provider. Tried in order with automatic failover on auth/quota errors.</p>
+      <div id="credentials"></div>
+      <div class="cred-add">
+        <h3>Add credential</h3>
+        <div class="cred-segmented" id="credTypeToggle">
+          <button type="button" class="active" data-type="api_key" onclick="setCredType('api_key')">API key</button>
+          <button type="button" data-type="oauth" onclick="setCredType('oauth')">OAuth subscription path</button>
+        </div>
+        <div class="field">
+          <label for="credProvider">Provider</label>
+          <select id="credProvider"></select>
+        </div>
+        <div class="field" id="credNewProviderField" style="display:none">
+          <label for="credNewProvider">New provider name (creates provider)</label>
+          <input id="credNewProvider" placeholder="e.g. openai, ollama-cloud, anthropic" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="credLabel">Label <span class="muted">(optional)</span></label>
+          <input id="credLabel" placeholder="e.g. team-a, pro-account" autocomplete="off">
+        </div>
+        <div class="field" id="credKeyField">
+          <label for="credKey">API key / token</label>
+          <input id="credKey" type="password" autocomplete="new-password" placeholder="sk-...">
+        </div>
+        <div class="field" id="credAccessField" style="display:none">
+          <label for="credAccess">OAuth access token</label>
+          <input id="credAccess" type="password" autocomplete="new-password" placeholder="eyJhbGci...">
+        </div>
+        <div class="field" id="credRefreshField" style="display:none">
+          <label for="credRefresh">Refresh token <span class="muted">(optional, enables renewal)</span></label>
+          <input id="credRefresh" type="password" autocomplete="new-password">
+        </div>
+        <div class="field" id="credApiField" style="display:none">
+          <label for="credApi">Provider API type</label>
+          <select id="credApi">
+            <option value="openai-completions">OpenAI compatible</option>
+            <option value="openai-codex-responses">OpenAI Codex (ChatGPT subscription)</option>
+            <option value="anthropic-messages">Anthropic</option>
+            <option value="ollama">Ollama</option>
+            <option value="google-generative-language">Google Gemini</option>
+          </select>
+        </div>
+        <div class="field" id="credBaseUrlField" style="display:none">
+          <label for="credBaseUrl">Base URL <span class="muted">(for new provider)</span></label>
+          <input id="credBaseUrl" placeholder="https://api.openai.com/v1" autocomplete="off">
+        </div>
+        <div class="field" id="credStrategyField" style="display:none">
+          <label for="credStrategy">Credential strategy <span class="muted">(for new provider)</span></label>
+          <select id="credStrategy">
+            <option value="failover">failover (ordered, primary first)</option>
+            <option value="round-robin">round-robin (spread load)</option>
+            <option value="lru">lru (least-recently-used)</option>
+            <option value="random">random</option>
+          </select>
+        </div>
+        <div class="setup-actions">
+          <button class="btn btn-primary" onclick="addCredential()">Add credential</button>
+          <span class="muted cred-status" id="credStatus"></span>
+        </div>
+      </div>
     </div>
     <div class="card">
       <h2>Health</h2>
@@ -231,13 +318,129 @@
         status.textContent = `Failed: ${e.message || e}`;
       }
     }
+    let currentCredType = 'api_key';
+    function setCredType(t) {
+      currentCredType = t;
+      document.querySelectorAll('#credTypeToggle button').forEach(b => b.classList.toggle('active', b.dataset.type === t));
+      const isOauth = t === 'oauth';
+      document.getElementById('credKeyField').style.display = isOauth ? 'none' : '';
+      document.getElementById('credAccessField').style.display = isOauth ? '' : 'none';
+      document.getElementById('credRefreshField').style.display = isOauth ? '' : 'none';
+      refreshCredProviderOptions();
+    }
+    function refreshCredProviderOptions() {
+      const sel = document.getElementById('credProvider');
+      const configured = (window.__sageProviders || []);
+      const hasNew = !configured.length;
+      let opts = configured.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+      opts += `<option value="__new__">+ New provider…</option>`;
+      sel.innerHTML = opts;
+      sel.value = configured.length ? configured[0] : '__new__';
+      document.getElementById('credNewProviderField').style.display = (sel.value === '__new__') ? '' : 'none';
+      const showNewFields = sel.value === '__new__';
+      document.getElementById('credApiField').style.display = showNewFields ? '' : 'none';
+      document.getElementById('credBaseUrlField').style.display = showNewFields ? '' : 'none';
+      document.getElementById('credStrategyField').style.display = showNewFields ? '' : 'none';
+    }
+    function credStateText(st) {
+      if (!st) return '';
+      const parts = [];
+      if (st.uses) parts.push(`${st.uses} uses`);
+      if (st.errors) parts.push(`${st.errors} errs`);
+      if (st.inCooldown) parts.push('cooldown');
+      if (!parts.length) return '';
+      const cls = st.inCooldown ? 'cooldown' : (st.errors ? 'err' : '');
+      return ` <span class="cred-state ${cls}">${parts.join(' · ')}</span>`;
+    }
+    function renderCredentials(creds) {
+      const el = document.getElementById('credentials');
+      if (!Array.isArray(creds) || !creds.length) {
+        el.innerHTML = '<div class="muted">No credentials configured yet. Add one below.</div>';
+        return;
+      }
+      el.innerHTML = creds.map(group => {
+        const strategies = group.strategies || ['failover','lru','random','round-robin'];
+        const stratOpts = strategies.map(s => `<option value="${escapeHtml(s)}" ${s === group.strategy ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
+        const rows = (group.credentials || []).map((c, i) => {
+          return `<div class="cred-row">
+            <span><span class="cred-badge ${c.type === 'oauth' ? 'oauth' : ''}">${escapeHtml(c.type || 'api_key')}</span> <span class="cred-label">${escapeHtml(c.label || '')}</span> <span class="cred-masked">${escapeHtml(c.masked || '')}</span>${credStateText(c.state)}</span>
+            <button class="cred-remove" onclick="removeCredential('${escapeHtml(group.provider)}', '${escapeHtml(c.label || '')}', '${escapeHtml(c.slot || '')}')">Remove</button>
+          </div>`;
+        }).join('');
+        return `<div class="cred-prov">
+          <div class="cred-prov-head"><span class="pn">${escapeHtml(group.provider)}</span><span class="pm">${escapeHtml(group.api || '')} ${escapeHtml(group.baseUrl || '')}</span></div>
+          <div class="cred-strategy"><label>strategy</label><select onchange="setCredentialStrategy('${escapeHtml(group.provider)}', this.value)">${stratOpts}</select></div>
+          ${rows || '<div class="muted">no credentials</div>'}
+        </div>`;
+      }).join('');
+    }
+    async function setCredentialStrategy(provider, strategy) {
+      const status = document.getElementById('credStatus');
+      const prev = status.textContent;
+      status.textContent = 'Saving strategy...';
+      try {
+        await postJson('/setup/credentials/strategy', {provider, strategy});
+        status.textContent = 'Strategy saved';
+        await loadAll();
+      } catch (e) {
+        status.textContent = `Failed: ${e.message || e}`;
+        await loadAll();
+      }
+    }
+    async function addCredential() {
+      const status = document.getElementById('credStatus');
+      status.textContent = 'Saving...';
+      const sel = document.getElementById('credProvider');
+      let provider = sel.value;
+      const isNew = provider === '__new__';
+      if (isNew) provider = document.getElementById('credNewProvider').value.trim().toLowerCase();
+      if (!provider) { status.textContent = 'Failed: provider name required'; return; }
+      const payload = {
+        provider,
+        type: currentCredType,
+        label: document.getElementById('credLabel').value.trim(),
+      };
+      if (currentCredType === 'oauth') {
+        payload.accessToken = document.getElementById('credAccess').value.trim();
+        payload.refreshToken = document.getElementById('credRefresh').value.trim();
+      } else {
+        payload.key = document.getElementById('credKey').value.trim();
+      }
+      if (isNew) {
+        payload.api = document.getElementById('credApi').value;
+        payload.baseUrl = document.getElementById('credBaseUrl').value.trim();
+        payload.credentialStrategy = document.getElementById('credStrategy').value;
+      }
+      try {
+        const res = await postJson('/setup/credentials/add', payload);
+        ['credKey','credAccess','credRefresh','credLabel','credNewProvider','credBaseUrl'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+        status.textContent = 'Saved';
+        await loadAll();
+      } catch (e) {
+        status.textContent = `Failed: ${e.message || e}`;
+      }
+    }
+    async function removeCredential(provider, label, slot) {
+      if (!confirm(`Remove credential "${label || slot}" from ${provider}?`)) return;
+      const status = document.getElementById('credStatus');
+      status.textContent = 'Removing...';
+      try {
+        await postJson('/setup/credentials/remove', {provider, label, slot});
+        status.textContent = 'Removed';
+        await loadAll();
+      } catch (e) {
+        status.textContent = `Failed: ${e.message || e}`;
+      }
+    }
+
     async function loadAll() {
       document.getElementById('statusText').textContent = 'Loading...';
-      const [health, modelsResp, analytics, setup] = await Promise.all([
+      const [health, modelsResp, analytics, setup, credsResp] = await Promise.all([
         api('/health').catch(() => ({})),
         api('/v1/models').catch(() => ({})),
         api('/analytics?days=7').catch(() => ({})),
-        api('/setup/state').catch(() => ({}))
+        api('/setup/state').catch(() => ({})),
+        api('/setup/credentials').catch(() => ({}))
       ]);
       // Status
       const ok = health.status === 'ok';
@@ -293,6 +496,16 @@
         document.getElementById('setupProviderPath').textContent = paths.providerConfig || '';
         document.getElementById('setupCodexPath').textContent = paths.codexAuthJson || paths.codexAuthProfile || '';
       }
+      // Credentials
+      renderCredentials(credsResp.credentials || setup.credentials || []);
+      window.__sageProviders = (Array.isArray(configured) ? configured : Object.keys(configured || {}))
+        .map(p => (typeof p === 'string' ? p : (p && (p.name || p.id)) || null))
+        .filter(Boolean);
+      if (window.__sageProviders.length === 0 && Array.isArray(credsResp.credentials)) {
+        window.__sageProviders = credsResp.credentials.map(c => c.provider);
+      }
+      refreshCredProviderOptions();
+
       // Health details
       const hEntries = health.reasoningCapabilities || {};
       let healthHtml = '';
