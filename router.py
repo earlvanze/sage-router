@@ -26,6 +26,10 @@ APP_CODEX_AUTH_PROFILE = os.environ.get(
 )
 PROVIDER_PROFILES_PATH = os.path.join(os.path.dirname(__file__), 'provider-profiles.json')
 ROUTER_PROFILES_PATH = os.path.join(os.path.dirname(__file__), 'router-profiles.json')
+APP_MODEL_MODALITIES = os.environ.get(
+    'SAGE_ROUTER_MODEL_MODALITIES',
+    os.path.join(SAGE_ROUTER_HOME, 'openclaw', 'model-modalities.json'),
+)
 OPENCLAW_GATEWAY_HELPER = os.path.join(os.path.dirname(__file__), 'openclaw_gateway_agent.mjs')
 SELF_PROVIDER_NAMES = {'smart-router', 'sage-router'}
 LOCAL_STRICT_PROXY_PROVIDER_NAMES = {'dario', 'openai-codex'}
@@ -4441,9 +4445,9 @@ def model_capabilities(provider, model):
         'json': bool(meta.get('supportsJson', default_json)),
         'tools': bool(meta.get('supportsTools', default_tools)),
         'streaming': bool(meta.get('supportsStreaming', default_streaming)),
-        'vision': bool(meta.get('supportsVision') or ('image' in (meta.get('input') or [])) or is_multimodal_model(model)),
-        'audio': bool(meta.get('supportsAudio') or ('audio' in (meta.get('input') or []))),
-        'video': bool(meta.get('supportsVideo') or ('video' in (meta.get('input') or []))),
+        'vision': bool(meta.get('supportsVision') or ('image' in (meta.get('input') or [])) or is_multimodal_model(model) or ('image' in model_learned_modalities(provider.name, model))),
+        'audio': bool(meta.get('supportsAudio') or ('audio' in (meta.get('input') or [])) or ('audio' in model_learned_modalities(provider.name, model))),
+        'video': bool(meta.get('supportsVideo') or ('video' in (meta.get('input') or [])) or ('video' in model_learned_modalities(provider.name, model))),
         # Document parsing here means extracted-text document work. Native binary PDF ingestion
         # is still handled by OpenClaw/pdf tooling before it reaches this router.
         'document': bool(meta.get('supportsDocument') or meta.get('supportsFiles') or default_chat),
@@ -9485,6 +9489,123 @@ def ensure_background_refresh_started():
     BACKGROUND_REFRESH_STARTED = True
 
 
+def request_modalities(requirements, payload=None):
+    """Return the set of input modalities present in a request.
+
+    Derived from the normalized requirements (which already encode the deep-scan
+    signals) with a direct payload re-check as a safety net. Always includes
+    'text'. Possible members: text, image, audio, video, document.
+    """
+    requirements = requirements or {}
+    mods = {'text'}
+    if requirements.get('vision') or (payload is not None and payload_vision_signal(payload)):
+        mods.add('image')
+    if requirements.get('audio') or (payload is not None and payload_audio_signal(payload)):
+        mods.add('audio')
+    if requirements.get('video') or (payload is not None and payload_video_signal(payload)):
+        mods.add('video')
+    if requirements.get('document'):
+        mods.add('document')
+    return sorted(mods)
+
+
+# ---------------------------------------------------------------------------
+# Per-model modality ledger. Each time a model successfully serves a request,
+# the request's modalities are recorded against that model. Unique modalities
+# accumulate in a persisted JSON file so routing can learn, over time, which
+# models actually handle which input modalities (and feed that back into
+# model_capabilities). This is append-only and conservative: it only ever
+# augments a model's declared capabilities, never removes them.
+# ---------------------------------------------------------------------------
+
+MODEL_MODALITIES: dict[str, dict] = {}
+MODEL_MODALITIES_LOCK = threading.Lock()
+_MODEL_MODALITIES_DIRTY = False
+_MODEL_MODALITIES_LAST_SAVE = 0.0
+
+
+def _model_modality_key(provider_name, model):
+    return f'{provider_name}/{model}'
+
+
+def load_model_modalities():
+    global MODEL_MODALITIES
+    try:
+        if os.path.exists(APP_MODEL_MODALITIES):
+            with open(APP_MODEL_MODALITIES) as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                MODEL_MODALITIES = data
+    except Exception as e:
+        logger.debug(f'Model modality ledger load failed: {e}')
+    return MODEL_MODALITIES
+
+
+def _persist_model_modalities(force=False):
+    global _MODEL_MODALITIES_DIRTY, _MODEL_MODALITIES_LAST_SAVE
+    if not force and not _MODEL_MODALITIES_DIRTY:
+        return
+    # Throttle disk writes: at most once per 5s, unless forced.
+    if not force and (time.time() - _MODEL_MODALITIES_LAST_SAVE) < 5:
+        return
+    try:
+        atomic_write_json(APP_MODEL_MODALITIES, MODEL_MODALITIES)
+        _MODEL_MODALITIES_DIRTY = False
+        _MODEL_MODALITIES_LAST_SAVE = time.time()
+    except Exception as e:
+        logger.debug(f'Model modality ledger persist failed: {e}')
+
+
+def record_model_modalities(provider_name, model, modalities):
+    """Record that `model` served a request with the given modalities."""
+    if not provider_name or not model or not modalities:
+        return
+    key = _model_modality_key(provider_name, model)
+    now_ms = int(time.time() * 1000)
+    global _MODEL_MODALITIES_DIRTY
+    with MODEL_MODALITIES_LOCK:
+        entry = MODEL_MODALITIES.setdefault(key, {'modalities': [], 'count': 0, 'firstSeen': now_ms, 'lastSeen': now_ms})
+        existing = set(entry.get('modalities') or [])
+        changed = False
+        for m in modalities:
+            if m not in existing:
+                existing.add(m)
+                changed = True
+        entry['modalities'] = sorted(existing)
+        entry['count'] = int(entry.get('count', 0)) + 1
+        entry['lastSeen'] = now_ms
+        if changed:
+            _MODEL_MODALITIES_DIRTY = True
+    if changed:
+        _persist_model_modalities()
+
+
+def model_learned_modalities(provider_name, model):
+    """Return the set of modalities learned for a model (empty if none)."""
+    with MODEL_MODALITIES_LOCK:
+        entry = MODEL_MODALITIES.get(_model_modality_key(provider_name, model))
+        if not entry:
+            return set()
+        return set(entry.get('modalities') or [])
+
+
+def model_modalities_summary():
+    """Dashboard-safe view of the ledger."""
+    with MODEL_MODALITIES_LOCK:
+        return {
+            key: {
+                'modalities': list(entry.get('modalities') or []),
+                'count': int(entry.get('count', 0)),
+                'firstSeen': entry.get('firstSeen', 0),
+                'lastSeen': entry.get('lastSeen', 0),
+            }
+            for key, entry in MODEL_MODALITIES.items()
+        }
+
+
+load_model_modalities()
+
+
 def _capable_models_summary(cap_key):
     """Generic diagnostic: models whose model_capabilities[cap_key] is true."""
     summary = {}
@@ -11512,12 +11633,14 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         route_mode = 'realtime'
         thinking = ThinkingLevel.LOW  # Force low thinking for speed
     requirements = normalize_requirements(payload, thinking)
+    modalities = request_modalities(requirements, payload)
+    LAST_ROUTE_DEBUG['modalities'] = modalities
     want_json = str(payload.get('responseFormat') or '').lower() == 'json' or payload.get('response_format', {}).get('type') == 'json_object'
     client_wants_stream = bool(payload.get('stream', False))
     # Buffer provider responses and synthesize SSE for client streaming. This preserves fallback/empty-output detection even when OpenClaw streams with tools.
     want_stream = False
     debug_mode = normalize_debug_mode(payload)
-    logger.info(f"[{request_id}] Incoming /v1/chat/completions with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}, routerProfile={router_profile}, discordPublicProfile={discord_public_profile}, debug={debug_mode}")
+    logger.info(f"[{request_id}] Incoming /v1/chat/completions with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}, modalities={modalities}, routerProfile={router_profile}, discordPublicProfile={discord_public_profile}, debug={debug_mode}")
 
     # Resolve model switches across providers. If the client carries a stale
     # provider prefix, e.g. ollama/gpt-5.5, prefer the provider that actually
@@ -11649,7 +11772,8 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         LAST_ROUTE_DEBUG['attempts'] = attempts[-12:]
         if ok:
             total_elapsed = time.time() - overall_started
-            LAST_ROUTE_DEBUG.update({'selected': {'provider': pn, 'model': model}, 'status': 'ok', 'error': None, 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
+            record_model_modalities(pn, model, modalities)
+            LAST_ROUTE_DEBUG.update({'selected': {'provider': pn, 'model': model}, 'status': 'ok', 'error': None, 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'modalities': modalities})
             append_route_event({'request_id': request_id, 'status': 'ok', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': bool(want_stream), 'requirements': requirements, 'selected': {'provider': pn, 'model': model}, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]]})
             logger.info(f"[{request_id}] OK: {pn}/{model} (provider={elapsed:.2f}s, total={total_elapsed:.2f}s, stream={want_stream})")
             if return_result:
@@ -12158,6 +12282,8 @@ class Handler(BaseHTTPRequestHandler):
             headers['X-Sage-Router-Intent'] = LAST_ROUTE_DEBUG.get('intent')
         if LAST_ROUTE_DEBUG.get('routeMode'):
             headers['X-Sage-Router-Route-Mode'] = LAST_ROUTE_DEBUG.get('routeMode')
+        if LAST_ROUTE_DEBUG.get('modalities'):
+            headers['X-Sage-Router-Modalities'] = ','.join(LAST_ROUTE_DEBUG.get('modalities') or [])
         return headers
 
     def send_cors_headers(self):
@@ -12344,6 +12470,11 @@ class Handler(BaseHTTPRequestHandler):
             if not require_operator_request(self):
                 return
             self.write_json(200, {'credentials': list_setup_credentials(), 'configured': sorted(PROVIDERS.keys())})
+        elif request_path == '/setup/model-modalities':
+            if not require_operator_request(self):
+                return
+            _persist_model_modalities(force=True)
+            self.write_json(200, {'modelModalities': model_modalities_summary(), 'path': APP_MODEL_MODALITIES})
         elif request_path == '/dashboard':
             if not require_operator_request(self):
                 return

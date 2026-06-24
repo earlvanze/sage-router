@@ -118,6 +118,26 @@ paths, so multimodal requests route to a capable model instead of failing.
 exact models currently treated as capable of each modality (per provider, GLM
 flagged). The dashboard Health card renders all three summaries.
 
+## Modality learning
+
+On every successful completion the router records the modalities that a model
+actually served (`vision`, `audio`, `video`, `document`, `text`) into an
+append-only ledger persisted at `APP_MODEL_MODALITIES` (env
+`SAGE_ROUTER_MODEL_MODALITIES`, default
+`~/.openclaw/openclaw/model-modalities.json`). Disk writes are throttled (at
+most once per 5 s unless forced).
+
+Learned modalities feed back into `model_capabilities` as an augmentation: a
+model is treated as supporting a modality if it declares it *or* it has served
+that modality before, so routing improves as the router observes more traffic.
+
+Observability:
+
+- `LAST_ROUTE_DEBUG['modalities']` and the `X-Sage-Router-Modalities` response
+  header expose the modalities of the active request
+- `GET /setup/model-modalities` (operator) returns `modelModalities` plus the
+  ledger `path`; the dashboard renders a "Learned Modalities" card
+
 ## Routing Logic
 
 The router does **not** perform mid-stream switching. Once a request is sent to a provider, the full response is returned or the attempt fails. If it fails, the next candidate in the chain is tried sequentially. There is no partial-output fallback or streaming handoff between providers.

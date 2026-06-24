@@ -85,6 +85,16 @@
     .cred-state { font-size: 10px; color: #6f8197; margin-left: 6px; }
     .cred-state.cooldown { color: var(--warning); }
     .cred-state.err { color: var(--danger); }
+    .mm-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .mm-row:last-child { border: none; }
+    .mm-model { font-weight: 600; }
+    .mm-mods { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+    .mm-mod { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: rgba(0,180,216,0.12); color: var(--accent); }
+    .mm-mod.image { background: rgba(0,180,216,0.18); }
+    .mm-mod.audio { background: rgba(255,193,7,0.15); color: var(--warning); }
+    .mm-mod.video { background: rgba(230,57,70,0.15); color: var(--danger); }
+    .mm-mod.document { background: rgba(76,175,80,0.15); color: var(--success); }
+    .mm-mod.text { background: rgba(255,255,255,0.06); color: #8898a8; }
   </style>
 </head>
 <body>
@@ -226,6 +236,11 @@
     <div class="card">
       <h2>Health</h2>
       <div id="health"></div>
+    </div>
+    <div class="card">
+      <h2>Learned Modalities</h2>
+      <p class="muted" style="margin-bottom:8px">Modalities each model has actually served, recorded to improve future routing.</p>
+      <div id="learnedModalities"></div>
     </div>
     <div class="card">
       <h2>Models</h2>
@@ -433,6 +448,20 @@
       }
     }
 
+    const MOD_ORDER = ['text','image','audio','video','document'];
+    function modClass(m){ return m; }
+    function renderLearnedModalities(data) {
+      const el = document.getElementById('learnedModalities');
+      const entries = Object.entries(data || {});
+      if (!entries.length) { el.innerHTML = '<div class="muted">No modalities recorded yet.</div>'; return; }
+      entries.sort((a, b) => (b[1].lastSeen || 0) - (a[1].lastSeen || 0));
+      el.innerHTML = entries.map(([key, info]) => {
+        const mods = (info.modalities || []).slice().sort((a,b) => MOD_ORDER.indexOf(a) - MOD_ORDER.indexOf(b));
+        const tags = mods.map(m => `<span class="mm-mod ${m}">${escapeHtml(m)}</span>`).join('');
+        return `<div class="mm-row"><span class="mm-model">${escapeHtml(key)} <span class="muted">×${info.count || 0}</span></span><span class="mm-mods">${tags}</span></div>`;
+      }).join('');
+    }
+
     async function loadAll() {
       document.getElementById('statusText').textContent = 'Loading...';
       const [health, modelsResp, analytics, setup, credsResp] = await Promise.all([
@@ -440,7 +469,8 @@
         api('/v1/models').catch(() => ({})),
         api('/analytics?days=7').catch(() => ({})),
         api('/setup/state').catch(() => ({})),
-        api('/setup/credentials').catch(() => ({}))
+        api('/setup/credentials').catch(() => ({})),
+        api('/setup/model-modalities').catch(() => ({}))
       ]);
       // Status
       const ok = health.status === 'ok';
@@ -498,6 +528,8 @@
       }
       // Credentials
       renderCredentials(credsResp.credentials || setup.credentials || []);
+      // Learned modalities
+      renderLearnedModalities((modalitiesResp || {}).modelModalities);
       window.__sageProviders = (Array.isArray(configured) ? configured : Object.keys(configured || {}))
         .map(p => (typeof p === 'string' ? p : (p && (p.name || p.id)) || null))
         .filter(Boolean);
