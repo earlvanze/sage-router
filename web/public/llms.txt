@@ -16,6 +16,7 @@ Azure OpenAI router: https://sagerouter.dev/azure-openai-router
 Anthropic API router: https://sagerouter.dev/anthropic-api-router
 AWS Bedrock router: https://sagerouter.dev/aws-bedrock-router
 GitHub Copilot router: https://sagerouter.dev/github-copilot-router
+Claude Code router: https://sagerouter.dev/claude-code-router
 Gemini API router: https://sagerouter.dev/gemini-api-router
 xAI Grok router: https://sagerouter.dev/xai-grok-router
 Mistral AI router: https://sagerouter.dev/mistral-ai-router
@@ -93,6 +94,7 @@ Managed access boundary: managed provider access, if introduced, is limited to p
 - Hosted OpenAI-compatible API reference for models, chat completions, Responses API, quotas, and rate-limit headers.
 - Agent-native model routing for OpenAI-compatible, Codex-style, local, Tailnet, and BYOK agents.
 - Sage Router integrations for OpenAI-compatible clients, Codex, Cursor, Aider, Continue, Claude Code, OpenHands, Ollama, Anthropic-compatible clients, and Tailnet agents.
+- Claude Code router for Anthropic-compatible coding-agent traffic, authorized Anthropic or Dario subscription paths, local/Tailnet fallback, 429 failover, and multimodal routing.
 - Sage Router launch plan for $10k MRR, hosted plan mix, conversion funnel, and managed-access beta boundary.
 - Troubleshooting Sage Router 401/402/429/503 without sharing prompts or secrets.
 - AI model routing calculator for estimating cost leaks, escalation rules, fallback needs, and human-review points.

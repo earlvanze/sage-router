@@ -148,6 +148,11 @@ provider resale claim, or runtime feature flag.
   `GITHUB_COPILOT_TOKEN` custody, OpenAI-compatible setup, model discovery,
   credential load balancing, 429 failover, multimodal safeguards, and
   provider-authorization boundaries.
+- Keep `/claude-code-router` as the Claude Code acquisition path for
+  Anthropic-compatible coding-agent routing, customer-owned authorized
+  Anthropic or Dario subscription paths, hosted `sk_sage_*` account control,
+  local/Tailnet fallback, credential load balancing, 429 failover, multimodal
+  routing, and provider-authorization boundaries.
 - Keep `/xai-grok-router` as the xAI Grok acquisition path for API-key
   authorized Grok routing, customer-owned `XAI_API_KEY` custody,
   OpenAI-compatible setup, `/v1/models` discovery, credential load balancing,

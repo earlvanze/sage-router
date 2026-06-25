@@ -38,6 +38,14 @@ const routePaths = [
     state: 'route-path-coding-agent',
   },
   {
+    label: 'Claude Code',
+    title: 'Anthropic-compatible coding route',
+    href: '/claude-code-router',
+    body: 'Route Claude Code through one Sage Router policy layer with authorized Anthropic or Dario paths, local fallback, and 429 failover.',
+    button: 'Claude Code route path',
+    state: 'route-path-claude-code',
+  },
+  {
     label: 'Ollama',
     title: 'Local Ollama + Ollama Cloud',
     href: '/ollama-ai-model-router',
@@ -617,6 +625,7 @@ function App() {
             <a href="/anthropic-api-router">Anthropic</a>
             <a href="/aws-bedrock-router">AWS Bedrock</a>
             <a href="/github-copilot-router">GitHub Copilot</a>
+            <a href="/claude-code-router">Claude Code</a>
             <a href="/xai-grok-router">xAI Grok</a>
             <a href="/mistral-ai-router">Mistral AI</a>
             <a href="/groq-ai-router">Groq</a>
@@ -745,6 +754,11 @@ function App() {
                 button: 'GitHub Copilot router',
                 state: 'hero-secondary-copilot-router',
               })}>GitHub Copilot router</a>
+              <a href="/claude-code-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/claude-code-router',
+                button: 'Claude Code router',
+                state: 'hero-secondary-claude-code-router',
+              })}>Claude Code router</a>
               <a href="/xai-grok-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/xai-grok-router',
                 button: 'xAI Grok router',
@@ -1143,6 +1157,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/anthropic-api-router">Anthropic</a>
         <a href="/aws-bedrock-router">AWS Bedrock</a>
         <a href="/github-copilot-router">GitHub Copilot</a>
+        <a href="/claude-code-router">Claude Code</a>
         <a href="/xai-grok-router">xAI Grok</a>
         <a href="/mistral-ai-router">Mistral AI</a>
         <a href="/groq-ai-router">Groq</a>
