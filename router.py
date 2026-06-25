@@ -2964,6 +2964,8 @@ def model_is_servable(provider, model):
         return False
     if local_ollama_cloud_auth_blocked(provider, model):
         return False
+    if provider and provider.api_type != 'ollama':
+        return True
     # Hosted Ollama Cloud models are servable through the remote Ollama API even
     # when they are not present in the local /api/tags installed-model list.
     if provider and provider.api_type == 'ollama' and is_cloud_ollama_model(model) and not is_local_ollama_provider(provider):

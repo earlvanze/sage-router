@@ -317,6 +317,18 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         provider = router.Provider('google', 'google-generative-language', 'https://generativelanguage.googleapis.com/v1beta', 'key', ['gemini-2.5-flash'])
         self.assertTrue(router.model_capabilities(provider, 'gemini-2.5-flash')['tools'])
 
+    def test_google_ignores_stale_host_servable_metadata(self):
+        provider = router.Provider(
+            'google',
+            'google-generative-language',
+            'https://generativelanguage.googleapis.com/v1beta',
+            'key',
+            ['gemini-2.5-flash'],
+            model_meta={'gemini-2.5-flash': {'servable': False, 'supportsTools': True}},
+        )
+        ok, reason = router.model_meets_requirements(provider, 'gemini-2.5-flash', {'tools': True}, 100)
+        self.assertTrue(ok, reason)
+
     def test_explicit_google_prefix_is_not_reassigned_to_openrouter(self):
         old_providers = router.PROVIDERS
         old_disabled = set(router.DISABLED_PROVIDERS)
