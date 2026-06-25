@@ -187,6 +187,40 @@ const loadSupabaseScript = () => new Promise((resolve, reject) => {
 function LandingEmailStart() {
   const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [oauthSubmitting, setOauthSubmitting] = useState(false);
+
+  const startGithub = async () => {
+    setOauthSubmitting(true);
+    setStatus('Opening GitHub sign-in for Pro.');
+    trackLandingFunnelEvent('landing_oauth_clicked', {
+      plan: 'pro',
+      target: ACCOUNT_PAGE_URL,
+      button: 'Continue with GitHub for Pro',
+      state: 'github',
+    });
+    try {
+      const api = await loadSupabaseScript();
+      const client = api.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { error } = await client.auth.signInWithOAuth({
+        provider: 'github',
+        options: { redirectTo: ACCOUNT_PAGE_URL },
+      });
+      if (error) throw error;
+    } catch (error) {
+      trackLandingFunnelEvent('landing_oauth_failed', {
+        plan: 'pro',
+        target: ACCOUNT_PAGE_URL,
+        button: 'Continue with GitHub for Pro',
+        state: 'github',
+      });
+      setStatus('GitHub sign-in failed here. Opening the account flow...');
+      window.setTimeout(() => {
+        window.location.href = ACCOUNT_PAGE_URL;
+      }, 900);
+    } finally {
+      setOauthSubmitting(false);
+    }
+  };
 
   return (
     <form id="hero-email-form" className="heroEmailStart" onSubmit={async (event) => {
@@ -245,6 +279,9 @@ function LandingEmailStart() {
       }
     }}>
       <label htmlFor="hero-email">Fastest Pro start</label>
+      <button className="heroOauthButton" type="button" onClick={startGithub} disabled={oauthSubmitting}>
+        {oauthSubmitting ? 'Opening GitHub...' : 'Continue with GitHub for Pro'}
+      </button>
       <div>
         <input id="hero-email" name="email" type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" required />
         <button type="submit" disabled={submitting}>{submitting ? 'Sending...' : 'Email me the Pro link'}</button>

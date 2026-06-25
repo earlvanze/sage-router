@@ -157,6 +157,8 @@ const ALLOWED_EVENTS = new Set([
   'billing_troubleshooting_clicked',
   'landing_viewed',
   'landing_account_clicked',
+  'landing_oauth_clicked',
+  'landing_oauth_failed',
   'landing_magic_link_requested',
   'landing_magic_link_sent',
   'landing_magic_link_failed',

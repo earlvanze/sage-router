@@ -958,6 +958,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("api_troubleshooting_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("launch_plan_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("landing_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("landing_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("model_catalog_magic_link_sent") != null) and
@@ -1004,6 +1005,12 @@ check_marketing_homepage_activation() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "landing_account_clicked" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-account-funnel-event"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Continue with GitHub for Pro" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-github-pro-activation"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "landing_oauth_clicked" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-landing-oauth-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "hero-email-form" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-email-start-form"
