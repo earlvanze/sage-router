@@ -1001,6 +1001,9 @@ check_marketing_email_activation_helper() {
   if [[ "$code" == "200" ]] && ! grep -q "Continue with GitHub for Pro" /tmp/sage-router-readiness-body; then
     code="200:missing-github-pro-copy"
   fi
+  if [[ "$code" == "200" ]] && ! grep -q "start=checkout" /tmp/sage-router-readiness-body; then
+    code="200:missing-saved-checkout-intent"
+  fi
   if [[ "$code" == "200" ]] && ! grep -q "signInWithOAuth" /tmp/sage-router-readiness-body; then
     code="200:missing-github-oauth-login"
   fi
@@ -1040,6 +1043,9 @@ check_marketing_homepage_activation() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html?plan=pro" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-pro-account-link"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "start=checkout" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-saved-checkout-intent"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "landing_account_clicked" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-account-funnel-event"
@@ -1295,6 +1301,9 @@ check_marketing_pricing_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html?plan=pro" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pro-account-link"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "start=checkout" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-saved-checkout-intent"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing_checkout_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-checkout-funnel-event"
@@ -1607,6 +1616,9 @@ check_marketing_quickstart_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html?plan=pro" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pro-account-link"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "start=checkout" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-saved-checkout-intent"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_account_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-account-funnel-event"

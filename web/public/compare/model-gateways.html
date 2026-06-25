@@ -70,7 +70,7 @@
         <h1>Sage Router model gateway</h1>
         <p class="lead">Hosted model gateways are useful when you want one marketplace-style API. Sage Router is built for teams and agents that want one endpoint too, but with local-first control, BYOK routing, private provider credentials, Ollama support, health-aware fallback, and an optional hosted account layer.</p>
         <div class="actions">
-          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro">Create hosted API key</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Create hosted API key</a>
           <a class="button secondary" href="/docs/gateway-migration">Migration guide</a>
           <a class="button secondary" href="/fusion">Fusion compatibility</a>
           <a class="button secondary" href="/pricing">Compare plans</a>
@@ -186,7 +186,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
   <script>
     const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
-    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro';
+    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=checkout';
 
     function loadSupabaseClient() {
       return new Promise((resolve, reject) => {
@@ -252,7 +252,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
     function gatewayMigrationBundleText() {
       return `# Gateway migration bundle: existing OpenAI-compatible client -> Sage Router
 # Create a hosted key:
-# https://app.sagerouter.dev/account.html?plan=pro
+# https://app.sagerouter.dev/account.html?plan=pro&start=checkout
 
 export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
 export OPENAI_API_KEY=sk_sage_your_key_here

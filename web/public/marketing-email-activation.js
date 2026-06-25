@@ -1,4 +1,4 @@
-const SAGE_ROUTER_ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro';
+const SAGE_ROUTER_ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=checkout';
 const SAGE_ROUTER_SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
 const SAGE_ROUTER_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
 

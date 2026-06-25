@@ -105,10 +105,11 @@ failure states such as `stripe_not_configured`, `unauthorized`,
 `rate_limited`, or `service_unavailable` so operators can fix conversion
 friction without collecting raw billing errors or customer secrets.
 
-Plan-specific pricing links such as `/account.html?plan=pro` preselect that
-checkout plan, remember it locally through signup/login, and restore the plan
+Plan-specific pricing links such as `/account.html?plan=pro&start=checkout`
+preselect that checkout plan, remember it locally through signup/login,
+preserve the checkout intent after email/OAuth redirects, and restore the plan
 from Stripe success/cancel return URLs so new customers do not accidentally
-land on the default checkout tier.
+land on the default checkout tier or need a second billing click.
 
 API keys created before checkout are stored, but the account page marks routing as blocked until the customer is active, trialing, or manually enabled; the edge enforces the same rule before proxying `/v1/*` traffic. Revoked keys and inactive accounts are rechecked against Supabase by default on every generated-key request. Customers are limited to `SAGE_ROUTER_MAX_ACTIVE_API_KEYS_PER_CUSTOMER` active generated keys at a time, default `5`; revoked keys do not count against the cap. Signed-in customers can revoke their own generated keys from the account page even while verified-email gates block new key creation, Stripe checkout, or manual payment intent creation, so leaked keys can be shut down immediately without opening a support ticket. Successful customer revokes record a bounded `api_key.revoke` audit event and anonymous account-funnel revoke telemetry without raw generated keys, key hashes, prompts, provider credentials, or raw error payloads.
 
@@ -214,14 +215,14 @@ agents, and
 routing savings, escalation rules, fallback gaps, and review rates for one
 workflow before they create a hosted API key. The calculator recommends
 Lite/Pro/Max from workflow volume, risk flags, and routing score, then carries
-that plan into `/account.html?plan=...` for preselected checkout after account
+that plan into `/account.html?plan=...&start=checkout` for preselected checkout after account
 creation. It also reads public `/pricing` billing readiness metadata so it can
 use current plan limits and avoid promising a Stripe checkout when the selected
 plan is not configured; in that case it records `calculator_checkout_unavailable`
 and sends the prospect to the account/manual billing path.
 
 The public homepage now treats hosted signup as live: the homepage primary CTA
-is `Create hosted API key`, links directly to `/account.html?plan=pro`, and
+is `Create hosted API key`, links directly to `/account.html?plan=pro&start=checkout`, and
 keeps pricing, quickstart, status, model gateway comparison, model catalog,
 security, analytics, login, and local GitHub install paths available from the
 hero. The waitlist remains an updates/support path, not the primary conversion

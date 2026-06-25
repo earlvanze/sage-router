@@ -61,7 +61,7 @@
         <h1>Sage Router vs OpenRouter</h1>
         <p class="lead">OpenRouter is a strong hosted model marketplace and OpenAI-compatible API. Sage Router is for agent teams that want the same one-endpoint ergonomics while keeping provider keys, local models, Tailnet routers, failover policy, and routing telemetry under their own control.</p>
         <div class="actions">
-          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro">Create hosted Sage Router key</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Create hosted Sage Router key</a>
           <a class="button secondary" href="/docs/gateway-migration">Migrate a gateway client</a>
           <a class="button secondary" href="/quickstart">Try the quickstart</a>
           <a class="button secondary" href="/model-routing-calculator">Estimate routing fit</a>
@@ -118,7 +118,7 @@
           <h2>Keep the OpenAI-compatible shape; change the control plane.</h2>
           <p class="muted">Most client changes are base URL, API key, and model profile. Start with <code>sage-router/frontier</code> for general routing and use <code>sage-router/fusion</code> on Pro/Max when you need panel-plus-judge synthesis.</p>
           <div class="actions">
-            <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro">Start Pro</a>
+            <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Start Pro</a>
             <a class="button secondary" href="/docs/gateway-migration">Read migration guide</a>
           </div>
         </div>
@@ -168,7 +168,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
   <script>
     const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
-    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro';
+    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=checkout';
 
     function loadSupabaseClient() {
       return new Promise((resolve, reject) => {

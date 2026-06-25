@@ -69,7 +69,7 @@
         <h1>One subscription for Sage Router control plane access.</h1>
         <p class="lead">Use the hosted edge at <code>https://api.sagerouter.dev/v1</code> for account-managed API keys, quotas, fallback reliability, and routing telemetry while keeping provider access customer-authorized and local-first by default.</p>
         <div class="actions">
-          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro">Start Pro activation</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Start Pro activation</a>
           <a class="button secondary" href="/quickstart">Read quickstart</a>
           <a class="button secondary" href="/status">View public status</a>
           <a class="button secondary" href="/billing">Billing help</a>
@@ -132,7 +132,7 @@
             <li>Agentic, frontier, and Fusion route profiles</li>
             <li>Analytics snapshots and route telemetry</li>
           </ul>
-          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro">Start Pro</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Start Pro</a>
           <form class="planEmailForm" data-pricing-plan-email data-plan="pro">
             <input type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for Sage Router Pro activation" required>
             <button class="button primary" type="submit">Email Pro link</button>
@@ -310,7 +310,7 @@
     const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
     const ACCOUNT_PAGE_BASE_URL = 'https://app.sagerouter.dev/account.html';
-    const ACCOUNT_PAGE_URL = `${ACCOUNT_PAGE_BASE_URL}?plan=pro`;
+    const ACCOUNT_PAGE_URL = `${ACCOUNT_PAGE_BASE_URL}?plan=pro&start=checkout`;
     const sb = window.supabase?.createClient?.(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     function normalizePlan(plan) {
@@ -318,7 +318,7 @@
     }
 
     function accountPageUrlForPlan(plan) {
-      return `${ACCOUNT_PAGE_BASE_URL}?plan=${encodeURIComponent(normalizePlan(plan))}`;
+      return `${ACCOUNT_PAGE_BASE_URL}?plan=${encodeURIComponent(normalizePlan(plan))}&start=checkout`;
     }
 
     function planDisplay(plan) {

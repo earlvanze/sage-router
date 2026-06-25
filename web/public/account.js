@@ -5,6 +5,8 @@ let openaiBaseUrl = `${sageRouterUrl}/v1`;
 let anthropicBaseUrl = sageRouterUrl;
 const DEFAULT_PLAN_ORDER = ['lite', 'pro', 'max'];
 const SELECTED_PLAN_STORAGE_KEY = 'sage_router_selected_plan';
+const START_ACTION_STORAGE_KEY = 'sage_router_start_action';
+const AUTO_CHECKOUT_ATTEMPT_STORAGE_KEY = 'sage_router_auto_checkout_attempt';
 const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
 const FALLBACK_PLANS = {
   lite: { name: 'Lite', price: '$6/month', limits: { monthlyRequests: 10000, rateLimitPerMinute: 60 }, features: ['agent-native routing', 'API keys', 'usage analytics'] },
@@ -141,11 +143,61 @@ function requestedPlanFromUrl() {
   return normalizePlan(params.get('plan'));
 }
 
+function normalizeStartAction(action) {
+  const normalized = String(action || '').trim().toLowerCase();
+  return normalized === 'checkout' ? normalized : '';
+}
+
+function requestedStartActionFromUrl() {
+  const params = new URLSearchParams(window.location.search || '');
+  return normalizeStartAction(params.get('start') || params.get('action'));
+}
+
+function storedStartAction() {
+  try {
+    return normalizeStartAction(window.sessionStorage?.getItem(START_ACTION_STORAGE_KEY));
+  } catch (_error) {
+    return '';
+  }
+}
+
+function rememberStartAction(action) {
+  const normalized = normalizeStartAction(action);
+  try {
+    if (normalized) window.sessionStorage?.setItem(START_ACTION_STORAGE_KEY, normalized);
+    else window.sessionStorage?.removeItem(START_ACTION_STORAGE_KEY);
+  } catch (_error) {
+    // Checkout intent persistence is best-effort.
+  }
+  return normalized;
+}
+
+function autoCheckoutAttemptKey(plan = selectedPlan) {
+  return `${AUTO_CHECKOUT_ATTEMPT_STORAGE_KEY}:${normalizePlan(plan) || 'unknown'}`;
+}
+
+function hasAutoCheckoutAttempted(plan = selectedPlan) {
+  try {
+    return window.sessionStorage?.getItem(autoCheckoutAttemptKey(plan)) === '1';
+  } catch (_error) {
+    return false;
+  }
+}
+
+function markAutoCheckoutAttempted(plan = selectedPlan) {
+  try {
+    window.sessionStorage?.setItem(autoCheckoutAttemptKey(plan), '1');
+  } catch (_error) {
+    // A missing marker only risks a repeated prompt; checkout still requires Stripe confirmation.
+  }
+}
+
 function planDisplay(plan) {
   return plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : 'Pro';
 }
 
 let selectedPlan = requestedPlanFromUrl() || storedPlan() || 'pro';
+let pendingStartAction = rememberStartAction(requestedStartActionFromUrl() || storedStartAction());
 let availablePlans = FALLBACK_PLANS;
 let billingMetadata = null;
 let recommendedUpgradePlan = '';
@@ -162,10 +214,12 @@ let activationState = {
   requestCount: 0,
 };
 
-function accountPageUrlWithPlan(plan = selectedPlan) {
+function accountPageUrlWithPlan(plan = selectedPlan, options = {}) {
   const url = new URL(ACCOUNT_PAGE_URL);
   const normalized = normalizePlan(plan);
   if (normalized) url.searchParams.set('plan', normalized);
+  const start = normalizeStartAction(options.start || (options.preserveStart === false ? '' : pendingStartAction));
+  if (start) url.searchParams.set('start', start);
   return url.toString();
 }
 
@@ -770,6 +824,16 @@ function applyManualPaymentIntent(intent = {}) {
   set('crypto-status', describeManualPaymentIntent(intent));
 }
 
+async function maybeStartCheckoutFromIntent({ emailVerified, routingEnabled } = {}) {
+  if (pendingStartAction !== 'checkout') return;
+  if (!activationState.signedIn || !emailVerified || routingEnabled) return;
+  if (!stripeCheckoutReadyForPlan(selectedPlan)) return;
+  if (hasAutoCheckoutAttempted(selectedPlan)) return;
+  markAutoCheckoutAttempted(selectedPlan);
+  set('billing-status', `Opening ${planDisplay(selectedPlan)} checkout from your saved activation intent...`);
+  await stripeCheckout({ button: 'auto_checkout', state: 'saved_checkout_intent' });
+}
+
 async function refresh() {
   const s = await session();
   show('auth-panel', !s);
@@ -828,6 +892,10 @@ async function refresh() {
       keyVerified,
       requestCount,
     });
+    await maybeStartCheckoutFromIntent({
+      emailVerified,
+      routingEnabled: Boolean(activation.routingEnabled ?? (accountPlan !== 'free' && routingEnabled)),
+    });
   } catch (error) {
     set('account-status', error.message);
     renderPlans(FALLBACK_PLANS, 'free');
@@ -844,6 +912,9 @@ function handleBillingReturn() {
   const billing = params.get('billing');
   const requested = normalizePlan(params.get('plan'));
   if (requested) selectedPlan = rememberSelectedPlan(requested);
+  if (state || billing) {
+    pendingStartAction = rememberStartAction('');
+  }
   if (!state && !billing) return;
   if (state) {
     if (state === 'success') {
@@ -1127,18 +1198,19 @@ async function sendTestChat() {
   }
 }
 
-async function stripeCheckout() {
+async function stripeCheckout(options = {}) {
   let redirecting = false;
+  const button = options.button || 'stripe_checkout';
   if (!stripeCheckoutReadyForPlan(selectedPlan)) {
     const message = stripeCheckoutUnavailableMessage(selectedPlan);
     set('billing-status', message);
-    trackAccountFunnelEvent('account_checkout_unavailable', { button: 'stripe_checkout', target: '/billing/stripe/checkout', state: 'checkout_unavailable' });
+    trackAccountFunnelEvent('account_checkout_unavailable', { button, target: '/billing/stripe/checkout', state: 'checkout_unavailable' });
     return;
   }
   setBusy('stripe-checkout', true, 'Opening...');
   try {
     set('billing-status', `Opening ${selectedPlan} checkout...`);
-    trackAccountFunnelEvent('account_checkout_clicked', { button: 'stripe_checkout', target: '/billing/stripe/checkout' });
+    trackAccountFunnelEvent('account_checkout_clicked', { button, target: '/billing/stripe/checkout', state: options.state || null });
     const data = await api('/billing/stripe/checkout', { method: 'POST', body: JSON.stringify({ plan: selectedPlan }) });
     if (data.checkout_url) {
       redirecting = true;
@@ -1146,7 +1218,7 @@ async function stripeCheckout() {
     }
   } catch (error) {
     trackAccountFunnelEvent('account_checkout_failed', {
-      button: 'stripe_checkout',
+      button,
       target: '/billing/stripe/checkout',
       state: billingFailureState(error, 'checkout_failed'),
     });

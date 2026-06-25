@@ -46,7 +46,7 @@
     <div class="actions">
       <a class="button primary" href="/quickstart" data-selfhosted-event="content_article_quickstart_clicked" data-selfhosted-button="quickstart">Read quickstart</a>
       <a class="button secondary" href="https://github.com/earlvanze/sage-router" data-selfhosted-event="content_article_github_clicked" data-selfhosted-button="github">Run locally</a>
-      <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=pro" data-selfhosted-event="content_article_checkout_clicked" data-selfhosted-button="start-pro">Create hosted key</a>
+      <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-selfhosted-event="content_article_checkout_clicked" data-selfhosted-button="start-pro">Create hosted key</a>
       <a class="button secondary" href="/compare/openrouter" data-selfhosted-event="content_article_compare_clicked" data-selfhosted-button="compare-openrouter">Compare OpenRouter</a>
     </div>
     <form id="self-hosted-email-form" class="emailStart">
@@ -139,7 +139,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
     <a href="/security">Security</a>
   </footer>
   <script>
-    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro';
+    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=checkout';
     const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
 
@@ -209,7 +209,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       return `${document.getElementById('self-hosted-local-start-code')?.textContent.trim() || ''}
 
 # Optional hosted key for public edge + account analytics:
-# https://app.sagerouter.dev/account.html?plan=pro`;
+# https://app.sagerouter.dev/account.html?plan=pro&start=checkout`;
     }
 
     async function writeClipboardText(text) {
