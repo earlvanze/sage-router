@@ -267,6 +267,13 @@ provider resale claim, or runtime feature flag.
   previews, local development, or exact origins configured with
   `SAGEROUTER_FUNNEL_ALLOWED_ORIGINS`; the service-role-backed Supabase insert
   path must not be reusable as a third-party analytics sink.
+- Convert long-form article traffic into activation intent with the shared
+  `article-activation-dock.js` bottom dock on pages that already emit
+  `content_article_viewed`. The dock must keep the next actions concrete:
+  create a Pro key, copy the hosted quickstart, or estimate plan fit. Its
+  events must use the same privacy-safe funnel path and store only page path,
+  normalized title, button, target, source surface, UTM buckets, and referrer
+  host.
 - Capture model catalog page-view, filter, CTA, and bucketed search intent from
   `/models` through the same path. Store only model-family and search-bucket
   intent such as `openai-codex`, `ollama`, `byok-compatible`, or `other`; do
