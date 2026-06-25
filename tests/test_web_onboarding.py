@@ -1701,6 +1701,28 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("https://sagerouter.dev/quickstart", readme)
         self.assertIn("Dedicated API quickstart page at `/quickstart`", web_readme)
 
+    def test_public_self_hosted_router_page_captures_local_start_intent(self):
+        page = self.read_public("self-hosted-ai-model-router.html")
+        readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")
+
+        self.assertIn("Self-hosted AI model router", page)
+        self.assertIn("Multiple API keys", page)
+        self.assertIn("Multimodal routing", page)
+        self.assertIn('id="self-hosted-email-form"', page)
+        self.assertIn("content_article_magic_link_sent", page)
+        self.assertIn('id="self-hosted-local-start-code"', page)
+        self.assertIn('id="self-hosted-copy-local-start"', page)
+        self.assertIn("Copy local start bundle", page)
+        self.assertIn("function selfHostedLocalStartText", page)
+        self.assertIn("function writeClipboardText", page)
+        self.assertIn("function copySelfHostedLocalStart", page)
+        self.assertIn("quickstart_snippet_copied", page)
+        self.assertIn("snippet: data.snippet || null", page)
+        self.assertIn("self-hosted-local-start", page)
+        self.assertIn("Copied local start bundle.", page)
+        self.assertIn("self-hosted-copy-local-start", readiness)
+        self.assertIn("quickstart_snippet_copied", readiness)
+
     def test_public_api_troubleshooting_page_is_discoverable(self):
         page = self.read_public("api-troubleshooting.html")
         quickstart = self.read_public("quickstart.html")

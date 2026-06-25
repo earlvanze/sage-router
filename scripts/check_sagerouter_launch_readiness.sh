@@ -1102,6 +1102,12 @@ check_marketing_self_hosted_router_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "content_article_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-self-hosted-magic-link-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "self-hosted-copy-local-start" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-self-hosted-copy-local-start"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-self-hosted-copy-funnel"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
