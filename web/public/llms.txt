@@ -8,6 +8,7 @@ OpenRouter comparison: https://sagerouter.dev/compare/openrouter
 Gateway migration: https://sagerouter.dev/docs/gateway-migration
 Hosted pricing: https://sagerouter.dev/pricing
 Fusion: https://sagerouter.dev/fusion
+Local-first routing guide: https://sagerouter.dev/local-first-routing-for-ai-agents
 Launch plan: https://sagerouter.dev/launch-plan
 Billing help: https://sagerouter.dev/billing
 Managed-access private beta: https://sagerouter.dev/managed-access
@@ -68,6 +69,7 @@ Managed access boundary: managed provider access, if introduced, is limited to p
 - Local-first BYOK model routing for AI agents.
 - Sage Router model gateway for AI agent routing, local model fallback, and private provider credential custody.
 - Sage Router vs OpenRouter for local-first BYOK routing, Tailnet failover, Ollama, and customer-controlled provider credentials.
+- Local-first routing for AI agents that need provider failover, BYOK credential custody, Ollama fallback, Tailnet routes, and one OpenAI-compatible endpoint.
 - Sage Router model catalog for OpenAI-compatible, Anthropic-compatible, Gemini, Ollama, Ollama Cloud, NVIDIA NIM, and BYOK routes.
 - Codex CLI with an OpenAI-compatible Sage Router provider on hosted or local port 8790.
 - Hosted OpenAI-compatible API reference for models, chat completions, Responses API, quotas, and rate-limit headers.

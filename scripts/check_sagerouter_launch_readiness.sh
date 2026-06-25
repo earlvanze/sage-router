@@ -864,6 +864,8 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("calculator_checkout_unavailable") != null) and
     ((.allowedEvents // []) | index("fusion_viewed") != null) and
     ((.allowedEvents // []) | index("fusion_checkout_clicked") != null) and
+    ((.allowedEvents // []) | index("content_article_viewed") != null) and
+    ((.allowedEvents // []) | index("content_article_quickstart_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
     ((.allowedEvents // []) | index("account_snippet_copied") != null) and
     ((.allowedEvents // []) | index("account_support_context_copied") != null)
@@ -921,6 +923,39 @@ check_marketing_comparison_page() {
     pass "marketing model gateway and OpenRouter comparison pages are live in sitemap and LLM discovery"
   else
     fail "marketing model gateway comparison incomplete: page=${page_code} openrouter=${openrouter_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
+check_marketing_local_first_article_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/local-first-routing-for-ai-agents")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Local-first routing for AI agents" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-funnel-event"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Hosted Sage Router monetizes routing convenience" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-commercial-boundary"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/local-first-routing-for-ai-agents" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-local-first-article-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Local-first routing guide: ${MARKETING_BASE%/}/local-first-routing-for-ai-agents" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-local-first-article-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing local-first routing article is live in sitemap and LLM discovery"
+  else
+    fail "marketing local-first routing article incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
   fi
 }
 
@@ -1782,6 +1817,7 @@ check_marketing_comparison_page
 check_marketing_gateway_migration_page
 check_marketing_pricing_page
 check_marketing_fusion_page
+check_marketing_local_first_article_page
 check_marketing_launch_plan_page
 check_marketing_billing_page
 check_marketing_managed_access_page
