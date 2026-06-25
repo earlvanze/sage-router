@@ -148,6 +148,54 @@ How are you handling failover between local Ollama and cloud models today? Are p
 
     <section class="two">
       <article class="panel">
+        <h2>Copyable r/SideProject launch post</h2>
+        <pre id="reddit-sideproject-post" class="codebox">I built Sage Router because every agent tool I use has its own model config, fallback behavior, and rate-limit failure mode.
+
+The side project became a product: one OpenAI-compatible endpoint for Codex, Cursor, Aider, Continue, OpenHands, OpenAI SDKs, Anthropic-compatible clients, local Ollama, Ollama Cloud through authorized local runtime access, and other BYOK providers.
+
+What it does:
+- chooses routes by task, provider health, model capability, latency, and policy;
+- fails over on 429s and provider outages;
+- load-balances multiple API keys per provider;
+- routes image/audio/video inputs only to capable models;
+- keeps provider credentials local by default when self-hosted;
+- offers hosted generated sk_sage_* keys, quotas, analytics, and reliability routing for teams that want a public edge.
+
+Commercial boundary: Sage Router sells routing infrastructure, not bundled model resale. You still bring authorized provider access unless a future managed-provider beta explicitly satisfies provider terms and unit economics.
+
+Hosted plans are live:
+- Lite: $6/month
+- Pro: $30/month
+- Max: $72/month
+
+Pricing:
+https://sagerouter.dev/pricing?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch
+
+Create a hosted key:
+https://app.sagerouter.dev/account.html?plan=pro&start=checkout&utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch
+
+Quickstart:
+https://sagerouter.dev/quickstart?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch
+
+Repo:
+https://github.com/earlvanze/sage-router?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch
+
+For people launching AI infrastructure side projects: would you lead with the hosted key workflow, the local-first open-source core, or the OpenRouter comparison?</pre>
+        <div class="copyRow">
+          <button id="reddit-copy-sideproject-post" class="copyButton" type="button">Copy r/SideProject post</button>
+          <span id="reddit-copy-sideproject-status" class="copyStatus" role="status" aria-live="polite"></span>
+        </div>
+      </article>
+      <aside class="panel soft">
+        <h2>Why this post is separate</h2>
+        <p>r/SideProject readers evaluate packaging, pricing, positioning, and founder lessons. This version leads with the shipped hosted plans, generated key flow, and clear commercial boundary rather than only self-hosting mechanics.</p>
+        <p><a href="/pricing" data-reddit-event="content_article_pricing_clicked" data-reddit-button="sideproject-pricing">Open pricing →</a></p>
+        <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-reddit-event="content_article_checkout_clicked" data-reddit-button="sideproject-account">Create hosted key →</a></p>
+      </aside>
+    </section>
+
+    <section class="two">
+      <article class="panel">
         <h2>Copyable 60-second setup proof</h2>
         <pre id="reddit-setup-proof" class="codebox">export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
 export OPENAI_API_KEY=sk_sage_your_key_here
@@ -280,6 +328,9 @@ curl "$OPENAI_BASE_URL/chat/completions" \
     });
     document.getElementById('reddit-copy-ollama-post')?.addEventListener('click', () => {
       copyBlock('reddit-ollama-post', 'reddit-copy-ollama-status', 'Copied r/Ollama post.', 'reddit-ollama-post');
+    });
+    document.getElementById('reddit-copy-sideproject-post')?.addEventListener('click', () => {
+      copyBlock('reddit-sideproject-post', 'reddit-copy-sideproject-status', 'Copied r/SideProject post.', 'reddit-sideproject-post');
     });
     document.getElementById('reddit-copy-setup-proof')?.addEventListener('click', () => {
       copyBlock('reddit-setup-proof', 'reddit-copy-setup-status', 'Copied setup proof.', 'reddit-setup-proof');

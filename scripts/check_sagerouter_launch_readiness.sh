@@ -1610,6 +1610,12 @@ check_marketing_reddit_evaluation_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "content_article_ollama_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-ollama-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "reddit-copy-sideproject-post" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-sideproject-post"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_pricing_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-sideproject-pricing-funnel"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "reddit-copy-setup-proof" /tmp/sage-router-readiness-body; then
     page_code="200:missing-copy-setup-proof"
   fi
