@@ -527,6 +527,46 @@ function activationBadge(id, done) {
   if (el) el.textContent = done ? 'Ready' : 'Waiting';
 }
 
+function hasSessionApiKey() {
+  return Boolean(($('test-api-key')?.value.trim() || currentRawKey || '').trim());
+}
+
+function focusApiKeyVerifier(message = 'Paste an existing sk_sage key or create a new one first.') {
+  set('post-key-activation-status', message);
+  const target = $('test-api-key') || $('create-key');
+  target?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  target?.focus?.();
+}
+
+function renderPostKeyActivationPanel() {
+  const keyVerified = activationState.keyVerified || activationState.requestCount > 0;
+  const canUseSessionKey = hasSessionApiKey();
+  setBusy('post-key-verify-button', false);
+  setBusy('post-key-first-request-button', false);
+  const verifyButton = $('post-key-verify-button');
+  const firstRequestButton = $('post-key-first-request-button');
+  if (verifyButton) verifyButton.disabled = !activationState.signedIn || (!activationState.keyCount && !canUseSessionKey);
+  if (firstRequestButton) firstRequestButton.disabled = !activationState.signedIn || (!activationState.keyCount && !canUseSessionKey);
+
+  if (!activationState.signedIn) {
+    set('post-key-activation-status', 'Sign in first, then generate the hosted key.');
+  } else if (!activationState.emailVerified) {
+    set('post-key-activation-status', 'Verify your email before creating or using hosted keys.');
+  } else if (!activationState.keyCount && !canUseSessionKey) {
+    set('post-key-activation-status', 'Create a generated sk_sage key first; the raw key is shown once and inserted into these setup snippets.');
+  } else if (!canUseSessionKey) {
+    set('post-key-activation-status', 'An active key exists. Paste it into the verifier or create a fresh key to populate setup snippets.');
+  } else if (!activationState.routingEnabled) {
+    set('post-key-activation-status', 'Verify the key now, then finish checkout so the first routed request can pass.');
+  } else if (!keyVerified) {
+    set('post-key-activation-status', 'Next: verify /v1/models, then send the first sage-router/frontier request.');
+  } else if (!activationState.requestCount) {
+    set('post-key-activation-status', 'Next: send the first sage-router/frontier request or copy Codex setup.');
+  } else {
+    set('post-key-activation-status', `Activated: ${fmtNumber(activationState.requestCount)} routed request${activationState.requestCount === 1 ? '' : 's'} recorded.`);
+  }
+}
+
 function renderLaunchNextAction(patch = {}) {
   activationState = { ...activationState, ...patch };
   const keyVerified = activationState.keyVerified || activationState.requestCount > 0;
@@ -556,6 +596,7 @@ function renderLaunchNextAction(patch = {}) {
   } else {
     set('launch-next-action', `Activated: ${fmtNumber(activationState.requestCount)} routed request${activationState.requestCount === 1 ? '' : 's'} recorded this period.`);
   }
+  renderPostKeyActivationPanel();
   renderSupportContext();
 }
 
@@ -652,6 +693,7 @@ function renderQuickstart(key) {
   set('client-openai-code', openaiSdkSetupText(displayKey));
   set('client-codex-code', codexSetupText(displayKey));
   set('client-anthropic-code', anthropicSetupText(displayKey));
+  renderPostKeyActivationPanel();
 }
 
 function supportUsageSummary(usage) {
@@ -1487,6 +1529,27 @@ document.addEventListener('click', async (event) => {
     }
     return;
   }
+  const postKeyButton = event.target?.closest?.('[data-post-key-action]');
+  if (postKeyButton) {
+    const action = postKeyButton.dataset.postKeyAction;
+    if (!hasSessionApiKey()) {
+      trackAccountFunnelEvent(action === 'first-request' ? 'account_post_key_first_request_clicked' : 'account_post_key_verify_clicked', {
+        button: postKeyButton.textContent.trim() || action,
+        target: action === 'first-request' ? '/v1/chat/completions' : '/v1/models',
+        state: 'missing_session_key',
+      });
+      focusApiKeyVerifier('Paste an existing sk_sage key or create a fresh key before running this step.');
+      return;
+    }
+    if (action === 'first-request') {
+      trackAccountFunnelEvent('account_post_key_first_request_clicked', { button: postKeyButton.textContent.trim() || 'Send first request', target: '/v1/chat/completions', state: 'sage-router/frontier' });
+      await sendTestChat();
+    } else {
+      trackAccountFunnelEvent('account_post_key_verify_clicked', { button: postKeyButton.textContent.trim() || 'Verify /v1/models', target: '/v1/models', state: 'models' });
+      await testApiKey();
+    }
+    return;
+  }
   const preauthNext = event.target?.closest?.('[data-preauth-focus-email]');
   if (preauthNext) {
     trackAccountFunnelEvent('account_preauth_setup_next_clicked', {
@@ -1517,6 +1580,15 @@ document.addEventListener('click', async (event) => {
       state: 'copied',
       snippet: snippetIdForCopyTarget(copyTarget),
     });
+    if (button.id === 'post-key-copy-codex-button') {
+      trackAccountFunnelEvent('account_post_key_codex_copied', {
+        button: button.dataset.copyLabel || original || 'Copy Codex setup',
+        target: '#client-codex-code',
+        state: 'copied',
+        snippet: 'codex-cli',
+      });
+      set('post-key-activation-status', 'Codex setup copied. Export the shown API key in your shell before running Codex.');
+    }
   } catch (_error) {
     const selection = window.getSelection();
     const range = document.createRange();

@@ -712,6 +712,18 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "resend-verification-email" /tmp/sage-router-readiness-body; then
     account_code="200:missing-email-verification-resend"
   fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "post-key-activation-panel" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-post-key-activation-panel"
+  fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "post-key-verify-button" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-post-key-verify-button"
+  fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "post-key-first-request-button" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-post-key-first-request-button"
+  fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "post-key-copy-codex-button" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-post-key-codex-copy"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   analytics_code="$(http_code_follow "${APP_BASE%/}/analytics.html")"

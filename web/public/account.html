@@ -94,6 +94,18 @@
         <p id="launch-next-action" class="status small"></p>
       </div>
 
+      <div id="post-key-activation-panel" class="panel">
+        <h3>Post-key activation</h3>
+        <p class="small">After creating an <code>sk_sage_*</code> key, keep the next conversion step visible: verify <code>/v1/models</code>, send the first <code>sage-router/frontier</code> request, or copy Codex setup.</p>
+        <div class="actions">
+          <button id="post-key-verify-button" class="btn secondary" type="button" data-post-key-action="verify">Verify /v1/models</button>
+          <button id="post-key-first-request-button" class="btn" type="button" data-post-key-action="first-request">Send first request</button>
+          <button id="post-key-copy-codex-button" class="btn secondary" type="button" data-copy-target="client-codex-code" data-copy-label="Copy Codex setup">Copy Codex setup</button>
+          <a class="btn secondary" href="/quickstart">Open quickstart</a>
+        </div>
+        <p id="post-key-activation-status" class="status small"></p>
+      </div>
+
       <div class="panel">
         <h3>Safe support context</h3>
         <p class="small">Copy bounded account, plan, quota, and activation state for support. This packet does not include prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, or customer data.</p>
