@@ -251,6 +251,7 @@ let supportContextState = {
 };
 let emailActionAllowed = true;
 let verificationEmail = '';
+let latestOauthExternalState = null;
 
 function configuredStripePlans() {
   const configured = billingMetadata?.stripe?.configuredPlans || [];
@@ -366,17 +367,31 @@ function applyLaunchMetadata(data) {
 }
 
 function applyOauthButtons(external = {}, status = '') {
+  if (!status) latestOauthExternalState = external;
+  const enabledProviders = OAUTH_PROVIDER_ORDER.filter((provider) => external[provider] === true);
   const enabledLabels = new Set();
+  const recommendedProvider = enabledProviders[0] || '';
+  const planName = planDisplay(selectedPlan);
   document.querySelectorAll('[data-oauth]').forEach((button) => {
-    const enabled = external[button.dataset.oauth] === true;
+    const provider = button.dataset.oauth;
+    const enabled = external[provider] === true;
+    const label = OAUTH_LABELS[provider] || provider;
     button.classList.toggle('hidden', !enabled);
+    button.classList.toggle('recommended', enabled && provider === recommendedProvider && button.dataset.intentOauth === 'true');
     button.disabled = !enabled;
-    if (enabled) enabledLabels.add(OAUTH_LABELS[button.dataset.oauth] || button.dataset.oauth);
+    if (button.dataset.intentOauth === 'true') {
+      button.textContent = provider === recommendedProvider
+        ? `Continue with ${label} for ${planName}`
+        : `${label} for ${planName}`;
+    } else {
+      button.textContent = label;
+    }
+    if (enabled) enabledLabels.add(label);
   });
   const labels = [...enabledLabels];
   set('oauth-status', oauthStatusText(external, labels, status));
   if (!activationState.signedIn && labels.length && !status) {
-    set('intent-email-status', `${labels[0]} sign-in is available above. Email magic link is also available.`);
+    set('intent-email-status', `Recommended: continue with ${labels[0]} for ${planName}. Email magic link remains available.`);
   }
 }
 
@@ -811,6 +826,7 @@ function selectPlan(plan, status = '') {
   document.querySelectorAll('.planCard').forEach(card => card.classList.toggle('active', card.dataset.plan === selectedPlan));
   renderPreauthPlanPreview(availablePlans);
   updateBillingControls(status);
+  if (latestOauthExternalState) applyOauthButtons(latestOauthExternalState);
 }
 
 function applyRequestedPlanFromUrl() {
