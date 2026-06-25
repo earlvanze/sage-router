@@ -19,6 +19,7 @@ GitHub Copilot router: https://sagerouter.dev/github-copilot-router
 Gemini API router: https://sagerouter.dev/gemini-api-router
 xAI Grok router: https://sagerouter.dev/xai-grok-router
 Mistral AI router: https://sagerouter.dev/mistral-ai-router
+Groq AI router: https://sagerouter.dev/groq-ai-router
 NVIDIA NIM router: https://sagerouter.dev/nvidia-nim-router
 Coding agent model router: https://sagerouter.dev/coding-agent-model-router
 Cursor AI model router: https://sagerouter.dev/cursor-ai-model-router

@@ -158,6 +158,11 @@ provider resale claim, or runtime feature flag.
   custody, OpenAI-compatible setup, code-profile routing, credential load
   balancing, 429 failover, multimodal safeguards, and provider-authorization
   boundaries.
+- Keep `/groq-ai-router` as the Groq AI acquisition path for API-key
+  authorized low-latency Llama and Mixtral routing, customer-owned
+  `GROQ_API_KEY` custody, OpenAI-compatible setup, latency-aware routing,
+  credential load balancing, 429 failover, multimodal safeguards, and
+  provider-authorization boundaries.
 - Keep `/azure-openai-router` as the Azure OpenAI acquisition path for
   customer-owned `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT` custody,
   Azure deployment routing, OpenAI-compatible setup, credential load balancing,

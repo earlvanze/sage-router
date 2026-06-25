@@ -110,6 +110,14 @@ const routePaths = [
     state: 'route-path-mistral',
   },
   {
+    label: 'Groq',
+    title: 'Low-latency Llama routes',
+    href: '/groq-ai-router',
+    body: 'Route Groq-hosted Llama and Mixtral through one policy layer with GROQ_API_KEY custody, latency-aware fallback, and 429 failover.',
+    button: 'Groq route path',
+    state: 'route-path-groq',
+  },
+  {
     label: 'NVIDIA NIM',
     title: 'GPU-backed hosted inference',
     href: '/nvidia-nim-router',
@@ -611,6 +619,7 @@ function App() {
             <a href="/github-copilot-router">GitHub Copilot</a>
             <a href="/xai-grok-router">xAI Grok</a>
             <a href="/mistral-ai-router">Mistral AI</a>
+            <a href="/groq-ai-router">Groq</a>
             <a href="/nvidia-nim-router">NVIDIA NIM</a>
             <a href="/coding-agent-model-router">Coding Agents</a>
             <a href="/cursor-ai-model-router">Cursor</a>
@@ -746,6 +755,11 @@ function App() {
                 button: 'Mistral AI router',
                 state: 'hero-secondary-mistral-router',
               })}>Mistral AI router</a>
+              <a href="/groq-ai-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/groq-ai-router',
+                button: 'Groq router',
+                state: 'hero-secondary-groq-router',
+              })}>Groq router</a>
               <a href="/nvidia-nim-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/nvidia-nim-router',
                 button: 'NVIDIA NIM router',
@@ -1131,6 +1145,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/github-copilot-router">GitHub Copilot</a>
         <a href="/xai-grok-router">xAI Grok</a>
         <a href="/mistral-ai-router">Mistral AI</a>
+        <a href="/groq-ai-router">Groq</a>
         <a href="/nvidia-nim-router">NVIDIA NIM</a>
         <a href="/coding-agent-model-router">Coding Agents</a>
         <a href="/cursor-ai-model-router">Cursor</a>
