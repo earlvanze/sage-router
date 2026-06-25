@@ -75,6 +75,7 @@ function landingSetupBundleText() {
 
 export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
 export OPENAI_API_KEY=sk_sage_your_key_here
+export SAGE_ROUTER_MODEL=sage-router/frontier
 
 # 2) Verify your key can see routed models
 curl "$OPENAI_BASE_URL/models" \\
@@ -85,10 +86,24 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
   -H "Authorization: Bearer $OPENAI_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "sage-router/frontier",
+    "model": "'$SAGE_ROUTER_MODEL'",
     "messages": [{"role": "user", "content": "Route this well"}]
   }'
 
+# Codex profile:
+# [model_providers.sage-router-hosted]
+# name = "Sage Router Hosted"
+# base_url = "https://api.sagerouter.dev/v1"
+# env_key = "OPENAI_API_KEY"
+# wire_api = "responses"
+#
+# [profiles.sage-router-frontier]
+# model_provider = "sage-router-hosted"
+# model = "sage-router/frontier"
+#
+# Full quickstart:
+# https://sagerouter.dev/quickstart
+#
 # Local-first option:
 # python3 router.py --port 8790
 # export OPENAI_BASE_URL=http://localhost:8790/v1`;
@@ -137,6 +152,31 @@ function LandingSetupCopy() {
       })}>
         Open full quickstart →
       </a>
+      <span role="status" aria-live="polite">{status}</span>
+    </div>
+  );
+}
+
+function HeroSetupCopy() {
+  const [status, setStatus] = useState('');
+
+  return (
+    <div className="heroSetupCopy">
+      <button type="button" className="button setupBundleButton" onClick={async () => {
+        try {
+          await writeClipboardText(landingSetupBundleText());
+          trackLandingFunnelEvent('quickstart_snippet_copied', {
+            button: 'Copy 60-second setup bundle',
+            state: 'hero-primary-setup',
+            snippet: 'landing-hero-setup-bundle',
+          });
+          setStatus('Copied. Create your key next; no provider key required.');
+        } catch {
+          setStatus('Copy failed. Open the quickstart for manual setup.');
+        }
+      }}>
+        Copy 60-second setup bundle
+      </button>
       <span role="status" aria-live="polite">{status}</span>
     </div>
   );
@@ -445,6 +485,7 @@ function App() {
               OpenHands, and OpenAI-compatible clients across authorized providers and local/cloud models.
             </p>
             <LandingEmailStart />
+            <HeroSetupCopy />
             <div className="heroActions heroPrimaryActions">
               <a className="button primary" href="/account.html?plan=pro&start=checkout" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
                 plan: 'pro',

@@ -78,7 +78,10 @@ pre-signup checkout interest without collecting secrets or support text.
 ## Hosted onboarding CTA
 
 The primary homepage CTA is `Create hosted API key`, which links to
-`/account.html?plan=pro&start=checkout`. The hero keeps pricing, quickstart, public status,
+`/account.html?plan=pro&start=checkout`. The hero also exposes a no-secret
+`Copy 60-second setup bundle` action that records `quickstart_snippet_copied`
+with `landing-hero-setup-bundle` metadata, so setup-copy intent is measurable
+before signup. The hero keeps pricing, quickstart, public status,
 model-gateway comparison, model catalog, calculator, security, analytics, login,
 managed-access private beta review, support, and local GitHub install paths
 visible so a prospect can move from discovery to generated `sk_sage_*` key setup
