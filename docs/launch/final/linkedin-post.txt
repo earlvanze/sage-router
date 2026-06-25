@@ -9,7 +9,7 @@ The thesis: routing is local-first infrastructure for access you already control
 • Repo: github.com/earlvanze/sage-router
 • Site: sagerouter.dev
 • Pricing: sagerouter.dev/pricing
-• vs OpenRouter: sagerouter.dev/vs-openrouter.html
+• vs OpenRouter: sagerouter.dev/compare/openrouter
 
 30-second start:
 python3 router.py --port 8790

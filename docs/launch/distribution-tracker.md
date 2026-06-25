@@ -1,0 +1,49 @@
+# Sage Router launch distribution tracker
+
+This tracker converts the `$10k MRR` launch plan into measurable distribution
+work. Keep public claims aligned with the local-first/BYOK boundary: Sage Router
+sells routing infrastructure, hosted keys, quotas, analytics, reliability, and
+support. It does not advertise bundled provider resale unless the runtime
+readiness guard enables it.
+
+## Campaign
+
+- Campaign: `sage-router-launch`
+- Primary CTA: `https://sagerouter.dev/quickstart`
+- Buyer-intent CTA: `https://sagerouter.dev/pricing`
+- Comparison CTA: `https://sagerouter.dev/compare/openrouter`
+- Founder-sales CTA: `https://sagerouter.dev/managed-access`
+- Operator dashboard: `https://app.sagerouter.dev/launch-funnel.html`
+
+## Posting queue
+
+| Channel | Status | Link to use | Success signal |
+| --- | --- | --- | --- |
+| Moltbook | Blocked until agent claim | `https://sagerouter.dev/quickstart?utm_source=moltbook&utm_medium=community&utm_campaign=sage-router-launch` | Post URL captured; `moltbook` appears in acquisition actions |
+| Hacker News | Ready after owner approval | `https://sagerouter.dev/?utm_source=hackernews&utm_medium=community&utm_campaign=sage-router-launch` | Referral and signup intent from `hackernews` |
+| Reddit r/selfhosted | Ready after owner approval | `https://sagerouter.dev/quickstart?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | `reddit` source clicks, quickstart copies, GitHub stars |
+| Reddit r/Ollama | Ready after owner approval | `https://sagerouter.dev/models?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | Ollama/model-catalog demand and quickstart copies |
+| Reddit r/SideProject | Ready after owner approval | `https://sagerouter.dev/pricing?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | Pricing/account CTA intent |
+| Indie Hackers | Ready after owner approval | `https://sagerouter.dev/launch-plan?utm_source=indiehackers&utm_medium=community&utm_campaign=sage-router-launch` | Signup, pricing, and founder-sales replies |
+| Dev.to | Ready after owner approval | `https://sagerouter.dev/quickstart?utm_source=devto&utm_medium=community&utm_campaign=sage-router-launch` | Quickstart copy and GitHub traffic |
+| X / Twitter | Ready after owner approval | `https://sagerouter.dev/pricing?utm_source=x&utm_medium=social&utm_campaign=sage-router-launch` | Thread clicks, replies, profile visits |
+| LinkedIn | Ready after owner approval | `https://sagerouter.dev/compare/openrouter?utm_source=linkedin&utm_medium=social&utm_campaign=sage-router-launch` | Pro/Max conversations and managed-access review requests |
+
+## Execution rules
+
+- Post one high-context channel first, then wait for replies before batching
+  more channels.
+- Keep the question at the end genuine and channel-specific; avoid dropping the
+  same copy everywhere in one burst.
+- Do not paste prompts, provider credentials, generated API keys, OAuth tokens,
+  customer data, raw provider responses, or private operator dashboard data into
+  public posts.
+- After each post, record the live post URL, timestamp, channel, UTM link, and
+  observed launch-funnel signal.
+
+## Approval boundary
+
+Existing community/social drafts are ready to use, but public posting still
+requires owner approval for each non-Moltbook channel. Moltbook posting is
+pre-approved by the operator but technically blocked until the `sagerouter`
+agent is claimed.

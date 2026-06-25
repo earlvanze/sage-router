@@ -3,59 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Sage Router vs OpenRouter: open-source local-first routing infrastructure for your own providers vs a hosted model marketplace. Custody, BYOK, local models, failover, pricing." />
-  <link rel="canonical" href="https://sagerouter.dev/vs-openrouter.html" />
+  <meta name="robots" content="noindex, follow" />
+  <meta http-equiv="refresh" content="0; url=/compare/openrouter" />
+  <link rel="canonical" href="https://sagerouter.dev/compare/openrouter" />
   <meta property="og:title" content="Sage Router vs OpenRouter" />
-  <meta property="og:description" content="Local-first routing for access you control, not a hosted marketplace." />
-  <meta property="og:url" content="https://sagerouter.dev/vs-openrouter.html" />
-  <title>Sage Router vs OpenRouter — local-first routing vs marketplace</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/site.css">
+  <meta property="og:description" content="Local-first model routing for agents, private credential custody, BYOK routes, local Ollama, and Tailnet failover." />
+  <meta property="og:url" content="https://sagerouter.dev/compare/openrouter" />
+  <title>Sage Router vs OpenRouter</title>
 </head>
 <body>
-  <nav class="nav"><div class="container navInner"><a class="brand" href="/"><span class="brandMark">S</span><span>Sage Router</span></a><div class="links"><a href="/">Home</a><a href="/pricing.html">Pricing</a><a href="/vs-openrouter.html" class="active">vs OpenRouter</a><a href="/account.html">Account</a><a href="https://github.com/earlvanze/sage-router">GitHub</a></div></div></nav>
-  <main class="container">
-    <section class="hero">
-      <div>
-        <span class="eyebrow">Sage Router vs OpenRouter</span>
-        <h1>Local-first routing, not a marketplace.</h1>
-        <p>Both sit between your tools and many LLM providers. They're built for different buyers and make different trust tradeoffs.</p>
-        <div class="actions"><a class="btn" href="https://github.com/earlvanze/sage-router">Try the free core</a><a class="btn secondary" href="/pricing.html">See pricing</a></div>
-      </div>
-    </section>
-    <section class="panel">
-      <h3>TL;DR</h3>
-      <p><strong>OpenRouter</strong> is a hosted model marketplace/proxy. You pay OpenRouter; OpenRouter holds the provider relationships and bills you per token.</p>
-      <p><strong>Sage Router</strong> is open-source, local-first routing infrastructure for the authorized provider access you already control. It routes, fails over, and observes across your own keys, subscriptions, and local models.</p>
-    </section>
-    <section class="panel">
-      <h3>At a glance</h3>
-      <table>
-        <thead><tr><th>Dimension</th><th>Sage Router</th><th>OpenRouter</th></tr></thead>
-        <tbody>
-          <tr><td>Core model</td><td>Local-first routing infrastructure</td><td>Hosted marketplace/proxy</td></tr>
-          <tr><td>Open source</td><td>Yes (core router)</td><td>No</td></tr>
-          <tr><td>Where credentials live</td><td>Your machine/server by default</td><td>OpenRouter's hosted service</td></tr>
-          <tr><td>BYOK / BYOS</td><td>First-class</td><td>Partial (you buy access from them)</td></tr>
-          <tr><td>Resell model access</td><td>No</td><td>Yes (marketplace)</td></tr>
-          <tr><td>Local Ollama</td><td>First-class, local-first</td><td>Limited/hosted</td></tr>
-          <tr><td>Provider failover</td><td>Yes, policy-based, session-safe</td><td>Yes</td></tr>
-          <tr><td>Self-host / air-gap</td><td>Yes</td><td>No</td></tr>
-          <tr><td>Pricing</td><td>Free local core; paid hosted convenience</td><td>Per-token marketplace markup</td></tr>
-        </tbody>
-      </table>
-    </section>
-    <section class="panel">
-      <h3>Can you use both?</h3>
-      <p>Yes. Wire OpenRouter into Sage Router as a BYOK provider endpoint, so you keep Sage Router's routing, failover, and observability while using OpenRouter as one upstream among many. Sage Router does not resell OpenRouter access — you bring your own OpenRouter key if you use it.</p>
-    </section>
-    <section class="panel">
-      <h3>Compliance posture</h3>
-      <p>Sage Router does not resell model access, pool accounts, share subscriptions, or bypass provider Terms of Service. Customers bring their own API keys, local models, or authorized access. The default architecture physically keeps provider credentials on the customer's machine or server.</p>
-      <div class="actions"><a class="btn secondary" href="https://github.com/earlvanze/sage-router/blob/master/docs/openrouter-comparison.md">Full comparison on GitHub →</a></div>
-    </section>
+  <main>
+    <h1>Sage Router vs OpenRouter</h1>
+    <p>This page moved to <a href="/compare/openrouter">/compare/openrouter</a>.</p>
   </main>
+  <script>window.location.replace('/compare/openrouter');</script>
 </body>
 </html>
