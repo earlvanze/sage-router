@@ -12,7 +12,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <title>Sage Router vs OpenRouter | Local-first model routing for agents</title>
   <style>
-    :root{color-scheme:dark;--bg:#07100d;--panel:rgba(13,29,24,.78);--panel2:rgba(255,255,255,.035);--border:rgba(166,255,207,.16);--muted:#a9c5b8;--text:#edfdf5;--brand:#8df0b2;--brand2:#7eb7ff;--amber:#f7d57a;--shadow:0 24px 80px rgba(0,0,0,.36)}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-width:320px;background:linear-gradient(180deg,#07100d 0%,#0a1511 52%,#07100d 100%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}a{color:inherit;text-decoration:none}.wrap{max-width:1180px;margin:0 auto;padding:0 clamp(20px,5vw,72px)}.nav{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 0;color:var(--muted)}.brand{display:inline-flex;align-items:center;gap:12px;font-weight:900;color:var(--text)}.brandMark{display:grid;place-items:center;width:36px;height:36px;border:1px solid rgba(141,240,178,.42);border-radius:12px;color:#062016;background:linear-gradient(135deg,var(--brand),var(--amber))}.navLinks{display:flex;gap:22px;flex-wrap:wrap;font-size:14px;font-weight:750}.navLinks a:hover{color:var(--text)}.hero{padding:74px 0 54px}.eyebrow{color:var(--brand);text-transform:uppercase;letter-spacing:.16em;font-weight:900;font-size:12px;margin:0 0 16px}h1,h2,h3,p{margin-top:0}h1{font-size:clamp(44px,8vw,86px);line-height:.94;margin-bottom:24px;max-width:940px}h2{font-size:clamp(30px,4vw,50px);line-height:1;margin-bottom:18px}h3{font-size:21px;margin-bottom:10px}.lead{font-size:clamp(20px,2.2vw,27px);line-height:1.35;color:#d2eadf;max-width:920px}.actions{display:flex;flex-wrap:wrap;gap:14px;margin-top:28px}.button{min-height:48px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:0 22px;font-weight:900}.primary{background:linear-gradient(135deg,var(--brand),#50d891);color:#04150d}.secondary{border:1px solid var(--border);background:rgba(255,255,255,.04)}.section{padding:62px 0}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.card,.tableWrap,.callout{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:26px;box-shadow:0 18px 60px rgba(0,0,0,.18)}.card p,.muted,td{color:var(--muted)}.card strong{color:var(--text)}.tableWrap{overflow:auto;padding:0}table{width:100%;border-collapse:collapse;min-width:780px}th,td{text-align:left;border-bottom:1px solid rgba(166,255,207,.12);padding:17px 18px;vertical-align:top}th{color:var(--text);font-size:14px;text-transform:uppercase;letter-spacing:.08em;background:rgba(255,255,255,.035)}td:first-child{color:var(--text);font-weight:850}.good{color:var(--brand);font-weight:900}.warn{color:var(--amber);font-weight:900}.split{display:grid;grid-template-columns:.92fr 1.08fr;gap:28px;align-items:start}.list{display:grid;gap:12px;margin:0;padding:0;list-style:none}.list li{border:1px solid var(--border);border-radius:8px;background:var(--panel2);padding:14px 16px;color:#d2eadf}.callout{background:linear-gradient(180deg,rgba(26,67,50,.9),rgba(12,28,22,.86));border-color:rgba(141,240,178,.28)}code{color:#d9f8e6}.note{font-size:14px;color:var(--muted);max-width:920px}footer{display:flex;gap:18px;flex-wrap:wrap;padding:34px 0 54px;color:var(--muted);border-top:1px solid rgba(166,255,207,.1)}footer span{margin-right:auto}@media(max-width:920px){.grid,.split{grid-template-columns:1fr}.nav{align-items:flex-start;flex-direction:column}.button{width:100%}}@media(max-width:560px){.hero{padding-top:42px}.navLinks{gap:14px}}
+    :root{color-scheme:dark;--bg:#07100d;--panel:rgba(13,29,24,.78);--panel2:rgba(255,255,255,.035);--border:rgba(166,255,207,.16);--muted:#a9c5b8;--text:#edfdf5;--brand:#8df0b2;--brand2:#7eb7ff;--amber:#f7d57a;--shadow:0 24px 80px rgba(0,0,0,.36)}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-width:320px;background:linear-gradient(180deg,#07100d 0%,#0a1511 52%,#07100d 100%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}a{color:inherit;text-decoration:none}.wrap{max-width:1180px;margin:0 auto;padding:0 clamp(20px,5vw,72px)}.nav{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 0;color:var(--muted)}.brand{display:inline-flex;align-items:center;gap:12px;font-weight:900;color:var(--text)}.brandMark{display:grid;place-items:center;width:36px;height:36px;border:1px solid rgba(141,240,178,.42);border-radius:12px;color:#062016;background:linear-gradient(135deg,var(--brand),var(--amber))}.navLinks{display:flex;gap:22px;flex-wrap:wrap;font-size:14px;font-weight:750}.navLinks a:hover{color:var(--text)}.hero{padding:74px 0 54px}.eyebrow{color:var(--brand);text-transform:uppercase;letter-spacing:.16em;font-weight:900;font-size:12px;margin:0 0 16px}h1,h2,h3,p{margin-top:0}h1{font-size:clamp(44px,8vw,86px);line-height:.94;margin-bottom:24px;max-width:940px}h2{font-size:clamp(30px,4vw,50px);line-height:1;margin-bottom:18px}h3{font-size:21px;margin-bottom:10px}.lead{font-size:clamp(20px,2.2vw,27px);line-height:1.35;color:#d2eadf;max-width:920px}.actions{display:flex;flex-wrap:wrap;gap:14px;margin-top:28px}.button{min-height:48px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:0 22px;font-weight:900}.primary{background:linear-gradient(135deg,var(--brand),#50d891);color:#04150d}.secondary{border:1px solid var(--border);background:rgba(255,255,255,.04)}.emailStart{display:flex;flex-wrap:wrap;gap:12px;align-items:center;max-width:760px;margin:22px 0 12px;padding:16px;border:1px solid rgba(141,240,178,.24);border-radius:8px;background:rgba(255,255,255,.045)}.emailStart label{flex:1 1 100%;font-weight:900}.emailStart input{flex:1 1 280px;min-height:48px;border:1px solid var(--border);border-radius:999px;background:rgba(5,15,11,.74);color:var(--text);padding:0 18px;font:inherit}.emailStart input::placeholder{color:#789689}.emailStart .button{border:0;cursor:pointer}.emailStartStatus{flex:1 1 100%;margin:0;color:var(--muted);font-size:14px}.section{padding:62px 0}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.card,.tableWrap,.callout{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:26px;box-shadow:0 18px 60px rgba(0,0,0,.18)}.card p,.muted,td{color:var(--muted)}.card strong{color:var(--text)}.tableWrap{overflow:auto;padding:0}table{width:100%;border-collapse:collapse;min-width:780px}th,td{text-align:left;border-bottom:1px solid rgba(166,255,207,.12);padding:17px 18px;vertical-align:top}th{color:var(--text);font-size:14px;text-transform:uppercase;letter-spacing:.08em;background:rgba(255,255,255,.035)}td:first-child{color:var(--text);font-weight:850}.good{color:var(--brand);font-weight:900}.warn{color:var(--amber);font-weight:900}.split{display:grid;grid-template-columns:.92fr 1.08fr;gap:28px;align-items:start}.list{display:grid;gap:12px;margin:0;padding:0;list-style:none}.list li{border:1px solid var(--border);border-radius:8px;background:var(--panel2);padding:14px 16px;color:#d2eadf}.callout{background:linear-gradient(180deg,rgba(26,67,50,.9),rgba(12,28,22,.86));border-color:rgba(141,240,178,.28)}code{color:#d9f8e6}.note{font-size:14px;color:var(--muted);max-width:920px}footer{display:flex;gap:18px;flex-wrap:wrap;padding:34px 0 54px;color:var(--muted);border-top:1px solid rgba(166,255,207,.1)}footer span{margin-right:auto}@media(max-width:920px){.grid,.split{grid-template-columns:1fr}.nav{align-items:flex-start;flex-direction:column}.button{width:100%}}@media(max-width:560px){.hero{padding-top:42px}.navLinks{gap:14px}}
   </style>
   <script type="application/ld+json">
   {
@@ -67,6 +67,12 @@
           <a class="button secondary" href="/model-routing-calculator">Estimate routing fit</a>
           <a class="button secondary" href="https://github.com/earlvanze/sage-router">Run locally</a>
         </div>
+        <form class="emailStart" id="openrouter-email-form">
+          <label for="openrouter-email">Get a Pro key setup link</label>
+          <input id="openrouter-email" type="email" name="email" autocomplete="email" placeholder="you@company.com" required />
+          <button class="button primary" type="submit">Email me the Pro key link</button>
+          <p class="emailStartStatus" id="openrouter-email-status" role="status">No provider key required to create your Sage Router account.</p>
+        </form>
         <p class="note">Boundary: Sage Router routes only authorized provider access, customer BYOK endpoints, subscriptions, and local models. OpenRouter can be used as a BYOK-compatible provider route; it is not bundled into public Sage Router subscription resale.</p>
       </section>
 
@@ -160,6 +166,33 @@ curl "$OPENAI_BASE_URL/chat/completions" \
     </footer>
   </div>
   <script>
+    const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
+    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro';
+
+    function loadSupabaseClient() {
+      return new Promise((resolve, reject) => {
+        if (window.supabase?.createClient) {
+          resolve(window.supabase);
+          return;
+        }
+        const existing = document.querySelector('script[data-supabase-js]');
+        if (existing) {
+          existing.addEventListener('load', () => resolve(window.supabase), { once: true });
+          existing.addEventListener('error', reject, { once: true });
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+        script.async = true;
+        script.defer = true;
+        script.dataset.supabaseJs = 'true';
+        script.addEventListener('load', () => resolve(window.supabase), { once: true });
+        script.addEventListener('error', reject, { once: true });
+        document.head.appendChild(script);
+      });
+    }
+
     function trackGatewayComparisonEvent(event, data = {}) {
       const params = new URLSearchParams(window.location.search);
       let referrerHost = null;
@@ -197,7 +230,61 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       }).catch(() => {});
     }
 
+    async function sendGatewayCompareMagicLink(event) {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const emailInput = form.querySelector('input[type="email"]');
+      const status = document.getElementById('openrouter-email-status');
+      const email = (emailInput.value || '').trim();
+      if (!email) {
+        status.textContent = 'Enter an email address to receive the setup link.';
+        emailInput.focus();
+        return;
+      }
+      status.textContent = 'Sending setup link...';
+      trackGatewayComparisonEvent('gateway_compare_magic_link_requested', {
+        plan: 'pro',
+        target: ACCOUNT_PAGE_URL,
+        button: 'Email me the Pro key link',
+        state: 'email-start'
+      });
+      try {
+        const api = await loadSupabaseClient();
+        const client = api.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const { error } = await client.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: ACCOUNT_PAGE_URL,
+            data: {
+              sage_router_onboarding: true,
+              signup_source: 'compare-openrouter',
+              selected_plan: 'pro',
+              auth_method: 'magic_link'
+            }
+          }
+        });
+        if (error) throw error;
+        trackGatewayComparisonEvent('gateway_compare_magic_link_sent', {
+          plan: 'pro',
+          target: ACCOUNT_PAGE_URL,
+          button: 'Email me the Pro key link',
+          state: 'email-start'
+        });
+        status.textContent = 'Check your email for a Pro setup link. It opens account setup with the Pro plan selected.';
+      } catch (error) {
+        trackGatewayComparisonEvent('gateway_compare_magic_link_failed', {
+          plan: 'pro',
+          target: ACCOUNT_PAGE_URL,
+          button: 'Email me the Pro key link',
+          state: 'email-start'
+        });
+        status.textContent = 'Email setup is unavailable right now. Opening account setup instead...';
+        setTimeout(() => { window.location.href = ACCOUNT_PAGE_URL; }, 900);
+      }
+    }
+
     trackGatewayComparisonEvent('gateway_compare_viewed', { state: 'page-view' });
+    document.getElementById('openrouter-email-form')?.addEventListener('submit', sendGatewayCompareMagicLink);
 
     document.querySelectorAll('a[href]').forEach((link) => {
       const href = link.getAttribute('href') || '';

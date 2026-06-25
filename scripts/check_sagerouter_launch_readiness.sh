@@ -913,6 +913,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("codex_docs_snippet_copied") != null) and
     ((.allowedEvents // []) | index("landing_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
+    ((.allowedEvents // []) | index("gateway_compare_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("account_viewed") != null) and
     ((.allowedEvents // []) | index("account_snippet_copied") != null) and
     ((.allowedEvents // []) | index("account_support_context_copied") != null)
@@ -980,6 +981,12 @@ check_marketing_comparison_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "/compare/openrouter" /tmp/sage-router-readiness-body; then
     page_code="200:missing-openrouter-comparison-link"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "gateway-compare-email-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-compare-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "gateway_compare_magic_link_sent" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-compare-magic-link-funnel"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   openrouter_code="$(http_code_follow "${MARKETING_BASE%/}/compare/openrouter")"
@@ -991,6 +998,12 @@ check_marketing_comparison_page() {
   fi
   if [[ "$openrouter_code" == "200" ]] && ! grep -q "gateway_compare_viewed" /tmp/sage-router-readiness-body; then
     openrouter_code="200:missing-funnel-event"
+  fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "openrouter-email-form" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-openrouter-email-form"
+  fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "gateway_compare_magic_link_sent" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-gateway-compare-magic-link-funnel"
   fi
   rm -f /tmp/sage-router-readiness-body
 
