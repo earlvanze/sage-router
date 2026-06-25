@@ -62,6 +62,14 @@ const routePaths = [
     state: 'route-path-anthropic',
   },
   {
+    label: 'GitHub Copilot',
+    title: 'Subscription-authorized coding routes',
+    href: '/github-copilot-router',
+    body: 'Keep Copilot-compatible endpoints in the coding-agent matrix with token custody, model discovery, and 429 failover.',
+    button: 'GitHub Copilot route path',
+    state: 'route-path-copilot',
+  },
+  {
     label: 'Gemini',
     title: 'Google AI + Vertex AI',
     href: '/gemini-api-router',
@@ -566,6 +574,7 @@ function App() {
             <a href="/ollama-ai-model-router">Ollama</a>
             <a href="/openai-api-router">OpenAI API</a>
             <a href="/anthropic-api-router">Anthropic</a>
+            <a href="/github-copilot-router">GitHub Copilot</a>
             <a href="/nvidia-nim-router">NVIDIA NIM</a>
             <a href="/coding-agent-model-router">Coding Agents</a>
             <a href="/cursor-ai-model-router">Cursor</a>
@@ -676,6 +685,11 @@ function App() {
                 button: 'Anthropic API router',
                 state: 'hero-secondary-anthropic-router',
               })}>Anthropic API router</a>
+              <a href="/github-copilot-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/github-copilot-router',
+                button: 'GitHub Copilot router',
+                state: 'hero-secondary-copilot-router',
+              })}>GitHub Copilot router</a>
               <a href="/nvidia-nim-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/nvidia-nim-router',
                 button: 'NVIDIA NIM router',
@@ -1056,6 +1070,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/ollama-ai-model-router">Ollama</a>
         <a href="/openai-api-router">OpenAI API</a>
         <a href="/anthropic-api-router">Anthropic</a>
+        <a href="/github-copilot-router">GitHub Copilot</a>
         <a href="/nvidia-nim-router">NVIDIA NIM</a>
         <a href="/coding-agent-model-router">Coding Agents</a>
         <a href="/cursor-ai-model-router">Cursor</a>

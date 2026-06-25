@@ -1484,6 +1484,60 @@ check_marketing_anthropic_router_page() {
   fi
 }
 
+check_marketing_github_copilot_router_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/github-copilot-router")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "GitHub Copilot router" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "GITHUB_COPILOT_TOKEN" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copilot-token-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "OpenAI-compatible setup" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-openai-compatible-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "429 failover" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-429-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Multimodal safeguards" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-multimodal-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "does not grant unauthorized GitHub Copilot access" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-provider-boundary"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copilot-router-copy-start" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copilot-copy-start"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copilot-router-start" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copilot-snippet-id"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-view-funnel"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/github-copilot-router" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-copilot-router-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "GitHub Copilot router: ${MARKETING_BASE%/}/github-copilot-router" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-copilot-router-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing GitHub Copilot router page is live in sitemap and LLM discovery"
+  else
+    fail "marketing GitHub Copilot router page incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_gemini_router_page() {
   local page_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/gemini-api-router")"
@@ -2887,6 +2941,7 @@ check_marketing_self_hosted_router_page
 check_marketing_ollama_router_page
 check_marketing_openai_router_page
 check_marketing_anthropic_router_page
+check_marketing_github_copilot_router_page
 check_marketing_gemini_router_page
 check_marketing_nvidia_nim_router_page
 check_marketing_coding_agent_router_page
