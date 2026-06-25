@@ -915,6 +915,8 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("codex_docs_account_clicked") != null) and
     ((.allowedEvents // []) | index("codex_docs_snippet_copied") != null) and
     ((.allowedEvents // []) | index("codex_docs_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("api_reference_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("api_troubleshooting_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("landing_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_magic_link_sent") != null) and
@@ -1481,6 +1483,12 @@ check_marketing_api_troubleshooting_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "sk_sage_" /tmp/sage-router-readiness-body; then
     page_code="200:missing-generated-key-guidance"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "api-troubleshooting-email-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-troubleshooting-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "api_troubleshooting_magic_link_sent" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-troubleshooting-magic-link-funnel"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
@@ -1528,6 +1536,12 @@ check_marketing_api_reference_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Anonymous .*/v1/.* model traffic is blocked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-authenticated-model-api-boundary"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "api-reference-email-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-reference-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "api_reference_magic_link_sent" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-reference-magic-link-funnel"
   fi
   rm -f /tmp/sage-router-readiness-body
 
