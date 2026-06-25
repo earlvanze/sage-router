@@ -18,6 +18,18 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn('path: "/dashboard"', manifest)
         self.assertIn("port: 8790", manifest)
 
+    def test_dashboard_new_provider_credentials_require_endpoint_defaults(self):
+        dashboard = self.read_text("web", "dashboard", "index.html")
+        self.assertIn('id="credProvider" onchange="onCredProviderChange()"', dashboard)
+        self.assertIn('id="credApi" onchange="applyCredentialProviderDefaults()"', dashboard)
+        self.assertIn("function onCredProviderChange()", dashboard)
+        self.assertIn("function applyCredentialProviderDefaults()", dashboard)
+        self.assertIn("const providerDefaults", dashboard)
+        self.assertIn("'ollama': {name: 'ollama', baseUrl: 'http://host.docker.internal:11434'}", dashboard)
+        self.assertIn("Endpoint URL", dashboard)
+        self.assertIn("Failed: endpoint URL required", dashboard)
+        self.assertIn("ollama-team-b", dashboard)
+
     def test_account_page_has_explicit_email_signup(self):
         html = self.read_public("account.html")
         js = self.read_public("account.js")

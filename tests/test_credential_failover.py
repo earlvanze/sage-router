@@ -233,3 +233,55 @@ class CredentialLoadBalancingTests(unittest.TestCase):
             router.APP_PROVIDER_CONFIG = old_cfg_path
             router.reload_configured_providers = old_reload
             os.unlink(tmp.name)
+
+    def test_new_provider_credential_requires_endpoint_for_unknown_api(self):
+        import json, tempfile, os
+        tmp = tempfile.NamedTemporaryFile('w', suffix='.json', delete=False)
+        tmp.write(json.dumps({'models': {'providers': {}}}))
+        tmp.close()
+        old_cfg_path = router.APP_PROVIDER_CONFIG
+        old_reload = router.reload_configured_providers
+        router.APP_PROVIDER_CONFIG = tmp.name
+        router.reload_configured_providers = lambda: None
+        try:
+            with self.assertRaises(ValueError) as ctx:
+                router.save_setup_credential({
+                    'provider': 'custom-work',
+                    'api': 'custom-api',
+                    'key': 'sk-test',
+                })
+            self.assertEqual(str(ctx.exception), 'provider_endpoint_required')
+        finally:
+            router.APP_PROVIDER_CONFIG = old_cfg_path
+            router.reload_configured_providers = old_reload
+            os.unlink(tmp.name)
+
+    def test_new_provider_credential_normalizes_dashboard_api_aliases(self):
+        import json, tempfile, os
+        tmp = tempfile.NamedTemporaryFile('w', suffix='.json', delete=False)
+        tmp.write(json.dumps({'models': {'providers': {}}}))
+        tmp.close()
+        old_cfg_path = router.APP_PROVIDER_CONFIG
+        old_reload = router.reload_configured_providers
+        router.APP_PROVIDER_CONFIG = tmp.name
+        router.reload_configured_providers = lambda: None
+        try:
+            res = router.save_setup_credential({
+                'provider': 'ollama-team-b',
+                'api': 'ollama-cloud',
+                'baseUrl': 'https://ollama.com',
+                'key': 'ollama-key',
+                'credentialStrategy': 'round-robin',
+            })
+            self.assertEqual(res['provider'], 'ollama-team-b')
+            self.assertEqual(res['slot'], 'apiKeys')
+            cfg = json.load(open(tmp.name))
+            provider_cfg = cfg['models']['providers']['ollama-team-b']
+            self.assertEqual(provider_cfg['api'], 'ollama')
+            self.assertEqual(provider_cfg['baseUrl'], 'https://ollama.com')
+            self.assertEqual(provider_cfg['credentialStrategy'], 'round-robin')
+            self.assertEqual(provider_cfg['apiKeys'][0]['key'], 'ollama-key')
+        finally:
+            router.APP_PROVIDER_CONFIG = old_cfg_path
+            router.reload_configured_providers = old_reload
+            os.unlink(tmp.name)

@@ -7,10 +7,16 @@
       "requiresQuality": true,
       "requiresReasoning": true,
       "allowProviders": [
-        "ollama-cloud"
+        "openai-codex"
       ],
       "fallbackProviders": [
-        "ollama"
+        "ollama-cyber",
+        "ollama",
+        "google",
+        "google-vertex",
+        "openrouter",
+        "nvidia-nim",
+        "openai"
       ],
       "frontierLargeOnly": true,
       "suppressIntermediateToolText": true
@@ -22,10 +28,16 @@
       "requiresQuality": true,
       "requiresReasoning": true,
       "allowProviders": [
-        "ollama-cloud"
+        "openai-codex"
       ],
       "fallbackProviders": [
-        "ollama-cloud"
+        "ollama-cyber",
+        "ollama",
+        "google",
+        "google-vertex",
+        "openrouter",
+        "nvidia-nim",
+        "openai"
       ],
       "frontierLargeOnly": true,
       "suppressIntermediateToolText": true,
@@ -68,10 +80,16 @@
       "frontierLargeOnly": true,
       "suppressIntermediateToolText": true,
       "allowProviders": [
-        "ollama-cloud"
+        "openai-codex"
       ],
       "fallbackProviders": [
-        "ollama-cloud"
+        "ollama-cyber",
+        "ollama",
+        "google",
+        "google-vertex",
+        "openrouter",
+        "nvidia-nim",
+        "openai"
       ],
       "denyModels": [
         "*-mini*", "*:mini*", "*mini/*",
@@ -91,10 +109,16 @@
       "requiresReasoning": true,
       "preferTools": true,
       "allowProviders": [
-        "ollama-cloud"
+        "openai-codex"
       ],
       "fallbackProviders": [
-        "ollama-cloud"
+        "ollama-cyber",
+        "ollama",
+        "google",
+        "google-vertex",
+        "openrouter",
+        "nvidia-nim",
+        "openai"
       ],
       "frontierLargeOnly": true,
       "suppressIntermediateToolText": true,
@@ -139,10 +163,16 @@
       "requiresReasoning": true,
       "frontierOrReasoningTools": true,
       "allowProviders": [
-        "ollama-cloud"
+        "openai-codex"
       ],
       "fallbackProviders": [
-        "ollama-cloud"
+        "ollama-cyber",
+        "ollama",
+        "google",
+        "google-vertex",
+        "openrouter",
+        "nvidia-nim",
+        "openai"
       ],
       "suppressIntermediateToolText": true,
       "denyModels": [

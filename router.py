@@ -553,11 +553,11 @@ OLLAMA_MANIFEST_URLS = load_ollama_manifest_bindings('URL')
 OLLAMA_MANIFEST_FILES = load_ollama_manifest_bindings('FILE')
 
 INTENT_API_SCORES = {
-    'CODE': {'ollama': 60, 'openai-completions': 58, 'anthropic-messages': 48, 'google-generative-language': 44, 'google-vertex-ai': 44},
-    'ANALYSIS': {'ollama': 66, 'anthropic-messages': 58, 'openai-completions': 54, 'google-generative-language': 52, 'google-vertex-ai': 52},
-    'CREATIVE': {'anthropic-messages': 60, 'google-generative-language': 59, 'google-vertex-ai': 59, 'openai-completions': 55, 'ollama': 50},
-    'REALTIME': {'google-generative-language': 60, 'google-vertex-ai': 60, 'openai-completions': 60, 'anthropic-messages': 54, 'ollama': 48},
-    'GENERAL': {'anthropic-messages': 58, 'google-generative-language': 57, 'google-vertex-ai': 57, 'openai-completions': 56, 'ollama': 50},
+    'CODE': {'openai-codex-responses': 72, 'ollama': 60, 'openai-completions': 58, 'anthropic-messages': 48, 'google-generative-language': 44, 'google-vertex-ai': 44},
+    'ANALYSIS': {'openai-codex-responses': 72, 'ollama': 66, 'anthropic-messages': 58, 'openai-completions': 54, 'google-generative-language': 52, 'google-vertex-ai': 52},
+    'CREATIVE': {'openai-codex-responses': 62, 'anthropic-messages': 60, 'google-generative-language': 59, 'google-vertex-ai': 59, 'openai-completions': 55, 'ollama': 50},
+    'REALTIME': {'openai-codex-responses': 62, 'google-generative-language': 60, 'google-vertex-ai': 60, 'openai-completions': 60, 'anthropic-messages': 54, 'ollama': 48},
+    'GENERAL': {'openai-codex-responses': 64, 'anthropic-messages': 58, 'google-generative-language': 57, 'google-vertex-ai': 57, 'openai-completions': 56, 'ollama': 50},
 }
 
 INTENT_MODEL_HINTS = {
@@ -1203,22 +1203,38 @@ def add_openai_compat_headers(hdrs, provider_name=''):
 def infer_api_type(name, cfg, base_url):
     api_type = cfg.get('api')
     if api_type:
+        if api_type in {'openai', 'openai-compatible'}:
+            return 'openai-completions'
+        if api_type == 'anthropic':
+            return 'anthropic-messages'
         # Normalize google-generative-ai -> google-generative-language (OpenClaw schema enum)
-        if api_type == 'google-generative-ai':
+        if api_type in {'google-generative-ai', 'google', 'gemini'}:
             return 'google-generative-language'
         if api_type in {'google-vertex-ai', 'vertex-ai', 'vertex'}:
             return 'google-vertex-ai'
         if api_type in {'cloudflare-workers-ai', 'cloudflare', 'workers-ai'}:
             return 'cloudflare-workers-ai'
+        if api_type in {'ollama', 'ollama-cloud'}:
+            return 'ollama'
         return api_type
     host = (urllib.parse.urlparse(base_url or '').hostname or '').lower()
+    port = urllib.parse.urlparse(base_url or '').port
+    name_l = str(name or '').strip().lower()
+    if (
+        name_l.startswith('ollama') or
+        (host in {'ollama', 'localhost', '127.0.0.1', 'host.docker.internal'} and port == 11434) or
+        'ollama.com' in host
+    ):
+        return 'ollama'
     if 'api.cloudflare.com' in host or name in {'cloudflare', 'cloudflare-workers-ai', 'workers-ai'}:
         return 'cloudflare-workers-ai'
-    if 'aiplatform.googleapis.com' in host or name in {'google-vertex', 'vertex-ai', 'vertex'}:
+    if 'aiplatform.googleapis.com' in host or name_l in {'google-vertex', 'vertex-ai', 'vertex'}:
         return 'google-vertex-ai'
-    if 'generativelanguage.googleapis.com' in host or name == 'google':
+    if 'generativelanguage.googleapis.com' in host or name_l in {'google', 'gemini'}:
         return 'google-generative-language'
-    if 'x.ai' in host or name == 'xai':
+    if 'anthropic.com' in host or name_l == 'anthropic':
+        return 'anthropic-messages'
+    if 'x.ai' in host or name_l == 'xai':
         return 'openai-completions'
     return 'openai-completions'
 
@@ -8434,12 +8450,24 @@ def save_setup_credential(payload):
     # If creating a new provider, fill in defaults so it is usable.
     if not cfg:
         api_type = str(payload.get('api') or '').strip()
+        api_aliases = {
+            'openai': 'openai-completions',
+            'openai-compatible': 'openai-completions',
+            'anthropic': 'anthropic-messages',
+            'google': 'google-generative-language',
+            'gemini': 'google-generative-language',
+            'codex': 'openai-codex-responses',
+            'ollama-cloud': 'ollama',
+        }
+        api_type = api_aliases.get(api_type, api_type)
         if not api_type:
-            api_type = infer_api_type(provider_name, {}, '')
+            api_type = infer_api_type(provider_name, {}, str(payload.get('baseUrl') or payload.get('base_url') or ''))
         cfg.setdefault('api', api_type)
-        base_url = str(payload.get('baseUrl') or '').strip()
+        base_url = str(payload.get('baseUrl') or payload.get('base_url') or '').strip()
         if not base_url:
             base_url = default_base_url_for_api(cfg.get('api') or '')
+        if not base_url:
+            raise ValueError('provider_endpoint_required')
         if base_url:
             cfg.setdefault('baseUrl', base_url)
         models = parse_model_list(payload.get('models'))
@@ -10382,9 +10410,12 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
         if provider.api_type == 'ollama':
             score += 18
             contributions.append(('user_pref_analysis_ollama', 18))
-        elif provider.name == 'openai-codex' or provider.api_type == 'openclaw-gateway':
+        elif provider.name == 'openai-codex' or provider.api_type == 'openai-codex-responses':
+            score += 64
+            contributions.append(('user_pref_analysis_codex_subscription', 64))
+        elif provider.api_type == 'openclaw-gateway':
             score -= 10
-            contributions.append(('user_pref_analysis_not_gpt', -10))
+            contributions.append(('user_pref_analysis_gateway_penalty', -10))
         if tier == 'strong':
             score += 24
             contributions.append(('analysis_strong_model_bonus', 24))
@@ -10498,7 +10529,7 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
             score -= 8
             contributions.append(('route_mode_realtime_remote_penalty', -8))
     elif route_mode == 'best':
-        if provider.api_type in {'anthropic-messages', 'openclaw-gateway'}:
+        if provider.api_type in {'openai-codex-responses', 'anthropic-messages', 'openclaw-gateway'}:
             score += 5
             contributions.append(('route_mode_best_frontier_bonus', 5))
     elif route_mode == 'local-first':
@@ -10516,7 +10547,7 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
         if any(hint in model_l for hint in LIGHTWEIGHT_MODEL_HINTS):
             score -= 10
             contributions.append(('thinking_high_light_penalty', -10))
-        if provider.api_type in {'anthropic-messages', 'openai-completions', 'openclaw-gateway'}:
+        if provider.api_type in {'anthropic-messages', 'openai-completions', 'openai-codex-responses', 'openclaw-gateway'}:
             score += 3
             contributions.append(('thinking_high_reasoning_bias', 3))
     elif thinking == ThinkingLevel.LOW:
@@ -10534,7 +10565,10 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
             contributions.append(('thinking_low_ollama_bonus', 2))
 
     if requirements.get('document'):
-        if provider.api_type == 'google-generative-language':
+        if provider.name == 'openai-codex' or provider.api_type == 'openai-codex-responses':
+            score += 65
+            contributions.append(('document_codex_subscription_bonus', 65))
+        elif provider.api_type == 'google-generative-language':
             score += 55
             contributions.append(('document_google_bonus', 55))
         elif provider.api_type in {'openai-completions', 'anthropic-messages'}:

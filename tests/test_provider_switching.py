@@ -81,6 +81,35 @@ class ProviderSwitchingTests(unittest.TestCase):
         )
         self.assertEqual([('openai-codex', 'gpt-5.5')], chain[:1])
 
+    def test_codex_subscription_beats_google_when_ollama_is_rate_limited(self):
+        router.PROVIDERS = {
+            'ollama': router.Provider('ollama', 'ollama', 'http://ollama.invalid', '', ['glm-5']),
+            'openai-codex': router.Provider('openai-codex', 'openai-codex-responses', 'https://codex.invalid', 'token', ['gpt-5.4']),
+            'google': router.Provider('google', 'google-generative-language', 'https://google.invalid', 'key', ['gemini-2.5-pro']),
+        }
+        router.TEMP_MODEL_BLOCKS['ollama/glm-5'] = {
+            'until': 9999999999,
+            'reason': 'HTTP 429 Too Many Requests',
+        }
+
+        chain, scores, _rejections = router.select_model(
+            router.Intent.ANALYSIS,
+            router.Complexity.COMPLEX,
+            router.ThinkingLevel.HIGH,
+            'best',
+            {'document': True, 'qualitySensitive': True},
+            10000,
+        )
+
+        self.assertEqual(('openai-codex', 'gpt-5.4'), chain[0])
+        codex_score = next(row for row in scores if row['provider'] == 'openai-codex')
+        google_score = next(row for row in scores if row['provider'] == 'google')
+        self.assertGreater(codex_score['score'], google_score['score'])
+        self.assertIn(
+            'user_pref_analysis_codex_subscription',
+            [name for name, _value in codex_score['contributions']],
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

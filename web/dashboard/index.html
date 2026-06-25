@@ -188,11 +188,11 @@
         </div>
         <div class="field">
           <label for="credProvider">Provider</label>
-          <select id="credProvider"></select>
+          <select id="credProvider" onchange="onCredProviderChange()"></select>
         </div>
         <div class="field" id="credNewProviderField" style="display:none">
           <label for="credNewProvider">New provider name (creates provider)</label>
-          <input id="credNewProvider" placeholder="e.g. openai, ollama-cloud, anthropic" autocomplete="off">
+          <input id="credNewProvider" placeholder="e.g. ollama-team-b, openai-work, anthropic-alt" autocomplete="off">
         </div>
         <div class="field">
           <label for="credLabel">Label <span class="muted">(optional)</span></label>
@@ -212,7 +212,7 @@
         </div>
         <div class="field" id="credApiField" style="display:none">
           <label for="credApi">Provider API type</label>
-          <select id="credApi">
+          <select id="credApi" onchange="applyCredentialProviderDefaults()">
             <option value="openai-completions">OpenAI compatible</option>
             <option value="openai-codex-responses">OpenAI Codex (ChatGPT subscription)</option>
             <option value="anthropic-messages">Anthropic</option>
@@ -221,8 +221,8 @@
           </select>
         </div>
         <div class="field" id="credBaseUrlField" style="display:none">
-          <label for="credBaseUrl">Base URL <span class="muted">(for new provider)</span></label>
-          <input id="credBaseUrl" placeholder="https://api.openai.com/v1" autocomplete="off">
+          <label for="credBaseUrl">Endpoint URL <span class="muted">(required for new provider)</span></label>
+          <input id="credBaseUrl" placeholder="http://host.docker.internal:11434" autocomplete="off">
         </div>
         <div class="field" id="credStrategyField" style="display:none">
           <label for="credStrategy">Credential strategy <span class="muted">(for new provider)</span></label>
@@ -357,11 +357,24 @@
       opts += `<option value="__new__">+ New provider…</option>`;
       sel.innerHTML = opts;
       sel.value = configured.length ? configured[0] : '__new__';
+      onCredProviderChange();
+    }
+    function onCredProviderChange() {
+      const sel = document.getElementById('credProvider');
       document.getElementById('credNewProviderField').style.display = (sel.value === '__new__') ? '' : 'none';
       const showNewFields = sel.value === '__new__';
       document.getElementById('credApiField').style.display = showNewFields ? '' : 'none';
       document.getElementById('credBaseUrlField').style.display = showNewFields ? '' : 'none';
       document.getElementById('credStrategyField').style.display = showNewFields ? '' : 'none';
+      if (showNewFields) applyCredentialProviderDefaults();
+    }
+    function applyCredentialProviderDefaults() {
+      const kind = document.getElementById('credApi').value;
+      const defaults = providerDefaults[kind] || {};
+      const nameInput = document.getElementById('credNewProvider');
+      const endpointInput = document.getElementById('credBaseUrl');
+      if (!nameInput.value.trim()) nameInput.value = defaults.name || '';
+      if (!endpointInput.value.trim()) endpointInput.value = defaults.baseUrl || '';
     }
     function credStateText(st) {
       if (!st) return '';
@@ -431,6 +444,7 @@
         payload.api = document.getElementById('credApi').value;
         payload.baseUrl = document.getElementById('credBaseUrl').value.trim();
         payload.credentialStrategy = document.getElementById('credStrategy').value;
+        if (!payload.baseUrl) { status.textContent = 'Failed: endpoint URL required'; return; }
       }
       try {
         const res = await postJson('/setup/credentials/add', payload);
