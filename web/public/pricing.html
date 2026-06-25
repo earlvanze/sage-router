@@ -32,6 +32,9 @@
     .emailStart form{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:10px;margin:10px 0 0}
     .emailStart input{min-height:48px;border:1px solid var(--border);border-radius:999px;background:rgba(0,0,0,.22);color:var(--text);font:inherit;padding:0 16px}
     .emailStartStatus{min-height:22px;margin:10px 0 0;color:var(--brand);font-size:14px}
+    .pricingOauthActions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 0}
+    .pricingOauthActions .button{width:100%;border:0;cursor:pointer}
+    .pricingOauthActions .button:not(.primary){border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--text)}
     .planEmailForm{display:grid;gap:8px;margin-top:4px}
     .planEmailForm input{min-height:44px;border:1px solid var(--border);border-radius:999px;background:rgba(0,0,0,.18);color:var(--text);font:inherit;padding:0 14px}
     .planEmailForm .button{width:100%;border:0;cursor:pointer}
@@ -39,7 +42,8 @@
     .pricingSetupCopy strong{margin-right:auto}
     .pricingSetupCopy button{border:0;cursor:pointer}
     .pricingSetupCopy span{min-height:22px;color:var(--brand);font-size:14px}
-    @media(max-width:720px){.emailStart form{grid-template-columns:1fr}}
+    .hidden{display:none!important}
+    @media(max-width:720px){.emailStart form,.pricingOauthActions{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -70,7 +74,7 @@
         <h1>One subscription for Sage Router control plane access.</h1>
         <p class="lead">Use the hosted edge at <code>https://api.sagerouter.dev/v1</code> for account-managed API keys, quotas, fallback reliability, and routing telemetry while keeping provider access customer-authorized and local-first by default.</p>
         <div class="actions">
-          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Start Pro activation</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch">Start Pro activation</a>
           <a class="button secondary" href="/quickstart">Read quickstart</a>
           <a class="button secondary" href="/status">View public status</a>
           <a class="button secondary" href="/billing">Billing help</a>
@@ -84,8 +88,10 @@
         <div class="emailStart">
           <strong>Fastest Pro start: send yourself a sign-in link</strong>
           <p class="note">No provider key is required to create the account. Continue with GitHub or email; both open the hosted account page with Pro selected, then you can create a generated <code>sk_sage_*</code> key first and complete checkout.</p>
-          <div class="actions">
+          <div id="pricing-oauth-actions" class="pricingOauthActions" aria-label="One-click Pro signup options">
             <button id="pricing-github-pro" class="button primary" type="button" data-pricing-oauth="github" data-plan="pro">Continue with GitHub for Pro</button>
+            <button id="pricing-google-pro" class="button secondary hidden" type="button" data-pricing-oauth="google" data-plan="pro">Google for Pro</button>
+            <button id="pricing-discord-pro" class="button secondary hidden" type="button" data-pricing-oauth="discord" data-plan="pro">Discord for Pro</button>
           </div>
           <form id="pricing-email-form" data-plan="pro">
             <input id="pricing-email" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for Sage Router Pro activation" required>
@@ -97,7 +103,7 @@
           <strong>Copy setup first.</strong>
           <span class="muted">Paste the bundle now, then replace the placeholder with your generated <code>sk_sage_*</code> key after Pro setup.</span>
           <button id="pricing-copy-setup" class="button primary" type="button">Copy 60-second setup bundle</button>
-          <a id="pricing-copy-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Create Pro key next</a>
+          <a id="pricing-copy-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch">Create Pro key next</a>
           <span id="pricing-copy-status" role="status" aria-live="polite"></span>
         </div>
         <div class="readinessGrid" aria-label="Hosted activation path">
@@ -110,7 +116,7 @@
           <h2>Create the key before checkout.</h2>
           <p class="muted">The Pro handoff preserves checkout intent, but the account page now starts by creating the generated <code>sk_sage_*</code> key. That gives a buyer the setup artifact first, then checkout unlocks hosted routing once the account is active.</p>
           <div class="actions">
-            <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Create Pro key first</a>
+            <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch">Create Pro key first</a>
             <a class="button secondary" href="/quickstart">Verify with the quickstart</a>
           </div>
         </div>
@@ -127,7 +133,7 @@
             <li>Hosted API keys and basic usage visibility</li>
             <li>Standard fallback chains</li>
           </ul>
-          <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=lite&start=checkout">Start Lite</a>
+          <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=lite&start=checkout&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch">Start Lite</a>
           <form class="planEmailForm" data-pricing-plan-email data-plan="lite">
             <input type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for Sage Router Lite activation" required>
             <button class="button secondary" type="submit">Email Lite link</button>
@@ -145,7 +151,7 @@
             <li>Agentic, frontier, and Fusion route profiles</li>
             <li>Analytics snapshots and route telemetry</li>
           </ul>
-          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Start Pro</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch">Start Pro</a>
           <form class="planEmailForm" data-pricing-plan-email data-plan="pro">
             <input type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for Sage Router Pro activation" required>
             <button class="button primary" type="submit">Email Pro link</button>
@@ -163,7 +169,7 @@
             <li>Priority fallback and Fusion budget</li>
             <li>Team and private deployment support path</li>
           </ul>
-          <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max&start=checkout">Start Max</a>
+          <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max&start=checkout&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch">Start Max</a>
           <form class="planEmailForm" data-pricing-plan-email data-plan="max">
             <input type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for Sage Router Max activation" required>
             <button class="button secondary" type="submit">Email Max link</button>
@@ -226,7 +232,7 @@
           </ul>
           <div class="actions">
             <a class="button primary" href="/managed-access?intent=max-implementation">Request Max implementation review</a>
-            <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max&start=checkout">Start Max with BYOK</a>
+            <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max&start=checkout&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch">Start Max with BYOK</a>
           </div>
           <p class="note">Beta interest and implementation review are demand capture only. Public checkout still buys Sage Router routing, account, quota, analytics, and reliability infrastructure.</p>
         </div>
@@ -323,15 +329,17 @@
     const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
     const ACCOUNT_PAGE_BASE_URL = 'https://app.sagerouter.dev/account.html';
-    const ACCOUNT_PAGE_URL = `${ACCOUNT_PAGE_BASE_URL}?plan=pro&start=checkout`;
+    const ACCOUNT_PAGE_URL = `${ACCOUNT_PAGE_BASE_URL}?plan=pro&start=checkout&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch`;
     const sb = window.supabase?.createClient?.(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const PRICING_OAUTH_LABELS = { github: 'GitHub', google: 'Google', discord: 'Discord' };
+    const PRICING_OAUTH_ORDER = ['github', 'google', 'discord'];
 
     function normalizePlan(plan) {
       return ['lite', 'pro', 'max'].includes(plan) ? plan : 'pro';
     }
 
     function accountPageUrlForPlan(plan) {
-      return `${ACCOUNT_PAGE_BASE_URL}?plan=${encodeURIComponent(normalizePlan(plan))}&start=checkout`;
+      return `${ACCOUNT_PAGE_BASE_URL}?plan=${encodeURIComponent(normalizePlan(plan))}&start=checkout&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch`;
     }
 
     function planDisplay(plan) {
@@ -481,7 +489,10 @@
           utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
           referrerHost,
           landingPath: window.location.pathname,
-          snippet: data.snippet || null
+          snippet: data.snippet || null,
+          enabledProviders: data.enabledProviders || null,
+          githubEnabled: data.githubEnabled ?? null,
+          oauthProviderCount: data.oauthProviderCount ?? null
         }
       });
       try {
@@ -497,6 +508,39 @@
         keepalive: true,
         credentials: 'omit'
       }).catch(() => {});
+    }
+
+    function applyPricingOauthButtons(external = {}, state = 'loaded') {
+      const enabledProviders = PRICING_OAUTH_ORDER.filter((provider) => external[provider] === true);
+      const recommendedProvider = enabledProviders[0] || 'github';
+      document.querySelectorAll('[data-pricing-oauth]').forEach((button) => {
+        const provider = button.dataset.pricingOauth;
+        const enabled = external[provider] === true || (state !== 'loaded' && provider === 'github');
+        const label = PRICING_OAUTH_LABELS[provider] || provider;
+        button.classList.toggle('hidden', !enabled);
+        button.classList.toggle('primary', provider === recommendedProvider);
+        button.classList.toggle('secondary', provider !== recommendedProvider);
+        button.disabled = !enabled;
+        button.textContent = provider === recommendedProvider ? `Continue with ${label} for Pro` : `${label} for Pro`;
+      });
+      trackPricingFunnelEvent('pricing_auth_provider_state_checked', {
+        state,
+        button: 'pricing-oauth-options',
+        enabledProviders: enabledProviders.join(',') || 'none',
+        githubEnabled: external.github === true,
+        oauthProviderCount: enabledProviders.length,
+      });
+    }
+
+    async function loadPricingAuthSettings() {
+      try {
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_ANON_KEY } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const external = (await response.json()).external || {};
+        applyPricingOauthButtons(external, 'loaded');
+      } catch {
+        applyPricingOauthButtons({ github: true }, 'fallback');
+      }
     }
 
     function pricingSetupBundleText() {
@@ -555,6 +599,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
     }
 
     trackPricingFunnelEvent('pricing_viewed', { state: 'page-view' });
+    loadPricingAuthSettings();
     document.getElementById('pricing-copy-setup')?.addEventListener('click', copyPricingSetupBundle);
 
     async function pricingOauthLogin(event) {
