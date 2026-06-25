@@ -914,6 +914,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("landing_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("model_catalog_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("account_viewed") != null) and
     ((.allowedEvents // []) | index("account_snippet_copied") != null) and
     ((.allowedEvents // []) | index("account_support_context_copied") != null)
@@ -1370,6 +1371,12 @@ check_marketing_model_catalog_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "/v1/models" /tmp/sage-router-readiness-body; then
     page_code="200:missing-authenticated-model-api-boundary"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "model-catalog-email-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-model-catalog-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "model_catalog_magic_link_sent" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-model-catalog-magic-link-funnel"
   fi
   rm -f /tmp/sage-router-readiness-body
 
