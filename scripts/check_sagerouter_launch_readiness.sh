@@ -943,6 +943,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("fusion_viewed") != null) and
     ((.allowedEvents // []) | index("fusion_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("fusion_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("fusion_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_migration_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("agent_native_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("integrations_magic_link_sent") != null) and
@@ -1325,6 +1326,12 @@ check_marketing_fusion_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "fusion_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-fusion-magic-link-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Continue with GitHub for Pro" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-fusion-github-pro-activation"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "fusion_oauth_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-fusion-oauth-funnel"
   fi
   rm -f /tmp/sage-router-readiness-body
 

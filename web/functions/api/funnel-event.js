@@ -25,6 +25,8 @@ const ALLOWED_EVENTS = new Set([
   'fusion_magic_link_requested',
   'fusion_magic_link_sent',
   'fusion_magic_link_failed',
+  'fusion_oauth_clicked',
+  'fusion_oauth_failed',
   'gateway_migration_magic_link_requested',
   'gateway_migration_magic_link_sent',
   'gateway_migration_magic_link_failed',
