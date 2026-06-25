@@ -63,7 +63,7 @@ Install from the [Umbrel App Store](https://github.com/getumbrel/umbrel-apps/pul
 - https://github.com/earlvanze/umbrel-personal-apps
 ```
 
-The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.10` and stores its config under the app data directory. The built-in config dashboard is accessible from the Umbrel app tile.
+The Umbrel app pins `ghcr.io/earlvanze/sage-router-public:v3.28.11` and stores its config under the app data directory. The built-in config dashboard is accessible from the Umbrel app tile.
 
 ### Tailnet Edge Endpoint
 
@@ -963,7 +963,7 @@ Mount an app-owned config directory and add provider or Codex credentials from t
 docker run -p 8790:8790 \
   -v sage-router-config:/config \
   -v sage-router-ollama:/root/.ollama \
-  ghcr.io/earlvanze/sage-router-public:v3.28.10
+  ghcr.io/earlvanze/sage-router-public:v3.28.11
 ```
 
 Provider credentials and imported Codex auth JSON are written under `/config`.
