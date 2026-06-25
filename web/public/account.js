@@ -22,6 +22,24 @@ const show = (id, visible) => {
   const el = $(id);
   if (el) el.classList.toggle('hidden', !visible);
 };
+const emailInputValue = (preferIntent = false) => {
+  const primary = preferIntent ? $('intent-email') : $('email');
+  const secondary = preferIntent ? $('email') : $('intent-email');
+  return primary?.value.trim() || secondary?.value.trim() || '';
+};
+const syncEmailInputs = (value) => {
+  const email = String(value || '').trim();
+  if (!email) return;
+  const accountEmail = $('email');
+  const intentEmail = $('intent-email');
+  if (accountEmail && accountEmail.value.trim() !== email) accountEmail.value = email;
+  if (intentEmail && intentEmail.value.trim() !== email) intentEmail.value = email;
+};
+const focusEmailInput = (preferIntent = false) => {
+  const target = preferIntent ? ($('intent-email') || $('email')) : ($('email') || $('intent-email'));
+  target?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  target?.focus?.();
+};
 const setElementBusy = (el, busy, label = '') => {
   if (!el) return;
   if (busy) {
@@ -193,13 +211,14 @@ function renderAccountIntent() {
   const checkoutReady = stripeCheckoutReadyForPlan(selectedPlan);
   const planName = plan.name || planDisplay(selectedPlan);
   const price = plan.price || (planPriceAmount(plan) ? `$${planPriceAmount(plan)}/month` : '');
+  show('intent-email-field', !activationState.signedIn);
   set('account-intent-title', `${planName} activation path selected`);
   set('account-intent-plan', price ? `${planName} · ${price}` : planName);
   set('account-intent-checkout', checkoutReady ? 'Stripe checkout ready' : 'Manual fallback available');
   if (!activationState.signedIn) {
     set('account-intent-copy', 'No provider key is required to create an account. Enter your email, use a magic link, then complete checkout and create a generated sk_sage_* key.');
     const intentButton = $('intent-primary');
-    if (intentButton) intentButton.textContent = 'Start with email link';
+    if (intentButton) intentButton.textContent = `Email me the ${planName} setup link`;
     return;
   }
   if (!activationState.emailVerified) {
@@ -903,14 +922,17 @@ async function passwordLogin() {
 
 async function passwordSignup() {
   set('auth-status', 'Creating account...');
-  const email = $('email')?.value.trim();
+  const email = emailInputValue(false);
+  syncEmailInputs(email);
   const password = $('password')?.value;
   if (!email) {
     set('auth-status', 'Enter your email first.');
+    focusEmailInput(false);
     return;
   }
   if (!password) {
     set('auth-status', 'Enter a password for the new account.');
+    $('password')?.focus();
     return;
   }
   if (password.length < 8) {
@@ -934,19 +956,24 @@ async function passwordSignup() {
   refresh();
 }
 
-async function magicLogin() {
-  set('auth-status', 'Sending magic link...');
-  const email = $('email')?.value.trim();
+async function magicLogin(options = {}) {
+  if (options?.preventDefault) options = {};
+  const button = options.button || 'magic_login';
+  const preferIntent = Boolean(options.preferIntent || button === 'intent_primary');
+  const email = emailInputValue(preferIntent);
   if (!email) {
-    set('auth-status', 'Enter your email first.');
+    set('auth-status', preferIntent ? 'Enter your email above, then Sage Router will send the setup link.' : 'Enter your email first.');
+    focusEmailInput(preferIntent);
     return;
   }
-  trackAccountFunnelEvent('account_magic_link_requested', { button: 'magic_login', target: '/auth/v1/otp', state: 'email' });
+  syncEmailInputs(email);
+  set('auth-status', 'Sending magic link...');
+  trackAccountFunnelEvent('account_magic_link_requested', { button, target: '/auth/v1/otp', state: 'email' });
   const metadata = onboardingContext({ authMethod: 'magic_link' });
   rememberOnboardingContext(metadata);
   const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: accountPageUrlWithPlan(metadata.selected_plan), data: metadata } });
   set('auth-status', error ? error.message : 'Magic link sent. Check your email.');
-  if (!error) trackAccountFunnelEvent('account_magic_link_sent', { button: 'magic_login', target: ACCOUNT_PAGE_URL, state: 'email' });
+  if (!error) trackAccountFunnelEvent('account_magic_link_sent', { button, target: ACCOUNT_PAGE_URL, state: 'email' });
 }
 
 async function resendVerificationEmail() {
@@ -1217,20 +1244,15 @@ $('stripe-checkout')?.addEventListener('click', stripeCheckout);
 $('stripe-portal')?.addEventListener('click', billingPortal);
 $('crypto-intent')?.addEventListener('click', cryptoIntent);
 $('crypto-status-check')?.addEventListener('click', cryptoStatus);
-$('intent-primary')?.addEventListener('click', () => {
+async function handleIntentPrimary(event) {
+  event?.preventDefault?.();
   trackAccountFunnelEvent('account_intent_primary_clicked', {
     button: 'intent_primary',
     state: activationState.signedIn ? (activationState.routingEnabled ? 'routing_active' : 'signed_in') : 'signed_out',
-    target: activationState.signedIn ? '#billing' : '#email',
+    target: activationState.signedIn ? '#billing' : '#intent-email',
   });
   if (!activationState.signedIn) {
-    const email = $('email');
-    if (email?.value.trim()) {
-      magicLogin();
-    } else {
-      email?.focus();
-      set('auth-status', 'Enter your email, then send a magic link.');
-    }
+    await magicLogin({ button: 'intent_primary', preferIntent: true });
     return;
   }
   if (!activationState.emailVerified) {
@@ -1247,7 +1269,9 @@ $('intent-primary')?.addEventListener('click', () => {
   }
   const target = activationState.keyCount > 0 ? $('test-api-key') : $('create-key');
   target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-});
+}
+$('intent-email-form')?.addEventListener('submit', handleIntentPrimary);
+if (!$('intent-email-form')) $('intent-primary')?.addEventListener('click', handleIntentPrimary);
 $('sign-out')?.addEventListener('click', async () => { await sb.auth.signOut(); refresh(); });
 $('plans')?.addEventListener('click', (event) => {
   const button = event.target?.closest?.('[data-plan]');

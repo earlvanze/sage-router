@@ -660,7 +660,10 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "No provider key is required to create an account" /tmp/sage-router-readiness-body; then
     account_code="200:missing-no-provider-key-signup-copy"
   fi
-  if [[ "$account_code" == "200" ]] && ! grep -q "Start with email link" /tmp/sage-router-readiness-body; then
+  if [[ "$account_code" == "200" ]] && ! grep -q "intent-email-form" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-direct-email-setup-form"
+  fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "Email me the Pro setup link" /tmp/sage-router-readiness-body; then
     account_code="200:missing-magic-link-primary-cta"
   fi
   if [[ "$account_code" == "200" ]] && ! grep -q "email-verification-status" /tmp/sage-router-readiness-body; then
