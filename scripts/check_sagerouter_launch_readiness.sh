@@ -906,6 +906,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("codex_docs_viewed") != null) and
     ((.allowedEvents // []) | index("codex_docs_account_clicked") != null) and
     ((.allowedEvents // []) | index("codex_docs_snippet_copied") != null) and
+    ((.allowedEvents // []) | index("landing_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
     ((.allowedEvents // []) | index("account_viewed") != null) and
     ((.allowedEvents // []) | index("account_snippet_copied") != null) and
@@ -946,6 +947,12 @@ check_marketing_homepage_activation() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "landing_account_clicked" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-account-funnel-event"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "hero-email-form" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-email-start-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "landing_magic_link_sent" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-landing-magic-link-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "/v1/models" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-edge-verification-copy"

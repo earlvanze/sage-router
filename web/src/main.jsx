@@ -20,6 +20,10 @@ const steps = [
   },
 ];
 
+const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro';
+const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
+
 function referrerHost() {
   try {
     const referrer = document.referrer ? new URL(document.referrer) : null;
@@ -82,6 +86,97 @@ const loadTurnstileScript = () => new Promise((resolve, reject) => {
   script.addEventListener('error', reject, { once: true });
   document.head.appendChild(script);
 });
+
+const loadSupabaseScript = () => new Promise((resolve, reject) => {
+  if (window.supabase?.createClient) {
+    resolve(window.supabase);
+    return;
+  }
+  const existing = document.querySelector('script[data-supabase-js]');
+  if (existing) {
+    existing.addEventListener('load', () => resolve(window.supabase), { once: true });
+    existing.addEventListener('error', reject, { once: true });
+    return;
+  }
+  const script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+  script.async = true;
+  script.defer = true;
+  script.dataset.supabaseJs = 'true';
+  script.addEventListener('load', () => resolve(window.supabase), { once: true });
+  script.addEventListener('error', reject, { once: true });
+  document.head.appendChild(script);
+});
+
+function LandingEmailStart() {
+  const [status, setStatus] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  return (
+    <form id="hero-email-form" className="heroEmailStart" onSubmit={async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const email = String(new FormData(form).get('email') || '').trim();
+      if (!email) {
+        setStatus('Enter an email first.');
+        return;
+      }
+      setSubmitting(true);
+      setStatus('Sending secure sign-in link...');
+      trackLandingFunnelEvent('landing_magic_link_requested', {
+        plan: 'pro',
+        target: ACCOUNT_PAGE_URL,
+        button: 'Email me the Pro link',
+        state: 'email-start',
+      });
+      try {
+        const api = await loadSupabaseScript();
+        const client = api.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const { error } = await client.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: ACCOUNT_PAGE_URL,
+            data: {
+              sage_router_onboarding: true,
+              signup_source: 'landing',
+              selected_plan: 'pro',
+              auth_method: 'magic_link',
+            },
+          },
+        });
+        if (error) throw error;
+        form.reset();
+        trackLandingFunnelEvent('landing_magic_link_sent', {
+          plan: 'pro',
+          target: ACCOUNT_PAGE_URL,
+          button: 'Email me the Pro link',
+          state: 'email-start',
+        });
+        setStatus('Check your inbox for the Pro sign-in link.');
+      } catch (error) {
+        trackLandingFunnelEvent('landing_magic_link_failed', {
+          plan: 'pro',
+          target: ACCOUNT_PAGE_URL,
+          button: 'Email me the Pro link',
+          state: 'email-start',
+        });
+        setStatus('Email link failed. Opening the account flow...');
+        window.setTimeout(() => {
+          window.location.href = ACCOUNT_PAGE_URL;
+        }, 900);
+      } finally {
+        setSubmitting(false);
+      }
+    }}>
+      <label htmlFor="hero-email">Fastest Pro start</label>
+      <div>
+        <input id="hero-email" name="email" type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" required />
+        <button type="submit" disabled={submitting}>{submitting ? 'Sending...' : 'Email me the Pro link'}</button>
+      </div>
+      <p className="heroEmailStartStatus" aria-live="polite">{status || 'No provider key required to create your Sage Router account.'}</p>
+    </form>
+  );
+}
 
 function WaitlistForm() {
   const widgetRef = useRef(null);
@@ -358,6 +453,7 @@ function App() {
                 Run locally
               </a>
             </div>
+            <LandingEmailStart />
             <p className="complianceNote">
               Hosted plans include account-managed keys, quotas, analytics, and reliability routing.
               Bring your own authorized provider access; Sage Router does not resell models, pool
