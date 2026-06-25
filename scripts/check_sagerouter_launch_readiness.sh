@@ -977,6 +977,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("calculator_checkout_unavailable") != null) and
     ((.allowedEvents // []) | index("calculator_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("calculator_oauth_clicked") != null) and
+    ((.allowedEvents // []) | index("pricing_setup_next_clicked") != null) and
     ((.allowedEvents // []) | index("fusion_viewed") != null) and
     ((.allowedEvents // []) | index("fusion_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("fusion_magic_link_sent") != null) and

@@ -97,7 +97,7 @@
           <strong>Copy setup first.</strong>
           <span class="muted">Paste the bundle now, then replace the placeholder with your generated <code>sk_sage_*</code> key after Pro setup.</span>
           <button id="pricing-copy-setup" class="button primary" type="button">Copy 60-second setup bundle</button>
-          <a id="pricing-copy-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" hidden>Create Pro key next</a>
+          <a id="pricing-copy-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Create Pro key next</a>
           <span id="pricing-copy-status" role="status" aria-live="polite"></span>
         </div>
         <div class="readinessGrid" aria-label="Hosted activation path">
@@ -547,7 +547,8 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
           snippet: 'pricing-full-setup-bundle'
         });
         if (status) status.textContent = 'Copied. Create your key next; no provider key required.';
-        document.getElementById('pricing-copy-next-account')?.removeAttribute('hidden');
+        const nextAccount = document.getElementById('pricing-copy-next-account');
+        if (nextAccount) nextAccount.dataset.setupCopied = 'true';
       } catch {
         if (status) status.textContent = 'Copy failed. Open the quickstart for manual setup.';
       }
@@ -685,11 +686,23 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
       const href = link.getAttribute('href') || '';
       const planMatch = href.match(/\/account\.html\?plan=(lite|pro|max)\b/);
       if (planMatch) {
-        link.addEventListener('click', () => trackPricingFunnelEvent('pricing_checkout_clicked', {
-          plan: planMatch[1],
-          target: href,
-          button: link.textContent.trim().slice(0, 60)
-        }));
+        link.addEventListener('click', () => {
+          if (link.id === 'pricing-copy-next-account') {
+            trackPricingFunnelEvent('pricing_setup_next_clicked', {
+              plan: 'pro',
+              target: href,
+              button: link.textContent.trim().slice(0, 60),
+              state: link.dataset.setupCopied === 'true' ? 'post-copy' : 'pre-copy',
+              snippet: 'pricing-full-setup-bundle'
+            });
+            return;
+          }
+          trackPricingFunnelEvent('pricing_checkout_clicked', {
+            plan: planMatch[1],
+            target: href,
+            button: link.textContent.trim().slice(0, 60)
+          });
+        });
       } else if ((href === '/account.html' || href === 'https://app.sagerouter.dev/account.html')) {
         link.addEventListener('click', () => trackPricingFunnelEvent('pricing_account_clicked', {
           target: href,

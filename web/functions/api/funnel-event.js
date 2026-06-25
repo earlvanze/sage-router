@@ -18,6 +18,7 @@ const ALLOWED_EVENTS = new Set([
   'pricing_magic_link_requested',
   'pricing_magic_link_sent',
   'pricing_magic_link_failed',
+  'pricing_setup_next_clicked',
   'fusion_viewed',
   'fusion_checkout_clicked',
   'fusion_quickstart_clicked',
