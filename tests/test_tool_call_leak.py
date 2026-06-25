@@ -328,6 +328,13 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
             router.DISABLED_PROVIDERS.clear()
             provider, model = router.resolve_requested_provider_model({'model': 'google/gemini-2.5-flash'})
             self.assertEqual(('google', 'gemini-2.5-flash'), (provider, model))
+            _, _, _, _, chain = router.prepare_route(
+                [{'role': 'user', 'content': 'call a tool'}],
+                requirements={'tools': True},
+                force_provider=provider,
+                requested_model=model,
+            )
+            self.assertEqual([('google', 'gemini-2.5-flash')], chain[:1])
         finally:
             router.PROVIDERS = old_providers
             router.DISABLED_PROVIDERS.clear()

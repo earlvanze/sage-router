@@ -12142,7 +12142,8 @@ def prepare_route(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_
     logger.info(f"[{request_id}] Intent: {intent.name}, Complexity: {complexity.name}, Thinking: {thinking.value}, Route: {route_mode}, JSON: {want_json}, EstTokens: {estimated_tokens}, ForceProvider: {force_provider or 'none'}")
 
     if requested_model:
-        if force_provider and not requested_model_supported_by_provider(force_provider, requested_model):
+        explicit_google_provider = force_provider in {'google', 'google-vertex'}
+        if force_provider and not explicit_google_provider and not requested_model_supported_by_provider(force_provider, requested_model):
             inferred_provider = infer_provider_for_requested_model(requested_model, avoid_provider=force_provider)
             if inferred_provider:
                 logger.info(f"[{request_id}] Requested model {requested_model} is served by {inferred_provider}, not {force_provider}; switching forced provider")
