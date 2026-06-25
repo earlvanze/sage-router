@@ -1299,6 +1299,12 @@ check_marketing_reddit_evaluation_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
     page_code="200:missing-copy-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_managed_access_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access?intent=max-implementation" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-max-implementation-cta"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then
     page_code="200:missing-view-funnel"
   fi
@@ -1751,6 +1757,12 @@ check_marketing_quickstart_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart-full-setup-bundle" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quickstart-bundle-telemetry"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_managed_access_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-managed-access-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access?intent=max-implementation" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-max-implementation-cta"
   fi
   rm -f /tmp/sage-router-readiness-body
 
