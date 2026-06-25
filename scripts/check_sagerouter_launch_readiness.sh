@@ -1336,6 +1336,15 @@ check_marketing_quickstart_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "/v1/models" /tmp/sage-router-readiness-body; then
     page_code="200:missing-model-api-boundary"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html?plan=pro" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pro-account-link"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_account_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-account-funnel-event"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "data-quickstart-plan=\"pro\"" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pro-plan-telemetry"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"

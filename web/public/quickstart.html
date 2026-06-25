@@ -41,7 +41,7 @@
         <h1>Use Sage Router from any OpenAI-compatible client.</h1>
         <p class="lead">Create a hosted API key, set one base URL, and use Sage Router profiles such as <code>sage-router/frontier</code> without opening anonymous model traffic.</p>
         <div class="actions">
-          <a class="button primary" href="https://app.sagerouter.dev/account.html" data-quickstart-event="quickstart_account_clicked" data-quickstart-button="account">Create hosted API key</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro" data-quickstart-event="quickstart_account_clicked" data-quickstart-button="start-pro" data-quickstart-plan="pro">Start Pro key setup</a>
           <a class="button secondary" href="/docs/api-reference" data-quickstart-event="quickstart_api_reference_clicked" data-quickstart-button="api-reference">API reference</a>
           <a class="button secondary" href="/docs/gateway-migration" data-quickstart-event="quickstart_gateway_migration_clicked" data-quickstart-button="gateway-migration">Gateway migration</a>
           <a class="button secondary" href="/fusion" data-quickstart-event="quickstart_pricing_clicked" data-quickstart-button="fusion">Fusion</a>
@@ -51,14 +51,14 @@
           <a class="button secondary" href="/pricing" data-quickstart-event="quickstart_pricing_clicked" data-quickstart-button="pricing">View pricing</a>
           <a class="button secondary" href="/status" data-quickstart-event="quickstart_status_clicked" data-quickstart-button="status">Check status</a>
         </div>
-        <p class="note">Live <code>/v1/models</code> requires an active generated <code>sk_sage_*</code> key. The public model catalog is available at <code>https://api.sagerouter.dev/model-catalog</code>.</p>
+        <p class="note">Live <code>/v1/models</code> requires an active generated <code>sk_sage_*</code> key. The primary setup path opens the hosted account page with Pro preselected, then verifies the generated key against the public edge.</p>
       </section>
 
       <section class="section grid">
         <article class="card">
           <span class="pill">1 minute</span>
-          <h3>Create a key</h3>
-          <p class="muted">Sign in on the hosted account page, choose a plan or trial path, then generate an <code>sk_sage_*</code> key. Raw keys are shown once.</p>
+          <h3>Create a Pro key</h3>
+          <p class="muted">Open the hosted account page with Pro preselected, sign in, then generate an <code>sk_sage_*</code> key. Raw keys are shown once.</p>
         </article>
         <article class="card">
           <span class="pill">Base URL</span>
@@ -68,7 +68,7 @@
         <article class="card">
           <span class="pill">Profile</span>
           <h3>Pick a route</h3>
-          <p class="muted">Start with <code>sage-router/frontier</code> for high-quality agent work. Pro/Max users can use <code>sage-router/fusion</code> when a prompt benefits from a parallel model panel and judge synthesis.</p>
+          <p class="muted">Start with <code>sage-router/frontier</code>, verify <code>/v1/models</code>, then send the first chat request. Pro/Max users can use <code>sage-router/fusion</code> for panel-plus-judge synthesis.</p>
         </article>
       </section>
 
@@ -272,7 +272,10 @@ codex --profile sage-router-frontier</code></pre>
     function trackQuickstartFunnelEvent(eventName, extra = {}) {
       const payload = JSON.stringify({
         event: eventName,
+        plan: extra.plan || null,
+        sourcePage: window.location.href,
         source_page: window.location.href,
+        target: extra.target || null,
         metadata: quickstartMetadata(extra),
       });
       if (navigator.sendBeacon?.('/api/funnel-event', new Blob([payload], { type: 'application/json' }))) {
@@ -328,8 +331,12 @@ codex --profile sage-router-frontier</code></pre>
     });
     document.querySelectorAll('[data-quickstart-event]').forEach((link) => {
       link.addEventListener('click', () => {
+        const href = link.getAttribute('href') || '';
+        const planMatch = href.match(/[?&]plan=(lite|pro|max)\b/);
         trackQuickstartFunnelEvent(link.dataset.quickstartEvent, {
           button: link.dataset.quickstartButton || link.textContent.trim().toLowerCase(),
+          target: href,
+          plan: link.dataset.quickstartPlan || planMatch?.[1] || undefined,
         });
       });
     });
