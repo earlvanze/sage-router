@@ -1015,6 +1015,15 @@ check_marketing_comparison_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "gateway_compare_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-gateway-compare-magic-link-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "gateway-copy-migration" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-migration-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "gateway-compare-migration-bundle" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-migration-copy-snippet"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-migration-copy-funnel"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   openrouter_code="$(http_code_follow "${MARKETING_BASE%/}/compare/openrouter")"
