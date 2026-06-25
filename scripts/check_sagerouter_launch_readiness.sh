@@ -911,6 +911,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("quickstart_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("codex_docs_account_clicked") != null) and
     ((.allowedEvents // []) | index("codex_docs_snippet_copied") != null) and
+    ((.allowedEvents // []) | index("codex_docs_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("landing_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_magic_link_sent") != null) and
@@ -1569,6 +1570,12 @@ check_marketing_codex_docs_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "codex_docs_account_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-codex-account-funnel-event"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "codex-docs-email-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-codex-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "codex_docs_magic_link_sent" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-codex-magic-link-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Do not paste prompts" /tmp/sage-router-readiness-body; then
     page_code="200:missing-no-secrets-boundary"
