@@ -663,6 +663,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("`codex-cli`", distribution)
         self.assertIn("`openai-compatible-api`", distribution)
         self.assertIn("post attempt returned `403` until the local `sagerouter` agent is claimed", distribution)
+        self.assertIn("OpenClaw update should post after claim", distribution)
+        self.assertIn("https://sagerouter.dev/openclaw-ai-model-router?utm_source=moltbook", distribution)
 
     def test_codex_setup_page_is_discoverable_and_launch_gated(self):
         codex = self.read_public("docs/codex.html")
