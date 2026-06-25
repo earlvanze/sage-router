@@ -50,6 +50,7 @@ function trackLandingFunnelEvent(event, data = {}) {
       utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
       referrerHost: referrerHost(),
       landingPath: window.location.pathname,
+      snippet: data.snippet || null,
     },
   });
   try {
@@ -65,6 +66,80 @@ function trackLandingFunnelEvent(event, data = {}) {
     keepalive: true,
     credentials: 'omit',
   }).catch(() => {});
+}
+
+function landingSetupBundleText() {
+  return `# Sage Router hosted edge setup
+# 1) Create a hosted key:
+# https://app.sagerouter.dev/account.html?plan=pro
+
+export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
+export OPENAI_API_KEY=sk_sage_your_key_here
+
+# 2) Verify your key can see routed models
+curl "$OPENAI_BASE_URL/models" \\
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+
+# 3) Send the first routed request
+curl "$OPENAI_BASE_URL/chat/completions" \\
+  -H "Authorization: Bearer $OPENAI_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "sage-router/frontier",
+    "messages": [{"role": "user", "content": "Route this well"}]
+  }'
+
+# Local-first option:
+# python3 router.py --port 8790
+# export OPENAI_BASE_URL=http://localhost:8790/v1`;
+}
+
+async function writeClipboardText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  textarea.remove();
+}
+
+function LandingSetupCopy() {
+  const [status, setStatus] = useState('');
+
+  return (
+    <div className="landingSetupCopy">
+      <button type="button" onClick={async () => {
+        try {
+          await writeClipboardText(landingSetupBundleText());
+          trackLandingFunnelEvent('quickstart_snippet_copied', {
+            button: 'Copy hosted setup bundle',
+            state: 'homepage-terminal',
+            snippet: 'landing-full-setup-bundle',
+          });
+          setStatus('Copied hosted setup bundle.');
+        } catch {
+          setStatus('Copy failed. Open the quickstart for manual setup.');
+        }
+      }}>
+        Copy hosted setup bundle
+      </button>
+      <a href="/quickstart" onClick={() => trackLandingFunnelEvent('landing_quickstart_clicked', {
+        target: '/quickstart',
+        button: 'Open full quickstart',
+        state: 'homepage-terminal',
+      })}>
+        Open full quickstart →
+      </a>
+      <span role="status" aria-live="polite">{status}</span>
+    </div>
+  );
 }
 
 const loadTurnstileScript = () => new Promise((resolve, reject) => {
@@ -475,6 +550,7 @@ export OPENAI_API_KEY=local-router
 # Sage Router selects a route
 route: codex-task → local/qwen-coder
 fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
+            <LandingSetupCopy />
           </div>
         </div>
       </section>

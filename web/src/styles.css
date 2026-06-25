@@ -69,6 +69,11 @@ h3 { font-size: 21px; line-height: 1.2; letter-spacing: -0.035em; margin-bottom:
 .terminalTop span:nth-child(2) { background: #f7d57a; }
 .terminalTop span:nth-child(3) { background: #73eaa7; }
 pre { margin: 0; padding: 30px; color: #c8fadd; font-size: clamp(13px, 1.55vw, 16px); line-height: 1.75; white-space: pre-wrap; }
+.landingSetupCopy { display: grid; gap: 10px; padding: 0 24px 24px; }
+.landingSetupCopy button, .landingSetupCopy a { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; font-weight: 900; }
+.landingSetupCopy button { border: 0; background: var(--brand); color: #04150d; cursor: pointer; }
+.landingSetupCopy a { border: 1px solid rgba(141,240,178,.3); color: var(--brand); background: rgba(141,240,178,.08); }
+.landingSetupCopy span { min-height: 20px; color: var(--muted); font-size: 14px; text-align: center; }
 .section { max-width: 1180px; margin: 0 auto; padding: 84px clamp(20px, 5vw, 0px); }
 .hotSwap { display: grid; grid-template-columns: .95fr 1.05fr; gap: clamp(32px, 6vw, 76px); align-items: center; padding-top: 18px; }
 .hotSwap p:last-child { color: #d2eadf; font-size: clamp(19px, 2.1vw, 26px); line-height: 1.38; }

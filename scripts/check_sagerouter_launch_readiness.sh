@@ -982,6 +982,15 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "/v1/models" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-edge-verification-copy"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copy hosted setup bundle" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-setup-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "landing-full-setup-bundle" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-setup-copy-snippet"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-setup-copy-funnel"
+  fi
   rm -f /tmp/sage-router-readiness-body "$homepage_body" "$bundle_body"
 
   if [[ "$page_code" == "200" ]]; then
