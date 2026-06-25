@@ -62,6 +62,14 @@ const routePaths = [
     state: 'route-path-anthropic',
   },
   {
+    label: 'Gemini',
+    title: 'Google AI + Vertex AI',
+    href: '/gemini-api-router',
+    body: 'Keep Gemini and Vertex routes in the agent matrix with tool-call normalization, multimodal routing, and 429 failover.',
+    button: 'Gemini route path',
+    state: 'route-path-gemini',
+  },
+  {
     label: 'Self-hosted',
     title: 'Local and Tailnet deployment',
     href: '/self-hosted-ai-model-router',

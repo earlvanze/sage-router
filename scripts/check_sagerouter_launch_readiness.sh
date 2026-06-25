@@ -1145,6 +1145,9 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "/coding-agent-model-router" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-coding-agent-route-path"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/gemini-api-router" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-gemini-route-path"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "route-path-cursor" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-route-path-funnel"
   fi
@@ -1478,6 +1481,60 @@ check_marketing_anthropic_router_page() {
     pass "marketing Anthropic API router page is live in sitemap and LLM discovery"
   else
     fail "marketing Anthropic API router page incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
+check_marketing_gemini_router_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/gemini-api-router")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Gemini API router" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Google AI and Vertex AI" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-google-vertex-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Function-tool routing" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-function-tool-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "429 failover" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-429-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Multimodal routing" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-multimodal-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "unauthorized Gemini or Google Cloud access" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-provider-boundary"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "gemini-router-copy-start" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gemini-copy-start"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "gemini-router-start" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gemini-snippet-id"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-view-funnel"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/gemini-api-router" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-gemini-router-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Gemini API router: ${MARKETING_BASE%/}/gemini-api-router" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-gemini-router-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing Gemini API router page is live in sitemap and LLM discovery"
+  else
+    fail "marketing Gemini API router page incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
   fi
 }
 
@@ -2773,6 +2830,7 @@ check_marketing_self_hosted_router_page
 check_marketing_ollama_router_page
 check_marketing_openai_router_page
 check_marketing_anthropic_router_page
+check_marketing_gemini_router_page
 check_marketing_coding_agent_router_page
 check_marketing_cursor_router_page
 check_marketing_reddit_evaluation_page

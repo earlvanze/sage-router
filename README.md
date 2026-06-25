@@ -102,6 +102,7 @@ The current public deployment is intentionally split:
 - `https://sagerouter.dev/ollama-ai-model-router` captures Ollama and Ollama Cloud routing traffic with local Ollama setup, one OpenAI-compatible endpoint, multiple API-key load balancing, 429 failover, multimodal routing, hosted generated-key activation, and copyable Ollama setup telemetry.
 - `https://sagerouter.dev/openai-api-router` captures OpenAI-compatible gateway traffic with hosted `sk_sage_*` keys, `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, Responses API compatibility, multiple OpenAI API-key load balancing, 429 failover, multimodal routing, and copyable OpenAI setup telemetry.
 - `https://sagerouter.dev/anthropic-api-router` captures Anthropic-compatible and Claude Code routing traffic with hosted `sk_sage_*` keys, `ANTHROPIC_BASE_URL=https://api.sagerouter.dev`, Dario-ready subscription paths, 429 failover, multimodal routing, provider-authorization boundaries, and copyable Anthropic setup telemetry.
+- `https://sagerouter.dev/gemini-api-router` captures Gemini, Google AI, Vertex AI, and Gemini CLI routing traffic with hosted `sk_sage_*` keys, structured function-tool routing, 429 failover, multimodal routing, provider-authorization boundaries, and copyable Gemini setup telemetry.
 - `https://sagerouter.dev/coding-agent-model-router` captures Codex, Cursor, Aider, Continue, Claude Code, OpenHands, and OpenClaw model-routing traffic with hosted `sk_sage_*` keys, Codex Responses API profiles, local Ollama fallback, 429 failover, multimodal routing, and copyable coding-agent setup telemetry.
 - `https://sagerouter.dev/cursor-ai-model-router` captures Cursor model-routing traffic with hosted `sk_sage_*` keys, custom OpenAI-compatible endpoint setup, Anthropic-compatible paths, local Ollama fallback, multiple API-key load balancing, 429 failover, multimodal routing, and copyable Cursor setup telemetry.
 - `https://sagerouter.dev/docs/codex` is the dedicated Codex CLI setup path. It shows hosted `https://api.sagerouter.dev/v1/`, local `http://127.0.0.1:8790/v1/`, and Tailnet `http://<tailnet-host>:8790/v1/` profiles using `wire_api = "responses"` and `sage-router/frontier`.
@@ -255,7 +256,7 @@ the 60-second setup path visible after scrolling, using the same privacy-safe
 homepage funnel events. It keeps pricing, quickstart, status, model gateway comparison, model catalog,
 security, analytics, login, and local GitHub install paths available from the
 hero. A route-path discovery grid now links Cursor, coding-agent, Ollama,
-OpenAI API, Anthropic API, and self-hosted pages from the homepage so prospects
+OpenAI API, Anthropic API, Gemini API, and self-hosted pages from the homepage so prospects
 can start from the tool or provider they already use. The waitlist remains an updates/support path, not the primary conversion
 path. When a prospect requests the future one-subscription managed access path
 or Max implementation support, pricing and comparison pages link to

@@ -139,6 +139,10 @@ provider resale claim, or runtime feature flag.
 - Keep `/reddit-ai-gateway-evaluation` as the Reddit/community acquisition path
   for local-first custody, OpenRouter BYOK boundary, 429 failover, multimodal
   routing, hosted generated-key activation, and copyable evaluation/setup proof.
+- Keep `/gemini-api-router` as the Gemini/Google acquisition path for Google
+  AI, Vertex AI, Gemini CLI, function-tool routing, 429 failover, multimodal
+  routing, hosted generated-key activation, and provider-authorization
+  boundaries.
 - Keep `/community-launch-kit` as the owner-approved community posting kit for
   Hacker News and adjacent launch channels, with measured UTM links, no-secret
   posting rules, local-first/BYOK positioning, copyable Show HN text, and
