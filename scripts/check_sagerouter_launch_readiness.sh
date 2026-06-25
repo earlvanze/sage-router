@@ -903,6 +903,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("fusion_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_viewed") != null) and
     ((.allowedEvents // []) | index("content_article_quickstart_clicked") != null) and
+    ((.allowedEvents // []) | index("content_article_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("codex_docs_viewed") != null) and
     ((.allowedEvents // []) | index("codex_docs_account_clicked") != null) and
     ((.allowedEvents // []) | index("codex_docs_snippet_copied") != null) and
@@ -1058,6 +1059,12 @@ check_marketing_self_hosted_router_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Multimodal routing" /tmp/sage-router-readiness-body; then
     page_code="200:missing-multimodal-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "self-hosted-email-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-self-hosted-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_magic_link_sent" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-self-hosted-magic-link-funnel"
   fi
   rm -f /tmp/sage-router-readiness-body
 

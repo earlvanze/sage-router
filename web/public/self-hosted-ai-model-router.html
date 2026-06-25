@@ -12,7 +12,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <title>Self-hosted AI model router | Sage Router</title>
   <style>
-    :root{color-scheme:dark;--bg:#07100d;--panel:rgba(13,29,24,.84);--soft:rgba(255,255,255,.045);--border:rgba(166,255,207,.16);--muted:#a9c5b8;--text:#edfdf5;--brand:#8df0b2;--amber:#f7d57a;--blue:#8ab4ff}*{box-sizing:border-box}body{margin:0;min-width:320px;background:linear-gradient(180deg,#07100d 0%,#0b1518 54%,#07100d 100%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}a{color:inherit}.wrap{max-width:1120px;margin:0 auto;padding:0 clamp(20px,5vw,72px)}.nav{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 0;color:var(--muted)}.brand{display:inline-flex;align-items:center;gap:12px;font-weight:900;color:var(--text);text-decoration:none}.brandMark{display:grid;place-items:center;width:36px;height:36px;border:1px solid rgba(141,240,178,.42);border-radius:8px;color:#062016;background:linear-gradient(135deg,var(--brand),var(--amber))}.navLinks{display:flex;gap:22px;flex-wrap:wrap;font-size:14px;font-weight:750}.navLinks a{text-decoration:none}.navLinks a:hover,footer a:hover{color:var(--text)}header{padding:72px 0 38px}.eyebrow{color:var(--brand);font-weight:900;letter-spacing:.16em;text-transform:uppercase;font-size:12px;margin:0 0 16px}h1{font-size:clamp(44px,7vw,82px);line-height:.94;margin:0 0 22px;max-width:940px}h2{font-size:clamp(28px,4vw,44px);line-height:1.05;margin:0 0 16px}h3{font-size:21px;margin:0 0 8px}.lead{font-size:clamp(20px,2.2vw,26px);line-height:1.36;color:#d2eadf;max-width:900px}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}.button{min-height:46px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:0 20px;font-weight:900;text-decoration:none}.primary{background:var(--brand);color:#06160d}.secondary{border:1px solid var(--border);background:rgba(255,255,255,.05);color:var(--text)}main{padding:24px 0 68px}.stack{display:grid;gap:22px}.panel{border:1px solid var(--border);border-radius:8px;background:var(--panel);padding:28px}.panel.soft{background:var(--soft)}.panel p,.panel li,.muted{color:var(--muted)}.panel p{margin:0 0 14px}.panel p:last-child{margin-bottom:0}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.two{display:grid;grid-template-columns:minmax(0,.95fr) minmax(330px,.65fr);gap:18px;align-items:start}.list{display:grid;gap:10px;margin:0;padding-left:22px}.codebox{white-space:pre-wrap;overflow:auto;border:1px solid var(--border);border-radius:8px;background:rgba(0,0,0,.28);color:#d9e6ff;padding:18px;font-size:.92rem}code{color:#d9e6ff}.callout{border-color:rgba(247,213,122,.32);background:rgba(247,213,122,.07)}.callout strong{color:var(--amber)}footer{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:.9rem;padding:34px 0 54px;border-top:1px solid rgba(166,255,207,.1)}footer span{margin-right:auto}@media(max-width:900px){.grid,.two{grid-template-columns:1fr}.nav{align-items:flex-start;flex-direction:column}.button{width:100%}}
+    :root{color-scheme:dark;--bg:#07100d;--panel:rgba(13,29,24,.84);--soft:rgba(255,255,255,.045);--border:rgba(166,255,207,.16);--muted:#a9c5b8;--text:#edfdf5;--brand:#8df0b2;--amber:#f7d57a;--blue:#8ab4ff}*{box-sizing:border-box}body{margin:0;min-width:320px;background:linear-gradient(180deg,#07100d 0%,#0b1518 54%,#07100d 100%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}a{color:inherit}.wrap{max-width:1120px;margin:0 auto;padding:0 clamp(20px,5vw,72px)}.nav{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 0;color:var(--muted)}.brand{display:inline-flex;align-items:center;gap:12px;font-weight:900;color:var(--text);text-decoration:none}.brandMark{display:grid;place-items:center;width:36px;height:36px;border:1px solid rgba(141,240,178,.42);border-radius:8px;color:#062016;background:linear-gradient(135deg,var(--brand),var(--amber))}.navLinks{display:flex;gap:22px;flex-wrap:wrap;font-size:14px;font-weight:750}.navLinks a{text-decoration:none}.navLinks a:hover,footer a:hover{color:var(--text)}header{padding:72px 0 38px}.eyebrow{color:var(--brand);font-weight:900;letter-spacing:.16em;text-transform:uppercase;font-size:12px;margin:0 0 16px}h1{font-size:clamp(44px,7vw,82px);line-height:.94;margin:0 0 22px;max-width:940px}h2{font-size:clamp(28px,4vw,44px);line-height:1.05;margin:0 0 16px}h3{font-size:21px;margin:0 0 8px}.lead{font-size:clamp(20px,2.2vw,26px);line-height:1.36;color:#d2eadf;max-width:900px}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}.button{min-height:46px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:0 20px;font-weight:900;text-decoration:none}.primary{background:var(--brand);color:#06160d}.secondary{border:1px solid var(--border);background:rgba(255,255,255,.05);color:var(--text)}.emailStart{display:grid;gap:10px;max-width:760px;margin-top:18px;padding:16px;border:1px solid rgba(141,240,178,.26);border-radius:8px;background:rgba(13,29,24,.78)}.emailStart label{color:var(--brand);font-weight:900;font-size:13px;letter-spacing:.08em;text-transform:uppercase}.emailStart div{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:10px}.emailStart input{min-width:0;height:48px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.055);color:var(--text);padding:0 18px;font:inherit}.emailStart input:focus{outline:2px solid rgba(141,240,178,.42);outline-offset:2px}.emailStart button{height:48px;border:0;border-radius:999px;padding:0 18px;background:var(--brand);color:#04150d;font-weight:900;cursor:pointer}.emailStart button:disabled{cursor:wait;opacity:.72}.emailStart p{margin:0;min-height:20px;color:var(--muted);font-size:14px}main{padding:24px 0 68px}.stack{display:grid;gap:22px}.panel{border:1px solid var(--border);border-radius:8px;background:var(--panel);padding:28px}.panel.soft{background:var(--soft)}.panel p,.panel li,.muted{color:var(--muted)}.panel p{margin:0 0 14px}.panel p:last-child{margin-bottom:0}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.two{display:grid;grid-template-columns:minmax(0,.95fr) minmax(330px,.65fr);gap:18px;align-items:start}.list{display:grid;gap:10px;margin:0;padding-left:22px}.codebox{white-space:pre-wrap;overflow:auto;border:1px solid var(--border);border-radius:8px;background:rgba(0,0,0,.28);color:#d9e6ff;padding:18px;font-size:.92rem}code{color:#d9e6ff}.callout{border-color:rgba(247,213,122,.32);background:rgba(247,213,122,.07)}.callout strong{color:var(--amber)}footer{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:.9rem;padding:34px 0 54px;border-top:1px solid rgba(166,255,207,.1)}footer span{margin-right:auto}@media(max-width:900px){.grid,.two{grid-template-columns:1fr}.nav{align-items:flex-start;flex-direction:column}.button{width:100%}.emailStart div{grid-template-columns:1fr}.emailStart button{width:100%}}
   </style>
   <script type="application/ld+json">
   {
@@ -49,6 +49,14 @@
       <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=pro" data-selfhosted-event="content_article_checkout_clicked" data-selfhosted-button="start-pro">Create hosted key</a>
       <a class="button secondary" href="/compare/openrouter" data-selfhosted-event="content_article_compare_clicked" data-selfhosted-button="compare-openrouter">Compare OpenRouter</a>
     </div>
+    <form id="self-hosted-email-form" class="emailStart">
+      <label for="self-hosted-email">Want hosted reliability on top of self-hosted?</label>
+      <div>
+        <input id="self-hosted-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required />
+        <button type="submit">Email me the Pro key link</button>
+      </div>
+      <p id="self-hosted-email-status" role="status" aria-live="polite">No provider key required to create your Sage Router account.</p>
+    </form>
   </header>
 
   <main class="wrap stack">
@@ -127,6 +135,33 @@ curl "$OPENAI_BASE_URL/chat/completions" \
     <a href="/security">Security</a>
   </footer>
   <script>
+    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro';
+    const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
+
+    function loadSupabaseScript() {
+      return new Promise((resolve, reject) => {
+        if (window.supabase?.createClient) {
+          resolve(window.supabase);
+          return;
+        }
+        const existing = document.querySelector('script[data-supabase-js]');
+        if (existing) {
+          existing.addEventListener('load', () => resolve(window.supabase), { once: true });
+          existing.addEventListener('error', reject, { once: true });
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+        script.async = true;
+        script.defer = true;
+        script.dataset.supabaseJs = 'true';
+        script.addEventListener('load', () => resolve(window.supabase), { once: true });
+        script.addEventListener('error', reject, { once: true });
+        document.head.appendChild(script);
+      });
+    }
+
     function trackSelfHostedEvent(event, data = {}) {
       const params = new URLSearchParams(window.location.search);
       let referrerHost = null;
@@ -166,6 +201,62 @@ curl "$OPENAI_BASE_URL/chat/completions" \
     }
 
     trackSelfHostedEvent('content_article_viewed', { button: 'page-view' });
+    document.getElementById('self-hosted-email-form')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const button = form.querySelector('button');
+      const status = document.getElementById('self-hosted-email-status');
+      const email = String(new FormData(form).get('email') || '').trim();
+      if (!email) {
+        if (status) status.textContent = 'Enter an email first.';
+        return;
+      }
+      button.disabled = true;
+      button.textContent = 'Sending...';
+      if (status) status.textContent = 'Sending secure sign-in link...';
+      trackSelfHostedEvent('content_article_magic_link_requested', {
+        plan: 'pro',
+        target: ACCOUNT_PAGE_URL,
+        button: 'Email me the Pro key link'
+      });
+      try {
+        const api = await loadSupabaseScript();
+        const client = api.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const { error } = await client.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: ACCOUNT_PAGE_URL,
+            data: {
+              sage_router_onboarding: true,
+              signup_source: 'self-hosted',
+              selected_plan: 'pro',
+              auth_method: 'magic_link'
+            }
+          }
+        });
+        if (error) throw error;
+        form.reset();
+        trackSelfHostedEvent('content_article_magic_link_sent', {
+          plan: 'pro',
+          target: ACCOUNT_PAGE_URL,
+          button: 'Email me the Pro key link'
+        });
+        if (status) status.textContent = 'Check your inbox for the Pro key setup link.';
+      } catch {
+        trackSelfHostedEvent('content_article_magic_link_failed', {
+          plan: 'pro',
+          target: ACCOUNT_PAGE_URL,
+          button: 'Email me the Pro key link'
+        });
+        if (status) status.textContent = 'Email link failed. Opening the account flow...';
+        window.setTimeout(() => {
+          window.location.href = ACCOUNT_PAGE_URL;
+        }, 900);
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Email me the Pro key link';
+      }
+    });
     document.querySelectorAll('[data-selfhosted-event]').forEach((link) => {
       link.addEventListener('click', () => {
         const href = link.getAttribute('href') || '';
