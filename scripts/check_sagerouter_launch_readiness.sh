@@ -1107,6 +1107,12 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-setup-copy-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Max implementation review" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-max-implementation-cta"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access?intent=max-implementation" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-max-implementation-intent"
+  fi
   rm -f /tmp/sage-router-readiness-body "$homepage_body" "$bundle_body"
 
   if [[ "$page_code" == "200" ]]; then

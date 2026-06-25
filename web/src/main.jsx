@@ -576,11 +576,11 @@ function App() {
                 button: 'Estimate routing savings',
                 state: 'hero-secondary',
               })}>Estimate routing savings</a>
-              <a href="/managed-access" onClick={() => trackLandingFunnelEvent('landing_managed_access_clicked', {
-                target: '/managed-access',
-                button: 'Managed access beta',
-                state: 'hero-secondary',
-              })}>Managed access beta</a>
+              <a href="/managed-access?intent=max-implementation" onClick={() => trackLandingFunnelEvent('landing_managed_access_clicked', {
+                target: '/managed-access?intent=max-implementation',
+                button: 'Max implementation review',
+                state: 'hero-secondary-max-implementation',
+              })}>Max implementation review</a>
               <a href="/security" onClick={() => trackLandingFunnelEvent('landing_security_clicked', {
                 target: '/security',
                 button: 'Review security',
@@ -730,7 +730,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <p><a className="inlineLink" href="/local-first-routing-for-ai-agents">Read the local-first routing guide →</a></p>
           <p><a className="inlineLink" href="/self-hosted-ai-model-router">See the self-hosted router path →</a></p>
           <p><a className="inlineLink" href="/model-routing-calculator">Estimate routing savings for one workflow →</a></p>
-          <p><a className="inlineLink" href="/managed-access">Request managed-access private beta review →</a></p>
+          <p><a className="inlineLink" href="/managed-access?intent=max-implementation">Request Max implementation review →</a></p>
           <p><a className="inlineLink" href="/pricing">See hosted routing pricing and plan limits →</a></p>
         </div>
         <div className="cards">
