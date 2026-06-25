@@ -907,6 +907,8 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("calculator_checkout_unavailable") != null) and
     ((.allowedEvents // []) | index("fusion_viewed") != null) and
     ((.allowedEvents // []) | index("fusion_checkout_clicked") != null) and
+    ((.allowedEvents // []) | index("fusion_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("gateway_migration_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("content_article_viewed") != null) and
     ((.allowedEvents // []) | index("content_article_quickstart_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_magic_link_sent") != null) and
@@ -1138,6 +1140,12 @@ check_marketing_gateway_migration_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "api-troubleshooting" /tmp/sage-router-readiness-body; then
     page_code="200:missing-troubleshooting-link"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "gateway-migration-email-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-migration-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "gateway_migration_magic_link_sent" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-migration-magic-link-funnel"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
@@ -1212,6 +1220,12 @@ check_marketing_fusion_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "fusion_checkout_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-funnel-event"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "fusion-email-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-fusion-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "fusion_magic_link_sent" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-fusion-magic-link-funnel"
   fi
   rm -f /tmp/sage-router-readiness-body
 
