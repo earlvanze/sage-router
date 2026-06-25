@@ -12,6 +12,7 @@ Local-first routing guide: https://sagerouter.dev/local-first-routing-for-ai-age
 Self-hosted AI model router: https://sagerouter.dev/self-hosted-ai-model-router
 Ollama AI model router: https://sagerouter.dev/ollama-ai-model-router
 OpenAI API router: https://sagerouter.dev/openai-api-router
+Anthropic API router: https://sagerouter.dev/anthropic-api-router
 AI gateway evaluation kit: https://sagerouter.dev/reddit-ai-gateway-evaluation
 Launch plan: https://sagerouter.dev/launch-plan
 Billing help: https://sagerouter.dev/billing
