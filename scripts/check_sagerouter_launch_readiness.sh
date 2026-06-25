@@ -1592,6 +1592,60 @@ check_marketing_gemini_router_page() {
   fi
 }
 
+check_marketing_xai_grok_router_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/xai-grok-router")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "xAI Grok router" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "XAI_API_KEY" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-xai-api-key-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "OpenAI-compatible setup" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-openai-compatible-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "429 failover" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-429-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Multimodal safeguards" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-multimodal-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "does not proxy xAI SSO sessions" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-sso-boundary"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "grok-router-copy-start" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-grok-copy-start"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "grok-router-start" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-grok-snippet-id"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-view-funnel"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/xai-grok-router" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-grok-router-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "xAI Grok router: ${MARKETING_BASE%/}/xai-grok-router" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-grok-router-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing xAI Grok router page is live in sitemap and LLM discovery"
+  else
+    fail "marketing xAI Grok router page incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_nvidia_nim_router_page() {
   local page_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/nvidia-nim-router")"
@@ -2943,6 +2997,7 @@ check_marketing_openai_router_page
 check_marketing_anthropic_router_page
 check_marketing_github_copilot_router_page
 check_marketing_gemini_router_page
+check_marketing_xai_grok_router_page
 check_marketing_nvidia_nim_router_page
 check_marketing_coding_agent_router_page
 check_marketing_cursor_router_page

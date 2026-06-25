@@ -23,6 +23,7 @@ OpenAI API router: https://sagerouter.dev/openai-api-router
 Anthropic API router: https://sagerouter.dev/anthropic-api-router
 GitHub Copilot router: https://sagerouter.dev/github-copilot-router
 Gemini API router: https://sagerouter.dev/gemini-api-router
+xAI Grok router: https://sagerouter.dev/xai-grok-router
 NVIDIA NIM router: https://sagerouter.dev/nvidia-nim-router
 Coding agent model router: https://sagerouter.dev/coding-agent-model-router
 Cursor AI model router: https://sagerouter.dev/cursor-ai-model-router
@@ -58,6 +59,8 @@ The Anthropic API router page at https://sagerouter.dev/anthropic-api-router tar
 The GitHub Copilot router page at https://sagerouter.dev/github-copilot-router targets GitHub Copilot router, Copilot-compatible endpoint routing, coding-agent token custody, OpenAI-compatible Copilot setup, and Copilot failover searches. It explains hosted generated `sk_sage_*` keys, customer-owned `GITHUB_COPILOT_TOKEN` custody, Copilot model discovery through `/v1/models`, credential load balancing, 429 failover, multimodal safeguards, provider-authorization boundaries, and copyable setup snippets that record only `quickstart_snippet_copied` IDs.
 
 The Gemini API router page at https://sagerouter.dev/gemini-api-router targets Gemini API router, Google AI routing, Vertex AI routing, Gemini CLI setup, function-tool routing, and Gemini failover searches. It explains hosted generated `sk_sage_*` keys, Gemini-compatible Google AI and Vertex routes, structured Gemini function-tool calls, 429 failover, multimodal capability routing, BYOK custody, and copyable setup snippets that record only `quickstart_snippet_copied` IDs.
+
+The xAI Grok router page at https://sagerouter.dev/xai-grok-router targets xAI Grok router, Grok API routing, OpenAI-compatible xAI setup, xAI API-key custody, and Grok failover searches. It explains hosted generated `sk_sage_*` keys, customer-owned `XAI_API_KEY` custody, `/v1/models` discovery, credential load balancing, 429 failover, multimodal safeguards, xAI SSO proxy boundaries, and copyable setup snippets that record only `quickstart_snippet_copied` IDs.
 
 The NVIDIA NIM router page at https://sagerouter.dev/nvidia-nim-router targets NVIDIA NIM router, NVIDIA Cloud routing, GPU-backed hosted inference, OpenAI-compatible NVIDIA setup, and NVIDIA failover searches. It explains hosted generated `sk_sage_*` keys, customer-owned `NVIDIA_API_KEY` custody, credential load balancing, 429 failover, multimodal capability routing, provider-authorization boundaries, and copyable setup snippets that record only `quickstart_snippet_copied` IDs.
 

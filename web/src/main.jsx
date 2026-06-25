@@ -78,6 +78,14 @@ const routePaths = [
     state: 'route-path-gemini',
   },
   {
+    label: 'xAI Grok',
+    title: 'Frontier API-key route',
+    href: '/xai-grok-router',
+    body: 'Route Grok through the same OpenAI-compatible policy layer with XAI_API_KEY custody, model discovery, and 429 failover.',
+    button: 'xAI Grok route path',
+    state: 'route-path-grok',
+  },
+  {
     label: 'NVIDIA NIM',
     title: 'GPU-backed hosted inference',
     href: '/nvidia-nim-router',
@@ -575,6 +583,7 @@ function App() {
             <a href="/openai-api-router">OpenAI API</a>
             <a href="/anthropic-api-router">Anthropic</a>
             <a href="/github-copilot-router">GitHub Copilot</a>
+            <a href="/xai-grok-router">xAI Grok</a>
             <a href="/nvidia-nim-router">NVIDIA NIM</a>
             <a href="/coding-agent-model-router">Coding Agents</a>
             <a href="/cursor-ai-model-router">Cursor</a>
@@ -690,6 +699,11 @@ function App() {
                 button: 'GitHub Copilot router',
                 state: 'hero-secondary-copilot-router',
               })}>GitHub Copilot router</a>
+              <a href="/xai-grok-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/xai-grok-router',
+                button: 'xAI Grok router',
+                state: 'hero-secondary-grok-router',
+              })}>xAI Grok router</a>
               <a href="/nvidia-nim-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/nvidia-nim-router',
                 button: 'NVIDIA NIM router',
@@ -1071,6 +1085,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/openai-api-router">OpenAI API</a>
         <a href="/anthropic-api-router">Anthropic</a>
         <a href="/github-copilot-router">GitHub Copilot</a>
+        <a href="/xai-grok-router">xAI Grok</a>
         <a href="/nvidia-nim-router">NVIDIA NIM</a>
         <a href="/coding-agent-model-router">Coding Agents</a>
         <a href="/cursor-ai-model-router">Cursor</a>

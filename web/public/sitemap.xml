@@ -97,6 +97,12 @@
     <priority>0.85</priority>
   </url>
   <url>
+    <loc>https://sagerouter.dev/xai-grok-router</loc>
+    <lastmod>2026-06-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
     <loc>https://sagerouter.dev/nvidia-nim-router</loc>
     <lastmod>2026-06-25</lastmod>
     <changefreq>weekly</changefreq>

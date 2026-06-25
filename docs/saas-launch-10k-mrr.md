@@ -148,6 +148,11 @@ provider resale claim, or runtime feature flag.
   `GITHUB_COPILOT_TOKEN` custody, OpenAI-compatible setup, model discovery,
   credential load balancing, 429 failover, multimodal safeguards, and
   provider-authorization boundaries.
+- Keep `/xai-grok-router` as the xAI Grok acquisition path for API-key
+  authorized Grok routing, customer-owned `XAI_API_KEY` custody,
+  OpenAI-compatible setup, `/v1/models` discovery, credential load balancing,
+  429 failover, multimodal safeguards, xAI SSO proxy boundaries, and
+  provider-authorization boundaries.
 - Keep `/nvidia-nim-router` as the NVIDIA NIM acquisition path for NVIDIA
   Cloud, GPU-backed hosted inference, customer-owned `NVIDIA_API_KEY` custody,
   OpenAI-compatible setup, credential load balancing, 429 failover, multimodal
