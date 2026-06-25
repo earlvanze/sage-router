@@ -905,6 +905,7 @@ check_funnel_event_endpoint() {
   allowed_events="$(jq -r '
     ((.allowedEvents // []) | index("calculator_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("calculator_checkout_unavailable") != null) and
+    ((.allowedEvents // []) | index("calculator_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("fusion_viewed") != null) and
     ((.allowedEvents // []) | index("fusion_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("fusion_magic_link_sent") != null) and
@@ -921,6 +922,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("codex_docs_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("api_reference_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("api_troubleshooting_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("launch_plan_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("landing_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_magic_link_sent") != null) and
@@ -1273,6 +1275,12 @@ check_marketing_launch_plan_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "launch_plan_checkout_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-funnel-event"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "launch-plan-email-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-launch-plan-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "launch_plan_magic_link_sent" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-launch-plan-magic-link-funnel"
   fi
   rm -f /tmp/sage-router-readiness-body
 
@@ -1744,6 +1752,12 @@ check_model_routing_calculator() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "calculator_checkout_unavailable" /tmp/sage-router-readiness-body; then
     page_code="200:missing-billing-readiness-fallback"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "calculator-email-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-calculator-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "calculator_magic_link_sent" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-calculator-magic-link-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "https://api.sagerouter.dev/pricing" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-metadata-fetch"

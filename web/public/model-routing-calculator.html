@@ -145,6 +145,12 @@
     .rec strong { display: block; margin-bottom: 4px; }
     .cta { margin-top: 20px; padding: 18px; border-radius: 8px; background: linear-gradient(135deg, rgba(124,231,199,.16), rgba(138,180,255,.12)); border: 1px solid rgba(124,231,199,.25); }
     .cta h3 { margin: 0 0 8px; font-size: 1.1rem; }
+
+    .emailStart { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; padding: 14px; border: 1px solid rgba(124,231,199,.25); border-radius: 8px; background: rgba(124,231,199,.08); }
+    .emailStart label { flex: 1 1 100%; margin: 0; font-weight: 900; }
+    .emailStart input { flex: 1 1 230px; border-radius: 999px; }
+    .emailStart button { flex: 0 0 auto; }
+    .emailStartStatus { flex: 1 1 100%; margin: 0; color: var(--muted); font-size: .88rem; }
     .copybox { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; max-height: 260px; overflow: auto; margin-top: 14px; padding: 14px; border-radius: 8px; background: rgba(0,0,0,.24); border: 1px solid var(--line); color: #d9e6ff; }
     footer { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: .9rem; padding: 34px 32px 54px; border-top: 1px solid rgba(166,255,207,.1); }
     footer span { margin-right: auto; }
@@ -302,6 +308,12 @@
             <button class="primary" type="button" id="startRecommendedPlan">Start recommended plan</button>
             <button class="secondary" type="button" id="comparePlans">Compare plans</button>
           </div>
+          <form class="emailStart" id="calculator-email-form" data-email-activation-form data-event-prefix="calculator" data-sent-event="calculator_magic_link_sent" data-source="model-routing-calculator" data-status-id="calculator-email-status">
+            <label for="calculator-email">Email me the Pro key link for this routing pilot</label>
+            <input id="calculator-email" type="email" name="email" autocomplete="email" placeholder="you@company.com" required />
+            <button class="primary" type="submit">Email me the Pro key link</button>
+            <p class="emailStartStatus" id="calculator-email-status" role="status">No provider key required to create your Sage Router account.</p>
+          </form>
         </div>
 
         <div class="rec-list" id="recommendations"></div>
@@ -644,5 +656,6 @@
     calculate();
     loadPricingMetadata();
   </script>
+  <script src="/marketing-email-activation.js"></script>
 </body>
 </html>
