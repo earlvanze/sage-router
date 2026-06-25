@@ -1133,6 +1133,12 @@ check_marketing_pricing_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing_checkout_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-checkout-funnel-event"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "pricing-email-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-email-start-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "pricing_magic_link_sent" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-magic-link-funnel"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"

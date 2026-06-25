@@ -27,6 +27,13 @@
     ]
   }
   </script>
+  <style>
+    .emailStart{margin-top:22px;max-width:760px;border:1px solid rgba(141,240,178,.32);border-radius:8px;background:rgba(141,240,178,.07);padding:16px}
+    .emailStart form{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:10px;margin:10px 0 0}
+    .emailStart input{min-height:48px;border:1px solid var(--border);border-radius:999px;background:rgba(0,0,0,.22);color:var(--text);font:inherit;padding:0 16px}
+    .emailStartStatus{min-height:22px;margin:10px 0 0;color:var(--brand);font-size:14px}
+    @media(max-width:720px){.emailStart form{grid-template-columns:1fr}}
+  </style>
 </head>
 <body>
   <div class="wrap">
@@ -67,6 +74,15 @@
           <a class="button secondary" href="/launch-plan">See launch plan</a>
         </div>
         <p class="note">Sage Router sells routing, reliability, account management, quotas, analytics, and support. It does not grant unauthorized model access, pool provider accounts, or bypass provider terms.</p>
+        <div class="emailStart">
+          <strong>Fastest Pro start: send yourself a sign-in link</strong>
+          <p class="note">No provider key is required to create the account. The link opens the hosted account page with Pro selected, then you can complete Stripe checkout and generate an <code>sk_sage_*</code> key.</p>
+          <form id="pricing-email-form">
+            <input id="pricing-email" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for Sage Router Pro activation" required>
+            <button class="button primary" type="submit">Email me the Pro link</button>
+          </form>
+          <p id="pricing-email-status" class="emailStartStatus" role="status" aria-live="polite"></p>
+        </div>
         <div class="readinessGrid" aria-label="Hosted activation path">
           <div class="readinessItem"><b>1. Pro selected</b><span class="muted">The account page opens with Pro preserved through sign-in.</span></div>
           <div class="readinessItem"><b>2. Generate key</b><span class="muted">Create an <code>sk_sage_*</code> key from the browser account flow.</span></div>
@@ -260,8 +276,13 @@
       <a href="https://github.com/earlvanze/sage-router">GitHub</a>
     </footer>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     const API_PRICING_URL = 'https://api.sagerouter.dev/pricing';
+    const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
+    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro';
+    const sb = window.supabase?.createClient?.(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     function formatControlName(value) {
       return String(value || '').replace(/_/g, ' ');
@@ -399,6 +420,7 @@
         metadata: {
           source: 'pricing',
           button: data.button || null,
+          state: data.state || null,
           utmSource: params.get('utm_source') || params.get('utmSource') || null,
           utmMedium: params.get('utm_medium') || params.get('utmMedium') || null,
           utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
@@ -422,6 +444,56 @@
     }
 
     trackPricingFunnelEvent('pricing_viewed', { state: 'page-view' });
+
+    document.getElementById('pricing-email-form')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const status = document.getElementById('pricing-email-status');
+      const input = document.getElementById('pricing-email');
+      const email = input?.value.trim();
+      if (!email) {
+        if (status) status.textContent = 'Enter your email first.';
+        return;
+      }
+      if (status) status.textContent = 'Sending Pro sign-in link...';
+      trackPricingFunnelEvent('pricing_magic_link_requested', {
+        plan: 'pro',
+        target: ACCOUNT_PAGE_URL,
+        button: 'Email me the Pro link',
+        state: 'email',
+      });
+      try {
+        if (!sb) throw new Error('Supabase client unavailable');
+        const { error } = await sb.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: ACCOUNT_PAGE_URL,
+            data: {
+              sage_router_onboarding: true,
+              signup_source: 'pricing',
+              selected_plan: 'pro',
+              auth_method: 'magic_link',
+            },
+          },
+        });
+        if (error) throw error;
+        if (status) status.textContent = 'Magic link sent. Check your email to continue Pro activation.';
+        trackPricingFunnelEvent('pricing_magic_link_sent', {
+          plan: 'pro',
+          target: ACCOUNT_PAGE_URL,
+          button: 'Email me the Pro link',
+          state: 'email',
+        });
+      } catch (error) {
+        if (status) status.textContent = 'Could not send a link here. Opening the hosted account page instead.';
+        trackPricingFunnelEvent('pricing_magic_link_failed', {
+          plan: 'pro',
+          target: ACCOUNT_PAGE_URL,
+          button: 'Email me the Pro link',
+          state: 'fallback_account',
+        });
+        setTimeout(() => { window.location.href = ACCOUNT_PAGE_URL; }, 700);
+      }
+    });
 
     fetch(API_PRICING_URL, { credentials: 'omit' })
       .then((response) => response.ok ? response.json() : null)
