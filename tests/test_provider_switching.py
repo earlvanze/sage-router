@@ -110,6 +110,48 @@ class ProviderSwitchingTests(unittest.TestCase):
             [name for name, _value in codex_score['contributions']],
         )
 
+    def test_balanced_profile_is_explicit_non_frontier_codex_first(self):
+        payload = {'model': 'sage-router/balanced', 'messages': [{'role': 'user', 'content': 'hello'}]}
+        profile = router.apply_router_profile(payload)
+
+        self.assertEqual('balanced', profile)
+        self.assertEqual('sage-router/auto', payload['model'])
+        self.assertEqual('balanced', payload['route'])
+        self.assertEqual({'effort': 'medium'}, payload['thinking'])
+        requirements = payload['requirements']
+        self.assertEqual(['openai-codex'], requirements['allowProviders'][:1])
+        self.assertIn('google', requirements['fallbackProviders'])
+        self.assertFalse(requirements.get('frontierLargeOnly', False))
+        self.assertFalse(requirements.get('reasoning', False))
+
+    def test_google_tool_declarations_strip_unsupported_schema_keys(self):
+        tools = [{
+            'type': 'function',
+            'function': {
+                'name': 'lookup',
+                'parameters': {
+                    'type': 'object',
+                    'additionalProperties': False,
+                    'properties': {
+                        'filters': {
+                            'type': 'object',
+                            'additionalProperties': {'type': 'string'},
+                            'properties': {
+                                'query': {'type': 'string'},
+                            },
+                        },
+                    },
+                },
+            },
+        }]
+
+        declarations = router.google_tool_declarations(tools)
+
+        parameters = declarations[0]['parameters']
+        self.assertNotIn('additionalProperties', parameters)
+        self.assertNotIn('additionalProperties', parameters['properties']['filters'])
+        self.assertEqual('string', parameters['properties']['filters']['properties']['query']['type'])
+
 
 if __name__ == '__main__':
     unittest.main()

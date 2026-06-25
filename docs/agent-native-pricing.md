@@ -20,6 +20,7 @@ curl http://localhost:8790/features/agent-native
 
 ## Routing profiles
 
+- `sage-router/balanced`: Codex-subscription-first route for everyday agent and app traffic, with non-frontier fallback providers available for cost, latency, and 429 resilience.
 - `sage-router/agentic`: best-route profile for multi-step agent work, tool preference, and strong model families such as Kimi, Codex, GPT-5, Claude/Sonnet/Opus, and Gemini Pro/3.
 - `sage-router/eco`: cost-first/local-first profile that avoids expensive frontier defaults.
 - `sage-router/fusion`: Pro/Max/metered multi-model panel plus judge synthesis for prompts where multiple perspectives are worth the extra latency and cost. Gateway-style clients can also request the same route with the `sage-router:fusion` server tool.

@@ -11148,6 +11148,43 @@ def call_anthropic(base_url, model, messages, api_key='', thinking=DEFAULT_THINK
         return False, extract_http_error(e)
 
 
+GOOGLE_SCHEMA_UNSUPPORTED_KEYS = {
+    '$defs',
+    '$schema',
+    'additionalProperties',
+    'allOf',
+    'anyOf',
+    'const',
+    'contains',
+    'definitions',
+    'dependentSchemas',
+    'else',
+    'if',
+    'maxContains',
+    'minContains',
+    'not',
+    'oneOf',
+    'patternProperties',
+    'prefixItems',
+    'propertyNames',
+    'then',
+    'unevaluatedProperties',
+}
+
+
+def google_schema_for_tool(value):
+    if isinstance(value, list):
+        return [google_schema_for_tool(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    cleaned = {}
+    for key, item in value.items():
+        if key in GOOGLE_SCHEMA_UNSUPPORTED_KEYS:
+            continue
+        cleaned[key] = google_schema_for_tool(item)
+    return cleaned
+
+
 def google_tool_declarations(tools):
     declarations = []
     for tool in tools or []:
@@ -11164,7 +11201,7 @@ def google_tool_declarations(tools):
             declaration['description'] = str(function.get('description'))
         parameters = function.get('parameters')
         if isinstance(parameters, dict) and parameters:
-            declaration['parameters'] = parameters
+            declaration['parameters'] = google_schema_for_tool(parameters)
         else:
             declaration['parameters'] = {'type': 'object', 'properties': {}}
         declarations.append(declaration)

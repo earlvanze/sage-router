@@ -21,6 +21,24 @@
       "frontierLargeOnly": true,
       "suppressIntermediateToolText": true
     },
+    "balanced": {
+      "description": "Balanced routing via OpenAI Codex subscription first, with broader non-frontier fallbacks for cost, latency, and health.",
+      "route": "balanced",
+      "thinking": "medium",
+      "allowProviders": [
+        "openai-codex"
+      ],
+      "fallbackProviders": [
+        "ollama-cyber",
+        "ollama",
+        "google",
+        "google-vertex",
+        "openrouter",
+        "nvidia-nim",
+        "openai"
+      ],
+      "suppressIntermediateToolText": true
+    },
     "frontier": {
       "description": "Frontier routing via OpenClaw Codex OAuth with cloud fallbacks.",
       "route": "best",
