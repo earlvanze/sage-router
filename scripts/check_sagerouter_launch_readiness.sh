@@ -994,6 +994,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("codex_docs_viewed") != null) and
     ((.allowedEvents // []) | index("quickstart_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("quickstart_oauth_clicked") != null) and
+    ((.allowedEvents // []) | index("quickstart_setup_next_clicked") != null) and
     ((.allowedEvents // []) | index("codex_docs_account_clicked") != null) and
     ((.allowedEvents // []) | index("codex_docs_snippet_copied") != null) and
     ((.allowedEvents // []) | index("codex_docs_magic_link_sent") != null) and

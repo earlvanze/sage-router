@@ -57,7 +57,7 @@
           <strong>Copy setup first.</strong>
           <span class="muted">Paste the bundle into your terminal now, then replace the placeholder with your generated <code>sk_sage_*</code> key after account setup.</span>
           <button id="quickstart-copy-bundle" class="copyCodeButton" type="button">Copy 60-second setup bundle</button>
-          <a id="quickstart-copy-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-quickstart-event="quickstart_account_clicked" data-quickstart-button="create-pro-key-next" data-quickstart-plan="pro" hidden>Create Pro key next</a>
+          <a id="quickstart-copy-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-quickstart-event="quickstart_setup_next_clicked" data-quickstart-button="create-pro-key-next" data-quickstart-plan="pro" data-quickstart-snippet="quickstart-full-setup-bundle">Create Pro key next</a>
         </div>
         <div class="actions">
           <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-quickstart-event="quickstart_account_clicked" data-quickstart-button="start-pro" data-quickstart-plan="pro">Start Pro key setup</a>
@@ -419,7 +419,8 @@ codex --profile sage-router-frontier`;
         await writeClipboardText(fullSetupBundleText());
         button.textContent = 'Copied bundle';
         if (copyStatus) copyStatus.textContent = 'Copied. Create your key next; no provider key required.';
-        document.getElementById('quickstart-copy-next-account')?.removeAttribute('hidden');
+        const nextAccount = document.getElementById('quickstart-copy-next-account');
+        if (nextAccount) nextAccount.dataset.setupCopied = 'true';
         trackQuickstartFunnelEvent('quickstart_snippet_copied', {
           button: 'Copy 60-second setup bundle',
           state: 'copied',
@@ -543,6 +544,8 @@ codex --profile sage-router-frontier`;
           button: link.dataset.quickstartButton || link.textContent.trim().toLowerCase(),
           target: href,
           plan: link.dataset.quickstartPlan || planMatch?.[1] || undefined,
+          state: link.dataset.setupCopied === 'true' ? 'post-copy' : (link.dataset.quickstartSnippet ? 'pre-copy' : undefined),
+          snippet: link.dataset.quickstartSnippet || undefined,
         });
       });
     });
