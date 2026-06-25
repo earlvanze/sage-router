@@ -290,14 +290,18 @@ function applyLaunchMetadata(data) {
 }
 
 function applyOauthButtons(external = {}, status = '') {
-  const enabledLabels = [];
+  const enabledLabels = new Set();
   document.querySelectorAll('[data-oauth]').forEach((button) => {
     const enabled = external[button.dataset.oauth] === true;
     button.classList.toggle('hidden', !enabled);
     button.disabled = !enabled;
-    if (enabled) enabledLabels.push(OAUTH_LABELS[button.dataset.oauth] || button.dataset.oauth);
+    if (enabled) enabledLabels.add(OAUTH_LABELS[button.dataset.oauth] || button.dataset.oauth);
   });
-  set('oauth-status', oauthStatusText(external, enabledLabels, status));
+  const labels = [...enabledLabels];
+  set('oauth-status', oauthStatusText(external, labels, status));
+  if (!activationState.signedIn && labels.length && !status) {
+    set('intent-email-status', `${labels[0]} sign-in is available above. Email magic link is also available.`);
+  }
 }
 
 function oauthStatusText(external = {}, enabledLabels = [], status = '') {
@@ -894,13 +898,15 @@ function renderKeys(keys) {
   }).join('')}</tbody></table>`;
 }
 
-async function oauthLogin(provider) {
-  set('auth-status', `Opening ${provider} sign-in...`);
+async function oauthLogin(provider, options = {}) {
+  const mirrorIntent = Boolean(options.mirrorIntent);
+  const button = options.button || provider;
+  setAuthStatus(`Opening ${provider} sign-in...`, mirrorIntent);
   rememberOnboardingContext(onboardingContext({ authMethod: provider }));
-  trackAccountFunnelEvent('account_oauth_clicked', { button: provider, target: '/auth/v1/authorize', state: provider });
+  trackAccountFunnelEvent('account_oauth_clicked', { button, target: '/auth/v1/authorize', state: provider });
   const redirectTo = accountPageUrlWithPlan();
   const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo } });
-  if (error) set('auth-status', error.message);
+  if (error) setAuthStatus(error.message, mirrorIntent);
 }
 
 async function passwordLogin() {
@@ -1236,7 +1242,14 @@ async function cryptoStatus() {
   }
 }
 
-document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventListener('click', () => { if (!button.disabled) oauthLogin(button.dataset.oauth); }));
+document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventListener('click', () => {
+  if (!button.disabled) {
+    oauthLogin(button.dataset.oauth, {
+      button: button.dataset.intentOauth ? `intent_${button.dataset.oauth}` : button.dataset.oauth,
+      mirrorIntent: button.dataset.intentOauth === 'true',
+    });
+  }
+}));
 $('password-signup')?.addEventListener('click', passwordSignup);
 $('password-login')?.addEventListener('click', passwordLogin);
 $('magic-login')?.addEventListener('click', magicLogin);
