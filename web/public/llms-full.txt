@@ -19,6 +19,7 @@ Fusion page: https://sagerouter.dev/fusion
 Local-first routing guide: https://sagerouter.dev/local-first-routing-for-ai-agents
 Self-hosted AI model router: https://sagerouter.dev/self-hosted-ai-model-router
 Ollama AI model router: https://sagerouter.dev/ollama-ai-model-router
+OpenAI API router: https://sagerouter.dev/openai-api-router
 AI gateway evaluation kit: https://sagerouter.dev/reddit-ai-gateway-evaluation
 Launch plan page: https://sagerouter.dev/launch-plan
 Billing help page: https://sagerouter.dev/billing
@@ -42,6 +43,8 @@ The local-first routing guide at https://sagerouter.dev/local-first-routing-for-
 The self-hosted AI model router page at https://sagerouter.dev/self-hosted-ai-model-router targets self-hosted and Reddit-style evaluation traffic. It explains local/Tailnet port `8790` deployment, Ollama fallback, BYOK provider custody, multimodal routing, multiple API-key load balancing, 429 failover, hosted generated-key activation, and routes readers into quickstart, GitHub, pricing, and OpenRouter comparison CTAs with privacy-safe article events.
 
 The Ollama AI model router page at https://sagerouter.dev/ollama-ai-model-router targets Ollama and Ollama Cloud model routing searches. It explains local Ollama, Ollama Cloud through local Ollama, one OpenAI-compatible endpoint, multiple API-key load balancing, 429 failover, multimodal capability routing, hosted generated-key activation, Tailnet/local deployment, and copyable setup snippets that record only `quickstart_snippet_copied` IDs.
+
+The OpenAI API router page at https://sagerouter.dev/openai-api-router targets OpenAI-compatible gateway, OpenAI API failover, Responses API, and multiple OpenAI API-key routing searches. It explains hosted generated `sk_sage_*` keys, `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, chat completions, Responses-style agent traffic, multiple OpenAI key load balancing, 429 failover, multimodal capability routing, BYOK custody, and copyable setup snippets that record only `quickstart_snippet_copied` IDs.
 
 The AI gateway evaluation kit at https://sagerouter.dev/reddit-ai-gateway-evaluation packages Reddit-style comparison proof for local-first provider custody, OpenRouter as a BYOK-compatible route rather than bundled resale, multiple API-key load balancing, 429 failover, capability-aware multimodal routing, hosted generated-key activation, and copyable evaluation/setup snippets that record only `quickstart_snippet_copied` IDs.
 

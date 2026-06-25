@@ -73,6 +73,12 @@
     <priority>0.85</priority>
   </url>
   <url>
+    <loc>https://sagerouter.dev/openai-api-router</loc>
+    <lastmod>2026-06-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
     <loc>https://sagerouter.dev/reddit-ai-gateway-evaluation</loc>
     <lastmod>2026-06-25</lastmod>
     <changefreq>weekly</changefreq>
