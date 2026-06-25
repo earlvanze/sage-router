@@ -448,6 +448,16 @@ class SaaSAuthTests(unittest.TestCase):
         raw, _row = router.create_api_key_for_customer(customer, 'inactive')
         self.assertIsNone(router.verify_generated_api_key(raw))
 
+    def test_private_analytics_token_authorizes_operator_setup(self):
+        router.CLIENT_AUTH_REQUIRED = True
+        router.CLIENT_API_KEYS = []
+        router.ANALYTICS_TOKEN = 'private-admin-token'
+
+        class Dummy:
+            headers = {'Authorization': 'Bearer private-admin-token'}
+
+        self.assertTrue(router.operator_request_authorized(Dummy()))
+
     def test_operator_suspend_customer_revokes_active_keys_and_blocks_routing(self):
         router.CLIENT_API_KEYS = ['operator-token']
         customer = self.active_customer()

@@ -8208,7 +8208,10 @@ def require_trusted_browser_origin(handler):
 def operator_request_authorized(handler):
     if not CLIENT_AUTH_REQUIRED:
         return True
-    return token_matches_any(bearer_token(handler), CLIENT_API_KEYS)
+    bearer = bearer_token(handler)
+    if ANALYTICS_TOKEN and hmac.compare_digest(bearer, ANALYTICS_TOKEN):
+        return True
+    return token_matches_any(bearer, CLIENT_API_KEYS)
 
 
 def require_operator_request(handler):
