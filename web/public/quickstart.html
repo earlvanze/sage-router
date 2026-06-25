@@ -53,6 +53,11 @@
           </div>
           <p id="quickstart-email-status" role="status" aria-live="polite">No provider key required to create your Sage Router account.</p>
         </form>
+        <div class="bundleCta">
+          <strong>Copy setup first.</strong>
+          <span class="muted">Paste the bundle into your terminal now, then replace the placeholder with your generated <code>sk_sage_*</code> key after account setup.</span>
+          <button id="quickstart-copy-bundle" class="copyCodeButton" type="button">Copy 60-second setup bundle</button>
+        </div>
         <div class="actions">
           <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-quickstart-event="quickstart_account_clicked" data-quickstart-button="start-pro" data-quickstart-plan="pro">Start Pro key setup</a>
           <a class="button secondary" href="/docs/api-reference" data-quickstart-event="quickstart_api_reference_clicked" data-quickstart-button="api-reference">API reference</a>
@@ -65,11 +70,6 @@
           <a class="button secondary" href="/status" data-quickstart-event="quickstart_status_clicked" data-quickstart-button="status">Check status</a>
         </div>
         <p class="note">Live <code>/v1/models</code> requires an active generated <code>sk_sage_*</code> key. The primary setup path opens the hosted account page with Pro preselected, then verifies the generated key against the public edge.</p>
-        <div class="bundleCta">
-          <strong>Already have a generated key?</strong>
-          <span class="muted">Copy one bundle with env vars, model verification, first request, and Codex profile.</span>
-          <button id="quickstart-copy-bundle" class="copyCodeButton" type="button">Copy full setup bundle</button>
-        </div>
       </section>
 
       <section class="section grid">
@@ -416,8 +416,12 @@ codex --profile sage-router-frontier`;
       try {
         await writeClipboardText(fullSetupBundleText());
         button.textContent = 'Copied bundle';
-        if (copyStatus) copyStatus.textContent = 'Copied full setup bundle with edge verification, first request, and Codex profile.';
-        trackQuickstartFunnelEvent('quickstart_snippet_copied', { state: 'copied', snippet: 'quickstart-full-setup-bundle' });
+        if (copyStatus) copyStatus.textContent = 'Copied. Create your key next; no provider key required.';
+        trackQuickstartFunnelEvent('quickstart_snippet_copied', {
+          button: 'Copy 60-second setup bundle',
+          state: 'copied',
+          snippet: 'quickstart-full-setup-bundle',
+        });
       } catch {
         button.textContent = 'Copy failed';
         if (copyStatus) copyStatus.textContent = 'Copy failed.';

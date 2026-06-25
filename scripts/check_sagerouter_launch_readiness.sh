@@ -1647,6 +1647,9 @@ check_marketing_quickstart_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart-copy-bundle" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quickstart-bundle-copy"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copy 60-second setup bundle" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-copy-first-cta"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart-full-setup-bundle" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quickstart-bundle-telemetry"
   fi
