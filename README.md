@@ -10,6 +10,18 @@ One endpoint. Any provider. The router figures out the rest.
 
 ---
 
+## Hosted API Is Live
+
+Want the public OpenAI-compatible endpoint instead of self-hosting first?
+
+- [Create a hosted `sk_sage_*` key](https://app.sagerouter.dev/account.html?plan=pro&start=checkout&utm_source=github&utm_medium=readme&utm_campaign=sage-router-launch) for `https://api.sagerouter.dev/v1`
+- [Copy the 60-second setup](https://sagerouter.dev/quickstart?utm_source=github&utm_medium=readme&utm_campaign=sage-router-launch)
+- [Compare hosted plans](https://sagerouter.dev/pricing?utm_source=github&utm_medium=readme&utm_campaign=sage-router-launch)
+
+Provider credentials stay with your authorized accounts or local routers; hosted keys cover Sage Router account management, quotas, analytics, health-aware routing, and reliability.
+
+---
+
 ## What This Is
 
 Sage Router is a **local-first, self-hosted AI model gateway** that intelligently routes requests to the best available model based on intent, latency, and capability — not just price.
