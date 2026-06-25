@@ -930,7 +930,7 @@ check_waitlist_endpoint() {
 }
 
 check_funnel_event_endpoint() {
-  local code ok service primary_table privacy_ok allowed_events write_guard referer_fallback preview_suffix
+  local code ok service primary_table privacy_ok allowed_events write_guard referer_fallback preview_suffix smoke_events_persisted
   code="$(http_code "${APP_BASE%/}/api/funnel-event")"
   ok="$(jq -r '.ok // false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   service="$(jq -r '.service // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
@@ -971,11 +971,12 @@ check_funnel_event_endpoint() {
   write_guard="$(jq -r '.writeGuard.browserOriginRequired == true' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   referer_fallback="$(jq -r '.writeGuard.refererFallbackAccepted == false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   preview_suffix="$(jq -r '.writeGuard.previewHostSuffix // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  smoke_events_persisted="$(jq -r '.dataQuality.smokeEventsPersisted == false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-funnel-event" && "$primary_table" == "sage_router_funnel_events" && "$privacy_ok" == "true" && "$allowed_events" == "true" && "$write_guard" == "true" && "$referer_fallback" == "true" && "$preview_suffix" == ".sage-router-web.pages.dev" ]]; then
+  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-funnel-event" && "$primary_table" == "sage_router_funnel_events" && "$privacy_ok" == "true" && "$allowed_events" == "true" && "$write_guard" == "true" && "$referer_fallback" == "true" && "$preview_suffix" == ".sage-router-web.pages.dev" && "$smoke_events_persisted" == "true" ]]; then
     pass "privacy-safe marketing funnel event endpoint is configured with browser origin guard"
   else
-    fail "marketing funnel event endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} table=${primary_table:-missing} privacy=${privacy_ok:-missing} allowedEvents=${allowed_events:-missing} writeGuard=${write_guard:-missing} refererFallbackDisabled=${referer_fallback:-missing} previewSuffix=${preview_suffix:-missing}"
+    fail "marketing funnel event endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} table=${primary_table:-missing} privacy=${privacy_ok:-missing} allowedEvents=${allowed_events:-missing} writeGuard=${write_guard:-missing} refererFallbackDisabled=${referer_fallback:-missing} previewSuffix=${preview_suffix:-missing} smokeEventsPersisted=${smoke_events_persisted:-missing}"
   fi
 }
 

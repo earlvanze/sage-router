@@ -6367,6 +6367,22 @@ def marketing_event_metadata(row):
     return metadata
 
 
+def marketing_event_is_smoke(row, metadata=None):
+    if not isinstance(row, dict):
+        return False
+    metadata = metadata if isinstance(metadata, dict) else marketing_event_metadata(row)
+    values = [
+        metadata.get('smoke'),
+        metadata.get('test'),
+        metadata.get('button'),
+        metadata.get('state'),
+    ]
+    source_page = str(row.get('source_page') or row.get('sourcePage') or '').lower()
+    if 'smoke=1' in source_page:
+        return True
+    return any(str(value or '').strip().lower() in {'true', '1', 'yes', 'smoke', 'test'} for value in values)
+
+
 def marketing_source_surface_bucket(metadata):
     source = str(metadata.get('source') or '').strip().lower()
     if source in MARKETING_SOURCE_SURFACE_BUCKETS:
@@ -6766,16 +6782,17 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             continue
         event = str(row.get('event') or 'unknown').strip() or 'unknown'
         plan = str(row.get('plan') or '').strip().lower()
+        metadata = marketing_event_metadata(row) if metadata_available else {}
+        if marketing_event_is_smoke(row, metadata):
+            continue
         metrics['total'] += 1
         metrics['events'][event] = metrics['events'].get(event, 0) + 1
         if plan:
             metrics['plans'][plan] = metrics['plans'].get(plan, 0) + 1
         if metadata_available:
-            metadata = marketing_event_metadata(row)
             source_surface = marketing_source_surface_bucket(metadata)
             attribution_channel = marketing_channel_bucket(metadata)
         else:
-            metadata = {}
             source_surface = 'unknown'
             attribution_channel = 'unknown'
         metrics['sourceSurfaces'][source_surface] = metrics['sourceSurfaces'].get(source_surface, 0) + 1

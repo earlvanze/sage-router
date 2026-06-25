@@ -257,6 +257,22 @@ const sanitizeMetadata = (value) => {
   return out;
 };
 
+const smokeValue = (value) => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'smoke' || normalized === 'test';
+};
+
+const isSmokePayload = (payload) => {
+  const metadata = payload?.metadata && typeof payload.metadata === 'object' && !Array.isArray(payload.metadata)
+    ? payload.metadata
+    : {};
+  return smokeValue(metadata.smoke)
+    || smokeValue(metadata.test)
+    || smokeValue(metadata.button)
+    || smokeValue(metadata.state)
+    || String(payload?.sourcePage || '').toLowerCase().includes('smoke=1');
+};
+
 const attributionValue = (value) => {
   const sanitized = String(value || '')
     .trim()
@@ -358,6 +374,10 @@ export async function onRequestGet({ env }) {
       previewHostSuffix: '.sage-router-web.pages.dev',
       configurableOriginsEnv: 'SAGEROUTER_FUNNEL_ALLOWED_ORIGINS',
     },
+    dataQuality: {
+      smokeEventsPersisted: false,
+      smokeDetection: ['metadata.smoke', 'metadata.test', 'metadata.button=smoke', 'metadata.state=smoke', 'sourcePage.smoke=1'],
+    },
   });
 }
 
@@ -375,6 +395,9 @@ export async function onRequestPost({ request, env }) {
 
   const event = String(payload.event || '').trim().toLowerCase();
   if (!ALLOWED_EVENTS.has(event)) return json({ error: 'invalid_event' }, 400);
+  if (isSmokePayload(payload)) {
+    return json({ ok: true, skipped: 'smoke' }, 200, corsHeadersForOrigin(acceptedOrigin));
+  }
 
   const { supabaseUrl, serviceKey } = funnelConfig(env);
   if (!supabaseUrl || !serviceKey) return json({ error: 'supabase_not_configured' }, 500);
