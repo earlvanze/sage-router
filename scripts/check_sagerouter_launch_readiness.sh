@@ -909,6 +909,8 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("fusion_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("fusion_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("gateway_migration_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("agent_native_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("integrations_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("content_article_viewed") != null) and
     ((.allowedEvents // []) | index("content_article_quickstart_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_magic_link_sent") != null) and
@@ -1650,6 +1652,12 @@ check_marketing_agent_native_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "https://api.sagerouter.dev/features/agent-native" /tmp/sage-router-readiness-body; then
     page_code="200:missing-feature-metadata"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "agent-native-email-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-agent-native-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "agent_native_magic_link_sent" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-agent-native-magic-link-funnel"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
@@ -1697,6 +1705,12 @@ check_marketing_integrations_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Do not paste prompts" /tmp/sage-router-readiness-body; then
     page_code="200:missing-no-secrets-boundary"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "integrations-email-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-integrations-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "integrations_magic_link_sent" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-integrations-magic-link-funnel"
   fi
   rm -f /tmp/sage-router-readiness-body
 
