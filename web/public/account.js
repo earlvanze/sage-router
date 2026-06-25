@@ -647,6 +647,7 @@ function renderQuickstart(key) {
     $('test-api-key').value = currentRawKey;
   }
   const displayKey = currentRawKey || 'sk_sage_your_key_here';
+  set('preauth-setup-code', quickstartText('sk_sage_your_key_here'));
   set('quickstart-code', quickstartText(displayKey));
   set('client-openai-code', openaiSdkSetupText(displayKey));
   set('client-codex-code', codexSetupText(displayKey));
@@ -1466,6 +1467,7 @@ $('keys')?.addEventListener('click', async (event) => {
 function snippetIdForCopyTarget(targetId = '') {
   const snippets = {
     'raw-api-key-once': 'raw-api-key',
+    'preauth-setup-code': 'preauth-setup-before-signup',
     'quickstart-code': 'quickstart-curl',
     'client-openai-code': 'openai-sdk',
     'client-codex-code': 'codex-cli',

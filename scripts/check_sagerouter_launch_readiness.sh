@@ -694,6 +694,12 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "Email me the Pro setup link" /tmp/sage-router-readiness-body; then
     account_code="200:missing-magic-link-primary-cta"
   fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "preauth-setup-code" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-preauth-setup-code"
+  fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "Copy setup before signup" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-preauth-setup-copy"
+  fi
   if [[ "$account_code" == "200" ]] && ! grep -q "email-verification-status" /tmp/sage-router-readiness-body; then
     account_code="200:missing-email-verification-status"
   fi
