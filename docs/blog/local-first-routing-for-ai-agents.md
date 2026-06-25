@@ -8,11 +8,11 @@ Sage Router takes a different bet: **routing is local-first infrastructure for a
 
 ## The problem with "one bill, one marketplace"
 
-Hosted model marketplaces are convenient, but they trade away three things agentic teams care about:
+Hosted model marketplaces are convenient, but they can trade away three things agentic teams care about:
 
-1. **Custody.** Your provider keys and traffic flow through a third party that resells model access.
+1. **Custody.** Provider keys, BYOK policy, and traffic often move into a hosted control plane.
 2. **Control.** You can't define routing policy, fallback order, or local-vs-cloud preference the way you can with your own providers.
-3. **Local models.** Local Ollama models are second-class in a hosted marketplace, even though they're the cheapest reliable fallback you have.
+3. **Local models.** Local Ollama and private Tailnet models are usually outside the natural path of a hosted marketplace, even though they are often the cheapest reliable fallback you have.
 
 ## What local-first routing actually means
 
@@ -37,7 +37,7 @@ Now every Codex request is policy-routed across your providers and local models,
 
 ## Free core, paid convenience
 
-The local router is free and open source and works without an account. Sage Cloud monetizes convenience, not model resale: team config sync, provider health monitoring, hosted dashboards, uptime checks, routing policy sync, and an optional reliability/failover layer. That keeps trust bottom-up (developers adopt the free local core) and revenue top-up (teams pay for operations and reliability).
+The local router is free and open source and works without an account. Hosted Sage Router monetizes routing convenience, not bundled model resale: generated keys, quotas, provider health monitoring, hosted dashboards, uptime checks, and reliability/failover routing. That keeps trust bottom-up (developers adopt the free local core) and revenue top-up (teams pay for operations and reliability).
 
 ## Try it
 

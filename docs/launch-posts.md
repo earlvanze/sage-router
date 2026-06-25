@@ -28,7 +28,7 @@ Hi HN, I built Sage Router because every agent harness (Codex, Claude Code, Curs
 
 Sage Router is a local-first routing layer: one OpenAI/Anthropic-compatible endpoint that selects the best model per request by task type, capability, latency, and policy, then fails over across your own providers with no mid-stream handoff.
 
-The bet: routing is local-first infrastructure for access you already control, not a hosted marketplace. Your provider keys stay on your machine by default. The core is free and open source. Sage Cloud (paid) adds team config sync, health monitoring, dashboards, and a reliability layer — no model resale.
+The bet: routing is local-first infrastructure for access you already control, not a hosted marketplace. Your provider keys stay on your machine by default. The core is free and open source. Hosted Sage Router plans add generated keys, quotas, analytics, health monitoring, dashboards, and reliability routing — still without bundled model resale.
 
 - Repo: https://github.com/earlvanze/sage-router
 - Site: https://sagerouter.dev
@@ -41,7 +41,7 @@ The bet: routing is local-first infrastructure for access you already control, n
     export OPENAI_API_KEY=local-router
     codex --model openai/gpt-4.1
 
-Happy to answer questions on routing policy, the custody model, and how it differs from OpenRouter (short answer: they resell access, we route access you bring).
+Happy to answer questions on routing policy, the custody model, and how it differs from hosted marketplace APIs: Sage Router routes authorized access you bring and can keep provider credentials local by default.
 
 ## Reddit (r/SideProject + r/selfhosted + r/Ollama)
 
@@ -51,11 +51,11 @@ Happy to answer questions on routing policy, the custody model, and how it diffe
 
 I open-sourced the model router I run for my own agents. It sits between your tools and your providers, picks the best model per request, and fails over when a provider dies — all local-first, BYOK, no marketplace.
 
-Why local-first vs OpenRouter: they're a hosted marketplace that resells access and holds your provider relationships. Sage Router routes the access you already have (OpenAI, Anthropic, Gemini, NVIDIA NIM, Ollama, Ollama Cloud) and keeps credentials on your box by default.
+Why local-first vs OpenRouter: OpenRouter is a hosted model marketplace/proxy, while Sage Router is routing infrastructure for access you already control. It can route OpenAI, Anthropic, Gemini, NVIDIA NIM, Ollama, Ollama Cloud, OpenRouter BYOK, and private endpoints while keeping credentials on your box by default.
 
 - Free local core (MIT)
-- Paid Sage Cloud: analytics, health checks, team config sync, reliability layer
-- Plans: free / lite $6 / pro $30 / max $72 + metered
+- Hosted Sage Router: generated keys, quotas, analytics, health checks, and reliability routing
+- Hosted plans: Lite $6, Pro $30, Max $72. Local core remains free.
 
 Repo: https://github.com/earlvanze/sage-router
 Site: https://sagerouter.dev
@@ -71,11 +71,11 @@ What’s your current provider-failover setup? Genuinely curious what people cob
 
 I open-sourced the model router I run for my own agents. It sits between your tools and your providers, picks the best model per request, and fails over when a provider dies — all local-first, BYOK, no marketplace.
 
-Why local-first vs OpenRouter: they're a hosted marketplace that resells access and holds your provider relationships. Sage Router routes the access you already have (OpenAI, Anthropic, Gemini, NVIDIA NIM, Ollama, Ollama Cloud) and keeps credentials on your box by default.
+Why local-first vs OpenRouter: OpenRouter is a hosted model marketplace/proxy, while Sage Router is routing infrastructure for access you already control. It can route OpenAI, Anthropic, Gemini, NVIDIA NIM, Ollama, Ollama Cloud, OpenRouter BYOK, and private endpoints while keeping credentials on your box by default.
 
 - Free local core (MIT)
-- Paid Sage Cloud: analytics, health checks, team config sync, reliability layer
-- Plans: free / lite $6 / pro $30 / max $72 + metered
+- Hosted Sage Router: generated keys, quotas, analytics, health checks, and reliability routing
+- Hosted plans: Lite $6, Pro $30, Max $72. Local core remains free.
 
 Repo: https://github.com/earlvanze/sage-router
 Site: https://sagerouter.dev
@@ -95,7 +95,7 @@ The bet: routing is local-first infrastructure for access you already control, n
 
 - Supports OpenAI, Anthropic, Gemini, NVIDIA NIM, Ollama, Ollama Cloud
 - 30-second start: `python3 router.py --port 8790` then point `OPENAI_BASE_URL` at it
-- Paid Sage Cloud adds team config sync, health monitoring, dashboards, reliability layer — no model resale
+- Hosted Sage Router adds generated keys, quotas, analytics, health monitoring, dashboards, and reliability routing — no bundled model resale
 
 Repo: https://github.com/earlvanze/sage-router
 Site: https://sagerouter.dev
@@ -117,7 +117,7 @@ It sits between your agent tools and your providers, picks the best model per re
 - Hybrid local/cloud routing: cloud-first with Ollama fallback, or local-first with cloud overflow
 - Supports Ollama, Ollama Cloud, OpenAI, Anthropic, Gemini, NVIDIA NIM
 - BYOK — your keys stay on your machine, no marketplace, no resale
-- Free local core (MIT). Paid Sage Cloud adds analytics, health checks, team config sync.
+- Free local core (MIT). Hosted Sage Router adds generated keys, analytics, health checks, quotas, and reliability routing.
 
 Repo: https://github.com/earlvanze/sage-router
 Site: https://sagerouter.dev
@@ -136,12 +136,12 @@ I just launched Sage Router, an open-source local-first routing layer for AI age
 
 One OpenAI/Anthropic-compatible endpoint. It picks the best model per request by task type, capability, latency, and policy, then fails over across your own providers with no mid-stream handoff.
 
-The angle: routing is local-first infrastructure for access you already control, not a hosted marketplace. Your provider keys stay on your machine by default. The core is free and open source (MIT). Sage Cloud (paid) adds team config sync, health monitoring, dashboards, and a reliability layer — no model resale.
+The angle: routing is local-first infrastructure for access you already control, not a hosted marketplace. Your provider keys stay on your machine by default. The core is free and open source (MIT). Hosted Sage Router plans add generated keys, quotas, analytics, health monitoring, dashboards, and reliability routing — still without bundled model resale.
 
 - Repo: https://github.com/earlvanze/sage-router
 - Site: https://sagerouter.dev
 - vs OpenRouter: https://sagerouter.dev/compare/openrouter
-- Pricing: free / lite $6 / pro $30 / max $72 + metered
+- Pricing: Lite $6, Pro $30, Max $72. Local core remains free.
 
 Happy to answer questions on routing policy, the custody model, and how it differs from OpenRouter.
 
@@ -157,7 +157,7 @@ I open-sourced Sage Router, the model router I run between my agent tools and my
 
 Sage Router is a local-first routing layer: one OpenAI/Anthropic-compatible endpoint that selects the best model per request by task type, capability, latency, and policy, then fails over across your own providers with no mid-stream handoff.
 
-The bet: routing is local-first infrastructure for access you already control, not a hosted marketplace. Your provider keys stay on your machine by default. The core is free and open source (MIT). Sage Cloud (paid) adds team config sync, health monitoring, dashboards, and a reliability layer — no model resale.
+The bet: routing is local-first infrastructure for access you already control, not a hosted marketplace. Your provider keys stay on your machine by default. The core is free and open source (MIT). Hosted Sage Router plans add generated keys, quotas, analytics, health monitoring, dashboards, and reliability routing — still without bundled model resale.
 
 - Repo: https://github.com/earlvanze/sage-router
 - Site: https://sagerouter.dev
@@ -178,7 +178,7 @@ What's your current provider-failover setup? Genuinely curious what people cobbl
 
 1/ I open-sourced Sage Router: a local-first AI model router for agents. One endpoint. Any provider. It picks the best model per request and fails over when a provider dies.
 
-Your keys stay on your machine. No marketplace. No resale.
+Your keys can stay on your machine. No bundled model resale.
 
 github.com/earlvanze/sage-router
 
@@ -189,9 +189,9 @@ python3 router.py --port 8790
 export OPENAI_BASE_URL=http://localhost:8790/v1
 codex --model openai/gpt-4.1
 
-4/ How it differs from OpenRouter: they resell access and hold provider relationships. Sage Router routes access you already bring (BYOK/BYOS) and keeps credentials local by default.
+4/ How it differs from OpenRouter: OpenRouter is a hosted marketplace/proxy. Sage Router is routing infrastructure for authorized access you already bring, and can keep provider credentials local by default.
 
-5/ Free local core. Paid Sage Cloud adds analytics, health checks, team config sync, reliability. Plans: free / lite $6 / pro $30 / max $72 + metered.
+5/ Free local core. Hosted Sage Router adds generated keys, quotas, analytics, health checks, and reliability routing. Plans: Lite $6, Pro $30, Max $72.
 
 sagerouter.dev
 
@@ -207,7 +207,7 @@ Two things make it different from a hosted marketplace like OpenRouter:
 1. Local-first. Your provider credentials stay on your machine/server by default.
 2. BYOK. It routes access you already control — it doesn't resell model access.
 
-Free open-source core. Paid Sage Cloud layer (analytics, health monitoring, team config sync, reliability) for teams. Plans from free to $72/mo + usage-based.
+Free open-source core. Hosted Sage Router plans add generated keys, quotas, analytics, health monitoring, and reliability routing for teams. Plans run from Lite at $6/mo to Max at $72/mo.
 
 Repo: https://github.com/earlvanze/sage-router
 Site: https://sagerouter.dev

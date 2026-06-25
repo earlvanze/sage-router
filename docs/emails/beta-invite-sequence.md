@@ -1,16 +1,16 @@
-# Sage Cloud beta invite email sequence
+# Sage Router hosted beta invite email sequence
 
 **Status: drafts for launch. Personalize before sending. Replace {{first_name}}, {{link}}, etc.**
 
 ## Email 1 — Invite (send on beta admit)
 
-Subject: You're in — Sage Cloud beta access
+Subject: You're in — Sage Router hosted beta access
 
 Hi {{first_name}},
 
-You're on the Sage Cloud beta list, and access is open now.
+You're on the Sage Router hosted beta list, and access is open now.
 
-Sage Router is the open-source, local-first AI model router. Sage Cloud adds the hosted convenience layer on top: team config sync, provider health monitoring, dashboards, uptime checks, and routing policy sync — without taking custody of your provider keys.
+Sage Router is the open-source, local-first AI model router. Hosted Sage Router adds generated keys, quotas, analytics, provider health monitoring, dashboards, and reliability routing — without bundled model resale.
 
 What you get in beta:
 - Hosted routing analytics dashboard
@@ -53,7 +53,7 @@ Hi {{first_name}},
 
 A common question: how is this different from OpenRouter?
 
-OpenRouter is a hosted marketplace — you buy access from them and they hold the provider relationships. Sage Router is local-first routing for access you already control: your keys, your subscriptions, your local Ollama models, with policy-based failover and telemetry you own.
+OpenRouter is a hosted model marketplace/proxy with documented BYOK paths. Sage Router is local-first routing for access you already control: your keys, your subscriptions, your local Ollama models, and your private endpoints, with policy-based failover and telemetry you own.
 
 Full comparison: {{comparison_link}}
 
@@ -67,7 +67,7 @@ Subject: Two quick questions + beta pricing
 
 Hi {{first_name}},
 
-Beta pricing is live: lite $6/mo, pro $30/mo, max $72/mo, plus usage-based metered. The local core stays free forever.
+Beta pricing is live: Lite $6/mo, Pro $30/mo, and Max $72/mo. The local core stays free.
 
 Two questions that shape launch:
 1. Which plan fits how you'd actually use it?

@@ -4,7 +4,7 @@ Both Sage Router and OpenRouter sit between your tools and many LLM providers, b
 
 ## TL;DR
 
-- **OpenRouter** is a hosted model marketplace/proxy. You pay OpenRouter; OpenRouter holds the provider relationships and bills you per token.
+- **OpenRouter** is a hosted model marketplace/proxy with paid marketplace access and documented BYOK paths.
 - **Sage Router** is open-source, local-first routing infrastructure for the authorized provider access you already control. It routes, fails over, and observes across your own keys, subscriptions, and local models.
 
 ## At a glance
@@ -14,13 +14,13 @@ Both Sage Router and OpenRouter sit between your tools and many LLM providers, b
 | Core model | Local-first routing infrastructure | Hosted marketplace/proxy |
 | Open source | Yes (core router) | No |
 | Where credentials live | Your machine/server by default | OpenRouter's hosted service |
-| Bring your own keys/subscriptions | First-class (BYOK/BYOS) | Partial (you mostly buy access from OpenRouter) |
-| Resell model access | No | Yes (marketplace) |
+| Bring your own keys/subscriptions | First-class (BYOK/BYOS) | Supported for documented BYOK provider paths |
+| Bundled model resale | Not in public plans | Marketplace access is part of the hosted product |
 | Local model support (Ollama) | First-class, local-first | Limited/hosted |
 | Provider failover | Yes, policy-based, session-safe | Yes |
 | Self-host / air-gap | Yes | No |
-| Pricing | Free local core; paid hosted convenience (analytics, team sync, reliability) | Per-token marketplace markup |
-| Best for | Agent harness operators with their own providers who want control + reliability | Developers who want one bill and don't want to manage providers |
+| Pricing | Free local core; hosted plans for keys, quotas, analytics, and reliability | Marketplace pricing plus BYOK options |
+| Best for | Agent harness operators with their own providers who want control + reliability | Developers who want hosted marketplace access or documented OpenRouter BYOK behavior |
 
 ## When to pick Sage Router
 
@@ -33,9 +33,9 @@ Both Sage Router and OpenRouter sit between your tools and many LLM providers, b
 
 ## When to pick OpenRouter
 
-- You don't have provider accounts and want to buy access from one party.
-- You want a single per-token bill across many models.
-- You're fine with a hosted service holding the provider relationships.
+- You want a hosted model marketplace/proxy as the primary control plane.
+- You want broad remote model catalog access through one hosted API.
+- You want documented OpenRouter BYOK behavior or marketplace fallback instead of running your own router.
 
 ## Can you use both?
 

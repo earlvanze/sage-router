@@ -4,7 +4,7 @@ The problem: every agent harness (Codex, Claude Code, Cursor, Aider, Continue, O
 
 Sage Router is one local endpoint that selects the best model per request by task, capability, latency, and policy — then fails over across your own authorized providers with no mid-stream handoff.
 
-The thesis: routing is local-first infrastructure for access you already control, not a hosted marketplace. Your provider keys stay on your machine by default. The core is free and open source. Sage Cloud (paid) adds team config sync, health monitoring, dashboards, and a reliability layer — no model resale.
+The thesis: routing is local-first infrastructure for access you already control, not a hosted marketplace. Your provider keys stay on your machine by default. The core is free and open source. Hosted Sage Router plans add generated keys, quotas, analytics, health monitoring, dashboards, and reliability routing — still without bundled model resale.
 
 • Repo: github.com/earlvanze/sage-router
 • Site: sagerouter.dev

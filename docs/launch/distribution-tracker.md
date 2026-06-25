@@ -26,7 +26,7 @@ before broader social batching.
 | Channel | Status | Link to use | Success signal |
 | --- | --- | --- | --- |
 | Moltbook | Blocked until agent claim | `https://sagerouter.dev/quickstart?utm_source=moltbook&utm_medium=community&utm_campaign=sage-router-launch` | Post URL captured; `moltbook` appears in acquisition actions |
-| Reddit r/selfhosted | Priority 1 after owner approval | `https://sagerouter.dev/quickstart?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | `reddit` source clicks, quickstart copies, GitHub stars |
+| Reddit r/selfhosted | Priority 1 after owner approval; final copy in `docs/launch/final/reddit-selfhosted-post.md` | `https://sagerouter.dev/quickstart?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | `reddit` source clicks, quickstart copies, GitHub stars |
 | Reddit r/Ollama | Priority 2 after owner approval | `https://sagerouter.dev/models?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | Ollama/model-catalog demand and quickstart copies |
 | Reddit r/SideProject | Priority 3 after owner approval | `https://sagerouter.dev/pricing?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | Pricing/account CTA intent |
 | Hacker News | Ready after owner approval | `https://sagerouter.dev/?utm_source=hackernews&utm_medium=community&utm_campaign=sage-router-launch` | Referral and signup intent from `hackernews` |
