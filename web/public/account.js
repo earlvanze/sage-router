@@ -286,11 +286,13 @@ function renderAccountIntent() {
     return;
   }
   if (!activationState.routingEnabled) {
-    set('account-intent-copy', checkoutReady
-      ? 'You are signed in and ready for checkout. Complete the selected paid plan to enable generated-key routing.'
-      : 'You are signed in. Stripe checkout is not ready for this plan, so use manual settlement or billing help.');
+    set('account-intent-copy', activationState.keyCount > 0
+      ? (checkoutReady
+        ? 'Your generated key is ready. Complete the selected paid plan to unlock hosted routing for it.'
+        : 'Your generated key is ready. Stripe checkout is not ready for this plan, so use manual settlement or billing help.')
+      : 'You are signed in. Create a generated sk_sage_* key now, then complete checkout to unlock hosted routing for it.');
     const intentButton = $('intent-primary');
-    if (intentButton) intentButton.textContent = checkoutReady ? 'Continue to Stripe' : 'Open billing options';
+    if (intentButton) intentButton.textContent = activationState.keyCount > 0 ? (checkoutReady ? 'Continue to Stripe' : 'Open billing options') : 'Create API key';
     return;
   }
   set('account-intent-copy', 'Routing is active. Create or verify a generated sk_sage_* key, then send the quickstart request to record first usage.');
@@ -523,10 +525,10 @@ function renderLaunchNextAction(patch = {}) {
     set('launch-next-action', 'Next: sign in or create an account.');
   } else if (!activationState.emailVerified) {
     set('launch-next-action', 'Next: verify your email before creating API keys or starting checkout.');
+  } else if (!activationState.keyCount) {
+    set('launch-next-action', 'Next: create an sk_sage key so setup can be copied before checkout.');
   } else if (!activationState.routingEnabled) {
     set('launch-next-action', 'Next: choose a paid plan or finish checkout so generated keys can route.');
-  } else if (!activationState.keyCount) {
-    set('launch-next-action', 'Next: create an sk_sage key.');
   } else if (!keyVerified) {
     set('launch-next-action', 'Next: test the key against /v1/models using the verifier below.');
   } else if (!activationState.requestCount) {
@@ -826,7 +828,7 @@ function applyManualPaymentIntent(intent = {}) {
 
 async function maybeStartCheckoutFromIntent({ emailVerified, routingEnabled } = {}) {
   if (pendingStartAction !== 'checkout') return;
-  if (!activationState.signedIn || !emailVerified || routingEnabled) return;
+  if (!activationState.signedIn || !emailVerified || routingEnabled || !activationState.keyCount) return;
   if (!stripeCheckoutReadyForPlan(selectedPlan)) return;
   if (hasAutoCheckoutAttempted(selectedPlan)) return;
   markAutoCheckoutAttempted(selectedPlan);
@@ -1338,7 +1340,7 @@ async function handleIntentPrimary(event) {
   trackAccountFunnelEvent('account_intent_primary_clicked', {
     button: 'intent_primary',
     state: activationState.signedIn ? (activationState.routingEnabled ? 'routing_active' : 'signed_in') : 'signed_out',
-    target: activationState.signedIn ? '#billing' : '#intent-email',
+    target: activationState.signedIn ? (activationState.keyCount ? '#billing' : '#create-key') : '#intent-email',
   });
   if (!activationState.signedIn) {
     await magicLogin({ button: 'intent_primary', preferIntent: true });
@@ -1346,6 +1348,10 @@ async function handleIntentPrimary(event) {
   }
   if (!activationState.emailVerified) {
     $('resend-verification-email')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  if (!activationState.keyCount) {
+    $('create-key')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
   if (!activationState.routingEnabled) {

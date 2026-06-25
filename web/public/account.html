@@ -26,8 +26,8 @@
       <p>Use the hosted endpoint for OpenAI-compatible clients, keep local and bring-your-own-provider routing available, and manage billing from one account.</p>
       <div class="checklist">
         <div class="check"><span id="step-auth" data-step="1">1</span><span>Sign in with email or an enabled OAuth provider.</span></div>
-        <div class="check"><span id="step-plan" data-step="2">2</span><span>Choose Lite, Pro, or Max for hosted routing.</span></div>
-        <div class="check"><span id="step-key" data-step="3">3</span><span>Create a generated <code>sk_sage_*</code> key.</span></div>
+        <div class="check"><span id="step-key" data-step="2">2</span><span>Create a generated <code>sk_sage_*</code> key.</span></div>
+        <div class="check"><span id="step-plan" data-step="3">3</span><span>Choose Lite, Pro, or Max to unlock hosted routing.</span></div>
         <div class="check"><span id="step-verify" data-step="4">4</span><span>Verify the key against <code>/v1/models</code> through the public edge.</span></div>
         <div class="check"><span id="step-first-request" data-step="5">5</span><span>Send the quickstart request and confirm usage appears.</span></div>
       </div>
@@ -82,8 +82,8 @@
         <p class="small">This tracks the generated-key to first routed request funnel for the hosted API path. Browser verification proves the key reaches <code>/v1/models</code>; completed usage proves a routed request was recorded.</p>
         <div class="activationList">
           <div class="activationItem"><span id="launch-auth-status" class="pill">Waiting</span><div><strong>Account session</strong><p class="small">Sign in so API keys and billing attach to your account.</p></div></div>
-          <div class="activationItem"><span id="launch-plan-status" class="pill">Waiting</span><div><strong>Paid routing</strong><p class="small">Choose Lite, Pro, or Max so generated keys can route production traffic.</p></div></div>
           <div class="activationItem"><span id="launch-key-status" class="pill">Waiting</span><div><strong>Generated key</strong><p class="small">Create at least one active <code>sk_sage_*</code> key.</p></div></div>
+          <div class="activationItem"><span id="launch-plan-status" class="pill">Waiting</span><div><strong>Paid routing</strong><p class="small">Choose Lite, Pro, or Max so generated keys can route production traffic.</p></div></div>
           <div class="activationItem"><span id="launch-verify-status" class="pill">Waiting</span><div><strong>Public edge verification</strong><p class="small">Use the verifier below to check <code>/v1/models</code> before wiring an agent.</p></div></div>
           <div class="activationItem"><span id="launch-first-request-status" class="pill">Waiting</span><div><strong>First routed request</strong><p class="small">Run the quickstart chat completion and refresh usage after it succeeds.</p></div></div>
         </div>
@@ -113,19 +113,10 @@
         <div class="actions"><button id="usage-upgrade" class="btn secondary hidden">Select upgrade</button></div>
       </div>
 
-      <div class="panel">
-        <h3>Choose plan</h3>
-        <p class="small">Checkout uses the selected plan. The API keeps generated keys blocked from paid routing until the account is active, trialing, or manually enabled.</p>
-        <div id="plans" class="plans"></div>
-        <div class="actions"><button id="stripe-checkout" class="btn">Continue to Stripe</button><button id="stripe-portal" class="btn secondary">Manage billing</button><button id="crypto-intent" class="btn secondary">Pay with crypto</button><button id="crypto-status-check" class="btn secondary hidden">Check payment status</button><a class="btn secondary" href="/billing">Billing help</a></div>
-        <p id="billing-status" class="status"></p>
-        <p id="crypto-status" class="status"></p>
-      </div>
-
       <div class="grid2">
         <div class="panel">
           <h3>Generate API key</h3>
-          <p>Raw keys are shown once. The backend stores only a hash for newly generated keys. <span id="key-limit-note"></span></p>
+          <p>Create the key first so setup can be copied immediately. Checkout unlocks routing for generated keys after payment. <span id="key-limit-note"></span></p>
           <label for="key-name">Key name</label>
           <input id="key-name" placeholder="Production">
           <div class="actions"><button id="create-key" class="btn">Create key</button></div>
@@ -137,6 +128,15 @@
           <p><code id="anthropic-base-url">ANTHROPIC_BASE_URL=https://api.sagerouter.dev</code></p>
           <p class="small">Provider coverage depends on the account plan and backend provider credentials. Bring-your-own-provider pass-through remains supported by router configuration.</p>
         </div>
+      </div>
+
+      <div class="panel">
+        <h3>Choose plan</h3>
+        <p class="small">Checkout uses the selected plan. The API keeps generated keys blocked from paid routing until the account is active, trialing, or manually enabled.</p>
+        <div id="plans" class="plans"></div>
+        <div class="actions"><button id="stripe-checkout" class="btn">Continue to Stripe</button><button id="stripe-portal" class="btn secondary">Manage billing</button><button id="crypto-intent" class="btn secondary">Pay with crypto</button><button id="crypto-status-check" class="btn secondary hidden">Check payment status</button><a class="btn secondary" href="/billing">Billing help</a></div>
+        <p id="billing-status" class="status"></p>
+        <p id="crypto-status" class="status"></p>
       </div>
 
       <div class="panel">
