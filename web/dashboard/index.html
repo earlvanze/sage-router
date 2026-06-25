@@ -270,6 +270,13 @@
     </div>
     <div class="card">
       <h2>Quick Actions</h2>
+      <div class="form-grid" style="margin-bottom:10px">
+        <label for="operatorToken">Operator token <span class="muted">(stored in this tab only)</span></label>
+        <input id="operatorToken" type="password" placeholder="Paste operator/API token for setup changes">
+      </div>
+      <button class="btn btn-primary" onclick="saveOperatorToken()" style="margin:4px">🔐 Use Token</button>
+      <button class="btn" onclick="clearOperatorToken()" style="margin:4px">Clear Token</button>
+      <div id="operatorTokenStatus" class="muted" style="margin:4px 4px 10px"></div>
       <button class="btn btn-primary" onclick="healthCheck()" style="margin:4px">🔄 Health Check All</button>
       <button class="btn btn-primary" onclick="refreshModels()" style="margin:4px">📋 Refresh Models</button>
       <button class="btn btn-danger" onclick="if(confirm('Restart router? This drops in-flight requests.'))restartRouter()" style="margin:4px">⛔ Restart Router</button>
@@ -286,8 +293,31 @@
       'google-generative-language': {name: 'google', api: 'google-generative-language', baseUrl: 'https://generativelanguage.googleapis.com/v1beta'}
     };
     function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    const OPERATOR_TOKEN_KEY = 'sageRouterOperatorToken';
+    function operatorToken() { return sessionStorage.getItem(OPERATOR_TOKEN_KEY) || ''; }
+    function authHeaders(headers = {}) {
+      const token = operatorToken();
+      return token ? {...headers, Authorization: `Bearer ${token}`} : headers;
+    }
+    function updateOperatorTokenStatus() {
+      const status = document.getElementById('operatorTokenStatus');
+      if (!status) return;
+      status.textContent = operatorToken() ? 'Operator token active for this tab.' : 'No operator token set; setup buttons may return 401/403.';
+    }
+    function saveOperatorToken() {
+      const input = document.getElementById('operatorToken');
+      const token = (input && input.value || '').trim();
+      if (token) sessionStorage.setItem(OPERATOR_TOKEN_KEY, token);
+      if (input) input.value = '';
+      updateOperatorTokenStatus();
+      loadAll().catch(() => document.getElementById('statusText').textContent = 'Connection failed');
+    }
+    function clearOperatorToken() {
+      sessionStorage.removeItem(OPERATOR_TOKEN_KEY);
+      updateOperatorTokenStatus();
+    }
     async function api(path, opts = {}) {
-      const r = await fetch(API + path, opts);
+      const r = await fetch(API + path, {...opts, headers: authHeaders(opts.headers || {})});
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     }
@@ -300,7 +330,7 @@
     async function postJson(path, payload) {
       const r = await fetch(API + path, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: authHeaders({'Content-Type': 'application/json'}),
         body: JSON.stringify(payload)
       });
       const body = await r.json().catch(() => ({}));
@@ -494,8 +524,12 @@
       const status = document.getElementById('actions');
       status.textContent = `${enabled ? 'Enabling' : 'Disabling'} ${provider}...`;
       try {
-        await postJson('/setup/provider/enabled', {provider, enabled});
-        status.textContent = `${provider} ${enabled ? 'enabled' : 'disabled'}`;
+        const res = await postJson('/setup/provider/enabled', {provider, enabled});
+        if (res.envDisabled && !res.enabled) {
+          status.textContent = `${provider} is locked by SAGE_ROUTER_DISABLED_PROVIDERS`;
+        } else {
+          status.textContent = `${provider} ${res.enabled ? 'enabled' : 'disabled'}`;
+        }
         await loadAll();
       } catch (e) {
         status.textContent = `Failed: ${e.message || e}`;
@@ -509,12 +543,24 @@
       const status = document.getElementById('actions');
       status.textContent = `${enabled ? 'Enabling' : 'Disabling'} ${model}...`;
       try {
-        await postJson('/setup/model/enabled', {provider, model, enabled});
-        status.textContent = `${model} ${enabled ? 'enabled' : 'disabled'}`;
+        const res = await postJson('/setup/model/enabled', {provider, model, enabled});
+        if (res.envDisabled && !res.enabled) {
+          status.textContent = `${model} is locked by SAGE_ROUTER_DISABLED_MODELS`;
+        } else {
+          status.textContent = `${model} ${res.enabled ? 'enabled' : 'disabled'}`;
+        }
         await loadAll();
       } catch (e) {
         status.textContent = `Failed: ${e.message || e}`;
       }
+    }
+    function bindEnablementButtons() {
+      document.querySelectorAll('.provider-toggle').forEach(btn => {
+        btn.onclick = () => setProviderEnabled(btn.dataset.provider || '', btn.dataset.enabled === 'true');
+      });
+      document.querySelectorAll('.model-toggle').forEach(btn => {
+        btn.onclick = () => setModelEnabled(btn.dataset.provider || '', btn.dataset.model || '', btn.dataset.enabled === 'true');
+      });
     }
 
     const MOD_ORDER = ['text','image','audio','video','document'];
@@ -584,7 +630,7 @@
           const name = typeof p === 'string' ? p : (p.name || p.id || '?');
           const h = (health.reasoningCapabilities && health.reasoningCapabilities[name]) || {};
           const reachable = h.reachable !== false;
-          provHtml += `<div class="provider"><span class="provider-name">${escapeHtml(name)}</span><span class="provider-actions"><span class="provider-status ${reachable ? 'healthy' : 'unhealthy'}">${reachable ? '✓ healthy' : '✗ down'}</span><button class="mini-toggle danger" onclick="setProviderEnabled('${escapeHtml(name)}', false)">Disable</button></span></div>`;
+          provHtml += `<div class="provider"><span class="provider-name">${escapeHtml(name)}</span><span class="provider-actions"><span class="provider-status ${reachable ? 'healthy' : 'unhealthy'}">${reachable ? '✓ healthy' : '✗ down'}</span><button class="mini-toggle danger provider-toggle" data-provider="${escapeHtml(name)}" data-enabled="false">Disable</button></span></div>`;
           // Show models for this provider from reasoningCapabilities
           const provModels = h.models || [];
           if (provModels.length) {
@@ -595,7 +641,7 @@
       if (!provHtml) provHtml = '<div style="color:#888">No providers configured</div>';
       // Disabled providers
       if (disabled.length) {
-        provHtml += `<div class="disabled-list">Disabled: ${disabled.map(p => `${escapeHtml(p)} <button class="mini-toggle" onclick="setProviderEnabled('${escapeHtml(p)}', true)">Enable</button>`).join(' ')}</div>`;
+        provHtml += `<div class="disabled-list">Disabled: ${disabled.map(p => `${escapeHtml(p)} <button class="mini-toggle provider-toggle" data-provider="${escapeHtml(p)}" data-enabled="true">Enable</button>`).join(' ')}</div>`;
       }
       document.getElementById('providers').innerHTML = provHtml;
       const modelList = (modelsResp && modelsResp.models) || [];
@@ -606,7 +652,7 @@
           const ids = (info.models || []).map(m => typeof m === 'string' ? m : (m.id || m.name || '?'));
           const rows = ids.slice(0,24).map(id => {
             const isDisabled = modelDisabled(disabledModels, prov, id);
-            return `<div class="model-row ${isDisabled ? 'disabled' : ''}"><span>${escapeHtml(id)}</span><button class="mini-toggle ${isDisabled ? '' : 'danger'}" onclick="setModelEnabled('${escapeHtml(prov)}','${escapeHtml(id)}',${isDisabled ? 'true' : 'false'})">${isDisabled ? 'Enable' : 'Disable'}</button></div>`;
+            return `<div class="model-row ${isDisabled ? 'disabled' : ''}"><span>${escapeHtml(id)}</span><button class="mini-toggle ${isDisabled ? '' : 'danger'} model-toggle" data-provider="${escapeHtml(prov)}" data-model="${escapeHtml(id)}" data-enabled="${isDisabled ? 'true' : 'false'}">${isDisabled ? 'Enable' : 'Disable'}</button></div>`;
           }).join('');
           return `<div style="margin-bottom:10px"><strong>${escapeHtml(prov)}</strong> (${ids.length})${rows}${ids.length > 24 ? `<div class="muted">+${ids.length-24} more</div>` : ''}</div>`;
         }).join('');
@@ -614,6 +660,7 @@
         modelsHtml = '<div style="color:#888">No models discovered</div>';
       }
       document.getElementById('models').innerHTML = modelsHtml;
+      bindEnablementButtons();
       const setupCard = document.getElementById('setupCard');
       if (setupCard) {
         const configuredCount = Array.isArray(configured) ? configured.length : Object.keys(configured || {}).length;
@@ -728,6 +775,7 @@
         actions.innerHTML = `<span style="color:var(--danger)">Restart failed: ${escapeHtml(e.message || String(e))}</span>`;
       }
     }
+    updateOperatorTokenStatus();
     loadAll().catch(() => document.getElementById('statusText').textContent = 'Connection failed');
   </script>
 </body>
