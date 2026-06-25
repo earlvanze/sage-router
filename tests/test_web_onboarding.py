@@ -312,6 +312,8 @@ class HostedOnboardingTests(unittest.TestCase):
         pricing = self.read_public("pricing.html")
         js = self.read_public("account.js")
         router = self.read_text("router.py")
+        readme = self.read_text("README.md")
+        web_readme = self.read_text("web", "README.md")
         self.assertIn('/account.html?plan=lite', pricing)
         self.assertIn('/account.html?plan=pro', pricing)
         self.assertIn('/account.html?plan=max', pricing)
@@ -347,6 +349,10 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("setupCopied === 'true' ? 'post-copy' : 'pre-copy'", pricing)
         self.assertIn("nextAccount.dataset.setupCopied = 'true'", pricing)
         self.assertIn("snippet: data.snippet || null", pricing)
+        self.assertIn("same measurable activation pattern for buyer-intent traffic", readme)
+        self.assertIn("`Create Pro key next` stays visible before and after copy", readme)
+        self.assertIn("pricing_setup_next_clicked", web_readme)
+        self.assertIn("Create Pro key next` visible before and after copy", web_readme)
         self.assertIn("SELECTED_PLAN_STORAGE_KEY", js)
         self.assertIn("START_ACTION_STORAGE_KEY", js)
         self.assertIn("AUTO_KEY_ATTEMPT_STORAGE_KEY", js)
@@ -503,6 +509,7 @@ class HostedOnboardingTests(unittest.TestCase):
         landing = self.read_text("web", "src", "main.jsx")
         readme = self.read_text("README.md")
         web_readme = self.read_text("web", "README.md")
+        distribution = self.read_text("docs", "launch", "distribution-tracker.md")
 
         self.assertIn("Hosted API live", landing)
         self.assertIn('href="/account.html?plan=pro&start=checkout"', landing)
@@ -562,6 +569,11 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("primary homepage CTA", web_readme)
         self.assertIn("privacy-safe homepage funnel events", web_readme)
         self.assertIn("waitlist remains secondary", web_readme)
+        self.assertIn("GitHub repository discovery", distribution)
+        self.assertIn("utm_source=github&utm_medium=readme&utm_campaign=sage-router-launch", distribution)
+        self.assertIn("`ai-gateway`", distribution)
+        self.assertIn("`codex-cli`", distribution)
+        self.assertIn("`openai-compatible-api`", distribution)
 
     def test_codex_setup_page_is_discoverable_and_launch_gated(self):
         codex = self.read_public("docs/codex.html")
@@ -1924,7 +1936,10 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("marketing API quickstart is live in sitemap and LLM discovery", readiness)
         self.assertIn("/quickstart", launch_plan)
         self.assertIn("https://sagerouter.dev/quickstart", readme)
+        self.assertIn("always-visible `Create Pro key next` account handoff", readme)
         self.assertIn("Dedicated API quickstart page at `/quickstart`", web_readme)
+        self.assertIn("always-visible `Create Pro key next` handoff", web_readme)
+        self.assertIn("quickstart_setup_next_clicked", web_readme)
 
     def test_public_self_hosted_router_page_captures_local_start_intent(self):
         page = self.read_public("self-hosted-ai-model-router.html")
