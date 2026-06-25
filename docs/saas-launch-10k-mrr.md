@@ -208,7 +208,8 @@ provider resale claim, or runtime feature flag.
 - Keep `/community-launch-kit` as the owner-approved community posting kit for
   Hacker News and adjacent launch channels, with measured UTM links, no-secret
   posting rules, local-first/BYOK positioning, copyable Show HN, Indie
-  Hackers, and Dev.to text, and privacy-safe snippet-copy telemetry.
+  Hackers, Dev.to, X, and LinkedIn text, and privacy-safe snippet-copy
+  telemetry.
 - Keep `/docs/codex` as the dedicated Codex CLI path with hosted, local port
   `8790`, and Tailnet examples using `wire_api = "responses"` and
   `sage-router/frontier`.

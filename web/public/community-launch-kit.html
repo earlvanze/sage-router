@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Sage Router community launch kit with copyable Show HN, Indie Hackers, Dev.to, and community posts, UTM-tracked links, and no-secret launch boundaries for the $10k MRR campaign." />
+  <meta name="description" content="Sage Router community launch kit with copyable Show HN, Indie Hackers, Dev.to, X, LinkedIn, and community posts, UTM-tracked links, and no-secret launch boundaries for the $10k MRR campaign." />
   <link rel="canonical" href="https://sagerouter.dev/community-launch-kit" />
   <meta property="og:title" content="Sage Router Community Launch Kit" />
-  <meta property="og:description" content="Copyable community launch posts for Sage Router with local-first routing, BYOK custody, hosted generated keys, and measured launch links for Hacker News, Indie Hackers, and Dev.to." />
+  <meta property="og:description" content="Copyable community launch posts for Sage Router with local-first routing, BYOK custody, hosted generated keys, and measured launch links for Hacker News, Indie Hackers, Dev.to, X, and LinkedIn." />
   <meta property="og:url" content="https://sagerouter.dev/community-launch-kit" />
   <meta property="og:type" content="article" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -19,7 +19,7 @@
     "@context": "https://schema.org",
     "@type": "Article",
     "headline": "Sage Router Community Launch Kit",
-    "description": "Copyable community launch posts for Sage Router with measured Hacker News, Indie Hackers, and Dev.to links plus no-secret launch boundaries.",
+    "description": "Copyable community launch posts for Sage Router with measured Hacker News, Indie Hackers, Dev.to, X, and LinkedIn links plus no-secret launch boundaries.",
     "author": {"@type": "Organization", "name": "Sage Router"},
     "publisher": {"@type": "Organization", "name": "Sage Router"},
     "mainEntityOfPage": "https://sagerouter.dev/community-launch-kit"
@@ -192,9 +192,84 @@ What's your current provider-failover setup? Genuinely curious what people cobbl
       </aside>
     </section>
 
+    <section class="two">
+      <article class="panel">
+        <h2>Copyable X thread</h2>
+        <pre id="x-thread-post" class="codebox">1/ I open-sourced Sage Router: a local-first AI model router for agents. One endpoint. Any provider. It picks the best model per request and fails over when a provider dies.
+
+Your keys can stay on your machine. No bundled model resale.
+
+github.com/earlvanze/sage-router?utm_source=x&utm_medium=social&utm_campaign=sage-router-launch
+
+2/ The problem: every harness (Codex, Claude Code, Cursor, Aider, Continue, OpenHands) has its own model picker and breaks on rate limits/outages. Sage Router puts routing+failover in one local layer.
+
+3/ 30-second start:
+python3 router.py --port 8790
+export OPENAI_BASE_URL=http://localhost:8790/v1
+codex --model openai/gpt-4.1
+
+4/ How it differs from OpenRouter: OpenRouter is a hosted marketplace/proxy. Sage Router is routing infrastructure for authorized access you already bring, and can keep provider credentials local by default.
+
+5/ Free local core. Hosted Sage Router adds generated keys, quotas, analytics, health checks, and reliability routing. Plans: Lite $6, Pro $30, Max $72.
+
+sagerouter.dev/pricing?utm_source=x&utm_medium=social&utm_campaign=sage-router-launch</pre>
+        <div class="copyRow">
+          <button id="copy-x-thread-post" class="copyButton" type="button">Copy X thread</button>
+          <span id="copy-x-thread-status" class="copyStatus" role="status" aria-live="polite"></span>
+        </div>
+      </article>
+      <aside class="panel soft">
+        <h2>Why X is separate</h2>
+        <p>X needs a short thread with the problem, differentiator, local setup, and pricing link. This block keeps social attribution on the repo and pricing links without changing the no-resale boundary.</p>
+        <ul class="list">
+          <li>Lead with the one-endpoint and failover claim.</li>
+          <li>Keep the OpenRouter distinction explicit.</li>
+          <li>Use the pricing link for buyer-intent clicks.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="two">
+      <article class="panel">
+        <h2>Copyable LinkedIn post</h2>
+        <pre id="linkedin-post" class="codebox">I open-sourced Sage Router — a local-first AI model router for agents and developer tools.
+
+The problem: every agent harness (Codex, Claude Code, Cursor, Aider, Continue, OpenHands) ships its own model picker and breaks the moment a provider rate-limits or goes down.
+
+Sage Router is one local endpoint that selects the best model per request by task, capability, latency, and policy — then fails over across your own authorized providers with no mid-stream handoff.
+
+The thesis: routing is local-first infrastructure for access you already control, not a hosted marketplace. Your provider keys stay on your machine by default. The core is free and open source. Hosted Sage Router plans add generated keys, quotas, analytics, health monitoring, dashboards, and reliability routing — still without bundled model resale.
+
+• Repo: github.com/earlvanze/sage-router?utm_source=linkedin&utm_medium=social&utm_campaign=sage-router-launch
+• Site: sagerouter.dev/?utm_source=linkedin&utm_medium=social&utm_campaign=sage-router-launch
+• Pricing: sagerouter.dev/pricing?utm_source=linkedin&utm_medium=social&utm_campaign=sage-router-launch
+• vs OpenRouter: sagerouter.dev/compare/openrouter?utm_source=linkedin&utm_medium=social&utm_campaign=sage-router-launch
+
+30-second start:
+python3 router.py --port 8790
+export OPENAI_BASE_URL=http://localhost:8790/v1
+codex --model openai/gpt-4.1
+
+#OpenSource #AI #LLM #DeveloperTools #AIInfrastructure</pre>
+        <div class="copyRow">
+          <button id="copy-linkedin-post" class="copyButton" type="button">Copy LinkedIn post</button>
+          <span id="copy-linkedin-status" class="copyStatus" role="status" aria-live="polite"></span>
+        </div>
+      </article>
+      <aside class="panel soft">
+        <h2>Why LinkedIn is separate</h2>
+        <p>LinkedIn is better for team reliability, founder-sales, and Max implementation conversations. This copy leads with business-safe positioning while keeping the local-first architecture clear.</p>
+        <ul class="list">
+          <li>Lead with developer-tool reliability.</li>
+          <li>Point teams to pricing and OpenRouter comparison.</li>
+          <li>Keep hashtags limited and technical.</li>
+        </ul>
+      </aside>
+    </section>
+
     <section class="panel callout">
       <h2><strong>Next community slots</strong></h2>
-      <p>Reddit r/selfhosted, r/Ollama, and r/SideProject have final copy in the repo. Hacker News, Indie Hackers, and Dev.to now have final copyable blocks here. X and LinkedIn remain final text files in the repo until a social-posting workflow is approved.</p>
+      <p>Reddit r/selfhosted, r/Ollama, and r/SideProject have final copy in the repo. Hacker News, Indie Hackers, Dev.to, X, and LinkedIn now have final copyable blocks here. Public posting still requires owner approval for every non-Moltbook channel.</p>
     </section>
   </main>
 
@@ -287,6 +362,12 @@ What's your current provider-failover setup? Genuinely curious what people cobbl
     });
     document.getElementById('copy-devto-post')?.addEventListener('click', () => {
       copyBlock('devto-post', 'copy-devto-status', 'Copied Dev.to post.', 'devto-post');
+    });
+    document.getElementById('copy-x-thread-post')?.addEventListener('click', () => {
+      copyBlock('x-thread-post', 'copy-x-thread-status', 'Copied X thread.', 'x-thread-post');
+    });
+    document.getElementById('copy-linkedin-post')?.addEventListener('click', () => {
+      copyBlock('linkedin-post', 'copy-linkedin-status', 'Copied LinkedIn post.', 'linkedin-post');
     });
     document.querySelectorAll('[data-launch-event]').forEach((link) => {
       link.addEventListener('click', () => {

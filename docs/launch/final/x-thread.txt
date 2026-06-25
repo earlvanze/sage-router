@@ -2,7 +2,7 @@
 
 Your keys can stay on your machine. No bundled model resale.
 
-github.com/earlvanze/sage-router
+github.com/earlvanze/sage-router?utm_source=x&utm_medium=social&utm_campaign=sage-router-launch
 
 2/ The problem: every harness (Codex, Claude Code, Cursor, Aider, Continue, OpenHands) has its own model picker and breaks on rate limits/outages. Sage Router puts routing+failover in one local layer.
 
@@ -15,4 +15,4 @@ codex --model openai/gpt-4.1
 
 5/ Free local core. Hosted Sage Router adds generated keys, quotas, analytics, health checks, and reliability routing. Plans: Lite $6, Pro $30, Max $72.
 
-sagerouter.dev/pricing
+sagerouter.dev/pricing?utm_source=x&utm_medium=social&utm_campaign=sage-router-launch

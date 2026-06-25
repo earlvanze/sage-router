@@ -6,10 +6,10 @@ Sage Router is one local endpoint that selects the best model per request by tas
 
 The thesis: routing is local-first infrastructure for access you already control, not a hosted marketplace. Your provider keys stay on your machine by default. The core is free and open source. Hosted Sage Router plans add generated keys, quotas, analytics, health monitoring, dashboards, and reliability routing — still without bundled model resale.
 
-• Repo: github.com/earlvanze/sage-router
-• Site: sagerouter.dev
-• Pricing: sagerouter.dev/pricing
-• vs OpenRouter: sagerouter.dev/compare/openrouter
+• Repo: github.com/earlvanze/sage-router?utm_source=linkedin&utm_medium=social&utm_campaign=sage-router-launch
+• Site: sagerouter.dev/?utm_source=linkedin&utm_medium=social&utm_campaign=sage-router-launch
+• Pricing: sagerouter.dev/pricing?utm_source=linkedin&utm_medium=social&utm_campaign=sage-router-launch
+• vs OpenRouter: sagerouter.dev/compare/openrouter?utm_source=linkedin&utm_medium=social&utm_campaign=sage-router-launch
 
 30-second start:
 python3 router.py --port 8790

@@ -2498,6 +2498,18 @@ check_marketing_community_launch_kit_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "copy-devto-post" /tmp/sage-router-readiness-body; then
     page_code="200:missing-copy-devto-post"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable X thread" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-x-thread-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-x-thread-post" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-x-thread-post"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable LinkedIn post" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-linkedin-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-linkedin-post" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-linkedin-post"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=hackernews" /tmp/sage-router-readiness-body; then
     page_code="200:missing-hackernews-utm"
   fi
@@ -2506,6 +2518,12 @@ check_marketing_community_launch_kit_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=devto" /tmp/sage-router-readiness-body; then
     page_code="200:missing-devto-utm"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=x" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-x-utm"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=linkedin" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-linkedin-utm"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
     page_code="200:missing-launch-kit-copy-funnel"
