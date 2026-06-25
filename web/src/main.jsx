@@ -499,6 +499,7 @@ function App() {
             <a href="/ollama-ai-model-router">Ollama</a>
             <a href="/openai-api-router">OpenAI API</a>
             <a href="/anthropic-api-router">Anthropic</a>
+            <a href="/coding-agent-model-router">Coding Agents</a>
             <a href="/integrations">Integrations</a>
             <a href="/quickstart">Quickstart</a>
             <a href="/models">Models</a>
@@ -606,6 +607,11 @@ function App() {
                 button: 'Anthropic API router',
                 state: 'hero-secondary-anthropic-router',
               })}>Anthropic API router</a>
+              <a href="/coding-agent-model-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/coding-agent-model-router',
+                button: 'Coding agent router',
+                state: 'hero-secondary-coding-agent-router',
+              })}>Coding agent router</a>
               <a href="/reddit-ai-gateway-evaluation" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/reddit-ai-gateway-evaluation',
                 button: 'Reddit evaluation kit',
@@ -777,6 +783,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <p><a className="inlineLink" href="/ollama-ai-model-router">Route local Ollama and Ollama Cloud →</a></p>
           <p><a className="inlineLink" href="/openai-api-router">Route OpenAI-compatible API traffic →</a></p>
           <p><a className="inlineLink" href="/anthropic-api-router">Route Claude-style Anthropic traffic →</a></p>
+          <p><a className="inlineLink" href="/coding-agent-model-router">Route Codex, Cursor, Aider, Continue, and OpenHands →</a></p>
           <p><a className="inlineLink" href="/model-routing-calculator">Estimate routing savings for one workflow →</a></p>
           <p><a className="inlineLink" href="/managed-access?intent=max-implementation">Request Max implementation review →</a></p>
           <p><a className="inlineLink" href="/pricing">See hosted routing pricing and plan limits →</a></p>
@@ -945,6 +952,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/ollama-ai-model-router">Ollama</a>
         <a href="/openai-api-router">OpenAI API</a>
         <a href="/anthropic-api-router">Anthropic</a>
+        <a href="/coding-agent-model-router">Coding Agents</a>
         <a href="/model-routing-calculator">Calculator</a>
         <a href="/launch-plan">Launch Plan</a>
         <a href="/managed-access">Managed Access</a>
