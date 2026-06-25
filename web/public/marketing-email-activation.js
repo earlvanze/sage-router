@@ -141,6 +141,57 @@ async function submitSageRouterActivationForm(event) {
   }
 }
 
+function insertSageRouterOauthButton(form) {
+  if (form.dataset.oauthActivation !== 'github') return;
+  if (!form.dataset.eventPrefix) return;
+  if (form.querySelector('[data-oauth-activation]') || form.querySelector('.oauthButton')) return;
+  const status = document.getElementById(form.dataset.statusId || '');
+  const eventPrefix = form.dataset.eventPrefix;
+  const source = form.dataset.source || eventPrefix;
+  const emailInput = form.querySelector('input[type="email"]');
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'button primary oauthButton';
+  button.dataset.oauthActivation = 'github';
+  button.textContent = 'Continue with GitHub for Pro';
+  button.addEventListener('click', async () => {
+    if (status) status.textContent = 'Opening GitHub sign-in for Pro...';
+    button.disabled = true;
+    trackSageRouterActivationEvent(`${eventPrefix}_oauth_clicked`, source, {
+      button: button.textContent,
+      state: 'github',
+      target: SAGE_ROUTER_ACCOUNT_PAGE_URL,
+    });
+    try {
+      const api = await loadSageRouterSupabaseClient();
+      const client = api.createClient(SAGE_ROUTER_SUPABASE_URL, SAGE_ROUTER_SUPABASE_ANON_KEY);
+      const { error } = await client.auth.signInWithOAuth({
+        provider: 'github',
+        options: {
+          redirectTo: SAGE_ROUTER_ACCOUNT_PAGE_URL,
+        },
+      });
+      if (error) throw error;
+    } catch (_error) {
+      trackSageRouterActivationEvent(`${eventPrefix}_oauth_failed`, source, {
+        button: button.textContent,
+        state: 'github',
+        target: SAGE_ROUTER_ACCOUNT_PAGE_URL,
+      });
+      if (status) status.textContent = 'GitHub sign-in is unavailable right now. Opening account setup instead...';
+      window.location.href = SAGE_ROUTER_ACCOUNT_PAGE_URL;
+    } finally {
+      button.disabled = false;
+    }
+  });
+  if (emailInput) {
+    form.insertBefore(button, emailInput);
+    return;
+  }
+  form.prepend(button);
+}
+
 document.querySelectorAll('[data-email-activation-form]').forEach((form) => {
+  insertSageRouterOauthButton(form);
   form.addEventListener('submit', submitSageRouterActivationForm);
 });

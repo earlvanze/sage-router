@@ -940,13 +940,17 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("calculator_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("calculator_checkout_unavailable") != null) and
     ((.allowedEvents // []) | index("calculator_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("calculator_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("fusion_viewed") != null) and
     ((.allowedEvents // []) | index("fusion_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("fusion_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("fusion_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_migration_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("gateway_migration_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("agent_native_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("agent_native_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("integrations_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("integrations_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_viewed") != null) and
     ((.allowedEvents // []) | index("content_article_quickstart_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_magic_link_sent") != null) and
@@ -957,8 +961,11 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("codex_docs_snippet_copied") != null) and
     ((.allowedEvents // []) | index("codex_docs_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("api_reference_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("api_reference_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("api_troubleshooting_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("api_troubleshooting_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("launch_plan_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("launch_plan_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("landing_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("landing_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
@@ -982,6 +989,33 @@ check_funnel_event_endpoint() {
     pass "privacy-safe marketing funnel event endpoint is configured with browser origin guard"
   else
     fail "marketing funnel event endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} table=${primary_table:-missing} privacy=${privacy_ok:-missing} allowedEvents=${allowed_events:-missing} writeGuard=${write_guard:-missing} refererFallbackDisabled=${referer_fallback:-missing} previewSuffix=${preview_suffix:-missing} smokeEventsPersisted=${smoke_events_persisted:-missing}"
+  fi
+}
+
+check_marketing_email_activation_helper() {
+  local code
+  code="$(http_code_follow "${MARKETING_BASE%/}/marketing-email-activation.js")"
+  if [[ "$code" == "200" ]] && ! grep -q "insertSageRouterOauthButton" /tmp/sage-router-readiness-body; then
+    code="200:missing-shared-oauth-helper"
+  fi
+  if [[ "$code" == "200" ]] && ! grep -q "Continue with GitHub for Pro" /tmp/sage-router-readiness-body; then
+    code="200:missing-github-pro-copy"
+  fi
+  if [[ "$code" == "200" ]] && ! grep -q "signInWithOAuth" /tmp/sage-router-readiness-body; then
+    code="200:missing-github-oauth-login"
+  fi
+  if [[ "$code" == "200" ]] && ! grep -q "_oauth_clicked" /tmp/sage-router-readiness-body; then
+    code="200:missing-oauth-clicked-funnel"
+  fi
+  if [[ "$code" == "200" ]] && ! grep -q "_oauth_failed" /tmp/sage-router-readiness-body; then
+    code="200:missing-oauth-failed-funnel"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$code" == "200" ]]; then
+    pass "shared marketing email activation helper exposes GitHub Pro OAuth activation"
+  else
+    fail "shared marketing email activation helper incomplete: helper=${code}"
   fi
 }
 
@@ -1223,6 +1257,9 @@ check_marketing_gateway_migration_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "gateway-migration-email-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-gateway-migration-email-form"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'data-oauth-activation="github"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-migration-github-oauth-opt-in"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "gateway_migration_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-gateway-migration-magic-link-funnel"
   fi
@@ -1381,6 +1418,9 @@ check_marketing_launch_plan_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "launch-plan-email-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-launch-plan-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'data-oauth-activation="github"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-launch-plan-github-oauth-opt-in"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "launch_plan_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-launch-plan-magic-link-funnel"
@@ -1640,6 +1680,9 @@ check_marketing_api_troubleshooting_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "api-troubleshooting-email-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-api-troubleshooting-email-form"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'data-oauth-activation="github"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-troubleshooting-github-oauth-opt-in"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "api_troubleshooting_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-api-troubleshooting-magic-link-funnel"
   fi
@@ -1693,6 +1736,9 @@ check_marketing_api_reference_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "api-reference-email-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-api-reference-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'data-oauth-activation="github"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-reference-github-oauth-opt-in"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "api_reference_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-api-reference-magic-link-funnel"
@@ -1793,6 +1839,9 @@ check_marketing_agent_native_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "agent-native-email-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-agent-native-email-form"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'data-oauth-activation="github"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-agent-native-github-oauth-opt-in"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "agent_native_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-agent-native-magic-link-funnel"
   fi
@@ -1847,6 +1896,9 @@ check_marketing_integrations_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "integrations-email-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-integrations-email-form"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'data-oauth-activation="github"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-integrations-github-oauth-opt-in"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "integrations_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-integrations-magic-link-funnel"
   fi
@@ -1885,6 +1937,9 @@ check_model_routing_calculator() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "calculator-email-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-calculator-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'data-oauth-activation="github"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-calculator-github-oauth-opt-in"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "calculator_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-calculator-magic-link-funnel"
@@ -2204,6 +2259,7 @@ check_marketing_account_redirects
 check_public_supabase_auth_settings
 check_waitlist_endpoint
 check_funnel_event_endpoint
+check_marketing_email_activation_helper
 check_marketing_homepage_activation
 check_marketing_comparison_page
 check_marketing_gateway_migration_page
