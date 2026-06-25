@@ -700,6 +700,12 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "Copy setup before signup" /tmp/sage-router-readiness-body; then
     account_code="200:missing-preauth-setup-copy"
   fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "Email setup link next" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-preauth-setup-next"
+  fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "data-preauth-focus-email" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-preauth-email-focus"
+  fi
   if [[ "$account_code" == "200" ]] && ! grep -q "email-verification-status" /tmp/sage-router-readiness-body; then
     account_code="200:missing-email-verification-status"
   fi
@@ -1005,6 +1011,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("model_catalog_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("account_viewed") != null) and
     ((.allowedEvents // []) | index("account_intent_primary_clicked") != null) and
+    ((.allowedEvents // []) | index("account_preauth_setup_next_clicked") != null) and
     ((.allowedEvents // []) | index("account_checkout_unavailable") != null) and
     ((.allowedEvents // []) | index("account_email_verification_resent") != null) and
     ((.allowedEvents // []) | index("account_snippet_copied") != null) and

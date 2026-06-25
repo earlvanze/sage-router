@@ -1487,6 +1487,18 @@ document.addEventListener('click', async (event) => {
     }
     return;
   }
+  const preauthNext = event.target?.closest?.('[data-preauth-focus-email]');
+  if (preauthNext) {
+    trackAccountFunnelEvent('account_preauth_setup_next_clicked', {
+      button: preauthNext.textContent.trim() || 'Email setup link next',
+      target: '#intent-email',
+      state: 'preauth_setup_next',
+      snippet: 'preauth-setup-before-signup',
+    });
+    set('intent-email-status', 'Enter your email to send the Pro setup link.');
+    focusEmailInput(true);
+    return;
+  }
   const button = event.target?.closest?.('[data-copy-target]');
   if (!button) return;
   const copyTarget = button.dataset.copyTarget;

@@ -144,6 +144,7 @@ const ALLOWED_EVENTS = new Set([
   'account_magic_link_sent',
   'account_email_verification_resend_clicked',
   'account_email_verification_resent',
+  'account_preauth_setup_next_clicked',
   'login_wallet_clicked',
   'login_wallet_connected',
   'account_intent_primary_clicked',
