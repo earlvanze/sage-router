@@ -106,7 +106,7 @@ provider resale claim, or runtime feature flag.
 ## Near-term launch checklist
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
-- Keep `/pricing`, `/launch-plan`, `/billing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/gateway-migration`, `/docs/codex`, `/agent-native`, `/integrations`, `/status`, `/support`, `/account.html`, `/login.html`,
+- Keep `/pricing`, `/launch-plan`, `/community-launch-kit`, `/billing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/gateway-migration`, `/docs/codex`, `/agent-native`, `/integrations`, `/status`, `/support`, `/account.html`, `/login.html`,
   `/api/waitlist`, `/models`, `/managed-access`, `/compare/model-gateways`, `/compare/openrouter`, `/reddit-ai-gateway-evaluation`, `/model-routing-calculator`, `/terms`,
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
@@ -135,6 +135,10 @@ provider resale claim, or runtime feature flag.
 - Keep `/reddit-ai-gateway-evaluation` as the Reddit/community acquisition path
   for local-first custody, OpenRouter BYOK boundary, 429 failover, multimodal
   routing, hosted generated-key activation, and copyable evaluation/setup proof.
+- Keep `/community-launch-kit` as the owner-approved community posting kit for
+  Hacker News and adjacent launch channels, with measured UTM links, no-secret
+  posting rules, local-first/BYOK positioning, copyable Show HN text, and
+  privacy-safe snippet-copy telemetry.
 - Keep `/docs/codex` as the dedicated Codex CLI path with hosted, local port
   `8790`, and Tailnet examples using `wire_api = "responses"` and
   `sage-router/frontier`.

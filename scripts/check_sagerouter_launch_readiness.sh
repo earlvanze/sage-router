@@ -1652,6 +1652,48 @@ check_marketing_reddit_evaluation_page() {
   fi
 }
 
+check_marketing_community_launch_kit_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/community-launch-kit")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router Community Launch Kit" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable Show HN post" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-show-hn-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-showhn-post" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-showhn-post"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=hackernews" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-hackernews-utm"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-launch-kit-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-launch-kit-view-funnel"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/community-launch-kit" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-community-launch-kit-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Community launch kit: ${MARKETING_BASE%/}/community-launch-kit" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-community-launch-kit-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing community launch kit is live in sitemap and LLM discovery"
+  else
+    fail "marketing community launch kit incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_gateway_migration_page() {
   local page_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/docs/gateway-migration")"
@@ -2734,6 +2776,7 @@ check_marketing_anthropic_router_page
 check_marketing_coding_agent_router_page
 check_marketing_cursor_router_page
 check_marketing_reddit_evaluation_page
+check_marketing_community_launch_kit_page
 check_marketing_launch_plan_page
 check_marketing_billing_page
 check_marketing_managed_access_page

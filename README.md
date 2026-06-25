@@ -242,6 +242,9 @@ creation. It also reads public `/pricing` billing readiness metadata so it can
 use current plan limits and avoid promising a Stripe checkout when the selected
 plan is not configured; in that case it records `calculator_checkout_unavailable`
 and sends the prospect to the account/manual billing path.
+`https://sagerouter.dev/community-launch-kit` gives the operator copyable,
+owner-approved community launch posts, starting with Show HN, with measured
+campaign links and no-secret posting boundaries for the `$10k MRR` campaign.
 
 The public homepage now treats hosted signup as live: the homepage primary CTA
 is `Create hosted API key`, links directly to `https://app.sagerouter.dev/account.html?plan=pro&start=checkout`, and
