@@ -20,6 +20,57 @@ const steps = [
   },
 ];
 
+const routePaths = [
+  {
+    label: 'Cursor',
+    title: 'Cursor AI router',
+    href: '/cursor-ai-model-router',
+    body: 'Route Cursor custom OpenAI or Anthropic-compatible traffic through one hosted edge with fallback and multimodal safeguards.',
+    button: 'Cursor route path',
+    state: 'route-path-cursor',
+  },
+  {
+    label: 'Coding agents',
+    title: 'Codex, Aider, Continue, OpenHands',
+    href: '/coding-agent-model-router',
+    body: 'Use one profile for coding agents that need tool-safe model routing, 429 failover, and local/cloud provider choice.',
+    button: 'Coding agent route path',
+    state: 'route-path-coding-agent',
+  },
+  {
+    label: 'Ollama',
+    title: 'Local Ollama + Ollama Cloud',
+    href: '/ollama-ai-model-router',
+    body: 'Keep local models first, add Ollama Cloud when authorized, and fail over to other providers when local capacity runs out.',
+    button: 'Ollama route path',
+    state: 'route-path-ollama',
+  },
+  {
+    label: 'OpenAI API',
+    title: 'OpenAI-compatible endpoint',
+    href: '/openai-api-router',
+    body: 'Point OpenAI SDKs and compatible clients at Sage Router for key load balancing, fallback, and route telemetry.',
+    button: 'OpenAI API route path',
+    state: 'route-path-openai',
+  },
+  {
+    label: 'Anthropic',
+    title: 'Claude-style /v1/messages',
+    href: '/anthropic-api-router',
+    body: 'Route Claude Code and Anthropic-compatible clients while keeping access BYOK and subscription-authorized.',
+    button: 'Anthropic route path',
+    state: 'route-path-anthropic',
+  },
+  {
+    label: 'Self-hosted',
+    title: 'Local and Tailnet deployment',
+    href: '/self-hosted-ai-model-router',
+    body: 'Run the router on your machine, Umbrel, or Tailnet host while preserving local credential custody and dashboard control.',
+    button: 'Self-hosted route path',
+    state: 'route-path-self-hosted',
+  },
+];
+
 const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=checkout';
 const ACCOUNT_PAGE_HREF = ACCOUNT_PAGE_URL;
 const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
@@ -717,6 +768,30 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           over between authorized providers, subscriptions, local models, and cloud engines, improving
           speed, reliability, and task fit when a model is slow, down, or wrong for the job.
         </p>
+      </section>
+
+      <section className="section routePaths" aria-label="Choose a Sage Router path">
+        <div className="sectionHeader">
+          <p className="eyebrow">Choose your route path</p>
+          <h2>Start from the tool or provider you already use.</h2>
+          <p>
+            Pick the path closest to your current workflow, copy the setup bundle, then use the same
+            hosted API key and dashboard policy controls as you expand across providers and models.
+          </p>
+        </div>
+        <div className="routePathGrid">
+          {routePaths.map((route) => (
+            <a className="routePathCard" key={route.href} href={route.href} onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+              target: route.href,
+              button: route.button,
+              state: route.state,
+            })}>
+              <span>{route.label}</span>
+              <h3>{route.title}</h3>
+              <p>{route.body}</p>
+            </a>
+          ))}
+        </div>
       </section>
 
       <section className="section intro">

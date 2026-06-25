@@ -251,7 +251,9 @@ before signing in. A persistent bottom activation bar keeps `Create Pro key` and
 the 60-second setup path visible after scrolling, using the same privacy-safe
 homepage funnel events. It keeps pricing, quickstart, status, model gateway comparison, model catalog,
 security, analytics, login, and local GitHub install paths available from the
-hero. The waitlist remains an updates/support path, not the primary conversion
+hero. A route-path discovery grid now links Cursor, coding-agent, Ollama,
+OpenAI API, Anthropic API, and self-hosted pages from the homepage so prospects
+can start from the tool or provider they already use. The waitlist remains an updates/support path, not the primary conversion
 path. When a prospect requests the future one-subscription managed access path
 or Max implementation support, pricing and comparison pages link to
 `/managed-access`; the private-beta intake stores contact and allowlisted

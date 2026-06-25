@@ -1136,6 +1136,18 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access?intent=max-implementation" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-max-implementation-intent"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Choose your route path" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-route-paths"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/cursor-ai-model-router" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-cursor-route-path"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/coding-agent-model-router" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-coding-agent-route-path"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "route-path-cursor" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-route-path-funnel"
+  fi
   rm -f /tmp/sage-router-readiness-body "$homepage_body" "$bundle_body"
 
   if [[ "$page_code" == "200" ]]; then

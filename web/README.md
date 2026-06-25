@@ -90,7 +90,10 @@ and `landing_quickstart_clicked` telemetry. The hero keeps pricing, quickstart, 
 model-gateway comparison, model catalog, calculator, security, analytics, login,
 managed-access private beta review, support, and local GitHub install paths
 visible so a prospect can move from discovery to generated `sk_sage_*` key setup
-without joining a waitlist first. The waitlist remains secondary for release
+without joining a waitlist first. The homepage route-path grid gives Cursor,
+coding-agent, Ollama, OpenAI API, Anthropic API, and self-hosted prospects a
+direct route from the homepage to the most relevant setup page while recording
+`landing_article_clicked` intent metadata. The waitlist remains secondary for release
 notes, integration updates, private deployment help, and future managed-provider
 beta interest.
 The same hero CTAs and successful waitlist submissions emit privacy-safe homepage funnel events with the `landing` source surface, so the private launch funnel can measure visitor-to-signup movement without storing form emails, company names, prompts, API keys, provider credentials, or raw query strings.
