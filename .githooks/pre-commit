@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+changed="$(git diff --cached --name-only)"
+case "$changed" in
+  *sage-router*|*remnic*|*ollama*|*openclaw*|*umbrel*|*docker-compose*|*Dockerfile*)
+    cat <<'MSG'
+
+Host parity reminder:
+- Keep Sage Router provider auth-source/key-count reporting working.
+- Keep Remnic memory host-local; do not copy memory between hosts for parity.
+- Keep Ollama dashboard/API routing intentional and avoid port drift.
+- Update the matching Dropbox/Projects app branch/worktree when packaging changes.
+
+See docs/HOST_PARITY_POLICY.md.
+
+MSG
+    ;;
+esac
+
+exit 0
