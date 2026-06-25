@@ -1471,6 +1471,12 @@ check_marketing_quickstart_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quickstart-magic-link-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart-copy-bundle" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-bundle-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart-full-setup-bundle" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-bundle-telemetry"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
