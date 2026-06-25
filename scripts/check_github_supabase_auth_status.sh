@@ -8,7 +8,7 @@ load_local_env_file() {
   local key value current
   while IFS='=' read -r -d '' key value; do
     case "$key" in
-      SUPABASE_ACCESS_TOKEN|SAGE_ROUTER_SUPABASE_URL|SAGE_ROUTER_SUPABASE_ANON_KEY|PUBLIC_SUPABASE_ANON_KEY|VITE_SUPABASE_PUBLISHABLE_KEY|SUPABASE_ANON_KEY)
+      SUPABASE_ACCESS_TOKEN|SAGE_ROUTER_SUPABASE_URL|SAGE_ROUTER_SUPABASE_ANON_KEY|PUBLIC_SUPABASE_ANON_KEY|VITE_SUPABASE_PUBLISHABLE_KEY|SUPABASE_ANON_KEY|AOPS_SUPABASE_ANON_KEY)
         ;;
       *)
         continue
@@ -101,30 +101,46 @@ PY
 }
 
 discover_supabase_anon_key() {
-  if [[ -n "$SUPABASE_ANON_KEY" ]]; then
-    printf '%s\n' "$SUPABASE_ANON_KEY"
-    return
-  fi
+  local repo_root path key env_name env_value
+  for key in \
+    "${SUPABASE_ANON_KEY:-}" \
+    "${SAGE_ROUTER_SUPABASE_ANON_KEY:-}" \
+    "${PUBLIC_SUPABASE_ANON_KEY:-}" \
+    "${VITE_SUPABASE_PUBLISHABLE_KEY:-}" \
+    "${AOPS_SUPABASE_ANON_KEY:-}"; do
+    if supabase_key_can_read_settings "$key"; then
+      printf '%s\n' "$key"
+      return
+    fi
+  done
+  while IFS='=' read -r env_name env_value; do
+    case "$env_name" in
+      *_SUPABASE_ANON_KEY|*_SUPABASE_PUBLISHABLE_KEY)
+        if supabase_key_can_read_settings "$env_value"; then
+          printf '%s\n' "$env_value"
+          return
+        fi
+        ;;
+    esac
+  done < <(env)
 
-  local repo_root path key
+  local repo_root
   repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   for path in "${repo_root}/web/public/account.js" "${repo_root}/web/public/auth.js" "${repo_root}/web/public/analytics.js"; do
     if [[ -f "$path" ]]; then
       key="$(sed -n "s/^const SUPABASE_ANON_KEY = '\([^']*\)';$/\1/p" "$path" | head -n1)"
-      if [[ -n "$key" ]]; then
+      if supabase_key_can_read_settings "$key"; then
         printf '%s\n' "$key"
         return
       fi
     fi
   done
+}
 
-  for key in "${PUBLIC_SUPABASE_ANON_KEY:-}" "${VITE_SUPABASE_PUBLISHABLE_KEY:-}" "${SUPABASE_ANON_KEY:-}"; do
-    key="$(supabase_key_for_project "$key")"
-    if [[ -n "$key" ]]; then
-      printf '%s\n' "$key"
-      return
-    fi
-  done
+supabase_key_can_read_settings() {
+  local key="$1"
+  [[ -n "$key" ]] || return 1
+  curl -fsS -o /dev/null "${SUPABASE_URL%/}/auth/v1/settings" -H "apikey: ${key}" >/dev/null 2>&1
 }
 
 check_management_config() {
