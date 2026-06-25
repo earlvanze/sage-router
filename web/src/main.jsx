@@ -331,6 +331,7 @@ function App() {
               and route OpenClaw, Hermes, Pi agents, Codex, Claude Code, Cursor, Aider, Continue,
               OpenHands, and OpenAI-compatible clients across authorized providers and local/cloud models.
             </p>
+            <LandingEmailStart />
             <div className="heroActions">
               <a className="button primary" href="https://app.sagerouter.dev/account.html?plan=pro" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
                 plan: 'pro',
@@ -453,7 +454,6 @@ function App() {
                 Run locally
               </a>
             </div>
-            <LandingEmailStart />
             <p className="complianceNote">
               Hosted plans include account-managed keys, quotas, analytics, and reliability routing.
               Bring your own authorized provider access; Sage Router does not resell models, pool
