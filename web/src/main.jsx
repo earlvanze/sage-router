@@ -62,6 +62,14 @@ const routePaths = [
     state: 'route-path-continue',
   },
   {
+    label: 'OpenHands',
+    title: 'Resilient agent sessions',
+    href: '/openhands-ai-model-router',
+    body: 'Route OpenHands actions through one endpoint with local/cloud policy, provider health, and automatic failover.',
+    button: 'OpenHands route path',
+    state: 'route-path-openhands',
+  },
+  {
     label: 'Claude Code',
     title: 'Anthropic-compatible coding route',
     href: '/claude-code-router',
@@ -652,6 +660,7 @@ function App() {
             <a href="/codex-cli-router">Codex CLI</a>
             <a href="/aider-ai-model-router">Aider</a>
             <a href="/continue-ai-model-router">Continue</a>
+            <a href="/openhands-ai-model-router">OpenHands</a>
             <a href="/claude-code-router">Claude Code</a>
             <a href="/xai-grok-router">xAI Grok</a>
             <a href="/mistral-ai-router">Mistral AI</a>
@@ -796,6 +805,11 @@ function App() {
                 button: 'Continue router',
                 state: 'hero-secondary-continue-router',
               })}>Continue router</a>
+              <a href="/openhands-ai-model-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/openhands-ai-model-router',
+                button: 'OpenHands router',
+                state: 'hero-secondary-openhands-router',
+              })}>OpenHands router</a>
               <a href="/claude-code-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/claude-code-router',
                 button: 'Claude Code router',
@@ -1202,6 +1216,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/codex-cli-router">Codex CLI</a>
         <a href="/aider-ai-model-router">Aider</a>
         <a href="/continue-ai-model-router">Continue</a>
+        <a href="/openhands-ai-model-router">OpenHands</a>
         <a href="/claude-code-router">Claude Code</a>
         <a href="/xai-grok-router">xAI Grok</a>
         <a href="/mistral-ai-router">Mistral AI</a>

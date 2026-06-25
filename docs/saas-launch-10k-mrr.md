@@ -162,6 +162,11 @@ provider resale claim, or runtime feature flag.
   `model=auto`, local port `8790`, local Ollama fallback, Tailnet routing,
   credential load balancing, 429 failover, multimodal routing, and
   provider-authorization boundaries.
+- Keep `/openhands-ai-model-router` as the OpenHands acquisition path for
+  OpenAI-compatible agent routing, hosted generated `sk_sage_*` keys,
+  `model = "auto"`, local port `8790`, local Ollama fallback, Tailnet routing,
+  credential load balancing, 429 failover, multimodal routing, and
+  provider-authorization boundaries.
 - Keep `/claude-code-router` as the Claude Code acquisition path for
   Anthropic-compatible coding-agent routing, customer-owned authorized
   Anthropic or Dario subscription paths, hosted `sk_sage_*` account control,
