@@ -180,6 +180,39 @@ function stripeCheckoutUnavailableMessage(plan = selectedPlan) {
   return 'Stripe checkout is temporarily unavailable. Use manual settlement or billing help.';
 }
 
+function renderAccountIntent() {
+  const plan = availablePlans?.[selectedPlan] || {};
+  const checkoutReady = stripeCheckoutReadyForPlan(selectedPlan);
+  const planName = plan.name || planDisplay(selectedPlan);
+  const price = plan.price || (planPriceAmount(plan) ? `$${planPriceAmount(plan)}/month` : '');
+  set('account-intent-title', `${planName} activation path selected`);
+  set('account-intent-plan', price ? `${planName} · ${price}` : planName);
+  set('account-intent-checkout', checkoutReady ? 'Stripe checkout ready' : 'Manual fallback available');
+  if (!activationState.signedIn) {
+    set('account-intent-copy', 'No provider key is required to create an account. Enter your email, use a magic link, then complete checkout and create a generated sk_sage_* key.');
+    const intentButton = $('intent-primary');
+    if (intentButton) intentButton.textContent = 'Start with email link';
+    return;
+  }
+  if (!activationState.emailVerified) {
+    set('account-intent-copy', 'You are signed in. Verify your email next so checkout, generated keys, and hosted routing can attach safely.');
+    const intentButton = $('intent-primary');
+    if (intentButton) intentButton.textContent = 'Verify email first';
+    return;
+  }
+  if (!activationState.routingEnabled) {
+    set('account-intent-copy', checkoutReady
+      ? 'You are signed in and ready for checkout. Complete the selected paid plan to enable generated-key routing.'
+      : 'You are signed in. Stripe checkout is not ready for this plan, so use manual settlement or billing help.');
+    const intentButton = $('intent-primary');
+    if (intentButton) intentButton.textContent = checkoutReady ? 'Continue to Stripe' : 'Open billing options';
+    return;
+  }
+  set('account-intent-copy', 'Routing is active. Create or verify a generated sk_sage_* key, then send the quickstart request to record first usage.');
+  const intentButton = $('intent-primary');
+  if (intentButton) intentButton.textContent = activationState.keyCount > 0 ? 'Verify API key' : 'Create API key';
+}
+
 function updateBillingControls(status = '') {
   const checkoutReady = stripeCheckoutReadyForPlan(selectedPlan);
   const portalReady = billingMetadata?.stripe?.billingPortalReady !== false;
@@ -197,6 +230,7 @@ function updateBillingControls(status = '') {
     ? 'Verify email first'
     : (checkoutReady ? (activationState.signedIn ? 'Continue to Stripe' : 'Sign in to continue to checkout') : 'Manual settlement available');
   set('plan-preview-next', next);
+  renderAccountIntent();
   if (status) {
     set('billing-status', status);
   } else if (!checkoutReady && $('billing-status')) {
@@ -1174,6 +1208,37 @@ $('stripe-checkout')?.addEventListener('click', stripeCheckout);
 $('stripe-portal')?.addEventListener('click', billingPortal);
 $('crypto-intent')?.addEventListener('click', cryptoIntent);
 $('crypto-status-check')?.addEventListener('click', cryptoStatus);
+$('intent-primary')?.addEventListener('click', () => {
+  trackAccountFunnelEvent('account_intent_primary_clicked', {
+    button: 'intent_primary',
+    state: activationState.signedIn ? (activationState.routingEnabled ? 'routing_active' : 'signed_in') : 'signed_out',
+    target: activationState.signedIn ? '#billing' : '#email',
+  });
+  if (!activationState.signedIn) {
+    const email = $('email');
+    if (email?.value.trim()) {
+      magicLogin();
+    } else {
+      email?.focus();
+      set('auth-status', 'Enter your email, then send a magic link.');
+    }
+    return;
+  }
+  if (!activationState.emailVerified) {
+    $('resend-verification-email')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  if (!activationState.routingEnabled) {
+    if (stripeCheckoutReadyForPlan(selectedPlan)) {
+      stripeCheckout();
+    } else {
+      $('crypto-intent')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    return;
+  }
+  const target = activationState.keyCount > 0 ? $('test-api-key') : $('create-key');
+  target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
 $('sign-out')?.addEventListener('click', async () => { await sb.auth.signOut(); refresh(); });
 $('plans')?.addEventListener('click', (event) => {
   const button = event.target?.closest?.('[data-plan]');

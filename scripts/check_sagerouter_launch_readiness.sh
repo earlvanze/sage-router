@@ -654,6 +654,15 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "Verify API key" /tmp/sage-router-readiness-body; then
     account_code="200:missing-api-key-verification"
   fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "Pro activation path selected" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-selected-plan-intent"
+  fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "No provider key is required to create an account" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-no-provider-key-signup-copy"
+  fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "Start with email link" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-magic-link-primary-cta"
+  fi
   if [[ "$account_code" == "200" ]] && ! grep -q "email-verification-status" /tmp/sage-router-readiness-body; then
     account_code="200:missing-email-verification-status"
   fi
@@ -781,6 +790,9 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-app-account-url"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "account_intent_primary_clicked" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-account-intent-funnel"
   fi
   rm -f /tmp/sage-router-readiness-body
 
