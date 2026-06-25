@@ -190,6 +190,7 @@ const ALLOWED_EVENTS = new Set([
   'landing_pricing_clicked',
   'landing_billing_clicked',
   'landing_quickstart_clicked',
+  'landing_setup_next_clicked',
   'landing_integrations_clicked',
   'landing_status_clicked',
   'landing_gateway_compare_clicked',

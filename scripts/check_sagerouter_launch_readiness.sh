@@ -1004,6 +1004,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("launch_plan_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("landing_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("landing_oauth_clicked") != null) and
+    ((.allowedEvents // []) | index("landing_setup_next_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("gateway_compare_oauth_clicked") != null) and

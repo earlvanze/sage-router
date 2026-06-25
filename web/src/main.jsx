@@ -180,15 +180,15 @@ function HeroSetupCopy() {
       }}>
         Copy 60-second setup bundle
       </button>
-      {copied && (
-        <a className="button postCopyAccountButton" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
-          target: ACCOUNT_PAGE_HREF,
-          button: 'Create Pro key next',
-          state: 'post-copy',
-        })}>
-          Create Pro key next
-        </a>
-      )}
+      <a className="button postCopyAccountButton" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_setup_next_clicked', {
+        plan: 'pro',
+        target: ACCOUNT_PAGE_HREF,
+        button: copied ? 'Create Pro key next after copy' : 'Create Pro key next',
+        state: copied ? 'post-copy' : 'pre-copy',
+        snippet: 'landing-hero-setup-bundle',
+      })}>
+        Create Pro key next
+      </a>
       <span role="status" aria-live="polite">{status}</span>
     </div>
   );
