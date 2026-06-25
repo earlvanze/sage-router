@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Sage Router community launch kit with copyable Show HN and community posts, UTM-tracked links, and no-secret launch boundaries for the $10k MRR campaign." />
+  <meta name="description" content="Sage Router community launch kit with copyable Show HN, Indie Hackers, Dev.to, and community posts, UTM-tracked links, and no-secret launch boundaries for the $10k MRR campaign." />
   <link rel="canonical" href="https://sagerouter.dev/community-launch-kit" />
   <meta property="og:title" content="Sage Router Community Launch Kit" />
-  <meta property="og:description" content="Copyable community launch posts for Sage Router with local-first routing, BYOK custody, hosted generated keys, and measured launch links." />
+  <meta property="og:description" content="Copyable community launch posts for Sage Router with local-first routing, BYOK custody, hosted generated keys, and measured launch links for Hacker News, Indie Hackers, and Dev.to." />
   <meta property="og:url" content="https://sagerouter.dev/community-launch-kit" />
   <meta property="og:type" content="article" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -19,7 +19,7 @@
     "@context": "https://schema.org",
     "@type": "Article",
     "headline": "Sage Router Community Launch Kit",
-    "description": "Copyable community launch posts for Sage Router with measured links and no-secret launch boundaries.",
+    "description": "Copyable community launch posts for Sage Router with measured Hacker News, Indie Hackers, and Dev.to links plus no-secret launch boundaries.",
     "author": {"@type": "Organization", "name": "Sage Router"},
     "publisher": {"@type": "Organization", "name": "Sage Router"},
     "mainEntityOfPage": "https://sagerouter.dev/community-launch-kit"
@@ -119,9 +119,82 @@ I would be interested in feedback on the routing/custody model: should this stay
       </aside>
     </section>
 
+    <section class="two">
+      <article class="panel">
+        <h2>Copyable Indie Hackers post</h2>
+        <pre id="indiehackers-post" class="codebox">Launched Sage Router — open-source local-first AI model router for agents
+
+I just launched Sage Router, an open-source local-first routing layer for AI agents.
+
+One OpenAI/Anthropic-compatible endpoint. It picks the best model per request by task type, capability, latency, and policy, then fails over across your own providers with no mid-stream handoff.
+
+The angle: routing is local-first infrastructure for access you already control, not a hosted marketplace. Your provider keys stay on your machine by default. The core is free and open source (MIT). Hosted Sage Router plans add generated keys, quotas, analytics, health monitoring, dashboards, and reliability routing — still without bundled model resale.
+
+- Repo: https://github.com/earlvanze/sage-router?utm_source=indiehackers&utm_medium=community&utm_campaign=sage-router-launch
+- Site: https://sagerouter.dev/?utm_source=indiehackers&utm_medium=community&utm_campaign=sage-router-launch
+- vs OpenRouter: https://sagerouter.dev/compare/openrouter?utm_source=indiehackers&utm_medium=community&utm_campaign=sage-router-launch
+- Pricing: Lite $6, Pro $30, Max $72. Local core remains free.
+
+Happy to answer questions on routing policy, the custody model, and how it differs from OpenRouter.</pre>
+        <div class="copyRow">
+          <button id="copy-indiehackers-post" class="copyButton" type="button">Copy Indie Hackers post</button>
+          <span id="copy-indiehackers-status" class="copyStatus" role="status" aria-live="polite"></span>
+        </div>
+      </article>
+      <aside class="panel soft">
+        <h2>Why Indie Hackers is separate</h2>
+        <p>Indie Hackers readers evaluate packaging, pricing, launch lessons, and founder-sales motion. This version makes the free local core, hosted plan prices, and OpenRouter boundary explicit.</p>
+        <ul class="list">
+          <li>Lead with the product launch and pricing.</li>
+          <li>Keep the local-first custody model visible.</li>
+          <li>Invite questions about positioning and differentiation.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="two">
+      <article class="panel">
+        <h2>Copyable Dev.to post</h2>
+        <pre id="devto-post" class="codebox">Showoff Saturday: Sage Router — open-source local-first AI model router with automatic provider failover
+
+Tags: #ai #opensource #routing #ollama #selfhosted #agents
+
+I open-sourced Sage Router, the model router I run between my agent tools and my providers.
+
+Sage Router is a local-first routing layer: one OpenAI/Anthropic-compatible endpoint that selects the best model per request by task type, capability, latency, and policy, then fails over across your own providers with no mid-stream handoff.
+
+The bet: routing is local-first infrastructure for access you already control, not a hosted marketplace. Your provider keys stay on your machine by default. The core is free and open source (MIT). Hosted Sage Router plans add generated keys, quotas, analytics, health monitoring, dashboards, and reliability routing — still without bundled model resale.
+
+- Repo: https://github.com/earlvanze/sage-router?utm_source=devto&utm_medium=community&utm_campaign=sage-router-launch
+- Site: https://sagerouter.dev/?utm_source=devto&utm_medium=community&utm_campaign=sage-router-launch
+- vs OpenRouter: https://sagerouter.dev/compare/openrouter?utm_source=devto&utm_medium=community&utm_campaign=sage-router-launch
+
+30-second start:
+python3 router.py --port 8790
+export OPENAI_BASE_URL=http://localhost:8790/v1
+export OPENAI_API_KEY=local-router
+codex --model openai/gpt-4.1
+
+What's your current provider-failover setup? Genuinely curious what people cobbled together.</pre>
+        <div class="copyRow">
+          <button id="copy-devto-post" class="copyButton" type="button">Copy Dev.to post</button>
+          <span id="copy-devto-status" class="copyStatus" role="status" aria-live="polite"></span>
+        </div>
+      </article>
+      <aside class="panel soft">
+        <h2>Why Dev.to is separate</h2>
+        <p>Dev.to readers want implementation mechanics. This version keeps the 30-second local start, open-source posture, and concrete provider-failover question up front.</p>
+        <ul class="list">
+          <li>Lead with the open-source implementation.</li>
+          <li>Keep the setup command directly copyable.</li>
+          <li>Ask about current failover glue.</li>
+        </ul>
+      </aside>
+    </section>
+
     <section class="panel callout">
       <h2><strong>Next community slots</strong></h2>
-      <p>Reddit r/selfhosted, r/Ollama, and r/SideProject have final copy in the repo. Hacker News now has a final Show HN block here. Indie Hackers and Dev.to remain ready-draft channels in `docs/launch-posts.md` until final per-channel posts are promoted.</p>
+      <p>Reddit r/selfhosted, r/Ollama, and r/SideProject have final copy in the repo. Hacker News, Indie Hackers, and Dev.to now have final copyable blocks here. X and LinkedIn remain final text files in the repo until a social-posting workflow is approved.</p>
     </section>
   </main>
 
@@ -208,6 +281,12 @@ I would be interested in feedback on the routing/custody model: should this stay
     trackCommunityLaunchEvent('content_article_viewed', { button: 'page-view' });
     document.getElementById('copy-showhn-post')?.addEventListener('click', () => {
       copyBlock('showhn-post', 'copy-showhn-status', 'Copied Show HN post.', 'showhn-post');
+    });
+    document.getElementById('copy-indiehackers-post')?.addEventListener('click', () => {
+      copyBlock('indiehackers-post', 'copy-indiehackers-status', 'Copied Indie Hackers post.', 'indiehackers-post');
+    });
+    document.getElementById('copy-devto-post')?.addEventListener('click', () => {
+      copyBlock('devto-post', 'copy-devto-status', 'Copied Dev.to post.', 'devto-post');
     });
     document.querySelectorAll('[data-launch-event]').forEach((link) => {
       link.addEventListener('click', () => {

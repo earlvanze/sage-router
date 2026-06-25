@@ -2486,8 +2486,26 @@ check_marketing_community_launch_kit_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "copy-showhn-post" /tmp/sage-router-readiness-body; then
     page_code="200:missing-copy-showhn-post"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable Indie Hackers post" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-indiehackers-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-indiehackers-post" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-indiehackers-post"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable Dev.to post" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-devto-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-devto-post" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-devto-post"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=hackernews" /tmp/sage-router-readiness-body; then
     page_code="200:missing-hackernews-utm"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=indiehackers" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-indiehackers-utm"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=devto" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-devto-utm"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
     page_code="200:missing-launch-kit-copy-funnel"
