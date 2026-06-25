@@ -56,6 +56,7 @@ const ALLOWED_EVENTS = new Set([
   'model_catalog_codex_clicked',
   'model_catalog_gateway_clicked',
   'model_catalog_json_clicked',
+  'account_viewed',
   'account_plan_selected',
   'auth_provider_state_checked',
   'account_oauth_clicked',

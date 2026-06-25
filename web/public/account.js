@@ -115,7 +115,7 @@ function planDisplay(plan) {
   return plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : 'Pro';
 }
 
-let selectedPlan = storedPlan() || 'pro';
+let selectedPlan = requestedPlanFromUrl() || storedPlan() || 'pro';
 let availablePlans = FALLBACK_PLANS;
 let billingMetadata = null;
 let recommendedUpgradePlan = '';
@@ -1250,6 +1250,10 @@ document.addEventListener('click', async (event) => {
 });
 sb.auth.onAuthStateChange(() => refresh());
 applyRequestedPlanFromUrl();
+trackAccountFunnelEvent('account_viewed', {
+  button: requestedPlanFromUrl() ? 'pricing_plan_link' : 'direct',
+  state: requestedPlanFromUrl() ? 'plan_prefilled' : 'default',
+});
 refresh();
 handleBillingReturn();
 applyAuthSettings();
