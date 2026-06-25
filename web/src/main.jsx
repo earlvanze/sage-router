@@ -70,6 +70,14 @@ const routePaths = [
     state: 'route-path-gemini',
   },
   {
+    label: 'NVIDIA NIM',
+    title: 'GPU-backed hosted inference',
+    href: '/nvidia-nim-router',
+    body: 'Route NVIDIA NIM and NVIDIA Cloud endpoints through one policy layer with BYOK custody, load balancing, and 429 failover.',
+    button: 'NVIDIA NIM route path',
+    state: 'route-path-nvidia',
+  },
+  {
     label: 'Self-hosted',
     title: 'Local and Tailnet deployment',
     href: '/self-hosted-ai-model-router',
@@ -558,6 +566,7 @@ function App() {
             <a href="/ollama-ai-model-router">Ollama</a>
             <a href="/openai-api-router">OpenAI API</a>
             <a href="/anthropic-api-router">Anthropic</a>
+            <a href="/nvidia-nim-router">NVIDIA NIM</a>
             <a href="/coding-agent-model-router">Coding Agents</a>
             <a href="/cursor-ai-model-router">Cursor</a>
             <a href="/integrations">Integrations</a>
@@ -667,6 +676,11 @@ function App() {
                 button: 'Anthropic API router',
                 state: 'hero-secondary-anthropic-router',
               })}>Anthropic API router</a>
+              <a href="/nvidia-nim-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/nvidia-nim-router',
+                button: 'NVIDIA NIM router',
+                state: 'hero-secondary-nvidia-router',
+              })}>NVIDIA NIM router</a>
               <a href="/coding-agent-model-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/coding-agent-model-router',
                 button: 'Coding agent router',
@@ -1042,6 +1056,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/ollama-ai-model-router">Ollama</a>
         <a href="/openai-api-router">OpenAI API</a>
         <a href="/anthropic-api-router">Anthropic</a>
+        <a href="/nvidia-nim-router">NVIDIA NIM</a>
         <a href="/coding-agent-model-router">Coding Agents</a>
         <a href="/cursor-ai-model-router">Cursor</a>
         <a href="/model-routing-calculator">Calculator</a>
