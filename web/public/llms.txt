@@ -10,6 +10,7 @@ Hosted pricing: https://sagerouter.dev/pricing
 Fusion: https://sagerouter.dev/fusion
 Local-first routing guide: https://sagerouter.dev/local-first-routing-for-ai-agents
 Self-hosted AI model router: https://sagerouter.dev/self-hosted-ai-model-router
+Ollama AI model router: https://sagerouter.dev/ollama-ai-model-router
 AI gateway evaluation kit: https://sagerouter.dev/reddit-ai-gateway-evaluation
 Launch plan: https://sagerouter.dev/launch-plan
 Billing help: https://sagerouter.dev/billing

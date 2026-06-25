@@ -1304,6 +1304,60 @@ check_marketing_self_hosted_router_page() {
   fi
 }
 
+check_marketing_ollama_router_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/ollama-ai-model-router")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Ollama AI model router" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Ollama Cloud" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-ollama-cloud-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "local Ollama" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-local-ollama-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "429 failover" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-429-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Multimodal routing" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-multimodal-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "multiple API keys" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-multi-key-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "ollama-copy-start" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-ollama-copy-start"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "ollama-router-start" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-ollama-snippet-id"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-view-funnel"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/ollama-ai-model-router" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-ollama-router-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Ollama AI model router: ${MARKETING_BASE%/}/ollama-ai-model-router" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-ollama-router-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing Ollama AI model router page is live in sitemap and LLM discovery"
+  else
+    fail "marketing Ollama AI model router page incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_reddit_evaluation_page() {
   local page_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/reddit-ai-gateway-evaluation")"
@@ -2434,6 +2488,7 @@ check_marketing_pricing_page
 check_marketing_fusion_page
 check_marketing_local_first_article_page
 check_marketing_self_hosted_router_page
+check_marketing_ollama_router_page
 check_marketing_reddit_evaluation_page
 check_marketing_launch_plan_page
 check_marketing_billing_page
