@@ -1266,6 +1266,54 @@ check_marketing_self_hosted_router_page() {
   fi
 }
 
+check_marketing_reddit_evaluation_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/reddit-ai-gateway-evaluation")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "AI gateway evaluation kit" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Reddit evaluation kit" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-reddit-positioning"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "OpenRouter BYOK boundary" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-openrouter-boundary"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "429 failover" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-429-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "reddit-copy-evaluation-post" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-evaluation-post"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "reddit-copy-setup-proof" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-setup-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-view-funnel"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/reddit-ai-gateway-evaluation" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-reddit-evaluation-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "AI gateway evaluation kit: ${MARKETING_BASE%/}/reddit-ai-gateway-evaluation" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-reddit-evaluation-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing Reddit AI gateway evaluation page is live in sitemap and LLM discovery"
+  else
+    fail "marketing Reddit AI gateway evaluation page incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_gateway_migration_page() {
   local page_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/docs/gateway-migration")"
@@ -2321,6 +2369,7 @@ check_marketing_pricing_page
 check_marketing_fusion_page
 check_marketing_local_first_article_page
 check_marketing_self_hosted_router_page
+check_marketing_reddit_evaluation_page
 check_marketing_launch_plan_page
 check_marketing_billing_page
 check_marketing_managed_access_page

@@ -561,6 +561,11 @@ function App() {
                 button: 'Self-hosted router',
                 state: 'hero-secondary-self-hosted',
               })}>Self-hosted router</a>
+              <a href="/reddit-ai-gateway-evaluation" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/reddit-ai-gateway-evaluation',
+                button: 'Reddit evaluation kit',
+                state: 'hero-secondary-reddit-evaluation',
+              })}>Reddit evaluation kit</a>
               <a href="/models" onClick={() => trackLandingFunnelEvent('landing_models_clicked', {
                 target: '/models',
                 button: 'Browse models',

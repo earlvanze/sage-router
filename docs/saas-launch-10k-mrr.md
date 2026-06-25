@@ -107,7 +107,7 @@ provider resale claim, or runtime feature flag.
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
 - Keep `/pricing`, `/launch-plan`, `/billing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/gateway-migration`, `/docs/codex`, `/agent-native`, `/integrations`, `/status`, `/support`, `/account.html`, `/login.html`,
-  `/api/waitlist`, `/models`, `/managed-access`, `/compare/model-gateways`, `/compare/openrouter`, `/model-routing-calculator`, `/terms`,
+  `/api/waitlist`, `/models`, `/managed-access`, `/compare/model-gateways`, `/compare/openrouter`, `/reddit-ai-gateway-evaluation`, `/model-routing-calculator`, `/terms`,
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
 - Keep the public pricing, launch-plan, agent-native routing, calculator, model-gateway/OpenRouter comparison, legal, provider-resale,
@@ -130,6 +130,9 @@ provider resale claim, or runtime feature flag.
   `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys,
   `sage-router/frontier`, premium `sage-router/fusion`, model catalog
   discovery, and the provider terms boundary.
+- Keep `/reddit-ai-gateway-evaluation` as the Reddit/community acquisition path
+  for local-first custody, OpenRouter BYOK boundary, 429 failover, multimodal
+  routing, hosted generated-key activation, and copyable evaluation/setup proof.
 - Keep `/docs/codex` as the dedicated Codex CLI path with hosted, local port
   `8790`, and Tailnet examples using `wire_api = "responses"` and
   `sage-router/frontier`.
