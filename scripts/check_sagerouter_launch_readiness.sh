@@ -806,6 +806,25 @@ check_hosted_onboarding_pages() {
   fi
 }
 
+check_marketing_account_redirects() {
+  local headers account_code login_code account_location login_location
+  headers="$(mktemp)"
+  account_code="$(curl -sS -o /tmp/sage-router-readiness-body -D "$headers" -w '%{http_code}' "${MARKETING_BASE%/}/account.html?plan=pro")"
+  account_location="$(awk 'tolower($1)=="location:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$headers" | tail -n1)"
+  rm -f "$headers" /tmp/sage-router-readiness-body
+
+  headers="$(mktemp)"
+  login_code="$(curl -sS -o /tmp/sage-router-readiness-body -D "$headers" -w '%{http_code}' "${MARKETING_BASE%/}/login.html")"
+  login_location="$(awk 'tolower($1)=="location:" {$1=""; sub(/^ /,""); sub(/\r$/,""); print}' "$headers" | tail -n1)"
+  rm -f "$headers" /tmp/sage-router-readiness-body
+
+  if [[ "$account_code" == "308" && "$account_location" == "${APP_BASE%/}/account.html?plan=pro" && "$login_code" == "308" && "$login_location" == "${APP_BASE%/}/login.html" ]]; then
+    pass "marketing-host account and login URLs redirect to canonical app host"
+  else
+    fail "marketing-host app redirects incomplete: account=${account_code} location=${account_location:-missing}; login=${login_code} location=${login_location:-missing}"
+  fi
+}
+
 check_public_supabase_auth_settings() {
   local anon_key code email_enabled github_enabled external_type
   anon_key="$(discover_supabase_anon_key)"
@@ -1908,6 +1927,7 @@ check_public_model_catalog
 check_managed_provider_access_guard
 check_stripe_webhook_guard
 check_hosted_onboarding_pages
+check_marketing_account_redirects
 check_public_supabase_auth_settings
 check_waitlist_endpoint
 check_funnel_event_endpoint
