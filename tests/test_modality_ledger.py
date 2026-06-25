@@ -72,6 +72,40 @@ class ModalityLedgerTests(unittest.TestCase):
         caps2 = router.model_capabilities(prov, 'some-model')
         self.assertTrue(caps2['audio'])
 
+    def test_edit_and_reset_model_modalities(self):
+        router.record_model_modalities('openai', 'gpt-5.4', ['text', 'image'])
+        result = router.set_model_modalities({'key': 'openai/gpt-5.4', 'modalities': ['text', 'audio', 'bad']})
+        self.assertEqual(set(result['modelModalities']['openai/gpt-5.4']['modalities']), {'text', 'audio'})
+        self.assertEqual(router.model_learned_modalities('openai', 'gpt-5.4'), {'text', 'audio'})
+        reset = router.reset_model_modalities({'key': 'openai/gpt-5.4'})
+        self.assertEqual(reset['removed'], 1)
+        self.assertNotIn('openai/gpt-5.4', router.MODEL_MODALITIES)
+
+    def test_learned_modality_influences_scoring(self):
+        prov = router.Provider('openai', 'openai-completions', 'https://api.example/v1', 'token', ['gpt-5.4'])
+        before = []
+        base_score = router.score_provider_model(
+            prov,
+            'gpt-5.4',
+            router.Intent.GENERAL,
+            router.Complexity.SIMPLE,
+            debug_scores=before,
+            requirements={'vision': True},
+        )
+        router.record_model_modalities('openai', 'gpt-5.4', ['image'])
+        after = []
+        learned_score = router.score_provider_model(
+            prov,
+            'gpt-5.4',
+            router.Intent.GENERAL,
+            router.Complexity.SIMPLE,
+            debug_scores=after,
+            requirements={'vision': True},
+        )
+        contributions = [name for name, _ in after[0]['contributions']]
+        self.assertGreater(learned_score, base_score)
+        self.assertIn('learned_modality:image', contributions)
+
 
 if __name__ == '__main__':
     unittest.main()

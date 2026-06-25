@@ -9580,6 +9580,69 @@ def record_model_modalities(provider_name, model, modalities):
         _persist_model_modalities()
 
 
+MODEL_MODALITY_VALUES = {'text', 'image', 'audio', 'video', 'document'}
+
+
+def normalize_model_modalities(modalities):
+    return sorted({str(m).strip().lower() for m in (modalities or []) if str(m).strip().lower() in MODEL_MODALITY_VALUES})
+
+
+def requested_modalities_from_requirements(requirements):
+    requirements = requirements or {}
+    requested = set()
+    if requirements.get('vision'):
+        requested.add('image')
+    if requirements.get('audio'):
+        requested.add('audio')
+    if requirements.get('video'):
+        requested.add('video')
+    if requirements.get('document'):
+        requested.add('document')
+    return requested
+
+
+def set_model_modalities(payload):
+    provider = str(payload.get('provider') or '').strip()
+    model = str(payload.get('model') or '').strip()
+    key = str(payload.get('key') or '').strip()
+    if key and (not provider or not model) and '/' in key:
+        provider, model = key.split('/', 1)
+    if not provider or not model:
+        raise ValueError('provider and model are required')
+    modalities = normalize_model_modalities(payload.get('modalities') or [])
+    if not modalities:
+        raise ValueError('at least one valid modality is required')
+    now_ms = int(time.time() * 1000)
+    global _MODEL_MODALITIES_DIRTY
+    with MODEL_MODALITIES_LOCK:
+        entry = MODEL_MODALITIES.setdefault(_model_modality_key(provider, model), {'modalities': [], 'count': 0, 'firstSeen': now_ms, 'lastSeen': now_ms})
+        entry['modalities'] = modalities
+        entry['count'] = max(0, int(entry.get('count', 0)))
+        entry.setdefault('firstSeen', now_ms)
+        entry['lastSeen'] = now_ms
+        _MODEL_MODALITIES_DIRTY = True
+    _persist_model_modalities(force=True)
+    return {'status': 'ok', 'modelModalities': model_modalities_summary(), 'path': APP_MODEL_MODALITIES}
+
+
+def reset_model_modalities(payload):
+    provider = str((payload or {}).get('provider') or '').strip()
+    model = str((payload or {}).get('model') or '').strip()
+    key = str((payload or {}).get('key') or '').strip()
+    if key and (not provider or not model) and '/' in key:
+        provider, model = key.split('/', 1)
+    global _MODEL_MODALITIES_DIRTY
+    with MODEL_MODALITIES_LOCK:
+        if provider and model:
+            removed = 1 if MODEL_MODALITIES.pop(_model_modality_key(provider, model), None) is not None else 0
+        else:
+            removed = len(MODEL_MODALITIES)
+            MODEL_MODALITIES.clear()
+        _MODEL_MODALITIES_DIRTY = True
+    _persist_model_modalities(force=True)
+    return {'status': 'ok', 'removed': removed, 'modelModalities': model_modalities_summary(), 'path': APP_MODEL_MODALITIES}
+
+
 def model_learned_modalities(provider_name, model):
     """Return the set of modalities learned for a model (empty if none)."""
     with MODEL_MODALITIES_LOCK:
@@ -10438,6 +10501,15 @@ def score_provider_model(provider, model, intent, complexity, thinking=DEFAULT_T
         if any(h in model_l for h in ('nano', 'tiny', 'tts', 'asr', 'embed', 'clip', 'nemotron', '1b', '3b', '7b')):
             score -= 35
             contributions.append(('document_weak_model_penalty', -35))
+
+    requested_modalities = requested_modalities_from_requirements(requirements)
+    if requested_modalities:
+        learned_modalities = model_learned_modalities(provider.name, model)
+        matched_modalities = sorted(requested_modalities & learned_modalities)
+        if matched_modalities:
+            bonus = min(60, 24 * len(matched_modalities))
+            score += bonus
+            contributions.append((f'learned_modality:{",".join(matched_modalities)}', bonus))
 
     health = model_health_snapshot(provider, model, intent.name)
     health_delta = max(-60, min(40, (health.get('score', 0) - 50) * 0.6))
@@ -12780,6 +12852,28 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 logger.exception('Credential strategy set failed')
                 self.write_json(500, {'error': 'credential_strategy_failed', 'detail': str(e)})
+            return
+        if request_path == '/setup/model-modalities/update':
+            if not require_operator_request(self):
+                return
+            try:
+                self.write_json(200, set_model_modalities(read_json_body(self)))
+            except ValueError as e:
+                self.write_json(400, {'error': str(e)})
+            except Exception as e:
+                logger.exception('Model modality update failed')
+                self.write_json(500, {'error': 'model_modality_update_failed', 'detail': str(e)})
+            return
+        if request_path == '/setup/model-modalities/reset':
+            if not require_operator_request(self):
+                return
+            try:
+                self.write_json(200, reset_model_modalities(read_json_body(self)))
+            except ValueError as e:
+                self.write_json(400, {'error': str(e)})
+            except Exception as e:
+                logger.exception('Model modality reset failed')
+                self.write_json(500, {'error': 'model_modality_reset_failed', 'detail': str(e)})
             return
         if request_path == '/api/restart':
             if not require_operator_request(self):

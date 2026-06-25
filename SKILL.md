@@ -130,6 +130,9 @@ most once per 5 s unless forced).
 Learned modalities feed back into `model_capabilities` as an augmentation: a
 model is treated as supporting a modality if it declares it *or* it has served
 that modality before, so routing improves as the router observes more traffic.
+When a request needs a learned modality, `score_provider_model` adds a
+`learned_modality:*` contribution so models with proven successful history are
+preferred among otherwise-capable candidates.
 
 Observability:
 
@@ -137,6 +140,8 @@ Observability:
   header expose the modalities of the active request
 - `GET /setup/model-modalities` (operator) returns `modelModalities` plus the
   ledger `path`; the dashboard renders a "Learned Modalities" card
+- `POST /setup/model-modalities/update` and `/reset` let operators edit or clear
+  learned modalities; the dashboard exposes per-model save/reset and reset-all
 
 ## Routing Logic
 

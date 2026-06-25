@@ -585,6 +585,7 @@ the root URL (`/`). Open that private install URL in a browser to see:
 - Usage analytics
 - Provider enable/disable toggles
 - API key management
+- Learned model modalities with per-model edit/reset controls
 
 For programmatic clients (sending `Accept: application/json`), the private
 install root URL returns the JSON API descriptor instead. The dashboard is also

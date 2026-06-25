@@ -88,13 +88,19 @@
     .mm-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.04); }
     .mm-row:last-child { border: none; }
     .mm-model { font-weight: 600; }
-    .mm-mods { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+    .mm-mods { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
     .mm-mod { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: rgba(0,180,216,0.12); color: var(--accent); }
     .mm-mod.image { background: rgba(0,180,216,0.18); }
     .mm-mod.audio { background: rgba(255,193,7,0.15); color: var(--warning); }
     .mm-mod.video { background: rgba(230,57,70,0.15); color: var(--danger); }
     .mm-mod.document { background: rgba(76,175,80,0.15); color: var(--success); }
     .mm-mod.text { background: rgba(255,255,255,0.06); color: #8898a8; }
+    .mm-check { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #a9b8c8; }
+    .mm-check input { accent-color: var(--accent); }
+    .mm-action { background: none; border: 1px solid var(--border); color: var(--text); border-radius: 5px; padding: 2px 7px; cursor: pointer; font-size: 10px; }
+    .mm-action:hover { border-color: var(--accent); color: var(--accent); }
+    .mm-action.danger { border-color: var(--danger); color: var(--danger); }
+    .mm-card-actions { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
   </style>
 </head>
 <body>
@@ -453,18 +459,46 @@
     function renderLearnedModalities(data) {
       const el = document.getElementById('learnedModalities');
       const entries = Object.entries(data || {});
-      if (!entries.length) { el.innerHTML = '<div class="muted">No modalities recorded yet.</div>'; return; }
+      if (!entries.length) {
+        el.innerHTML = '<div class="mm-card-actions"><button class="mm-action danger" disabled>Reset all</button><span class="muted">No modalities recorded yet.</span></div>';
+        return;
+      }
       entries.sort((a, b) => (b[1].lastSeen || 0) - (a[1].lastSeen || 0));
-      el.innerHTML = entries.map(([key, info]) => {
+      const body = entries.map(([key, info], idx) => {
         const mods = (info.modalities || []).slice().sort((a,b) => MOD_ORDER.indexOf(a) - MOD_ORDER.indexOf(b));
-        const tags = mods.map(m => `<span class="mm-mod ${m}">${escapeHtml(m)}</span>`).join('');
-        return `<div class="mm-row"><span class="mm-model">${escapeHtml(key)} <span class="muted">×${info.count || 0}</span></span><span class="mm-mods">${tags}</span></div>`;
+        const checks = MOD_ORDER.map(m => `<label class="mm-check"><input type="checkbox" value="${escapeHtml(m)}" ${mods.includes(m) ? 'checked' : ''}>${escapeHtml(m)}</label>`).join('');
+        return `<div class="mm-row" id="mm-row-${idx}" data-key="${escapeHtml(key)}"><span class="mm-model">${escapeHtml(key)} <span class="muted">×${info.count || 0}</span></span><span class="mm-mods">${checks}<button class="mm-action" onclick="saveModalities(${idx})">Save</button><button class="mm-action danger" onclick="resetModalities(${idx})">Reset</button></span></div>`;
       }).join('');
+      el.innerHTML = `<div class="mm-card-actions"><button class="mm-action danger" onclick="resetAllModalities()">Reset all</button><span class="muted">${entries.length} model(s) learned</span></div>${body}`;
+    }
+    function rowModalities(idx) {
+      const row = document.getElementById(`mm-row-${idx}`);
+      if (!row) return {key: '', modalities: []};
+      const modalities = Array.from(row.querySelectorAll('input[type="checkbox"]:checked')).map(el => el.value);
+      return {key: row.dataset.key || '', modalities};
+    }
+    async function saveModalities(idx) {
+      const {key, modalities} = rowModalities(idx);
+      if (!key || !modalities.length) return;
+      await postJson('/setup/model-modalities/update', {key, modalities});
+      await loadAll();
+    }
+    async function resetModalities(idx) {
+      const row = document.getElementById(`mm-row-${idx}`);
+      const key = row ? row.dataset.key : '';
+      if (!key || !confirm(`Reset learned modalities for ${key}?`)) return;
+      await postJson('/setup/model-modalities/reset', {key});
+      await loadAll();
+    }
+    async function resetAllModalities() {
+      if (!confirm('Reset all learned model modalities?')) return;
+      await postJson('/setup/model-modalities/reset', {});
+      await loadAll();
     }
 
     async function loadAll() {
       document.getElementById('statusText').textContent = 'Loading...';
-      const [health, modelsResp, analytics, setup, credsResp] = await Promise.all([
+      const [health, modelsResp, analytics, setup, credsResp, modalitiesResp] = await Promise.all([
         api('/health').catch(() => ({})),
         api('/v1/models').catch(() => ({})),
         api('/analytics?days=7').catch(() => ({})),
