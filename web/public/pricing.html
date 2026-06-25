@@ -83,7 +83,7 @@
         <p class="note">Sage Router sells routing, reliability, account management, quotas, analytics, and support. It does not grant unauthorized model access, pool provider accounts, or bypass provider terms.</p>
         <div class="emailStart">
           <strong>Fastest Pro start: send yourself a sign-in link</strong>
-          <p class="note">No provider key is required to create the account. Continue with GitHub or email; both open the hosted account page with Pro selected, then you can complete Stripe checkout and generate an <code>sk_sage_*</code> key.</p>
+          <p class="note">No provider key is required to create the account. Continue with GitHub or email; both open the hosted account page with Pro selected, then you can create a generated <code>sk_sage_*</code> key first and complete checkout.</p>
           <div class="actions">
             <button id="pricing-github-pro" class="button primary" type="button" data-pricing-oauth="github" data-plan="pro">Continue with GitHub for Pro</button>
           </div>
@@ -105,6 +105,15 @@
           <div class="readinessItem"><b>2. Generate key</b><span class="muted">Create an <code>sk_sage_*</code> key from the browser account flow.</span></div>
           <div class="readinessItem"><b>3. Verify route</b><span class="muted">Test <code>/v1/models</code>, then send the first hosted request.</span></div>
         </div>
+        <div class="panel callout" id="pricing-key-first-proof">
+          <p class="eyebrow">Key-first activation proof</p>
+          <h2>Create the key before checkout.</h2>
+          <p class="muted">The Pro handoff preserves checkout intent, but the account page now starts by creating the generated <code>sk_sage_*</code> key. That gives a buyer the setup artifact first, then checkout unlocks hosted routing once the account is active.</p>
+          <div class="actions">
+            <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Create Pro key first</a>
+            <a class="button secondary" href="/quickstart">Verify with the quickstart</a>
+          </div>
+        </div>
       </section>
 
       <section class="section plans" aria-label="Hosted pricing plans">
@@ -118,7 +127,7 @@
             <li>Hosted API keys and basic usage visibility</li>
             <li>Standard fallback chains</li>
           </ul>
-          <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=lite">Start Lite</a>
+          <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=lite&start=checkout">Start Lite</a>
           <form class="planEmailForm" data-pricing-plan-email data-plan="lite">
             <input type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for Sage Router Lite activation" required>
             <button class="button secondary" type="submit">Email Lite link</button>
@@ -154,7 +163,7 @@
             <li>Priority fallback and Fusion budget</li>
             <li>Team and private deployment support path</li>
           </ul>
-          <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max">Start Max</a>
+          <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max&start=checkout">Start Max</a>
           <form class="planEmailForm" data-pricing-plan-email data-plan="max">
             <input type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for Sage Router Max activation" required>
             <button class="button secondary" type="submit">Email Max link</button>
@@ -217,7 +226,7 @@
           </ul>
           <div class="actions">
             <a class="button primary" href="/managed-access?intent=max-implementation">Request Max implementation review</a>
-            <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max">Start Max with BYOK</a>
+            <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max&start=checkout">Start Max with BYOK</a>
           </div>
           <p class="note">Beta interest and implementation review are demand capture only. Public checkout still buys Sage Router routing, account, quota, analytics, and reliability infrastructure.</p>
         </div>

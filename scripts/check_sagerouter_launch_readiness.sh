@@ -1386,6 +1386,15 @@ check_marketing_pricing_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing_checkout_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-checkout-funnel-event"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Key-first activation proof" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-key-first-pricing-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Create the key before checkout" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-key-first-pricing-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Create Pro key first" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-key-first-pricing-cta"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing-github-pro" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-github-activation"
   fi

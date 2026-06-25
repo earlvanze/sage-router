@@ -111,7 +111,9 @@ provider resale claim, or runtime feature flag.
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
 - Keep the public pricing, launch-plan, agent-native routing, calculator, model-gateway/OpenRouter comparison, legal, provider-resale,
-  and margin-policy pages in sitemap and LLM discovery.
+  and margin-policy pages in sitemap and LLM discovery. Pricing must preserve
+  checkout intent while showing that buyers create the generated `sk_sage_*`
+  setup artifact before checkout unlocks hosted routing.
 - Keep public model discovery at `/models` and `/model-catalog`, while live
   `/v1/models` stays authenticated with generated `sk_sage_*` keys.
 - Keep `/quickstart` as the first hosted API request path with
