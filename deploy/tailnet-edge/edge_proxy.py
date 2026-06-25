@@ -103,6 +103,7 @@ GENERATED_API_KEY_PREFIXES = (
 OPERATOR_CONTROL_PLANE_PREFIXES = (
     "/analytics",
     "/admin",
+    "/setup/model-modalities",
 )
 PUBLIC_SIGNED_BACKEND_PREFIXES = (
     "/billing/stripe/webhook",

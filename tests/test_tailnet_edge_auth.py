@@ -748,6 +748,11 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertEqual("gemini-2.5-pro", payload["model_name"])
         self.assertEqual(["image", "text", "video"], payload["modalities_in"])
 
+    def test_model_modality_setup_routes_to_control_plane(self):
+        self.assertTrue(self.edge.should_use_control_plane("/setup/model-modalities"))
+        self.assertTrue(self.edge.should_use_control_plane("/setup/model-modalities/update"))
+        self.assertFalse(self.edge.should_use_control_plane("/setup/credentials"))
+
 
 if __name__ == "__main__":
     unittest.main()
