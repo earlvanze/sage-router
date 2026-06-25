@@ -574,6 +574,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("`ai-gateway`", distribution)
         self.assertIn("`codex-cli`", distribution)
         self.assertIn("`openai-compatible-api`", distribution)
+        self.assertIn("post attempt returned `403` until the local `sagerouter` agent is claimed", distribution)
 
     def test_codex_setup_page_is_discoverable_and_launch_gated(self):
         codex = self.read_public("docs/codex.html")
