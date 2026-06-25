@@ -1216,6 +1216,15 @@ check_marketing_pricing_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-magic-link-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "pricing-copy-setup" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-setup-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "pricing-full-setup-bundle" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-setup-copy-snippet"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-setup-copy-funnel"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
