@@ -1335,6 +1335,9 @@ check_marketing_pricing_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing-copy-setup" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-setup-copy"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copy 60-second setup bundle" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-copy-first-cta"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing-full-setup-bundle" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-setup-copy-snippet"
   fi

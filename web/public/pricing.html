@@ -35,7 +35,8 @@
     .planEmailForm{display:grid;gap:8px;margin-top:4px}
     .planEmailForm input{min-height:44px;border:1px solid var(--border);border-radius:999px;background:rgba(0,0,0,.18);color:var(--text);font:inherit;padding:0 14px}
     .planEmailForm .button{width:100%;border:0;cursor:pointer}
-    .pricingSetupCopy{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+    .pricingSetupCopy{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:18px;padding:14px 16px;border:1px solid rgba(138,180,255,.28);border-radius:8px;background:rgba(138,180,255,.07);max-width:920px}
+    .pricingSetupCopy strong{margin-right:auto}
     .pricingSetupCopy button{border:0;cursor:pointer}
     .pricingSetupCopy span{min-height:22px;color:var(--brand);font-size:14px}
     @media(max-width:720px){.emailStart form{grid-template-columns:1fr}}
@@ -92,14 +93,16 @@
           </form>
           <p id="pricing-email-status" class="emailStartStatus" role="status" aria-live="polite"></p>
         </div>
+        <div class="pricingSetupCopy">
+          <strong>Copy setup first.</strong>
+          <span class="muted">Paste the bundle now, then replace the placeholder with your generated <code>sk_sage_*</code> key after Pro setup.</span>
+          <button id="pricing-copy-setup" class="button primary" type="button">Copy 60-second setup bundle</button>
+          <span id="pricing-copy-status" role="status" aria-live="polite"></span>
+        </div>
         <div class="readinessGrid" aria-label="Hosted activation path">
-          <div class="readinessItem"><b>1. Pro selected</b><span class="muted">The account page opens with Pro preserved through sign-in.</span></div>
+          <div class="readinessItem"><b>1. Copy setup</b><span class="muted">Put the OpenAI-compatible endpoint into your agent config first.</span></div>
           <div class="readinessItem"><b>2. Generate key</b><span class="muted">Create an <code>sk_sage_*</code> key from the browser account flow.</span></div>
           <div class="readinessItem"><b>3. Verify route</b><span class="muted">Test <code>/v1/models</code>, then send the first hosted request.</span></div>
-        </div>
-        <div class="pricingSetupCopy">
-          <button id="pricing-copy-setup" class="button secondary" type="button">Copy hosted setup bundle</button>
-          <span id="pricing-copy-status" role="status" aria-live="polite"></span>
         </div>
       </section>
 
@@ -487,9 +490,10 @@
     }
 
     function pricingSetupBundleText() {
-      return `# Sage Router Pro setup from pricing
-# Create a hosted key:
+      return `# Sage Router 60-second Pro setup
+# 1. Create or paste your generated key from:
 # ${accountPageUrlForPlan('pro')}
+# 2. Paste this into your terminal or agent environment:
 
 export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
 export OPENAI_API_KEY=sk_sage_your_key_here
@@ -528,11 +532,11 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
         await writeClipboardText(pricingSetupBundleText());
         trackPricingFunnelEvent('quickstart_snippet_copied', {
           plan: 'pro',
-          button: 'Copy hosted setup bundle',
+          button: 'Copy 60-second setup bundle',
           state: 'pricing-activation',
           snippet: 'pricing-full-setup-bundle'
         });
-        if (status) status.textContent = 'Copied hosted setup bundle.';
+        if (status) status.textContent = 'Copied. Create your key next; no provider key required.';
       } catch {
         if (status) status.textContent = 'Copy failed. Open the quickstart for manual setup.';
       }
