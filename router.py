@@ -4417,6 +4417,8 @@ def provider_default_tools_support(provider):
         return True
     if provider.api_type == 'openclaw-gateway':
         return True
+    if provider.api_type in {'google-generative-language', 'google-vertex-ai'}:
+        return True
     if provider.api_type == 'openai-completions' and is_nvidia_provider(provider):
         return None
     if provider.api_type == 'openai-completions' and provider.name in {'openai', 'openai-codex', 'github-copilot'}:
@@ -11101,32 +11103,112 @@ def call_anthropic(base_url, model, messages, api_key='', thinking=DEFAULT_THINK
         return False, extract_http_error(e)
 
 
-def build_google_generate_payload(messages, thinking=DEFAULT_THINKING_LEVEL, want_json=False):
+def google_tool_declarations(tools):
+    declarations = []
+    for tool in tools or []:
+        if not isinstance(tool, dict):
+            continue
+        function = tool.get('function') if isinstance(tool.get('function'), dict) else {}
+        if tool.get('type') != 'function' and not function:
+            continue
+        name = function.get('name') or tool.get('name')
+        if not name:
+            continue
+        declaration = {'name': str(name)}
+        if function.get('description'):
+            declaration['description'] = str(function.get('description'))
+        parameters = function.get('parameters')
+        if isinstance(parameters, dict) and parameters:
+            declaration['parameters'] = parameters
+        else:
+            declaration['parameters'] = {'type': 'object', 'properties': {}}
+        declarations.append(declaration)
+    return declarations
+
+
+def google_tool_config(tool_choice, declarations):
+    if not declarations:
+        return None
+    names = [d.get('name') for d in declarations if d.get('name')]
+    if isinstance(tool_choice, dict) and tool_choice.get('type') == 'function':
+        name = ((tool_choice.get('function') or {}).get('name')) or tool_choice.get('name')
+        config = {'mode': 'ANY'}
+        if name:
+            config['allowedFunctionNames'] = [str(name)]
+        return {'functionCallingConfig': config}
+    if tool_choice == 'required':
+        return {'functionCallingConfig': {'mode': 'ANY', 'allowedFunctionNames': names}}
+    if tool_choice == 'none':
+        return {'functionCallingConfig': {'mode': 'NONE'}}
+    return {'functionCallingConfig': {'mode': 'AUTO'}}
+
+
+def google_text_from_content(content):
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                if isinstance(item.get('text'), str):
+                    parts.append(item.get('text'))
+                elif isinstance(item.get('content'), str):
+                    parts.append(item.get('content'))
+            elif isinstance(item, str):
+                parts.append(item)
+        return '\n'.join(p for p in parts if p)
+    if content is None:
+        return ''
+    return str(content)
+
+
+def build_google_generate_payload(messages, thinking=DEFAULT_THINKING_LEVEL, want_json=False, tools=None, tool_choice=None):
     system_text = ''
     contents = []
+    tool_call_names = {}
     for msg in messages:
         role = msg.get('role', 'user')
-        content = msg.get('content', '')
-        if not content:
+        content = google_text_from_content(msg.get('content', ''))
+        tool_calls = normalize_tool_calls(msg.get('tool_calls'))
+        if not content and not tool_calls and role != 'tool':
             continue
         if role in ('system', 'developer'):
             system_text += content + '\n'
             continue
         if role == 'assistant':
             gemini_role = 'model'
-            text = content
+            parts = []
+            if content:
+                parts.append({'text': content})
+            for tool_call in tool_calls:
+                function = tool_call.get('function') or {}
+                name = function.get('name') or 'tool'
+                arguments = function.get('arguments') if 'arguments' in function else {}
+                if isinstance(arguments, str):
+                    try:
+                        arguments = json.loads(arguments or '{}')
+                    except Exception:
+                        arguments = {'arguments': arguments}
+                if not isinstance(arguments, dict):
+                    arguments = {'arguments': arguments}
+                tool_call_names[tool_call.get('id') or ''] = name
+                parts.append({'functionCall': {'name': name, 'args': arguments}})
         elif role == 'user':
             gemini_role = 'user'
-            text = content
+            parts = [{'text': content}]
+        elif role == 'tool':
+            gemini_role = 'user'
+            name = msg.get('name') or tool_call_names.get(msg.get('tool_call_id') or '') or 'tool_result'
+            response = {'result': content}
+            parts = [{'functionResponse': {'name': str(name), 'response': response}}]
         else:
             label = role.upper() if isinstance(role, str) else 'MESSAGE'
             gemini_role = 'user'
-            text = f'[{label}]\n{content}'.strip()
-        part = {'text': text}
+            parts = [{'text': f'[{label}]\n{content}'.strip()}]
         if contents and contents[-1].get('role') == gemini_role:
-            contents[-1].setdefault('parts', []).append(part)
+            contents[-1].setdefault('parts', []).extend(parts)
         else:
-            contents.append({'role': gemini_role, 'parts': [part]})
+            contents.append({'role': gemini_role, 'parts': parts})
 
     if contents and contents[0].get('role') != 'user':
         contents.insert(0, {'role': 'user', 'parts': [{'text': 'Hello'}]})
@@ -11141,20 +11223,52 @@ def build_google_generate_payload(messages, thinking=DEFAULT_THINKING_LEVEL, wan
         payload['generationConfig']['responseMimeType'] = 'application/json'
     if system_text.strip():
         payload['systemInstruction'] = {'parts': [{'text': system_text.strip()}]}
+    declarations = google_tool_declarations(tools)
+    if declarations:
+        payload['tools'] = [{'functionDeclarations': declarations}]
+        config = google_tool_config(tool_choice, declarations)
+        if config:
+            payload['toolConfig'] = config
     return payload
 
 
 def parse_google_generate_text(result):
     parts = result.get('candidates', [{}])[0].get('content', {}).get('parts', [])
-    return sanitize_visible_output(''.join(part.get('text', '') for part in parts if isinstance(part, dict)))
+    return sanitize_visible_output(''.join(part.get('text', '') for part in parts if isinstance(part, dict) and isinstance(part.get('text'), str)))
 
 
-def call_google(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL, want_json=False):
+def parse_google_generate_tool_calls(result):
+    parts = result.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+    tool_calls = []
+    for part in parts:
+        if not isinstance(part, dict):
+            continue
+        call = part.get('functionCall') or part.get('function_call')
+        if not isinstance(call, dict):
+            continue
+        name = call.get('name') or 'tool'
+        args = call.get('args') if 'args' in call else call.get('arguments', {})
+        if isinstance(args, str):
+            arguments = args
+        else:
+            try:
+                arguments = json.dumps(args if isinstance(args, dict) else {'arguments': args}, separators=(',', ':'))
+            except Exception:
+                arguments = '{}'
+        tool_calls.append({
+            'id': f"call_{uuid.uuid4().hex[:24]}",
+            'type': 'function',
+            'function': {'name': str(name), 'arguments': arguments},
+        })
+    return normalize_tool_calls(tool_calls)
+
+
+def call_google(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL, want_json=False, tools=None, tool_choice=None):
     # Ensure base_url has /v1beta for Google API
     if 'generativelanguage.googleapis.com' in base_url and '/v1beta' not in base_url:
         base_url = base_url.rstrip('/') + '/v1beta'
     url = base_url.rstrip('/') + f'/models/{urllib.parse.quote(model, safe="")}:generateContent'
-    payload = build_google_generate_payload(messages, thinking=thinking, want_json=want_json)
+    payload = build_google_generate_payload(messages, thinking=thinking, want_json=want_json, tools=tools, tool_choice=tool_choice)
     try:
         data = json.dumps(payload).encode()
         hdrs = {'Content-Type': 'application/json'}
@@ -11170,11 +11284,11 @@ def call_google(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING
         return False, extract_http_error(e)
 
 
-def call_google_vertex(base_url, model, messages, thinking=DEFAULT_THINKING_LEVEL, want_json=False):
+def call_google_vertex(base_url, model, messages, thinking=DEFAULT_THINKING_LEVEL, want_json=False, tools=None, tool_choice=None):
     try:
         token = google_vertex_access_token()
         url = google_vertex_url(base_url, model, 'generateContent')
-        payload = build_google_generate_payload(messages, thinking=thinking, want_json=want_json)
+        payload = build_google_generate_payload(messages, thinking=thinking, want_json=want_json, tools=tools, tool_choice=tool_choice)
         req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {token}'})
         with urllib.request.urlopen(req, timeout=GOOGLE_TIMEOUT_SECONDS) as resp:
             result = json.loads(resp.read())
@@ -11414,7 +11528,13 @@ def call_google_completion(base_url, model, payload, api_key='', thinking=DEFAUL
     if 'generativelanguage.googleapis.com' in base_url and '/v1beta' not in base_url:
         base_url = base_url.rstrip('/') + '/v1beta'
     url = base_url.rstrip('/') + f'/models/{urllib.parse.quote(model, safe="")}:generateContent'
-    body_payload = build_google_generate_payload(payload.get('messages', []), thinking=thinking, want_json=payload.get('response_format', {}).get('type') == 'json_object')
+    body_payload = build_google_generate_payload(
+        payload.get('messages', []),
+        thinking=thinking,
+        want_json=payload.get('response_format', {}).get('type') == 'json_object',
+        tools=payload.get('tools'),
+        tool_choice=payload.get('tool_choice'),
+    )
     try:
         data = json.dumps(body_payload).encode()
         hdrs = {'Content-Type': 'application/json'}
@@ -11424,11 +11544,16 @@ def call_google_completion(base_url, model, payload, api_key='', thinking=DEFAUL
         with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
             body = json.loads(resp.read())
         text = parse_google_generate_text(body)
-        if not text:
+        tool_calls = parse_google_generate_tool_calls(body)
+        if not text and not tool_calls:
             return False, json.dumps(body)[:500]
+        leak_reason = reject_visible_tool_call_leak(payload, text, tool_calls)
+        if leak_reason:
+            logger.warning(f"Google {base_url} {model}: {leak_reason}")
+            return False, leak_reason
         candidate = (body.get('candidates') or [{}])[0] or {}
-        finish_reason = google_finish_reason_to_openai_finish_reason(candidate.get('finishReason'))
-        return True, build_openai_completion(provider_name, model, request_id, text, [], finish_reason, {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
+        finish_reason = 'tool_calls' if tool_calls else google_finish_reason_to_openai_finish_reason(candidate.get('finishReason'))
+        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
     except Exception as e:
         err = extract_http_error(e)
         logger.warning(f"Google {base_url} {model}: {err}")
@@ -11436,10 +11561,34 @@ def call_google_completion(base_url, model, payload, api_key='', thinking=DEFAUL
 
 
 def call_google_vertex_completion(base_url, model, payload, thinking=DEFAULT_THINKING_LEVEL, debug_mode=False, request_id='', provider_name='google-vertex'):
-    ok, text = call_google_vertex(base_url, model, payload.get('messages', []), thinking=thinking, want_json=payload.get('response_format', {}).get('type') == 'json_object')
-    if not ok:
-        return False, text
-    return True, build_openai_completion(provider_name, model, request_id, text, [], 'stop', {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
+    try:
+        token = google_vertex_access_token()
+        url = google_vertex_url(base_url, model, 'generateContent')
+        body_payload = build_google_generate_payload(
+            payload.get('messages', []),
+            thinking=thinking,
+            want_json=payload.get('response_format', {}).get('type') == 'json_object',
+            tools=payload.get('tools'),
+            tool_choice=payload.get('tool_choice'),
+        )
+        req = urllib.request.Request(url, data=json.dumps(body_payload).encode(), headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {token}'})
+        with urllib.request.urlopen(req, timeout=GOOGLE_TIMEOUT_SECONDS) as resp:
+            body = json.loads(resp.read())
+        text = parse_google_generate_text(body)
+        tool_calls = parse_google_generate_tool_calls(body)
+        if not text and not tool_calls:
+            return False, json.dumps(body)[:500]
+        leak_reason = reject_visible_tool_call_leak(payload, text, tool_calls)
+        if leak_reason:
+            logger.warning(f"Vertex AI {base_url or GOOGLE_VERTEX_PROJECT} {model}: {leak_reason}")
+            return False, leak_reason
+        candidate = (body.get('candidates') or [{}])[0] or {}
+        finish_reason = 'tool_calls' if tool_calls else google_finish_reason_to_openai_finish_reason(candidate.get('finishReason'))
+        return True, build_openai_completion(provider_name, model, request_id, text, tool_calls, finish_reason, {'prompt_tokens': 0, 'completion_tokens': 0}, debug_mode=debug_mode, allow_debug_prefix=payload.get('response_format', {}).get('type') != 'json_object', suppress_tool_call_content=bool((payload.get('requirements') or {}).get('suppressToolCallContent') or payload.get('suppressToolCallContent') or payload.get('suppressIntermediateToolText')))
+    except Exception as e:
+        err = extract_http_error(e)
+        logger.warning(f"Vertex AI {base_url or GOOGLE_VERTEX_PROJECT} {model}: {err}")
+        return False, err
 
 
 def open_upstream_with_credential_failover(provider, build_request, timeout, stream=True):

@@ -220,6 +220,103 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         self.assertEqual('length', router.google_finish_reason_to_openai_finish_reason('MAX_TOKENS'))
         self.assertEqual('stop', router.google_finish_reason_to_openai_finish_reason('STOP'))
 
+    def test_google_payload_includes_function_declarations_and_tool_results(self):
+        payload = router.build_google_generate_payload(
+            [
+                {'role': 'user', 'content': 'List files'},
+                {'role': 'assistant', 'content': '', 'tool_calls': [{
+                    'id': 'call_123',
+                    'type': 'function',
+                    'function': {'name': 'exec', 'arguments': '{"command":"ls"}'},
+                }]},
+                {'role': 'tool', 'tool_call_id': 'call_123', 'content': 'README.md'},
+            ],
+            tools=[{
+                'type': 'function',
+                'function': {
+                    'name': 'exec',
+                    'description': 'Run a shell command.',
+                    'parameters': {'type': 'object', 'properties': {'command': {'type': 'string'}}},
+                },
+            }],
+            tool_choice='required',
+        )
+        declaration = payload['tools'][0]['functionDeclarations'][0]
+        self.assertEqual('exec', declaration['name'])
+        self.assertEqual({'type': 'object', 'properties': {'command': {'type': 'string'}}}, declaration['parameters'])
+        self.assertEqual('ANY', payload['toolConfig']['functionCallingConfig']['mode'])
+        self.assertEqual(['exec'], payload['toolConfig']['functionCallingConfig']['allowedFunctionNames'])
+        self.assertEqual({'name': 'exec', 'args': {'command': 'ls'}}, payload['contents'][1]['parts'][0]['functionCall'])
+        self.assertEqual({'name': 'exec', 'response': {'result': 'README.md'}}, payload['contents'][2]['parts'][0]['functionResponse'])
+
+    def test_google_function_call_response_maps_to_openai_tool_calls(self):
+        body = {
+            'candidates': [{
+                'content': {'parts': [{'functionCall': {'name': 'exec', 'args': {'command': 'find /tmp -maxdepth 1'}}}]},
+                'finishReason': 'STOP',
+            }]
+        }
+        calls = router.parse_google_generate_tool_calls(body)
+        self.assertEqual(1, len(calls))
+        self.assertTrue(calls[0]['id'].startswith('call_'))
+        self.assertEqual('exec', calls[0]['function']['name'])
+        self.assertEqual({'command': 'find /tmp -maxdepth 1'}, calls[0]['function']['arguments'])
+
+    def test_google_completion_returns_structured_tool_calls(self):
+        response_body = {
+            'candidates': [{
+                'content': {'parts': [{'functionCall': {'name': 'exec', 'args': {'command': 'ls -la /'}}}]},
+                'finishReason': 'STOP',
+            }]
+        }
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return json.dumps(response_body).encode()
+
+        old_urlopen = router.urllib.request.urlopen
+        captured = {}
+
+        def fake_urlopen(req, timeout=None):
+            captured['payload'] = json.loads(req.data.decode())
+            captured['timeout'] = timeout
+            return FakeResponse()
+
+        router.urllib.request.urlopen = fake_urlopen
+        try:
+            ok, completion = router.call_google_completion(
+                'https://generativelanguage.googleapis.com',
+                'gemini-2.5-flash',
+                {
+                    'messages': [{'role': 'user', 'content': 'inspect root'}],
+                    'tools': [{'type': 'function', 'function': {'name': 'exec', 'parameters': {'type': 'object'}}}],
+                    'tool_choice': 'auto',
+                },
+                api_key='test-key',
+                request_id='req-google-tools',
+            )
+        finally:
+            router.urllib.request.urlopen = old_urlopen
+
+        self.assertTrue(ok)
+        self.assertIn('tools', captured['payload'])
+        self.assertEqual('AUTO', captured['payload']['toolConfig']['functionCallingConfig']['mode'])
+        self.assertEqual('tool_calls', completion['choices'][0]['finish_reason'])
+        message = completion['choices'][0]['message']
+        self.assertEqual('', message['content'])
+        self.assertEqual('exec', message['tool_calls'][0]['function']['name'])
+        self.assertEqual({'command': 'ls -la /'}, json.loads(message['tool_calls'][0]['function']['arguments']))
+
+    def test_google_models_are_tool_capable_for_agentic_fallback(self):
+        provider = router.Provider('google', 'google-generative-language', 'https://generativelanguage.googleapis.com/v1beta', 'key', ['gemini-2.5-flash'])
+        self.assertTrue(router.model_capabilities(provider, 'gemini-2.5-flash')['tools'])
+
 
 if __name__ == '__main__':
     unittest.main()

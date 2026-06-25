@@ -127,6 +127,10 @@ provider resale claim, or runtime feature flag.
   `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public
   `/model-catalog`, generated `sk_sage_*` keys, quota headers, rate-limit
   headers, failover signals, and the authenticated model API boundary.
+- Keep Google Gemini and Vertex AI viable as agentic fallback routes by
+  translating OpenAI-compatible function tools into Gemini function
+  declarations, preserving tool results in the conversation, and returning
+  structured OpenAI-compatible `tool_calls` instead of visible tool-call text.
 - Keep `/docs/gateway-migration` as the model gateway customer migration path
   with `OPENAI_BASE_URL=https://gateway.example/api/v1` to
   `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys,
