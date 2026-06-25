@@ -676,6 +676,9 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "No provider key is required to create an account" /tmp/sage-router-readiness-body; then
     account_code="200:missing-no-provider-key-signup-copy"
   fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "key first, then complete checkout" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-key-first-account-copy"
+  fi
   if [[ "$account_code" == "200" ]] && ! grep -q "intent-email-form" /tmp/sage-router-readiness-body; then
     account_code="200:missing-direct-email-setup-form"
   fi
@@ -818,6 +821,9 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "accountPageUrlWithPlan" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-plan-preserving-account-redirect"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "create a generated sk_sage key first and complete checkout" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-key-first-intent-copy"
   fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-app-account-url"

@@ -43,6 +43,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("button.dataset.intentOauth ? `intent_${button.dataset.oauth}`", js)
         self.assertIn("mirrorIntent: button.dataset.intentOauth === 'true'", js)
         self.assertIn("Continue with an enabled OAuth provider, or enter your email for a magic link", js)
+        self.assertIn("create a generated <code>sk_sage_*</code> key first, then complete checkout", html)
+        self.assertIn("then create a generated sk_sage key first and complete checkout", js)
         self.assertIn("magicLogin({ button: 'intent_primary', preferIntent: true })", js)
         self.assertIn("target: activationState.signedIn ? (activationState.keyCount ? '#billing' : '#create-key') : '#intent-email'", js)
         self.assertIn("account_intent_create_key_clicked", js)

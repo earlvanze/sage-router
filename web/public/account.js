@@ -274,7 +274,7 @@ function renderAccountIntent() {
   set('account-intent-plan', price ? `${planName} · ${price}` : planName);
   set('account-intent-checkout', checkoutReady ? 'Stripe checkout ready' : 'Manual fallback available');
   if (!activationState.signedIn) {
-    set('account-intent-copy', 'No provider key is required to create an account. Continue with an enabled OAuth provider, or enter your email for a magic link, then complete checkout and create a generated sk_sage_* key.');
+    set('account-intent-copy', 'No provider key is required to create an account. Continue with an enabled OAuth provider, or enter your email for a magic link, then create a generated sk_sage key first and complete checkout to unlock routing.');
     const intentButton = $('intent-primary');
     if (intentButton) intentButton.textContent = `Email me the ${planName} setup link`;
     return;
