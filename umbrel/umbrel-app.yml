@@ -40,6 +40,6 @@ gallery: []
 releaseNotes: ""
 dependencies:
   - ollama
-path: ""
+path: "/dashboard"
 defaultUsername: ""
 defaultPassword: ""

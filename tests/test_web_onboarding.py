@@ -13,6 +13,11 @@ class HostedOnboardingTests(unittest.TestCase):
     def read_text(self, *parts):
         return (ROOT.joinpath(*parts)).read_text(encoding="utf-8")
 
+    def test_umbrel_app_shortcut_opens_dashboard(self):
+        manifest = self.read_text("umbrel", "umbrel-app.yml")
+        self.assertIn('path: "/dashboard"', manifest)
+        self.assertIn("port: 8790", manifest)
+
     def test_account_page_has_explicit_email_signup(self):
         html = self.read_public("account.html")
         js = self.read_public("account.js")
