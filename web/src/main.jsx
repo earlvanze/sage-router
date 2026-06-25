@@ -240,10 +240,10 @@ function App() {
               <a className="button primary" href="/account.html?plan=pro" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
                 plan: 'pro',
                 target: '/account.html?plan=pro',
-                button: 'Create hosted API key',
+                button: 'Start Pro setup',
                 state: 'hero',
               })}>
-                Create hosted API key
+                Start Pro setup
               </a>
               <a className="button secondary" href="/pricing" onClick={() => trackLandingFunnelEvent('landing_pricing_clicked', {
                 target: '/pricing',
@@ -363,6 +363,28 @@ function App() {
               Bring your own authorized provider access; Sage Router does not resell models, pool
               accounts, or bypass provider terms.
             </p>
+            <div className="activationStrip" aria-label="Hosted activation path">
+              <div>
+                <strong>1. Pick Pro</strong>
+                <span>Plan intent is preserved through sign-in.</span>
+              </div>
+              <div>
+                <strong>2. Create <code>sk_sage_*</code></strong>
+                <span>Generate a key in the browser account flow.</span>
+              </div>
+              <div>
+                <strong>3. Verify the edge</strong>
+                <span>Test <code>/v1/models</code> and send a first request.</span>
+              </div>
+              <a className="activationCta" href="/account.html?plan=pro" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
+                plan: 'pro',
+                target: '/account.html?plan=pro',
+                button: 'Start Pro activation',
+                state: 'activation-strip',
+              })}>
+                Start Pro activation →
+              </a>
+            </div>
           </div>
 
           <div className="terminalCard" aria-label="Sage Router quick start terminal example">

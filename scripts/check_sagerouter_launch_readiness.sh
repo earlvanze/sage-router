@@ -882,6 +882,43 @@ check_funnel_event_endpoint() {
   fi
 }
 
+check_marketing_homepage_activation() {
+  local page_code bundle_path bundle_code homepage_body bundle_body
+  homepage_body="$(mktemp)"
+  bundle_body="$(mktemp)"
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/")"
+  cp /tmp/sage-router-readiness-body "$homepage_body"
+  bundle_path="$(grep -Eo 'src="/assets/[^"]+\.js"' "$homepage_body" | head -n1 | sed -E 's/^src="([^"]+)"$/\1/' || true)"
+  if [[ "$page_code" == "200" && -n "$bundle_path" ]]; then
+    bundle_code="$(http_code_follow "${MARKETING_BASE%/}${bundle_path}")"
+    cp /tmp/sage-router-readiness-body "$bundle_body"
+    if [[ "$bundle_code" != "200" ]]; then
+      page_code="200:homepage-bundle-${bundle_code}"
+    fi
+  else
+    : > "$bundle_body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Start Pro activation" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-pro-activation-cta"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/account.html?plan=pro" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-pro-account-link"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "landing_account_clicked" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-account-funnel-event"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/v1/models" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-edge-verification-copy"
+  fi
+  rm -f /tmp/sage-router-readiness-body "$homepage_body" "$bundle_body"
+
+  if [[ "$page_code" == "200" ]]; then
+    pass "marketing homepage exposes a measured Pro activation path"
+  else
+    fail "marketing homepage activation path incomplete: page=${page_code}"
+  fi
+}
+
 check_marketing_comparison_page() {
   local page_code openrouter_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/compare/model-gateways")"
@@ -1850,6 +1887,7 @@ check_hosted_onboarding_pages
 check_public_supabase_auth_settings
 check_waitlist_endpoint
 check_funnel_event_endpoint
+check_marketing_homepage_activation
 check_marketing_comparison_page
 check_marketing_gateway_migration_page
 check_marketing_pricing_page

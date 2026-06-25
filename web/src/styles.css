@@ -41,6 +41,13 @@ h3 { font-size: 21px; line-height: 1.2; letter-spacing: -0.035em; margin-bottom:
 .primary { background: linear-gradient(135deg, var(--brand), var(--brand-strong)); color: #04150d; box-shadow: 0 16px 48px rgba(80,216,145,.24); }
 .secondary { border: 1px solid var(--border); color: var(--text); background: rgba(255,255,255,.04); }
 .complianceNote { color: var(--muted); max-width: 680px; font-size: 14px; }
+.activationStrip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 760px; margin-top: 18px; padding: 14px; border: 1px solid rgba(141,240,178,.22); border-radius: 22px; background: rgba(13,29,24,.74); box-shadow: 0 18px 60px rgba(0,0,0,.16); }
+.activationStrip div { padding: 10px; border: 1px solid rgba(166,255,207,.11); border-radius: 16px; background: rgba(255,255,255,.032); }
+.activationStrip strong, .activationStrip span { display: block; }
+.activationStrip strong { color: var(--text); font-size: 14px; margin-bottom: 4px; }
+.activationStrip span { color: var(--muted); font-size: 13px; line-height: 1.35; }
+.activationStrip code { color: #d9f8e6; }
+.activationCta { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; min-height: 42px; border-radius: 999px; background: rgba(141,240,178,.1); border: 1px solid rgba(141,240,178,.34); color: var(--brand); font-weight: 900; }
 .terminalCard { background: linear-gradient(180deg, rgba(12, 28, 22, .96), rgba(5, 12, 10, .96)); border: 1px solid rgba(141,240,178,.18); border-radius: 28px; overflow: hidden; box-shadow: var(--shadow); transform: rotate(1deg); }
 .terminalTop { height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 18px; background: rgba(255,255,255,.045); border-bottom: 1px solid rgba(141,240,178,.12); }
 .terminalTop span { width: 11px; height: 11px; border-radius: 50%; background: #426255; }
@@ -63,7 +70,7 @@ footer { max-width: 1180px; margin: 0 auto; padding: 34px clamp(20px, 5vw, 0px) 
 footer span { margin-right: auto; }
 @media (max-width: 920px) {
   .heroGrid, .hotSwap, .intro { grid-template-columns: 1fr; }
-  .cards, .steps, .intentGrid, .presetGrid, .docsGrid { grid-template-columns: 1fr; }
+  .cards, .steps, .intentGrid, .presetGrid, .docsGrid, .activationStrip { grid-template-columns: 1fr; }
   .terminalCard { transform: none; }
   .nav { align-items: flex-start; }
   .navLinks { flex-wrap: wrap; justify-content: flex-end; }
