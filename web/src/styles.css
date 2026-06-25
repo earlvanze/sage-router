@@ -36,6 +36,12 @@ h2 { font-size: clamp(30px, 4vw, 54px); line-height: 1; letter-spacing: -0.055em
 h3 { font-size: 21px; line-height: 1.2; letter-spacing: -0.035em; margin-bottom: 12px; }
 .subhero { font-size: clamp(20px, 2.2vw, 28px); line-height: 1.35; color: #d2eadf; max-width: 780px; margin-bottom: 32px; }
 .heroActions { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 22px; }
+.heroPrimaryActions { margin-bottom: 14px; }
+.heroPrimaryActions .button.primary { min-width: 218px; }
+.heroExploreLinks { display: flex; flex-wrap: wrap; gap: 9px 12px; align-items: center; margin: -4px 0 22px; color: var(--muted); font-size: 14px; }
+.heroExploreLinks span { color: var(--brand); font-weight: 900; text-transform: uppercase; letter-spacing: .08em; font-size: 12px; }
+.heroExploreLinks a { border-bottom: 1px solid rgba(141,240,178,.24); color: #d2eadf; }
+.heroExploreLinks a:hover { color: var(--text); border-bottom-color: rgba(141,240,178,.62); }
 .button { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; padding: 0 22px; font-weight: 800; transition: transform .18s ease, border-color .18s ease, background .18s ease; }
 .button:hover { transform: translateY(-2px); }
 .primary { background: linear-gradient(135deg, var(--brand), var(--brand-strong)); color: #04150d; box-shadow: 0 16px 48px rgba(80,216,145,.24); }

@@ -21,6 +21,7 @@ const steps = [
 ];
 
 const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro';
+const ACCOUNT_PAGE_HREF = '/account.html?plan=pro';
 const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
 
@@ -332,127 +333,104 @@ function App() {
               OpenHands, and OpenAI-compatible clients across authorized providers and local/cloud models.
             </p>
             <LandingEmailStart />
-            <div className="heroActions">
-              <a className="button primary" href="https://app.sagerouter.dev/account.html?plan=pro" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
+            <div className="heroActions heroPrimaryActions">
+              <a className="button primary" href="/account.html?plan=pro" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
                 plan: 'pro',
-                target: 'https://app.sagerouter.dev/account.html?plan=pro',
-                button: 'Start Pro setup',
-                state: 'hero',
+                target: ACCOUNT_PAGE_HREF,
+                button: 'Create hosted API key',
+                state: 'hero-primary',
               })}>
-                Start Pro setup
+                Create hosted API key
               </a>
               <a className="button secondary" href="/pricing" onClick={() => trackLandingFunnelEvent('landing_pricing_clicked', {
                 target: '/pricing',
                 button: 'Compare hosted plans',
-                state: 'hero',
+                state: 'hero-primary',
               })}>
                 Compare hosted plans
-              </a>
-              <a className="button secondary" href="/billing" onClick={() => trackLandingFunnelEvent('landing_billing_clicked', {
-                target: '/billing',
-                button: 'Billing help',
-                state: 'hero',
-              })}>
-                Billing help
               </a>
               <a className="button secondary" href="/quickstart" onClick={() => trackLandingFunnelEvent('landing_quickstart_clicked', {
                 target: '/quickstart',
                 button: 'Read quickstart',
-                state: 'hero',
+                state: 'hero-primary',
               })}>
                 Read quickstart
-              </a>
-              <a className="button secondary" href="/integrations" onClick={() => trackLandingFunnelEvent('landing_integrations_clicked', {
-                target: '/integrations',
-                button: 'Browse integrations',
-                state: 'hero',
-              })}>
-                Browse integrations
-              </a>
-              <a className="button secondary" href="/status" onClick={() => trackLandingFunnelEvent('landing_status_clicked', {
-                target: '/status',
-                button: 'View public status',
-                state: 'hero',
-              })}>
-                View public status
               </a>
               <a className="button secondary" href="/compare/model-gateways" onClick={() => trackLandingFunnelEvent('landing_gateway_compare_clicked', {
                 target: '/compare/model-gateways',
                 button: 'Compare gateways',
-                state: 'hero',
+                state: 'hero-primary',
               })}>
                 Compare gateways
               </a>
-              <a className="button secondary" href="/compare/openrouter" onClick={() => trackLandingFunnelEvent('landing_gateway_compare_clicked', {
+            </div>
+            <div className="heroExploreLinks" aria-label="Secondary Sage Router paths">
+              <span>Explore:</span>
+              <a href="/billing" onClick={() => trackLandingFunnelEvent('landing_billing_clicked', {
+                target: '/billing',
+                button: 'Billing help',
+                state: 'hero-secondary',
+              })}>Billing help</a>
+              <a href="/integrations" onClick={() => trackLandingFunnelEvent('landing_integrations_clicked', {
+                target: '/integrations',
+                button: 'Browse integrations',
+                state: 'hero-secondary',
+              })}>Browse integrations</a>
+              <a href="/status" onClick={() => trackLandingFunnelEvent('landing_status_clicked', {
+                target: '/status',
+                button: 'View public status',
+                state: 'hero-secondary',
+              })}>View public status</a>
+              <a href="/compare/openrouter" onClick={() => trackLandingFunnelEvent('landing_gateway_compare_clicked', {
                 target: '/compare/openrouter',
                 button: 'Compare OpenRouter',
-                state: 'hero-openrouter',
-              })}>
-                Compare OpenRouter
-              </a>
-              <a className="button secondary" href="/local-first-routing-for-ai-agents" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                state: 'hero-secondary-openrouter',
+              })}>Compare OpenRouter</a>
+              <a href="/local-first-routing-for-ai-agents" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/local-first-routing-for-ai-agents',
                 button: 'Read local-first guide',
-                state: 'hero',
-              })}>
-                Read local-first guide
-              </a>
-              <a className="button secondary" href="/self-hosted-ai-model-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                state: 'hero-secondary',
+              })}>Read local-first guide</a>
+              <a href="/self-hosted-ai-model-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/self-hosted-ai-model-router',
                 button: 'Self-hosted router',
-                state: 'hero-self-hosted',
-              })}>
-                Self-hosted router
-              </a>
-              <a className="button secondary" href="/models" onClick={() => trackLandingFunnelEvent('landing_models_clicked', {
+                state: 'hero-secondary-self-hosted',
+              })}>Self-hosted router</a>
+              <a href="/models" onClick={() => trackLandingFunnelEvent('landing_models_clicked', {
                 target: '/models',
                 button: 'Browse models',
-                state: 'hero',
-              })}>
-                Browse models
-              </a>
-              <a className="button secondary" href="/model-routing-calculator" onClick={() => trackLandingFunnelEvent('landing_calculator_clicked', {
+                state: 'hero-secondary',
+              })}>Browse models</a>
+              <a href="/model-routing-calculator" onClick={() => trackLandingFunnelEvent('landing_calculator_clicked', {
                 target: '/model-routing-calculator',
                 button: 'Estimate routing savings',
-                state: 'hero',
-              })}>
-                Estimate routing savings
-              </a>
-              <a className="button secondary" href="/managed-access" onClick={() => trackLandingFunnelEvent('landing_managed_access_clicked', {
+                state: 'hero-secondary',
+              })}>Estimate routing savings</a>
+              <a href="/managed-access" onClick={() => trackLandingFunnelEvent('landing_managed_access_clicked', {
                 target: '/managed-access',
                 button: 'Managed access beta',
-                state: 'hero',
-              })}>
-                Managed access beta
-              </a>
-              <a className="button secondary" href="/security" onClick={() => trackLandingFunnelEvent('landing_security_clicked', {
+                state: 'hero-secondary',
+              })}>Managed access beta</a>
+              <a href="/security" onClick={() => trackLandingFunnelEvent('landing_security_clicked', {
                 target: '/security',
                 button: 'Review security',
-                state: 'hero',
-              })}>
-                Review security
-              </a>
-              <a className="button secondary" href="/analytics.html" onClick={() => trackLandingFunnelEvent('landing_analytics_clicked', {
+                state: 'hero-secondary',
+              })}>Review security</a>
+              <a href="/analytics.html" onClick={() => trackLandingFunnelEvent('landing_analytics_clicked', {
                 target: '/analytics.html',
                 button: 'View analytics dashboard',
-                state: 'hero',
-              })}>
-                View analytics dashboard
-              </a>
-              <a className="button secondary" href="/login.html" onClick={() => trackLandingFunnelEvent('landing_login_clicked', {
+                state: 'hero-secondary',
+              })}>View analytics dashboard</a>
+              <a href="/login.html" onClick={() => trackLandingFunnelEvent('landing_login_clicked', {
                 target: '/login.html',
                 button: 'Sign in',
-                state: 'hero',
-              })}>
-                Sign in
-              </a>
-              <a className="button secondary" href="https://github.com/earlvanze/sage-router" onClick={() => trackLandingFunnelEvent('landing_github_clicked', {
+                state: 'hero-secondary',
+              })}>Sign in</a>
+              <a href="https://github.com/earlvanze/sage-router" onClick={() => trackLandingFunnelEvent('landing_github_clicked', {
                 target: 'https://github.com/earlvanze/sage-router',
                 button: 'Run locally',
-                state: 'hero',
-              })}>
-                Run locally
-              </a>
+                state: 'hero-secondary',
+              })}>Run locally</a>
             </div>
             <p className="complianceNote">
               Hosted plans include account-managed keys, quotas, analytics, and reliability routing.
@@ -472,9 +450,9 @@ function App() {
                 <strong>3. Verify the edge</strong>
                 <span>Test <code>/v1/models</code> and send a first request.</span>
               </div>
-              <a className="activationCta" href="https://app.sagerouter.dev/account.html?plan=pro" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
+              <a className="activationCta" href="/account.html?plan=pro" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
                 plan: 'pro',
-                target: 'https://app.sagerouter.dev/account.html?plan=pro',
+                target: ACCOUNT_PAGE_HREF,
                 button: 'Start Pro activation',
                 state: 'activation-strip',
               })}>
