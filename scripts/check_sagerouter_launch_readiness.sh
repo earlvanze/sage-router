@@ -788,6 +788,9 @@ check_hosted_onboarding_pages() {
   if [[ "$account_js_code" == "200" ]] && ! grep -q "canonicalAccountPageUrl" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-canonical-account-redirect"
   fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "accountPageUrlWithPlan" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-plan-preserving-account-redirect"
+  fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-app-account-url"
   fi

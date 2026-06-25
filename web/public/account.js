@@ -139,6 +139,14 @@ let activationState = {
   keyVerified: false,
   requestCount: 0,
 };
+
+function accountPageUrlWithPlan(plan = selectedPlan) {
+  const url = new URL(ACCOUNT_PAGE_URL);
+  const normalized = normalizePlan(plan);
+  if (normalized) url.searchParams.set('plan', normalized);
+  return url.toString();
+}
+
 let supportContextState = {
   plan: selectedPlan,
   status: 'signed_out',
@@ -867,7 +875,8 @@ async function oauthLogin(provider) {
   set('auth-status', `Opening ${provider} sign-in...`);
   rememberOnboardingContext(onboardingContext({ authMethod: provider }));
   trackAccountFunnelEvent('account_oauth_clicked', { button: provider, target: '/auth/v1/authorize', state: provider });
-  const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: ACCOUNT_PAGE_URL } });
+  const redirectTo = accountPageUrlWithPlan();
+  const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo } });
   if (error) set('auth-status', error.message);
 }
 
@@ -914,7 +923,7 @@ async function passwordSignup() {
   const { data, error } = await sb.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: ACCOUNT_PAGE_URL, data: metadata },
+    options: { emailRedirectTo: accountPageUrlWithPlan(metadata.selected_plan), data: metadata },
   });
   if (error) {
     set('auth-status', error.message);
@@ -935,7 +944,7 @@ async function magicLogin() {
   trackAccountFunnelEvent('account_magic_link_requested', { button: 'magic_login', target: '/auth/v1/otp', state: 'email' });
   const metadata = onboardingContext({ authMethod: 'magic_link' });
   rememberOnboardingContext(metadata);
-  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: ACCOUNT_PAGE_URL, data: metadata } });
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: accountPageUrlWithPlan(metadata.selected_plan), data: metadata } });
   set('auth-status', error ? error.message : 'Magic link sent. Check your email.');
   if (!error) trackAccountFunnelEvent('account_magic_link_sent', { button: 'magic_login', target: ACCOUNT_PAGE_URL, state: 'email' });
 }
@@ -951,7 +960,7 @@ async function resendVerificationEmail() {
     const { error } = await sb.auth.resend({
       type: 'signup',
       email: verificationEmail,
-      options: { emailRedirectTo: ACCOUNT_PAGE_URL },
+      options: { emailRedirectTo: accountPageUrlWithPlan() },
     });
     if (error) {
       set('email-verification-status', error.message);
