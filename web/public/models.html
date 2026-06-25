@@ -18,6 +18,7 @@
     .copyRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
     .copyRow button{border:0;cursor:pointer}
     .copyRow span{min-height:22px;color:var(--brand);font-size:14px}
+    .emailStart .oauthButton{background:linear-gradient(135deg,var(--brand),#50d891);color:#04150d}
   </style>
 </head>
 <body>
@@ -54,6 +55,7 @@
         </div>
         <form class="emailStart" id="model-catalog-email-form">
           <label for="model-catalog-email">Get a Pro key setup link</label>
+          <button id="model-catalog-github-pro" class="button primary oauthButton" type="button">Continue with GitHub for Pro</button>
           <input id="model-catalog-email" type="email" name="email" autocomplete="email" placeholder="you@company.com" required />
           <button class="button primary" type="submit">Email me the Pro key link</button>
           <p class="emailStartStatus" id="model-catalog-email-status" role="status">No provider key required to create your Sage Router account.</p>
@@ -374,6 +376,40 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
       }
     }
 
+    async function modelCatalogOauthLogin(event) {
+      const button = event.currentTarget;
+      const original = button.textContent;
+      const status = $('model-catalog-email-status');
+      button.disabled = true;
+      button.textContent = 'Opening GitHub...';
+      if (status) status.textContent = 'Opening GitHub sign-in for Pro.';
+      trackModelCatalogEvent('model_catalog_oauth_clicked', {
+        plan: 'pro',
+        button: 'Continue with GitHub for Pro',
+        state: 'github'
+      }, ACCOUNT_PAGE_URL);
+      try {
+        const api = await loadSupabaseClient();
+        const client = api.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const { error } = await client.auth.signInWithOAuth({
+          provider: 'github',
+          options: { redirectTo: ACCOUNT_PAGE_URL }
+        });
+        if (error) throw error;
+      } catch (error) {
+        trackModelCatalogEvent('model_catalog_oauth_failed', {
+          plan: 'pro',
+          button: 'Continue with GitHub for Pro',
+          state: 'github'
+        }, ACCOUNT_PAGE_URL);
+        if (status) status.textContent = 'GitHub sign-in failed here. Opening account setup instead...';
+        setTimeout(() => { window.location.href = ACCOUNT_PAGE_URL; }, 900);
+      } finally {
+        button.disabled = false;
+        button.textContent = original;
+      }
+    }
+
     function familyText(family) {
       return [family.id, family.name, family.access, ...(family.examples || []), ...(familyKeywords[family.id] || [])].map(normalize).join(' ');
     }
@@ -470,6 +506,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
       });
     });
     $('model-catalog-email-form')?.addEventListener('submit', sendModelCatalogMagicLink);
+    $('model-catalog-github-pro')?.addEventListener('click', modelCatalogOauthLogin);
     $('model-catalog-copy-setup')?.addEventListener('click', copyModelCatalogSetupBundle);
     setCatalog(embeddedCatalog, 'embedded');
     fetch('https://api.sagerouter.dev/model-catalog', { credentials: 'omit', headers: { Accept: 'application/json' } })
