@@ -372,10 +372,11 @@
       const sel = document.getElementById('credProvider');
       if (sel.value !== '__new__') {
         const group = (window.__sageCredentialProviders || {})[sel.value] || {};
+        const defaultForApi = providerDefaults[group.api || ''] || {};
         return {
           name: sel.value,
           api: group.api || '',
-          baseUrl: group.baseUrl || '',
+          baseUrl: group.api === 'ollama' ? (defaultForApi.baseUrl || group.baseUrl || '') : (group.baseUrl || defaultForApi.baseUrl || ''),
           strategy: group.strategy || 'failover'
         };
       }
