@@ -102,6 +102,14 @@ const routePaths = [
     state: 'route-path-grok',
   },
   {
+    label: 'Mistral AI',
+    title: 'Codestral and Mistral routes',
+    href: '/mistral-ai-router',
+    body: 'Route Mistral and Codestral through one policy layer with MISTRAL_API_KEY custody, code-profile fallback, and 429 failover.',
+    button: 'Mistral AI route path',
+    state: 'route-path-mistral',
+  },
+  {
     label: 'NVIDIA NIM',
     title: 'GPU-backed hosted inference',
     href: '/nvidia-nim-router',
@@ -602,6 +610,7 @@ function App() {
             <a href="/aws-bedrock-router">AWS Bedrock</a>
             <a href="/github-copilot-router">GitHub Copilot</a>
             <a href="/xai-grok-router">xAI Grok</a>
+            <a href="/mistral-ai-router">Mistral AI</a>
             <a href="/nvidia-nim-router">NVIDIA NIM</a>
             <a href="/coding-agent-model-router">Coding Agents</a>
             <a href="/cursor-ai-model-router">Cursor</a>
@@ -732,6 +741,11 @@ function App() {
                 button: 'xAI Grok router',
                 state: 'hero-secondary-grok-router',
               })}>xAI Grok router</a>
+              <a href="/mistral-ai-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/mistral-ai-router',
+                button: 'Mistral AI router',
+                state: 'hero-secondary-mistral-router',
+              })}>Mistral AI router</a>
               <a href="/nvidia-nim-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/nvidia-nim-router',
                 button: 'NVIDIA NIM router',
@@ -1116,6 +1130,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/aws-bedrock-router">AWS Bedrock</a>
         <a href="/github-copilot-router">GitHub Copilot</a>
         <a href="/xai-grok-router">xAI Grok</a>
+        <a href="/mistral-ai-router">Mistral AI</a>
         <a href="/nvidia-nim-router">NVIDIA NIM</a>
         <a href="/coding-agent-model-router">Coding Agents</a>
         <a href="/cursor-ai-model-router">Cursor</a>

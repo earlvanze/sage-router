@@ -153,6 +153,11 @@ provider resale claim, or runtime feature flag.
   OpenAI-compatible setup, `/v1/models` discovery, credential load balancing,
   429 failover, multimodal safeguards, xAI SSO proxy boundaries, and
   provider-authorization boundaries.
+- Keep `/mistral-ai-router` as the Mistral AI acquisition path for API-key
+  authorized Mistral and Codestral routing, customer-owned `MISTRAL_API_KEY`
+  custody, OpenAI-compatible setup, code-profile routing, credential load
+  balancing, 429 failover, multimodal safeguards, and provider-authorization
+  boundaries.
 - Keep `/azure-openai-router` as the Azure OpenAI acquisition path for
   customer-owned `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT` custody,
   Azure deployment routing, OpenAI-compatible setup, credential load balancing,
