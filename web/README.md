@@ -80,7 +80,8 @@ pre-signup checkout interest without collecting secrets or support text.
 ## Hosted onboarding CTA
 
 The primary homepage CTA is `Create hosted API key`, which links to
-`/account.html?plan=pro&start=checkout`. The hero also exposes a no-secret
+`https://app.sagerouter.dev/account.html?plan=pro&start=checkout` directly,
+without the marketing-host redirect hop. The hero also exposes a no-secret
 `Copy 60-second setup bundle` action that records `quickstart_snippet_copied`
 with `landing-hero-setup-bundle` metadata, so setup-copy intent is measurable
 before signup. The hero keeps pricing, quickstart, public status,

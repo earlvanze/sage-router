@@ -239,7 +239,7 @@ plan is not configured; in that case it records `calculator_checkout_unavailable
 and sends the prospect to the account/manual billing path.
 
 The public homepage now treats hosted signup as live: the homepage primary CTA
-is `Create hosted API key`, links directly to `/account.html?plan=pro&start=checkout`, and
+is `Create hosted API key`, links directly to `https://app.sagerouter.dev/account.html?plan=pro&start=checkout`, and
 now promotes a no-secret `Copy 60-second setup bundle` action above the fold so
 visitors can copy hosted edge, `sage-router/frontier`, and Codex profile setup
 before signing in. It keeps pricing, quickstart, status, model gateway comparison, model catalog,

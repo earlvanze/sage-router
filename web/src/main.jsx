@@ -21,7 +21,7 @@ const steps = [
 ];
 
 const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=checkout';
-const ACCOUNT_PAGE_HREF = '/account.html?plan=pro&start=checkout';
+const ACCOUNT_PAGE_HREF = ACCOUNT_PAGE_URL;
 const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
 
@@ -499,7 +499,7 @@ function App() {
             <LandingEmailStart />
             <HeroSetupCopy />
             <div className="heroActions heroPrimaryActions">
-              <a className="button primary" href="/account.html?plan=pro&start=checkout" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
+              <a className="button primary" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
                 plan: 'pro',
                 target: ACCOUNT_PAGE_HREF,
                 button: 'Create hosted API key',
@@ -620,7 +620,7 @@ function App() {
                 <strong>3. Verify the edge</strong>
                 <span>Test <code>/v1/models</code> and send a first request.</span>
               </div>
-              <a className="activationCta" href="/account.html?plan=pro&start=checkout" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
+              <a className="activationCta" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
                 plan: 'pro',
                 target: ACCOUNT_PAGE_HREF,
                 button: 'Start Pro activation',
