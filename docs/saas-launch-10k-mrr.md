@@ -157,6 +157,11 @@ provider resale claim, or runtime feature flag.
   customer-owned `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT` custody,
   Azure deployment routing, OpenAI-compatible setup, credential load balancing,
   429 failover, multimodal safeguards, and provider-authorization boundaries.
+- Keep `/aws-bedrock-router` as the Amazon Bedrock acquisition path for
+  customer-owned AWS account/IAM custody, `AWS_PROFILE`, `AWS_REGION`, Bedrock
+  model routing for authorized foundation models, OpenAI-compatible setup,
+  credential load balancing, 429 failover, multimodal safeguards, and
+  provider-authorization boundaries.
 - Keep `/nvidia-nim-router` as the NVIDIA NIM acquisition path for NVIDIA
   Cloud, GPU-backed hosted inference, customer-owned `NVIDIA_API_KEY` custody,
   OpenAI-compatible setup, credential load balancing, 429 failover, multimodal

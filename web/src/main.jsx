@@ -70,6 +70,14 @@ const routePaths = [
     state: 'route-path-anthropic',
   },
   {
+    label: 'AWS Bedrock',
+    title: 'Enterprise AWS model routes',
+    href: '/aws-bedrock-router',
+    body: 'Route customer-authorized Bedrock models through one policy layer with AWS account custody, 429 failover, and multimodal safeguards.',
+    button: 'AWS Bedrock route path',
+    state: 'route-path-bedrock',
+  },
+  {
     label: 'GitHub Copilot',
     title: 'Subscription-authorized coding routes',
     href: '/github-copilot-router',
@@ -591,6 +599,7 @@ function App() {
             <a href="/openai-api-router">OpenAI API</a>
             <a href="/azure-openai-router">Azure OpenAI</a>
             <a href="/anthropic-api-router">Anthropic</a>
+            <a href="/aws-bedrock-router">AWS Bedrock</a>
             <a href="/github-copilot-router">GitHub Copilot</a>
             <a href="/xai-grok-router">xAI Grok</a>
             <a href="/nvidia-nim-router">NVIDIA NIM</a>
@@ -708,6 +717,11 @@ function App() {
                 button: 'Anthropic API router',
                 state: 'hero-secondary-anthropic-router',
               })}>Anthropic API router</a>
+              <a href="/aws-bedrock-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/aws-bedrock-router',
+                button: 'AWS Bedrock router',
+                state: 'hero-secondary-bedrock-router',
+              })}>AWS Bedrock router</a>
               <a href="/github-copilot-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/github-copilot-router',
                 button: 'GitHub Copilot router',
@@ -1099,6 +1113,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/openai-api-router">OpenAI API</a>
         <a href="/azure-openai-router">Azure OpenAI</a>
         <a href="/anthropic-api-router">Anthropic</a>
+        <a href="/aws-bedrock-router">AWS Bedrock</a>
         <a href="/github-copilot-router">GitHub Copilot</a>
         <a href="/xai-grok-router">xAI Grok</a>
         <a href="/nvidia-nim-router">NVIDIA NIM</a>

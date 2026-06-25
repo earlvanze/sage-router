@@ -91,6 +91,12 @@
     <priority>0.85</priority>
   </url>
   <url>
+    <loc>https://sagerouter.dev/aws-bedrock-router</loc>
+    <lastmod>2026-06-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
     <loc>https://sagerouter.dev/github-copilot-router</loc>
     <lastmod>2026-06-25</lastmod>
     <changefreq>weekly</changefreq>
