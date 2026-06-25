@@ -107,10 +107,10 @@ provider resale claim, or runtime feature flag.
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
 - Keep `/pricing`, `/launch-plan`, `/billing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/gateway-migration`, `/docs/codex`, `/agent-native`, `/integrations`, `/status`, `/support`, `/account.html`, `/login.html`,
-  `/api/waitlist`, `/models`, `/managed-access`, `/compare/model-gateways`, `/model-routing-calculator`, `/terms`,
+  `/api/waitlist`, `/models`, `/managed-access`, `/compare/model-gateways`, `/compare/openrouter`, `/model-routing-calculator`, `/terms`,
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
-- Keep the public pricing, launch-plan, agent-native routing, calculator, legal, provider-resale,
+- Keep the public pricing, launch-plan, agent-native routing, calculator, model-gateway/OpenRouter comparison, legal, provider-resale,
   and margin-policy pages in sitemap and LLM discovery.
 - Keep public model discovery at `/models` and `/model-catalog`, while live
   `/v1/models` stays authenticated with generated `sk_sage_*` keys.

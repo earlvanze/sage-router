@@ -880,10 +880,25 @@ check_funnel_event_endpoint() {
 }
 
 check_marketing_comparison_page() {
-  local page_code sitemap_code
+  local page_code openrouter_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/compare/model-gateways")"
   if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router model gateway" /tmp/sage-router-readiness-body; then
     page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/compare/openrouter" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-openrouter-comparison-link"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  openrouter_code="$(http_code_follow "${MARKETING_BASE%/}/compare/openrouter")"
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "Sage Router vs OpenRouter" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:unexpected-openrouter-body"
+  fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "OpenRouter can be used as a BYOK-compatible provider route" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-byok-boundary"
+  fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "gateway_compare_viewed" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-funnel-event"
   fi
   rm -f /tmp/sage-router-readiness-body
 
@@ -891,12 +906,21 @@ check_marketing_comparison_page() {
   if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/compare/model-gateways" /tmp/sage-router-readiness-body; then
     sitemap_code="200:missing-compare-url"
   fi
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/compare/openrouter" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-openrouter-url"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
-  if [[ "$page_code" == "200" && "$sitemap_code" == "200" ]]; then
-    pass "marketing model gateway comparison page is live and in sitemap"
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "OpenRouter comparison: ${MARKETING_BASE%/}/compare/openrouter" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-openrouter-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$openrouter_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing model gateway and OpenRouter comparison pages are live in sitemap and LLM discovery"
   else
-    fail "marketing model gateway comparison incomplete: page=${page_code} sitemap=${sitemap_code}"
+    fail "marketing model gateway comparison incomplete: page=${page_code} openrouter=${openrouter_code} sitemap=${sitemap_code} llms=${llms_code}"
   fi
 }
 

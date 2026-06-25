@@ -27,6 +27,7 @@ Model catalog page: https://sagerouter.dev/models
 Agent-native routing page: https://sagerouter.dev/agent-native
 Integrations page: https://sagerouter.dev/integrations
 Gateway migration guide: https://sagerouter.dev/docs/gateway-migration
+OpenRouter comparison: https://sagerouter.dev/compare/openrouter
 
 The hosted Sage Router plans sell account management, generated API keys, quotas, route telemetry, fallback reliability, premium Fusion synthesis on Pro/Max, and support. Lite is $6/month for 10,000 included requests, Pro is $30/month for 50,000 included requests, and Max is $72/month for 200,000 included requests. A balanced path to $10k MRR is 100 Lite, 200 Pro, and 50 Max customers, which equals $10,200 MRR.
 
@@ -85,9 +86,12 @@ The hosted public edge is API-only. `https://api.sagerouter.dev/v1/*` and `/v1be
 ## Sage Router model gateway
 
 Comparison page: https://sagerouter.dev/compare/model-gateways
+OpenRouter comparison: https://sagerouter.dev/compare/openrouter
 Migration guide: https://sagerouter.dev/docs/gateway-migration
 
 Sage Router is positioned as a local-first Model gateway for agents and teams that want one endpoint, gateway-style model discovery through a searchable public catalog backed by `/model-catalog`, BYOK provider routing, local Ollama support, health-aware fallback, Tailnet/private router resilience, hosted account/API key management, and private credential custody by default. gateway-style hosted APIs are useful for marketplace-style model access with minimal local infrastructure; Sage Router is optimized for agent harnesses, customer-controlled provider access, and hybrid local/cloud deployments.
+
+The OpenRouter comparison page at https://sagerouter.dev/compare/openrouter targets buyers evaluating hosted model marketplace APIs versus local-first routing infrastructure. It positions OpenRouter as a useful hosted model marketplace and OpenAI-compatible API while clarifying that Sage Router is for teams that want provider keys, local models, Tailnet routers, failover policy, and routing telemetry under their own control. It also explains that OpenRouter can remain a customer-authorized BYOK-compatible route behind Sage Router rather than being bundled into Sage Router public subscription resale.
 
 ## Model routing calculator
 
