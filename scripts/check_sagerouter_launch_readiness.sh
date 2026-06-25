@@ -1121,6 +1121,12 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "Create Pro key next" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-post-copy-account-cta"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "stickyActivationBar" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-sticky-activation"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sticky create Pro key" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-sticky-account-funnel"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-setup-copy-funnel"
   fi

@@ -18,7 +18,7 @@
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; min-width: 320px; background: radial-gradient(circle at 18% 5%, rgba(80,216,145,.28), transparent 28rem), radial-gradient(circle at 85% 15%, rgba(247,213,122,.14), transparent 25rem), linear-gradient(180deg, #07100d 0%, #0a1511 48%, #07100d 100%); }
+body { margin: 0; min-width: 320px; padding-bottom: 92px; background: radial-gradient(circle at 18% 5%, rgba(80,216,145,.28), transparent 28rem), radial-gradient(circle at 85% 15%, rgba(247,213,122,.14), transparent 25rem), linear-gradient(180deg, #07100d 0%, #0a1511 48%, #07100d 100%); }
 a { color: inherit; text-decoration: none; }
 main { overflow: hidden; }
 .hero { min-height: 760px; padding: 24px clamp(20px, 5vw, 72px) 88px; position: relative; }
@@ -46,6 +46,11 @@ h3 { font-size: 21px; line-height: 1.2; letter-spacing: -0.035em; margin-bottom:
 .button:hover { transform: translateY(-2px); }
 .primary { background: linear-gradient(135deg, var(--brand), var(--brand-strong)); color: #04150d; box-shadow: 0 16px 48px rgba(80,216,145,.24); }
 .secondary { border: 1px solid var(--border); color: var(--text); background: rgba(255,255,255,.04); }
+.stickyActivationBar { position: fixed; left: 50%; bottom: 18px; z-index: 20; width: min(960px, calc(100vw - 32px)); transform: translateX(-50%); display: grid; grid-template-columns: minmax(220px, 1fr) auto auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid rgba(141,240,178,.28); border-radius: 999px; background: rgba(7,16,13,.92); box-shadow: 0 20px 70px rgba(0,0,0,.36); backdrop-filter: blur(18px); }
+.stickyActivationBar strong, .stickyActivationBar span { display: block; }
+.stickyActivationBar strong { color: var(--text); font-size: 14px; }
+.stickyActivationBar span { color: var(--muted); font-size: 13px; }
+.stickyActivationBar .button { min-height: 42px; padding: 0 18px; white-space: nowrap; }
 .heroEmailStart { display: grid; gap: 10px; max-width: 680px; margin: 0 0 18px; padding: 16px; border: 1px solid rgba(141,240,178,.24); border-radius: 24px; background: rgba(13,29,24,.76); box-shadow: 0 18px 60px rgba(0,0,0,.16); }
 .heroEmailStart label { color: var(--brand); font-weight: 900; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
 .heroEmailStart div { display: grid; grid-template-columns: minmax(220px, 1fr) auto; gap: 10px; }
@@ -100,10 +105,12 @@ footer span { margin-right: auto; }
   .navLinks { flex-wrap: wrap; justify-content: flex-end; }
 }
 @media (max-width: 560px) {
+  body { padding-bottom: 166px; }
   .hero { padding-top: 18px; }
   .nav, footer { flex-direction: column; align-items: stretch; }
   .navLinks { justify-content: flex-start; }
   .button { width: 100%; }
+  .stickyActivationBar { grid-template-columns: 1fr; border-radius: 24px; align-items: stretch; }
   .heroEmailStart div { grid-template-columns: 1fr; }
   .heroEmailStart button { width: 100%; }
   .heroEmailStart .heroOauthButton { width: 100%; min-width: 0; }

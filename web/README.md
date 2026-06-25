@@ -84,7 +84,9 @@ The primary homepage CTA is `Create hosted API key`, which links to
 without the marketing-host redirect hop. The hero also exposes a no-secret
 `Copy 60-second setup bundle` action that records `quickstart_snippet_copied`
 with `landing-hero-setup-bundle` metadata, so setup-copy intent is measurable
-before signup. The hero keeps pricing, quickstart, public status,
+before signup. A persistent bottom activation bar keeps `Create Pro key` and
+`60-second setup` visible after scroll while reusing `landing_account_clicked`
+and `landing_quickstart_clicked` telemetry. The hero keeps pricing, quickstart, public status,
 model-gateway comparison, model catalog, calculator, security, analytics, login,
 managed-access private beta review, support, and local GitHub install paths
 visible so a prospect can move from discovery to generated `sk_sage_*` key setup

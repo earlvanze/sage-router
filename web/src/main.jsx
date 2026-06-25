@@ -194,6 +194,32 @@ function HeroSetupCopy() {
   );
 }
 
+function StickyActivationBar() {
+  return (
+    <aside className="stickyActivationBar" aria-label="Hosted API activation">
+      <div>
+        <strong>Hosted API is live.</strong>
+        <span>Create a Pro key first; no provider key required.</span>
+      </div>
+      <a className="button primary" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
+        plan: 'pro',
+        target: ACCOUNT_PAGE_HREF,
+        button: 'Sticky create Pro key',
+        state: 'sticky-activation',
+      })}>
+        Create Pro key
+      </a>
+      <a className="button secondary" href="/quickstart" onClick={() => trackLandingFunnelEvent('landing_quickstart_clicked', {
+        target: '/quickstart',
+        button: 'Sticky quickstart',
+        state: 'sticky-activation',
+      })}>
+        60-second setup
+      </a>
+    </aside>
+  );
+}
+
 const loadTurnstileScript = () => new Promise((resolve, reject) => {
   if (window.turnstile) {
     resolve(window.turnstile);
@@ -454,6 +480,7 @@ function App() {
 
   return (
     <main>
+      <StickyActivationBar />
       <section className="hero">
         <nav className="nav" aria-label="Main navigation">
           <a className="brand" href="#top" aria-label="Sage Router home">

@@ -242,7 +242,9 @@ The public homepage now treats hosted signup as live: the homepage primary CTA
 is `Create hosted API key`, links directly to `https://app.sagerouter.dev/account.html?plan=pro&start=checkout`, and
 now promotes a no-secret `Copy 60-second setup bundle` action above the fold so
 visitors can copy hosted edge, `sage-router/frontier`, and Codex profile setup
-before signing in. It keeps pricing, quickstart, status, model gateway comparison, model catalog,
+before signing in. A persistent bottom activation bar keeps `Create Pro key` and
+the 60-second setup path visible after scrolling, using the same privacy-safe
+homepage funnel events. It keeps pricing, quickstart, status, model gateway comparison, model catalog,
 security, analytics, login, and local GitHub install paths available from the
 hero. The waitlist remains an updates/support path, not the primary conversion
 path. When a prospect requests the future one-subscription managed access path
