@@ -663,6 +663,9 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "intent-email-form" /tmp/sage-router-readiness-body; then
     account_code="200:missing-direct-email-setup-form"
   fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "intent-email-status" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-direct-email-status"
+  fi
   if [[ "$account_code" == "200" ]] && ! grep -q "Email me the Pro setup link" /tmp/sage-router-readiness-body; then
     account_code="200:missing-magic-link-primary-cta"
   fi
@@ -799,6 +802,9 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "account_intent_primary_clicked" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-account-intent-funnel"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "setAuthStatus" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-inline-auth-status"
   fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "data-after-key-action" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-post-key-next-actions"

@@ -18,6 +18,10 @@ const set = (id, text) => {
   const el = $(id);
   if (el) el.textContent = text;
 };
+const setAuthStatus = (text, mirrorIntent = false) => {
+  set('auth-status', text);
+  if (mirrorIntent) set('intent-email-status', text);
+};
 const show = (id, visible) => {
   const el = $(id);
   if (el) el.classList.toggle('hidden', !visible);
@@ -962,17 +966,17 @@ async function magicLogin(options = {}) {
   const preferIntent = Boolean(options.preferIntent || button === 'intent_primary');
   const email = emailInputValue(preferIntent);
   if (!email) {
-    set('auth-status', preferIntent ? 'Enter your email above, then Sage Router will send the setup link.' : 'Enter your email first.');
+    setAuthStatus(preferIntent ? 'Enter your email above, then Sage Router will send the setup link.' : 'Enter your email first.', preferIntent);
     focusEmailInput(preferIntent);
     return;
   }
   syncEmailInputs(email);
-  set('auth-status', 'Sending magic link...');
+  setAuthStatus('Sending magic link...', preferIntent);
   trackAccountFunnelEvent('account_magic_link_requested', { button, target: '/auth/v1/otp', state: 'email' });
   const metadata = onboardingContext({ authMethod: 'magic_link' });
   rememberOnboardingContext(metadata);
   const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: accountPageUrlWithPlan(metadata.selected_plan), data: metadata } });
-  set('auth-status', error ? error.message : 'Magic link sent. Check your email.');
+  setAuthStatus(error ? error.message : 'Magic link sent. Check your email.', preferIntent);
   if (!error) trackAccountFunnelEvent('account_magic_link_sent', { button, target: ACCOUNT_PAGE_URL, state: 'email' });
 }
 
