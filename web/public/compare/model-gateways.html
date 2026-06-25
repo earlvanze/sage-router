@@ -149,6 +149,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
             <strong>Copy setup first.</strong>
             <span class="muted">Paste the bundle into your current OpenAI-compatible client, then replace the placeholder with your generated <code>sk_sage_*</code> key.</span>
             <button id="gateway-copy-migration" class="button primary" type="button">Copy 60-second gateway setup</button>
+            <a id="gateway-copy-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" hidden>Create Pro key next</a>
             <span id="gateway-copy-status" role="status" aria-live="polite"></span>
           </div>
         </div>
@@ -306,6 +307,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
           snippet: 'gateway-compare-migration-bundle'
         });
         if (status) status.textContent = 'Copied. Create your key next; no provider key required.';
+        document.getElementById('gateway-copy-next-account')?.removeAttribute('hidden');
       } catch {
         if (status) status.textContent = 'Copy failed. Open the migration guide for manual setup.';
       }

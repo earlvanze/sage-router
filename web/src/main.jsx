@@ -159,6 +159,7 @@ function LandingSetupCopy() {
 
 function HeroSetupCopy() {
   const [status, setStatus] = useState('');
+  const [copied, setCopied] = useState(false);
 
   return (
     <div className="heroSetupCopy">
@@ -171,12 +172,23 @@ function HeroSetupCopy() {
             snippet: 'landing-hero-setup-bundle',
           });
           setStatus('Copied. Create your key next; no provider key required.');
+          setCopied(true);
         } catch {
           setStatus('Copy failed. Open the quickstart for manual setup.');
+          setCopied(false);
         }
       }}>
         Copy 60-second setup bundle
       </button>
+      {copied && (
+        <a className="button postCopyAccountButton" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
+          target: ACCOUNT_PAGE_HREF,
+          button: 'Create Pro key next',
+          state: 'post-copy',
+        })}>
+          Create Pro key next
+        </a>
+      )}
       <span role="status" aria-live="polite">{status}</span>
     </div>
   );

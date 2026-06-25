@@ -97,6 +97,7 @@
           <strong>Copy setup first.</strong>
           <span class="muted">Paste the bundle now, then replace the placeholder with your generated <code>sk_sage_*</code> key after Pro setup.</span>
           <button id="pricing-copy-setup" class="button primary" type="button">Copy 60-second setup bundle</button>
+          <a id="pricing-copy-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" hidden>Create Pro key next</a>
           <span id="pricing-copy-status" role="status" aria-live="polite"></span>
         </div>
         <div class="readinessGrid" aria-label="Hosted activation path">
@@ -537,6 +538,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
           snippet: 'pricing-full-setup-bundle'
         });
         if (status) status.textContent = 'Copied. Create your key next; no provider key required.';
+        document.getElementById('pricing-copy-next-account')?.removeAttribute('hidden');
       } catch {
         if (status) status.textContent = 'Copy failed. Open the quickstart for manual setup.';
       }

@@ -1077,6 +1077,9 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "landing-hero-setup-bundle" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-hero-setup-copy-snippet"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Create Pro key next" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-post-copy-account-cta"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-setup-copy-funnel"
   fi
@@ -1115,6 +1118,9 @@ check_marketing_comparison_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Copy 60-second gateway setup" /tmp/sage-router-readiness-body; then
     page_code="200:missing-gateway-copy-first-cta"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "gateway-copy-next-account" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-post-copy-account-cta"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "gateway-compare-migration-bundle" /tmp/sage-router-readiness-body; then
     page_code="200:missing-gateway-migration-copy-snippet"
@@ -1340,6 +1346,9 @@ check_marketing_pricing_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Copy 60-second setup bundle" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-copy-first-cta"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "pricing-copy-next-account" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-post-copy-account-cta"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing-full-setup-bundle" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-setup-copy-snippet"
@@ -1655,6 +1664,9 @@ check_marketing_quickstart_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Copy 60-second setup bundle" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quickstart-copy-first-cta"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart-copy-next-account" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-post-copy-account-cta"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart-full-setup-bundle" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quickstart-bundle-telemetry"
