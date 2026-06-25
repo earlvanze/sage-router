@@ -987,7 +987,7 @@ async function createKey() {
     const key = data.key || '';
     renderQuickstart(key);
     trackAccountFunnelEvent('account_api_key_created', { button: 'create_key', target: '/account/api-keys', state: 'created' });
-    $('key-once').innerHTML = `<p>Copy now. This key is only shown once.</p><div class="codeBox"><pre id="raw-api-key-once">${esc(key)}</pre><div class="copyRow"><button class="btn ghost" data-copy-target="raw-api-key-once" data-copy-label="Copy key">Copy key</button><button class="btn ghost" data-copy-target="quickstart-code" data-copy-label="Copy quickstart">Copy quickstart</button></div></div>`;
+    $('key-once').innerHTML = `<p>Copy now. This key is only shown once. Next, test it against <code>/v1/models</code>, then send the first routed request.</p><div class="codeBox"><pre id="raw-api-key-once">${esc(key)}</pre><div class="copyRow"><button class="btn ghost" data-copy-target="raw-api-key-once" data-copy-label="Copy key">Copy key</button><button class="btn ghost" data-copy-target="quickstart-code" data-copy-label="Copy quickstart">Copy quickstart</button><button class="btn ghost" data-after-key-action="test-key">Test this key</button><button class="btn ghost" data-after-key-action="first-request">Send first request</button></div></div>`;
     refresh();
   } catch (error) {
     set('key-once', error.message);
@@ -1301,6 +1301,15 @@ function snippetIdForCopyTarget(targetId = '') {
 }
 
 document.addEventListener('click', async (event) => {
+  const afterKeyButton = event.target?.closest?.('[data-after-key-action]');
+  if (afterKeyButton) {
+    if (afterKeyButton.dataset.afterKeyAction === 'first-request') {
+      await sendTestChat();
+    } else {
+      await testApiKey();
+    }
+    return;
+  }
   const button = event.target?.closest?.('[data-copy-target]');
   if (!button) return;
   const copyTarget = button.dataset.copyTarget;

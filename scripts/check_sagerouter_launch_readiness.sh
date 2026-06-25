@@ -797,6 +797,9 @@ check_hosted_onboarding_pages() {
   if [[ "$account_js_code" == "200" ]] && ! grep -q "account_intent_primary_clicked" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-account-intent-funnel"
   fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "data-after-key-action" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-post-key-next-actions"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   manifest_code="$(http_code_follow "${APP_BASE%/}/github-app-manifest")"
@@ -917,6 +920,9 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("gateway_compare_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("model_catalog_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("account_viewed") != null) and
+    ((.allowedEvents // []) | index("account_intent_primary_clicked") != null) and
+    ((.allowedEvents // []) | index("account_checkout_unavailable") != null) and
+    ((.allowedEvents // []) | index("account_email_verification_resent") != null) and
     ((.allowedEvents // []) | index("account_snippet_copied") != null) and
     ((.allowedEvents // []) | index("account_support_context_copied") != null)
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
