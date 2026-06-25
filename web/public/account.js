@@ -1351,7 +1351,21 @@ async function handleIntentPrimary(event) {
     return;
   }
   if (!activationState.keyCount) {
+    const intentButton = $('intent-primary');
+    setElementBusy(intentButton, true, 'Creating API key...');
+    set('key-once', 'Creating your sk_sage key...');
     $('create-key')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    trackAccountFunnelEvent('account_intent_create_key_clicked', {
+      button: 'intent_primary',
+      target: '/account/api-keys',
+      state: 'create_key_direct'
+    });
+    try {
+      await createKey();
+      $('key-once')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } finally {
+      setElementBusy(intentButton, false);
+    }
     return;
   }
   if (!activationState.routingEnabled) {

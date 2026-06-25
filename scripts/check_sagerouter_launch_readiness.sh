@@ -825,6 +825,15 @@ check_hosted_onboarding_pages() {
   if [[ "$account_js_code" == "200" ]] && ! grep -q "account_intent_primary_clicked" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-account-intent-funnel"
   fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "account_intent_create_key_clicked" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-account-intent-key-create-funnel"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "Creating your sk_sage key" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-direct-key-create-status"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "await createKey()" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-direct-key-create-action"
+  fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "setAuthStatus" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-inline-auth-status"
   fi
