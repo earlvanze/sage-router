@@ -1192,6 +1192,12 @@ check_marketing_pricing_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing-email-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-email-start-form"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "data-pricing-plan-email" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-plan-specific-email-start-forms"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "sendPricingMagicLink" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-plan-specific-magic-link-handler"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-magic-link-funnel"
   fi

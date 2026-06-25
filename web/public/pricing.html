@@ -32,6 +32,9 @@
     .emailStart form{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:10px;margin:10px 0 0}
     .emailStart input{min-height:48px;border:1px solid var(--border);border-radius:999px;background:rgba(0,0,0,.22);color:var(--text);font:inherit;padding:0 16px}
     .emailStartStatus{min-height:22px;margin:10px 0 0;color:var(--brand);font-size:14px}
+    .planEmailForm{display:grid;gap:8px;margin-top:4px}
+    .planEmailForm input{min-height:44px;border:1px solid var(--border);border-radius:999px;background:rgba(0,0,0,.18);color:var(--text);font:inherit;padding:0 14px}
+    .planEmailForm .button{width:100%;border:0;cursor:pointer}
     @media(max-width:720px){.emailStart form{grid-template-columns:1fr}}
   </style>
 </head>
@@ -77,7 +80,7 @@
         <div class="emailStart">
           <strong>Fastest Pro start: send yourself a sign-in link</strong>
           <p class="note">No provider key is required to create the account. The link opens the hosted account page with Pro selected, then you can complete Stripe checkout and generate an <code>sk_sage_*</code> key.</p>
-          <form id="pricing-email-form">
+          <form id="pricing-email-form" data-plan="pro">
             <input id="pricing-email" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for Sage Router Pro activation" required>
             <button class="button primary" type="submit">Email me the Pro link</button>
           </form>
@@ -102,6 +105,11 @@
             <li>Standard fallback chains</li>
           </ul>
           <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=lite">Start Lite</a>
+          <form class="planEmailForm" data-pricing-plan-email data-plan="lite">
+            <input type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for Sage Router Lite activation" required>
+            <button class="button secondary" type="submit">Email Lite link</button>
+            <p class="emailStartStatus" role="status" aria-live="polite"></p>
+          </form>
         </article>
 
         <article class="plan featured">
@@ -115,6 +123,11 @@
             <li>Analytics snapshots and route telemetry</li>
           </ul>
           <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro">Start Pro</a>
+          <form class="planEmailForm" data-pricing-plan-email data-plan="pro">
+            <input type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for Sage Router Pro activation" required>
+            <button class="button primary" type="submit">Email Pro link</button>
+            <p class="emailStartStatus" role="status" aria-live="polite"></p>
+          </form>
         </article>
 
         <article class="plan">
@@ -128,6 +141,11 @@
             <li>Team and private deployment support path</li>
           </ul>
           <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max">Start Max</a>
+          <form class="planEmailForm" data-pricing-plan-email data-plan="max">
+            <input type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for Sage Router Max activation" required>
+            <button class="button secondary" type="submit">Email Max link</button>
+            <p class="emailStartStatus" role="status" aria-live="polite"></p>
+          </form>
         </article>
       </section>
 
@@ -281,8 +299,22 @@
     const API_PRICING_URL = 'https://api.sagerouter.dev/pricing';
     const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
-    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro';
+    const ACCOUNT_PAGE_BASE_URL = 'https://app.sagerouter.dev/account.html';
+    const ACCOUNT_PAGE_URL = `${ACCOUNT_PAGE_BASE_URL}?plan=pro`;
     const sb = window.supabase?.createClient?.(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function normalizePlan(plan) {
+      return ['lite', 'pro', 'max'].includes(plan) ? plan : 'pro';
+    }
+
+    function accountPageUrlForPlan(plan) {
+      return `${ACCOUNT_PAGE_BASE_URL}?plan=${encodeURIComponent(normalizePlan(plan))}`;
+    }
+
+    function planDisplay(plan) {
+      const normalized = normalizePlan(plan);
+      return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    }
 
     function formatControlName(value) {
       return String(value || '').replace(/_/g, ' ');
@@ -445,20 +477,31 @@
 
     trackPricingFunnelEvent('pricing_viewed', { state: 'page-view' });
 
-    document.getElementById('pricing-email-form')?.addEventListener('submit', async (event) => {
+    async function sendPricingMagicLink(event) {
       event.preventDefault();
-      const status = document.getElementById('pricing-email-status');
-      const input = document.getElementById('pricing-email');
+      const form = event.currentTarget;
+      const plan = normalizePlan(form.dataset.plan);
+      const planName = planDisplay(plan);
+      const target = accountPageUrlForPlan(plan);
+      const status = form.querySelector('[role="status"]') || document.getElementById('pricing-email-status');
+      const input = form.querySelector('input[type="email"]');
+      const button = form.querySelector('button[type="submit"]');
+      const buttonLabel = button?.textContent?.trim() || `Email me the ${planName} link`;
       const email = input?.value.trim();
       if (!email) {
         if (status) status.textContent = 'Enter your email first.';
+        input?.focus();
         return;
       }
-      if (status) status.textContent = 'Sending Pro sign-in link...';
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'Sending...';
+      }
+      if (status) status.textContent = `Sending ${planName} sign-in link...`;
       trackPricingFunnelEvent('pricing_magic_link_requested', {
-        plan: 'pro',
-        target: ACCOUNT_PAGE_URL,
-        button: 'Email me the Pro link',
+        plan,
+        target,
+        button: buttonLabel,
         state: 'email',
       });
       try {
@@ -466,33 +509,44 @@
         const { error } = await sb.auth.signInWithOtp({
           email,
           options: {
-            emailRedirectTo: ACCOUNT_PAGE_URL,
+            emailRedirectTo: target,
             data: {
               sage_router_onboarding: true,
               signup_source: 'pricing',
-              selected_plan: 'pro',
+              selected_plan: plan,
               auth_method: 'magic_link',
             },
           },
         });
         if (error) throw error;
-        if (status) status.textContent = 'Magic link sent. Check your email to continue Pro activation.';
+        form.reset();
+        if (status) status.textContent = `Magic link sent. Check your email to continue ${planName} activation.`;
         trackPricingFunnelEvent('pricing_magic_link_sent', {
-          plan: 'pro',
-          target: ACCOUNT_PAGE_URL,
-          button: 'Email me the Pro link',
+          plan,
+          target,
+          button: buttonLabel,
           state: 'email',
         });
       } catch (error) {
         if (status) status.textContent = 'Could not send a link here. Opening the hosted account page instead.';
         trackPricingFunnelEvent('pricing_magic_link_failed', {
-          plan: 'pro',
-          target: ACCOUNT_PAGE_URL,
-          button: 'Email me the Pro link',
+          plan,
+          target,
+          button: buttonLabel,
           state: 'fallback_account',
         });
-        setTimeout(() => { window.location.href = ACCOUNT_PAGE_URL; }, 700);
+        setTimeout(() => { window.location.href = target; }, 700);
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = buttonLabel;
+        }
       }
+    }
+
+    document.getElementById('pricing-email-form')?.addEventListener('submit', sendPricingMagicLink);
+    document.querySelectorAll('[data-pricing-plan-email]').forEach((form) => {
+      form.addEventListener('submit', sendPricingMagicLink);
     });
 
     fetch(API_PRICING_URL, { credentials: 'omit' })
