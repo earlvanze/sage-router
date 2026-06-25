@@ -1453,6 +1453,15 @@ check_marketing_model_catalog_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "model_catalog_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-model-catalog-magic-link-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "model-catalog-copy-setup" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-model-catalog-setup-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "model-catalog-setup-bundle" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-model-catalog-setup-copy-snippet"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-model-catalog-setup-copy-funnel"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
