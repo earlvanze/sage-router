@@ -317,6 +317,22 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         provider = router.Provider('google', 'google-generative-language', 'https://generativelanguage.googleapis.com/v1beta', 'key', ['gemini-2.5-flash'])
         self.assertTrue(router.model_capabilities(provider, 'gemini-2.5-flash')['tools'])
 
+    def test_explicit_google_prefix_is_not_reassigned_to_openrouter(self):
+        old_providers = router.PROVIDERS
+        old_disabled = set(router.DISABLED_PROVIDERS)
+        try:
+            router.PROVIDERS = {
+                'google': router.Provider('google', 'google-generative-language', 'https://generativelanguage.googleapis.com/v1beta', 'key', ['gemini-2.5-flash']),
+                'openrouter': router.Provider('openrouter', 'openai-completions', 'https://openrouter.example/v1', 'key', ['gemini-2.5-flash']),
+            }
+            router.DISABLED_PROVIDERS.clear()
+            provider, model = router.resolve_requested_provider_model({'model': 'google/gemini-2.5-flash'})
+            self.assertEqual(('google', 'gemini-2.5-flash'), (provider, model))
+        finally:
+            router.PROVIDERS = old_providers
+            router.DISABLED_PROVIDERS.clear()
+            router.DISABLED_PROVIDERS.update(old_disabled)
+
 
 if __name__ == '__main__':
     unittest.main()

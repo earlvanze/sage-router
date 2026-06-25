@@ -2918,6 +2918,15 @@ def resolve_requested_provider_model(payload):
         return requested_provider, requested_model
 
     if (
+        model_provider
+        and requested_provider == model_provider
+        and requested_provider in {'google', 'google-vertex'}
+        and requested_provider in PROVIDERS
+        and requested_provider not in DISABLED_PROVIDERS
+    ):
+        return requested_provider, requested_model
+
+    if (
         requested_provider == 'ollama'
         and is_cloud_ollama_model(requested_model)
         and 'ollama-cloud' in PROVIDERS
