@@ -54,6 +54,14 @@ const routePaths = [
     state: 'route-path-openai',
   },
   {
+    label: 'Azure OpenAI',
+    title: 'Enterprise OpenAI-compatible routes',
+    href: '/azure-openai-router',
+    body: 'Route Azure OpenAI deployments through one policy layer with AZURE_OPENAI_ENDPOINT custody, BYOK keys, and 429 failover.',
+    button: 'Azure OpenAI route path',
+    state: 'route-path-azure',
+  },
+  {
     label: 'Anthropic',
     title: 'Claude-style /v1/messages',
     href: '/anthropic-api-router',
@@ -581,6 +589,7 @@ function App() {
             <a href="/self-hosted-ai-model-router">Self-hosted</a>
             <a href="/ollama-ai-model-router">Ollama</a>
             <a href="/openai-api-router">OpenAI API</a>
+            <a href="/azure-openai-router">Azure OpenAI</a>
             <a href="/anthropic-api-router">Anthropic</a>
             <a href="/github-copilot-router">GitHub Copilot</a>
             <a href="/xai-grok-router">xAI Grok</a>
@@ -689,6 +698,11 @@ function App() {
                 button: 'OpenAI API router',
                 state: 'hero-secondary-openai-router',
               })}>OpenAI API router</a>
+              <a href="/azure-openai-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/azure-openai-router',
+                button: 'Azure OpenAI router',
+                state: 'hero-secondary-azure-router',
+              })}>Azure OpenAI router</a>
               <a href="/anthropic-api-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/anthropic-api-router',
                 button: 'Anthropic API router',
@@ -1083,6 +1097,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/self-hosted-ai-model-router">Self-hosted</a>
         <a href="/ollama-ai-model-router">Ollama</a>
         <a href="/openai-api-router">OpenAI API</a>
+        <a href="/azure-openai-router">Azure OpenAI</a>
         <a href="/anthropic-api-router">Anthropic</a>
         <a href="/github-copilot-router">GitHub Copilot</a>
         <a href="/xai-grok-router">xAI Grok</a>
