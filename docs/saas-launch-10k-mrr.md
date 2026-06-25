@@ -157,6 +157,11 @@ provider resale claim, or runtime feature flag.
   `aider --model openai/auto`, local port `8790`, local Ollama fallback,
   Tailnet routing, credential load balancing, 429 failover, multimodal routing,
   and provider-authorization boundaries.
+- Keep `/continue-ai-model-router` as the Continue acquisition path for
+  OpenAI-compatible coding-agent routing, hosted generated `sk_sage_*` keys,
+  `model=auto`, local port `8790`, local Ollama fallback, Tailnet routing,
+  credential load balancing, 429 failover, multimodal routing, and
+  provider-authorization boundaries.
 - Keep `/claude-code-router` as the Claude Code acquisition path for
   Anthropic-compatible coding-agent routing, customer-owned authorized
   Anthropic or Dario subscription paths, hosted `sk_sage_*` account control,

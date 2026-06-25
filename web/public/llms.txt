@@ -18,6 +18,7 @@ AWS Bedrock router: https://sagerouter.dev/aws-bedrock-router
 GitHub Copilot router: https://sagerouter.dev/github-copilot-router
 Codex CLI router: https://sagerouter.dev/codex-cli-router
 Aider AI model router: https://sagerouter.dev/aider-ai-model-router
+Continue AI model router: https://sagerouter.dev/continue-ai-model-router
 Claude Code router: https://sagerouter.dev/claude-code-router
 Gemini API router: https://sagerouter.dev/gemini-api-router
 xAI Grok router: https://sagerouter.dev/xai-grok-router
@@ -95,6 +96,7 @@ Managed access boundary: managed provider access, if introduced, is limited to p
 - Codex CLI with an OpenAI-compatible Sage Router provider on hosted or local port 8790.
 - Codex CLI router for Responses API profiles, hosted generated keys, local port 8790, Tailnet routes, 429 failover, multimodal routing, and BYOK custody.
 - Aider AI model router for OpenAI-compatible Aider setup, hosted generated keys, local port 8790, local Ollama fallback, Tailnet routing, 429 failover, multimodal routing, and BYOK custody.
+- Continue AI model router for OpenAI-compatible Continue setup, hosted generated keys, local port 8790, local Ollama fallback, Tailnet routing, 429 failover, multimodal routing, and BYOK custody.
 - Hosted OpenAI-compatible API reference for models, chat completions, Responses API, quotas, and rate-limit headers.
 - Agent-native model routing for OpenAI-compatible, Codex-style, local, Tailnet, and BYOK agents.
 - Sage Router integrations for OpenAI-compatible clients, Codex, Cursor, Aider, Continue, Claude Code, OpenHands, Ollama, Anthropic-compatible clients, and Tailnet agents.

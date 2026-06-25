@@ -54,6 +54,14 @@ const routePaths = [
     state: 'route-path-aider',
   },
   {
+    label: 'Continue',
+    title: 'OpenAI-compatible IDE assistant',
+    href: '/continue-ai-model-router',
+    body: 'Configure Continue once against Sage Router for local, Tailnet, or hosted routing with health-aware failover.',
+    button: 'Continue route path',
+    state: 'route-path-continue',
+  },
+  {
     label: 'Claude Code',
     title: 'Anthropic-compatible coding route',
     href: '/claude-code-router',
@@ -643,6 +651,7 @@ function App() {
             <a href="/github-copilot-router">GitHub Copilot</a>
             <a href="/codex-cli-router">Codex CLI</a>
             <a href="/aider-ai-model-router">Aider</a>
+            <a href="/continue-ai-model-router">Continue</a>
             <a href="/claude-code-router">Claude Code</a>
             <a href="/xai-grok-router">xAI Grok</a>
             <a href="/mistral-ai-router">Mistral AI</a>
@@ -782,6 +791,11 @@ function App() {
                 button: 'Aider router',
                 state: 'hero-secondary-aider-router',
               })}>Aider router</a>
+              <a href="/continue-ai-model-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/continue-ai-model-router',
+                button: 'Continue router',
+                state: 'hero-secondary-continue-router',
+              })}>Continue router</a>
               <a href="/claude-code-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/claude-code-router',
                 button: 'Claude Code router',
@@ -1187,6 +1201,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/github-copilot-router">GitHub Copilot</a>
         <a href="/codex-cli-router">Codex CLI</a>
         <a href="/aider-ai-model-router">Aider</a>
+        <a href="/continue-ai-model-router">Continue</a>
         <a href="/claude-code-router">Claude Code</a>
         <a href="/xai-grok-router">xAI Grok</a>
         <a href="/mistral-ai-router">Mistral AI</a>
