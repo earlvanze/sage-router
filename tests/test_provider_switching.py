@@ -110,7 +110,7 @@ class ProviderSwitchingTests(unittest.TestCase):
             [name for name, _value in codex_score['contributions']],
         )
 
-    def test_balanced_profile_is_explicit_non_frontier_codex_first(self):
+    def test_balanced_profile_is_explicit_non_frontier_ollama_first(self):
         payload = {'model': 'sage-router/balanced', 'messages': [{'role': 'user', 'content': 'hello'}]}
         profile = router.apply_router_profile(payload)
 
@@ -119,7 +119,8 @@ class ProviderSwitchingTests(unittest.TestCase):
         self.assertEqual('balanced', payload['route'])
         self.assertEqual({'effort': 'medium'}, payload['thinking'])
         requirements = payload['requirements']
-        self.assertEqual(['openai-codex'], requirements['allowProviders'][:1])
+        self.assertEqual(['ollama-cyber', 'ollama'], requirements['allowProviders'][:2])
+        self.assertIn('openai-codex', requirements['fallbackProviders'])
         self.assertIn('google', requirements['fallbackProviders'])
         self.assertFalse(requirements.get('frontierLargeOnly', False))
         self.assertFalse(requirements.get('reasoning', False))
@@ -138,6 +139,16 @@ class ProviderSwitchingTests(unittest.TestCase):
                             'additionalProperties': {'type': 'string'},
                             'properties': {
                                 'query': {'type': 'string'},
+                                'mode': {
+                                    'any_of': [
+                                        {'const': 'fast', 'type': 'string'},
+                                        {'const': 'deep', 'type': 'string'},
+                                    ],
+                                },
+                                'count': {
+                                    'type': ['integer', 'null'],
+                                    'exclusiveMinimum': 0,
+                                },
                             },
                         },
                     },
@@ -150,6 +161,10 @@ class ProviderSwitchingTests(unittest.TestCase):
         parameters = declarations[0]['parameters']
         self.assertNotIn('additionalProperties', parameters)
         self.assertNotIn('additionalProperties', parameters['properties']['filters'])
+        self.assertNotIn('any_of', parameters['properties']['filters']['properties']['mode'])
+        self.assertNotIn('const', parameters['properties']['filters']['properties']['mode'])
+        self.assertNotIn('exclusiveMinimum', parameters['properties']['filters']['properties']['count'])
+        self.assertEqual('integer', parameters['properties']['filters']['properties']['count']['type'])
         self.assertEqual('string', parameters['properties']['filters']['properties']['query']['type'])
 
 

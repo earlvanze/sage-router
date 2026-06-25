@@ -25,9 +25,14 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("function onCredProviderChange()", dashboard)
         self.assertIn("function applyCredentialProviderDefaults()", dashboard)
         self.assertIn("const providerDefaults", dashboard)
-        self.assertIn("'ollama': {name: 'ollama', baseUrl: 'http://host.docker.internal:11434'}", dashboard)
+        self.assertIn("'ollama': {name: 'ollama', api: 'ollama', baseUrl: 'https://ollama.com'}", dashboard)
+        self.assertIn("'openai-codex-responses': {name: 'openai-codex'", dashboard)
         self.assertIn("Endpoint URL", dashboard)
-        self.assertIn("Failed: endpoint URL required", dashboard)
+        self.assertIn("selectedCredentialProviderDefaults", dashboard)
+        self.assertIn("setProviderEnabled", dashboard)
+        self.assertIn("setModelEnabled", dashboard)
+        self.assertIn("/setup/provider/enabled", dashboard)
+        self.assertIn("/setup/model/enabled", dashboard)
         self.assertIn("ollama-team-b", dashboard)
 
     def test_account_page_has_explicit_email_signup(self):

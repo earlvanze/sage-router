@@ -285,3 +285,66 @@ class CredentialLoadBalancingTests(unittest.TestCase):
             router.APP_PROVIDER_CONFIG = old_cfg_path
             router.reload_configured_providers = old_reload
             os.unlink(tmp.name)
+
+    def test_existing_ollama_credential_uses_provider_defaults_without_endpoint(self):
+        import json, tempfile, os
+        tmp = tempfile.NamedTemporaryFile('w', suffix='.json', delete=False)
+        tmp.write(json.dumps({'models': {'providers': {}}}))
+        tmp.close()
+        old_cfg_path = router.APP_PROVIDER_CONFIG
+        old_reload = router.reload_configured_providers
+        old_providers = router.PROVIDERS
+        router.APP_PROVIDER_CONFIG = tmp.name
+        router.reload_configured_providers = lambda: None
+        router.PROVIDERS = {
+            'ollama': router.Provider('ollama', 'ollama', 'https://ollama.com', '', ['glm-5.1:cloud'])
+        }
+        try:
+            router.save_setup_credential({
+                'provider': 'ollama',
+                'api': 'ollama',
+                'key': 'second-ollama-key',
+            })
+            cfg = json.load(open(tmp.name))
+            provider_cfg = cfg['models']['providers']['ollama']
+            self.assertEqual(provider_cfg['api'], 'ollama')
+            self.assertEqual(provider_cfg['baseUrl'], 'https://ollama.com')
+            self.assertNotIn('models', provider_cfg)
+            self.assertEqual(provider_cfg['apiKeys'][0]['key'], 'second-ollama-key')
+        finally:
+            router.APP_PROVIDER_CONFIG = old_cfg_path
+            router.reload_configured_providers = old_reload
+            router.PROVIDERS = old_providers
+            os.unlink(tmp.name)
+
+    def test_dashboard_enablement_updates_config_disabled_lists(self):
+        import json, tempfile, os
+        tmp = tempfile.NamedTemporaryFile('w', suffix='.json', delete=False)
+        tmp.write(json.dumps({'models': {'providers': {}}}))
+        tmp.close()
+        old_cfg_path = router.APP_PROVIDER_CONFIG
+        old_reload = router.reload_configured_providers
+        old_disabled_providers = set(router.DISABLED_PROVIDERS)
+        old_disabled_models = set(router.DISABLED_MODELS)
+        router.APP_PROVIDER_CONFIG = tmp.name
+        router.reload_configured_providers = lambda: router._apply_dashboard_disabled_sets(router._load_app_provider_config_safe())
+        try:
+            router.set_setup_provider_enabled({'provider': 'google', 'enabled': False})
+            router.set_setup_model_enabled({'provider': 'ollama', 'model': 'glm-5.1:cloud', 'enabled': False})
+            cfg = json.load(open(tmp.name))
+            self.assertIn('google', cfg['disabledProviders'])
+            self.assertIn('ollama/glm-5.1:cloud', cfg['disabledModels'])
+            self.assertIn('google', router.DISABLED_PROVIDERS)
+            self.assertTrue(router.model_disabled_reason('ollama', 'glm-5.1:cloud'))
+
+            router.set_setup_provider_enabled({'provider': 'google', 'enabled': True})
+            router.set_setup_model_enabled({'provider': 'ollama', 'model': 'glm-5.1:cloud', 'enabled': True})
+            cfg = json.load(open(tmp.name))
+            self.assertNotIn('google', cfg['disabledProviders'])
+            self.assertNotIn('ollama/glm-5.1:cloud', cfg['disabledModels'])
+        finally:
+            router.APP_PROVIDER_CONFIG = old_cfg_path
+            router.reload_configured_providers = old_reload
+            router.DISABLED_PROVIDERS = old_disabled_providers
+            router.DISABLED_MODELS = old_disabled_models
+            os.unlink(tmp.name)

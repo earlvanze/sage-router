@@ -22,15 +22,15 @@
       "suppressIntermediateToolText": true
     },
     "balanced": {
-      "description": "Balanced routing via OpenAI Codex subscription first, with broader non-frontier fallbacks for cost, latency, and health.",
+      "description": "Balanced routing prefers Ollama subscription/local providers first for cost, with Codex and cloud providers as fallbacks.",
       "route": "balanced",
       "thinking": "medium",
       "allowProviders": [
-        "openai-codex"
+        "ollama-cyber",
+        "ollama"
       ],
       "fallbackProviders": [
-        "ollama-cyber",
-        "ollama",
+        "openai-codex",
         "google",
         "google-vertex",
         "openrouter",

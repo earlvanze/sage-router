@@ -1243,7 +1243,7 @@ Profiles live in `router-profiles.json` and can set:
 
 Bundled profiles:
 
-- `balanced` — Codex-subscription-first routing with broader non-frontier fallbacks for lower cost, latency, and 429 resilience
+- `balanced` — Ollama subscription/local-first routing for everyday cost control, with Codex and cloud fallbacks for health and 429 resilience
 - `frontier` — public-channel quality profile, high thinking, quality/reasoning required, tiny/free filler models blocked, tool-call narration suppressed
 - `fusion` — premium multi-model panel plus judge synthesis for chat prompts where several authorized routes are worth the extra latency and cost
 - `frontier-large` — strict frontier/large-model-only routing

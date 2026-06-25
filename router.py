@@ -141,14 +141,16 @@ OPENAI_CODEX_OAUTH_HTTP_TIMEOUT_SECONDS = float(os.environ.get('SAGE_ROUTER_CODE
 OPENAI_CODEX_OAUTH_SESSIONS = {}
 OPENAI_CODEX_OAUTH_LOCK = threading.Lock()
 # Auth-profile-based gateway providers: defined after DEFAULT constants below
-DISABLED_PROVIDERS = {
+ENV_DISABLED_PROVIDERS = {
     name.strip() for name in os.environ.get('SAGE_ROUTER_DISABLED_PROVIDERS', '').split(',')
     if name.strip()
 }
-DISABLED_MODELS = {
+ENV_DISABLED_MODELS = {
     name.strip() for name in os.environ.get('SAGE_ROUTER_DISABLED_MODELS', '').split(',')
     if name.strip()
 }
+DISABLED_PROVIDERS = set(ENV_DISABLED_PROVIDERS)
+DISABLED_MODELS = set(ENV_DISABLED_MODELS)
 OLLAMA_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS', '120'))
 OLLAMA_ALLOW_THINK_FALSE_RETRY = os.environ.get('SAGE_ROUTER_OLLAMA_ALLOW_THINK_FALSE_RETRY', '').strip().lower() in {'1', 'true', 'yes', 'on'}
 OPENAI_COMPAT_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENAI_TIMEOUT_SECONDS', '35'))
@@ -5255,6 +5257,34 @@ def merge_harness_discovered_providers(providers):
         logger.info(f"Loaded harness provider {name} from {cfg.get('harness', 'unknown')}:{cfg.get('source_path', '')}")
 
 
+def _load_app_provider_config_safe():
+    try:
+        if os.path.exists(APP_PROVIDER_CONFIG):
+            with open(APP_PROVIDER_CONFIG) as f:
+                return json.load(f) or {}
+    except Exception:
+        pass
+    return {}
+
+
+def _normalize_config_list(value):
+    if isinstance(value, list):
+        return dedupe_keep_order([str(v).strip() for v in value if str(v).strip()])
+    if isinstance(value, str):
+        return parse_model_list(value)
+    return []
+
+
+def _apply_dashboard_disabled_sets(config):
+    global DISABLED_PROVIDERS, DISABLED_MODELS
+    if not isinstance(config, dict):
+        config = {}
+    disabled_providers = set(_normalize_config_list(config.get('disabledProviders')))
+    disabled_models = set(_normalize_config_list(config.get('disabledModels')))
+    DISABLED_PROVIDERS = set(ENV_DISABLED_PROVIDERS) | disabled_providers
+    DISABLED_MODELS = set(ENV_DISABLED_MODELS) | disabled_models
+
+
 def _merge_app_provider_config(config):
     """Merge the dashboard-managed provider config (APP_PROVIDER_CONFIG) into
     the loaded OpenClaw config so dashboard-configured providers and their
@@ -5268,18 +5298,28 @@ def _merge_app_provider_config(config):
             app_cfg = json.load(f)
     except Exception as e:
         logger.debug(f'APP_PROVIDER_CONFIG merge skipped: {e}')
+        _apply_dashboard_disabled_sets({})
         return config
     if not isinstance(app_cfg, dict):
+        _apply_dashboard_disabled_sets({})
         return config
+    _apply_dashboard_disabled_sets(app_cfg)
     config.setdefault('models', {}).setdefault('providers', {})
     app_providers = (app_cfg.get('models') or {}).get('providers', {}) or {}
     for name, cfg in app_providers.items():
         if isinstance(cfg, dict):
-            config['models']['providers'][name] = cfg
+            existing = config['models']['providers'].get(name) or {}
+            if isinstance(existing, dict):
+                merged = dict(existing)
+                merged.update(cfg)
+                config['models']['providers'][name] = merged
+            else:
+                config['models']['providers'][name] = cfg
     return config
 
 
 def load_openclaw_providers():
+    _apply_dashboard_disabled_sets(_load_app_provider_config_safe())
     providers = load_hosted_secret_providers()
     merge_harness_discovered_providers(providers)
     try:
@@ -8170,9 +8210,24 @@ def parse_model_list(value):
     return []
 
 
+def normalize_dashboard_api_type(api_type):
+    api_type = str(api_type or '').strip()
+    api_aliases = {
+        'openai': 'openai-completions',
+        'openai-compatible': 'openai-completions',
+        'anthropic': 'anthropic-messages',
+        'google': 'google-generative-language',
+        'gemini': 'google-generative-language',
+        'codex': 'openai-codex-responses',
+        'ollama-cloud': 'ollama',
+    }
+    return api_aliases.get(api_type, api_type)
+
+
 def default_base_url_for_api(api_type):
+    api_type = normalize_dashboard_api_type(api_type)
     return {
-        'ollama': 'http://host.docker.internal:11434',
+        'ollama': 'https://ollama.com',
         'openai-completions': 'https://api.openai.com/v1',
         'anthropic-messages': 'https://api.anthropic.com',
         'google-generative-language': 'https://generativelanguage.googleapis.com/v1beta',
@@ -8217,15 +8272,7 @@ def save_setup_provider(payload):
     if provider_name in SELF_PROVIDER_NAMES:
         raise ValueError('self_provider_not_allowed')
 
-    api_type = str(payload.get('api') or payload.get('apiType') or payload.get('kind') or '').strip()
-    api_aliases = {
-        'openai': 'openai-completions',
-        'openai-compatible': 'openai-completions',
-        'anthropic': 'anthropic-messages',
-        'google': 'google-generative-language',
-        'codex': 'openai-codex-responses',
-    }
-    api_type = api_aliases.get(api_type, api_type) or infer_api_type(provider_name, {}, '')
+    api_type = normalize_dashboard_api_type(payload.get('api') or payload.get('apiType') or payload.get('kind')) or infer_api_type(provider_name, {}, '')
     base_url = str(payload.get('baseUrl') or payload.get('base_url') or default_base_url_for_api(api_type)).strip()
     api_key = str(payload.get('apiKey') or payload.get('api_key') or payload.get('token') or '').strip()
     models = parse_model_list(payload.get('models'))
@@ -8302,18 +8349,67 @@ def save_codex_setup_auth(payload):
     }
 
 
-def _load_app_provider_config_safe():
-    try:
-        if os.path.exists(APP_PROVIDER_CONFIG):
-            with open(APP_PROVIDER_CONFIG) as f:
-                return json.load(f) or {}
-    except Exception:
-        pass
-    return {}
-
-
 def _save_app_provider_config(config):
     atomic_write_json(APP_PROVIDER_CONFIG, config)
+
+
+def _set_list_membership(config, key, value, enabled):
+    items = _normalize_config_list(config.get(key))
+    if enabled:
+        items = [item for item in items if item != value]
+    elif value not in items:
+        items.append(value)
+    config[key] = items
+    return items
+
+
+def set_setup_provider_enabled(payload):
+    provider_name = str(payload.get('provider') or payload.get('name') or '').strip().lower()
+    provider_name = re.sub(r'[^a-z0-9_.-]+', '-', provider_name).strip('-')
+    if not provider_name:
+        raise ValueError('provider_name_required')
+    if provider_name in SELF_PROVIDER_NAMES:
+        raise ValueError('self_provider_not_allowed')
+    enabled = bool(payload.get('enabled'))
+    config = _load_app_provider_config_safe()
+    if not isinstance(config, dict):
+        config = {}
+    disabled = _set_list_membership(config, 'disabledProviders', provider_name, enabled)
+    _save_app_provider_config(config)
+    reload_configured_providers()
+    return {
+        'status': 'saved',
+        'provider': provider_name,
+        'enabled': provider_name not in DISABLED_PROVIDERS,
+        'disabledProviders': disabled,
+        'envDisabled': provider_name in ENV_DISABLED_PROVIDERS,
+        'configured': sorted(PROVIDERS.keys()),
+    }
+
+
+def set_setup_model_enabled(payload):
+    model = str(payload.get('model') or '').strip()
+    provider_name = str(payload.get('provider') or '').strip().lower()
+    provider_name = re.sub(r'[^a-z0-9_.-]+', '-', provider_name).strip('-')
+    if not model:
+        raise ValueError('model_required')
+    disabled_key = f'{provider_name}/{model}' if provider_name else model
+    enabled = bool(payload.get('enabled'))
+    config = _load_app_provider_config_safe()
+    if not isinstance(config, dict):
+        config = {}
+    disabled = _set_list_membership(config, 'disabledModels', disabled_key, enabled)
+    _save_app_provider_config(config)
+    _apply_dashboard_disabled_sets(config)
+    MODEL_HEALTH_CACHE.clear()
+    return {
+        'status': 'saved',
+        'provider': provider_name,
+        'model': model,
+        'enabled': not bool(model_disabled_reason(provider_name, model)),
+        'disabledModels': disabled,
+        'envDisabled': disabled_key in ENV_DISABLED_MODELS or model in ENV_DISABLED_MODELS,
+    }
 
 
 def _app_provider_credentials(cfg):
@@ -8340,15 +8436,22 @@ def list_setup_credentials():
     config = _load_app_provider_config_safe()
     providers_cfg = (config.get('models') or {}).get('providers', {}) or {}
     summary = []
-    for name in sorted(providers_cfg.keys()):
+    for name in sorted(set(providers_cfg.keys()) | set(PROVIDERS.keys())):
         cfg = providers_cfg.get(name) or {}
+        provider = PROVIDERS.get(name)
+        if not cfg and provider:
+            cfg = {
+                'api': provider.api_type,
+                'baseUrl': provider.base_url,
+            }
         creds = _app_provider_credentials(cfg)
-        if not creds:
-            continue
+        if provider and provider.credentials:
+            creds = dedupe_credentials(creds + list(provider.credentials or []))
         raw_creds = [(c.get('key') or c.get('accessToken') or '') for c in creds]
         strategy = str(cfg.get('credentialStrategy') or cfg.get('credential_strategy') or '').strip().lower() or DEFAULT_CREDENTIAL_STRATEGY
         if strategy not in CREDENTIAL_STRATEGIES:
             strategy = 'failover'
+        api_type = normalize_dashboard_api_type(cfg.get('api') or infer_api_type(name, cfg, cfg.get('baseUrl', '')))
         masked = []
         snap = credential_state_snapshot(name, creds)
         for i, c in enumerate(creds):
@@ -8358,8 +8461,8 @@ def list_setup_credentials():
             masked.append(mc)
         summary.append({
             'provider': name,
-            'api': cfg.get('api') or infer_api_type(name, cfg, cfg.get('baseUrl', '')),
-            'baseUrl': cfg.get('baseUrl', ''),
+            'api': api_type,
+            'baseUrl': cfg.get('baseUrl') or default_base_url_for_api(api_type),
             'strategy': strategy,
             'strategies': sorted(CREDENTIAL_STRATEGIES),
             'credentials': masked,
@@ -8444,32 +8547,32 @@ def save_setup_credential(payload):
     config = _load_app_provider_config_safe()
     config.setdefault('models', {}).setdefault('providers', {})
     providers_cfg = config['models']['providers']
-    cfg = providers_cfg.get(provider_name)
+    existing_app_cfg = providers_cfg.get(provider_name)
+    cfg = existing_app_cfg
     if not isinstance(cfg, dict):
         cfg = {}
-    # If creating a new provider, fill in defaults so it is usable.
-    if not cfg:
-        api_type = str(payload.get('api') or '').strip()
-        api_aliases = {
-            'openai': 'openai-completions',
-            'openai-compatible': 'openai-completions',
-            'anthropic': 'anthropic-messages',
-            'google': 'google-generative-language',
-            'gemini': 'google-generative-language',
-            'codex': 'openai-codex-responses',
-            'ollama-cloud': 'ollama',
+    runtime_provider = PROVIDERS.get(provider_name)
+    creating_new_provider = not isinstance(existing_app_cfg, dict) and runtime_provider is None
+    if not cfg and runtime_provider:
+        cfg = {
+            'api': runtime_provider.api_type,
+            'baseUrl': runtime_provider.base_url,
         }
-        api_type = api_aliases.get(api_type, api_type)
-        if not api_type:
-            api_type = infer_api_type(provider_name, {}, str(payload.get('baseUrl') or payload.get('base_url') or ''))
-        cfg.setdefault('api', api_type)
-        base_url = str(payload.get('baseUrl') or payload.get('base_url') or '').strip()
-        if not base_url:
-            base_url = default_base_url_for_api(cfg.get('api') or '')
-        if not base_url:
-            raise ValueError('provider_endpoint_required')
-        if base_url:
-            cfg.setdefault('baseUrl', base_url)
+    # If creating a new provider, fill in defaults so it is usable.
+    api_type = normalize_dashboard_api_type(payload.get('api') or cfg.get('api') or '')
+    if not api_type:
+        api_type = infer_api_type(provider_name, cfg, str(payload.get('baseUrl') or payload.get('base_url') or cfg.get('baseUrl') or ''))
+    if api_type and not cfg.get('api'):
+        cfg['api'] = api_type
+    base_url = str(payload.get('baseUrl') or payload.get('base_url') or cfg.get('baseUrl') or '').strip()
+    if not base_url:
+        base_url = default_base_url_for_api(cfg.get('api') or api_type or '')
+    if not base_url:
+        raise ValueError('provider_endpoint_required')
+    if base_url and not cfg.get('baseUrl'):
+        cfg['baseUrl'] = base_url
+    # If creating a new provider, fill in defaults so it is usable.
+    if creating_new_provider:
         models = parse_model_list(payload.get('models'))
         if models:
             cfg.setdefault('models', models)
@@ -11153,22 +11256,38 @@ GOOGLE_SCHEMA_UNSUPPORTED_KEYS = {
     '$schema',
     'additionalProperties',
     'allOf',
+    'all_of',
     'anyOf',
+    'any_of',
     'const',
     'contains',
     'definitions',
     'dependentSchemas',
+    'dependent_schemas',
     'else',
+    'exclusiveMaximum',
+    'exclusiveMinimum',
+    'exclusive_maximum',
+    'exclusive_minimum',
     'if',
     'maxContains',
+    'max_contains',
     'minContains',
+    'min_contains',
+    'multipleOf',
+    'multiple_of',
     'not',
     'oneOf',
+    'one_of',
     'patternProperties',
+    'pattern_properties',
     'prefixItems',
+    'prefix_items',
     'propertyNames',
+    'property_names',
     'then',
     'unevaluatedProperties',
+    'unevaluated_properties',
 }
 
 
@@ -11180,6 +11299,9 @@ def google_schema_for_tool(value):
     cleaned = {}
     for key, item in value.items():
         if key in GOOGLE_SCHEMA_UNSUPPORTED_KEYS:
+            continue
+        if key == 'type' and isinstance(item, list):
+            cleaned[key] = next((str(t) for t in item if isinstance(t, str) and t.lower() != 'null'), 'string')
             continue
         cleaned[key] = google_schema_for_tool(item)
     return cleaned
@@ -13126,6 +13248,28 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 logger.exception('Credential strategy set failed')
                 self.write_json(500, {'error': 'credential_strategy_failed', 'detail': str(e)})
+            return
+        if request_path == '/setup/provider/enabled':
+            if not require_operator_request(self):
+                return
+            try:
+                self.write_json(200, set_setup_provider_enabled(read_json_body(self)))
+            except ValueError as e:
+                self.write_json(400, {'error': str(e)})
+            except Exception as e:
+                logger.exception('Provider enablement update failed')
+                self.write_json(500, {'error': 'provider_enablement_failed', 'detail': str(e)})
+            return
+        if request_path == '/setup/model/enabled':
+            if not require_operator_request(self):
+                return
+            try:
+                self.write_json(200, set_setup_model_enabled(read_json_body(self)))
+            except ValueError as e:
+                self.write_json(400, {'error': str(e)})
+            except Exception as e:
+                logger.exception('Model enablement update failed')
+                self.write_json(500, {'error': 'model_enablement_failed', 'detail': str(e)})
             return
         if request_path == '/setup/model-modalities/update':
             if not require_operator_request(self):
