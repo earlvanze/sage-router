@@ -1113,6 +1113,9 @@ check_marketing_comparison_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "gateway-copy-migration" /tmp/sage-router-readiness-body; then
     page_code="200:missing-gateway-migration-copy"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copy 60-second gateway setup" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-copy-first-cta"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "gateway-compare-migration-bundle" /tmp/sage-router-readiness-body; then
     page_code="200:missing-gateway-migration-copy-snippet"
   fi
