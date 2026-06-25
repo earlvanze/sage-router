@@ -260,6 +260,10 @@ and sends the prospect to the account/manual billing path.
 owner-approved community launch posts, including Show HN, Indie Hackers,
 Dev.to, X, and LinkedIn, with measured campaign links and no-secret posting
 boundaries for the `$10k MRR` campaign.
+`https://sagerouter.dev/founder-sales-kit` gives the operator copyable
+no-secret direct outreach for Pro activation, Max implementation review,
+gateway migration replies, and calculator follow-up with measured
+`utm_source=founder-sales` links for the same `$10k MRR` campaign.
 
 The public homepage now treats hosted signup as live: the homepage primary CTA
 is `Create hosted API key`, links directly to `https://app.sagerouter.dev/account.html?plan=pro&start=checkout`, and

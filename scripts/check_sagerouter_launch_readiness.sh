@@ -2732,6 +2732,66 @@ check_marketing_fusion_page() {
   fi
 }
 
+check_marketing_founder_sales_kit_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/founder-sales-kit")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router Founder Sales Kit" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable Pro activation email" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pro-email-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-pro-email" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-founder-pro-email"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable Max implementation DM" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-max-dm-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-max-dm" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-founder-max-dm"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable gateway migration reply" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-reply-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-gateway-reply" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-founder-gateway-reply"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable calculator follow-up" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-calculator-followup-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-calculator-followup" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-founder-calculator-followup"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=founder-sales" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-founder-sales-utm"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "outreach_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-founder-sales-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-founder-sales-view-funnel"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/founder-sales-kit" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-founder-sales-kit-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Founder sales kit: ${MARKETING_BASE%/}/founder-sales-kit" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-founder-sales-kit-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing founder sales kit is live in sitemap and LLM discovery"
+  else
+    fail "marketing founder sales kit incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_launch_plan_page() {
   local page_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/launch-plan")"
@@ -3649,6 +3709,7 @@ check_marketing_openclaw_router_page
 check_marketing_cursor_router_page
 check_marketing_reddit_evaluation_page
 check_marketing_community_launch_kit_page
+check_marketing_founder_sales_kit_page
 check_marketing_launch_plan_page
 check_marketing_billing_page
 check_marketing_managed_access_page

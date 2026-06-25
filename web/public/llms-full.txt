@@ -39,6 +39,7 @@ Coding agent model router: https://sagerouter.dev/coding-agent-model-router
 Cursor AI model router: https://sagerouter.dev/cursor-ai-model-router
 AI gateway evaluation kit: https://sagerouter.dev/reddit-ai-gateway-evaluation
 Community launch kit: https://sagerouter.dev/community-launch-kit
+Founder sales kit: https://sagerouter.dev/founder-sales-kit
 Launch plan page: https://sagerouter.dev/launch-plan
 Billing help page: https://sagerouter.dev/billing
 Managed-access private beta intake: https://sagerouter.dev/managed-access
@@ -101,6 +102,8 @@ The Cursor AI model router page at https://sagerouter.dev/cursor-ai-model-router
 The AI gateway evaluation kit at https://sagerouter.dev/reddit-ai-gateway-evaluation packages Reddit-style comparison proof for local-first provider custody, OpenRouter as a BYOK-compatible route rather than bundled resale, multiple API-key load balancing, 429 failover, capability-aware multimodal routing, hosted generated-key activation, and copyable evaluation/setup snippets that record only `quickstart_snippet_copied` IDs.
 
 The community launch kit at https://sagerouter.dev/community-launch-kit packages owner-approved community launch copy for channels such as Hacker News, Indie Hackers, Dev.to, X, and LinkedIn, with copyable Show HN, Indie Hackers, Dev.to, X thread, and LinkedIn text, measured `utm_source=hackernews`, `utm_source=indiehackers`, `utm_source=devto`, `utm_source=x`, and `utm_source=linkedin` links, no-secret posting boundaries, local-first/BYOK positioning, hosted generated-key activation, and privacy-safe snippet-copy telemetry.
+
+The founder sales kit at https://sagerouter.dev/founder-sales-kit packages no-secret direct outreach for Pro activation, Max implementation review, gateway migration replies, and calculator follow-up. It uses measured `utm_source=founder-sales`, `utm_medium=direct`, and `utm_campaign=sage-router-launch` links, copyable outreach snippets that record only `outreach_snippet_copied` IDs, and boundaries that forbid prompts, provider credentials, OAuth tokens, generated API keys, customer data, private funnel metrics, and raw provider responses in outreach.
 
 The public launch plan at https://sagerouter.dev/launch-plan turns the $10k MRR operating plan into a buyer-facing conversion path. It explains the Lite/Pro/Max plan ladder, the signup to first routed request activation funnel, private operator evidence from `/analytics/funnel`, `/edge/health`, and `/admin/customers`, and the boundary that managed provider access is a separate guarded beta path rather than a public pooled-provider entitlement.
 

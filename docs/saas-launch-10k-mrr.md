@@ -210,6 +210,10 @@ provider resale claim, or runtime feature flag.
   posting rules, local-first/BYOK positioning, copyable Show HN, Indie
   Hackers, Dev.to, X, and LinkedIn text, and privacy-safe snippet-copy
   telemetry.
+- Keep `/founder-sales-kit` as the founder-led direct outreach kit for Pro
+  activation, Max implementation review, gateway migration replies, and
+  calculator follow-up, with measured `utm_source=founder-sales` links and
+  no-secret outreach boundaries.
 - Keep `/docs/codex` as the dedicated Codex CLI path with hosted, local port
   `8790`, and Tailnet examples using `wire_api = "responses"` and
   `sage-router/frontier`.
