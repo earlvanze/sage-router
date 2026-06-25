@@ -1012,6 +1012,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("gateway_compare_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("model_catalog_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("model_catalog_oauth_clicked") != null) and
+    ((.allowedEvents // []) | index("model_catalog_setup_next_clicked") != null) and
     ((.allowedEvents // []) | index("account_viewed") != null) and
     ((.allowedEvents // []) | index("account_intent_primary_clicked") != null) and
     ((.allowedEvents // []) | index("account_preauth_setup_next_clicked") != null) and
@@ -1704,6 +1705,12 @@ check_marketing_model_catalog_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "model-catalog-setup-bundle" /tmp/sage-router-readiness-body; then
     page_code="200:missing-model-catalog-setup-copy-snippet"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "model_catalog_setup_next_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-model-catalog-setup-next-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Create Pro key next" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-model-catalog-setup-next-copy"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
     page_code="200:missing-model-catalog-setup-copy-funnel"

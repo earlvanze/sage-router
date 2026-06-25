@@ -134,6 +134,7 @@ const ALLOWED_EVENTS = new Set([
   'model_catalog_magic_link_failed',
   'model_catalog_oauth_clicked',
   'model_catalog_oauth_failed',
+  'model_catalog_setup_next_clicked',
   'account_viewed',
   'account_plan_selected',
   'auth_provider_state_checked',

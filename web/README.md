@@ -40,12 +40,14 @@ The waitlist form posts to `/api/waitlist`, a Cloudflare Pages Function that ins
 
 The homepage, calculator, pricing, Fusion, launch plan, quickstart, model-gateway
 comparison, and model catalog pages send anonymous pre-signup page-view, CTA,
-quickstart snippet-copy, filter, and bucketed search intent to
+quickstart snippet-copy, setup-next, filter, and bucketed search intent to
 `/api/funnel-event`, backed by Supabase table `sage_router_funnel_events`.
 The public model catalog at `/models` uses safe `/model-catalog` metadata for
 gateway-style searchable discovery and falls back to embedded public route
 families; it does not call live `/v1/models` without a generated customer API
-key. Catalog search telemetry stores only coarse model-family and query-bucket
+key. It also exposes `Copy 60-second catalog setup` and an always-visible
+`Create Pro key next` handoff with `model_catalog_setup_next_clicked`
+telemetry. Catalog search telemetry stores only coarse model-family and query-bucket
 labels, not raw search text.
 `GET /api/funnel-event` is a non-mutating health check. The function only
 accepts allowlisted event names, plans, sanitized URLs, and metadata buckets so

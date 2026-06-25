@@ -62,7 +62,8 @@
         </form>
         <p class="note">The public catalog is discovery metadata. Live <code>/v1/models</code> and model requests require an active generated <code>sk_sage_*</code> key.</p>
         <div class="copyRow">
-          <button id="model-catalog-copy-setup" class="button secondary" type="button">Copy catalog setup bundle</button>
+          <button id="model-catalog-copy-setup" class="button secondary" type="button">Copy 60-second catalog setup</button>
+          <a id="model-catalog-copy-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-setup-copied="false">Create Pro key next</a>
           <span id="model-catalog-copy-status" role="status" aria-live="polite"></span>
         </div>
       </section>
@@ -316,11 +317,13 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
         await writeClipboardText(modelCatalogSetupBundleText());
         trackModelCatalogEvent('quickstart_snippet_copied', {
           plan: 'pro',
-          button: 'Copy catalog setup bundle',
+          button: 'Copy 60-second catalog setup',
           state: 'catalog-setup-copy',
           snippet: 'model-catalog-setup-bundle'
         }, ACCOUNT_PAGE_URL);
-        if (status) status.textContent = 'Copied catalog setup bundle.';
+        const nextAccount = $('model-catalog-copy-next-account');
+        if (nextAccount) nextAccount.dataset.setupCopied = 'true';
+        if (status) status.textContent = 'Copied. Create your key next; no provider key required.';
       } catch {
         if (status) status.textContent = 'Copy failed. Open the quickstart for manual setup.';
       }
@@ -508,6 +511,15 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
     $('model-catalog-email-form')?.addEventListener('submit', sendModelCatalogMagicLink);
     $('model-catalog-github-pro')?.addEventListener('click', modelCatalogOauthLogin);
     $('model-catalog-copy-setup')?.addEventListener('click', copyModelCatalogSetupBundle);
+    $('model-catalog-copy-next-account')?.addEventListener('click', (event) => {
+      const link = event.currentTarget;
+      trackModelCatalogEvent('model_catalog_setup_next_clicked', {
+        plan: 'pro',
+        button: 'Create Pro key next',
+        state: link.dataset.setupCopied === 'true' ? 'post-copy' : 'pre-copy',
+        snippet: 'model-catalog-setup-bundle'
+      }, link.href);
+    });
     setCatalog(embeddedCatalog, 'embedded');
     fetch('https://api.sagerouter.dev/model-catalog', { credentials: 'omit', headers: { Accept: 'application/json' } })
       .then((response) => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
