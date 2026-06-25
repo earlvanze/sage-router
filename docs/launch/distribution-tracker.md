@@ -17,13 +17,19 @@ readiness guard enables it.
 
 ## Posting queue
 
+Live funnel snapshot from 2026-06-25: internal Sage Router traffic is the
+largest source, Reddit is the strongest external channel currently visible
+(`15` privacy-safe clicks), and pricing/quickstart are the highest-intent
+surfaces after landing. Prioritize Reddit-style reliability/comparison posts
+before broader social batching.
+
 | Channel | Status | Link to use | Success signal |
 | --- | --- | --- | --- |
 | Moltbook | Blocked until agent claim | `https://sagerouter.dev/quickstart?utm_source=moltbook&utm_medium=community&utm_campaign=sage-router-launch` | Post URL captured; `moltbook` appears in acquisition actions |
+| Reddit r/selfhosted | Priority 1 after owner approval | `https://sagerouter.dev/quickstart?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | `reddit` source clicks, quickstart copies, GitHub stars |
+| Reddit r/Ollama | Priority 2 after owner approval | `https://sagerouter.dev/models?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | Ollama/model-catalog demand and quickstart copies |
+| Reddit r/SideProject | Priority 3 after owner approval | `https://sagerouter.dev/pricing?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | Pricing/account CTA intent |
 | Hacker News | Ready after owner approval | `https://sagerouter.dev/?utm_source=hackernews&utm_medium=community&utm_campaign=sage-router-launch` | Referral and signup intent from `hackernews` |
-| Reddit r/selfhosted | Ready after owner approval | `https://sagerouter.dev/quickstart?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | `reddit` source clicks, quickstart copies, GitHub stars |
-| Reddit r/Ollama | Ready after owner approval | `https://sagerouter.dev/models?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | Ollama/model-catalog demand and quickstart copies |
-| Reddit r/SideProject | Ready after owner approval | `https://sagerouter.dev/pricing?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | Pricing/account CTA intent |
 | Indie Hackers | Ready after owner approval | `https://sagerouter.dev/launch-plan?utm_source=indiehackers&utm_medium=community&utm_campaign=sage-router-launch` | Signup, pricing, and founder-sales replies |
 | Dev.to | Ready after owner approval | `https://sagerouter.dev/quickstart?utm_source=devto&utm_medium=community&utm_campaign=sage-router-launch` | Quickstart copy and GitHub traffic |
 | X / Twitter | Ready after owner approval | `https://sagerouter.dev/pricing?utm_source=x&utm_medium=social&utm_campaign=sage-router-launch` | Thread clicks, replies, profile visits |
