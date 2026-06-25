@@ -962,6 +962,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("landing_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("gateway_compare_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("model_catalog_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("account_viewed") != null) and
     ((.allowedEvents // []) | index("account_intent_primary_clicked") != null) and
@@ -1054,6 +1055,12 @@ check_marketing_comparison_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "gateway_compare_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-gateway-compare-magic-link-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Continue with GitHub for Pro" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-compare-github-pro-activation"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "gateway_compare_oauth_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-compare-oauth-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "gateway-copy-migration" /tmp/sage-router-readiness-body; then
     page_code="200:missing-gateway-migration-copy"

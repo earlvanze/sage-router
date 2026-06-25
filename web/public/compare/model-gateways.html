@@ -18,6 +18,7 @@
     .copyRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
     .copyRow button{border:0;cursor:pointer}
     .copyRow span{min-height:22px;color:var(--brand);font-size:14px}
+    .emailStart .oauthButton{background:linear-gradient(135deg,var(--brand),#50d891);color:#04150d}
   </style>
   <script type="application/ld+json">
   {
@@ -81,6 +82,7 @@
         </div>
         <form class="emailStart" id="gateway-compare-email-form">
           <label for="gateway-compare-email">Get a Pro key setup link</label>
+          <button id="gateway-compare-github-pro" class="button primary oauthButton" type="button">Continue with GitHub for Pro</button>
           <input id="gateway-compare-email" type="email" name="email" autocomplete="email" placeholder="you@company.com" required />
           <button class="button primary" type="submit">Email me the Pro key link</button>
           <p class="emailStartStatus" id="gateway-compare-email-status" role="status">No provider key required to create your Sage Router account.</p>
@@ -358,8 +360,45 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
       }
     }
 
+    async function gatewayCompareOauthLogin(event) {
+      const button = event.currentTarget;
+      const original = button.textContent;
+      const status = document.getElementById('gateway-compare-email-status');
+      button.disabled = true;
+      button.textContent = 'Opening GitHub...';
+      if (status) status.textContent = 'Opening GitHub sign-in for Pro.';
+      trackGatewayComparisonEvent('gateway_compare_oauth_clicked', {
+        plan: 'pro',
+        target: ACCOUNT_PAGE_URL,
+        button: 'Continue with GitHub for Pro',
+        state: 'github'
+      });
+      try {
+        const api = await loadSupabaseClient();
+        const client = api.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const { error } = await client.auth.signInWithOAuth({
+          provider: 'github',
+          options: { redirectTo: ACCOUNT_PAGE_URL }
+        });
+        if (error) throw error;
+      } catch (error) {
+        trackGatewayComparisonEvent('gateway_compare_oauth_failed', {
+          plan: 'pro',
+          target: ACCOUNT_PAGE_URL,
+          button: 'Continue with GitHub for Pro',
+          state: 'github'
+        });
+        if (status) status.textContent = 'GitHub sign-in failed here. Opening account setup instead...';
+        setTimeout(() => { window.location.href = ACCOUNT_PAGE_URL; }, 900);
+      } finally {
+        button.disabled = false;
+        button.textContent = original;
+      }
+    }
+
     trackGatewayComparisonEvent('gateway_compare_viewed', { state: 'page-view' });
     document.getElementById('gateway-compare-email-form')?.addEventListener('submit', sendGatewayCompareMagicLink);
+    document.getElementById('gateway-compare-github-pro')?.addEventListener('click', gatewayCompareOauthLogin);
     document.getElementById('gateway-copy-migration')?.addEventListener('click', copyGatewayMigrationBundle);
 
     document.querySelectorAll('a[href]').forEach((link) => {

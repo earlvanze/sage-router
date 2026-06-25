@@ -85,6 +85,8 @@ const ALLOWED_EVENTS = new Set([
   'gateway_compare_migration_clicked',
   'gateway_compare_calculator_clicked',
   'gateway_compare_managed_access_clicked',
+  'gateway_compare_oauth_clicked',
+  'gateway_compare_oauth_failed',
   'gateway_compare_magic_link_requested',
   'gateway_compare_magic_link_sent',
   'gateway_compare_magic_link_failed',
