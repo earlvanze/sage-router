@@ -639,6 +639,14 @@ the root URL (`/`). Open that private install URL in a browser to see:
 - API key management
 - Learned model modalities with per-model edit/reset controls
 
+Hosted/CDN deployments can make learned modalities persistent across all
+router nodes by applying
+`supabase/migrations/20260626003000_model_modalities.sql` and enabling
+`SAGE_ROUTER_MODEL_MODALITIES_SHARED_ENABLED=1` with Supabase service
+credentials. When `SAGE_ROUTER_SUPABASE_MIRROR_ENABLED=1`, the shared ledger is
+enabled by default and nodes merge observations from the
+`sage_router_model_modalities` table periodically.
+
 For programmatic clients (sending `Accept: application/json`), the private
 install root URL returns the JSON API descriptor instead. The dashboard is also
 available at `/dashboard` on private installs.

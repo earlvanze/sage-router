@@ -49,7 +49,7 @@ OpenAI Codex OAuth compatibility:
 
 Cloudflare account id is configured as deploy env `SAGE_ROUTER_CLOUDFLARE_ACCOUNT_ID`.
 
-Apply `supabase/sage_router_saas.sql` before enabling self-serve account creation in production. Tailnet Edge monthly quotas require `supabase/migrations/20260619021500_sage_router_usage_quotas.sql` if the full schema has not already been applied.
+Apply `supabase/sage_router_saas.sql` before enabling self-serve account creation in production. Tailnet Edge monthly quotas require `supabase/migrations/20260619021500_sage_router_usage_quotas.sql` if the full schema has not already been applied. CDN-wide learned model modalities require `supabase/migrations/20260626003000_model_modalities.sql`.
 
 Self-serve SaaS tables are configured by name through:
 
@@ -57,6 +57,7 @@ Self-serve SaaS tables are configured by name through:
 - `SAGE_ROUTER_SUPABASE_API_KEYS_TABLE` default `sage_router_api_keys`
 - `SAGE_ROUTER_SUPABASE_PAYMENT_INTENTS_TABLE` default `sage_router_payment_intents`
 - Tailnet Edge monthly quotas use `sage_router_usage_counters` plus the `sage_router_increment_usage` RPC from `supabase/migrations/20260619021500_sage_router_usage_quotas.sql`
+- Learned model modalities use `sage_router_model_modalities` plus the `sage_router_record_model_modalities` RPC from `supabase/migrations/20260626003000_model_modalities.sql`; set `SAGE_ROUTER_MODEL_MODALITIES_SHARED_ENABLED=1` to enable it when Supabase mirroring is not already enabled.
 
 Minimum columns expected by the incremental backend:
 
@@ -64,5 +65,6 @@ Minimum columns expected by the incremental backend:
 - `sage_router_api_keys`: `id`, `customer_id`, `user_id`, `name`, `prefix`, `api_key_hash`, `status`, `plan`, `created_at_epoch`, `last_used_at_epoch`, `revoked_at_epoch`
 - `sage_router_payment_intents`: `id`, `kind`, `customer_id`, `user_id`, `status`, `asset`, `network`, `amount`, `address`, `metadata`, `event_type`, `event_id`, `created_at_epoch`, `updated_at_epoch`
 - `sage_router_usage_counters`: `id`, `customer_id`, `user_id`, `plan`, `period`, `requests`, `created_at_epoch`, `updated_at_epoch`
+- `sage_router_model_modalities`: `key`, `provider`, `model`, `modalities`, `count`, `first_seen_epoch_ms`, `last_seen_epoch_ms`, `updated_at_epoch_ms`
 
 Generated API keys are returned raw once on creation. Store only `api_key_hash` server-side. Legacy/manual `SAGE_ROUTER_CLIENT_API_KEYS` remains supported for migrations and operator-issued keys.

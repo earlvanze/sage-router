@@ -22,15 +22,29 @@ class ModalityLedgerTests(unittest.TestCase):
         self._tmp.close()
         self._old_path = router.APP_MODEL_MODALITIES
         self._old_ledger = dict(router.MODEL_MODALITIES)
+        self._old_shared_enabled = router.MODEL_MODALITIES_SHARED_ENABLED
+        self._old_shared_refresh = router.MODEL_MODALITIES_SHARED_REFRESH_SECONDS
+        self._old_supabase_url = router.SUPABASE_URL
+        self._old_supabase_key = router.SUPABASE_SERVICE_ROLE_KEY
+        self._old_supabase_request = router.supabase_request
         router.APP_MODEL_MODALITIES = self._tmp.name
         router.MODEL_MODALITIES.clear()
         router._MODEL_MODALITIES_DIRTY = False
         router._MODEL_MODALITIES_LAST_SAVE = 0.0
+        router._MODEL_MODALITIES_LAST_SHARED_LOAD = 0.0
+        router.MODEL_MODALITIES_SHARED_ENABLED = False
+        router.SUPABASE_URL = ''
+        router.SUPABASE_SERVICE_ROLE_KEY = ''
 
     def tearDown(self):
         router.APP_MODEL_MODALITIES = self._old_path
         router.MODEL_MODALITIES.clear()
         router.MODEL_MODALITIES.update(self._old_ledger)
+        router.MODEL_MODALITIES_SHARED_ENABLED = self._old_shared_enabled
+        router.MODEL_MODALITIES_SHARED_REFRESH_SECONDS = self._old_shared_refresh
+        router.SUPABASE_URL = self._old_supabase_url
+        router.SUPABASE_SERVICE_ROLE_KEY = self._old_supabase_key
+        router.supabase_request = self._old_supabase_request
         os.unlink(self._tmp.name)
 
     def test_request_modalities(self):
@@ -105,6 +119,66 @@ class ModalityLedgerTests(unittest.TestCase):
         contributions = [name for name, _ in after[0]['contributions']]
         self.assertGreater(learned_score, base_score)
         self.assertIn('learned_modality:image', contributions)
+
+    def test_shared_modalities_merge_into_local_ledger(self):
+        router.MODEL_MODALITIES_SHARED_ENABLED = True
+        router.SUPABASE_URL = 'https://example.supabase.co'
+        router.SUPABASE_SERVICE_ROLE_KEY = 'service'
+
+        def fake_supabase(path, **_kwargs):
+            self.assertIn(router.SUPABASE_MODEL_MODALITIES_TABLE, path)
+            return [{
+                'key': 'google/gemini-3-flash',
+                'modalities': ['text', 'image', 'video'],
+                'count': 4,
+                'first_seen_epoch_ms': 10,
+                'last_seen_epoch_ms': 20,
+            }]
+
+        router.supabase_request = fake_supabase
+        changed = router.refresh_model_modalities_from_shared(force=True)
+
+        self.assertTrue(changed)
+        self.assertEqual(router.model_learned_modalities('google', 'gemini-3-flash'), {'text', 'image', 'video'})
+        self.assertIn('google/gemini-3-flash', json.load(open(router.APP_MODEL_MODALITIES)))
+
+    def test_record_model_modalities_mirrors_to_shared_rpc(self):
+        router.MODEL_MODALITIES_SHARED_ENABLED = True
+        router.SUPABASE_URL = 'https://example.supabase.co'
+        router.SUPABASE_SERVICE_ROLE_KEY = 'service'
+        calls = []
+
+        def fake_supabase(path, method='GET', body=None, **_kwargs):
+            calls.append((path, method, body))
+            return None
+
+        router.supabase_request = fake_supabase
+        router.record_model_modalities('openai', 'gpt-5.4', ['text', 'image'])
+
+        self.assertTrue(calls)
+        path, method, body = calls[0]
+        self.assertIn('/rest/v1/rpc/', path)
+        self.assertEqual(method, 'POST')
+        self.assertEqual(body['provider_name'], 'openai')
+        self.assertEqual(body['model_name'], 'gpt-5.4')
+        self.assertEqual(body['modalities_in'], ['image', 'text'])
+
+    def test_edit_and_reset_mirror_to_shared_store(self):
+        router.MODEL_MODALITIES_SHARED_ENABLED = True
+        router.SUPABASE_URL = 'https://example.supabase.co'
+        router.SUPABASE_SERVICE_ROLE_KEY = 'service'
+        calls = []
+
+        def fake_supabase(path, method='GET', body=None, **_kwargs):
+            calls.append((path, method, body))
+            return None
+
+        router.supabase_request = fake_supabase
+        router.set_model_modalities({'key': 'openai/gpt-5.4', 'modalities': ['audio']})
+        router.reset_model_modalities({'key': 'openai/gpt-5.4'})
+
+        self.assertTrue(any(path.startswith(f'/rest/v1/{router.SUPABASE_MODEL_MODALITIES_TABLE}') and method == 'POST' for path, method, _body in calls))
+        self.assertTrue(any(path.startswith(f'/rest/v1/{router.SUPABASE_MODEL_MODALITIES_TABLE}?key=eq.') and method == 'DELETE' for path, method, _body in calls))
 
 
 if __name__ == '__main__':

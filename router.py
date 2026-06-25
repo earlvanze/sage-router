@@ -197,10 +197,17 @@ SUPABASE_OPERATOR_AUDIT_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_OPERATOR_AU
 SUPABASE_WAITLIST_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_WAITLIST_TABLE', 'sage_router_waitlist')
 SUPABASE_WAITLIST_FALLBACK_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_WAITLIST_FALLBACK_TABLE', 'funnel_leads')
 SUPABASE_FUNNEL_EVENTS_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_FUNNEL_EVENTS_TABLE', 'sage_router_funnel_events')
+SUPABASE_MODEL_MODALITIES_TABLE = os.environ.get('SAGE_ROUTER_SUPABASE_MODEL_MODALITIES_TABLE', 'sage_router_model_modalities')
+SUPABASE_MODEL_MODALITIES_RPC = os.environ.get('SAGE_ROUTER_SUPABASE_MODEL_MODALITIES_RPC', 'sage_router_record_model_modalities')
 # Off by default — no remote mirroring of analytics/customers/keys. The
 # router should keep its work local; enable only when the operator runs a
 # hosted tier that needs the Supabase mirror.
 SUPABASE_MIRROR_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_MIRROR_ENABLED', '0').strip().lower() in {'1', 'true', 'yes', 'on'}
+MODEL_MODALITIES_SHARED_ENABLED = os.environ.get(
+    'SAGE_ROUTER_MODEL_MODALITIES_SHARED_ENABLED',
+    '1' if SUPABASE_MIRROR_ENABLED else '0',
+).strip().lower() in {'1', 'true', 'yes', 'on'}
+MODEL_MODALITIES_SHARED_REFRESH_SECONDS = int(os.environ.get('SAGE_ROUTER_MODEL_MODALITIES_SHARED_REFRESH_SECONDS', '60'))
 # Off by default — the router does not collect user identities. Enable only
 # when running the hosted billing/tenancy tier that requires Supabase Auth.
 SUPABASE_AUTH_ENABLED = os.environ.get('SAGE_ROUTER_SUPABASE_AUTH_ENABLED', '0').strip().lower() in {'1', 'true', 'yes', 'on'}
@@ -2843,6 +2850,13 @@ def split_provider_model(model_value):
     return provider_name.strip() or None, model.strip()
 
 
+def is_router_profile_model(model):
+    name = str(model or '').strip()
+    if not name:
+        return False
+    return name in load_router_profiles() or name in {'auto', 'fusion'}
+
+
 def requested_model_supported_by_provider(provider_name, model):
     if not provider_name or not model:
         return False
@@ -2928,10 +2942,22 @@ def infer_provider_for_requested_model(model, avoid_provider=None):
 
 
 def resolve_requested_provider_model(payload):
-    requested_provider = payload.get('provider')
+    requested_provider = str(payload.get('provider') or '').strip() or None
     model_provider, requested_model = split_provider_model(payload.get('model'))
+    if requested_provider in SELF_PROVIDER_NAMES:
+        requested_provider = None
+    if model_provider in SELF_PROVIDER_NAMES:
+        nested_provider, nested_model = split_provider_model(requested_model)
+        if nested_provider:
+            model_provider, requested_model = nested_provider, nested_model
+        elif is_router_profile_model(requested_model):
+            return None, None
+        else:
+            model_provider = None
     if model_provider and not requested_provider:
         requested_provider = model_provider
+    if not requested_provider and not model_provider and is_router_profile_model(requested_model):
+        return None, None
     if not requested_model:
         return requested_provider, requested_model
 
@@ -9708,10 +9734,180 @@ MODEL_MODALITIES: dict[str, dict] = {}
 MODEL_MODALITIES_LOCK = threading.Lock()
 _MODEL_MODALITIES_DIRTY = False
 _MODEL_MODALITIES_LAST_SAVE = 0.0
+_MODEL_MODALITIES_LAST_SHARED_LOAD = 0.0
 
 
 def _model_modality_key(provider_name, model):
     return f'{provider_name}/{model}'
+
+
+def model_modalities_shared_enabled():
+    return bool(MODEL_MODALITIES_SHARED_ENABLED and SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
+
+
+def _normalize_model_modality_entry(entry, now_ms=None):
+    entry = entry or {}
+    now_ms = now_ms or int(time.time() * 1000)
+    return {
+        'modalities': normalize_model_modalities(entry.get('modalities') or []),
+        'count': max(0, int(entry.get('count', 0) or 0)),
+        'firstSeen': int(entry.get('firstSeen') or entry.get('first_seen_epoch_ms') or now_ms),
+        'lastSeen': int(entry.get('lastSeen') or entry.get('last_seen_epoch_ms') or now_ms),
+    }
+
+
+def _merge_model_modality_entry(existing, incoming):
+    incoming = _normalize_model_modality_entry(incoming)
+    if not existing:
+        return incoming
+    existing = _normalize_model_modality_entry(existing, incoming.get('firstSeen'))
+    return {
+        'modalities': sorted(set(existing.get('modalities') or []) | set(incoming.get('modalities') or [])),
+        'count': max(int(existing.get('count', 0) or 0), int(incoming.get('count', 0) or 0)),
+        'firstSeen': min(int(existing.get('firstSeen') or incoming.get('firstSeen')), int(incoming.get('firstSeen') or existing.get('firstSeen'))),
+        'lastSeen': max(int(existing.get('lastSeen') or incoming.get('lastSeen')), int(incoming.get('lastSeen') or existing.get('lastSeen'))),
+    }
+
+
+def merge_model_modalities(entries):
+    changed = False
+    for key, entry in (entries or {}).items():
+        if not key or not isinstance(entry, dict):
+            continue
+        merged = _merge_model_modality_entry(MODEL_MODALITIES.get(key), entry)
+        if MODEL_MODALITIES.get(key) != merged:
+            MODEL_MODALITIES[key] = merged
+            changed = True
+    return changed
+
+
+def refresh_model_modalities_from_shared(force=False):
+    global _MODEL_MODALITIES_LAST_SHARED_LOAD, _MODEL_MODALITIES_DIRTY
+    if not model_modalities_shared_enabled():
+        return False
+    now = time.time()
+    if not force and (now - _MODEL_MODALITIES_LAST_SHARED_LOAD) < MODEL_MODALITIES_SHARED_REFRESH_SECONDS:
+        return False
+    shared = read_supabase_model_modalities()
+    _MODEL_MODALITIES_LAST_SHARED_LOAD = now
+    if not shared:
+        return False
+    with MODEL_MODALITIES_LOCK:
+        changed = merge_model_modalities(shared)
+        if changed:
+            _MODEL_MODALITIES_DIRTY = True
+    if changed:
+        _persist_model_modalities()
+    return changed
+
+
+def read_supabase_model_modalities():
+    if not model_modalities_shared_enabled():
+        return {}
+    try:
+        rows = supabase_request(
+            f'/rest/v1/{SUPABASE_MODEL_MODALITIES_TABLE}?select=key,modalities,count,first_seen_epoch_ms,last_seen_epoch_ms&order=last_seen_epoch_ms.desc',
+            service=True,
+            timeout=10,
+        ) or []
+        entries = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            key = str(row.get('key') or '').strip()
+            if not key:
+                continue
+            entries[key] = {
+                'modalities': row.get('modalities') or [],
+                'count': row.get('count') or 0,
+                'firstSeen': row.get('first_seen_epoch_ms') or 0,
+                'lastSeen': row.get('last_seen_epoch_ms') or 0,
+            }
+        return entries
+    except Exception as e:
+        logger.debug(f'Supabase model modality read failed: {extract_http_error(e)}')
+        return {}
+
+
+def write_supabase_model_modalities(provider_name, model, modalities, entry=None):
+    if not model_modalities_shared_enabled():
+        return False
+    modalities = normalize_model_modalities(modalities)
+    if not provider_name or not model or not modalities:
+        return False
+    now_ms = int(time.time() * 1000)
+    try:
+        supabase_request(
+            f'/rest/v1/rpc/{SUPABASE_MODEL_MODALITIES_RPC}',
+            method='POST',
+            body={
+                'provider_name': provider_name,
+                'model_name': model,
+                'modalities_in': modalities,
+                'seen_at_epoch_ms': int((entry or {}).get('lastSeen') or now_ms),
+            },
+            service=True,
+            timeout=6,
+        )
+        return True
+    except Exception as e:
+        logger.debug(f'Supabase model modality RPC failed: {extract_http_error(e)}')
+    try:
+        key = _model_modality_key(provider_name, model)
+        entry = _normalize_model_modality_entry(entry or {'modalities': modalities, 'count': 1, 'firstSeen': now_ms, 'lastSeen': now_ms}, now_ms)
+        row = {
+            'key': key,
+            'provider': provider_name,
+            'model': model,
+            'modalities': entry['modalities'],
+            'count': entry['count'],
+            'first_seen_epoch_ms': entry['firstSeen'],
+            'last_seen_epoch_ms': entry['lastSeen'],
+            'updated_at_epoch_ms': now_ms,
+        }
+        supabase_request(f'/rest/v1/{SUPABASE_MODEL_MODALITIES_TABLE}', method='POST', body=row, service=True, timeout=6)
+        return True
+    except Exception as e:
+        logger.debug(f'Supabase model modality upsert failed: {extract_http_error(e)}')
+        return False
+
+
+def set_supabase_model_modalities(provider_name, model, modalities, entry=None):
+    if not model_modalities_shared_enabled():
+        return False
+    now_ms = int(time.time() * 1000)
+    entry = _normalize_model_modality_entry(entry or {'modalities': modalities, 'count': 0, 'firstSeen': now_ms, 'lastSeen': now_ms}, now_ms)
+    try:
+        row = {
+            'key': _model_modality_key(provider_name, model),
+            'provider': provider_name,
+            'model': model,
+            'modalities': entry['modalities'],
+            'count': entry['count'],
+            'first_seen_epoch_ms': entry['firstSeen'],
+            'last_seen_epoch_ms': entry['lastSeen'],
+            'updated_at_epoch_ms': now_ms,
+        }
+        supabase_request(f'/rest/v1/{SUPABASE_MODEL_MODALITIES_TABLE}', method='POST', body=row, service=True, timeout=6)
+        return True
+    except Exception as e:
+        logger.debug(f'Supabase model modality set failed: {extract_http_error(e)}')
+        return False
+
+
+def reset_supabase_model_modalities(provider=None, model=None):
+    if not model_modalities_shared_enabled():
+        return False
+    try:
+        if provider and model:
+            key = urllib.parse.quote(_model_modality_key(provider, model), safe='')
+            supabase_request(f'/rest/v1/{SUPABASE_MODEL_MODALITIES_TABLE}?key=eq.{key}', method='DELETE', service=True, timeout=6)
+        else:
+            supabase_request(f'/rest/v1/{SUPABASE_MODEL_MODALITIES_TABLE}?key=not.is.null', method='DELETE', service=True, timeout=10)
+        return True
+    except Exception as e:
+        logger.debug(f'Supabase model modality reset failed: {extract_http_error(e)}')
+        return False
 
 
 def load_model_modalities():
@@ -9721,7 +9917,9 @@ def load_model_modalities():
             with open(APP_MODEL_MODALITIES) as f:
                 data = json.load(f)
             if isinstance(data, dict):
-                MODEL_MODALITIES = data
+                MODEL_MODALITIES = {}
+                merge_model_modalities(data)
+        refresh_model_modalities_from_shared(force=True)
     except Exception as e:
         logger.debug(f'Model modality ledger load failed: {e}')
     return MODEL_MODALITIES
@@ -9746,6 +9944,9 @@ def record_model_modalities(provider_name, model, modalities):
     """Record that `model` served a request with the given modalities."""
     if not provider_name or not model or not modalities:
         return
+    modalities = normalize_model_modalities(modalities)
+    if not modalities:
+        return
     key = _model_modality_key(provider_name, model)
     now_ms = int(time.time() * 1000)
     global _MODEL_MODALITIES_DIRTY
@@ -9760,10 +9961,10 @@ def record_model_modalities(provider_name, model, modalities):
         entry['modalities'] = sorted(existing)
         entry['count'] = int(entry.get('count', 0)) + 1
         entry['lastSeen'] = now_ms
-        if changed:
-            _MODEL_MODALITIES_DIRTY = True
-    if changed:
-        _persist_model_modalities()
+        _MODEL_MODALITIES_DIRTY = True
+        snapshot = dict(entry)
+    _persist_model_modalities()
+    write_supabase_model_modalities(provider_name, model, modalities, snapshot)
 
 
 MODEL_MODALITY_VALUES = {'text', 'image', 'audio', 'video', 'document'}
@@ -9807,7 +10008,9 @@ def set_model_modalities(payload):
         entry.setdefault('firstSeen', now_ms)
         entry['lastSeen'] = now_ms
         _MODEL_MODALITIES_DIRTY = True
+        snapshot = dict(entry)
     _persist_model_modalities(force=True)
+    set_supabase_model_modalities(provider, model, modalities, snapshot)
     return {'status': 'ok', 'modelModalities': model_modalities_summary(), 'path': APP_MODEL_MODALITIES}
 
 
@@ -9826,11 +10029,13 @@ def reset_model_modalities(payload):
             MODEL_MODALITIES.clear()
         _MODEL_MODALITIES_DIRTY = True
     _persist_model_modalities(force=True)
+    reset_supabase_model_modalities(provider, model)
     return {'status': 'ok', 'removed': removed, 'modelModalities': model_modalities_summary(), 'path': APP_MODEL_MODALITIES}
 
 
 def model_learned_modalities(provider_name, model):
     """Return the set of modalities learned for a model (empty if none)."""
+    refresh_model_modalities_from_shared()
     with MODEL_MODALITIES_LOCK:
         entry = MODEL_MODALITIES.get(_model_modality_key(provider_name, model))
         if not entry:
@@ -9840,6 +10045,7 @@ def model_learned_modalities(provider_name, model):
 
 def model_modalities_summary():
     """Dashboard-safe view of the ledger."""
+    refresh_model_modalities_from_shared()
     with MODEL_MODALITIES_LOCK:
         return {
             key: {
@@ -10388,13 +10594,11 @@ def apply_discord_public_route_profile(payload):
         req = {}
     existing_denies = list(req.get('denyModels') or [])
     existing_allows = list(req.get('allowModels') or [])
-    existing_providers = list(req.get('allowProviders') or [])
-    existing_fallbacks = list(req.get('fallbackProviders') or [])
-    provider_allow = existing_providers or [
-        'ollama-cloud', 'openai-codex', 'openai', 'ollama-cyber',
-        'nvidia', 'nvidia-nim', 'openrouter', 'google-vertex',
+    provider_allow = [
+        'google', 'google-vertex', 'openai-codex', 'openai',
+        'ollama-cyber', 'ollama', 'openrouter', 'nvidia-nim',
     ]
-    provider_fallbacks = existing_fallbacks or ['google-vertex']
+    provider_fallbacks = ['openrouter', 'nvidia-nim']
     req.update({
         'qualitySensitive': True,
         'reasoning': False,
@@ -10410,6 +10614,8 @@ def apply_discord_public_route_profile(payload):
             '*minimax-m3*',
             '*minimax-m2.[7-9]*',
             '*mistral-large-3*',
+            'google/gemini-3-flash-preview',
+            'google/gemini-2.5-pro',
             'google-vertex/gemini-3-flash-preview',
             'google-vertex/gemini-2.5-pro',
         ]),
@@ -10427,7 +10633,7 @@ def apply_discord_public_route_profile(payload):
     })
     payload['requirements'] = req
     payload['requiresQuality'] = True
-    payload['requiresReasoning'] = True
+    payload.pop('requiresReasoning', None)
     return True
 
 

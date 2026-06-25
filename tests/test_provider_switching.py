@@ -58,6 +58,45 @@ class ProviderSwitchingTests(unittest.TestCase):
         self.assertEqual('ollama-cloud', provider)
         self.assertEqual('glm-5.1:cloud', model)
 
+    def test_router_profile_model_does_not_force_self_provider(self):
+        provider, model = router.resolve_requested_provider_model({'model': 'sage-router/balanced'})
+        self.assertIsNone(provider)
+        self.assertIsNone(model)
+
+    def test_router_profile_provider_field_does_not_force_self_provider(self):
+        provider, model = router.resolve_requested_provider_model({'provider': 'sage-router', 'model': 'balanced'})
+        self.assertIsNone(provider)
+        self.assertIsNone(model)
+
+    def test_nested_sage_router_model_resolves_to_upstream_provider(self):
+        router.PROVIDERS['google'] = router.Provider(
+            'google',
+            'google-generative-language',
+            'https://google.invalid',
+            'test-key',
+            ['gemini-2.5-flash'],
+        )
+        provider, model = router.resolve_requested_provider_model({'model': 'sage-router/google/gemini-2.5-flash'})
+        self.assertEqual('google', provider)
+        self.assertEqual('gemini-2.5-flash', model)
+
+    def test_discord_public_profile_defaults_include_google_provider_models(self):
+        payload = {
+            'model': 'sage-router/balanced',
+            'metadata': {'agent': 'discord-public'},
+            'messages': [{'role': 'user', 'content': 'hello from discord-public'}],
+        }
+
+        self.assertEqual('balanced', router.apply_router_profile(payload))
+        self.assertTrue(router.apply_discord_public_route_profile(payload))
+
+        requirements = payload['requirements']
+        self.assertEqual('google', requirements['allowProviders'][0])
+        self.assertNotIn('google', requirements['fallbackProviders'])
+        self.assertIn('google/gemini-2.5-pro', requirements['allowModels'])
+        self.assertNotIn('requiresReasoning', payload)
+        self.assertFalse(router.normalize_requirements(payload)['reasoning'])
+
     def test_prepare_route_uses_inferred_provider_for_stale_forced_provider(self):
         _messages, _intent, _complexity, _tokens, chain = router.prepare_route(
             [{'role': 'user', 'content': 'hello'}],

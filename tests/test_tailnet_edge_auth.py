@@ -721,6 +721,33 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertTrue(allowed)
         self.assertIsNone(state)
 
+    def test_edge_records_model_modalities_from_router_headers(self):
+        calls = []
+
+        class ImmediateThread:
+            def __init__(self, target, daemon=False):
+                self.target = target
+                self.daemon = daemon
+
+            def start(self):
+                self.target()
+
+        self.edge.threading.Thread = ImmediateThread
+        self.edge.supabase_post_json = lambda path, payload, timeout=6: calls.append((path, payload, timeout)) or {}
+
+        self.edge.record_model_modalities_from_response_headers([
+            ("X-Sage-Router-Provider", "google"),
+            ("X-Sage-Router-Model-Name", "gemini-2.5-pro"),
+            ("X-Sage-Router-Modalities", "text,image,video"),
+        ], 200)
+
+        self.assertEqual(1, len(calls))
+        path, payload, _timeout = calls[0]
+        self.assertIn("/rest/v1/rpc/", path)
+        self.assertEqual("google", payload["provider_name"])
+        self.assertEqual("gemini-2.5-pro", payload["model_name"])
+        self.assertEqual(["image", "text", "video"], payload["modalities_in"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -47,6 +47,8 @@ SUPABASE_SERVICE_ROLE_KEY = (
 SUPABASE_CUSTOMERS_TABLE = os.environ.get("SAGE_ROUTER_SUPABASE_CUSTOMERS_TABLE", "sage_router_customers")
 SUPABASE_API_KEYS_TABLE = os.environ.get("SAGE_ROUTER_SUPABASE_API_KEYS_TABLE", "sage_router_api_keys")
 SUPABASE_USAGE_RPC = os.environ.get("SAGE_ROUTER_SUPABASE_USAGE_RPC", "sage_router_increment_usage")
+SUPABASE_MODEL_MODALITIES_RPC = os.environ.get("SAGE_ROUTER_SUPABASE_MODEL_MODALITIES_RPC", "sage_router_record_model_modalities")
+MODEL_MODALITIES_SHARED_ENABLED = os.environ.get("SAGE_ROUTER_MODEL_MODALITIES_SHARED_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
 API_KEY_PREFIX = os.environ.get("SAGE_ROUTER_API_KEY_PREFIX", "sk_sage_")
 API_KEY_HASH_PEPPER = os.environ.get("SAGE_ROUTER_API_KEY_HASH_PEPPER") or os.environ.get("SAGE_ROUTER_SIGNING_SECRET") or ""
 AUTH_CACHE_TTL_SECONDS = float(os.environ.get("SAGE_ROUTER_EDGE_AUTH_CACHE_SECONDS", "30"))
@@ -135,6 +137,7 @@ AUTH_CACHE = {}
 AUTH_CACHE_LOCK = threading.Lock()
 RATE_LIMIT_BUCKETS = {}
 RATE_LIMIT_LOCK = threading.Lock()
+MODEL_MODALITY_VALUES = {"text", "image", "audio", "video", "document"}
 
 
 class Upstream:
@@ -515,6 +518,50 @@ def supabase_post_json(path, payload, timeout=6):
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         body = resp.read().decode("utf-8")
         return json.loads(body) if body else {}
+
+
+def normalize_model_modalities(modalities):
+    return sorted({
+        str(modality).strip().lower()
+        for modality in (modalities or [])
+        if str(modality).strip().lower() in MODEL_MODALITY_VALUES
+    })
+
+
+def record_model_modalities_from_response_headers(response_headers, status):
+    if not (MODEL_MODALITIES_SHARED_ENABLED and 200 <= int(status or 0) < 300 and supabase_auth_configured(require_service=True)):
+        return
+    headers = {str(key).lower(): str(value) for key, value in (response_headers or [])}
+    provider = headers.get("x-sage-router-provider", "").strip()
+    model = headers.get("x-sage-router-model-name", "").strip()
+    if not model:
+        model_header = headers.get("x-sage-router-model", "").strip()
+        if "/" in model_header:
+            provider_from_model, model_from_header = model_header.split("/", 1)
+            provider = provider or provider_from_model.strip()
+            model = model_from_header.strip()
+        else:
+            model = model_header
+    modalities = normalize_model_modalities((headers.get("x-sage-router-modalities", "") or "").split(","))
+    if not (provider and model and modalities):
+        return
+
+    def _record():
+        try:
+            supabase_post_json(
+                f"/rest/v1/rpc/{SUPABASE_MODEL_MODALITIES_RPC}",
+                {
+                    "provider_name": provider,
+                    "model_name": model,
+                    "modalities_in": modalities,
+                    "seen_at_epoch_ms": int(time.time() * 1000),
+                },
+                timeout=6,
+            )
+        except Exception as exc:
+            print(f"supabase model modality edge record failed: {exc}", flush=True)
+
+    threading.Thread(target=_record, daemon=True).start()
 
 
 def cache_get(key):
@@ -1219,6 +1266,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
                 self.send_header("Connection", "close")
                 self._cors_headers()
                 self.end_headers()
+                record_model_modalities_from_response_headers(resp.getheaders(), resp.status)
                 if self.command == "HEAD":
                     resp.read(READ_CHUNK_SIZE)
                     return
