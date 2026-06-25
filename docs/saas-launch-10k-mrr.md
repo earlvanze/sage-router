@@ -167,6 +167,11 @@ provider resale claim, or runtime feature flag.
   `model = "auto"`, local port `8790`, local Ollama fallback, Tailnet routing,
   credential load balancing, 429 failover, multimodal routing, and
   provider-authorization boundaries.
+- Keep `/openclaw-ai-model-router` as the OpenClaw acquisition path for
+  OpenAI-compatible and Anthropic-compatible agent routing, Sage Router skill
+  setup, local port `8790`, Tailnet routing, Codex OAuth passthrough,
+  credential load balancing, 429 failover, multimodal routing, and
+  provider-authorization boundaries.
 - Keep `/claude-code-router` as the Claude Code acquisition path for
   Anthropic-compatible coding-agent routing, customer-owned authorized
   Anthropic or Dario subscription paths, hosted `sk_sage_*` account control,

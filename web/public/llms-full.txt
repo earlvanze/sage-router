@@ -28,6 +28,7 @@ Codex CLI router: https://sagerouter.dev/codex-cli-router
 Aider AI model router: https://sagerouter.dev/aider-ai-model-router
 Continue AI model router: https://sagerouter.dev/continue-ai-model-router
 OpenHands AI model router: https://sagerouter.dev/openhands-ai-model-router
+OpenClaw AI model router: https://sagerouter.dev/openclaw-ai-model-router
 Claude Code router: https://sagerouter.dev/claude-code-router
 Gemini API router: https://sagerouter.dev/gemini-api-router
 xAI Grok router: https://sagerouter.dev/xai-grok-router
@@ -78,6 +79,8 @@ The Aider AI model router page at https://sagerouter.dev/aider-ai-model-router t
 The Continue AI model router page at https://sagerouter.dev/continue-ai-model-router targets Continue AI model router, Continue OpenAI-compatible setup, Continue local model routing, Continue Ollama fallback, Continue Tailnet routing, and Continue failover searches. It explains hosted generated `sk_sage_*` keys, `apiBase` set to `https://api.sagerouter.dev/v1`, `model` set to `auto`, local port 8790 routing, local Ollama fallback, credential load balancing, 429 failover, multimodal capability routing, BYOK custody, provider boundaries, and copyable setup snippets that record only `quickstart_snippet_copied` IDs.
 
 The OpenHands AI model router page at https://sagerouter.dev/openhands-ai-model-router targets OpenHands AI model router, OpenHands OpenAI-compatible setup, OpenHands local model routing, OpenHands Ollama fallback, OpenHands Tailnet routing, and OpenHands failover searches. It explains hosted generated `sk_sage_*` keys, `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, `model = "auto"`, local port 8790 routing, local Ollama fallback, credential load balancing, 429 failover, multimodal capability routing, BYOK custody, provider boundaries, and copyable setup snippets that record only `quickstart_snippet_copied` IDs.
+
+The OpenClaw AI model router page at https://sagerouter.dev/openclaw-ai-model-router targets OpenClaw AI model router, OpenClaw local model routing, OpenClaw Tailnet routing, OpenClaw Codex OAuth passthrough, OpenAI-compatible OpenClaw setup, Anthropic-compatible OpenClaw setup, and OpenClaw failover searches. It explains the Sage Router skill setup, local port 8790 routing, `OPENAI_BASE_URL=http://localhost:8790/v1`, `ANTHROPIC_BASE_URL=http://localhost:8790`, Codex auth-profile passthrough, credential load balancing, 429 failover, multimodal capability routing, BYOK custody, provider boundaries, and copyable setup snippets that record only `quickstart_snippet_copied` IDs.
 
 The Claude Code router page at https://sagerouter.dev/claude-code-router targets Claude Code router, Anthropic-compatible coding-agent traffic, Claude-style `/v1/messages`, authorized Anthropic or Dario subscription paths, local and Tailnet fallback, and Claude Code failover searches. It explains hosted generated `sk_sage_*` keys, `ANTHROPIC_BASE_URL=https://api.sagerouter.dev`, customer-authorized provider access, 429 failover, multimodal capability routing, BYOK custody, provider boundaries, and copyable setup snippets that record only `quickstart_snippet_copied` IDs.
 

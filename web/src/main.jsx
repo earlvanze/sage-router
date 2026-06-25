@@ -70,6 +70,14 @@ const routePaths = [
     state: 'route-path-openhands',
   },
   {
+    label: 'OpenClaw',
+    title: 'Serious agent workflows',
+    href: '/openclaw-ai-model-router',
+    body: 'Run OpenClaw behind one local, Tailnet, or hosted Sage Router endpoint with Codex OAuth passthrough and failover.',
+    button: 'OpenClaw route path',
+    state: 'route-path-openclaw',
+  },
+  {
     label: 'Claude Code',
     title: 'Anthropic-compatible coding route',
     href: '/claude-code-router',
@@ -661,6 +669,7 @@ function App() {
             <a href="/aider-ai-model-router">Aider</a>
             <a href="/continue-ai-model-router">Continue</a>
             <a href="/openhands-ai-model-router">OpenHands</a>
+            <a href="/openclaw-ai-model-router">OpenClaw</a>
             <a href="/claude-code-router">Claude Code</a>
             <a href="/xai-grok-router">xAI Grok</a>
             <a href="/mistral-ai-router">Mistral AI</a>
@@ -810,6 +819,11 @@ function App() {
                 button: 'OpenHands router',
                 state: 'hero-secondary-openhands-router',
               })}>OpenHands router</a>
+              <a href="/openclaw-ai-model-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/openclaw-ai-model-router',
+                button: 'OpenClaw router',
+                state: 'hero-secondary-openclaw-router',
+              })}>OpenClaw router</a>
               <a href="/claude-code-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/claude-code-router',
                 button: 'Claude Code router',
@@ -1217,6 +1231,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/aider-ai-model-router">Aider</a>
         <a href="/continue-ai-model-router">Continue</a>
         <a href="/openhands-ai-model-router">OpenHands</a>
+        <a href="/openclaw-ai-model-router">OpenClaw</a>
         <a href="/claude-code-router">Claude Code</a>
         <a href="/xai-grok-router">xAI Grok</a>
         <a href="/mistral-ai-router">Mistral AI</a>

@@ -2294,6 +2294,66 @@ check_marketing_openhands_router_page() {
   fi
 }
 
+check_marketing_openclaw_router_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/openclaw-ai-model-router")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "OpenClaw AI model router" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "openclaw skill add sage-router --from clawhub" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-openclaw-skill-setup"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "OPENAI_BASE_URL=http://localhost:8790/v1" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-openai-base-url"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "ANTHROPIC_BASE_URL=http://localhost:8790" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-anthropic-base-url"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Codex OAuth passthrough" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-codex-oauth-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "429 failover" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-429-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "multimodal" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-multimodal-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "does not grant unauthorized" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-provider-boundary"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "openclaw-router-copy-start" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-openclaw-copy-start"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "openclaw-router-start" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-openclaw-snippet-id"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-view-funnel"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/openclaw-ai-model-router" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-openclaw-router-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "OpenClaw AI model router: ${MARKETING_BASE%/}/openclaw-ai-model-router" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-openclaw-router-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing OpenClaw AI model router page is live in sitemap and LLM discovery"
+  else
+    fail "marketing OpenClaw AI model router page incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_cursor_router_page() {
   local page_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/cursor-ai-model-router")"
@@ -3549,6 +3609,7 @@ check_marketing_coding_agent_router_page
 check_marketing_aider_router_page
 check_marketing_continue_router_page
 check_marketing_openhands_router_page
+check_marketing_openclaw_router_page
 check_marketing_cursor_router_page
 check_marketing_reddit_evaluation_page
 check_marketing_community_launch_kit_page
