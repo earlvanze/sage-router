@@ -82,7 +82,10 @@
         <p class="note">Sage Router sells routing, reliability, account management, quotas, analytics, and support. It does not grant unauthorized model access, pool provider accounts, or bypass provider terms.</p>
         <div class="emailStart">
           <strong>Fastest Pro start: send yourself a sign-in link</strong>
-          <p class="note">No provider key is required to create the account. The link opens the hosted account page with Pro selected, then you can complete Stripe checkout and generate an <code>sk_sage_*</code> key.</p>
+          <p class="note">No provider key is required to create the account. Continue with GitHub or email; both open the hosted account page with Pro selected, then you can complete Stripe checkout and generate an <code>sk_sage_*</code> key.</p>
+          <div class="actions">
+            <button id="pricing-github-pro" class="button primary" type="button" data-pricing-oauth="github" data-plan="pro">Continue with GitHub for Pro</button>
+          </div>
           <form id="pricing-email-form" data-plan="pro">
             <input id="pricing-email" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for Sage Router Pro activation" required>
             <button class="button primary" type="submit">Email me the Pro link</button>
@@ -538,6 +541,49 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
     trackPricingFunnelEvent('pricing_viewed', { state: 'page-view' });
     document.getElementById('pricing-copy-setup')?.addEventListener('click', copyPricingSetupBundle);
 
+    async function pricingOauthLogin(event) {
+      const button = event.currentTarget;
+      const provider = button.dataset.pricingOauth;
+      const plan = normalizePlan(button.dataset.plan);
+      const planName = planDisplay(plan);
+      const target = accountPageUrlForPlan(plan);
+      const status = document.getElementById('pricing-email-status');
+      const buttonLabel = button.textContent.trim();
+      if (!provider || !sb) {
+        if (status) status.textContent = 'Opening the hosted account page instead.';
+        window.location.href = target;
+        return;
+      }
+      button.disabled = true;
+      button.textContent = `Opening ${provider}...`;
+      if (status) status.textContent = `Opening ${provider} sign-in for ${planName}.`;
+      trackPricingFunnelEvent('pricing_oauth_clicked', {
+        plan,
+        target,
+        button: buttonLabel,
+        state: provider,
+      });
+      try {
+        const { error } = await sb.auth.signInWithOAuth({
+          provider,
+          options: { redirectTo: target },
+        });
+        if (error) throw error;
+      } catch (error) {
+        if (status) status.textContent = 'OAuth was unavailable here. Opening the hosted account page instead.';
+        trackPricingFunnelEvent('pricing_oauth_failed', {
+          plan,
+          target,
+          button: buttonLabel,
+          state: provider,
+        });
+        setTimeout(() => { window.location.href = target; }, 700);
+      } finally {
+        button.disabled = false;
+        button.textContent = buttonLabel;
+      }
+    }
+
     async function sendPricingMagicLink(event) {
       event.preventDefault();
       const form = event.currentTarget;
@@ -606,6 +652,9 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
     }
 
     document.getElementById('pricing-email-form')?.addEventListener('submit', sendPricingMagicLink);
+    document.querySelectorAll('[data-pricing-oauth]').forEach((button) => {
+      button.addEventListener('click', pricingOauthLogin);
+    });
     document.querySelectorAll('[data-pricing-plan-email]').forEach((form) => {
       form.addEventListener('submit', sendPricingMagicLink);
     });

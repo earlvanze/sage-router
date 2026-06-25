@@ -1244,6 +1244,12 @@ check_marketing_pricing_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing_checkout_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-checkout-funnel-event"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "pricing-github-pro" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-github-activation"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "pricing_oauth_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-oauth-funnel-event"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing-email-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-email-start-form"
   fi

@@ -11,6 +11,8 @@ const ALLOWED_EVENTS = new Set([
   'pricing_checkout_clicked',
   'pricing_account_clicked',
   'pricing_quickstart_clicked',
+  'pricing_oauth_clicked',
+  'pricing_oauth_failed',
   'pricing_magic_link_requested',
   'pricing_magic_link_sent',
   'pricing_magic_link_failed',
