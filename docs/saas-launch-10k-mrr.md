@@ -159,6 +159,11 @@ provider resale claim, or runtime feature flag.
   latest pending or settled manual payment intent after reload without requiring
   the user to retain the intent id, and the status response must remain
   customer-scoped and free of customer notes or operator-only billing context.
+- Keep saved account activation intent key-first: `start=checkout` should
+  preserve checkout intent, auto-create the first generated `sk_sage_*` key once
+  after verified sign-in when no key exists, and only then proceed toward
+  checkout so signup-to-generated-key conversion is not blocked by an extra
+  button click.
 - Use the calculator as the lightweight qualification path before signup:
   prospects estimate savings, review points, and fallback gaps, then create a
   hosted API key or request implementation support. The calculator should

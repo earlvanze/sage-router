@@ -7,6 +7,7 @@ const DEFAULT_PLAN_ORDER = ['lite', 'pro', 'max'];
 const SELECTED_PLAN_STORAGE_KEY = 'sage_router_selected_plan';
 const START_ACTION_STORAGE_KEY = 'sage_router_start_action';
 const AUTO_CHECKOUT_ATTEMPT_STORAGE_KEY = 'sage_router_auto_checkout_attempt';
+const AUTO_KEY_ATTEMPT_STORAGE_KEY = 'sage_router_auto_key_attempt';
 const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
 const FALLBACK_PLANS = {
   lite: { name: 'Lite', price: '$6/month', limits: { monthlyRequests: 10000, rateLimitPerMinute: 60 }, features: ['agent-native routing', 'API keys', 'usage analytics'] },
@@ -189,6 +190,25 @@ function markAutoCheckoutAttempted(plan = selectedPlan) {
     window.sessionStorage?.setItem(autoCheckoutAttemptKey(plan), '1');
   } catch (_error) {
     // A missing marker only risks a repeated prompt; checkout still requires Stripe confirmation.
+  }
+}
+
+function autoKeyAttemptKey(plan = selectedPlan) {
+  return `${AUTO_KEY_ATTEMPT_STORAGE_KEY}:${normalizePlan(plan) || 'unknown'}`;
+}
+
+function hasAutoKeyAttempted(plan = selectedPlan) {
+  try {
+    return window.sessionStorage?.getItem(autoKeyAttemptKey(plan)) === '1';
+  } catch (_error) {
+    return false;
+  }
+}
+
+function markAutoKeyAttempted(plan = selectedPlan) {
+  try {
+    window.sessionStorage?.setItem(autoKeyAttemptKey(plan), '1');
+  } catch (_error) {
   }
 }
 
@@ -836,6 +856,23 @@ async function maybeStartCheckoutFromIntent({ emailVerified, routingEnabled } = 
   await stripeCheckout({ button: 'auto_checkout', state: 'saved_checkout_intent' });
 }
 
+async function maybeCreateKeyFromIntent({ emailVerified, keyCount } = {}) {
+  if (pendingStartAction !== 'checkout') return false;
+  if (!activationState.signedIn || !emailVerified || Number(keyCount || 0) > 0) return false;
+  if (hasAutoKeyAttempted(selectedPlan)) return false;
+  markAutoKeyAttempted(selectedPlan);
+  set('key-once', 'Creating your sk_sage key from the saved activation intent...');
+  $('create-key')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  trackAccountFunnelEvent('account_intent_create_key_clicked', {
+    button: 'saved_activation_intent',
+    target: '/account/api-keys',
+    state: 'saved_intent_auto_key'
+  });
+  await createKey();
+  $('key-once')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return true;
+}
+
 async function refresh() {
   const s = await session();
   show('auth-panel', !s);
@@ -894,6 +931,11 @@ async function refresh() {
       keyVerified,
       requestCount,
     });
+    const autoKeyCreated = await maybeCreateKeyFromIntent({
+      emailVerified,
+      keyCount,
+    });
+    if (autoKeyCreated) return;
     await maybeStartCheckoutFromIntent({
       emailVerified,
       routingEnabled: Boolean(activation.routingEnabled ?? (accountPlan !== 'free' && routingEnabled)),

@@ -834,6 +834,15 @@ check_hosted_onboarding_pages() {
   if [[ "$account_js_code" == "200" ]] && ! grep -q "account_intent_create_key_clicked" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-account-intent-key-create-funnel"
   fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "AUTO_KEY_ATTEMPT_STORAGE_KEY" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-auto-key-intent-guard"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "maybeCreateKeyFromIntent" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-saved-intent-key-create"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "saved_intent_auto_key" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-saved-intent-key-funnel"
+  fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "Creating your sk_sage key" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-direct-key-create-status"
   fi
