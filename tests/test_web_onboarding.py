@@ -35,6 +35,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("setAuthStatus('Sending magic link...', preferIntent)", js)
         self.assertIn("button.dataset.intentOauth ? `intent_${button.dataset.oauth}`", js)
         self.assertIn("mirrorIntent: button.dataset.intentOauth === 'true'", js)
+        self.assertIn("Continue with an enabled OAuth provider, or enter your email for a magic link", js)
         self.assertIn("magicLogin({ button: 'intent_primary', preferIntent: true })", js)
         self.assertIn("target: activationState.signedIn ? '#billing' : '#intent-email'", js)
         self.assertIn('id="key-limit-note"', html)
