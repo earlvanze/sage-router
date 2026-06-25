@@ -56,7 +56,7 @@
         <h1>One subscription for Sage Router control plane access.</h1>
         <p class="lead">Use the hosted edge at <code>https://api.sagerouter.dev/v1</code> for account-managed API keys, quotas, fallback reliability, and routing telemetry while keeping provider access customer-authorized and local-first by default.</p>
         <div class="actions">
-          <a class="button primary" href="/account.html">Create hosted API key</a>
+          <a class="button primary" href="/account.html?plan=pro">Start Pro activation</a>
           <a class="button secondary" href="/quickstart">Read quickstart</a>
           <a class="button secondary" href="/status">View public status</a>
           <a class="button secondary" href="/billing">Billing help</a>
@@ -67,6 +67,11 @@
           <a class="button secondary" href="/launch-plan">See launch plan</a>
         </div>
         <p class="note">Sage Router sells routing, reliability, account management, quotas, analytics, and support. It does not grant unauthorized model access, pool provider accounts, or bypass provider terms.</p>
+        <div class="readinessGrid" aria-label="Hosted activation path">
+          <div class="readinessItem"><b>1. Pro selected</b><span class="muted">The account page opens with Pro preserved through sign-in.</span></div>
+          <div class="readinessItem"><b>2. Generate key</b><span class="muted">Create an <code>sk_sage_*</code> key from the browser account flow.</span></div>
+          <div class="readinessItem"><b>3. Verify route</b><span class="muted">Test <code>/v1/models</code>, then send the first hosted request.</span></div>
+        </div>
       </section>
 
       <section class="section plans" aria-label="Hosted pricing plans">
