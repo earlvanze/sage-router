@@ -903,6 +903,9 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("fusion_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_viewed") != null) and
     ((.allowedEvents // []) | index("content_article_quickstart_clicked") != null) and
+    ((.allowedEvents // []) | index("codex_docs_viewed") != null) and
+    ((.allowedEvents // []) | index("codex_docs_account_clicked") != null) and
+    ((.allowedEvents // []) | index("codex_docs_snippet_copied") != null) and
     ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
     ((.allowedEvents // []) | index("account_viewed") != null) and
     ((.allowedEvents // []) | index("account_snippet_copied") != null) and
@@ -1507,6 +1510,15 @@ check_marketing_codex_docs_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "sage-router/frontier" /tmp/sage-router-readiness-body; then
     page_code="200:missing-frontier-profile"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "data-copy-code=\"codex-hosted\"" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-hosted-copy-button"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "codex_docs_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-codex-snippet-funnel-event"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "codex_docs_account_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-codex-account-funnel-event"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Do not paste prompts" /tmp/sage-router-readiness-body; then
     page_code="200:missing-no-secrets-boundary"

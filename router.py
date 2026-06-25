@@ -5973,6 +5973,7 @@ CHECKOUT_UNAVAILABLE_EVENTS = {
 }
 SETUP_SNIPPET_COPY_EVENTS = {
     'quickstart_snippet_copied',
+    'codex_docs_snippet_copied',
     'account_snippet_copied',
 }
 
@@ -6277,6 +6278,7 @@ MARKETING_SOURCE_SURFACE_BUCKETS = (
     'pricing',
     'model-routing-calculator',
     'quickstart',
+    'codex-docs',
     'fusion',
     'compare-gateways',
     'managed-access',
@@ -6485,6 +6487,11 @@ DEFAULT_LAUNCH_ACQUISITION_ACTIONS = (
         'kind': 'sourceSurface',
         'bucket': 'quickstart',
         'action': 'Use copyable quickstart snippets to convert generated-key users into first routed requests.',
+    },
+    {
+        'kind': 'sourceSurface',
+        'bucket': 'codex-docs',
+        'action': 'Turn Codex setup demand into hosted key activation and copy-to-first-request proof.',
     },
     {
         'kind': 'sourceSurface',
