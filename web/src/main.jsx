@@ -208,6 +208,7 @@ function App() {
             <a href="/compare/model-gateways">Compare</a>
             <a href="/compare/openrouter">OpenRouter</a>
             <a href="/local-first-routing-for-ai-agents">Guide</a>
+            <a href="/self-hosted-ai-model-router">Self-hosted</a>
             <a href="/integrations">Integrations</a>
             <a href="/quickstart">Quickstart</a>
             <a href="/models">Models</a>
@@ -299,6 +300,13 @@ function App() {
                 state: 'hero',
               })}>
                 Read local-first guide
+              </a>
+              <a className="button secondary" href="/self-hosted-ai-model-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/self-hosted-ai-model-router',
+                button: 'Self-hosted router',
+                state: 'hero-self-hosted',
+              })}>
+                Self-hosted router
               </a>
               <a className="button secondary" href="/models" onClick={() => trackLandingFunnelEvent('landing_models_clicked', {
                 target: '/models',
@@ -453,6 +461,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <p><a className="inlineLink" href="/compare/model-gateways">Read the model gateway comparison →</a></p>
           <p><a className="inlineLink" href="/compare/openrouter">Compare Sage Router vs OpenRouter →</a></p>
           <p><a className="inlineLink" href="/local-first-routing-for-ai-agents">Read the local-first routing guide →</a></p>
+          <p><a className="inlineLink" href="/self-hosted-ai-model-router">See the self-hosted router path →</a></p>
           <p><a className="inlineLink" href="/model-routing-calculator">Estimate routing savings for one workflow →</a></p>
           <p><a className="inlineLink" href="/managed-access">Request managed-access private beta review →</a></p>
           <p><a className="inlineLink" href="/pricing">See hosted routing pricing and plan limits →</a></p>
@@ -617,6 +626,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/compare/model-gateways">Compare gateways</a>
         <a href="/compare/openrouter">OpenRouter</a>
         <a href="/local-first-routing-for-ai-agents">Local-first Guide</a>
+        <a href="/self-hosted-ai-model-router">Self-hosted</a>
         <a href="/model-routing-calculator">Calculator</a>
         <a href="/launch-plan">Launch Plan</a>
         <a href="/managed-access">Managed Access</a>

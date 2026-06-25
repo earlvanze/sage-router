@@ -17,6 +17,7 @@ Better model routing for agentic systems using the customer own authorized subsc
 Hosted pricing page: https://sagerouter.dev/pricing
 Fusion page: https://sagerouter.dev/fusion
 Local-first routing guide: https://sagerouter.dev/local-first-routing-for-ai-agents
+Self-hosted AI model router: https://sagerouter.dev/self-hosted-ai-model-router
 Launch plan page: https://sagerouter.dev/launch-plan
 Billing help page: https://sagerouter.dev/billing
 Managed-access private beta intake: https://sagerouter.dev/managed-access
@@ -35,6 +36,8 @@ The hosted Sage Router plans sell account management, generated API keys, quotas
 The dedicated Fusion page at https://sagerouter.dev/fusion positions Sage Router Fusion as the premium compound route for multi-model panel answers and judge synthesis. It documents `sage-router/fusion`, the compatible `sage-router:fusion` server tool, `tool_choice: "required"` for deterministic invocation, Pro/Max gating, and the `fusion_plan_required` upgrade response for Lite/free generated keys.
 
 The local-first routing guide at https://sagerouter.dev/local-first-routing-for-ai-agents explains why agent teams should keep model routing close to their harnesses, provider credentials, Tailnet hosts, and local Ollama fallbacks. It routes readers into the quickstart, Codex setup, OpenRouter comparison, model routing calculator, hosted account creation, and GitHub repo while tracking only privacy-safe article CTA intent.
+
+The self-hosted AI model router page at https://sagerouter.dev/self-hosted-ai-model-router targets self-hosted and Reddit-style evaluation traffic. It explains local/Tailnet port `8790` deployment, Ollama fallback, BYOK provider custody, multimodal routing, multiple API-key load balancing, 429 failover, hosted generated-key activation, and routes readers into quickstart, GitHub, pricing, and OpenRouter comparison CTAs with privacy-safe article events.
 
 The public launch plan at https://sagerouter.dev/launch-plan turns the $10k MRR operating plan into a buyer-facing conversion path. It explains the Lite/Pro/Max plan ladder, the signup to first routed request activation funnel, private operator evidence from `/analytics/funnel`, `/edge/health`, and `/admin/customers`, and the boundary that managed provider access is a separate guarded beta path rather than a public pooled-provider entitlement.
 

@@ -39,6 +39,8 @@ export OPENAI_API_KEY=local-router
 
 Repo: https://github.com/earlvanze/sage-router?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch
 
+Self-hosted overview: https://sagerouter.dev/self-hosted-ai-model-router?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch
+
 Quickstart: https://sagerouter.dev/quickstart?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch
 
 Sage Router vs OpenRouter: https://sagerouter.dev/compare/openrouter?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch

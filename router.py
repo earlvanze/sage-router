@@ -6273,6 +6273,7 @@ MANAGED_ACCESS_INTENT_BUCKETS = (
 )
 MARKETING_SOURCE_SURFACE_BUCKETS = (
     'article',
+    'self-hosted',
     'pricing',
     'model-routing-calculator',
     'quickstart',
@@ -6426,6 +6427,7 @@ def launch_acquisition_action(kind, bucket):
         actions = {
             'pricing': 'Tighten pricing CTAs, checkout plan defaults, and proof around hosted key activation.',
             'article': 'Turn long-form local-first routing readers into quickstart, Codex setup, and gateway comparison CTAs.',
+            'self-hosted': 'Turn self-hosted router evaluators into local quickstart, GitHub install, and hosted key activation CTAs.',
             'model-routing-calculator': 'Turn calculator interest into implementation calls and preselected Pro/Max checkout.',
             'model-catalog': 'Turn catalog demand into hosted key activation, route-profile proof, and model availability copy.',
             'quickstart': 'Use copyable quickstart snippets to convert generated-key users into first routed requests.',
