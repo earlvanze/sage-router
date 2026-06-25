@@ -152,6 +152,11 @@ provider resale claim, or runtime feature flag.
   routing, hosted generated `sk_sage_*` keys, local port `8790`, Tailnet
   routing, `sage-router/frontier` profiles, 429 failover, multimodal routing,
   BYOK custody, and the Codex OAuth boundary.
+- Keep `/aider-ai-model-router` as the Aider acquisition path for
+  OpenAI-compatible coding-agent routing, hosted generated `sk_sage_*` keys,
+  `aider --model openai/auto`, local port `8790`, local Ollama fallback,
+  Tailnet routing, credential load balancing, 429 failover, multimodal routing,
+  and provider-authorization boundaries.
 - Keep `/claude-code-router` as the Claude Code acquisition path for
   Anthropic-compatible coding-agent routing, customer-owned authorized
   Anthropic or Dario subscription paths, hosted `sk_sage_*` account control,

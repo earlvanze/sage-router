@@ -46,6 +46,14 @@ const routePaths = [
     state: 'route-path-codex-cli',
   },
   {
+    label: 'Aider',
+    title: 'Local-first coding edits',
+    href: '/aider-ai-model-router',
+    body: 'Point Aider at one OpenAI-compatible Sage Router endpoint with local Ollama fallback, key failover, and route telemetry.',
+    button: 'Aider route path',
+    state: 'route-path-aider',
+  },
+  {
     label: 'Claude Code',
     title: 'Anthropic-compatible coding route',
     href: '/claude-code-router',
@@ -634,6 +642,7 @@ function App() {
             <a href="/aws-bedrock-router">AWS Bedrock</a>
             <a href="/github-copilot-router">GitHub Copilot</a>
             <a href="/codex-cli-router">Codex CLI</a>
+            <a href="/aider-ai-model-router">Aider</a>
             <a href="/claude-code-router">Claude Code</a>
             <a href="/xai-grok-router">xAI Grok</a>
             <a href="/mistral-ai-router">Mistral AI</a>
@@ -768,6 +777,11 @@ function App() {
                 button: 'Codex CLI router',
                 state: 'hero-secondary-codex-cli-router',
               })}>Codex CLI router</a>
+              <a href="/aider-ai-model-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/aider-ai-model-router',
+                button: 'Aider router',
+                state: 'hero-secondary-aider-router',
+              })}>Aider router</a>
               <a href="/claude-code-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/claude-code-router',
                 button: 'Claude Code router',
@@ -1172,6 +1186,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/aws-bedrock-router">AWS Bedrock</a>
         <a href="/github-copilot-router">GitHub Copilot</a>
         <a href="/codex-cli-router">Codex CLI</a>
+        <a href="/aider-ai-model-router">Aider</a>
         <a href="/claude-code-router">Claude Code</a>
         <a href="/xai-grok-router">xAI Grok</a>
         <a href="/mistral-ai-router">Mistral AI</a>
