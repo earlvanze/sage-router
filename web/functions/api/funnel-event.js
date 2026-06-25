@@ -48,6 +48,8 @@ const ALLOWED_EVENTS = new Set([
   'quickstart_troubleshooting_clicked',
   'quickstart_pricing_clicked',
   'quickstart_status_clicked',
+  'quickstart_oauth_clicked',
+  'quickstart_oauth_failed',
   'quickstart_magic_link_requested',
   'quickstart_magic_link_sent',
   'quickstart_magic_link_failed',

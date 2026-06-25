@@ -951,6 +951,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("content_article_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("codex_docs_viewed") != null) and
     ((.allowedEvents // []) | index("quickstart_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("quickstart_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("codex_docs_account_clicked") != null) and
     ((.allowedEvents // []) | index("codex_docs_snippet_copied") != null) and
     ((.allowedEvents // []) | index("codex_docs_magic_link_sent") != null) and
@@ -1557,6 +1558,12 @@ check_marketing_quickstart_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quickstart-magic-link-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Continue with GitHub for Pro" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-github-pro-activation"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_oauth_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-oauth-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart-copy-bundle" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quickstart-bundle-copy"
