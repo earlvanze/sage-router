@@ -11,6 +11,7 @@ readiness guard enables it.
 - Campaign: `sage-router-launch`
 - Primary CTA: `https://sagerouter.dev/quickstart`
 - Self-hosted CTA: `https://sagerouter.dev/self-hosted-ai-model-router`
+- Proof CTA: `https://sagerouter.dev/reliability-proof`
 - Buyer-intent CTA: `https://sagerouter.dev/pricing`
 - Comparison CTA: `https://sagerouter.dev/compare/openrouter`
 - Founder-sales CTA: `https://sagerouter.dev/managed-access`
@@ -28,6 +29,7 @@ before broader social batching.
 | --- | --- | --- | --- |
 | GitHub repository discovery | Live; README now leads with hosted activation and repo topics include `ai-gateway`, `llm-gateway`, `model-router`, `codex-cli`, `openai-api`, `openai-compatible-api`, `ollama-cloud`, and `nvidia-nim` | `https://app.sagerouter.dev/account.html?plan=pro&start=checkout&utm_source=github&utm_medium=readme&utm_campaign=sage-router-launch` | `github` attribution clicks, account page views, generated keys, GitHub stars |
 | Founder sales | Ready; public founder-sales kit includes copyable Pro activation, Max implementation, gateway migration, and calculator follow-up snippets | `https://sagerouter.dev/founder-sales-kit?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch` | Direct replies, Pro generated keys, Max review requests, calculator completions |
+| Reliability proof | Ready; public proof kit includes copyable 429 failover, credential load-balancing, multimodal routing, and Reddit proof-reply snippets | `https://sagerouter.dev/reliability-proof?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | Proof CTA clicks, quickstart snippet copies, Pro generated keys, Max review requests |
 | Moltbook | Pre-approved by operator; API rechecked 2026-06-25 and still `pending_claim`; post attempt returned `403` until the local `sagerouter` agent is claimed; OpenClaw update should post after claim | `https://sagerouter.dev/openclaw-ai-model-router?utm_source=moltbook&utm_medium=community&utm_campaign=openclaw-ai-model-router` | Post URL captured; `moltbook` appears in acquisition actions |
 | Reddit r/selfhosted | Priority 1 after owner approval; final copy in `docs/launch/final/reddit-selfhosted-post.md`; self-hosted page now includes direct Pro magic-link activation | `https://sagerouter.dev/self-hosted-ai-model-router?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | `reddit` source clicks, self-hosted magic-link events, quickstart copies, GitHub stars |
 | Reddit r/Ollama | Priority 2 after owner approval; final copy in `docs/launch/final/reddit-ollama-post.md`; public evaluation kit includes a copyable r/Ollama block | `https://sagerouter.dev/ollama-ai-model-router?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | Ollama route clicks, model-catalog demand, quickstart copies, GitHub stars |

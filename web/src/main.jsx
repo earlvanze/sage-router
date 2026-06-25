@@ -710,10 +710,10 @@ function App() {
               <a className="button primary" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
                 plan: 'pro',
                 target: ACCOUNT_PAGE_HREF,
-                button: 'Create hosted API key',
+                button: 'Start Pro activation',
                 state: 'hero-primary',
               })}>
-                Create hosted API key
+                Start Pro activation: Create hosted API key
               </a>
               <a className="button secondary" href="/pricing" onClick={() => trackLandingFunnelEvent('landing_pricing_clicked', {
                 target: '/pricing',
@@ -864,6 +864,11 @@ function App() {
                 button: 'Reddit evaluation kit',
                 state: 'hero-secondary-reddit-evaluation',
               })}>Reddit evaluation kit</a>
+              <a href="/reliability-proof" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/reliability-proof',
+                button: 'Reliability proof kit',
+                state: 'hero-secondary-reliability-proof',
+              })}>Reliability proof</a>
               <a href="/models" onClick={() => trackLandingFunnelEvent('landing_models_clicked', {
                 target: '/models',
                 button: 'Browse models',

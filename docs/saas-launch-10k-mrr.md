@@ -107,7 +107,7 @@ provider resale claim, or runtime feature flag.
 
 - Keep anonymous `/v1/*` blocked and generated `sk_sage_*` keys enforced.
 - Keep `/pricing`, `/launch-plan`, `/community-launch-kit`, `/billing`, `/quickstart`, `/api-troubleshooting`, `/docs/api-reference`, `/docs/gateway-migration`, `/docs/codex`, `/agent-native`, `/integrations`, `/status`, `/support`, `/account.html`, `/login.html`,
-  `/api/waitlist`, `/models`, `/managed-access`, `/compare/model-gateways`, `/compare/openrouter`, `/reddit-ai-gateway-evaluation`, `/model-routing-calculator`, `/terms`,
+  `/api/waitlist`, `/models`, `/managed-access`, `/compare/model-gateways`, `/compare/openrouter`, `/reddit-ai-gateway-evaluation`, `/reliability-proof`, `/model-routing-calculator`, `/terms`,
   `/privacy`, `/security`, `/acceptable-use`, `/provider-resale-terms`, and
   `/margin-policy` in the readiness gate.
 - Keep the public pricing, launch-plan, agent-native routing, calculator, model-gateway/OpenRouter comparison, legal, provider-resale,
@@ -139,6 +139,10 @@ provider resale claim, or runtime feature flag.
 - Keep `/reddit-ai-gateway-evaluation` as the Reddit/community acquisition path
   for local-first custody, OpenRouter BYOK boundary, 429 failover, multimodal
   routing, hosted generated-key activation, and copyable evaluation/setup proof.
+- Keep `/reliability-proof` as the skeptical-buyer proof path for Reddit,
+  self-hosted, and founder-sales follow-up, with copyable 429 failover,
+  credential load-balancing, multimodal routing, and no-secret Reddit reply
+  snippets plus measured `utm_source=reliability-proof` links.
 - Keep `/gemini-api-router` as the Gemini/Google acquisition path for Google
   AI, Vertex AI, Gemini CLI, function-tool routing, 429 failover, multimodal
   routing, hosted generated-key activation, and provider-authorization

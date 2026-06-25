@@ -122,6 +122,7 @@ The MVP treats discoverability as first-class. Current static assets include:
 - Dedicated Gateway migration guide at `/docs/gateway-migration` mapping `https://gateway.example/api/v1` to `https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, model catalog discovery, and provider terms boundaries.
 - Model-gateway comparison at `/compare/model-gateways` also promotes a copy-first `Copy 60-second gateway setup` bundle for migration-intent visitors.
 - Reddit-style AI gateway evaluation kit at `/reddit-ai-gateway-evaluation` with copyable comparison/setup snippets, local-first custody proof, OpenRouter BYOK boundary, multiple API-key load balancing, 429 failover, multimodal routing, hosted generated-key activation, sitemap, LLM discovery, and readiness checks.
+- Reliability proof kit at `/reliability-proof` with copyable 429 failover, credential load-balancing, multimodal routing, and Reddit proof-reply snippets, measured proof CTAs, sitemap, LLM discovery, and readiness checks.
 - Community launch kit at `/community-launch-kit` with copyable Show HN, Indie Hackers, Dev.to, X, and LinkedIn launch copy, measured community/social campaign links, no-secret posting boundaries, sitemap, LLM discovery, and readiness checks.
 - Founder sales kit at `/founder-sales-kit` with copyable Pro activation, Max implementation, gateway migration, and calculator follow-up outreach, measured `utm_source=founder-sales` links, no-secret boundaries, sitemap, LLM discovery, and readiness checks.
 - Ollama AI model router page at `/ollama-ai-model-router` with local Ollama and Ollama Cloud positioning, one OpenAI-compatible endpoint, multiple API-key load balancing, 429 failover, multimodal routing, hosted generated-key activation, copyable setup snippets, sitemap, LLM discovery, and readiness checks.
@@ -160,6 +161,7 @@ Next recommended additions after MVP:
 - Dedicated `/compare/model-gateways` page for model-gateway acquisition traffic.
 - Keep `/docs/gateway-migration` aligned with the model-gateway comparison page, hosted quickstart, API reference, sitemap, LLM discovery, and readiness checks.
 - Keep `/reddit-ai-gateway-evaluation` aligned with gateway comparison, OpenRouter comparison, hosted quickstart, sitemap, LLM discovery, and readiness checks.
+- Keep `/reliability-proof` aligned with failover, credential load-balancing, multimodal routing, Reddit proof replies, sitemap, LLM discovery, and readiness checks.
 - Keep `/community-launch-kit` aligned with the launch plan, final community posts, sitemap, LLM discovery, and readiness checks.
 - Keep `/founder-sales-kit` aligned with founder-led Pro and Max outreach, measured UTM links, no-secret boundaries, sitemap, LLM discovery, and readiness checks.
 - Keep `/ollama-ai-model-router` aligned with local Ollama, Ollama Cloud, hosted quickstart, model catalog, sitemap, LLM discovery, and readiness checks.

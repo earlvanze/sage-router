@@ -2474,6 +2474,69 @@ check_marketing_reddit_evaluation_page() {
   fi
 }
 
+check_marketing_reliability_proof_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/reliability-proof")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router Reliability Proof" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Reliability proof kit" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-proof-positioning"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable 429 failover proof" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-failover-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "reliability-copy-failover-proof" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-failover-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable credential load balancing proof" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-balancing-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "reliability-copy-balancing-proof" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-balancing-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable multimodal routing proof" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-multimodal-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "reliability-copy-multimodal-proof" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-multimodal-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable Reddit proof reply" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-reddit-proof-reply"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "reliability-copy-post" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-reddit-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=reliability-proof" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-proof-utm"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-view-funnel"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/reliability-proof" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-reliability-proof-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Reliability proof kit: ${MARKETING_BASE%/}/reliability-proof" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-reliability-proof-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing reliability proof kit is live in sitemap and LLM discovery"
+  else
+    fail "marketing reliability proof kit incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_community_launch_kit_page() {
   local page_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/community-launch-kit")"
@@ -3708,6 +3771,7 @@ check_marketing_openhands_router_page
 check_marketing_openclaw_router_page
 check_marketing_cursor_router_page
 check_marketing_reddit_evaluation_page
+check_marketing_reliability_proof_page
 check_marketing_community_launch_kit_page
 check_marketing_founder_sales_kit_page
 check_marketing_launch_plan_page
