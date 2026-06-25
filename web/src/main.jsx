@@ -38,6 +38,14 @@ const routePaths = [
     state: 'route-path-coding-agent',
   },
   {
+    label: 'Codex CLI',
+    title: 'Responses API coding route',
+    href: '/codex-cli-router',
+    body: 'Point Codex at one hosted, local, or Tailnet Sage Router profile with Responses API wiring and provider failover.',
+    button: 'Codex CLI route path',
+    state: 'route-path-codex-cli',
+  },
+  {
     label: 'Claude Code',
     title: 'Anthropic-compatible coding route',
     href: '/claude-code-router',
@@ -625,6 +633,7 @@ function App() {
             <a href="/anthropic-api-router">Anthropic</a>
             <a href="/aws-bedrock-router">AWS Bedrock</a>
             <a href="/github-copilot-router">GitHub Copilot</a>
+            <a href="/codex-cli-router">Codex CLI</a>
             <a href="/claude-code-router">Claude Code</a>
             <a href="/xai-grok-router">xAI Grok</a>
             <a href="/mistral-ai-router">Mistral AI</a>
@@ -754,6 +763,11 @@ function App() {
                 button: 'GitHub Copilot router',
                 state: 'hero-secondary-copilot-router',
               })}>GitHub Copilot router</a>
+              <a href="/codex-cli-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
+                target: '/codex-cli-router',
+                button: 'Codex CLI router',
+                state: 'hero-secondary-codex-cli-router',
+              })}>Codex CLI router</a>
               <a href="/claude-code-router" onClick={() => trackLandingFunnelEvent('landing_article_clicked', {
                 target: '/claude-code-router',
                 button: 'Claude Code router',
@@ -1157,6 +1171,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <a href="/anthropic-api-router">Anthropic</a>
         <a href="/aws-bedrock-router">AWS Bedrock</a>
         <a href="/github-copilot-router">GitHub Copilot</a>
+        <a href="/codex-cli-router">Codex CLI</a>
         <a href="/claude-code-router">Claude Code</a>
         <a href="/xai-grok-router">xAI Grok</a>
         <a href="/mistral-ai-router">Mistral AI</a>

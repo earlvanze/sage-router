@@ -24,6 +24,7 @@ Azure OpenAI router: https://sagerouter.dev/azure-openai-router
 Anthropic API router: https://sagerouter.dev/anthropic-api-router
 AWS Bedrock router: https://sagerouter.dev/aws-bedrock-router
 GitHub Copilot router: https://sagerouter.dev/github-copilot-router
+Codex CLI router: https://sagerouter.dev/codex-cli-router
 Claude Code router: https://sagerouter.dev/claude-code-router
 Gemini API router: https://sagerouter.dev/gemini-api-router
 xAI Grok router: https://sagerouter.dev/xai-grok-router
@@ -66,6 +67,8 @@ The Anthropic API router page at https://sagerouter.dev/anthropic-api-router tar
 The AWS Bedrock router page at https://sagerouter.dev/aws-bedrock-router targets AWS Bedrock router, Amazon Bedrock model routing, OpenAI-compatible Bedrock setup, AWS account custody, and Bedrock failover searches. It explains hosted generated `sk_sage_*` keys, customer-owned `AWS_PROFILE`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` custody, Bedrock model routing for customer-authorized Claude, Amazon Nova, Llama, and other foundation models, credential load balancing, 429 failover, multimodal safeguards, provider authorization boundaries, and copyable setup snippets that record only `quickstart_snippet_copied` IDs.
 
 The GitHub Copilot router page at https://sagerouter.dev/github-copilot-router targets GitHub Copilot router, Copilot-compatible endpoint routing, coding-agent token custody, OpenAI-compatible Copilot setup, and Copilot failover searches. It explains hosted generated `sk_sage_*` keys, customer-owned `GITHUB_COPILOT_TOKEN` custody, Copilot model discovery through `/v1/models`, credential load balancing, 429 failover, multimodal safeguards, provider-authorization boundaries, and copyable setup snippets that record only `quickstart_snippet_copied` IDs.
+
+The Codex CLI router page at https://sagerouter.dev/codex-cli-router targets Codex CLI router, OpenAI-compatible Responses API profiles, hosted Codex routing, local port 8790 routing, Tailnet Codex routing, and Codex failover searches. It explains hosted generated `sk_sage_*` keys, `base_url = "https://api.sagerouter.dev/v1/"`, `wire_api = "responses"`, `sage-router/frontier`, local and Tailnet router profiles, 429 failover, multimodal capability routing, BYOK custody, the Codex OAuth boundary, and copyable setup snippets that record only `quickstart_snippet_copied` IDs.
 
 The Claude Code router page at https://sagerouter.dev/claude-code-router targets Claude Code router, Anthropic-compatible coding-agent traffic, Claude-style `/v1/messages`, authorized Anthropic or Dario subscription paths, local and Tailnet fallback, and Claude Code failover searches. It explains hosted generated `sk_sage_*` keys, `ANTHROPIC_BASE_URL=https://api.sagerouter.dev`, customer-authorized provider access, 429 failover, multimodal capability routing, BYOK custody, provider boundaries, and copyable setup snippets that record only `quickstart_snippet_copied` IDs.
 

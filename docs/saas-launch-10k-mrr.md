@@ -148,6 +148,10 @@ provider resale claim, or runtime feature flag.
   `GITHUB_COPILOT_TOKEN` custody, OpenAI-compatible setup, model discovery,
   credential load balancing, 429 failover, multimodal safeguards, and
   provider-authorization boundaries.
+- Keep `/codex-cli-router` as the Codex CLI acquisition path for Responses API
+  routing, hosted generated `sk_sage_*` keys, local port `8790`, Tailnet
+  routing, `sage-router/frontier` profiles, 429 failover, multimodal routing,
+  BYOK custody, and the Codex OAuth boundary.
 - Keep `/claude-code-router` as the Claude Code acquisition path for
   Anthropic-compatible coding-agent routing, customer-owned authorized
   Anthropic or Dario subscription paths, hosted `sk_sage_*` account control,

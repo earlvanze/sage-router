@@ -1664,6 +1664,66 @@ check_marketing_github_copilot_router_page() {
   fi
 }
 
+check_marketing_codex_cli_router_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/codex-cli-router")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Codex CLI router" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'wire_api = "responses"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-codex-responses-profile"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'base_url = "https://api.sagerouter.dev/v1/"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-hosted-base-url"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "local port 8790" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-local-port-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Tailnet" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-tailnet-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "429 failover" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-429-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Multimodal requests" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-multimodal-proof"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "does not implement its own" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-codex-oauth-boundary"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "codex-cli-router-copy-start" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-codex-copy-start"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "codex-cli-router-start" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-codex-snippet-id"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-view-funnel"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/codex-cli-router" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-codex-cli-router-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Codex CLI router: ${MARKETING_BASE%/}/codex-cli-router" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-codex-cli-router-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing Codex CLI router page is live in sitemap and LLM discovery"
+  else
+    fail "marketing Codex CLI router page incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_claude_code_router_page() {
   local page_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/claude-code-router")"
@@ -3298,6 +3358,7 @@ check_marketing_azure_openai_router_page
 check_marketing_anthropic_router_page
 check_marketing_aws_bedrock_router_page
 check_marketing_github_copilot_router_page
+check_marketing_codex_cli_router_page
 check_marketing_claude_code_router_page
 check_marketing_gemini_router_page
 check_marketing_xai_grok_router_page

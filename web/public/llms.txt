@@ -16,6 +16,7 @@ Azure OpenAI router: https://sagerouter.dev/azure-openai-router
 Anthropic API router: https://sagerouter.dev/anthropic-api-router
 AWS Bedrock router: https://sagerouter.dev/aws-bedrock-router
 GitHub Copilot router: https://sagerouter.dev/github-copilot-router
+Codex CLI router: https://sagerouter.dev/codex-cli-router
 Claude Code router: https://sagerouter.dev/claude-code-router
 Gemini API router: https://sagerouter.dev/gemini-api-router
 xAI Grok router: https://sagerouter.dev/xai-grok-router
@@ -91,6 +92,7 @@ Managed access boundary: managed provider access, if introduced, is limited to p
 - Reddit-style AI gateway evaluation kit for comparing local-first custody, OpenRouter BYOK boundaries, 429 failover, multimodal routing, and generated hosted keys.
 - Sage Router model catalog for OpenAI-compatible, Anthropic-compatible, Gemini, Ollama, Ollama Cloud, NVIDIA NIM, and BYOK routes.
 - Codex CLI with an OpenAI-compatible Sage Router provider on hosted or local port 8790.
+- Codex CLI router for Responses API profiles, hosted generated keys, local port 8790, Tailnet routes, 429 failover, multimodal routing, and BYOK custody.
 - Hosted OpenAI-compatible API reference for models, chat completions, Responses API, quotas, and rate-limit headers.
 - Agent-native model routing for OpenAI-compatible, Codex-style, local, Tailnet, and BYOK agents.
 - Sage Router integrations for OpenAI-compatible clients, Codex, Cursor, Aider, Continue, Claude Code, OpenHands, Ollama, Anthropic-compatible clients, and Tailnet agents.
