@@ -45,7 +45,7 @@
         <a href="/billing">Billing</a>
         <a href="/status">Status</a>
         <a href="/support">Support</a>
-        <a href="/account.html">Account</a>
+        <a href="https://app.sagerouter.dev/account.html">Account</a>
         <a href="https://github.com/earlvanze/sage-router">GitHub</a>
       </div>
     </nav>
@@ -56,7 +56,7 @@
         <h1>One subscription for Sage Router control plane access.</h1>
         <p class="lead">Use the hosted edge at <code>https://api.sagerouter.dev/v1</code> for account-managed API keys, quotas, fallback reliability, and routing telemetry while keeping provider access customer-authorized and local-first by default.</p>
         <div class="actions">
-          <a class="button primary" href="/account.html?plan=pro">Start Pro activation</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro">Start Pro activation</a>
           <a class="button secondary" href="/quickstart">Read quickstart</a>
           <a class="button secondary" href="/status">View public status</a>
           <a class="button secondary" href="/billing">Billing help</a>
@@ -85,7 +85,7 @@
             <li>Hosted API keys and basic usage visibility</li>
             <li>Standard fallback chains</li>
           </ul>
-          <a class="button secondary" href="/account.html?plan=lite">Start Lite</a>
+          <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=lite">Start Lite</a>
         </article>
 
         <article class="plan featured">
@@ -98,7 +98,7 @@
             <li>Agentic, frontier, and Fusion route profiles</li>
             <li>Analytics snapshots and route telemetry</li>
           </ul>
-          <a class="button primary" href="/account.html?plan=pro">Start Pro</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro">Start Pro</a>
         </article>
 
         <article class="plan">
@@ -111,7 +111,7 @@
             <li>Priority fallback and Fusion budget</li>
             <li>Team and private deployment support path</li>
           </ul>
-          <a class="button secondary" href="/account.html?plan=max">Start Max</a>
+          <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max">Start Max</a>
         </article>
       </section>
 
@@ -169,7 +169,7 @@
           </ul>
           <div class="actions">
             <a class="button primary" href="/managed-access?intent=max-implementation">Request Max implementation review</a>
-            <a class="button secondary" href="/account.html?plan=max">Start Max with BYOK</a>
+            <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max">Start Max with BYOK</a>
           </div>
           <p class="note">Beta interest and implementation review are demand capture only. Public checkout still buys Sage Router routing, account, quota, analytics, and reliability infrastructure.</p>
         </div>
@@ -240,7 +240,7 @@
     <footer>
       <span>&copy; Sage Router</span>
       <a href="/">Home</a>
-      <a href="/account.html">Account</a>
+      <a href="https://app.sagerouter.dev/account.html">Account</a>
       <a href="/quickstart">Quickstart</a>
       <a href="/fusion">Fusion</a>
       <a href="/models">Models</a>
@@ -439,7 +439,7 @@
           target: href,
           button: link.textContent.trim().slice(0, 60)
         }));
-      } else if (href === '/account.html') {
+      } else if ((href === '/account.html' || href === 'https://app.sagerouter.dev/account.html')) {
         link.addEventListener('click', () => trackPricingFunnelEvent('pricing_account_clicked', {
           target: href,
           button: link.textContent.trim().slice(0, 60)

@@ -776,6 +776,12 @@ check_hosted_onboarding_pages() {
   if [[ "$account_js_code" == "200" ]] && ! grep -q "/account/api-keys/.*revoke" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-api-key-revoke"
   fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "canonicalAccountPageUrl" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-canonical-account-redirect"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-app-account-url"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   manifest_code="$(http_code_follow "${APP_BASE%/}/github-app-manifest")"
@@ -901,7 +907,7 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "Start Pro activation" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-pro-activation-cta"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "/account.html?plan=pro" "$homepage_body" "$bundle_body"; then
+  if [[ "$page_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html?plan=pro" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-pro-account-link"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "landing_account_clicked" "$homepage_body" "$bundle_body"; then
@@ -1087,7 +1093,7 @@ check_marketing_pricing_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "Start Pro activation" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pro-activation-cta"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "/account.html?plan=pro" /tmp/sage-router-readiness-body; then
+  if [[ "$page_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html?plan=pro" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pro-account-link"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing_checkout_clicked" /tmp/sage-router-readiness-body; then

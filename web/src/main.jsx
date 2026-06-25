@@ -237,9 +237,9 @@ function App() {
               OpenHands, and OpenAI-compatible clients across authorized providers and local/cloud models.
             </p>
             <div className="heroActions">
-              <a className="button primary" href="/account.html?plan=pro" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
+              <a className="button primary" href="https://app.sagerouter.dev/account.html?plan=pro" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
                 plan: 'pro',
-                target: '/account.html?plan=pro',
+                target: 'https://app.sagerouter.dev/account.html?plan=pro',
                 button: 'Start Pro setup',
                 state: 'hero',
               })}>
@@ -376,9 +376,9 @@ function App() {
                 <strong>3. Verify the edge</strong>
                 <span>Test <code>/v1/models</code> and send a first request.</span>
               </div>
-              <a className="activationCta" href="/account.html?plan=pro" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
+              <a className="activationCta" href="https://app.sagerouter.dev/account.html?plan=pro" onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
                 plan: 'pro',
-                target: '/account.html?plan=pro',
+                target: 'https://app.sagerouter.dev/account.html?plan=pro',
                 button: 'Start Pro activation',
                 state: 'activation-strip',
               })}>

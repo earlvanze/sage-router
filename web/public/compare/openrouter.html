@@ -51,7 +51,7 @@
         <a href="/pricing">Pricing</a>
         <a href="/managed-access">Managed Access</a>
         <a href="/status">Status</a>
-        <a href="/account.html">Account</a>
+        <a href="https://app.sagerouter.dev/account.html">Account</a>
       </div>
     </nav>
 
@@ -61,7 +61,7 @@
         <h1>Sage Router vs OpenRouter</h1>
         <p class="lead">OpenRouter is a strong hosted model marketplace and OpenAI-compatible API. Sage Router is for agent teams that want the same one-endpoint ergonomics while keeping provider keys, local models, Tailnet routers, failover policy, and routing telemetry under their own control.</p>
         <div class="actions">
-          <a class="button primary" href="/account.html?plan=pro">Create hosted Sage Router key</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro">Create hosted Sage Router key</a>
           <a class="button secondary" href="/docs/gateway-migration">Migrate a gateway client</a>
           <a class="button secondary" href="/quickstart">Try the quickstart</a>
           <a class="button secondary" href="/model-routing-calculator">Estimate routing fit</a>
@@ -112,7 +112,7 @@
           <h2>Keep the OpenAI-compatible shape; change the control plane.</h2>
           <p class="muted">Most client changes are base URL, API key, and model profile. Start with <code>sage-router/frontier</code> for general routing and use <code>sage-router/fusion</code> on Pro/Max when you need panel-plus-judge synthesis.</p>
           <div class="actions">
-            <a class="button primary" href="/account.html?plan=pro">Start Pro</a>
+            <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro">Start Pro</a>
             <a class="button secondary" href="/docs/gateway-migration">Read migration guide</a>
           </div>
         </div>
@@ -209,7 +209,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
           target: href,
           button
         }));
-      } else if (href === '/account.html') {
+      } else if ((href === '/account.html' || href === 'https://app.sagerouter.dev/account.html')) {
         link.addEventListener('click', () => trackGatewayComparisonEvent('gateway_compare_account_clicked', {
           target: href,
           button

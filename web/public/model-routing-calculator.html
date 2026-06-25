@@ -171,7 +171,7 @@
       <a href="/pricing">Pricing</a>
       <a href="/compare/model-gateways">Compare</a>
       <a href="/status">Status</a>
-      <a href="/account.html">Account</a>
+      <a href="https://app.sagerouter.dev/account.html">Account</a>
       <a href="/terms">Terms</a>
       <a href="https://github.com/earlvanze/sage-router">GitHub</a>
     </div>
@@ -343,7 +343,7 @@
 
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
     function money(n) { return fmt.format(Number.isFinite(n) ? n : 0); }
-    function planCheckoutUrl(planKey) { return `/account.html?plan=${encodeURIComponent(planKey)}`; }
+    function planCheckoutUrl(planKey) { return `https://app.sagerouter.dev/account.html?plan=${encodeURIComponent(planKey)}`; }
     function planUnitCost(plan) { return plan.requests > 0 ? (plan.price / plan.requests) * 1000 : 0; }
     function monthlyPlanPrice(plan = {}) {
       const explicit = Number(plan.monthlyPriceUsd ?? plan.priceUsd ?? plan.priceAmount);

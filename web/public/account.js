@@ -40,6 +40,14 @@ const fmtNumber = (value) => Number.isFinite(Number(value)) ? Number(value).toLo
 const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
 const OAUTH_PROVIDER_ORDER = ['github', 'google', 'discord'];
 
+function canonicalAccountPageUrl() {
+  const configured = String(window.SAGE_ROUTER_APP_URL || '').replace(/\/$/, '');
+  if (configured) return `${configured}/account.html`;
+  if (['localhost', '127.0.0.1'].includes(window.location.hostname)) return `${window.location.origin}/account.html`;
+  return 'https://app.sagerouter.dev/account.html';
+}
+const ACCOUNT_PAGE_URL = canonicalAccountPageUrl();
+
 function attributionValue(value) {
   const sanitized = String(value || '')
     .trim()
@@ -825,7 +833,7 @@ async function oauthLogin(provider) {
   set('auth-status', `Opening ${provider} sign-in...`);
   rememberOnboardingContext(onboardingContext({ authMethod: provider }));
   trackAccountFunnelEvent('account_oauth_clicked', { button: provider, target: '/auth/v1/authorize', state: provider });
-  const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: `${window.location.origin}/account.html` } });
+  const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: ACCOUNT_PAGE_URL } });
   if (error) set('auth-status', error.message);
 }
 
@@ -845,7 +853,7 @@ async function passwordLogin() {
   const { error } = await sb.auth.signInWithPassword({ email, password });
   set('auth-status', error ? error.message : 'Signed in.');
   if (!error) {
-    trackAccountFunnelEvent('account_login_succeeded', { button: 'password_login', target: '/account.html', state: 'password' });
+    trackAccountFunnelEvent('account_login_succeeded', { button: 'password_login', target: ACCOUNT_PAGE_URL, state: 'password' });
     refresh();
   }
 }
@@ -872,13 +880,13 @@ async function passwordSignup() {
   const { data, error } = await sb.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: `${window.location.origin}/account.html`, data: metadata },
+    options: { emailRedirectTo: ACCOUNT_PAGE_URL, data: metadata },
   });
   if (error) {
     set('auth-status', error.message);
     return;
   }
-  trackAccountFunnelEvent('account_signup_succeeded', { button: 'password_signup', target: '/account.html', state: data?.session ? 'signed_in' : 'email_confirmation' });
+  trackAccountFunnelEvent('account_signup_succeeded', { button: 'password_signup', target: ACCOUNT_PAGE_URL, state: data?.session ? 'signed_in' : 'email_confirmation' });
   set('auth-status', data?.session ? 'Account created and signed in.' : 'Account created. Check your email to confirm, then sign in.');
   refresh();
 }
@@ -893,9 +901,9 @@ async function magicLogin() {
   trackAccountFunnelEvent('account_magic_link_requested', { button: 'magic_login', target: '/auth/v1/otp', state: 'email' });
   const metadata = onboardingContext({ authMethod: 'magic_link' });
   rememberOnboardingContext(metadata);
-  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/account.html`, data: metadata } });
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: ACCOUNT_PAGE_URL, data: metadata } });
   set('auth-status', error ? error.message : 'Magic link sent. Check your email.');
-  if (!error) trackAccountFunnelEvent('account_magic_link_sent', { button: 'magic_login', target: '/account.html', state: 'email' });
+  if (!error) trackAccountFunnelEvent('account_magic_link_sent', { button: 'magic_login', target: ACCOUNT_PAGE_URL, state: 'email' });
 }
 
 async function resendVerificationEmail() {
@@ -909,13 +917,13 @@ async function resendVerificationEmail() {
     const { error } = await sb.auth.resend({
       type: 'signup',
       email: verificationEmail,
-      options: { emailRedirectTo: `${window.location.origin}/account.html` },
+      options: { emailRedirectTo: ACCOUNT_PAGE_URL },
     });
     if (error) {
       set('email-verification-status', error.message);
       return;
     }
-    trackAccountFunnelEvent('account_email_verification_resent', { button: 'resend_verification_email', target: '/account.html', state: 'sent' });
+    trackAccountFunnelEvent('account_email_verification_resent', { button: 'resend_verification_email', target: ACCOUNT_PAGE_URL, state: 'sent' });
     set('email-verification-status', 'Verification email sent. Check your inbox, then return to this page.');
   } catch (error) {
     set('email-verification-status', error.message || 'Could not resend verification email.');
