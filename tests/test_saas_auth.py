@@ -1100,6 +1100,17 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('margin_policy', managed['missingControls'])
         self.assertIn('provider_cost_model', managed['missingControls'])
         self.assertIn('positive_unit_economics', managed['missingControls'])
+        setup = managed['readinessSetup']
+        self.assertEqual('scripts/configure_managed_provider_resale_readiness.sh', setup['setupScript'])
+        self.assertIn('SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS', setup['setupCommand'])
+        self.assertIn('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS', setup['setupCommand'])
+        self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC', setup['setupCommand'])
+        self.assertIn('/pricing', setup['dryRunCommand'])
+        self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC', setup['enableCommandTemplate'])
+        self.assertFalse(setup['defaultPublicEnable'])
+        self.assertIn('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS', setup['secretManagerNames'])
+        self.assertFalse(setup['privacy']['containsSecrets'])
+        self.assertFalse(setup['privacy']['containsActualProviderCosts'])
         self.assertGreaterEqual(managed['minimumGrossMarginPercent'], 30)
         self.assertFalse(managed['unitEconomics']['costModelConfigured'])
         self.assertFalse(managed['unitEconomics']['satisfied'])
@@ -1285,6 +1296,8 @@ class SaaSAuthTests(unittest.TestCase):
             )
             self.assertIn('openrouter', managed['oneSubscriptionReadiness']['blockedProviderFamilies'])
             self.assertEqual([], managed['missingControls'])
+            self.assertEqual('', managed['readinessSetup']['setupCommand'])
+            self.assertIn('ready for private beta', managed['readinessSetup']['operatorAction'])
         finally:
             for key, value in old_env.items():
                 if value is None:
@@ -1877,6 +1890,16 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertFalse(snapshot['activationFollowUps']['privacy']['containsEmails'])
         self.assertFalse(snapshot['activationFollowUps']['privacy']['containsCustomerIds'])
         self.assertFalse(snapshot['activationFollowUps']['privacy']['containsApiKeys'])
+        pricing_managed = snapshot['pricing']['publicLaunch']['managedProviderAccess']
+        self.assertEqual(
+            'scripts/configure_managed_provider_resale_readiness.sh',
+            pricing_managed['readinessSetup']['setupScript'],
+        )
+        self.assertIn(
+            'SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC',
+            pricing_managed['readinessSetup']['enableCommandTemplate'],
+        )
+        self.assertFalse(pricing_managed['readinessSetup']['privacy']['containsSecrets'])
         self.assertEqual('signupToGeneratedKey', snapshot['nextBestAction']['metric'])
         self.assertEqual('fix_now', snapshot['nextBestAction']['priority'])
         self.assertIn('start=create_key', snapshot['nextBestAction']['ctaPath'])

@@ -409,6 +409,14 @@ provider resale claim, or runtime feature flag.
   a positive value, every fixed API plan clears the minimum gross-margin
   threshold of at least 30%, public metadata includes derived maximum safe provider cost thresholds, durable operator audit events are installed, and the
   legal/metering/abuse-control boundary is published.
+  Stage those values with
+  `scripts/configure_managed_provider_resale_readiness.sh`; the script stores
+  the reviewed provider-cost model in Secret Manager, updates the Cloud Run
+  readiness env, and keeps public managed resale disabled unless
+  `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=1` is explicitly set.
+  `/pricing` and the operator launch funnel expose the no-secret
+  `readinessSetup` packet so the dry run and enable template are visible
+  without printing provider credentials or actual provider costs.
   Keep durable operator audit events enabled before any managed-access private
   beta customer can receive bundled provider access.
 - Keep email/password and magic-link auth as the baseline launch path, then

@@ -2578,6 +2578,59 @@ def managed_provider_unit_economics(cost_cents_per_thousand, minimum_gross_margi
     }
 
 
+def managed_provider_resale_readiness_setup(enabled=False):
+    enabled = bool(enabled)
+    setup_command = (
+        "SAGEROUTER_PROVIDER_RESALE_TERMS_URL='https://sagerouter.dev/provider-resale-terms' \\\n"
+        "SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL='https://sagerouter.dev/margin-policy' \\\n"
+        "SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='0' \\\n"
+        "SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS='ollama,openai,anthropic' \\\n"
+        "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' \\\n"
+        "SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT='35' \\\n"
+        "SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' \\\n"
+        "scripts/configure_managed_provider_resale_readiness.sh"
+    )
+    dry_run_command = (
+        "curl -fsS https://api.sagerouter.dev/pricing \\\n"
+        "  | jq '.publicLaunch.managedProviderAccess | {enabled,requested,readinessSatisfied,status,missingControls,allowedProviderFamilies,providerFamilyReadiness,oneSubscriptionReadiness,unitEconomics}'"
+    )
+    enable_command_template = (
+        "SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' \\\n"
+        "SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='1' \\\n"
+        "scripts/configure_managed_provider_resale_readiness.sh"
+    )
+    return {
+        'setupScript': 'scripts/configure_managed_provider_resale_readiness.sh',
+        'setupCommand': '' if enabled else setup_command,
+        'dryRunCommand': dry_run_command,
+        'enableCommandTemplate': enable_command_template,
+        'requiredEnv': [] if enabled else [
+            'SAGEROUTER_PROVIDER_RESALE_TERMS_URL',
+            'SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL',
+            'SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED',
+            'SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS',
+            'SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS',
+        ],
+        'secretManagerNames': [
+            'SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS',
+        ],
+        'defaultPublicEnable': False,
+        'requiresExplicitPublicEnableEnv': 'SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC',
+        'operatorAction': (
+            'Managed provider access is ready for private beta; keep provider authorization and margin review evidence current.'
+            if enabled
+            else 'Stage readiness metadata, run the pricing dry-run, and keep public managed resale disabled until provider terms, allowlist, and positive unit economics pass.'
+        ),
+        'privacy': {
+            'containsSecrets': False,
+            'containsProviderCredentials': False,
+            'containsActualProviderCosts': False,
+            'containsPrompts': False,
+            'containsRawProviderResponses': False,
+        },
+    }
+
+
 def current_usage_period(now=None):
     return time.strftime('%Y-%m', time.gmtime(now or time.time()))
 
@@ -2780,6 +2833,9 @@ def public_launch_metadata():
     managed_provider_access['marginPolicyUrl'] = margin_policy_url
     managed_provider_access['unitEconomics'] = unit_economics
     managed_provider_access['acceptableUseUrl'] = f"{MARKETING_BASE_URL}/acceptable-use"
+    managed_provider_access['readinessSetup'] = managed_provider_resale_readiness_setup(
+        enabled=bool(managed_provider_access.get('enabled'))
+    )
     launch['managedProviderAccess'] = managed_provider_access
     launch['pricingPage'] = f"{MARKETING_BASE_URL}/pricing"
     launch['comparisonPage'] = f"{MARKETING_BASE_URL}/compare/model-gateways"
@@ -8152,6 +8208,11 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         conversion.get('conversionActions') if isinstance(conversion, dict) else [],
     )
     operator_execution_packet = launch_operator_execution_packet(next_best_action, activation_follow_ups)
+    pricing_metadata = {
+        **public_launch_metadata(),
+        'plans': public_plan_catalog(),
+        'agentNativeFeatures': PUBLIC_AGENT_NATIVE_FEATURES,
+    }
 
     return {
         'version': 1,
@@ -8178,6 +8239,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'activationFollowUps': activation_follow_ups,
         'nextBestAction': next_best_action,
         'operatorExecutionPacket': operator_execution_packet,
+        'pricing': pricing_metadata,
         'stages': stages,
         'signupHydration': signup_hydration,
         'waitlistInterest': waitlist_interest,

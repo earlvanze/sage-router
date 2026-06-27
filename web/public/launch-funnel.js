@@ -650,6 +650,8 @@ function buildLaunchBrief(data = {}) {
   const managedAccessDemand = data.managedAccessDemand || {};
   const activationFollowUps = data.activationFollowUps || {};
   const activationEmailReadiness = activationFollowUps.emailReadiness || {};
+  const managedReadiness = data.pricing?.publicLaunch?.managedProviderAccess || {};
+  const managedSetup = managedReadiness.readinessSetup || {};
   const noKeyVerification = activationFollowUps.countsByEmailVerification || {};
   const acquisitionActions = data.acquisitionActions || marketingIntent.acquisitionActions || [];
   const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
@@ -680,6 +682,7 @@ function buildLaunchBrief(data = {}) {
     `- No-key email verification: verified ${integer(noKeyVerification.verified)}, unverified ${integer(noKeyVerification.unverified)}, missing ${integer(noKeyVerification.missing_auth_user || noKeyVerification.missing_user_id)}, unavailable ${integer(noKeyVerification.unavailable)}`,
     `- Follow-up CTA: ${activationFollowUps.primaryCtaUrl || activationFollowUpUrl({}, { auth: false })}`,
     `- Checkout unavailable: ${integer(checkoutFriction.unavailableEvents)} / ${integer(checkoutFriction.totalCheckoutIntent)} intent events (${percent(checkoutFriction.unavailableRate)})`,
+    `- Managed access readiness: ${managedReadiness.enabled ? 'enabled' : 'disabled'} (${managedReadiness.status || 'unknown'}); setup=${managedSetup.setupScript || 'scripts/configure_managed_provider_resale_readiness.sh'}; action: ${managedSetup.operatorAction || 'Keep managed resale disabled until provider authorization, allowlist, and unit economics pass.'}`,
     '',
     'Next conversion move',
     `- Bottleneck: ${actionLine(bottleneck)}`,
@@ -752,6 +755,8 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
   const segmentActions = Array.isArray(packet.segmentActions) ? packet.segmentActions : [];
   const instructions = Array.isArray(packet.instructions) ? packet.instructions : [];
   const emailReadiness = packet.emailReadiness || data.activationFollowUps?.emailReadiness || {};
+  const managedReadiness = data.pricing?.publicLaunch?.managedProviderAccess || {};
+  const managedSetup = managedReadiness.readinessSetup || {};
   const authPosture = operatorAuthPosture(data);
   return [
     `${packet.title || 'Operator execution packet'} (${packet.kind || 'none'})`,
@@ -763,6 +768,12 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
     ...(emailReadiness.setupCommand ? ['', 'Setup command template:', emailReadiness.setupCommand] : []),
     ...(emailReadiness.dryRunCommand ? ['', 'Dry-run send command:', emailReadiness.dryRunCommand] : []),
     ...(emailReadiness.sendCommandTemplate ? ['', 'Real send command template:', emailReadiness.sendCommandTemplate] : []),
+    '',
+    `Managed provider access: ${managedReadiness.enabled ? 'enabled' : 'disabled'}; requested=${managedReadiness.requested === true}; status=${managedReadiness.status || 'unknown'}; missingControls=${(managedReadiness.missingControls || []).join(', ') || 'none'}`,
+    `Managed access setup: ${managedSetup.setupScript || 'scripts/configure_managed_provider_resale_readiness.sh'}; requiredEnv=${(managedSetup.requiredEnv || []).join(', ') || 'none'}; explicitPublicEnable=${managedSetup.requiresExplicitPublicEnableEnv || 'SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC'}`,
+    ...(managedSetup.setupCommand ? ['', 'Managed access setup command:', managedSetup.setupCommand] : []),
+    ...(managedSetup.dryRunCommand ? ['', 'Managed access dry-run command:', managedSetup.dryRunCommand] : []),
+    ...(managedSetup.enableCommandTemplate ? ['', 'Managed access enable command template:', managedSetup.enableCommandTemplate] : []),
     `Privacy: aggregateOnly=${privacy.aggregateOnly === true}; emails=${privacy.containsEmails === true}; customerIds=${privacy.containsCustomerIds === true}; apiKeys=${privacy.containsApiKeys === true}; prompts=${privacy.containsPrompts === true}; oauthTokens=${privacy.containsOAuthTokens === true}`,
     '',
     'Segments:',
@@ -802,6 +813,8 @@ function renderOperatorExecutionPacket(data = {}) {
   const telemetry = packet.telemetry || {};
   const segmentActions = Array.isArray(packet.segmentActions) ? packet.segmentActions : [];
   const emailReadiness = packet.emailReadiness || data.activationFollowUps?.emailReadiness || {};
+  const managedReadiness = data.pricing?.publicLaunch?.managedProviderAccess || {};
+  const managedSetup = managedReadiness.readinessSetup || {};
   const authPosture = operatorAuthPosture(data);
   const clean = privacy.aggregateOnly === true &&
     privacy.containsEmails === false &&
@@ -843,11 +856,12 @@ function renderOperatorExecutionPacket(data = {}) {
     <div class="metric"><span>Queued</span><strong>${integer(packet.totalQueued)} total · ${integer(packet.windowedNewSignups)} new</strong></div>
     <div class="metric"><span>Primary CTA</span><strong>${esc(packet.primaryCtaKind || 'same_email_password')}</strong></div>
     <div class="metric"><span>Email sender</span><strong><span class="pill ${emailReadiness.configured ? 'good' : 'warn'}">${emailReadiness.configured ? 'Configured' : 'Fallback only'}</span></strong></div>
+    <div class="metric"><span>Managed access</span><strong><span class="pill ${managedReadiness.enabled ? 'good' : 'warn'}">${esc(managedReadiness.status || 'disabled')}</span></strong></div>
     <div class="metric"><span>Auth posture</span><strong><span class="pill ${esc(authPosture.tone)}">${esc(authPosture.label)}</span></strong></div>
     <div class="metric"><span>Privacy</span><strong><span class="pill ${clean ? 'good' : 'bad'}">${clean ? 'Aggregate only' : 'Review payload'}</span></strong></div>
     <div class="metric"><span>Success</span><strong>${esc(telemetry.successMetric || packet.metric || 'activation')}</strong></div>
   </div>
-  <p class="muted">${esc(authPosture.action)} ${esc(emailReadiness.operatorAction || 'Dry-run activation follow-up sending before real outreach.')}</p>
+  <p class="muted">${esc(authPosture.action)} ${esc(emailReadiness.operatorAction || 'Dry-run activation follow-up sending before real outreach.')} ${esc(managedSetup.operatorAction || 'Keep managed provider access disabled until resale controls pass.')}</p>
   <div class="actions">
     <button class="btn secondary" type="button" data-copy-operator-packet="${esc(packetText)}">Copy execution packet</button>
     <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(draftText)}" data-followup-copy-kind="operator_packet_draft_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(packet.totalQueued)}">Copy packet draft</button>
