@@ -44,7 +44,7 @@
     <h1>Continue AI model router for local-first coding assistants</h1>
     <p class="lead">Point Continue at one Sage Router OpenAI-compatible endpoint for hosted, local, or Tailnet coding sessions. Keep Continue configuration stable while Sage Router handles provider health, local Ollama fallback, 429 failover, and capability-aware routing.</p>
     <div class="actions">
-      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-continue-event="content_article_checkout_clicked" data-continue-button="create-pro-key">Create Pro key</a>
+      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-continue-event="content_article_key_activation_clicked" data-continue-button="create-api-key">Create API key</a>
       <a class="button secondary" href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/continue.md" data-continue-event="content_article_quickstart_clicked" data-continue-button="continue-guide">Continue guide</a>
       <a class="button secondary" href="/coding-agent-model-router" data-continue-event="content_article_compare_clicked" data-continue-button="coding-agent-router">Coding-agent routes</a>
       <a class="button secondary" href="/models" data-continue-event="content_article_compare_clicked" data-continue-button="models">Browse models</a>
@@ -123,7 +123,7 @@
 
     <section class="panel callout">
       <h2><strong>Next steps</strong></h2>
-      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-continue-event="content_article_checkout_clicked" data-continue-button="next-create-key">Create a Pro key</a>, <a href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/continue.md" data-continue-event="content_article_quickstart_clicked" data-continue-button="next-continue-guide">open the Continue guide</a>, <a href="/quickstart" data-continue-event="content_article_quickstart_clicked" data-continue-button="next-quickstart">copy the hosted quickstart</a>, or <a href="/model-routing-calculator" data-continue-event="content_article_compare_clicked" data-continue-button="calculator">estimate routing fit</a>.</p>
+      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-continue-event="content_article_key_activation_clicked" data-continue-button="next-create-api-key">Create an API key</a>, <a href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/continue.md" data-continue-event="content_article_quickstart_clicked" data-continue-button="next-continue-guide">open the Continue guide</a>, <a href="/quickstart" data-continue-event="content_article_quickstart_clicked" data-continue-button="next-quickstart">copy the hosted quickstart</a>, or <a href="/model-routing-calculator" data-continue-event="content_article_compare_clicked" data-continue-button="calculator">estimate routing fit</a>.</p>
     </section>
   </main>
 
@@ -181,7 +181,7 @@
       return `${document.getElementById('continue-router-start-code')?.textContent.trim() || ''}
 
 # Create a hosted generated key:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key
 # Full Continue setup guide:
 # https://github.com/earlvanze/sage-router/blob/master/docs/integrations/continue.md`;
     }

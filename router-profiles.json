@@ -1,24 +1,30 @@
 {
   "profiles": {
     "auto": {
-      "description": "Default auto-routing via OpenClaw Codex OAuth with cloud fallbacks.",
-      "route": "best",
-      "thinking": "high",
-      "requiresQuality": true,
-      "requiresReasoning": true,
+      "description": "Default reliable auto-routing for first requests and general hosted traffic.",
+      "route": "balanced",
+      "thinking": "medium",
+      "defaultModel": "google/gemini-2.5-flash",
       "allowProviders": [
-        "openai-codex"
-      ],
-      "fallbackProviders": [
-        "ollama-cyber",
-        "ollama",
         "google",
         "google-vertex",
         "openrouter",
         "nvidia-nim",
-        "openai"
+        "openai",
+        "openai-codex"
       ],
-      "frontierLargeOnly": true,
+      "fallbackProviders": [
+        "google",
+        "google-vertex",
+        "openrouter",
+        "nvidia-nim",
+        "openai",
+        "openai-codex"
+      ],
+      "allowModels": [
+        "*gemini-2.5-flash*",
+        "*gemini-3-flash*"
+      ],
       "suppressIntermediateToolText": true
     },
     "balanced": {

@@ -51,19 +51,38 @@ h3 { font-size: 21px; line-height: 1.2; letter-spacing: -0.035em; margin-bottom:
 .stickyActivationBar strong { color: var(--text); font-size: 14px; }
 .stickyActivationBar span { color: var(--muted); font-size: 13px; }
 .stickyActivationBar .button { min-height: 42px; padding: 0 18px; white-space: nowrap; }
+.activationNudge { position: fixed; right: 22px; bottom: 104px; z-index: 21; width: min(390px, calc(100vw - 32px)); display: grid; gap: 12px; padding: 18px; border: 1px solid rgba(141,240,178,.3); border-radius: 24px; background: linear-gradient(180deg, rgba(13,29,24,.96), rgba(5,12,10,.96)); box-shadow: 0 24px 90px rgba(0,0,0,.44); backdrop-filter: blur(18px); }
+.activationNudge strong, .activationNudge span { display: block; }
+.activationNudge strong { color: var(--text); font-size: 18px; margin-bottom: 3px; }
+.activationNudge span { color: var(--muted); font-size: 14px; }
+.activationNudge .button { min-height: 44px; width: 100%; }
+.activationNudge .button:disabled { cursor: wait; opacity: .72; }
+.activationNudgeClose { position: absolute; top: 8px; right: 10px; width: 30px; height: 30px; border: 0; border-radius: 999px; background: rgba(255,255,255,.07); color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; }
+.activationNudgeClose:hover { color: var(--text); background: rgba(255,255,255,.12); }
 .heroEmailStart { display: grid; gap: 10px; max-width: 680px; margin: 0 0 18px; padding: 16px; border: 1px solid rgba(141,240,178,.24); border-radius: 24px; background: rgba(13,29,24,.76); box-shadow: 0 18px 60px rgba(0,0,0,.16); }
 .heroEmailStart label { color: var(--brand); font-weight: 900; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+.heroEmailStartLead { margin: -4px 0 0; color: #d2eadf; font-size: 15px; line-height: 1.45; }
 .heroEmailStart div { display: grid; grid-template-columns: minmax(220px, 1fr) auto; gap: 10px; }
 .heroEmailStart input { min-width: 0; height: 48px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,255,255,.055); color: var(--text); padding: 0 18px; font: inherit; }
 .heroEmailStart input:focus { outline: 2px solid rgba(141,240,178,.42); outline-offset: 2px; }
-.heroEmailStart button { height: 48px; border: 0; border-radius: 999px; padding: 0 18px; background: var(--brand); color: #04150d; font-weight: 900; cursor: pointer; }
+.heroEmailStart button, .heroEmailStart .heroKeyDirectButton { height: 48px; border: 0; border-radius: 999px; padding: 0 18px; background: var(--brand); color: #04150d; font-weight: 900; cursor: pointer; }
+.heroEmailStart .heroKeyDirectButton { display: inline-flex; align-items: center; justify-content: center; width: max-content; min-width: 240px; background: linear-gradient(135deg, var(--brand), var(--amber)); box-shadow: 0 16px 48px rgba(80,216,145,.2); }
 .heroEmailStart button:disabled { cursor: wait; opacity: .72; }
 .heroEmailStart .heroOauthButton { width: max-content; min-width: 240px; background: linear-gradient(135deg, var(--brand), #50d891); }
 .heroEmailStartStatus { margin: 0; min-height: 20px; color: var(--muted); font-size: 14px; }
-.heroSetupCopy { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 16px; }
+.landingKeyRecovery { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; max-width: 680px; margin: -4px 0 16px; padding: 11px 14px; border: 1px solid rgba(247,213,122,.3); border-radius: 999px; background: rgba(247,213,122,.08); color: var(--muted); font-size: 14px; }
+.landingKeyRecovery span { display: inline-flex; align-items: center; gap: 4px; }
+.landingKeyRecovery code { color: #ffe6a0; }
+.landingKeyRecovery a { color: #04150d; background: var(--amber); border-radius: 999px; padding: 8px 13px; font-weight: 900; }
+.heroSetupCopyWrap { display: grid; gap: 10px; margin: 0 0 16px; max-width: 720px; }
+.heroSetupCopy { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0; }
 .heroSetupCopy .setupBundleButton { border: 1px solid rgba(141,240,178,.45); background: rgba(141,240,178,.12); color: var(--brand); cursor: pointer; }
 .heroSetupCopy .postCopyAccountButton { border: 0; background: var(--brand); color: #04150d; }
 .heroSetupCopy span { min-height: 20px; color: var(--muted); font-size: 14px; }
+.heroPostCopyPrompt { display: grid; gap: 6px; padding: 14px 16px; border: 1px solid rgba(141,240,178,.3); border-radius: 18px; background: rgba(141,240,178,.1); box-shadow: 0 18px 54px rgba(0,0,0,.18); }
+.heroPostCopyPrompt strong { color: var(--text); font-size: 15px; }
+.heroPostCopyPrompt span { color: var(--muted); font-size: 14px; }
+.heroPostCopyPrompt a { color: #04150d; background: var(--brand); width: max-content; border-radius: 999px; padding: 9px 14px; font-weight: 900; }
 .complianceNote { color: var(--muted); max-width: 680px; font-size: 14px; }
 .activationStrip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 760px; margin-top: 18px; padding: 14px; border: 1px solid rgba(141,240,178,.22); border-radius: 22px; background: rgba(13,29,24,.74); box-shadow: 0 18px 60px rgba(0,0,0,.16); }
 .activationStrip div { padding: 10px; border: 1px solid rgba(166,255,207,.11); border-radius: 16px; background: rgba(255,255,255,.032); }
@@ -117,9 +136,12 @@ footer span { margin-right: auto; }
   .navLinks { justify-content: flex-start; }
   .button { width: 100%; }
   .stickyActivationBar { grid-template-columns: 1fr; border-radius: 24px; align-items: stretch; }
+  .activationNudge { left: 16px; right: 16px; bottom: 178px; width: auto; }
   .heroEmailStart div { grid-template-columns: 1fr; }
-  .heroEmailStart button { width: 100%; }
+  .heroEmailStart button, .heroEmailStart .heroKeyDirectButton { width: 100%; }
   .heroEmailStart .heroOauthButton { width: 100%; min-width: 0; }
+  .landingKeyRecovery { border-radius: 20px; align-items: stretch; }
+  .landingKeyRecovery a { width: 100%; text-align: center; }
   pre { padding: 22px; }
 }
 .docsGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }

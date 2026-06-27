@@ -188,6 +188,26 @@
         color: var(--muted);
         font-size: 14px;
       }
+      .recoveryPanel {
+        margin: 16px 0 8px;
+        padding: 14px;
+        border: 1px solid rgba(141, 240, 178, 0.28);
+        border-radius: 18px;
+        background: rgba(141, 240, 178, 0.08);
+      }
+      .recoveryPanel strong,
+      .recoveryPanel span {
+        display: block;
+      }
+      .recoveryPanel strong {
+        color: var(--text);
+        font-size: 15px;
+      }
+      .recoveryPanel span {
+        color: var(--muted);
+        font-size: 14px;
+        margin: 4px 0 10px;
+      }
       .actions {
         display: flex;
         gap: 12px;
@@ -294,6 +314,20 @@
           </div>
           <div id="oauth-status" class="status">
             Checking enabled OAuth providers...
+          </div>
+          <div class="recoveryPanel">
+            <strong>Already signed up?</strong>
+            <span id="login-key-recovery-copy">Go straight to generated-key setup. No provider key or checkout is required until your <code>sk_sage_*</code> setup key exists.</span>
+            <div class="actions recoveryActions">
+              <button id="login-key-recovery-email-focus" class="btn" type="button">Use same-email setup link</button>
+              <a
+                id="login-key-recovery"
+                class="btn secondary"
+                href="/account.html?plan=pro&start=create_key&utm_source=login&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email"
+                data-key-recovery="true"
+                >Finish setup key</a
+              >
+            </div>
           </div>
           <div class="authGrid">
             <div>

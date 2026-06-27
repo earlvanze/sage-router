@@ -107,16 +107,16 @@
     <h1>Sage Router Integrations</h1>
     <p class="sub">Use one Sage Router endpoint from hosted clients, local tools, Tailnet agents, and BYOK-compatible provider stacks. Start with generated <code>sk_sage_*</code> hosted keys for <code>https://api.sagerouter.dev/v1</code>, or run the router on local port <code>8790</code> when provider credentials should stay on your own host.</p>
     <div class="actions">
-      <a class="btn primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Create hosted API key</a>
+      <a class="btn primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key">Create hosted API key</a>
       <a class="btn secondary" href="/quickstart">Read quickstart</a>
       <a class="btn secondary" href="/docs/codex">Configure Codex</a>
       <a class="btn secondary" href="/agent-native">Agent-native routing</a>
     </div>
     <form class="emailStart" id="integrations-email-form" data-email-activation-form data-oauth-activation="github" data-event-prefix="integrations" data-sent-event="integrations_magic_link_sent" data-source="integrations" data-status-id="integrations-email-status">
-      <label for="integrations-email">Email me the Pro key link before connecting tools</label>
+      <label for="integrations-email">Email me the API key setup link before connecting tools</label>
       <input id="integrations-email" type="email" name="email" autocomplete="email" placeholder="you@company.com" required />
-      <button class="btn primary" type="submit">Email me the Pro key link</button>
-      <p class="emailStartStatus" id="integrations-email-status" role="status">No provider key required to create your Sage Router account.</p>
+      <button class="btn primary" type="submit">Email API key setup link</button>
+      <p class="emailStartStatus" id="integrations-email-status" role="status">No provider key or credit card required until your generated sk_sage key exists.</p>
     </form>
   </header>
 

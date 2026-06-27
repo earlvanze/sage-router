@@ -22,6 +22,47 @@ const fmtRetryStatuses = (statuses = []) => {
     .filter(value => Number.isFinite(value));
   return values.length ? values.join('/') : 'configured retry statuses';
 };
+
+function trackStatusFunnelEvent(event, data = {}) {
+  const params = new URLSearchParams(window.location.search);
+  const payload = JSON.stringify({
+    event,
+    sourcePage: window.location.href,
+    target: data.target || null,
+    metadata: {
+      source: 'status',
+      button: data.button || null,
+      state: data.state || null,
+      utmSource: params.get('utm_source') || params.get('utmSource') || null,
+      utmMedium: params.get('utm_medium') || params.get('utmMedium') || null,
+      utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
+      landingPath: window.location.pathname
+    }
+  });
+  try {
+    if (navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: 'application/json' });
+      if (navigator.sendBeacon('/api/funnel-event', blob)) return;
+    }
+  } catch {}
+  fetch('/api/funnel-event', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: payload,
+    keepalive: true,
+    credentials: 'omit'
+  }).catch(() => {});
+}
+
+document.querySelectorAll('[data-status-event]').forEach((link) => {
+  link.addEventListener('click', () => {
+    trackStatusFunnelEvent(link.dataset.statusEvent, {
+      target: link.getAttribute('href') || null,
+      button: link.textContent.trim().slice(0, 60),
+      state: link.dataset.statusState || null
+    });
+  });
+});
 const originKind = (url = '') => {
   if (url && typeof url === 'object') return url.originKind || originKind(url.url || url.label || url.id || '');
   const name = host(url).toLowerCase();

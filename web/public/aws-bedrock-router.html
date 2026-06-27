@@ -44,7 +44,7 @@
     <h1>AWS Bedrock router for enterprise agents</h1>
     <p class="lead">Use Sage Router as the OpenAI-compatible policy layer in front of your authorized Amazon Bedrock routes. Keep <code>AWS_PROFILE</code>, <code>AWS_REGION</code>, <code>AWS_ACCESS_KEY_ID</code>, <code>AWS_SECRET_ACCESS_KEY</code>, IAM policy, and Bedrock model access under your AWS account custody.</p>
     <div class="actions">
-      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-bedrock-event="content_article_checkout_clicked" data-bedrock-button="create-pro-key">Create Pro key</a>
+      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-bedrock-event="content_article_key_activation_clicked" data-bedrock-button="create-api-key">Create API key</a>
       <a class="button secondary" href="/quickstart" data-bedrock-event="content_article_quickstart_clicked" data-bedrock-button="quickstart">Read quickstart</a>
       <a class="button secondary" href="/openai-api-router" data-bedrock-event="content_article_compare_clicked" data-bedrock-button="openai-api">OpenAI-compatible setup</a>
       <a class="button secondary" href="/models" data-bedrock-event="content_article_compare_clicked" data-bedrock-button="models">Browse models</a>
@@ -120,7 +120,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
 
     <section class="panel callout">
       <h2><strong>Next steps</strong></h2>
-      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-bedrock-event="content_article_checkout_clicked" data-bedrock-button="next-create-key">Create a Pro key</a>, <a href="/quickstart" data-bedrock-event="content_article_quickstart_clicked" data-bedrock-button="next-quickstart">copy the hosted quickstart</a>, <a href="/openai-api-router" data-bedrock-event="content_article_compare_clicked" data-bedrock-button="next-openai-api">use the OpenAI-compatible setup</a>, or <a href="/model-routing-calculator" data-bedrock-event="content_article_compare_clicked" data-bedrock-button="calculator">estimate routing fit</a>.</p>
+      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-bedrock-event="content_article_key_activation_clicked" data-bedrock-button="next-create-api-key">Create an API key</a>, <a href="/quickstart" data-bedrock-event="content_article_quickstart_clicked" data-bedrock-button="next-quickstart">copy the hosted quickstart</a>, <a href="/openai-api-router" data-bedrock-event="content_article_compare_clicked" data-bedrock-button="next-openai-api">use the OpenAI-compatible setup</a>, or <a href="/model-routing-calculator" data-bedrock-event="content_article_compare_clicked" data-bedrock-button="calculator">estimate routing fit</a>.</p>
     </section>
   </main>
 
@@ -177,7 +177,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       return `${document.getElementById('bedrock-router-start-code')?.textContent.trim() || ''}
 
 # Create a hosted generated key:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout`;
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key`;
     }
 
     async function writeClipboardText(text) {

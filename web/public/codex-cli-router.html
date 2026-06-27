@@ -44,7 +44,7 @@
     <h1>Codex CLI router for hosted, local, and Tailnet model routing</h1>
     <p class="lead">Use Sage Router as the model-routing layer behind Codex CLI. Keep the OpenAI-compatible Responses wire format, point Codex at hosted Sage Router or local port <code>8790</code>, and let route policy handle failover, capability matching, and provider custody.</p>
     <div class="actions">
-      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-codex-router-event="content_article_checkout_clicked" data-codex-router-button="create-pro-key">Create Pro key</a>
+      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-codex-router-event="content_article_key_activation_clicked" data-codex-router-button="create-api-key">Create API key</a>
       <a class="button secondary" href="/docs/codex" data-codex-router-event="content_article_quickstart_clicked" data-codex-router-button="codex-guide">Open Codex guide</a>
       <a class="button secondary" href="/agent-native" data-codex-router-event="content_article_compare_clicked" data-codex-router-button="agent-native">Agent-native routing</a>
       <a class="button secondary" href="/models" data-codex-router-event="content_article_compare_clicked" data-codex-router-button="models">Browse models</a>
@@ -122,7 +122,7 @@ codex --profile sage-router</pre>
 
     <section class="panel callout">
       <h2><strong>Next steps</strong></h2>
-      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-codex-router-event="content_article_checkout_clicked" data-codex-router-button="next-create-key">Create a Pro key</a>, <a href="/docs/codex" data-codex-router-event="content_article_quickstart_clicked" data-codex-router-button="next-codex-guide">open the Codex guide</a>, <a href="/quickstart" data-codex-router-event="content_article_quickstart_clicked" data-codex-router-button="next-quickstart">copy the hosted quickstart</a>, or <a href="/model-routing-calculator" data-codex-router-event="content_article_compare_clicked" data-codex-router-button="calculator">estimate routing fit</a>.</p>
+      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-codex-router-event="content_article_key_activation_clicked" data-codex-router-button="next-create-api-key">Create an API key</a>, <a href="/docs/codex" data-codex-router-event="content_article_quickstart_clicked" data-codex-router-button="next-codex-guide">open the Codex guide</a>, <a href="/quickstart" data-codex-router-event="content_article_quickstart_clicked" data-codex-router-button="next-quickstart">copy the hosted quickstart</a>, or <a href="/model-routing-calculator" data-codex-router-event="content_article_compare_clicked" data-codex-router-button="calculator">estimate routing fit</a>.</p>
     </section>
   </main>
 
@@ -180,7 +180,7 @@ codex --profile sage-router</pre>
       return `${document.getElementById('codex-cli-router-start-code')?.textContent.trim() || ''}
 
 # Create a hosted generated key:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key
 # Full Codex setup guide:
 # https://sagerouter.dev/docs/codex`;
     }

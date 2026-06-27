@@ -44,7 +44,7 @@
     <h1>Aider AI model router for local-first coding sessions</h1>
     <p class="lead">Point Aider at one Sage Router endpoint for hosted, local, or Tailnet coding sessions. Sage Router can route edits across authorized OpenAI-compatible providers, Anthropic, Gemini, NVIDIA NIM, Ollama, and Ollama Cloud while preserving BYOK custody and failover policy.</p>
     <div class="actions">
-      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-aider-event="content_article_checkout_clicked" data-aider-button="create-pro-key">Create Pro key</a>
+      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-aider-event="content_article_key_activation_clicked" data-aider-button="create-api-key">Create API key</a>
       <a class="button secondary" href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/aider.md" data-aider-event="content_article_quickstart_clicked" data-aider-button="aider-guide">Aider guide</a>
       <a class="button secondary" href="/coding-agent-model-router" data-aider-event="content_article_compare_clicked" data-aider-button="coding-agent-router">Coding-agent routes</a>
       <a class="button secondary" href="/models" data-aider-event="content_article_compare_clicked" data-aider-button="models">Browse models</a>
@@ -118,7 +118,7 @@ aider --model openai/auto
 
     <section class="panel callout">
       <h2><strong>Next steps</strong></h2>
-      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-aider-event="content_article_checkout_clicked" data-aider-button="next-create-key">Create a Pro key</a>, <a href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/aider.md" data-aider-event="content_article_quickstart_clicked" data-aider-button="next-aider-guide">open the Aider guide</a>, <a href="/quickstart" data-aider-event="content_article_quickstart_clicked" data-aider-button="next-quickstart">copy the hosted quickstart</a>, or <a href="/model-routing-calculator" data-aider-event="content_article_compare_clicked" data-aider-button="calculator">estimate routing fit</a>.</p>
+      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-aider-event="content_article_key_activation_clicked" data-aider-button="next-create-api-key">Create an API key</a>, <a href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/aider.md" data-aider-event="content_article_quickstart_clicked" data-aider-button="next-aider-guide">open the Aider guide</a>, <a href="/quickstart" data-aider-event="content_article_quickstart_clicked" data-aider-button="next-quickstart">copy the hosted quickstart</a>, or <a href="/model-routing-calculator" data-aider-event="content_article_compare_clicked" data-aider-button="calculator">estimate routing fit</a>.</p>
     </section>
   </main>
 
@@ -176,7 +176,7 @@ aider --model openai/auto
       return `${document.getElementById('aider-router-start-code')?.textContent.trim() || ''}
 
 # Create a hosted generated key:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key
 # Full Aider setup guide:
 # https://github.com/earlvanze/sage-router/blob/master/docs/integrations/aider.md`;
     }

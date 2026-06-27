@@ -46,7 +46,7 @@ The public model catalog at `/models` uses safe `/model-catalog` metadata for
 gateway-style searchable discovery and falls back to embedded public route
 families; it does not call live `/v1/models` without a generated customer API
 key. It also exposes `Copy 60-second catalog setup` and an always-visible
-`Create Pro key next` handoff with `model_catalog_setup_next_clicked`
+`Create API key next` handoff with `model_catalog_setup_next_clicked`
 telemetry. Catalog search telemetry stores only coarse model-family and query-bucket
 labels, not raw search text.
 `GET /api/funnel-event` is a non-mutating health check. The function only
@@ -80,11 +80,13 @@ pre-signup checkout interest without collecting secrets or support text.
 ## Hosted onboarding CTA
 
 The primary homepage CTA is `Create hosted API key`, which links to
-`https://app.sagerouter.dev/account.html?plan=pro&start=checkout` directly,
-without the marketing-host redirect hop. The hero also exposes a no-secret
-`Copy 60-second setup bundle` action that records `quickstart_snippet_copied`
+`https://app.sagerouter.dev/account.html?plan=pro&start=create_key` directly,
+without the marketing-host redirect hop. The above-the-fold key-first panel now
+leads with `Open account key creator` and records `landing_key_first_direct_clicked`
+before GitHub, email magic-link, or setup-copy fallbacks. The hero also exposes a
+no-secret `Copy 60-second setup bundle` action that records `quickstart_snippet_copied`
 with `landing-hero-setup-bundle` metadata, so setup-copy intent is measurable
-before signup. A persistent bottom activation bar keeps `Create Pro key` and
+before signup. A persistent bottom activation bar keeps `Create API key` and
 `60-second setup` visible after scroll while reusing `landing_account_clicked`
 and `landing_quickstart_clicked` telemetry. The hero keeps pricing, quickstart, public status,
 model-gateway comparison, model catalog, calculator, security, analytics, login,
@@ -111,12 +113,12 @@ The MVP treats discoverability as first-class. Current static assets include:
 - Keyword coverage for AI model router, LLM router, provider routing, model selection automation, AI agent model routing, OpenAI-compatible router, Anthropic-compatible router, Ollama routing, BYOK AI gateway, local-first AI router, and model gateway alternatives.
 - Structured page sections for automation, BYOK routing, model-gateway comparison, and Ollama/Ollama Cloud roadmap language.
 - Dedicated hosted pricing page at `/pricing` with plan limits, compliance-safe positioning, and $10k MRR launch math.
-- Pricing uses the same measurable activation CTA as quickstart: `Copy 60-second setup bundle`, `Create Pro key next` visible before and after copy, `pricing-full-setup-bundle`, `quickstart_snippet_copied` telemetry, `pricing_setup_next_clicked` telemetry, `start=checkout` plan handoffs, and a key-first proof block that tells buyers to create the generated `sk_sage_*` key before checkout unlocks hosted routing.
+- Pricing uses the same measurable activation CTA as quickstart: `Copy 60-second setup bundle`, `Create API key next` visible before and after copy, `pricing-full-setup-bundle`, `quickstart_snippet_copied` telemetry, `pricing_setup_next_clicked` telemetry, Pro `start=create_key` handoffs, Lite/Max `start=checkout` plan handoffs, and a key-first proof block that tells buyers to create the generated `sk_sage_*` key before checkout unlocks hosted routing.
 - Dedicated Fusion page at `/fusion` with `sage-router/fusion`, the `sage-router:fusion` server tool, `tool_choice: "required"`, Pro/Max gating, and `fusion_plan_required` upgrade guidance.
 - Dedicated billing help page at `/billing` with Stripe checkout, Stripe billing portal, manual/crypto settlement, activation states, generated key behavior, payment recovery, and no-secret support boundaries.
 - Dedicated managed-access private beta and Max implementation intake at `/managed-access` with no-secret qualification buckets for one-subscription demand capture, target provider family, commercial preference, support need, target launch window, and coarse inbound CTA intent. The page points to the public pricing readiness checkpoint and keeps activation conditioned on provider authorization, terms acknowledgment, an authorized provider allowlist, configured provider cost model, and plan-margin checks.
 - Hosted account page primary activation creates the first `sk_sage_*` key directly for signed-in, verified users without one, preserving the one-time key display and saved checkout intent. Saved `start=checkout` intent also auto-creates that first key once after verified sign-in when no key exists, reducing signup-to-generated-key friction. A persistent post-key activation panel keeps `/v1/models` verification, first `sage-router/frontier` request, and Codex setup copy visible after key generation, with no raw key included in funnel telemetry.
-- Dedicated API quickstart page at `/quickstart` with `Copy 60-second setup bundle`, an always-visible `Create Pro key next` handoff with `quickstart_setup_next_clicked` telemetry, hosted `sk_sage_*` key setup, `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, `sage-router/frontier`, curl, JavaScript, Python, Codex, and error troubleshooting.
+- Dedicated API quickstart page at `/quickstart` with `Copy 60-second setup bundle`, an always-visible `Create API key next` handoff with `quickstart_setup_next_clicked` telemetry, hosted `sk_sage_*` key setup, `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, `sage-router/frontier`, curl, JavaScript, Python, Codex, and error troubleshooting.
 - Dedicated API troubleshooting page at `/api-troubleshooting` with no-secret guidance for hosted 401/402/429/503 responses, safe curl probes, `WWW-Authenticate`, `Retry-After`, `X-RateLimit-*`, `X-Quota-*`, and account/pricing/status onboarding links.
 - Dedicated hosted API reference page at `/docs/api-reference` with OpenAI-compatible endpoint docs for `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public `/model-catalog`, generated keys, quotas, rate limits, and failover signals.
 - Dedicated Gateway migration guide at `/docs/gateway-migration` mapping `https://gateway.example/api/v1` to `https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, model catalog discovery, and provider terms boundaries.
@@ -147,7 +149,7 @@ The MVP treats discoverability as first-class. Current static assets include:
 - Dedicated Codex setup page at `/docs/codex` with hosted `https://api.sagerouter.dev/v1/`, local `http://127.0.0.1:8790/v1/`, Tailnet `http://<tailnet-host>:8790/v1/`, `wire_api = "responses"`, and `sage-router/frontier` profiles.
 - Dedicated agent-native routing page at `/agent-native` with `sage-router/frontier`, Responses API and Codex compatibility, health-aware fallback, BYOK custody, local/Tailnet/hosted deployment choices, and the public `/features/agent-native` metadata endpoint.
 - Dedicated integrations index at `/integrations` with hosted `https://api.sagerouter.dev/v1`, local `http://127.0.0.1:8790/v1`, Tailnet `http://<tailnet-host>:8790/v1`, `sage-router/frontier`, OpenAI-compatible clients, Codex, Cursor, Aider, Continue, Claude Code, OpenHands, Anthropic-compatible clients, Ollama, Ollama Cloud, NVIDIA NIM, OpenClaw, Hermes, and Pi agents.
-- No-login model routing calculator at `/model-routing-calculator` for acquisition and workflow qualification; it recommends Lite/Pro/Max, reads public `/pricing` billing readiness metadata for current limits and checkout availability, sends configured tiers into preselected checkout on `/account.html?plan=...&start=checkout`, and emits `calculator_checkout_unavailable` when the account/manual billing path is safer than a failing checkout handoff.
+- No-login model routing calculator at `/model-routing-calculator` for acquisition and workflow qualification; it recommends Lite/Pro/Max, reads public `/pricing` billing readiness metadata for current limits and checkout availability, sends recommended tiers into generated-key-first account setup on `/account.html?plan=...&start=create_key`, and emits `calculator_key_activation_clicked` for the primary handoff.
 - FAQ content intended for snippets and LLM ingestion.
 - JSON-LD SoftwareApplication and FAQPage schema in index.html.
 - Machine-readable files served from the static root:

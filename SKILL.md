@@ -121,7 +121,7 @@ flagged). The dashboard Health card renders all three summaries.
 ## Modality learning
 
 On every successful completion the router records the modalities that a model
-actually served (`vision`, `audio`, `video`, `document`, `text`) into an
+actually served (`image`, `audio`, `video`, `document`, `text`) into an
 append-only ledger persisted at `APP_MODEL_MODALITIES` (env
 `SAGE_ROUTER_MODEL_MODALITIES`, default
 `~/.openclaw/openclaw/model-modalities.json`). Disk writes are throttled (at
@@ -137,6 +137,11 @@ default. Nodes merge the shared table into local memory periodically
 (`SAGE_ROUTER_MODEL_MODALITIES_SHARED_REFRESH_SECONDS`, default 60) and mirror
 new observations through the atomic `sage_router_record_model_modalities` RPC,
 so one CDN/Tailnet backend can benefit from modalities learned by another.
+The Cloudflare API Worker records the same response headers into that RPC with
+`ctx.waitUntil`, which keeps edge requests fast while making CDN observations
+durable in the shared ledger. Public Tailnet edge health exposes
+`modelModalities.sharedEnabled`, and the Cloudflare origin gate requires it
+before treating an origin as public-edge-ready.
 
 Learned modalities feed back into `model_capabilities` as an augmentation: a
 model is treated as supporting a modality if it declares it *or* it has served

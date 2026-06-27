@@ -44,7 +44,7 @@
     <h1>Coding agent model router for Codex, Cursor, Aider, Continue, Claude Code, and OpenHands</h1>
     <p class="lead">Give every coding agent one route layer instead of a separate model picker per tool. Sage Router routes across OpenAI-compatible, Anthropic-compatible, Ollama, Gemini, OpenRouter BYOK, and private endpoints with health-aware failover and generated hosted keys.</p>
     <div class="actions">
-      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-coding-agent-event="content_article_checkout_clicked" data-coding-agent-button="create-pro-key">Create Pro key</a>
+      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-coding-agent-event="content_article_key_activation_clicked" data-coding-agent-button="create-api-key">Create API key</a>
       <a class="button secondary" href="/quickstart" data-coding-agent-event="content_article_quickstart_clicked" data-coding-agent-button="quickstart">Copy quickstart</a>
       <a class="button secondary" href="/docs/codex" data-coding-agent-event="content_article_codex_clicked" data-coding-agent-button="codex">Codex setup</a>
       <a class="button secondary" href="/integrations" data-coding-agent-event="content_article_compare_clicked" data-coding-agent-button="integrations">Browse integrations</a>
@@ -122,7 +122,7 @@ TOML</pre>
 
     <section class="panel callout">
       <h2><strong>Next steps</strong></h2>
-      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-coding-agent-event="content_article_checkout_clicked" data-coding-agent-button="next-create-key">Create a Pro key</a>, <a href="/docs/codex" data-coding-agent-event="content_article_codex_clicked" data-coding-agent-button="next-codex">configure Codex</a>, <a href="/integrations" data-coding-agent-event="content_article_quickstart_clicked" data-coding-agent-button="next-integrations">browse integrations</a>, or <a href="/model-routing-calculator" data-coding-agent-event="content_article_calculator_clicked" data-coding-agent-button="calculator">estimate routing fit</a>.</p>
+      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-coding-agent-event="content_article_key_activation_clicked" data-coding-agent-button="next-create-api-key">Create an API key</a>, <a href="/docs/codex" data-coding-agent-event="content_article_codex_clicked" data-coding-agent-button="next-codex">configure Codex</a>, <a href="/integrations" data-coding-agent-event="content_article_quickstart_clicked" data-coding-agent-button="next-integrations">browse integrations</a>, or <a href="/model-routing-calculator" data-coding-agent-event="content_article_calculator_clicked" data-coding-agent-button="calculator">estimate routing fit</a>.</p>
     </section>
   </main>
 
@@ -179,7 +179,7 @@ TOML</pre>
       return `${document.getElementById('coding-agent-start-code')?.textContent.trim() || ''}
 
 # Create a hosted generated key:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout`;
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key`;
     }
 
     async function writeClipboardText(text) {

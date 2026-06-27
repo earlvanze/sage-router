@@ -44,7 +44,7 @@
     <h1>Gemini API router for Google AI and Vertex AI routes</h1>
     <p class="lead">Use Sage Router as the policy layer around Gemini-compatible traffic. Route Google AI Studio keys, Vertex AI projects, OpenAI-compatible clients, local Ollama, Anthropic-compatible routes, and private endpoints without hard-coding one provider path into every agent.</p>
     <div class="actions">
-      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-gemini-event="content_article_checkout_clicked" data-gemini-button="create-pro-key">Create Pro key</a>
+      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-gemini-event="content_article_key_activation_clicked" data-gemini-button="create-api-key">Create API key</a>
       <a class="button secondary" href="/quickstart" data-gemini-event="content_article_quickstart_clicked" data-gemini-button="quickstart">Read quickstart</a>
       <a class="button secondary" href="/models" data-gemini-event="content_article_compare_clicked" data-gemini-button="models">Browse models</a>
       <a class="button secondary" href="/integrations" data-gemini-event="content_article_codex_clicked" data-gemini-button="integrations">Integrations</a>
@@ -125,7 +125,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
 
     <section class="panel callout">
       <h2><strong>Next steps</strong></h2>
-      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-gemini-event="content_article_checkout_clicked" data-gemini-button="next-create-key">Create a Pro key</a>, <a href="/quickstart" data-gemini-event="content_article_quickstart_clicked" data-gemini-button="next-quickstart">copy the hosted quickstart</a>, <a href="/models" data-gemini-event="content_article_compare_clicked" data-gemini-button="next-models">browse Gemini-capable routes</a>, or <a href="/managed-access?intent=gemini" data-gemini-event="content_article_checkout_clicked" data-gemini-button="managed-review">request managed Gemini review</a>.</p>
+      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-gemini-event="content_article_key_activation_clicked" data-gemini-button="next-create-api-key">Create an API key</a>, <a href="/quickstart" data-gemini-event="content_article_quickstart_clicked" data-gemini-button="next-quickstart">copy the hosted quickstart</a>, <a href="/models" data-gemini-event="content_article_compare_clicked" data-gemini-button="next-models">browse Gemini-capable routes</a>, or <a href="/managed-access?intent=gemini" data-gemini-event="content_article_key_activation_clicked" data-gemini-button="managed-review">request managed Gemini review</a>.</p>
     </section>
   </main>
 
@@ -182,7 +182,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       return `${document.getElementById('gemini-router-start-code')?.textContent.trim() || ''}
 
 # Create a hosted generated key:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout`;
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key`;
     }
 
     async function writeClipboardText(text) {

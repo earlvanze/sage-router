@@ -2,7 +2,7 @@
 
 This deploys a CDN-style Tailnet edge endpoint for Sage Router. It runs a small reverse proxy on a stable Tailnet node, health-checks multiple private Sage Router installations, tracks probe latency, and routes OpenAI-compatible traffic to the lowest-latency healthy upstream.
 
-The edge does not hold provider credentials. In private mode, clients authenticate to the edge with `SAGE_ROUTER_EDGE_TOKEN`; the edge injects `SAGE_ROUTER_BACKEND_TOKEN` when it calls private Sage Router nodes. In public SaaS mode, set `SAGE_ROUTER_EDGE_AUTH_MODE=supabase` so `/v1/*` and `/v1beta/*` model routes require an active generated `sk_sage_*` customer API key while account and billing UI routes require a valid Supabase user JWT. Operator routes such as `/analytics` stay private to `SAGE_ROUTER_EDGE_TOKEN` and are pinned to the configured control-plane origin.
+The edge does not hold provider credentials. In private mode, clients authenticate to the edge with `SAGE_ROUTER_EDGE_TOKEN`; the edge injects `SAGE_ROUTER_BACKEND_TOKEN` when it calls private Sage Router nodes. In public SaaS mode, set `SAGE_ROUTER_EDGE_AUTH_MODE=supabase` so `/v1/*` and `/v1beta/*` model routes require an active generated `sk_sage_*` customer API key while account and billing UI routes require a valid Supabase user JWT. Operator analytics routes such as `/analytics/funnel` can use `SAGE_ROUTER_ANALYTICS_TOKEN`, while admin routes remain private to `SAGE_ROUTER_EDGE_TOKEN`; both are pinned to the configured control-plane origin.
 
 ## Architecture
 
@@ -51,6 +51,7 @@ For the public `api.sagerouter.dev` mode, keep a private edge token for emergenc
 ```dotenv
 SAGE_ROUTER_EDGE_AUTH_MODE=supabase
 SAGE_ROUTER_EDGE_TOKEN=replace-with-private-admin-token
+SAGE_ROUTER_ANALYTICS_TOKEN=replace-with-launch-funnel-read-token
 SAGE_ROUTER_BACKEND_TOKEN=local
 SAGE_ROUTER_CONTROL_PLANE_TOKEN=replace-with-hosted-origin-operator-token
 SAGE_ROUTER_SUPABASE_URL=https://awtangrlqqsdpksarhwo.supabase.co
@@ -66,12 +67,18 @@ SAGE_ROUTER_EDGE_AUTH_CACHE_SECONDS=30
 SAGE_ROUTER_EDGE_API_KEY_AUTH_CACHE_SECONDS=0
 SAGE_ROUTER_EDGE_QUOTA_ENABLED=1
 SAGE_ROUTER_EDGE_MONTHLY_QUOTAS=trial=1000,lite=10000,pro=50000,max=200000,paid=50000,active=50000,default=0
+SAGE_ROUTER_MODEL_MODALITIES_SHARED_ENABLED=1
 ```
 
 For the hosted public API, keep `SAGE_ROUTER_CORS_ORIGIN` as explicit app and
 marketing origins. Do not set it to `*`: `/edge/health` reports the CORS
 posture, launch readiness requires `corsWildcardAllowed=false`, and the
 Cloudflare worker rejects origins that do not prove explicit browser CORS.
+The same `/edge/health` payload reports secret-free
+`modelModalities.sharedEnabled` and `modelModalities.rpcConfigured` flags. The
+Cloudflare API Worker requires those flags before selecting an origin, so
+learned modality observations remain persistent across every CDN-selected
+backend.
 
 If browser account or billing requests go through the edge, route them to the hosted control-plane Sage Router instance rather than a random private model router:
 
@@ -79,7 +86,7 @@ If browser account or billing requests go through the edge, route them to the ho
 SAGE_ROUTER_CONTROL_PLANE_UPSTREAM=https://sage-router-hosted.example.run.app
 ```
 
-With that split, public metadata (`/pricing`, `/plans`, `/model-catalog`, and `/features/agent-native`), `/account*`, supported `/billing/*` UI endpoints, and private operator analytics use the control-plane origin. Account and billing UI endpoints preserve the user's Supabase JWT, private operator analytics requires the edge admin token and injects `SAGE_ROUTER_CONTROL_PLANE_TOKEN` when set, while `/v1/*` and `/v1beta/*` model routes validate a generated customer API key and inject only `SAGE_ROUTER_BACKEND_TOKEN` into private Tailnet routers. The edge also forwards trusted internal customer id, user id, plan, and status headers after generated-key validation; hosted routers consume those headers only after backend-token auth so route telemetry, first-request activation, account analytics, quota support, and operator review stay tied to the paying customer without sending raw generated keys to Tailnet model backends.
+With that split, public metadata (`/pricing`, `/plans`, `/model-catalog`, and `/features/agent-native`), `/account*`, supported `/billing/*` UI endpoints, and private operator analytics use the control-plane origin. Account and billing UI endpoints preserve the user's Supabase JWT, private operator analytics accepts either the edge admin token or `SAGE_ROUTER_ANALYTICS_TOKEN` and injects `SAGE_ROUTER_CONTROL_PLANE_TOKEN` when set, while `/admin*` still requires the edge admin token and `/v1/*` and `/v1beta/*` model routes validate a generated customer API key and inject only `SAGE_ROUTER_BACKEND_TOKEN` into private Tailnet routers. The edge also forwards trusted internal customer id, user id, plan, and status headers after generated-key validation; hosted routers consume those headers only after backend-token auth so route telemetry, first-request activation, account analytics, quota support, and operator review stay tied to the paying customer without sending raw generated keys to Tailnet model backends.
 
 The edge enforces in-memory fixed-window rate limits for generated customer API keys, Supabase user-JWT account/billing requests, and pre-auth generated-key attempts. Auth-attempt throttling is keyed by client IP before Supabase generated-key lookup, so random or stuffed `sk_sage_*` values cannot create unbounded service-role reads. `SAGE_ROUTER_EDGE_AUTH_ATTEMPT_RATE_LIMIT` uses the same `SAGE_ROUTER_EDGE_RATE_LIMIT_WINDOW_SECONDS` window and should stay above the highest legitimate plan RPM. Authenticated limits are keyed by generated key/customer or user id, grouped by the first path segment (`/v1`, `/account`, `/billing`), and return `429` with `Retry-After` plus `X-RateLimit-*` headers when exceeded. Supabase user JWT validation uses `SAGE_ROUTER_EDGE_AUTH_CACHE_SECONDS`; generated `sk_sage_*` API keys use `SAGE_ROUTER_EDGE_API_KEY_AUTH_CACHE_SECONDS`, which defaults to `0` so revoked keys and inactive accounts are rechecked on the next request. The private `SAGE_ROUTER_EDGE_TOKEN` remains exempt for emergency/admin operations.
 
@@ -146,10 +153,19 @@ cp wrangler.api-sagerouter.example.toml wrangler.toml
 # Edit SAGE_ROUTER_ORIGINS to include only verified public edge origins whose
 # /edge/health proves Supabase auth, quotas, rate limits, non-wildcard CORS,
 # retry failover, and redacted health snapshots.
+npx wrangler secret put SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY --config wrangler.toml
 npx wrangler deploy --config wrangler.toml
 ```
 
-The Worker exposes `GET /edge/health` on `api.sagerouter.dev` so you can see which public origin ID it selected, the backend class, status, and probe latency. It intentionally does not return raw origin URLs, Tailnet hostnames, health paths, or response headers that reveal the chosen origin URL. By default, `SAGE_ROUTER_REQUIRE_PUBLIC_EDGE_HEALTH=1` also prevents the Worker from selecting direct app origins that have not proven the public Sage Router edge controls on `/edge/health`; only disable that flag for private tests where another layer enforces customer auth, quotas, rate limits, and abuse controls. Cloudflare can then provide DNS, proxying, WAF, cache rules for cacheable non-streaming paths, and optional Load Balancing if you later expose multiple public edge origins. The Tailnet Edge process still performs the application-aware lowest-latency selection among private Sage Router installs.
+The Worker needs `SAGE_ROUTER_SUPABASE_URL` in `[vars]` plus the service-role
+secret above before `modelModalities.sharedEnabled` can report true. It records
+successful response `X-Sage-Router-Provider`, `X-Sage-Router-Model-Name`, and
+`X-Sage-Router-Modalities` headers into the shared
+`sage_router_record_model_modalities` RPC with `ctx.waitUntil`, so model
+capability observations learned through one CDN-selected origin are persisted
+for every other origin.
+
+The Worker exposes `GET /edge/health` on `api.sagerouter.dev` so you can see which public origin ID it selected, the backend class, status, probe latency, and shared modality-ledger readiness. It intentionally does not return raw origin URLs, Tailnet hostnames, health paths, or response headers that reveal the chosen origin URL. By default, `SAGE_ROUTER_REQUIRE_PUBLIC_EDGE_HEALTH=1` also prevents the Worker from selecting direct app origins that have not proven the public Sage Router edge controls on `/edge/health`; only disable that flag for private tests where another layer enforces customer auth, quotas, rate limits, and abuse controls. Cloudflare can then provide DNS, proxying, WAF, cache rules for cacheable non-streaming paths, and optional Load Balancing if you later expose multiple public edge origins. The Tailnet Edge process still performs the application-aware lowest-latency selection among private Sage Router installs.
 
 ## Publish publicly with a cloud VM origin
 
@@ -199,7 +215,7 @@ gcloud app domain-mappings list
 ## Operations
 
 - `/edge/health` reports the selected public upstream ID, last probe latency/error for every configured upstream, auth mode, public-safe failover policy (`lowest-latency-healthy`, retry-enabled statuses, retry header, and healthy upstream count), and public-safe enforcement state for rate limits, auth-attempt throttling, durable quotas, generated-key auth-cache TTL, and API-key prefix. Health and proxied response headers expose only stable public IDs such as `upstream-1`, not configured upstream URLs or Tailnet hostnames.
-- In `SAGE_ROUTER_EDGE_AUTH_MODE=supabase`, `/edge/health` remains public but all proxied routes fail closed unless the request has a private edge token, a valid generated customer API key for model API paths, or a valid Supabase user JWT for account/billing UI paths. Anonymous `/v1/*` failures include setup-safe account, pricing, status, OpenAI base URL, and API-key-prefix guidance, plus a `WWW-Authenticate` challenge, so customers can debug onboarding without exposing provider credentials. Browser-style requests for `/` or `/dashboard` on `api.sagerouter.dev` stay JSON-auth gated and point users back to `app.sagerouter.dev`; the public API edge must not serve the hosted account/dashboard app anonymously. Browser-originating account, billing, and customer-suspension mutations are rejected before auth lookup unless `Origin` is a trusted Sage Router app/local/preview origin; CLI and server clients without `Origin` still pass through normal auth. Operator `/analytics` and `/admin/customers` requests are pinned to `SAGE_ROUTER_CONTROL_PLANE_UPSTREAM` and can use `SAGE_ROUTER_CONTROL_PLANE_TOKEN`, keeping customer review and launch-funnel data off Tailnet model backends.
+- In `SAGE_ROUTER_EDGE_AUTH_MODE=supabase`, `/edge/health` remains public but all proxied routes fail closed unless the request has a private edge token, a valid generated customer API key for model API paths, a valid Supabase user JWT for account/billing UI paths, or `SAGE_ROUTER_ANALYTICS_TOKEN` for `/analytics*` only. Anonymous `/v1/*` failures include setup-safe account, pricing, status, OpenAI base URL, and API-key-prefix guidance, plus a `WWW-Authenticate` challenge, so customers can debug onboarding without exposing provider credentials. Browser-style requests for `/` or `/dashboard` on `api.sagerouter.dev` stay JSON-auth gated and point users back to `app.sagerouter.dev`; the public API edge must not serve the hosted account/dashboard app anonymously. Browser-originating account, billing, and customer-suspension mutations are rejected before auth lookup unless `Origin` is a trusted Sage Router app/local/preview origin; CLI and server clients without `Origin` still pass through normal auth. Operator `/analytics` and `/admin/customers` requests are pinned to `SAGE_ROUTER_CONTROL_PLANE_UPSTREAM` and can use `SAGE_ROUTER_CONTROL_PLANE_TOKEN`, keeping customer review and launch-funnel data off Tailnet model backends; the analytics token must not unlock `/admin*`.
 - Public SaaS traffic is rate-limited by `SAGE_ROUTER_EDGE_RATE_LIMITS` over `SAGE_ROUTER_EDGE_RATE_LIMIT_WINDOW_SECONDS`; pre-auth generated-key attempts are separately limited by `SAGE_ROUTER_EDGE_AUTH_ATTEMPT_RATE_LIMIT` before Supabase lookup; responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` when a non-exempt identity is counted.
 - If `SAGE_ROUTER_EDGE_QUOTA_ENABLED=1`, generated customer API key traffic on `/v1/*` is counted against `SAGE_ROUTER_EDGE_MONTHLY_QUOTAS` in Supabase. Exhausted plans receive `402` with `X-Quota-*` headers, `X-Quota-Reset`, and a secret-free JSON recovery body containing plan, usage, reset epoch, upgrade, billing, support, and status links. Quota RPC/configuration failures fail closed with `503` and point to status/support instead of suggesting a plan upgrade.
 - Upstream health probes use `SAGE_ROUTER_HEALTH_PATH`, `SAGE_ROUTER_HEALTH_INTERVAL_SECONDS`, and `SAGE_ROUTER_HEALTH_TIMEOUT_SECONDS`.

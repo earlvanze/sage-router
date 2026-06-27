@@ -142,6 +142,19 @@ class ModalityLedgerTests(unittest.TestCase):
         self.assertEqual(router.model_learned_modalities('google', 'gemini-3-flash'), {'text', 'image', 'video'})
         self.assertIn('google/gemini-3-flash', json.load(open(router.APP_MODEL_MODALITIES)))
 
+    def test_shared_status_is_dashboard_safe(self):
+        router.MODEL_MODALITIES_SHARED_ENABLED = True
+        router.SUPABASE_URL = 'https://example.supabase.co'
+        router.SUPABASE_SERVICE_ROLE_KEY = 'service'
+
+        status = router.model_modalities_shared_status()
+
+        self.assertTrue(status['enabled'])
+        self.assertTrue(status['configured'])
+        self.assertEqual(router.SUPABASE_MODEL_MODALITIES_TABLE, status['table'])
+        self.assertEqual(router.SUPABASE_MODEL_MODALITIES_RPC, status['rpc'])
+        self.assertNotIn('service', json.dumps(status))
+
     def test_record_model_modalities_mirrors_to_shared_rpc(self):
         router.MODEL_MODALITIES_SHARED_ENABLED = True
         router.SUPABASE_URL = 'https://example.supabase.co'

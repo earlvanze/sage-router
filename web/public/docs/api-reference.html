@@ -41,7 +41,7 @@
         <h1>OpenAI-compatible routing with Sage Router accounts.</h1>
         <p class="lead">Use one hosted base URL, generated <code>sk_sage_*</code> keys, route profiles such as <code>sage-router/frontier</code>, and public model discovery without opening anonymous model traffic.</p>
         <div class="actions">
-          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Create API key</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key">Create API key</a>
           <a class="button secondary" href="/quickstart">Quickstart</a>
           <a class="button secondary" href="/docs/gateway-migration">Gateway migration</a>
           <a class="button secondary" href="/api-troubleshooting">Troubleshooting</a>
@@ -49,10 +49,10 @@
           <a class="button secondary" href="/pricing">Pricing</a>
         </div>
         <form class="emailStart" id="api-reference-email-form" data-email-activation-form data-oauth-activation="github" data-event-prefix="api_reference" data-sent-event="api_reference_magic_link_sent" data-source="api-reference" data-status-id="api-reference-email-status">
-          <label for="api-reference-email">Get a Pro key setup link before wiring the API</label>
+          <label for="api-reference-email">Get an API key setup link before wiring the API</label>
           <input id="api-reference-email" type="email" name="email" autocomplete="email" placeholder="you@company.com" required />
-          <button class="button primary" type="submit">Email me the Pro key link</button>
-          <p class="emailStartStatus" id="api-reference-email-status" role="status">No provider key required to create your Sage Router account.</p>
+          <button class="button primary" type="submit">Email API key setup link</button>
+          <p class="emailStartStatus" id="api-reference-email-status" role="status">No provider key or credit card required until your generated sk_sage key exists.</p>
         </form>
         <p class="note">Hosted API base URL: <code>https://api.sagerouter.dev/v1</code>. Browser account and billing UI live at <code>https://app.sagerouter.dev</code>.</p>
       </section>
@@ -86,11 +86,13 @@ export OPENAI_API_KEY=sk_sage_your_key_here
 
 curl "$OPENAI_BASE_URL/chat/completions" \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "User-Agent: OpenAI-compatible-client/1.0" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "sage-router/frontier",
     "messages": [{"role": "user", "content": "Return ok."}]
   }'</code></pre>
+          <p class="muted">Standard SDKs such as OpenAI Python/JavaScript reach the edge auth gate. Raw HTTP stacks that trigger Cloudflare <code>1010</code> should set a descriptive <code>User-Agent</code>.</p>
         </div>
       </section>
 

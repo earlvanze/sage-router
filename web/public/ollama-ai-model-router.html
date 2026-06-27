@@ -44,7 +44,7 @@
     <h1>Ollama AI model router for local, cloud, and fallback paths</h1>
     <p class="lead">Keep local Ollama and Ollama Cloud in the same model layer as OpenAI, Anthropic, Gemini, NVIDIA NIM, private gateways, and hosted Sage Router keys. Agents keep one OpenAI-compatible endpoint while routing policy handles cost, capability, and reliability.</p>
     <div class="actions">
-      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-ollama-event="content_article_checkout_clicked" data-ollama-button="create-pro-key">Create hosted key</a>
+      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-ollama-event="content_article_key_activation_clicked" data-ollama-button="create-pro-key">Create hosted key</a>
       <a class="button secondary" href="/quickstart" data-ollama-event="content_article_quickstart_clicked" data-ollama-button="quickstart">Read quickstart</a>
       <a class="button secondary" href="https://github.com/earlvanze/sage-router" data-ollama-event="content_article_github_clicked" data-ollama-button="github">Run locally</a>
       <a class="button secondary" href="/models" data-ollama-event="content_article_compare_clicked" data-ollama-button="models">Browse models</a>
@@ -121,7 +121,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
 
     <section class="panel callout">
       <h2><strong>Next steps</strong></h2>
-      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-ollama-event="content_article_checkout_clicked" data-ollama-button="next-create-key">Create a Pro key</a>, <a href="/quickstart" data-ollama-event="content_article_quickstart_clicked" data-ollama-button="next-quickstart">read the hosted/local quickstart</a>, <a href="/self-hosted-ai-model-router" data-ollama-event="content_article_codex_clicked" data-ollama-button="self-hosted-router">see the self-hosted path</a>, or <a href="/compare/openrouter" data-ollama-event="content_article_compare_clicked" data-ollama-button="compare-openrouter">compare OpenRouter</a>.</p>
+      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-ollama-event="content_article_key_activation_clicked" data-ollama-button="next-create-api-key">Create an API key</a>, <a href="/quickstart" data-ollama-event="content_article_quickstart_clicked" data-ollama-button="next-quickstart">read the hosted/local quickstart</a>, <a href="/self-hosted-ai-model-router" data-ollama-event="content_article_codex_clicked" data-ollama-button="self-hosted-router">see the self-hosted path</a>, or <a href="/compare/openrouter" data-ollama-event="content_article_compare_clicked" data-ollama-button="compare-openrouter">compare OpenRouter</a>.</p>
     </section>
   </main>
 
@@ -178,7 +178,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       return `${document.getElementById('ollama-start-code')?.textContent.trim() || ''}
 
 # Optional hosted key for public edge + account analytics:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout`;
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key`;
     }
 
     async function writeClipboardText(text) {

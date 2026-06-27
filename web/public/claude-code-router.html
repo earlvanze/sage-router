@@ -44,7 +44,7 @@
     <h1>Claude Code router for authorized Anthropic-compatible routes</h1>
     <p class="lead">Point Claude Code at Sage Router when you want one controllable routing layer for Anthropic-compatible traffic, customer-authorized Anthropic or Dario paths, local models, and fallback providers. Hosted Sage Router keys manage account access; provider credentials and subscriptions remain authorized by the customer.</p>
     <div class="actions">
-      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-claude-event="content_article_checkout_clicked" data-claude-button="create-pro-key">Create Pro key</a>
+      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-claude-event="content_article_key_activation_clicked" data-claude-button="create-api-key">Create API key</a>
       <a class="button secondary" href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md" data-claude-event="content_article_quickstart_clicked" data-claude-button="claude-code-guide">Claude Code guide</a>
       <a class="button secondary" href="/anthropic-api-router" data-claude-event="content_article_compare_clicked" data-claude-button="anthropic-router">Anthropic API route</a>
       <a class="button secondary" href="/models" data-claude-event="content_article_compare_clicked" data-claude-button="models">Browse models</a>
@@ -114,7 +114,7 @@ claude --append-system-prompt "Use Sage Router for model routing"</pre>
 
     <section class="panel callout">
       <h2><strong>Next steps</strong></h2>
-      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-claude-event="content_article_checkout_clicked" data-claude-button="next-create-key">Create a Pro key</a>, <a href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md" data-claude-event="content_article_quickstart_clicked" data-claude-button="next-claude-guide">open the Claude Code guide</a>, <a href="/anthropic-api-router" data-claude-event="content_article_compare_clicked" data-claude-button="next-anthropic-route">review Anthropic-compatible routing</a>, or <a href="/managed-access?intent=anthropic" data-claude-event="content_article_checkout_clicked" data-claude-button="managed-review">request Anthropic/Dario review</a>.</p>
+      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-claude-event="content_article_key_activation_clicked" data-claude-button="next-create-api-key">Create an API key</a>, <a href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md" data-claude-event="content_article_quickstart_clicked" data-claude-button="next-claude-guide">open the Claude Code guide</a>, <a href="/anthropic-api-router" data-claude-event="content_article_compare_clicked" data-claude-button="next-anthropic-route">review Anthropic-compatible routing</a>, or <a href="/managed-access?intent=anthropic" data-claude-event="content_article_key_activation_clicked" data-claude-button="managed-review">request Anthropic/Dario review</a>.</p>
     </section>
   </main>
 
@@ -172,7 +172,7 @@ claude --append-system-prompt "Use Sage Router for model routing"</pre>
       return `${document.getElementById('claude-code-router-start-code')?.textContent.trim() || ''}
 
 # Create a hosted generated key:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key
 # Full Claude Code guide:
 # https://github.com/earlvanze/sage-router/blob/master/docs/integrations/claude-code.md`;
     }

@@ -46,16 +46,16 @@
     <div class="actions">
       <a class="button primary" href="/quickstart" data-selfhosted-event="content_article_quickstart_clicked" data-selfhosted-button="quickstart">Read quickstart</a>
       <a class="button secondary" href="https://github.com/earlvanze/sage-router" data-selfhosted-event="content_article_github_clicked" data-selfhosted-button="github">Run locally</a>
-      <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-selfhosted-event="content_article_checkout_clicked" data-selfhosted-button="start-pro">Create hosted key</a>
+      <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-selfhosted-event="content_article_key_activation_clicked" data-selfhosted-button="start-pro">Create hosted key</a>
       <a class="button secondary" href="/compare/openrouter" data-selfhosted-event="content_article_compare_clicked" data-selfhosted-button="compare-openrouter">Compare OpenRouter</a>
     </div>
     <form id="self-hosted-email-form" class="emailStart">
       <label for="self-hosted-email">Want hosted reliability on top of self-hosted?</label>
       <div>
         <input id="self-hosted-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required />
-        <button type="submit">Email me the Pro key link</button>
+        <button type="submit">Email API key setup link</button>
       </div>
-      <p id="self-hosted-email-status" role="status" aria-live="polite">No provider key required to create your Sage Router account.</p>
+      <p id="self-hosted-email-status" role="status" aria-live="polite">No provider key or credit card required until your generated sk_sage key exists.</p>
     </form>
   </header>
 
@@ -139,7 +139,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
     <a href="/security">Security</a>
   </footer>
   <script>
-    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=checkout';
+    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=create_key';
     const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
 
@@ -209,7 +209,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       return `${document.getElementById('self-hosted-local-start-code')?.textContent.trim() || ''}
 
 # Optional hosted key for public edge + account analytics:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout`;
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key`;
     }
 
     async function writeClipboardText(text) {
@@ -260,7 +260,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       trackSelfHostedEvent('content_article_magic_link_requested', {
         plan: 'pro',
         target: ACCOUNT_PAGE_URL,
-        button: 'Email me the Pro key link'
+        button: 'Email API key setup link'
       });
       try {
         const api = await loadSupabaseScript();
@@ -282,14 +282,14 @@ curl "$OPENAI_BASE_URL/chat/completions" \
         trackSelfHostedEvent('content_article_magic_link_sent', {
           plan: 'pro',
           target: ACCOUNT_PAGE_URL,
-          button: 'Email me the Pro key link'
+          button: 'Email API key setup link'
         });
-        if (status) status.textContent = 'Check your inbox for the Pro key setup link.';
+        if (status) status.textContent = 'Check your inbox for the API key setup link.';
       } catch {
         trackSelfHostedEvent('content_article_magic_link_failed', {
           plan: 'pro',
           target: ACCOUNT_PAGE_URL,
-          button: 'Email me the Pro key link'
+          button: 'Email API key setup link'
         });
         if (status) status.textContent = 'Email link failed. Opening the account flow...';
         window.setTimeout(() => {
@@ -297,7 +297,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
         }, 900);
       } finally {
         button.disabled = false;
-        button.textContent = 'Email me the Pro key link';
+        button.textContent = 'Email API key setup link';
       }
     });
     document.querySelectorAll('[data-selfhosted-event]').forEach((link) => {

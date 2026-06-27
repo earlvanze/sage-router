@@ -40,17 +40,17 @@
         <h1>Move OpenAI-compatible clients to Sage Router.</h1>
         <p class="lead">Switch the base URL, use a generated <code>sk_sage_*</code> key, and start with <code>sage-router/frontier</code>. Sage Router keeps the OpenAI-compatible client shape while adding local-first BYOK routing, hosted account keys, Tailnet resilience, and explicit provider authorization boundaries.</p>
         <div class="actions">
-          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Create hosted API key</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key">Create hosted API key</a>
           <a class="button secondary" href="/quickstart">Quickstart</a>
           <a class="button secondary" href="/docs/api-reference">API reference</a>
           <a class="button secondary" href="/compare/model-gateways">Compare gateways</a>
           <a class="button secondary" href="/status">Check status</a>
         </div>
         <form class="emailStart" id="gateway-migration-email-form" data-email-activation-form data-oauth-activation="github" data-event-prefix="gateway_migration" data-sent-event="gateway_migration_magic_link_sent" data-source="gateway-migration" data-status-id="gateway-migration-email-status">
-          <label for="gateway-migration-email">Get a Pro key setup link before migrating clients</label>
+          <label for="gateway-migration-email">Get an API key setup link before migrating clients</label>
           <input id="gateway-migration-email" type="email" name="email" autocomplete="email" placeholder="you@company.com" required />
-          <button class="button primary" type="submit">Email me the Pro key link</button>
-          <p class="emailStartStatus" id="gateway-migration-email-status" role="status">No provider key required to create your Sage Router account.</p>
+          <button class="button primary" type="submit">Email API key setup link</button>
+          <p class="emailStartStatus" id="gateway-migration-email-status" role="status">No provider key or credit card required until your generated sk_sage key exists.</p>
         </form>
         <p class="note">Hosted Sage Router routes only authorized provider access, local models, customer subscriptions, API keys, cloud accounts, or endpoints. It does not grant unauthorized provider access, pool personal accounts, or bypass provider terms.</p>
       </section>

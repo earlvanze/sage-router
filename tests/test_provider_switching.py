@@ -164,6 +164,36 @@ class ProviderSwitchingTests(unittest.TestCase):
         self.assertFalse(requirements.get('frontierLargeOnly', False))
         self.assertFalse(requirements.get('reasoning', False))
 
+    def test_stale_hosted_auto_profile_keeps_cloud_fallbacks(self):
+        old_load_router_profiles = router.load_router_profiles
+        try:
+            router.load_router_profiles = lambda: {
+                'auto': {
+                    'route': 'best',
+                    'thinking': 'high',
+                    'requiresQuality': True,
+                    'requiresReasoning': True,
+                    'allowProviders': ['ollama-cloud', 'ollama'],
+                    'fallbackProviders': ['ollama'],
+                    'frontierLargeOnly': True,
+                }
+            }
+            payload = {'model': 'auto', 'messages': [{'role': 'user', 'content': 'hello'}]}
+
+            profile = router.apply_router_profile(payload)
+        finally:
+            router.load_router_profiles = old_load_router_profiles
+
+        self.assertEqual('auto', profile)
+        self.assertEqual('google/gemini-2.5-flash', payload['model'])
+        requirements = payload['requirements']
+        self.assertIn('google', requirements['allowProviders'])
+        self.assertIn('openrouter', requirements['allowProviders'])
+        self.assertIn('google', requirements['fallbackProviders'])
+        self.assertFalse(requirements.get('frontierLargeOnly', False))
+        self.assertFalse(requirements.get('reasoning', False))
+        self.assertIn('*gemini-2.5-flash*', requirements['allowModels'])
+
     def test_google_tool_declarations_strip_unsupported_schema_keys(self):
         tools = [{
             'type': 'function',

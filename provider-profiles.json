@@ -52,13 +52,6 @@
     ],
     "_note": "Or use Dario proxy at http://127.0.0.1:3456 with apiKey 'local' to use Claude subscription"
   },
-  "google": {
-    "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
-    "apiKey": "${GEMINI_API_KEY}",
-    "api": "google-generative-ai",
-    "models": "auto-discover",
-    "_note": "Auto-discovers all 38+ Gemini models including gemini-2.5-pro, gemini-2.5-flash, gemma"
-  },
   "xai": {
     "baseUrl": "https://api.x.ai/v1",
     "apiKey": "${XAI_API_KEY}",
@@ -191,19 +184,6 @@
         "name": "Copilot GPT-4.1",
         "supportsTools": true,
         "supportsStreaming": true
-      },
-      {
-        "id": "gemini-2.5-pro",
-        "name": "Copilot Gemini 2.5 Pro",
-        "supportsTools": true,
-        "supportsStreaming": true
-      },
-      {
-        "id": "gemini-3-flash-preview",
-        "name": "Copilot Gemini 3 Flash",
-        "supportsTools": true,
-        "supportsStreaming": true,
-        "reasoning": true
       }
     ],
     "_note": "Requires GitHub Copilot OAuth token. Runtime base URL matches OpenClaw native provider."

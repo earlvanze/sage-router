@@ -44,7 +44,7 @@
     <h1>OpenAI API router for apps that need failover</h1>
     <p class="lead">Keep the OpenAI SDK shape, but stop hard-coding one provider, one API key, and one model. Sage Router gives OpenAI-compatible clients one base URL for generated hosted keys, local routers, provider subscriptions, OpenAI keys, Anthropic, Gemini, Ollama, and private endpoints.</p>
     <div class="actions">
-      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-openai-event="content_article_checkout_clicked" data-openai-button="create-pro-key">Create Pro key</a>
+      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-openai-event="content_article_key_activation_clicked" data-openai-button="create-api-key">Create API key</a>
       <a class="button secondary" href="/quickstart" data-openai-event="content_article_quickstart_clicked" data-openai-button="quickstart">Read quickstart</a>
       <a class="button secondary" href="/docs/api-reference" data-openai-event="content_article_codex_clicked" data-openai-button="api-reference">API reference</a>
       <a class="button secondary" href="/models" data-openai-event="content_article_compare_clicked" data-openai-button="models">Browse models</a>
@@ -118,7 +118,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
 
     <section class="panel callout">
       <h2><strong>Next steps</strong></h2>
-      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-openai-event="content_article_checkout_clicked" data-openai-button="next-create-key">Create a Pro key</a>, <a href="/quickstart" data-openai-event="content_article_quickstart_clicked" data-openai-button="next-quickstart">copy the hosted quickstart</a>, <a href="/docs/api-reference" data-openai-event="content_article_codex_clicked" data-openai-button="next-api-reference">read the API reference</a>, or <a href="/compare/openrouter" data-openai-event="content_article_compare_clicked" data-openai-button="compare-openrouter">compare OpenRouter</a>.</p>
+      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-openai-event="content_article_key_activation_clicked" data-openai-button="next-create-api-key">Create an API key</a>, <a href="/quickstart" data-openai-event="content_article_quickstart_clicked" data-openai-button="next-quickstart">copy the hosted quickstart</a>, <a href="/docs/api-reference" data-openai-event="content_article_codex_clicked" data-openai-button="next-api-reference">read the API reference</a>, or <a href="/compare/openrouter" data-openai-event="content_article_compare_clicked" data-openai-button="compare-openrouter">compare OpenRouter</a>.</p>
     </section>
   </main>
 
@@ -175,7 +175,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       return `${document.getElementById('openai-router-start-code')?.textContent.trim() || ''}
 
 # Create a hosted generated key:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout`;
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key`;
     }
 
     async function writeClipboardText(text) {

@@ -58,6 +58,7 @@ Self-serve SaaS tables are configured by name through:
 - `SAGE_ROUTER_SUPABASE_PAYMENT_INTENTS_TABLE` default `sage_router_payment_intents`
 - Tailnet Edge monthly quotas use `sage_router_usage_counters` plus the `sage_router_increment_usage` RPC from `supabase/migrations/20260619021500_sage_router_usage_quotas.sql`
 - Learned model modalities use `sage_router_model_modalities` plus the `sage_router_record_model_modalities` RPC from `supabase/migrations/20260626003000_model_modalities.sql`; set `SAGE_ROUTER_MODEL_MODALITIES_SHARED_ENABLED=1` to enable it when Supabase mirroring is not already enabled.
+- Cloudflare API Worker deployments also write successful response modality headers to the same RPC when `SAGE_ROUTER_MODEL_MODALITIES_SHARED_ENABLED=1` and Supabase service credentials are present; public edge health must report `modelModalities.sharedEnabled=true` and `modelModalities.rpcConfigured=true` before the Worker treats an origin as CDN-ready.
 
 Minimum columns expected by the incremental backend:
 

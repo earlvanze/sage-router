@@ -44,7 +44,7 @@
     <h1>Groq AI router for fast OpenAI-compatible agents</h1>
     <p class="lead">Use Sage Router as the policy layer around Groq API routes. Keep <code>GROQ_API_KEY</code> under your custody, expose one OpenAI-compatible endpoint to agents, and fail over to other authorized local, cloud, or multimodal routes when a key, model, or provider path is unhealthy.</p>
     <div class="actions">
-      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-groq-event="content_article_checkout_clicked" data-groq-button="create-pro-key">Create Pro key</a>
+      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-groq-event="content_article_key_activation_clicked" data-groq-button="create-api-key">Create API key</a>
       <a class="button secondary" href="/quickstart" data-groq-event="content_article_quickstart_clicked" data-groq-button="quickstart">Read quickstart</a>
       <a class="button secondary" href="/coding-agent-model-router" data-groq-event="content_article_compare_clicked" data-groq-button="coding-agents">Coding agents</a>
       <a class="button secondary" href="/models" data-groq-event="content_article_compare_clicked" data-groq-button="models">Browse models</a>
@@ -119,7 +119,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
 
     <section class="panel callout">
       <h2><strong>Next steps</strong></h2>
-      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-groq-event="content_article_checkout_clicked" data-groq-button="next-create-key">Create a Pro key</a>, <a href="/quickstart" data-groq-event="content_article_quickstart_clicked" data-groq-button="next-quickstart">copy the hosted quickstart</a>, <a href="/coding-agent-model-router" data-groq-event="content_article_compare_clicked" data-groq-button="next-coding-agents">use the coding-agent setup</a>, or <a href="/model-routing-calculator" data-groq-event="content_article_compare_clicked" data-groq-button="calculator">estimate routing fit</a>.</p>
+      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-groq-event="content_article_key_activation_clicked" data-groq-button="next-create-api-key">Create an API key</a>, <a href="/quickstart" data-groq-event="content_article_quickstart_clicked" data-groq-button="next-quickstart">copy the hosted quickstart</a>, <a href="/coding-agent-model-router" data-groq-event="content_article_compare_clicked" data-groq-button="next-coding-agents">use the coding-agent setup</a>, or <a href="/model-routing-calculator" data-groq-event="content_article_compare_clicked" data-groq-button="calculator">estimate routing fit</a>.</p>
     </section>
   </main>
 
@@ -176,7 +176,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       return `${document.getElementById('groq-router-start-code')?.textContent.trim() || ''}
 
 # Create a hosted generated key:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout`;
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key`;
     }
 
     async function writeClipboardText(text) {

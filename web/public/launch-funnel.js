@@ -2,6 +2,44 @@ const API_BASE = window.SAGE_ROUTER_API_URL || 'https://api.sagerouter.dev';
 const MARKETING_BASE = window.SAGE_ROUTER_MARKETING_URL || 'https://sagerouter.dev';
 const APP_BASE = window.SAGE_ROUTER_APP_URL || window.location.origin;
 const SESSION_TOKEN_KEY = 'sage_router_operator_launch_funnel_token';
+const FOLLOWUP_DRAFT_ACTION_PREFIX = 'sage_router_operator_no_key_followup_draft';
+const OPERATOR_TOKEN_COMMAND = [
+  "python3 - <<'PY'",
+  "import os, subprocess",
+  "from pathlib import Path",
+  "env_paths = (Path('/home/digit/.openclaw/.env'), Path('.env'), Path('deploy/tailnet-edge/.env'))",
+  "values = {}",
+  "for path in env_paths:",
+  "    if not path.exists():",
+  "        continue",
+  "    for raw in path.read_text(errors='ignore').splitlines():",
+  "        line = raw.strip()",
+  "        if not line or line.startswith('#') or '=' not in line:",
+  "            continue",
+  "        if line.startswith('export '):",
+  "            line = line[7:].strip()",
+  "        name, value = line.split('=', 1)",
+  "        values.setdefault(name.strip(), value.strip().strip('\"').strip(\"'\"))",
+  "for name in ('SAGE_ROUTER_API_KEY', 'SAGE_ROUTER_EDGE_TOKEN', 'SAGE_ROUTER_OPERATOR_TOKEN'):",
+  "    token = (os.environ.get(name) or values.get(name) or '').split(',')[0].strip()",
+  "    if token:",
+  "        print(token)",
+  "        raise SystemExit(0)",
+  "project = os.environ.get('SAGE_ROUTER_GCP_PROJECT_ID') or os.environ.get('GOOGLE_CLOUD_PROJECT') or 'sacred-result-442018-v2'",
+  "for secret in ('SAGE_ROUTER_API_KEY', 'SAGE_ROUTER_EDGE_TOKEN', 'SAGE_ROUTER_CLIENT_API_KEYS'):",
+  "    try:",
+  "        raw = subprocess.check_output(['gcloud', 'secrets', 'versions', 'access', 'latest', '--secret', secret, '--project', project], stderr=subprocess.DEVNULL, text=True, timeout=20)",
+  "    except Exception:",
+  "        continue",
+  "    token = raw.strip().split(',')[0].strip()",
+  "    if token:",
+  "        print(token)",
+  "        raise SystemExit(0)",
+  "raise SystemExit('No admin token found. Set SAGE_ROUTER_API_KEY or SAGE_ROUTER_EDGE_TOKEN, then retry.')",
+  "PY",
+].join('\n');
+let lastFunnelData = null;
+let lastCustomerData = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -75,6 +113,74 @@ function setCustomerStatus(message, tone = '') {
   status.textContent = message;
 }
 
+function followUpSegmentActionKey(plan = 'pro', segment = 'all') {
+  return `${FOLLOWUP_DRAFT_ACTION_PREFIX}:${String(plan || 'pro').toLowerCase()}:${String(segment || 'all').toLowerCase()}`;
+}
+
+function followUpSegmentDraftReady(plan = 'pro', segment = 'all') {
+  try {
+    return window.sessionStorage.getItem(followUpSegmentActionKey(plan, segment)) === '1';
+  } catch (_error) {
+    return false;
+  }
+}
+
+function updateFollowUpWorkedButtons(plan = 'pro', segment = 'all') {
+  const ready = followUpSegmentDraftReady(plan, segment);
+  document.querySelectorAll('[data-mark-followup-worked]').forEach(button => {
+    if ((button.getAttribute('data-mark-followup-worked') || 'all') !== segment) return;
+    if ((button.getAttribute('data-followup-plan') || 'pro') !== plan) return;
+    button.disabled = !ready;
+    button.setAttribute('data-followup-draft-ready', ready ? '1' : '0');
+    button.title = ready ? 'Mark worked only after real outreach was sent.' : `Copy or open the ${segment} draft first.`;
+  });
+}
+
+function markFollowUpSegmentDraftAction(button, action = 'draft_opened') {
+  const segment = button.getAttribute('data-followup-segment') || button.getAttribute('data-email-followup-batch') || button.getAttribute('data-email-followup-single') || 'all';
+  const plan = button.getAttribute('data-followup-plan') || 'pro';
+  try {
+    window.sessionStorage.setItem(followUpSegmentActionKey(plan, segment), '1');
+  } catch (_error) {}
+  button.setAttribute('data-followup-draft-ready', '1');
+  button.setAttribute('data-followup-draft-action', action);
+  updateFollowUpWorkedButtons(plan, segment);
+}
+
+function trackOperatorFunnelEvent(event, metadata = {}) {
+  const payload = {
+    event,
+    plan: metadata.plan || 'pro',
+    sourcePage: window.location.href,
+    target: metadata.target || `${APP_BASE.replace(/\/$/, '')}/account.html`,
+    metadata: {
+      sourceSurface: 'launch-plan',
+      source: 'operator-launch-funnel',
+      snippet: metadata.snippet || 'no-key-followup',
+      state: metadata.state || 'copied',
+      resultCount: metadata.resultCount || 1,
+      utmSource: 'operator',
+      utmMedium: 'launch_funnel',
+      utmCampaign: 'signup_to_key_recovery',
+    },
+  };
+  const body = JSON.stringify(payload);
+  try {
+    if (navigator.sendBeacon) {
+      const blob = new Blob([body], { type: 'application/json' });
+      if (navigator.sendBeacon('/api/funnel-event', blob)) return;
+    }
+  } catch (_error) {
+    // Fall through to fetch.
+  }
+  fetch('/api/funnel-event', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    keepalive: true,
+  }).catch(() => {});
+}
+
 function operatorToken() {
   return $('operator-token').value.trim();
 }
@@ -97,6 +203,14 @@ function loadRememberedToken() {
     $('operator-token').value = token;
     $('remember-token').checked = true;
   }
+}
+
+function retryNoKeyFollowUpsAfterTokenPaste() {
+  const token = operatorToken();
+  if (!token || !lastFunnelData) return;
+  rememberTokenIfRequested(token);
+  setStatus('Operator token updated; retrying no-key follow-ups...');
+  fetchNoKeyFollowUps(token);
 }
 
 function privacyLabel(privacy = {}) {
@@ -147,6 +261,294 @@ function customerActionLabel(action) {
     monitor_usage: 'monitor usage',
   };
   return labels[action] || String(action || '').replace(/_/g, ' ');
+}
+
+function bucketCountsLabel(counts = {}) {
+  const entries = Object.entries(counts || {})
+    .filter(([, count]) => Number(count || 0) > 0)
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  if (!entries.length) return 'none';
+  return entries.map(([key, count]) => `${String(key).replace(/_/g, ' ')} ${integer(count)}`).join(' · ');
+}
+
+function selectedActivationPlan(summary = {}) {
+  const customer = summary.customer || {};
+  const activation = summary.activation || {};
+  const followUp = summary.followUp || activation.followUp || {};
+  const plan = String(customer.plan || activation.plan || '').toLowerCase();
+  const suggestedPlan = String(followUp.suggestedPlan || '').toLowerCase();
+  if (['lite', 'pro', 'max'].includes(plan)) return plan;
+  return ['lite', 'pro', 'max'].includes(suggestedPlan) ? suggestedPlan : 'pro';
+}
+
+function activationFollowUpUrl(summary = {}, options = {}) {
+  const activation = summary.activation || {};
+  const followUp = summary.followUp || activation.followUp || {};
+  if (options.auth === false && (followUp.passwordFallback || followUp.primaryCtaUrl)) {
+    return followUp.passwordFallback || followUp.primaryCtaUrl;
+  }
+  if (options.auth !== false && (followUp.githubOAuth || followUp.oauth || followUp.primaryCtaUrl)) {
+    return followUp.githubOAuth || followUp.oauth || followUp.primaryCtaUrl;
+  }
+  const url = new URL(options.auth === false ? '/login.html' : '/account.html', APP_BASE);
+  url.searchParams.set('start', 'create_key');
+  url.searchParams.set('plan', selectedActivationPlan(summary));
+  url.searchParams.set('auth', options.auth === false ? 'email' : (options.auth || 'github'));
+  url.searchParams.set('utm_source', 'operator');
+  url.searchParams.set('utm_medium', 'launch_funnel');
+  url.searchParams.set('utm_campaign', 'signup_to_key_recovery');
+  return url.toString();
+}
+
+function primaryFollowUpLinkSet(plan = 'pro', urls = {}) {
+  const summary = { activation: { plan } };
+  const githubUrl = urls.githubOAuth || urls.github || activationFollowUpUrl(summary);
+  const passwordUrl = urls.passwordFallback || urls.emailPassword || activationFollowUpUrl(summary, { auth: false });
+  return [
+    'Sage Router setup-key recovery links',
+    '',
+    `Same-email magic link/password: ${passwordUrl}`,
+    `GitHub/OAuth, only if it is the same account: ${githubUrl}`,
+    '',
+    'Start with same-email recovery to avoid creating a second no-key account.',
+  ].join('\n');
+}
+
+function aggregateFollowUpSubject(segment = 'all') {
+  return segment === 'unverified'
+    ? 'Verify email, then finish your Sage Router setup key'
+    : 'Finish your Sage Router setup key';
+}
+
+function aggregateFollowUpDraft(plan = 'pro', urls = {}, options = {}) {
+  const segment = String(options.segment || 'all').toLowerCase();
+  const linkSet = primaryFollowUpLinkSet(plan, urls);
+  return [
+    `Subject: ${aggregateFollowUpSubject(segment)}`,
+    '',
+    segment === 'unverified'
+      ? 'You already started Sage Router setup, but email verification and the hosted API key step are not complete yet.'
+      : 'You already started Sage Router setup, but the hosted API key step is not complete yet.',
+    '',
+    segment === 'unverified'
+      ? 'Next step: use the same email you signed up with, verify it if prompted, then create the generated sk_sage setup key before checkout or routing setup:'
+      : 'Next step: use the same email you signed up with, then create the generated sk_sage setup key before checkout or routing setup:',
+    '',
+    linkSet,
+    '',
+    `Suggested path: ${String(plan || 'pro').toUpperCase()} activation -> generated key -> /v1/models verification -> first Responses API request.`,
+    '',
+    'Boundary: do not send prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, or raw provider responses.',
+  ].join('\n');
+}
+
+function aggregateFollowUpMailtoUrl(plan = 'pro', urls = {}, options = {}) {
+  const segment = String(options.segment || 'all').toLowerCase();
+  const body = aggregateFollowUpDraft(plan, urls, { segment }).replace(/^Subject:.*\n\n/, '');
+  const params = new URLSearchParams({
+    subject: aggregateFollowUpSubject(segment),
+    body,
+  });
+  return `mailto:?${params.toString()}`;
+}
+
+function aggregateNoKeySegments(counts = {}, total = 0) {
+  const verified = Number(counts.verified || 0);
+  const unverified = Number(counts.unverified || 0);
+  const segments = [];
+  if (verified > 0) segments.push(['verified', 'verified aggregate draft', verified]);
+  if (unverified > 0) segments.push(['unverified', 'unverified aggregate draft', unverified]);
+  if (!segments.length && Number(total || 0) > 0) segments.push(['all', 'all aggregate drafts', Number(total || 0)]);
+  return segments;
+}
+
+function renderAggregateNoKeySegmentControls({ counts = {}, total = 0, plan = 'pro', urls = {} } = {}) {
+  return aggregateNoKeySegments(counts, total).map(([segment, label, count], idx) => {
+    const draft = aggregateFollowUpDraft(plan, urls, { segment });
+    const linkSet = primaryFollowUpLinkSet(plan, urls);
+    const mailto = aggregateFollowUpMailtoUrl(plan, urls, { segment });
+    const draftReady = followUpSegmentDraftReady(plan, segment);
+    const draftFirst = draftReady ? '' : ' disabled';
+    const step = idx + 1;
+    return `<a class="btn small" href="${esc(mailto)}" data-email-followup-batch="${esc(segment)}" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Open ${step}. ${esc(label)} (${integer(count)})</a><button class="btn secondary small" type="button" data-copy-primary-followup-url="${esc(urls.passwordFallback || urls.primaryCtaUrl || '')}" data-copy-primary-followup-text="${esc(draft)}" data-followup-copy-kind="${esc(segment)}_aggregate_draft_copied" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Copy ${esc(label)}</button><button class="btn secondary small" type="button" data-copy-primary-followup-url="${esc(urls.githubOAuth || '')}" data-copy-primary-followup-text="${esc(linkSet)}" data-followup-copy-kind="${esc(segment)}_aggregate_links_copied" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Copy ${esc(segment)} links</button><button class="btn small" type="button" data-mark-followup-worked="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}" data-followup-draft-ready="${draftReady ? '1' : '0'}" title="${draftReady ? 'Mark worked only after real outreach was sent.' : `Copy or open the ${esc(segment)} aggregate draft first.`}"${draftFirst}>Mark ${esc(segment)} worked</button>`;
+  }).join('');
+}
+
+function activationFollowUpText(summary = {}) {
+  const plan = selectedActivationPlan(summary);
+  const emailState = summary.emailVerification || {};
+  const emailUnverified = emailState.required !== false && emailState.verified === false;
+  const subject = emailUnverified
+    ? 'Subject: Verify email, then finish your Sage Router setup key'
+    : 'Subject: Finish your Sage Router setup key';
+  const firstStep = emailUnverified
+    ? 'Next step: open this same-email recovery link, finish email verification if prompted, then create the generated sk_sage key before checkout or routing setup:'
+    : 'Next step: open this same-email recovery link. It is set to create the generated sk_sage key first; checkout can happen after the setup key exists:';
+  return [
+    subject,
+    '',
+    'You are signed in, but the hosted API key step is not complete yet.',
+    '',
+    firstStep,
+    activationFollowUpUrl(summary, { auth: false }),
+    '',
+    'Use GitHub/OAuth only if it is the same account you used before:',
+    activationFollowUpUrl(summary),
+    '',
+    `Suggested path: ${plan.toUpperCase()} activation -> generated key -> /v1/models verification -> first Responses API request.`,
+    '',
+    'Do not send prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, or raw provider responses in support replies.',
+  ].join('\n');
+}
+
+function activationFollowUpUrlList(customers = [], segment = 'all') {
+  const followUps = noKeyFollowUpCandidates(customers).filter(summary => {
+    if (!segment || segment === 'all') return true;
+    return emailVerificationSegment(summary) === segment;
+  });
+  if (!followUps.length) return '';
+  return followUps.map((summary, idx) => {
+    const customer = summary.customer || {};
+    const recipient = String(customer.email || '').trim() || customerLabel(summary);
+    return [
+      `${idx + 1}. ${recipient}`,
+      `Same-email magic link/password: ${activationFollowUpUrl(summary, { auth: false })}`,
+      `GitHub/OAuth, only if same account: ${activationFollowUpUrl(summary)}`,
+    ].join('\n');
+  }).join('\n');
+}
+
+function csvCell(value) {
+  const text = String(value ?? '').replace(/"/g, '""');
+  return /[",\n\r]/.test(text) ? `"${text}"` : text;
+}
+
+function activationFollowUpCsv(customers = [], segment = 'all') {
+  const followUps = noKeyFollowUpCandidates(customers).filter(summary => {
+    if (!segment || segment === 'all') return true;
+    return emailVerificationSegment(summary) === segment;
+  });
+  const rows = [[
+    'email',
+    'segment',
+    'plan',
+    'next_action',
+    'same_email_recovery_url',
+    'github_oauth_url',
+    'subject',
+  ]];
+  followUps.forEach(summary => {
+    const customer = summary.customer || {};
+    const activation = summary.activation || {};
+    rows.push([
+      customer.email || '',
+      emailVerificationSegment(summary),
+      selectedActivationPlan(summary),
+      activation.nextAction || 'create_key',
+      activationFollowUpUrl(summary, { auth: false }),
+      activationFollowUpUrl(summary),
+      (summary.emailVerification || {}).verified === false
+        ? 'Verify email, then finish your Sage Router setup key'
+        : 'Finish your Sage Router setup key',
+    ]);
+  });
+  return rows.map(row => row.map(csvCell).join(',')).join('\n');
+}
+
+function emailVerificationLabel(summary = {}) {
+  const state = summary.emailVerification || {};
+  if (state.required === false) return 'email verification not required';
+  if (state.source === 'unavailable') return 'email verification unavailable';
+  if (state.source === 'missing_user_id') return 'missing auth user link';
+  if (state.source === 'missing_auth_user') return 'auth user missing';
+  return state.verified ? 'email verified' : 'email unverified';
+}
+
+function emailVerificationSegment(summary = {}) {
+  const state = summary.emailVerification || {};
+  if (state.required === false) return 'not-required';
+  if (state.verified === true) return 'verified';
+  if (state.source === 'unavailable') return 'verification-unavailable';
+  return 'unverified';
+}
+
+function noKeyFollowUpMode() {
+  const hash = String(window.location.hash || '').replace(/^#/, '');
+  if (!hash.startsWith('no-key-followups')) return '';
+  const [, mode] = hash.split(':', 2);
+  return mode || 'all';
+}
+
+function activationFollowUpBatchText(customers = [], segment = 'all') {
+  const followUps = noKeyFollowUpCandidates(customers).filter(summary => {
+    if (!segment || segment === 'all') return true;
+    return emailVerificationSegment(summary) === segment;
+  });
+  if (!followUps.length) return '';
+  const segmentLabel = segment && segment !== 'all' ? ` (${segment})` : '';
+  return [
+    `Sage Router no-key signup follow-up batch${segmentLabel}`,
+    'Boundary: Operator-only. Do not paste prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, or raw provider responses.',
+    '',
+    ...followUps.flatMap((summary, idx) => {
+      const customer = summary.customer || {};
+      const recipient = String(customer.email || '').trim() || customerLabel(summary);
+      return [
+        `--- Follow-up ${idx + 1}: ${recipient} ---`,
+        activationFollowUpText(summary),
+        '',
+      ];
+    }),
+  ].join('\n');
+}
+
+function mailtoFollowUpUrl(summary = {}) {
+  const customer = summary.customer || {};
+  const email = String(customer.email || '').trim();
+  const subject = 'Finish your Sage Router setup key';
+  const body = activationFollowUpText(summary).replace(/^Subject:.*\n\n/, '');
+  const url = new URL(`mailto:${email}`);
+  url.searchParams.set('subject', subject);
+  url.searchParams.set('body', body);
+  return url.toString();
+}
+
+function mailtoBatchFollowUpUrl(customers = [], segment = 'all') {
+  const followUps = noKeyFollowUpCandidates(customers).filter(summary => {
+    if (!segment || segment === 'all') return true;
+    return emailVerificationSegment(summary) === segment;
+  });
+  const emails = followUps
+    .map(summary => String((summary.customer || {}).email || '').trim())
+    .filter(Boolean);
+  if (!emails.length) return '';
+  const sample = followUps[0] || {};
+  const unverified = segment === 'unverified';
+  const subject = unverified
+    ? 'Verify email, then finish your Sage Router setup key'
+    : 'Finish your Sage Router setup key';
+  const body = [
+    unverified
+      ? 'You are signed in, but email verification and hosted API key creation are not complete yet.'
+      : 'You are signed in, but the hosted API key step is not complete yet.',
+    '',
+    unverified
+      ? 'Next step: open this same-email recovery link, finish email verification if prompted, then create the generated sk_sage key before checkout or routing setup:'
+      : 'Next step: open this same-email recovery link. It is set to create the generated sk_sage key first; checkout can happen after the setup key exists:',
+    activationFollowUpUrl(sample, { auth: false }),
+    'Use GitHub/OAuth only if it is the same account you used before:',
+    activationFollowUpUrl(sample),
+    '',
+    `Suggested path: ${selectedActivationPlan(sample).toUpperCase()} activation -> generated key -> /v1/models verification -> first Responses API request.`,
+    '',
+    'Do not send prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, or raw provider responses in support replies.',
+  ].join('\n');
+  const params = new URLSearchParams({
+    bcc: emails.join(','),
+    subject,
+    body,
+  });
+  return `mailto:?${params.toString()}`;
 }
 
 function campaignSlug(value) {
@@ -234,10 +636,13 @@ function buildLaunchBrief(data = {}) {
   const modelCatalogDemand = marketingIntent.modelCatalogDemand || {};
   const authState = marketingIntent.authProviderState || {};
   const managedAccessDemand = data.managedAccessDemand || {};
+  const activationFollowUps = data.activationFollowUps || {};
+  const noKeyVerification = activationFollowUps.countsByEmailVerification || {};
   const acquisitionActions = data.acquisitionActions || marketingIntent.acquisitionActions || [];
   const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
   const bottleneck = firstAction(data.bottlenecks);
   const conversionAction = firstAction(data.conversionActions);
+  const nextBestAction = data.nextBestAction || conversionAction || bottleneck || {};
   const topAcquisition = acquisitionActions.slice(0, 3);
   const topRevenue = revenueActions.slice(0, 3);
   const generatedAt = data.generatedAt ? new Date(data.generatedAt * 1000).toLocaleString() : 'unknown';
@@ -257,12 +662,20 @@ function buildLaunchBrief(data = {}) {
     'Activation snapshot',
     `- Signups: ${integer(stages.signups)}; generated-key accounts: ${integer(stages.customersWithGeneratedApiKeys ?? stages.generatedApiKeys)}; first routed request: ${integer(stages.customersWithFirstRoutedRequest ?? stages.firstRoutedRequest)}`,
     `- Generated-key to first request: ${percent(rates.generatedKeyToFirstRequest)}; setup-copy to first request: ${percent(rates.setupCopyToFirstRequest)}`,
+    `- No-key follow-ups queued: ${integer(activationFollowUps.total)} total, ${integer(activationFollowUps.windowedNewSignups)} new in-window; worked: ${integer(activationFollowUps.operatorFollowUpWorked)}; copied/opened: ${integer(activationFollowUps.operatorFollowUpCopies)}; key-first redirects: ${integer(activationFollowUps.keyFirstRedirects)}. Action: ${activationFollowUps.recommendedOperatorAction || 'Send the generated-key-first follow-up.'}`,
+    `- No-key email verification: verified ${integer(noKeyVerification.verified)}, unverified ${integer(noKeyVerification.unverified)}, missing ${integer(noKeyVerification.missing_auth_user || noKeyVerification.missing_user_id)}, unavailable ${integer(noKeyVerification.unavailable)}`,
+    `- Follow-up CTA: ${activationFollowUps.primaryCtaUrl || activationFollowUpUrl({}, { auth: false })}`,
     `- Checkout unavailable: ${integer(checkoutFriction.unavailableEvents)} / ${integer(checkoutFriction.totalCheckoutIntent)} intent events (${percent(checkoutFriction.unavailableRate)})`,
     '',
     'Next conversion move',
     `- Bottleneck: ${actionLine(bottleneck)}`,
-    `- Owner/surface: ${conversionAction.owner || 'Operator'} / ${conversionAction.surface || 'launch funnel'}`,
-    `- Success metric: ${conversionAction.successMetric || 'Improve the next funnel stage.'}`,
+    `- Do now: ${nextBestAction.action || conversionAction.action || 'Review the current launch funnel bottleneck.'}`,
+    ...(Array.isArray(nextBestAction.executionChecklist) && nextBestAction.executionChecklist.length
+      ? nextBestAction.executionChecklist.slice(0, 5).map(item => `  ${integer(item.step)}. ${item.action || ''} (${item.successMetric || 'watch the next stage'})`)
+      : []),
+    `- Link: ${nextBestAction.ctaPath || conversionAction.ctaPath || '/launch-funnel.html'}`,
+    `- Owner/surface: ${nextBestAction.owner || conversionAction.owner || 'Operator'} / ${nextBestAction.surface || conversionAction.surface || 'launch funnel'}`,
+    `- Success metric: ${nextBestAction.successMetric || conversionAction.successMetric || 'Improve the next funnel stage.'}`,
     '',
     'Revenue motions',
     ...(topRevenue.length ? topRevenue.map(row => `- ${row.plan || row.label || 'plan'}: ${integer(row.customerGap)} customers remaining, ${money(row.remainingMrrToTargetUsd)} gap. ${row.action || 'Review plan conversion.'}`) : ['- No remaining revenue actions returned for the launch mix.']),
@@ -291,6 +704,87 @@ function renderLaunchBrief(data = {}) {
   setText('launch-brief-status', 'No-secret launch brief generated from aggregate funnel data.');
 }
 
+function renderNextBestActionDock(data = {}) {
+  const target = $('next-best-action-dock');
+  if (!target) return;
+  const action = data.nextBestAction || {};
+  const followUps = data.activationFollowUps || {};
+  const primaryCtaUrls = followUps.primaryCtaUrls || {};
+  const evidence = action.evidence || {};
+  const emailVerification = evidence.emailVerification || followUps.countsByEmailVerification || {};
+  const primaryCta = primaryCtaUrls.passwordFallback || followUps.primaryCtaUrl || activationFollowUpUrl({ activation: { plan: followUps.suggestedPlan || 'pro' } }, { auth: false });
+  const actionHref = action.ctaPath || primaryCta || '/launch-funnel.html';
+  const priority = action.priority || 'review';
+  const metric = action.metric || 'activation';
+  const noKeyCount = Number(evidence.noKeyFollowUpsQueued ?? followUps.total ?? 0);
+  const keyRecoveryViews = Number(evidence.keyRecoveryViews ?? followUps.keyRecoveryViews ?? 0);
+  const keyFirstRedirects = Number(evidence.keyFirstRedirects ?? followUps.keyFirstRedirects ?? 0);
+  const copied = Number(evidence.operatorFollowUpCopies ?? followUps.operatorFollowUpCopies ?? 0);
+  const worked = Number(evidence.operatorFollowUpWorked ?? followUps.operatorFollowUpWorked ?? 0);
+  const keyCreateAttempts = Number(evidence.keyCreateAttempts ?? followUps.keyCreateAttempts ?? 0);
+  const keyCreateSuccesses = Number(evidence.keyCreateSuccesses ?? followUps.keyCreateSuccesses ?? 0);
+  const keyCreateFailures = Number(evidence.keyCreateFailures ?? followUps.keyCreateFailures ?? 0);
+  const verified = Number(emailVerification.verified || 0);
+  const unverified = Number(emailVerification.unverified || 0);
+  const aggregateDraft = aggregateFollowUpDraft(followUps.suggestedPlan || 'pro', primaryCtaUrls);
+  const aggregateMailto = aggregateFollowUpMailtoUrl(followUps.suggestedPlan || 'pro', primaryCtaUrls);
+  const linkSet = primaryFollowUpLinkSet(followUps.suggestedPlan || 'pro', primaryCtaUrls);
+  const copyButton = primaryCta
+    ? `<button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(primaryCta)}" data-copy-primary-followup-text="${esc(aggregateDraft)}" data-followup-copy-kind="primary_recovery_draft_copied" data-followup-plan="${esc(followUps.suggestedPlan || 'pro')}" data-followup-count="${esc(noKeyCount)}">Copy no-secret email draft</button><button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(primaryCta)}" data-copy-primary-followup-text="${esc(linkSet)}" data-followup-copy-kind="primary_recovery_url_copied" data-followup-plan="${esc(followUps.suggestedPlan || 'pro')}" data-followup-count="${esc(noKeyCount)}">Copy recovery links only</button>`
+    : '';
+  const mailtoButton = noKeyCount > 0
+    ? `<a class="btn secondary" href="${esc(aggregateMailto)}" data-email-followup-batch="aggregate" data-followup-segment="aggregate" data-followup-plan="${esc(followUps.suggestedPlan || 'pro')}" data-followup-count="${esc(noKeyCount)}">Open no-secret email draft</a>`
+    : '';
+  const segmentQueue = String(action.ctaPath || '').includes('#no-key-followups:segments') || (verified > 0 && unverified > 0);
+  const queueHref = segmentQueue ? '#no-key-followups:segments' : '#no-key-followups';
+  const queueButton = noKeyCount > 0
+    ? `<a class="btn" href="${queueHref}" data-jump-no-key-followups>${segmentQueue ? 'Open segmented no-key queue' : 'Open no-key queue'}</a>`
+    : '';
+  const segmentDraftControls = renderNoKeyDockSegmentControls({ plan: followUps.suggestedPlan || 'pro' });
+  const aggregateSegmentDraftControls = segmentDraftControls ? '' : renderAggregateNoKeySegmentControls({
+    counts: emailVerification,
+    total: noKeyCount,
+    plan: followUps.suggestedPlan || 'pro',
+    urls: primaryCtaUrls,
+  });
+  const segmentDraftDock = segmentDraftControls
+    ? `<div class="actions">${segmentDraftControls}<span class="status">Copy/review drafts first; mark worked only after real outreach.</span></div>`
+    : aggregateSegmentDraftControls
+    ? `<div class="actions">${aggregateSegmentDraftControls}<span class="status">Aggregate segment controls use counts only; paste admin token for per-recipient drafts.</span></div>`
+    : '';
+  const checklist = Array.isArray(action.executionChecklist) && action.executionChecklist.length
+    ? `<ol class="muted" style="margin:10px 0 0 20px">${action.executionChecklist.slice(0, 5).map(item => `<li><strong>${esc(item.action || '')}</strong><br><span>${esc(item.successMetric || '')}</span></li>`).join('')}</ol>`
+    : '';
+  target.innerHTML = `<div class="metricList">
+    <div class="metric"><span>Priority</span><strong><span class="pill ${priority === 'fix_now' ? 'bad' : 'warn'}">${esc(priority)}</span></strong></div>
+    <div class="metric"><span>Metric</span><strong>${esc(metric)}</strong></div>
+    <div class="metric"><span>Queued no-key signups</span><strong>${integer(noKeyCount)}</strong></div>
+    <div class="metric"><span>Worked / copied</span><strong>${integer(worked)} worked · ${integer(copied)} copied/opened</strong></div>
+    <div class="metric"><span>Key-first recovery</span><strong>${integer(keyFirstRedirects)} redirects · ${integer(keyRecoveryViews)} viewed</strong></div>
+    <div class="metric"><span>Key creation</span><strong>${integer(keyCreateAttempts)} attempts · ${integer(keyCreateSuccesses)} created · ${integer(keyCreateFailures)} failed</strong></div>
+    <div class="metric"><span>Email state</span><strong>${integer(verified)} verified · ${integer(unverified)} unverified</strong></div>
+  </div>
+  <p><strong>${esc(action.action || followUps.recommendedOperatorAction || 'Review the current launch funnel bottleneck.')}</strong></p>
+  <p class="muted">Success metric: ${esc(action.successMetric || followUps.successMetric || 'Improve the next funnel stage.')}</p>${checklist}
+  <div class="actions">${queueButton}<a class="btn secondary" href="${esc(actionHref)}">Open recommended surface</a>${mailtoButton}${copyButton}<span class="status">Use the queue buttons to record only segment/count telemetry after real outreach.</span></div>${segmentDraftDock}`;
+}
+
+async function writeClipboard(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  textarea.remove();
+}
+
 async function copyLaunchBrief() {
   const brief = $('launch-brief')?.textContent || '';
   const status = $('launch-brief-status');
@@ -299,19 +793,7 @@ async function copyLaunchBrief() {
     return;
   }
   try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(brief);
-    } else {
-      const textarea = document.createElement('textarea');
-      textarea.value = brief;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'fixed';
-      textarea.style.left = '-9999px';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      textarea.remove();
-    }
+    await writeClipboard(brief);
     if (status) {
       status.className = 'status good';
       status.textContent = 'Copied no-secret launch brief.';
@@ -329,19 +811,7 @@ async function copyCampaignUrl(button) {
   if (!url) return;
   const original = button.textContent;
   try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(url);
-    } else {
-      const textarea = document.createElement('textarea');
-      textarea.value = url;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'fixed';
-      textarea.style.left = '-9999px';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      textarea.remove();
-    }
+    await writeClipboard(url);
     button.textContent = 'Copied';
     setStatus(`Copied campaign link: ${url}`, 'good');
   } catch (error) {
@@ -352,6 +822,181 @@ async function copyCampaignUrl(button) {
       button.textContent = original;
     }, 1500);
   }
+}
+
+async function copyActivationFollowUp(button) {
+  const text = button.getAttribute('data-copy-followup') || '';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    trackOperatorFunnelEvent('operator_no_key_followup_copied', {
+      plan: button.getAttribute('data-followup-plan') || 'pro',
+      state: 'single_copied',
+      resultCount: 1,
+    });
+    markFollowUpSegmentDraftAction(button, 'single_copied');
+    setStatus('Copied no-key signup follow-up snippet.', 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Follow-up copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyActivationFollowUpBatch(button) {
+  const text = button.getAttribute('data-copy-followup-batch') || '';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    const count = Number(button.getAttribute('data-followup-count') || noKeyFollowUpCandidates(lastCustomerData?.customers || []).length);
+    const segment = button.getAttribute('data-followup-segment') || 'all';
+    const batchState = segment === 'verified'
+      ? 'verified_batch_copied'
+      : (segment === 'unverified' ? 'unverified_batch_copied' : 'batch_copied');
+    trackOperatorFunnelEvent('operator_no_key_followup_batch_copied', {
+      plan: button.getAttribute('data-followup-plan') || 'pro',
+      state: batchState,
+      resultCount: count,
+    });
+    markFollowUpSegmentDraftAction(button, batchState);
+    setStatus(`Copied ${integer(count)} no-key signup follow-up snippets.`, 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Batch follow-up copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyActivationFollowUpUrls(button) {
+  const text = button.getAttribute('data-copy-followup-urls') || '';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    const count = Number(button.getAttribute('data-followup-count') || 0);
+    const segment = button.getAttribute('data-followup-segment') || 'all';
+    const state = segment === 'verified'
+      ? 'verified_url_copied'
+      : (segment === 'unverified' ? 'unverified_url_copied' : 'url_copied');
+    trackOperatorFunnelEvent('operator_no_key_followup_batch_copied', {
+      plan: button.getAttribute('data-followup-plan') || 'pro',
+      state,
+      resultCount: count,
+    });
+    markFollowUpSegmentDraftAction(button, state);
+    setStatus(`Copied ${segment} activation URL list for ${integer(count)} signup(s).`, 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Activation URL copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyActivationFollowUpCsv(button) {
+  const text = button.getAttribute('data-copy-followup-csv') || '';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    const count = Number(button.getAttribute('data-followup-count') || 0);
+    const segment = button.getAttribute('data-followup-segment') || 'all';
+    const state = segment === 'verified'
+      ? 'verified_csv_copied'
+      : (segment === 'unverified' ? 'unverified_csv_copied' : 'csv_copied');
+    trackOperatorFunnelEvent('operator_no_key_followup_csv_copied', {
+      plan: button.getAttribute('data-followup-plan') || 'pro',
+      state,
+      resultCount: count,
+    });
+    markFollowUpSegmentDraftAction(button, state);
+    setStatus(`Copied ${segment} no-key follow-up CSV for ${integer(count)} signup(s).`, 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`CSV copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyPrimaryFollowUpUrl(button) {
+  const url = button.getAttribute('data-copy-primary-followup-url') || '';
+  const text = button.getAttribute('data-copy-primary-followup-text') || url;
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    const count = Number(button.getAttribute('data-followup-count') || 0);
+    const kind = button.getAttribute('data-followup-copy-kind') || 'primary_recovery_url_copied';
+    trackOperatorFunnelEvent('operator_no_key_followup_batch_copied', {
+      plan: button.getAttribute('data-followup-plan') || 'pro',
+      state: kind,
+      resultCount: count,
+    });
+    markFollowUpSegmentDraftAction(button, kind);
+    setStatus(`Copied primary key-recovery ${kind === 'primary_recovery_draft_copied' ? 'draft' : 'link set'} for ${integer(count)} queued signup(s).`, 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Primary recovery link copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyOperatorTokenCommand(button) {
+  const original = button.textContent;
+  try {
+    await writeClipboard(OPERATOR_TOKEN_COMMAND);
+    button.textContent = 'Copied';
+    setStatus('Copied no-secret command. Run it locally, paste the token into Operator token, then reload no-key follow-ups.', 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Operator token command copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+function markActivationFollowUpSegmentWorked(button) {
+  const count = Number(button.getAttribute('data-followup-count') || 0);
+  const segment = button.getAttribute('data-followup-segment') || 'all';
+  const plan = button.getAttribute('data-followup-plan') || 'pro';
+  if (!followUpSegmentDraftReady(plan, segment)) {
+    button.disabled = true;
+    button.setAttribute('data-followup-draft-ready', '0');
+    setStatus(`Copy or open the ${segment} draft first; mark worked only after real outreach.`, 'warn');
+    return;
+  }
+  const state = segment === 'verified'
+    ? 'verified_marked_worked'
+    : (segment === 'unverified' ? 'unverified_marked_worked' : 'marked_worked');
+  trackOperatorFunnelEvent('operator_no_key_followup_batch_copied', {
+    plan,
+    state,
+    resultCount: count,
+  });
+  setStatus(`Marked ${segment} no-key follow-up segment worked for ${integer(count)} signup(s).`, 'good');
 }
 
 function reviewTone(severity) {
@@ -751,6 +1396,7 @@ function renderFunnel(data) {
   renderManagedAccessDemand(managedAccessDemand);
   renderPlanMix(mrr.byPlan || {});
   renderRevenueActions(mrr.planRevenueActions || []);
+  renderNextBestActionDock(data);
   renderLaunchBrief(data);
   $('dashboard').classList.remove('hidden');
   fetchOperationalReadiness();
@@ -860,6 +1506,185 @@ function renderCustomers(data = {}) {
   <p><span class="pill ${privacyTone}">${esc(customerPrivacyLabel(privacy))}</span></p>`;
 }
 
+function noKeyFollowUpCandidates(customers = []) {
+  return customers.filter(summary => {
+    const activation = summary.activation || {};
+    const customer = summary.customer || {};
+    const status = String(customer.status || activation.status || '').toLowerCase();
+    return Number(activation.activeKeyCount || 0) <= 0 &&
+      activation.nextAction === 'create_key' &&
+      status !== 'suspended';
+  });
+}
+
+function renderNoKeySegmentControls({ segment, label, customers, batchText, urlsText, csvText, mailtoUrl, plan }) {
+  if (!batchText) return '';
+  const count = customers.length;
+  const draftReady = followUpSegmentDraftReady(plan, segment);
+  const draftFirst = draftReady ? '' : ' disabled';
+  return `${mailtoUrl ? `<a class="btn small" href="${esc(mailtoUrl)}" data-email-followup-batch="${esc(segment)}" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Email ${esc(label)}</a>` : ''}<button class="btn secondary small" type="button" data-copy-followup-batch="${esc(batchText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(label)} only</button><button class="btn secondary small" type="button" data-copy-followup-urls="${esc(urlsText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(label)} URLs</button><button class="btn secondary small" type="button" data-copy-followup-csv="${esc(csvText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(label)} CSV</button><button class="btn small" type="button" data-mark-followup-worked="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}" data-followup-draft-ready="${draftReady ? '1' : '0'}" title="${draftReady ? 'Mark worked only after real outreach was sent.' : `Copy or open the ${esc(label)} draft first.`}"${draftFirst}>Mark ${esc(label)} worked</button>`;
+}
+
+function renderNoKeyDockSegmentControls({ plan = 'pro' } = {}) {
+  const customers = noKeyFollowUpCandidates(lastCustomerData?.customers || []);
+  if (!customers.length) return '';
+  const verified = customers.filter(summary => emailVerificationSegment(summary) === 'verified');
+  const unverified = customers.filter(summary => emailVerificationSegment(summary) === 'unverified');
+  const segments = verified.length || unverified.length
+    ? [
+        ['verified', 'verified drafts', verified, '1'],
+        ['unverified', 'unverified drafts', unverified, '2'],
+      ]
+    : [['all', 'all drafts', customers, '1']];
+  return segments.map(([segment, label, segmentCustomers, step]) => {
+    const batchText = activationFollowUpBatchText(customers, segment);
+    const urlsText = activationFollowUpUrlList(customers, segment);
+    const csvText = activationFollowUpCsv(customers, segment);
+    const mailtoUrl = mailtoBatchFollowUpUrl(customers, segment);
+    if (!segmentCustomers.length || !batchText) return '';
+    const count = segmentCustomers.length;
+    const draftReady = followUpSegmentDraftReady(plan, segment);
+    const draftFirst = draftReady ? '' : ' disabled';
+    const actionLabel = `${step}. ${label} (${integer(count)})`;
+    const mailtoButton = mailtoUrl
+      ? `<a class="btn small" href="${esc(mailtoUrl)}" data-email-followup-batch="${esc(segment)}" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Email ${esc(actionLabel)}</a>`
+      : '';
+    return `${mailtoButton}<button class="btn secondary small" type="button" data-copy-followup-batch="${esc(batchText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(actionLabel)}</button><button class="btn secondary small" type="button" data-copy-followup-urls="${esc(urlsText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(segment)} URLs (${integer(count)})</button><button class="btn secondary small" type="button" data-copy-followup-csv="${esc(csvText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(segment)} CSV (${integer(count)})</button><button class="btn small" type="button" data-mark-followup-worked="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}" data-followup-draft-ready="${draftReady ? '1' : '0'}" title="${draftReady ? 'Mark worked only after real outreach was sent.' : `Copy or open the ${esc(segment)} draft first.`}"${draftFirst}>3. Mark ${esc(segment)} worked</button>`;
+  }).join('');
+}
+
+function renderNoKeyFollowUps(data = {}) {
+  const target = $('no-key-followups');
+  if (!target) return;
+  const customers = noKeyFollowUpCandidates(data.customers || []);
+  const privacy = data.privacy || {};
+  const privacyTone = customerPrivacyLabel(privacy) === 'No raw keys/hashes' ? 'good' : 'bad';
+  if (!customers.length) {
+    target.innerHTML = `<div class="empty">No no-key signup follow-ups in this result set. <span class="pill ${privacyTone}">${esc(customerPrivacyLabel(privacy))}</span></div>`;
+    return;
+  }
+  const batch = activationFollowUpBatchText(customers);
+  const batchPlan = selectedActivationPlan(customers[0] || {});
+  const verified = customers.filter(summary => emailVerificationSegment(summary) === 'verified');
+  const unverified = customers.filter(summary => emailVerificationSegment(summary) === 'unverified');
+  const verifiedBatch = activationFollowUpBatchText(customers, 'verified');
+  const unverifiedBatch = activationFollowUpBatchText(customers, 'unverified');
+  const verifiedUrls = activationFollowUpUrlList(customers, 'verified');
+  const unverifiedUrls = activationFollowUpUrlList(customers, 'unverified');
+  const allCsv = activationFollowUpCsv(customers);
+  const verifiedCsv = activationFollowUpCsv(customers, 'verified');
+  const unverifiedCsv = activationFollowUpCsv(customers, 'unverified');
+  const verifiedMailto = mailtoBatchFollowUpUrl(customers, 'verified');
+  const unverifiedMailto = mailtoBatchFollowUpUrl(customers, 'unverified');
+  const apiEmailVerification = data.emailVerification || {};
+  const queueSummary = `<div class="metricList">
+    <div class="metric"><span>Admin queue returned</span><strong>${integer(data.returned ?? customers.length)} / ${integer(data.count ?? customers.length)}</strong></div>
+    <div class="metric"><span>No-key create-key</span><strong>${integer(data.noKeyCreateKey ?? customers.length)}</strong></div>
+    <div class="metric"><span>Email verification</span><strong>${integer(apiEmailVerification.verified ?? verified.length)} verified · ${integer(apiEmailVerification.unverified ?? unverified.length)} unverified</strong></div>
+    <div class="metric"><span>Status / action</span><strong>${esc(bucketCountsLabel(data.statusCounts))} · ${esc(bucketCountsLabel(data.nextActions))}</strong></div>
+  </div>`;
+  const mode = noKeyFollowUpMode();
+  const segmentPrompt = mode === 'segments'
+    ? '<div class="empty good">Start here: open <strong>Email verified</strong>, review/send that draft, then click <strong>Mark verified worked</strong>. Repeat for unverified. Worked buttons stay disabled until a draft is copied or opened, and record only segment/count telemetry.</div>'
+    : '';
+  const verifiedControls = renderNoKeySegmentControls({
+    segment: 'verified',
+    label: 'verified',
+    customers: verified,
+    batchText: verifiedBatch,
+    urlsText: verifiedUrls,
+    csvText: verifiedCsv,
+    mailtoUrl: verifiedMailto,
+    plan: batchPlan,
+  });
+  const unverifiedControls = renderNoKeySegmentControls({
+    segment: 'unverified',
+    label: 'unverified',
+    customers: unverified,
+    batchText: unverifiedBatch,
+    urlsText: unverifiedUrls,
+    csvText: unverifiedCsv,
+    mailtoUrl: unverifiedMailto,
+    plan: batchPlan,
+  });
+  target.innerHTML = `${segmentPrompt}${queueSummary}<div class="actions"><button class="btn secondary small" type="button" data-copy-followup-batch="${esc(batch)}" data-followup-plan="${esc(batchPlan)}" data-followup-segment="all" data-followup-count="${integer(customers.length)}">Copy all follow-ups</button><button class="btn secondary small" type="button" data-copy-followup-csv="${esc(allCsv)}" data-followup-plan="${esc(batchPlan)}" data-followup-segment="all" data-followup-count="${integer(customers.length)}">Copy all CSV</button>${verifiedControls}${unverifiedControls}<span class="status">Operator-only batch: ${integer(customers.length)} generated-key-first snippet(s); ${integer(verified.length)} verified, ${integer(unverified.length)} unverified.</span></div><div class="tableWrap"><table>
+    <thead><tr><th>Customer</th><th>Activation</th><th>Review</th><th>Follow-up</th></tr></thead>
+    <tbody>${customers.map(summary => {
+      const customer = summary.customer || {};
+      const activation = summary.activation || {};
+      const text = activationFollowUpText(summary);
+      const segment = emailVerificationSegment(summary);
+      const mailto = customer.email ? mailtoFollowUpUrl(summary) : '';
+      return `<tr>
+        <td>${esc(customerLabel(summary))}<br><span class="muted">${esc(customer.id || '')}</span></td>
+        <td><span class="pill warn">${esc(customerActionLabel(activation.nextAction))}</span><br><span class="muted">${integer(activation.activeKeyCount)} active keys · ${esc(selectedActivationPlan(summary).toUpperCase())} suggested · ${esc(emailVerificationLabel(summary))}</span></td>
+        <td>${renderReviewFlags(summary.review || {})}</td>
+        <td><div class="actions"><a class="btn small" href="${esc(activationFollowUpUrl(summary, { auth: false }))}" target="_blank" rel="noopener noreferrer">Open email/password</a><a class="btn secondary small" href="${esc(activationFollowUpUrl(summary))}" target="_blank" rel="noopener noreferrer">Open GitHub/OAuth</a>${customer.email ? `<a class="btn secondary small" href="${esc(mailto)}" data-email-followup-single="${esc(segment)}" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(selectedActivationPlan(summary))}">Email</a>` : ''}<button class="btn secondary small" type="button" data-copy-followup="${esc(text)}" data-followup-plan="${esc(selectedActivationPlan(summary))}" data-followup-segment="${esc(segment)}" data-followup-count="1">Copy snippet</button></div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>
+  <p><span class="pill ${privacyTone}">${esc(customerPrivacyLabel(privacy))}</span></p>`;
+  if (mode) target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
+function renderNoKeyFollowUpsAnalyticsFallback(error) {
+  const target = $('no-key-followups');
+  if (!target) return;
+  const followUps = lastFunnelData?.activationFollowUps || {};
+  const counts = followUps.countsByEmailVerification || {};
+  const total = Number(followUps.total || 0);
+  const plan = followUps.suggestedPlan || 'pro';
+  const urls = followUps.primaryCtaUrls || {};
+  const primaryCta = urls.passwordFallback || followUps.primaryCtaUrl || activationFollowUpUrl({ activation: { plan } }, { auth: false });
+  const linkSet = primaryFollowUpLinkSet(plan, urls);
+  const aggregateDraft = aggregateFollowUpDraft(plan, urls);
+  const aggregateMailto = aggregateFollowUpMailtoUrl(plan, urls);
+  const aggregateSegmentControls = renderAggregateNoKeySegmentControls({ counts, total, plan, urls });
+  if (!total) {
+    target.innerHTML = `<div class="empty">No no-key signup follow-ups are currently queued. Admin-token customer review is optional. <span class="pill good">Aggregate only</span></div>`;
+    return;
+  }
+  target.innerHTML = `<div class="empty warn">
+    <strong>Aggregate funnel loaded, but email-specific no-key queue needs the private admin token.</strong>
+    <p class="muted">The analytics token can read `/analytics/funnel`; paste the private admin token to fetch `/admin/customers` and open per-recipient email drafts. The recovery links below are aggregate and contain no emails, customer IDs, API keys, prompts, or provider credentials.</p>
+    <div class="metricList">
+      <div class="metric"><span>Queued no-key signups</span><strong>${integer(total)}</strong></div>
+      <div class="metric"><span>Email state</span><strong>${integer(counts.verified || 0)} verified · ${integer(counts.unverified || 0)} unverified</strong></div>
+      <div class="metric"><span>Worked / copied</span><strong>${integer(followUps.operatorFollowUpWorked || 0)} worked · ${integer(followUps.operatorFollowUpCopies || 0)} copied/opened</strong></div>
+      <div class="metric"><span>Key-first recovery</span><strong>${integer(followUps.keyFirstRedirects || 0)} redirects · ${integer(followUps.keyRecoveryViews || 0)} viewed</strong></div>
+      <div class="metric"><span>Key creation</span><strong>${integer(followUps.keyCreateAttempts || 0)} attempts · ${integer(followUps.keyCreateSuccesses || 0)} created · ${integer(followUps.keyCreateFailures || 0)} failed</strong></div>
+    </div>
+    <div class="actions">
+      <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(primaryCta)}" data-copy-primary-followup-text="${esc(aggregateDraft)}" data-followup-copy-kind="primary_recovery_draft_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(total)}">Copy aggregate no-secret draft</button>
+      <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(primaryCta)}" data-copy-primary-followup-text="${esc(linkSet)}" data-followup-copy-kind="primary_recovery_url_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(total)}">Copy aggregate recovery links</button>
+      <a class="btn secondary" href="${esc(aggregateMailto)}" data-email-followup-batch="aggregate" data-followup-segment="aggregate" data-followup-plan="${esc(plan)}" data-followup-count="${integer(total)}">Open aggregate email draft</a>
+      <button class="btn secondary" type="button" data-copy-operator-token-command>Copy admin-token command</button>
+      <a class="btn secondary" href="${esc(primaryCta)}" target="_blank" rel="noopener noreferrer">Open aggregate recovery link</a>
+      <span class="status">Admin queue unavailable with this token: ${esc(error?.message || 'unauthorized')}</span>
+    </div>
+    ${aggregateSegmentControls ? `<div class="actions">${aggregateSegmentControls}<span class="status">Work verified and unverified aggregate drafts separately; mark worked only after real outreach.</span></div>` : ''}
+  </div>`;
+}
+
+async function fetchNoKeyFollowUps(token) {
+  const target = $('no-key-followups');
+  if (!target) return;
+  target.innerHTML = '<div class="empty">Loading no-key signup follow-ups...</div>';
+  try {
+    const params = new URLSearchParams({ status: 'inactive', limit: '50' });
+    const response = await fetch(`${API_BASE}/admin/customers?${params.toString()}`, {
+      headers: authHeaders(token),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    lastCustomerData = data;
+    renderNoKeyFollowUps(data);
+    if (lastFunnelData) renderNextBestActionDock(lastFunnelData);
+  } catch (error) {
+    renderNoKeyFollowUpsAnalyticsFallback(error);
+  }
+}
+
 async function fetchFunnel(event) {
   event?.preventDefault();
   const token = operatorToken();
@@ -881,7 +1706,9 @@ async function fetchFunnel(event) {
     if (!response.ok) {
       throw new Error(data.error || `HTTP ${response.status}`);
     }
+    lastFunnelData = data;
     renderFunnel(data);
+    fetchNoKeyFollowUps(token);
     setStatus(`Loaded ${days}-day launch funnel from ${API_BASE}.`, 'good');
   } catch (error) {
     setStatus(`Funnel load failed: ${error.message}`, 'bad');
@@ -1010,15 +1837,92 @@ function handleCampaignCopyClick(event) {
   copyCampaignUrl(button);
 }
 
+function handleFollowUpCopyClick(event) {
+  const operatorTokenCommandButton = event.target.closest('[data-copy-operator-token-command]');
+  if (operatorTokenCommandButton) {
+    copyOperatorTokenCommand(operatorTokenCommandButton);
+    return;
+  }
+  const primaryUrlButton = event.target.closest('[data-copy-primary-followup-url]');
+  if (primaryUrlButton) {
+    copyPrimaryFollowUpUrl(primaryUrlButton);
+    return;
+  }
+  const jumpButton = event.target.closest('[data-jump-no-key-followups]');
+  if (jumpButton) {
+    const href = jumpButton.getAttribute('href') || '#no-key-followups';
+    if (href.startsWith('#')) {
+      window.location.hash = href;
+    }
+    if (lastCustomerData) {
+      renderNoKeyFollowUps(lastCustomerData);
+    }
+    $('no-key-followups')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    setStatus('Opened the no-key signup queue. Send/review the drafts, then mark the worked segment.', 'good');
+    return;
+  }
+  const workedButton = event.target.closest('[data-mark-followup-worked]');
+  if (workedButton) {
+    markActivationFollowUpSegmentWorked(workedButton);
+    return;
+  }
+  const emailLink = event.target.closest('[data-email-followup-batch]');
+  if (emailLink) {
+    const segment = emailLink.getAttribute('data-email-followup-batch') || 'all';
+    const count = Number(emailLink.getAttribute('data-followup-count') || 1);
+    markFollowUpSegmentDraftAction(emailLink, `${segment}_mailto_opened`);
+    trackOperatorFunnelEvent('operator_no_key_followup_mailto_opened', {
+      plan: emailLink.getAttribute('data-followup-plan') || 'pro',
+      state: `${segment}_mailto_opened`,
+      resultCount: count,
+    });
+    setStatus(`Opened ${segment} no-key signup email draft for ${integer(count)} recipient(s).`, 'good');
+    return;
+  }
+  const singleEmailLink = event.target.closest('[data-email-followup-single]');
+  if (singleEmailLink) {
+    const segment = singleEmailLink.getAttribute('data-email-followup-single') || 'single';
+    markFollowUpSegmentDraftAction(singleEmailLink, `${segment}_single_mailto_opened`);
+    trackOperatorFunnelEvent('operator_no_key_followup_mailto_opened', {
+      plan: singleEmailLink.getAttribute('data-followup-plan') || 'pro',
+      state: `${segment}_single_mailto_opened`,
+      resultCount: 1,
+    });
+    setStatus(`Opened ${segment} no-key signup email draft for 1 recipient.`, 'good');
+    return;
+  }
+  const batchButton = event.target.closest('[data-copy-followup-batch]');
+  if (batchButton) {
+    copyActivationFollowUpBatch(batchButton);
+    return;
+  }
+  const urlButton = event.target.closest('[data-copy-followup-urls]');
+  if (urlButton) {
+    copyActivationFollowUpUrls(urlButton);
+    return;
+  }
+  const csvButton = event.target.closest('[data-copy-followup-csv]');
+  if (csvButton) {
+    copyActivationFollowUpCsv(csvButton);
+    return;
+  }
+  const button = event.target.closest('[data-copy-followup]');
+  if (button) copyActivationFollowUp(button);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadRememberedToken();
   $('controls').addEventListener('submit', fetchFunnel);
+  $('operator-token').addEventListener('change', retryNoKeyFollowUpsAfterTokenPaste);
+  $('operator-token').addEventListener('paste', () => window.setTimeout(retryNoKeyFollowUpsAfterTokenPaste, 0));
   $('clear-token').addEventListener('click', clearToken);
   $('customer-controls').addEventListener('submit', fetchCustomers);
   $('clear-customer-search').addEventListener('click', clearCustomerSearch);
   $('customers').addEventListener('click', handleCustomerClick);
   $('customer-detail').addEventListener('click', handleCustomerClick);
   $('acquisition-actions').addEventListener('click', handleCampaignCopyClick);
+  $('no-key-followups').addEventListener('click', handleFollowUpCopyClick);
+  $('next-best-action-dock').addEventListener('click', handleFollowUpCopyClick);
   $('copy-launch-brief').addEventListener('click', copyLaunchBrief);
   if ($('operator-token').value) {
     fetchFunnel();

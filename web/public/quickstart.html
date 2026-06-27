@@ -45,22 +45,22 @@
         <h1>Use Sage Router from any OpenAI-compatible client.</h1>
         <p class="lead">Create a hosted API key, set one base URL, and use Sage Router profiles such as <code>sage-router/frontier</code> without opening anonymous model traffic.</p>
         <form id="quickstart-email-form" class="emailStart">
-          <label for="quickstart-email">Get the key setup link before copying snippets</label>
+          <label for="quickstart-email">Email the API key setup link before copying snippets</label>
           <button id="quickstart-github-pro" class="oauthButton" type="button">Continue with GitHub for Pro</button>
           <div>
             <input id="quickstart-email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required />
-            <button type="submit">Email me the Pro key link</button>
+            <button type="submit">Email API key setup link</button>
           </div>
-          <p id="quickstart-email-status" role="status" aria-live="polite">No provider key required to create your Sage Router account.</p>
+          <p id="quickstart-email-status" role="status" aria-live="polite">No provider key or credit card required until your generated sk_sage key exists.</p>
         </form>
         <div class="bundleCta">
           <strong>Copy setup first.</strong>
           <span class="muted">Paste the bundle into your terminal now, then replace the placeholder with your generated <code>sk_sage_*</code> key after account setup.</span>
           <button id="quickstart-copy-bundle" class="copyCodeButton" type="button">Copy 60-second setup bundle</button>
-          <a id="quickstart-copy-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-quickstart-event="quickstart_setup_next_clicked" data-quickstart-button="create-pro-key-next" data-quickstart-plan="pro" data-quickstart-snippet="quickstart-full-setup-bundle">Create Pro key next</a>
+          <a id="quickstart-copy-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-quickstart-event="quickstart_setup_next_clicked" data-quickstart-button="create-api-key-next" data-quickstart-plan="pro" data-quickstart-snippet="quickstart-full-setup-bundle">Create API key next</a>
         </div>
         <div class="actions">
-          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-quickstart-event="quickstart_account_clicked" data-quickstart-button="start-pro" data-quickstart-plan="pro">Start Pro key setup</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-quickstart-event="quickstart_account_clicked" data-quickstart-button="start-api-key" data-quickstart-plan="pro">Start API key setup</a>
           <a class="button secondary" href="/docs/api-reference" data-quickstart-event="quickstart_api_reference_clicked" data-quickstart-button="api-reference">API reference</a>
           <a class="button secondary" href="/docs/gateway-migration" data-quickstart-event="quickstart_gateway_migration_clicked" data-quickstart-button="gateway-migration">Gateway migration</a>
           <a class="button secondary" href="/managed-access?intent=max-implementation" data-quickstart-event="quickstart_managed_access_clicked" data-quickstart-button="max-implementation-review">Max implementation review</a>
@@ -77,7 +77,7 @@
       <section class="section grid">
         <article class="card">
           <span class="pill">1 minute</span>
-          <h3>Create a Pro key</h3>
+          <h3>Create an API key</h3>
           <p class="muted">Open the hosted account page with Pro preselected, sign in, then generate an <code>sk_sage_*</code> key. Raw keys are shown once.</p>
         </article>
         <article class="card">
@@ -158,6 +158,7 @@ client.chat.completions.create(
     model="sage-router/frontier",
     messages=[{"role": "user", "content": "Plan one launch task."}],
 )</code></pre>
+          <p class="muted">The OpenAI SDK sends a normal client <code>User-Agent</code>. If you use raw <code>urllib</code> or a custom HTTP stack and see Cloudflare <code>1010</code>, set a descriptive <code>User-Agent</code> and retry.</p>
         </article>
         <article class="card">
           <span class="pill">Codex</span>
@@ -259,7 +260,7 @@ codex --profile sage-router-frontier</code></pre>
     </footer>
   </div>
   <script>
-    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=checkout';
+    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=create_key';
     const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
     const copyStatus = document.getElementById('copy-status');
@@ -374,7 +375,7 @@ codex --profile sage-router-frontier</code></pre>
 
     function fullSetupBundleText() {
       return `# Sage Router hosted quickstart
-# 1. Create or paste your generated key from https://app.sagerouter.dev/account.html?plan=pro&start=checkout
+# 1. Create or paste your generated key from https://app.sagerouter.dev/account.html?plan=pro&start=create_key
 export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
 export OPENAI_API_KEY=sk_sage_your_key_here
 export OPENAI_MODEL=sage-router/frontier
@@ -418,7 +419,7 @@ codex --profile sage-router-frontier`;
       try {
         await writeClipboardText(fullSetupBundleText());
         button.textContent = 'Copied bundle';
-        if (copyStatus) copyStatus.textContent = 'Copied. Create your key next; no provider key required.';
+        if (copyStatus) copyStatus.textContent = 'Copied. Create your API key next; no provider key or credit card required yet.';
         const nextAccount = document.getElementById('quickstart-copy-next-account');
         if (nextAccount) nextAccount.dataset.setupCopied = 'true';
         trackQuickstartFunnelEvent('quickstart_snippet_copied', {
@@ -493,7 +494,7 @@ codex --profile sage-router-frontier`;
       trackQuickstartFunnelEvent('quickstart_magic_link_requested', {
         plan: 'pro',
         target: ACCOUNT_PAGE_URL,
-        button: 'Email me the Pro key link',
+        button: 'Email API key setup link',
         state: 'email-start',
       });
       try {
@@ -516,15 +517,15 @@ codex --profile sage-router-frontier`;
         trackQuickstartFunnelEvent('quickstart_magic_link_sent', {
           plan: 'pro',
           target: ACCOUNT_PAGE_URL,
-          button: 'Email me the Pro key link',
+          button: 'Email API key setup link',
           state: 'email-start',
         });
-        if (status) status.textContent = 'Check your inbox for the Pro key setup link.';
+        if (status) status.textContent = 'Check your inbox for the API key setup link. It opens Pro activation at generated key creation.';
       } catch {
         trackQuickstartFunnelEvent('quickstart_magic_link_failed', {
           plan: 'pro',
           target: ACCOUNT_PAGE_URL,
-          button: 'Email me the Pro key link',
+          button: 'Email API key setup link',
           state: 'email-start',
         });
         if (status) status.textContent = 'Email link failed. Opening the account flow...';
@@ -533,7 +534,7 @@ codex --profile sage-router-frontier`;
         }, 900);
       } finally {
         button.disabled = false;
-        button.textContent = 'Email me the Pro key link';
+        button.textContent = 'Email API key setup link';
       }
     });
     document.querySelectorAll('[data-quickstart-event]').forEach((link) => {

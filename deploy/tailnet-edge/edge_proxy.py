@@ -20,6 +20,7 @@ CONTROL_PLANE_UPSTREAM_RAW = os.environ.get("SAGE_ROUTER_CONTROL_PLANE_UPSTREAM"
 EDGE_TOKEN = os.environ.get("SAGE_ROUTER_EDGE_TOKEN", "")
 BACKEND_TOKEN = os.environ.get("SAGE_ROUTER_BACKEND_TOKEN", "local")
 CONTROL_PLANE_TOKEN = os.environ.get("SAGE_ROUTER_CONTROL_PLANE_TOKEN", "").strip()
+ANALYTICS_TOKEN = os.environ.get("SAGE_ROUTER_ANALYTICS_TOKEN", "").strip()
 EDGE_AUTH_MODE = os.environ.get("SAGE_ROUTER_EDGE_AUTH_MODE", "shared-token").strip().lower()
 HEALTH_PATH = os.environ.get("SAGE_ROUTER_HEALTH_PATH", "/health")
 HEALTH_INTERVAL = float(os.environ.get("SAGE_ROUTER_HEALTH_INTERVAL_SECONDS", os.environ.get("SAGE_ROUTER_HEALTH_INTERVAL", "10").rstrip("s")))
@@ -30,7 +31,9 @@ REQUEST_TIMEOUT = float(os.environ.get(
 ))
 READ_CHUNK_SIZE = int(os.environ.get("SAGE_ROUTER_EDGE_READ_CHUNK_SIZE", "65536"))
 MAX_REJECTED_BODY_DRAIN_BYTES = int(os.environ.get("SAGE_ROUTER_EDGE_MAX_REJECTED_BODY_DRAIN_BYTES", "1048576"))
+MAX_MODALITY_LEARN_BODY_BYTES = int(os.environ.get("SAGE_ROUTER_EDGE_MODALITY_LEARN_BODY_BYTES", "2097152"))
 RETRY_STATUSES = {401, 429, 502, 503, 504}
+MODEL_API_STALE_ROUTE_RETRY_STATUSES = {404, 405}
 SUPABASE_URL = (os.environ.get("SAGE_ROUTER_SUPABASE_URL") or os.environ.get("SUPABASE_URL") or "").rstrip("/")
 SUPABASE_ANON_KEY = (
     os.environ.get("SAGE_ROUTER_SUPABASE_ANON_KEY")
@@ -529,9 +532,48 @@ def normalize_model_modalities(modalities):
     })
 
 
-def record_model_modalities_from_response_headers(response_headers, status):
+def request_modalities_from_body(body):
+    modalities = {"text"}
+    if not body:
+        return sorted(modalities)
+    try:
+        payload = json.loads(body.decode("utf-8") if isinstance(body, (bytes, bytearray)) else str(body))
+    except Exception:
+        return sorted(modalities)
+
+    def visit(value):
+        if isinstance(value, dict):
+            lowered_keys = {str(key).lower() for key in value.keys()}
+            type_value = str(value.get("type") or "").lower()
+            if type_value in {"image_url", "input_image"} or "image_url" in lowered_keys:
+                modalities.add("image")
+            if type_value in {"input_audio", "audio"} or "audio_url" in lowered_keys or "input_audio" in lowered_keys:
+                modalities.add("audio")
+            if type_value in {"input_video", "video"} or "video_url" in lowered_keys or "input_video" in lowered_keys:
+                modalities.add("video")
+            if type_value in {"input_file", "file", "document"} or "file_id" in lowered_keys or "document" in lowered_keys:
+                modalities.add("document")
+            for child in value.values():
+                visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+        elif isinstance(value, str):
+            lowered = value.lower()
+            if lowered.startswith("data:image/"):
+                modalities.add("image")
+            elif lowered.startswith("data:audio/"):
+                modalities.add("audio")
+            elif lowered.startswith("data:video/"):
+                modalities.add("video")
+
+    visit(payload)
+    return sorted(modalities)
+
+
+def modality_record_from_response(response_headers, status, request_body=None, response_body=None):
     if not (MODEL_MODALITIES_SHARED_ENABLED and 200 <= int(status or 0) < 300 and supabase_auth_configured(require_service=True)):
-        return
+        return None
     headers = {str(key).lower(): str(value) for key, value in (response_headers or [])}
     provider = headers.get("x-sage-router-provider", "").strip()
     model = headers.get("x-sage-router-model-name", "").strip()
@@ -544,7 +586,27 @@ def record_model_modalities_from_response_headers(response_headers, status):
         else:
             model = model_header
     modalities = normalize_model_modalities((headers.get("x-sage-router-modalities", "") or "").split(","))
+    if (not provider or not model) and response_body:
+        try:
+            payload = json.loads(response_body.decode("utf-8") if isinstance(response_body, (bytes, bytearray)) else str(response_body))
+            model_header = str(payload.get("model") or "").strip() if isinstance(payload, dict) else ""
+            if "/" in model_header:
+                provider_from_model, model_from_header = model_header.split("/", 1)
+                provider = provider or provider_from_model.strip()
+                model = model or model_from_header.strip()
+            elif model_header:
+                model = model or model_header
+        except Exception:
+            pass
+    if not modalities:
+        modalities = request_modalities_from_body(request_body)
     if not (provider and model and modalities):
+        return None
+    return {"provider": provider, "model": model, "modalities": modalities}
+
+
+def record_model_modalities(record):
+    if not record:
         return
 
     def _record():
@@ -552,9 +614,9 @@ def record_model_modalities_from_response_headers(response_headers, status):
             supabase_post_json(
                 f"/rest/v1/rpc/{SUPABASE_MODEL_MODALITIES_RPC}",
                 {
-                    "provider_name": provider,
-                    "model_name": model,
-                    "modalities_in": modalities,
+                    "provider_name": record["provider"],
+                    "model_name": record["model"],
+                    "modalities_in": record["modalities"],
                     "seen_at_epoch_ms": int(time.time() * 1000),
                 },
                 timeout=6,
@@ -563,6 +625,28 @@ def record_model_modalities_from_response_headers(response_headers, status):
             print(f"supabase model modality edge record failed: {exc}", flush=True)
 
     threading.Thread(target=_record, daemon=True).start()
+
+
+def record_model_modalities_from_response_headers(response_headers, status):
+    record_model_modalities(modality_record_from_response(response_headers, status))
+
+
+def should_buffer_response_for_modality(response_headers, status):
+    if not (MODEL_MODALITIES_SHARED_ENABLED and 200 <= int(status or 0) < 300):
+        return False
+    headers = {str(key).lower(): str(value) for key, value in (response_headers or [])}
+    if headers.get("x-sage-router-provider") and (headers.get("x-sage-router-model-name") or headers.get("x-sage-router-model")) and headers.get("x-sage-router-modalities"):
+        return False
+    content_type = headers.get("content-type", "").lower()
+    if "application/json" not in content_type:
+        return False
+    if "content-encoding" in headers:
+        return False
+    try:
+        content_length = int(headers.get("content-length") or "0")
+    except ValueError:
+        return False
+    return 0 < content_length <= MAX_MODALITY_LEARN_BODY_BYTES
 
 
 def cache_get(key):
@@ -667,6 +751,12 @@ def is_generated_api_key_path(path):
     return any(clean_path == prefix or clean_path.startswith(prefix + "/") for prefix in GENERATED_API_KEY_PREFIXES)
 
 
+def should_retry_upstream_status(path, status):
+    if status in RETRY_STATUSES:
+        return True
+    return status in MODEL_API_STALE_ROUTE_RETRY_STATUSES and is_generated_api_key_path(path)
+
+
 def is_public_control_plane_path(path):
     return urlsplit(path).path in PUBLIC_CONTROL_PLANE_PATHS
 
@@ -674,6 +764,11 @@ def is_public_control_plane_path(path):
 def is_operator_control_plane_path(path):
     clean_path = urlsplit(path).path
     return any(clean_path == prefix or clean_path.startswith(prefix + "/") for prefix in OPERATOR_CONTROL_PLANE_PREFIXES)
+
+
+def is_operator_analytics_path(path):
+    clean_path = urlsplit(path).path
+    return clean_path == "/analytics" or clean_path.startswith("/analytics/")
 
 
 def is_public_signed_backend_path(path):
@@ -784,13 +879,14 @@ def should_use_control_plane(path):
         or is_public_control_plane_path(path)
         or is_operator_control_plane_path(path)
         or is_public_signed_backend_path(path)
+        or is_public_api_browser_path(path)
     )
 
 
-def outbound_bearer_token(path, auth_context):
+def outbound_bearer_token(path, auth_context, upstream=None):
     if auth_context.get("preserve_authorization"):
         return None
-    if should_use_control_plane(path) and CONTROL_PLANE_TOKEN:
+    if (should_use_control_plane(path) or (upstream is not None and upstream is CONTROL_PLANE_UPSTREAM)) and CONTROL_PLANE_TOKEN:
         return CONTROL_PLANE_TOKEN
     return BACKEND_TOKEN
 
@@ -945,6 +1041,16 @@ def control_plane_upstreams():
     return [CONTROL_PLANE_UPSTREAM] if snap["healthy"] else []
 
 
+def generated_api_key_upstreams(path):
+    upstreams = healthy_upstreams()
+    control_plane = control_plane_upstreams() or []
+    if is_generated_api_key_path(path):
+        for upstream in control_plane:
+            if upstream not in upstreams:
+                upstreams.append(upstream)
+    return upstreams
+
+
 def edge_enforcement_state():
     return {
         "rateLimitEnabled": RATE_LIMIT_ENABLED,
@@ -960,13 +1066,22 @@ def edge_enforcement_state():
     }
 
 
+def model_modalities_state():
+    rpc_name = str(SUPABASE_MODEL_MODALITIES_RPC or "").strip()
+    return {
+        "sharedEnabled": bool(MODEL_MODALITIES_SHARED_ENABLED and supabase_auth_configured(require_service=True) and rpc_name),
+        "supabaseConfigured": bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY),
+        "rpcConfigured": bool(rpc_name),
+    }
+
+
 def edge_failover_state():
     return {
         "mode": "lowest-latency-healthy",
         "healthyUpstreamCount": len(healthy_upstreams()),
         "controlPlanePinned": bool(CONTROL_PLANE_UPSTREAM),
         "retryEnabled": True,
-        "retryStatuses": sorted(RETRY_STATUSES),
+        "retryStatuses": sorted(RETRY_STATUSES | MODEL_API_STALE_ROUTE_RETRY_STATUSES),
         "retryHeader": "X-Sage-Router-Retry-Count",
     }
 
@@ -1046,6 +1161,13 @@ class EdgeHandler(BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(body)
 
+    def _reject_json(self, status, payload, extra_headers=None):
+        drain_rejected_request_body(self)
+        self.close_connection = True
+        headers = dict(extra_headers or {})
+        headers.setdefault("Connection", "close")
+        self._json(status, payload, headers)
+
     def _cors_headers(self):
         origin = self.headers.get("Origin") or ""
         if "*" in CORS_ORIGINS:
@@ -1067,6 +1189,8 @@ class EdgeHandler(BaseHTTPRequestHandler):
         token = bearer_token(self.headers)
         if token_matches(token, EDGE_TOKEN):
             return {"type": "edge_token", "preserve_authorization": False}
+        if token_matches(token, ANALYTICS_TOKEN) and is_operator_analytics_path(self.path):
+            return {"type": "analytics_token", "preserve_authorization": False}
 
         if is_public_signed_backend_path(self.path):
             return {"type": "public_signed_backend", "preserve_authorization": False}
@@ -1127,6 +1251,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
             "authMode": EDGE_AUTH_MODE,
             "enforcement": edge_enforcement_state(),
             "failover": edge_failover_state(),
+            "modelModalities": model_modalities_state(),
         }, {
             "X-Sage-Router-Edge": "tailnet-lowest-latency",
             "X-Sage-Router-Selected-Upstream": selected_id or "",
@@ -1146,7 +1271,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
             return
         auth_attempt_allowed, auth_attempt_state = check_auth_attempt_rate_limit(self)
         if not auth_attempt_allowed:
-            self._json(429, edge_error_payload("auth_attempt_rate_limited", self.path), {
+            self._reject_json(429, edge_error_payload("auth_attempt_rate_limited", self.path), {
                 **edge_error_headers("rate_limited", self.path),
                 "Retry-After": auth_attempt_state["retry_after"],
                 "X-RateLimit-Limit": auth_attempt_state["limit"],
@@ -1156,7 +1281,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
             return
         auth_context = self._auth_context()
         if not auth_context:
-            self._json(
+            self._reject_json(
                 401,
                 edge_error_payload(
                     "unauthorized",
@@ -1171,7 +1296,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
             and auth_context.get("type") not in {"edge_token", "public_control_plane", "public_signed_backend"}
             and not supabase_auth_configured(require_service=not is_user_jwt_path(self.path))
         ):
-            self._json(
+            self._reject_json(
                 503,
                 edge_error_payload("edge_auth_not_configured", self.path),
                 edge_error_headers("edge_auth_not_configured", self.path),
@@ -1179,7 +1304,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
             return
         allowed, rate_state = check_rate_limit(auth_context, self.path)
         if not allowed:
-            self._json(429, edge_error_payload("rate_limited", self.path), {
+            self._reject_json(429, edge_error_payload("rate_limited", self.path), {
                 **edge_error_headers("rate_limited", self.path),
                 "Retry-After": rate_state["retry_after"],
                 "X-RateLimit-Limit": rate_state["limit"],
@@ -1191,7 +1316,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
         if not quota_allowed:
             status = 503 if quota_state and str(quota_state.get("error") or "").startswith("edge_quota_") else 402
             error = (quota_state or {}).get("error") or "quota_exceeded"
-            self._json(
+            self._reject_json(
                 status,
                 quota_recovery_payload(error, self.path, quota_state, auth_context),
                 {**edge_error_headers(error, self.path), **quota_headers(quota_state)},
@@ -1200,9 +1325,9 @@ class EdgeHandler(BaseHTTPRequestHandler):
 
         upstreams = control_plane_upstreams() if should_use_control_plane(self.path) else None
         if upstreams is None:
-            upstreams = healthy_upstreams()
+            upstreams = generated_api_key_upstreams(self.path)
         if not upstreams:
-            self._json(
+            self._reject_json(
                 503,
                 edge_error_payload("no healthy sage-router upstreams", self.path),
                 edge_error_headers("no healthy sage-router upstreams", self.path),
@@ -1228,7 +1353,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
             headers["X-Sage-Router-Edge"] = "tailnet-lowest-latency"
             headers["X-Sage-Router-Selected-Upstream"] = upstream.raw_url
             headers.update(edge_identity_headers(auth_context))
-            outbound_token = outbound_bearer_token(self.path, auth_context)
+            outbound_token = outbound_bearer_token(self.path, auth_context, upstream)
             if outbound_token:
                 headers["Authorization"] = f"Bearer {outbound_token}"
 
@@ -1238,7 +1363,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
                 upstream_method = "GET" if self.command == "HEAD" else self.command
                 conn.request(upstream_method, upstream.target_path(self.path), body=body, headers=headers)
                 resp = conn.getresponse()
-                if resp.status in RETRY_STATUSES and index < len(upstreams) - 1:
+                if should_retry_upstream_status(self.path, resp.status) and index < len(upstreams) - 1:
                     detail = resp.read(4096).decode("utf-8", errors="replace")
                     attempts.append({
                         "upstream": upstream.raw_url,
@@ -1248,12 +1373,35 @@ class EdgeHandler(BaseHTTPRequestHandler):
                     conn.close()
                     continue
 
+                response_headers = resp.getheaders()
+                buffered_response_body = None
+                if should_buffer_response_for_modality(response_headers, resp.status):
+                    buffered_response_body = resp.read(MAX_MODALITY_LEARN_BODY_BYTES + 1)
+                    if len(buffered_response_body) > MAX_MODALITY_LEARN_BODY_BYTES:
+                        buffered_response_body = None
+                        self.close_connection = True
+                        resp.close()
+                        raise RuntimeError("response too large for modality learning buffer")
+                modality_record = modality_record_from_response(response_headers, resp.status, body, buffered_response_body)
+
                 self.close_connection = True
                 self.send_response(resp.status, resp.reason)
-                for key, value in resp.getheaders():
+                sent_header_names = set()
+                for key, value in response_headers:
                     if key.lower() in HOP_BY_HOP_HEADERS or key.lower() in EDGE_OWNED_RESPONSE_HEADERS:
                         continue
+                    sent_header_names.add(key.lower())
                     self.send_header(key, value)
+                if modality_record:
+                    derived_headers = {
+                        "X-Sage-Router-Provider": modality_record["provider"],
+                        "X-Sage-Router-Model-Name": modality_record["model"],
+                        "X-Sage-Router-Model": f'{modality_record["provider"]}/{modality_record["model"]}',
+                        "X-Sage-Router-Modalities": ",".join(modality_record["modalities"]),
+                    }
+                    for key, value in derived_headers.items():
+                        if key.lower() not in sent_header_names:
+                            self.send_header(key, value)
                 self.send_header("X-Sage-Router-Edge", "tailnet-lowest-latency")
                 self.send_header("X-Sage-Router-Upstream", public_upstream_id(upstream))
                 if attempts:
@@ -1267,9 +1415,14 @@ class EdgeHandler(BaseHTTPRequestHandler):
                 self.send_header("Connection", "close")
                 self._cors_headers()
                 self.end_headers()
-                record_model_modalities_from_response_headers(resp.getheaders(), resp.status)
+                record_model_modalities(modality_record)
                 if self.command == "HEAD":
-                    resp.read(READ_CHUNK_SIZE)
+                    if buffered_response_body is None:
+                        resp.read(READ_CHUNK_SIZE)
+                    return
+                if buffered_response_body is not None:
+                    self.wfile.write(buffered_response_body)
+                    self.wfile.flush()
                     return
                 while True:
                     chunk = resp.read(READ_CHUNK_SIZE)

@@ -242,20 +242,19 @@ provider resale claim, or runtime feature flag.
   latest pending or settled manual payment intent after reload without requiring
   the user to retain the intent id, and the status response must remain
   customer-scoped and free of customer notes or operator-only billing context.
-- Keep saved account activation intent key-first: `start=checkout` should
-  preserve checkout intent, auto-create the first generated `sk_sage_*` key once
-  after verified sign-in when no key exists, and only then proceed toward
-  checkout so signup-to-generated-key conversion is not blocked by an extra
-  button click.
+- Keep account activation key-first: signed-in users with no active generated
+  key should auto-create the first `sk_sage_*` setup key once per session, even
+  before email verification. Saved `start=checkout` should preserve checkout
+  intent and proceed toward checkout only after the setup artifact exists, so
+  signup-to-generated-key conversion is not blocked by an extra button click.
 - Use the calculator as the lightweight qualification path before signup:
   prospects estimate savings, review points, and fallback gaps, then create a
   hosted API key or request implementation support. The calculator should
   recommend Lite, Pro, or Max from the workflow profile and send the prospect
-  into preselected checkout with `/account.html?plan=...&start=checkout` when public
-  `/pricing` billing readiness metadata says Stripe checkout is configured.
-  When checkout is not ready, record `calculator_checkout_unavailable` and keep
-  the handoff on the account/manual billing path instead of promising a broken
-  Stripe flow.
+  into generated-key-first account setup with
+  `/account.html?plan=...&start=create_key`; record
+  `calculator_key_activation_clicked` so calculator interest can be measured
+  before checkout.
 - Capture pre-signup page-view and CTA intent from the homepage, calculator,
   pricing, launch plan, quickstart, plus model gateway comparison/migration pages
   through the privacy-safe `/api/funnel-event` path. Store only event, plan,
@@ -268,12 +267,13 @@ provider resale claim, or runtime feature flag.
   `SAGEROUTER_FUNNEL_ALLOWED_ORIGINS`; the service-role-backed Supabase insert
   path must not be reusable as a third-party analytics sink.
 - Convert long-form article traffic into activation intent with the shared
-  `article-activation-dock.js` bottom dock on pages that already emit
-  `content_article_viewed`. The dock must keep the next actions concrete:
-  create a Pro key, copy the hosted quickstart, or estimate plan fit. Its
-  events must use the same privacy-safe funnel path and store only page path,
-  normalized title, button, target, source surface, UTM buckets, and referrer
-  host.
+  `article-activation-dock.js` inline offer plus bottom dock on pages that
+  already emit `content_article_viewed`. The CTAs must keep the next actions
+  concrete: email an API key setup link, request Max implementation review, copy
+  the hosted quickstart, or estimate plan fit. Its events must use the same
+  privacy-safe funnel path and store only page path, normalized title, button,
+  target, source surface, UTM buckets, and referrer host; raw email addresses
+  stay inside Supabase Auth and are not written to funnel events.
 - Capture model catalog page-view, filter, CTA, and bucketed search intent from
   `/models` through the same path. Store only model-family and search-bucket
   intent such as `openai-codex`, `ollama`, `byok-compatible`, or `other`; do
@@ -296,11 +296,13 @@ provider resale claim, or runtime feature flag.
   OAuth secrets, completion text, copied snippet bodies, or API keys. Account
   setup snippet-copy events may store only the snippet ID.
 - Keep the verified-email gate recoverable from the signed-in account page:
-  when API-key creation, Stripe checkout, or manual payment is blocked by
-  unverified email, show the current verification state and resend the Supabase
-  verification email using only the authenticated account email returned by the
-  server. Funnel events may record resend click/sent counts, but must not store
-  email addresses or typed email input.
+  generated API keys may be created before verification so setup can be copied
+  once, but those keys remain blocked from routing until the customer reaches an
+  active paid, trial, or manual plan. When Stripe checkout or manual payment is
+  blocked by unverified email, show the current verification state and resend
+  the Supabase verification email using only the authenticated account email
+  returned by the server. Funnel events may record resend click/sent counts,
+  but must not store email addresses or typed email input.
 - Track setup-copy to first-request activation in `/analytics/funnel` from
   privacy-safe snippet IDs, generated-key records, and server-recorded route
   usage so copied Codex/OpenAI snippets become an operator-owned activation
@@ -312,8 +314,8 @@ provider resale claim, or runtime feature flag.
   provider credentials, raw invoices, or support message bodies.
 - Surface checkout-readiness friction in the private operator launch funnel by
   comparing aggregate checkout intent against `account_checkout_unavailable`
-  and `calculator_checkout_unavailable` counts, plus checkout failure,
-  billing-portal failure, and manual-settlement failure counts. Treat nonzero
+  counts, plus checkout failure, billing-portal failure, and manual-settlement
+  failure counts. Treat nonzero
   billing friction events as a monetization bottleneck to fix before scaling
   paid acquisition.
 - Keep hosted positioning limited to routing/control-plane infrastructure until
@@ -427,8 +429,10 @@ provider resale claim, or runtime feature flag.
   keys, private keys, raw URLs, cookies, raw provider responses, or customer
   data.
 - Keep hosted account abuse controls on by default: with Supabase Auth enabled,
-  API-key creation, Stripe checkout, and manual crypto payment intent creation
-  require verified email unless a trusted private deployment explicitly sets
+  generated API keys can be created before verification for setup-copy
+  activation, but they cannot route while the customer remains inactive/free.
+  Stripe checkout and manual crypto payment intent creation require verified
+  email unless a trusted private deployment explicitly sets
   `SAGE_ROUTER_REQUIRE_VERIFIED_EMAIL=0`.
 - Keep customer emergency revocation available: a signed-in customer can revoke
   their own generated API keys even before email verification is complete, while
@@ -445,6 +449,16 @@ provider resale claim, or runtime feature flag.
   `/analytics/funnel` and the private launch-funnel dashboard so the operator
   can see whether pricing, calculator, model catalog, and model gateway comparison
   demand exists before signup.
+- Count article-dock setup-copy actions as setup-copy activation with
+  `content_article_snippet_copied`, so long-form article readers can become
+  measurable setup-intent users without first navigating to `/quickstart`.
+- Route long-form article API-key CTAs through generated-key creation first and
+  record `content_article_key_activation_clicked`, keeping article checkout
+  interest separate from setup-key activation.
+- Filter obvious crawler, obsolete-browser, headless, and same-minute page-sweep
+  traffic from `/analytics/funnel` marketing totals while preserving raw funnel
+  event storage. Report `filteredSyntheticEvents` so traffic-quality changes are
+  visible before making acquisition or conversion decisions.
 - Include model catalog family and search-bucket demand in the same private
   funnel so model interest can drive catalog copy, route-profile proof, and
   hosted key activation without storing raw search text.
@@ -469,6 +483,27 @@ provider resale claim, or runtime feature flag.
   acquisition, managed-access, and OAuth onboarding state without copying
   emails, prompts, OAuth tokens, generated API keys, provider credentials, raw
   campaign URLs, or raw responses.
+- Include `activationFollowUps` in `/analytics/funnel` as a privacy-safe
+  aggregate for no-key signups, including count, suggested plan, generated-key
+  recovery CTA with `start=create_key&auth=github`, and no-secret operator
+  action, without returning emails, customer IDs, generated keys, provider
+  credentials, or raw support content.
+- Keep the operator-only launch funnel no-key queue executable: it should read
+  bounded `/admin/customers` rows, render generated-key-first mailto/link
+  actions, and provide per-customer plus batch snippet copy for outreach without
+  raw generated keys, key hashes, prompts, provider credentials, or raw provider
+  responses.
+- Track operator follow-up work separately from queued follow-ups:
+  per-customer and batch copy actions emit privacy-safe
+  `operator_no_key_followup_*` events, and `/analytics/funnel` exposes
+  `activationFollowUps.operatorFollowUpCopies` plus kind breakdowns so the
+  operator can tell whether the queue was actually worked.
+- Include `nextBestAction` in `/analytics/funnel` as the single privacy-safe
+  operator move for the current bottleneck. When no-key signups exist and
+  generated-key conversion is still zero, this should point at the
+  operator no-key queue until `operatorFollowUpCopies` is nonzero, then at the
+  generated-key-first recovery CTA instead of only reporting the broad `$10k
+  MRR` gap.
 - Keep `app.sagerouter.dev/account.html` aligned with the same activation
   funnel: signed-in account, paid routing, generated key, public-edge
   `/v1/models` verification, and server-recorded first routed usage.

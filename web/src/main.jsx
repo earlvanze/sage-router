@@ -183,8 +183,10 @@ const routePaths = [
   },
 ];
 
-const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=checkout';
+const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=landing&utm_medium=activation&utm_campaign=sage-router-launch';
 const ACCOUNT_PAGE_HREF = ACCOUNT_PAGE_URL;
+const LANDING_KEY_RECOVERY_URL = 'https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=landing&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email';
+const ACTIVATION_NUDGE_STORAGE_KEY = 'sage_router_activation_nudge_dismissed_until';
 const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
 
@@ -234,7 +236,7 @@ function trackLandingFunnelEvent(event, data = {}) {
 function landingSetupBundleText() {
   return `# Sage Router hosted edge setup
 # 1) Create a hosted key:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key
 
 export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
 export OPENAI_API_KEY=sk_sage_your_key_here
@@ -324,35 +326,62 @@ function HeroSetupCopy() {
   const [status, setStatus] = useState('');
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    if (!copied) return;
+    trackLandingFunnelEvent('landing_post_copy_prompt_shown', {
+      plan: 'pro',
+      target: ACCOUNT_PAGE_HREF,
+      state: 'post-copy',
+      snippet: 'landing-hero-setup-bundle',
+    });
+  }, [copied]);
+
   return (
-    <div className="heroSetupCopy">
-      <button type="button" className="button setupBundleButton" onClick={async () => {
-        try {
-          await writeClipboardText(landingSetupBundleText());
-          trackLandingFunnelEvent('quickstart_snippet_copied', {
-            button: 'Copy 60-second setup bundle',
-            state: 'hero-primary-setup',
+    <div className="heroSetupCopyWrap">
+      <div className="heroSetupCopy">
+        <button type="button" className="button setupBundleButton" onClick={async () => {
+          try {
+            await writeClipboardText(landingSetupBundleText());
+            trackLandingFunnelEvent('quickstart_snippet_copied', {
+              button: 'Copy 60-second setup bundle',
+              state: 'hero-primary-setup',
+              snippet: 'landing-hero-setup-bundle',
+            });
+            setStatus('Copied. Next: create your sk_sage API key so the commands can run.');
+            setCopied(true);
+          } catch {
+            setStatus('Copy failed. Open the quickstart for manual setup.');
+            setCopied(false);
+          }
+        }}>
+          {copied ? 'Setup copied ✓' : 'Copy 60-second setup bundle'}
+        </button>
+        <a className="button postCopyAccountButton" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_setup_next_clicked', {
+          plan: 'pro',
+          target: ACCOUNT_PAGE_HREF,
+          button: copied ? 'Create API key next after copy' : 'Create API key next',
+          state: copied ? 'post-copy' : 'pre-copy',
+          snippet: 'landing-hero-setup-bundle',
+        })}>
+          Create API key next
+        </a>
+        <span role="status" aria-live="polite">{status}</span>
+      </div>
+      {copied && (
+        <div className="heroPostCopyPrompt" role="status" aria-live="polite">
+          <strong>Setup copied. Create your key now.</strong>
+          <span>The bundle is already pointed at <code>https://api.sagerouter.dev/v1</code>; it only needs your generated <code>sk_sage_*</code> key.</span>
+          <a href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_setup_next_clicked', {
+            plan: 'pro',
+            target: ACCOUNT_PAGE_HREF,
+            button: 'Post-copy create API key panel',
+            state: 'post-copy-panel',
             snippet: 'landing-hero-setup-bundle',
-          });
-          setStatus('Copied. Create your key next; no provider key required.');
-          setCopied(true);
-        } catch {
-          setStatus('Copy failed. Open the quickstart for manual setup.');
-          setCopied(false);
-        }
-      }}>
-        Copy 60-second setup bundle
-      </button>
-      <a className="button postCopyAccountButton" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_setup_next_clicked', {
-        plan: 'pro',
-        target: ACCOUNT_PAGE_HREF,
-        button: copied ? 'Create Pro key next after copy' : 'Create Pro key next',
-        state: copied ? 'post-copy' : 'pre-copy',
-        snippet: 'landing-hero-setup-bundle',
-      })}>
-        Create Pro key next
-      </a>
-      <span role="status" aria-live="polite">{status}</span>
+          })}>
+            Generate the API key →
+          </a>
+        </div>
+      )}
     </div>
   );
 }
@@ -362,15 +391,15 @@ function StickyActivationBar() {
     <aside className="stickyActivationBar" aria-label="Hosted API activation">
       <div>
         <strong>Hosted API is live.</strong>
-        <span>Create a Pro key first; no provider key required.</span>
+        <span>Create an API key first; no provider key or credit card required yet.</span>
       </div>
       <a className="button primary" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
         plan: 'pro',
         target: ACCOUNT_PAGE_HREF,
-        button: 'Sticky create Pro key',
+        button: 'Sticky create API key',
         state: 'sticky-activation',
       })}>
-        Create Pro key
+        Create API key
       </a>
       <a className="button secondary" href="/quickstart" onClick={() => trackLandingFunnelEvent('landing_quickstart_clicked', {
         target: '/quickstart',
@@ -378,6 +407,129 @@ function StickyActivationBar() {
         state: 'sticky-activation',
       })}>
         60-second setup
+      </a>
+    </aside>
+  );
+}
+
+function LandingKeyRecovery() {
+  return (
+    <div className="landingKeyRecovery" aria-label="Returning user key recovery">
+      <span>Already signed up but no <code>sk_sage</code> key yet?</span>
+      <a href={LANDING_KEY_RECOVERY_URL} onClick={() => trackLandingFunnelEvent('landing_key_recovery_clicked', {
+        plan: 'pro',
+        target: LANDING_KEY_RECOVERY_URL,
+        button: 'Landing finish setup key',
+        state: 'landing-returning-user',
+      })}>
+        Finish setup key
+      </a>
+    </div>
+  );
+}
+
+function ActivationNudge() {
+  const [visible, setVisible] = useState(false);
+  const [oauthSubmitting, setOauthSubmitting] = useState(false);
+  const shownRef = useRef(false);
+
+  useEffect(() => {
+    const dismissedUntil = Number(window.localStorage?.getItem(ACTIVATION_NUDGE_STORAGE_KEY) || 0);
+    if (dismissedUntil && dismissedUntil > Date.now()) return undefined;
+
+    const show = (state) => {
+      if (shownRef.current) return;
+      shownRef.current = true;
+      setVisible(true);
+      trackLandingFunnelEvent('landing_activation_nudge_shown', {
+        plan: 'pro',
+        target: ACCOUNT_PAGE_HREF,
+        button: 'Activation nudge',
+        state,
+      });
+    };
+
+    const onScroll = () => {
+      const scrollable = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+      if (window.scrollY / scrollable > 0.38) show('scroll-depth');
+    };
+
+    const timer = window.setTimeout(() => show('time-on-page'), 12000);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, []);
+
+  const dismiss = () => {
+    try {
+      window.localStorage?.setItem(ACTIVATION_NUDGE_STORAGE_KEY, String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+    } catch {}
+    trackLandingFunnelEvent('landing_activation_nudge_dismissed', {
+      plan: 'pro',
+      target: ACCOUNT_PAGE_HREF,
+      button: 'Activation nudge dismiss',
+      state: 'dismissed',
+    });
+    setVisible(false);
+  };
+
+  const startGithub = async () => {
+    setOauthSubmitting(true);
+    trackLandingFunnelEvent('landing_activation_nudge_clicked', {
+      plan: 'pro',
+      target: ACCOUNT_PAGE_HREF,
+      button: 'Activation nudge GitHub',
+      state: 'github',
+    });
+    trackLandingFunnelEvent('landing_oauth_clicked', {
+      plan: 'pro',
+      target: ACCOUNT_PAGE_HREF,
+      button: 'Activation nudge GitHub',
+      state: 'github',
+    });
+    try {
+      const api = await loadSupabaseScript();
+      const client = api.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { error } = await client.auth.signInWithOAuth({
+        provider: 'github',
+        options: { redirectTo: ACCOUNT_PAGE_HREF },
+      });
+      if (error) throw error;
+    } catch {
+      trackLandingFunnelEvent('landing_oauth_failed', {
+        plan: 'pro',
+        target: ACCOUNT_PAGE_HREF,
+        button: 'Activation nudge GitHub',
+        state: 'github',
+      });
+      window.location.href = ACCOUNT_PAGE_HREF;
+    } finally {
+      setOauthSubmitting(false);
+    }
+  };
+
+  if (!visible) return null;
+
+  return (
+    <aside className="activationNudge" aria-label="Create a Sage Router API key">
+      <button type="button" className="activationNudgeClose" onClick={dismiss} aria-label="Dismiss activation prompt">×</button>
+      <div>
+        <strong>Ready to try the live edge?</strong>
+        <span>Generate a Pro key first; checkout only unlocks routing after the key exists.</span>
+      </div>
+      <button type="button" className="button primary" onClick={startGithub} disabled={oauthSubmitting}>
+        {oauthSubmitting ? 'Opening GitHub...' : 'Continue with GitHub'}
+      </button>
+      <a className="button secondary" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_activation_nudge_clicked', {
+        plan: 'pro',
+        target: ACCOUNT_PAGE_HREF,
+        button: 'Activation nudge create key',
+        state: 'account',
+      })}>
+        Create API key
       </a>
     </aside>
   );
@@ -477,7 +629,7 @@ function LandingEmailStart() {
       trackLandingFunnelEvent('landing_magic_link_requested', {
         plan: 'pro',
         target: ACCOUNT_PAGE_URL,
-        button: 'Email me the Pro link',
+        button: 'Email API key setup link',
         state: 'email-start',
       });
       try {
@@ -500,15 +652,15 @@ function LandingEmailStart() {
         trackLandingFunnelEvent('landing_magic_link_sent', {
           plan: 'pro',
           target: ACCOUNT_PAGE_URL,
-          button: 'Email me the Pro link',
+          button: 'Email API key setup link',
           state: 'email-start',
         });
-        setStatus('Check your inbox for the Pro sign-in link.');
+        setStatus('Check your inbox for the API key setup link. It opens Pro activation with generated-key creation queued first.');
       } catch (error) {
         trackLandingFunnelEvent('landing_magic_link_failed', {
           plan: 'pro',
           target: ACCOUNT_PAGE_URL,
-          button: 'Email me the Pro link',
+          button: 'Email API key setup link',
           state: 'email-start',
         });
         setStatus('Email link failed. Opening the account flow...');
@@ -519,15 +671,24 @@ function LandingEmailStart() {
         setSubmitting(false);
       }
     }}>
-      <label htmlFor="hero-email">Fastest Pro start</label>
+      <label htmlFor="hero-email">Create your sk_sage key first</label>
+      <p className="heroEmailStartLead">Open the generated-key account flow now, or send yourself the same Pro activation link. No checkout, provider key, or local install before the key exists.</p>
+      <a className="heroKeyDirectButton" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_key_first_direct_clicked', {
+        plan: 'pro',
+        target: ACCOUNT_PAGE_HREF,
+        button: 'Open account key creator',
+        state: 'hero-key-first',
+      })}>
+        Open account key creator
+      </a>
       <button className="heroOauthButton" type="button" onClick={startGithub} disabled={oauthSubmitting}>
         {oauthSubmitting ? 'Opening GitHub...' : 'Continue with GitHub for Pro'}
       </button>
       <div>
         <input id="hero-email" name="email" type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" required />
-        <button type="submit" disabled={submitting}>{submitting ? 'Sending...' : 'Email me the Pro link'}</button>
+        <button type="submit" disabled={submitting}>{submitting ? 'Sending...' : 'Email API key setup link'}</button>
       </div>
-      <p className="heroEmailStartStatus" aria-live="polite">{status || 'No provider key required to create your Sage Router account.'}</p>
+      <p className="heroEmailStartStatus" aria-live="polite">{status || 'No provider key or credit card required until your generated sk_sage key exists.'}</p>
     </form>
   );
 }
@@ -644,6 +805,7 @@ function App() {
   return (
     <main>
       <StickyActivationBar />
+      <ActivationNudge />
       <section className="hero">
         <nav className="nav" aria-label="Main navigation">
           <a className="brand" href="#top" aria-label="Sage Router home">
@@ -705,15 +867,16 @@ function App() {
               OpenHands, and OpenAI-compatible clients across authorized providers and local/cloud models.
             </p>
             <LandingEmailStart />
+            <LandingKeyRecovery />
             <HeroSetupCopy />
             <div className="heroActions heroPrimaryActions">
               <a className="button primary" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
                 plan: 'pro',
                 target: ACCOUNT_PAGE_HREF,
-                button: 'Start Pro activation',
+                button: 'Start API key activation',
                 state: 'hero-primary',
               })}>
-                Start Pro activation: Create hosted API key
+                Start API key activation
               </a>
               <a className="button secondary" href="/pricing" onClick={() => trackLandingFunnelEvent('landing_pricing_clicked', {
                 target: '/pricing',
@@ -926,10 +1089,10 @@ function App() {
               <a className="activationCta" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
                 plan: 'pro',
                 target: ACCOUNT_PAGE_HREF,
-                button: 'Start Pro activation',
+                button: 'Start API key activation',
                 state: 'activation-strip',
               })}>
-                Start Pro activation →
+                Start API key activation →
               </a>
             </div>
           </div>

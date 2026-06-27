@@ -44,7 +44,7 @@
     <h1>OpenClaw AI model router for serious agent workflows</h1>
     <p class="lead">Run Sage Router behind OpenClaw so agents use one stable local, Tailnet, or hosted endpoint while model choice moves into policy. Route OpenAI-compatible tools, Anthropic-compatible tools, Codex OAuth-backed routes, Ollama, NVIDIA NIM, Gemini, and authorized provider APIs without rewriting every agent.</p>
     <div class="actions">
-      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-openclaw-event="content_article_checkout_clicked" data-openclaw-button="create-pro-key">Create Pro key</a>
+      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-openclaw-event="content_article_key_activation_clicked" data-openclaw-button="create-api-key">Create API key</a>
       <a class="button secondary" href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openclaw.md" data-openclaw-event="content_article_quickstart_clicked" data-openclaw-button="openclaw-guide">OpenClaw guide</a>
       <a class="button secondary" href="/coding-agent-model-router" data-openclaw-event="content_article_compare_clicked" data-openclaw-button="coding-agent-router">Coding-agent routes</a>
       <a class="button secondary" href="/self-hosted-ai-model-router" data-openclaw-event="content_article_compare_clicked" data-openclaw-button="self-hosted">Self-hosted routing</a>
@@ -116,7 +116,7 @@ export ANTHROPIC_API_KEY=local-router</pre>
 
     <section class="panel callout">
       <h2><strong>Next steps</strong></h2>
-      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-openclaw-event="content_article_checkout_clicked" data-openclaw-button="next-create-key">Create a Pro key</a>, <a href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openclaw.md" data-openclaw-event="content_article_quickstart_clicked" data-openclaw-button="next-openclaw-guide">open the OpenClaw guide</a>, <a href="/quickstart" data-openclaw-event="content_article_quickstart_clicked" data-openclaw-button="next-quickstart">copy the hosted quickstart</a>, or <a href="/model-routing-calculator" data-openclaw-event="content_article_compare_clicked" data-openclaw-button="calculator">estimate routing fit</a>.</p>
+      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-openclaw-event="content_article_key_activation_clicked" data-openclaw-button="next-create-api-key">Create an API key</a>, <a href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openclaw.md" data-openclaw-event="content_article_quickstart_clicked" data-openclaw-button="next-openclaw-guide">open the OpenClaw guide</a>, <a href="/quickstart" data-openclaw-event="content_article_quickstart_clicked" data-openclaw-button="next-quickstart">copy the hosted quickstart</a>, or <a href="/model-routing-calculator" data-openclaw-event="content_article_compare_clicked" data-openclaw-button="calculator">estimate routing fit</a>.</p>
     </section>
   </main>
 
@@ -174,7 +174,7 @@ export ANTHROPIC_API_KEY=local-router</pre>
       return `${document.getElementById('openclaw-router-start-code')?.textContent.trim() || ''}
 
 # Create a hosted generated key:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key
 # Full OpenClaw setup guide:
 # https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openclaw.md`;
     }

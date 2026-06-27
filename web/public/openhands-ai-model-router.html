@@ -44,7 +44,7 @@
     <h1>OpenHands AI model router for resilient agent sessions</h1>
     <p class="lead">Route every OpenHands agent action through one Sage Router endpoint. Keep OpenHands on a stable OpenAI-compatible interface while Sage Router selects across local models, Ollama Cloud, NVIDIA NIM, and authorized cloud APIs by policy, capability, latency, and provider health.</p>
     <div class="actions">
-      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-openhands-event="content_article_checkout_clicked" data-openhands-button="create-pro-key">Create Pro key</a>
+      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-openhands-event="content_article_key_activation_clicked" data-openhands-button="create-api-key">Create API key</a>
       <a class="button secondary" href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openhands.md" data-openhands-event="content_article_quickstart_clicked" data-openhands-button="openhands-guide">OpenHands guide</a>
       <a class="button secondary" href="/coding-agent-model-router" data-openhands-event="content_article_compare_clicked" data-openhands-button="coding-agent-router">Coding-agent routes</a>
       <a class="button secondary" href="/models" data-openhands-event="content_article_compare_clicked" data-openhands-button="models">Browse models</a>
@@ -120,7 +120,7 @@ api_key = "sk_sage_your_generated_key"
 
     <section class="panel callout">
       <h2><strong>Next steps</strong></h2>
-      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-openhands-event="content_article_checkout_clicked" data-openhands-button="next-create-key">Create a Pro key</a>, <a href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openhands.md" data-openhands-event="content_article_quickstart_clicked" data-openhands-button="next-openhands-guide">open the OpenHands guide</a>, <a href="/quickstart" data-openhands-event="content_article_quickstart_clicked" data-openhands-button="next-quickstart">copy the hosted quickstart</a>, or <a href="/model-routing-calculator" data-openhands-event="content_article_compare_clicked" data-openhands-button="calculator">estimate routing fit</a>.</p>
+      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-openhands-event="content_article_key_activation_clicked" data-openhands-button="next-create-api-key">Create an API key</a>, <a href="https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openhands.md" data-openhands-event="content_article_quickstart_clicked" data-openhands-button="next-openhands-guide">open the OpenHands guide</a>, <a href="/quickstart" data-openhands-event="content_article_quickstart_clicked" data-openhands-button="next-quickstart">copy the hosted quickstart</a>, or <a href="/model-routing-calculator" data-openhands-event="content_article_compare_clicked" data-openhands-button="calculator">estimate routing fit</a>.</p>
     </section>
   </main>
 
@@ -178,7 +178,7 @@ api_key = "sk_sage_your_generated_key"
       return `${document.getElementById('openhands-router-start-code')?.textContent.trim() || ''}
 
 # Create a hosted generated key:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key
 # Full OpenHands setup guide:
 # https://github.com/earlvanze/sage-router/blob/master/docs/integrations/openhands.md`;
     }

@@ -44,7 +44,7 @@
     <h1>Azure OpenAI router for enterprise deployment failover</h1>
     <p class="lead">Use Sage Router as the OpenAI-compatible policy layer in front of your authorized Azure OpenAI deployments. Keep <code>AZURE_OPENAI_API_KEY</code>, <code>AZURE_OPENAI_ENDPOINT</code>, deployment names, and Azure subscription access under your custody while agents use one stable endpoint.</p>
     <div class="actions">
-      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-azure-event="content_article_checkout_clicked" data-azure-button="create-pro-key">Create Pro key</a>
+      <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-azure-event="content_article_key_activation_clicked" data-azure-button="create-api-key">Create API key</a>
       <a class="button secondary" href="/quickstart" data-azure-event="content_article_quickstart_clicked" data-azure-button="quickstart">Read quickstart</a>
       <a class="button secondary" href="/openai-api-router" data-azure-event="content_article_compare_clicked" data-azure-button="openai-api">OpenAI-compatible setup</a>
       <a class="button secondary" href="/models" data-azure-event="content_article_compare_clicked" data-azure-button="models">Browse models</a>
@@ -120,7 +120,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
 
     <section class="panel callout">
       <h2><strong>Next steps</strong></h2>
-      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" data-azure-event="content_article_checkout_clicked" data-azure-button="next-create-key">Create a Pro key</a>, <a href="/quickstart" data-azure-event="content_article_quickstart_clicked" data-azure-button="next-quickstart">copy the hosted quickstart</a>, <a href="/openai-api-router" data-azure-event="content_article_compare_clicked" data-azure-button="next-openai-api">use the OpenAI-compatible setup</a>, or <a href="/model-routing-calculator" data-azure-event="content_article_compare_clicked" data-azure-button="calculator">estimate routing fit</a>.</p>
+      <p><a href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" data-azure-event="content_article_key_activation_clicked" data-azure-button="next-create-api-key">Create an API key</a>, <a href="/quickstart" data-azure-event="content_article_quickstart_clicked" data-azure-button="next-quickstart">copy the hosted quickstart</a>, <a href="/openai-api-router" data-azure-event="content_article_compare_clicked" data-azure-button="next-openai-api">use the OpenAI-compatible setup</a>, or <a href="/model-routing-calculator" data-azure-event="content_article_compare_clicked" data-azure-button="calculator">estimate routing fit</a>.</p>
     </section>
   </main>
 
@@ -176,7 +176,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       return `${document.getElementById('azure-router-start-code')?.textContent.trim() || ''}
 
 # Create a hosted generated key:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout`;
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key`;
     }
 
     async function writeClipboardText(text) {

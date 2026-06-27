@@ -141,7 +141,8 @@ OPENAI_CODEX_OAUTH_HTTP_TIMEOUT_SECONDS = float(os.environ.get('SAGE_ROUTER_CODE
 OPENAI_CODEX_OAUTH_SESSIONS = {}
 OPENAI_CODEX_OAUTH_LOCK = threading.Lock()
 # Auth-profile-based gateway providers: defined after DEFAULT constants below
-ENV_DISABLED_PROVIDERS = {
+DEFAULT_DISABLED_PROVIDERS = {'google', 'google-vertex'}
+ENV_DISABLED_PROVIDERS = DEFAULT_DISABLED_PROVIDERS | {
     name.strip() for name in os.environ.get('SAGE_ROUTER_DISABLED_PROVIDERS', '').split(',')
     if name.strip()
 }
@@ -458,11 +459,11 @@ DEFAULT_ANTHROPIC_MODELS = ['claude-opus-4-6', 'claude-opus-4-5', 'claude-opus-4
 DEFAULT_DARKBLOOM_MODELS = ['mlx-community/gemma-4-26b-a4b-it-8bit', 'qwen3.5-27b-claude-opus-8bit', 'mlx-community/Trinity-Mini-8bit', 'mlx-community/Qwen3.5-122B-A10B-8bit', 'mlx-community/MiniMax-M2.5-8bit']
 DEFAULT_CLOUDFLARE_WORKERS_AI_MODELS = ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/meta/llama-3.1-8b-instruct', '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', '@cf/qwen/qwq-32b', '@cf/qwen/qwen2.5-coder-32b-instruct', '@cf/mistral/mistral-small-3.1-24b-instruct']
 DEFAULT_OPENAI_MODELS = ['gpt-5.4', 'gpt-5.4-mini', 'gpt-4o', 'gpt-4o-mini']
-DEFAULT_OPENROUTER_MODELS = ['openai/gpt-5.4', 'anthropic/claude-sonnet-4.5', 'google/gemini-2.5-pro', 'x-ai/grok-4']
+DEFAULT_OPENROUTER_MODELS = ['openai/gpt-5.4', 'anthropic/claude-sonnet-4.5', 'x-ai/grok-4']
 DEFAULT_GOOGLE_MODELS = ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash']
 DEFAULT_XAI_MODELS = ['grok-4', 'grok-3', 'grok-3-mini', 'grok-2']
 DEFAULT_ZAI_MODELS = ['z1-ultra', 'z1-pro', 'z1-mini']
-DEFAULT_GITHUB_COPILOT_MODELS = ['gpt-5.4', 'gpt-5.4-mini', 'claude-sonnet-4-5', 'gemini-2.5-pro']
+DEFAULT_GITHUB_COPILOT_MODELS = ['gpt-5.4', 'gpt-5.4-mini', 'claude-sonnet-4-5']
 
 
 def extract_http_error(exc: Exception) -> str:
@@ -483,8 +484,6 @@ GATEWAY_PROVIDER_PROFILES = {
     'nvidia-ngc': ('https://api.ngc.nvidia.com', DEFAULT_NGC_MODELS, {'reasoning': False, 'contextWindow': 16384, 'maxTokens': 4096, 'input': ['text', 'audio'], 'output': ['text', 'audio']}),
     'anthropic': ('anthropic-messages', DEFAULT_ANTHROPIC_MODELS, {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 64000, 'input': ['text']}),
     'openai': ('openai-completions', DEFAULT_OPENAI_MODELS, {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
-    'google': ('google-generative-language', DEFAULT_GOOGLE_MODELS, {'reasoning': False, 'contextWindow': 1000000, 'maxTokens': 65536, 'input': ['text', 'image']}),
-    'google-vertex': ('google-vertex-ai', DEFAULT_GOOGLE_MODELS, {'reasoning': True, 'contextWindow': 1000000, 'maxTokens': 65536, 'input': ['text', 'image']}),
     'xai': ('openai-completions', DEFAULT_XAI_MODELS, {'reasoning': False, 'contextWindow': 128000, 'maxTokens': 16384, 'input': ['text']}),
     'zai': ('openai-completions', DEFAULT_ZAI_MODELS, {'reasoning': True, 'contextWindow': 256000, 'maxTokens': 65536, 'input': ['text']}),
     'darkbloom': ('openai-completions', DEFAULT_DARKBLOOM_MODELS, {'reasoning': False, 'contextWindow': 131072, 'maxTokens': 16384, 'input': ['text']}),
@@ -3787,10 +3786,71 @@ def build_router_metadata(provider_name, model, request_id=''):
     }
 
 
+# Track which request_ids have already emitted a provider/model prefix,
+# so the prefix appears once per unique displayed model. Use display_model_id()
+# rather than the raw provider name so aliased backends such as ollama-cloud and
+# ollama-cyber do not emit duplicate visible prefixes for the same model.
+_PREFIX_SEEN = {}
+_PREFIX_SEEN_TTL = 300  # seconds
+
+
+def _prefix_seen_key(request_id, provider_name, model):
+    return (request_id, display_model_id(provider_name, model))
+
+
+def _expire_prefix_seen(now=None):
+    now = now or time.time()
+    cutoff = now - _PREFIX_SEEN_TTL
+    expired = [key for key, seen_at in _PREFIX_SEEN.items() if seen_at < cutoff]
+    for key in expired:
+        del _PREFIX_SEEN[key]
+
+
+def _has_prefix_been_seen(request_id, provider_name, model):
+    now = time.time()
+    _expire_prefix_seen(now)
+    key = _prefix_seen_key(request_id, provider_name, model)
+    return key in _PREFIX_SEEN
+
+
+def _mark_prefix_seen(request_id, provider_name, model):
+    _expire_prefix_seen()
+    _PREFIX_SEEN[_prefix_seen_key(request_id, provider_name, model)] = time.time()
+
+
+def text_already_has_model_prefix(text, provider_name, model):
+    stripped = (text or '').lstrip()
+    display_id = display_model_id(provider_name, model)
+    return stripped.startswith(f'[{display_id}]') or stripped.startswith(f'[sage-router {display_id}]')
+
+
+def model_prefix_once(provider_name, model, request_id, text, sage_router_debug=False):
+    text = sanitize_visible_output(text or '')
+    if not text:
+        return text
+    if text_already_has_model_prefix(text, provider_name, model):
+        _mark_prefix_seen(request_id, provider_name, model)
+        return text
+    if _has_prefix_been_seen(request_id, provider_name, model):
+        return text
+    _mark_prefix_seen(request_id, provider_name, model)
+    display_id = display_model_id(provider_name, model)
+    if sage_router_debug:
+        return f'[sage-router {display_id}]\n{text}'
+    return f'[{display_id}] {text}'
+
+
+def streaming_debug_prefix(provider_name, model, request_id):
+    if _has_prefix_been_seen(request_id, provider_name, model):
+        return ''
+    _mark_prefix_seen(request_id, provider_name, model)
+    return f'[sage-router {display_model_id(provider_name, model)}]\n'
+
+
 def maybe_prefix_debug_text(content, metadata, debug_mode=False, allow_prefix=True):
     text = sanitize_visible_output(content or '')
     if debug_mode and allow_prefix and text:
-        text = f"[sage-router {metadata.get('provider')}/{metadata.get('model')}]\n{text}"
+        text = model_prefix_once(metadata.get('provider'), metadata.get('model'), metadata.get('request_id'), text, sage_router_debug=True)
     return text
 
 
@@ -3805,8 +3865,7 @@ def build_openai_completion(provider_name, model, request_id, content='', tool_c
     # When SHOW_MODEL_PREFIX is on, the [provider/model] prefix provides
     # the model identity. Only add the debug prefix when SHOW_MODEL_PREFIX is off.
     if SHOW_MODEL_PREFIX and not normalized_tool_calls:
-        content_text = sanitize_visible_output(content or '')
-        content_text = '[' + display_model_id(provider_name, model) + '] ' + content_text
+        content_text = model_prefix_once(provider_name, model, request_id, content or '')
     else:
         content_text = maybe_prefix_debug_text(content, metadata, debug_mode=debug_mode, allow_prefix=allow_debug_prefix and not normalized_tool_calls)
     message = {'role': 'assistant', 'content': content_text}
@@ -6070,6 +6129,52 @@ SETUP_SNIPPET_COPY_EVENTS = {
     'quickstart_snippet_copied',
     'codex_docs_snippet_copied',
     'account_snippet_copied',
+    'content_article_snippet_copied',
+}
+OPERATOR_FOLLOWUP_COPY_EVENTS = {
+    'operator_no_key_followup_copied',
+    'operator_no_key_followup_batch_copied',
+    'operator_no_key_followup_csv_copied',
+    'operator_no_key_followup_mailto_opened',
+}
+KEY_FIRST_REDIRECT_EVENTS = {
+    'account_checkout_key_first_redirected',
+    'account_intent_create_key_clicked',
+    'calculator_key_activation_clicked',
+    'codex_docs_key_activation_clicked',
+    'content_article_key_activation_clicked',
+    'fusion_key_activation_clicked',
+    'gateway_compare_key_activation_clicked',
+    'landing_key_first_direct_clicked',
+    'landing_setup_next_clicked',
+    'launch_plan_key_activation_clicked',
+    'model_catalog_key_activation_clicked',
+    'pricing_key_activation_clicked',
+}
+KEY_RECOVERY_VIEW_EVENTS = {
+    'account_key_recovery_viewed',
+    'content_article_key_recovery_clicked',
+    'pricing_key_recovery_clicked',
+    'login_key_recovery_landed',
+    'login_key_recovery_clicked',
+    'login_key_recovery_same_account_prompted',
+    'login_key_recovery_session_redirected',
+    'billing_account_clicked',
+    'landing_key_recovery_clicked',
+    'model_catalog_key_recovery_clicked',
+    'status_key_recovery_clicked',
+    'support_key_recovery_clicked',
+}
+KEY_CREATE_ATTEMPT_EVENTS = {
+    'account_api_key_create_clicked',
+    'account_intent_create_key_clicked',
+}
+KEY_CREATE_SUCCESS_EVENTS = {
+    'account_api_key_created',
+    'account_key_recovery_key_created',
+}
+KEY_CREATE_FAILURE_EVENTS = {
+    'account_api_key_create_failed',
 }
 
 
@@ -6186,6 +6291,158 @@ def launch_conversion_snapshot(rates, mrr, checkout_friction=None):
     return {'targets': targets, 'bottlenecks': bottlenecks[:5], 'conversionActions': conversion_actions[:7]}
 
 
+def launch_no_key_execution_checklist(recommended_segments, outreach_not_worked):
+    segments = list(recommended_segments or [])
+    if not segments:
+        segments = ['all']
+    labels = {
+        'verified': 'Open/email verified drafts first',
+        'unverified': 'Open/email unverified drafts second',
+        'missing_auth_user': 'Review missing-auth-user signups',
+        'missing_user_id': 'Review missing-user-id signups',
+        'unavailable': 'Review verification-unavailable signups',
+        'not_required': 'Open/email no-verification-required drafts',
+        'all': 'Open/email all no-key drafts',
+    }
+    checklist = []
+    for index, segment in enumerate(segments, start=1):
+        checklist.append({
+            'step': index,
+            'segment': segment,
+            'action': labels.get(segment) or f'Open/email {segment} drafts',
+            'successMetric': 'Recovery link opened or signup creates a generated key.',
+        })
+    checklist.append({
+        'step': len(checklist) + 1,
+        'segment': 'worked',
+        'action': 'Mark the worked segment only after real outreach is sent or copied into the outbound channel.',
+        'successMetric': 'operatorFollowUpCopies increases before keyRecoveryViews and generated-key customers.',
+    })
+    if outreach_not_worked:
+        checklist.append({
+            'step': len(checklist) + 1,
+            'segment': 'measure',
+            'action': 'Refresh the funnel and watch keyRecoveryViews, then customersWithGeneratedApiKeys.',
+            'successMetric': 'signupToGeneratedKey moves above zero.',
+        })
+    return checklist
+
+
+def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversion_actions=None):
+    """Return one privacy-safe operator action tied to the current launch bottleneck."""
+    stages = stages or {}
+    rates = rates or {}
+    activation_follow_ups = activation_follow_ups or {}
+    conversion_actions = conversion_actions or []
+    no_key_total = int(activation_follow_ups.get('total') or 0)
+    no_key_new = int(activation_follow_ups.get('windowedNewSignups') or 0)
+    operator_follow_up_copies = int(activation_follow_ups.get('operatorFollowUpCopies') or 0)
+    operator_follow_up_worked = int(activation_follow_ups.get('operatorFollowUpWorked') or 0)
+    key_first_redirects = int(activation_follow_ups.get('keyFirstRedirects') or 0)
+    key_recovery_views = int(activation_follow_ups.get('keyRecoveryViews') or 0)
+    signups = int(stages.get('signups') or 0)
+    generated_keys = int(stages.get('customersWithGeneratedApiKeys') or stages.get('generatedApiKeys') or 0)
+    first_requests = int(stages.get('customersWithFirstRoutedRequest') or stages.get('firstRoutedRequest') or 0)
+    paid_customers = int(stages.get('paidCustomers') or 0)
+    signup_to_key_rate = rates.get('signupToGeneratedKey')
+    signup_to_key_below_target = signup_to_key_rate is None or float(signup_to_key_rate or 0) < float(LAUNCH_CONVERSION_TARGETS['signupToGeneratedKey']['targetRate'])
+    if no_key_total > 0 and signup_to_key_below_target:
+        outreach_not_worked = operator_follow_up_worked <= 0
+        verification_counts = activation_follow_ups.get('countsByEmailVerification') if isinstance(activation_follow_ups, dict) else {}
+        recommended_segments = [
+            segment for segment in ('verified', 'unverified', 'missing_auth_user', 'missing_user_id', 'unavailable', 'not_required')
+            if int((verification_counts or {}).get(segment) or 0) > 0
+        ]
+        no_key_anchor = 'no-key-followups:segments' if len(recommended_segments) > 1 else 'no-key-followups'
+        execution_checklist = launch_no_key_execution_checklist(recommended_segments, outreach_not_worked)
+        return {
+            'metric': 'signupToGeneratedKey',
+            'priority': 'fix_now',
+            'owner': 'Activation',
+            'surface': 'launch funnel' if outreach_not_worked else 'account',
+            'ctaPath': (
+                f'{APP_BASE_URL.rstrip("/")}/launch-funnel.html#{no_key_anchor}'
+                if outreach_not_worked
+                else activation_follow_ups.get('primaryCtaUrl') or launch_activation_follow_up_url(activation_follow_ups.get('suggestedPlan') or 'pro')
+            ),
+            'action': (
+                'Open the operator no-key signup queue, use the verified/unverified email drafts, then mark the worked segment through the launch funnel telemetry.'
+                if outreach_not_worked
+                else activation_follow_ups.get('recommendedOperatorAction') or 'Send the generated-key-first recovery link to no-key signups.'
+            ),
+            'executionChecklist': execution_checklist,
+            'successMetric': activation_follow_ups.get('successMetric') or 'Move no-key signups into generated-key accounts, then first routed request.',
+            'evidence': {
+                'signups': signups,
+                'generatedKeyCustomers': generated_keys,
+                'noKeyFollowUpsQueued': no_key_total,
+                'windowedNoKeySignups': no_key_new,
+                'operatorFollowUpCopies': operator_follow_up_copies,
+                'operatorFollowUpWorked': operator_follow_up_worked,
+                'operatorFollowUpWorkedByKind': activation_follow_ups.get('operatorFollowUpWorkedByKind') or {},
+                'keyFirstRedirects': key_first_redirects,
+                'keyFirstRedirectsByState': activation_follow_ups.get('keyFirstRedirectsByState') or {},
+                'keyRecoveryViews': key_recovery_views,
+                'keyRecoveryViewsByState': activation_follow_ups.get('keyRecoveryViewsByState') or {},
+                'keyCreateAttempts': int(activation_follow_ups.get('keyCreateAttempts') or 0),
+                'keyCreateAttemptsByState': activation_follow_ups.get('keyCreateAttemptsByState') or {},
+                'keyCreateSuccesses': int(activation_follow_ups.get('keyCreateSuccesses') or 0),
+                'keyCreateSuccessesByState': activation_follow_ups.get('keyCreateSuccessesByState') or {},
+                'keyCreateFailures': int(activation_follow_ups.get('keyCreateFailures') or 0),
+                'keyCreateFailuresByState': activation_follow_ups.get('keyCreateFailuresByState') or {},
+                'emailVerification': verification_counts or {},
+                'recommendedSegments': recommended_segments,
+                'signupToGeneratedKey': signup_to_key_rate,
+            },
+            'privacy': activation_follow_ups.get('privacy') or {
+                'containsEmails': False,
+                'containsCustomerIds': False,
+                'containsApiKeys': False,
+                'containsProviderCredentials': False,
+            },
+        }
+    if generated_keys > 0 and first_requests <= 0:
+        return {
+            'metric': 'generatedKeyToFirstRequest',
+            'priority': 'fix_now',
+            'owner': 'Activation',
+            'surface': 'quickstart',
+            'ctaPath': '/quickstart',
+            'action': 'Use the browser Responses API probe and copyable Codex/OpenAI snippets to get a first routed request.',
+            'successMetric': 'Move generated-key accounts into first routed request.',
+            'evidence': {
+                'generatedKeyCustomers': generated_keys,
+                'firstRoutedRequestCustomers': first_requests,
+                'generatedKeyToFirstRequest': rates.get('generatedKeyToFirstRequest'),
+            },
+        }
+    if paid_customers <= 0:
+        first_conversion = conversion_actions[0] if conversion_actions else {}
+        return {
+            'metric': first_conversion.get('metric') or 'mrrTargetAttainment',
+            'priority': first_conversion.get('priority') or 'fix_now',
+            'owner': first_conversion.get('owner') or 'Revenue',
+            'surface': first_conversion.get('surface') or 'plan mix',
+            'ctaPath': first_conversion.get('ctaPath') or '/launch-plan',
+            'action': first_conversion.get('action') or 'Convert the first active generated-key users into paid Lite, Pro, or Max customers.',
+            'successMetric': first_conversion.get('successMetric') or 'Create the first paid Sage Router customer.',
+            'evidence': {
+                'paidCustomers': paid_customers,
+                'estimatedCurrentMrrUsd': (mrr or {}).get('estimatedCurrentMrrUsd'),
+                'targetMrrUsd': (mrr or {}).get('targetMrrUsd'),
+            },
+        }
+    return conversion_actions[0] if conversion_actions else {
+        'metric': 'monitorLaunchFunnel',
+        'priority': 'monitor',
+        'owner': 'Operator',
+        'surface': 'launch funnel',
+        'ctaPath': '/launch-funnel.html',
+        'action': 'Monitor activation, first request, checkout, and retention rates against the $10k MRR plan.',
+        'successMetric': 'Keep each launch funnel stage on target.',
+    }
+
+
 def public_plan_monthly_price_usd(plan_name):
     plan = PUBLIC_PLAN_CATALOG.get(str(plan_name or '').strip().lower()) or {}
     price = str(plan.get('price') or '')
@@ -6287,13 +6544,14 @@ def read_launch_customer_rows(limit=10000):
         if customer_store_uses_supabase():
             return supabase_select(
                 SUPABASE_CUSTOMERS_TABLE,
-                'select=id,plan,status,created_at_epoch,updated_at_epoch,stripe_customer_id,stripe_subscription_id'
+                'select=id,user_id,plan,status,created_at_epoch,updated_at_epoch,stripe_customer_id,stripe_subscription_id'
                 f'&limit={int(limit)}',
                 timeout=8,
             )
         return [
             {
                 'id': row.get('id'),
+                'user_id': row.get('user_id'),
                 'plan': row.get('plan'),
                 'status': row.get('status'),
                 'created_at_epoch': row.get('created_at_epoch'),
@@ -6307,6 +6565,75 @@ def read_launch_customer_rows(limit=10000):
     except Exception as e:
         logger.debug(f'Launch funnel customer read failed: {extract_http_error(e)}')
         return []
+
+
+def read_launch_auth_user_rows(limit=1000):
+    """Read privacy-safe Supabase Auth signup rows for launch funnel counts."""
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return None
+    try:
+        url = SUPABASE_URL.rstrip('/') + f'/auth/v1/admin/users?page=1&per_page={int(limit)}'
+        req = urllib.request.Request(url, headers={
+            'apikey': SUPABASE_SERVICE_ROLE_KEY,
+            'Authorization': f'Bearer {SUPABASE_SERVICE_ROLE_KEY}',
+        })
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            payload = json.loads(resp.read().decode('utf-8'))
+        users = payload.get('users') if isinstance(payload, dict) else None
+        if not isinstance(users, list):
+            return None
+        rows = []
+        for user in users:
+            if not isinstance(user, dict) or not user.get('id'):
+                continue
+            rows.append({
+                'id': str(user.get('id')),
+                'email': user.get('email') or ((user.get('user_metadata') or {}).get('email')),
+                'created_at': user.get('created_at'),
+                'email_confirmed': bool(user.get('email_confirmed_at') or user.get('confirmed_at')),
+            })
+        return rows
+    except Exception as e:
+        logger.debug(f'Launch funnel auth user read failed: {extract_http_error(e)}')
+        return None
+
+
+def auth_user_rows_by_id(auth_users):
+    return {
+        str(row.get('id')): row
+        for row in (auth_users or [])
+        if isinstance(row, dict) and row.get('id')
+    }
+
+
+def auth_verification_state_for_customer(customer, auth_users=None):
+    required = hosted_email_verification_required()
+    if not required:
+        return {'required': False, 'verified': True, 'source': 'not_required'}
+    user_id = str((customer or {}).get('user_id') or '').strip()
+    if not user_id:
+        return {'required': True, 'verified': False, 'source': 'missing_user_id'}
+    rows = auth_users if isinstance(auth_users, list) else read_launch_auth_user_rows()
+    if not isinstance(rows, list):
+        return {'required': True, 'verified': False, 'source': 'unavailable'}
+    row = auth_user_rows_by_id(rows).get(user_id)
+    if not row:
+        return {'required': True, 'verified': False, 'source': 'missing_auth_user'}
+    return {
+        'required': True,
+        'verified': bool(row.get('email_confirmed')),
+        'source': 'supabase_auth_admin',
+    }
+
+
+def auth_verification_bucket(state):
+    state = state or {}
+    if not state.get('required'):
+        return 'not_required'
+    source = str(state.get('source') or '')
+    if source in {'unavailable', 'missing_user_id', 'missing_auth_user'}:
+        return source
+    return 'verified' if state.get('verified') else 'unverified'
 
 
 def read_launch_api_key_rows(limit=10000):
@@ -6384,6 +6711,8 @@ MARKETING_SOURCE_SURFACE_BUCKETS = (
     'account',
     'login',
     'billing',
+    'status',
+    'support',
     'landing',
 )
 MARKETING_ATTRIBUTION_CHANNEL_BUCKETS = (
@@ -6459,6 +6788,8 @@ def marketing_event_metadata(row):
             metadata = {}
     if not isinstance(metadata, dict):
         metadata = {}
+    # Strip PII before aggregation/action generation.
+    metadata = {k: v for k, v in metadata.items() if k not in {'email', 'userEmail', 'user_email', 'customerEmail', 'customer_email', 'buyerEmail', 'buyer_email'}}
     return metadata
 
 
@@ -6478,8 +6809,119 @@ def marketing_event_is_smoke(row, metadata=None):
     return any(str(value or '').strip().lower() in {'true', '1', 'yes', 'smoke', 'test'} for value in values)
 
 
+MARKETING_BOT_USER_AGENT_FRAGMENTS = (
+    'bot',
+    'crawler',
+    'spider',
+    'ahrefs',
+    'semrush',
+    'mj12bot',
+    'dotbot',
+    'bingpreview',
+    'slurp',
+    'duckduckbot',
+    'baiduspider',
+    'yandex',
+    'facebookexternalhit',
+    'twitterbot',
+    'linkedinbot',
+    'discordbot',
+    'telegrambot',
+    'whatsapp',
+    'curl/',
+    'wget/',
+    'python-requests',
+    'go-http-client',
+    'headless',
+    'lighthouse',
+    'pagespeed',
+    'chrome-lighthouse',
+)
+
+MARKETING_SUSPICIOUS_BROWSER_FRAGMENTS = (
+    'chrome/79.0.3945.79',
+)
+
+
+def marketing_event_user_agent(metadata):
+    return str(
+        (metadata or {}).get('user_agent')
+        or (metadata or {}).get('userAgent')
+        or (metadata or {}).get('ua')
+        or ''
+    ).strip().lower()
+
+
+def marketing_event_minute(row):
+    created_at = str((row or {}).get('created_at') or (row or {}).get('createdAt') or '').strip()
+    if len(created_at) >= 16:
+        return created_at[:16]
+    return ''
+
+
+def marketing_event_source_path(row, metadata=None):
+    metadata = metadata if isinstance(metadata, dict) else marketing_event_metadata(row)
+    raw = str(
+        (row or {}).get('source_page')
+        or (row or {}).get('sourcePage')
+        or metadata.get('sourcePage')
+        or metadata.get('source_page')
+        or metadata.get('page')
+        or ''
+    ).strip()
+    if not raw:
+        return ''
+    try:
+        parsed = urllib.parse.urlparse(raw)
+        return parsed.path or raw.split('?', 1)[0] or '/'
+    except Exception:
+        return raw.split('?', 1)[0] or '/'
+
+
+def marketing_event_is_known_bot(row, metadata=None):
+    metadata = metadata if isinstance(metadata, dict) else marketing_event_metadata(row)
+    ua = marketing_event_user_agent(metadata)
+    if not ua:
+        return False
+    return any(fragment in ua for fragment in MARKETING_BOT_USER_AGENT_FRAGMENTS) or any(
+        fragment in ua for fragment in MARKETING_SUSPICIOUS_BROWSER_FRAGMENTS
+    )
+
+
+def marketing_synthetic_sweep_keys(rows, metadata_available=True):
+    buckets = {}
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        metadata = marketing_event_metadata(row) if metadata_available else {}
+        ua = marketing_event_user_agent(metadata)
+        minute = marketing_event_minute(row)
+        if not ua or not minute:
+            continue
+        key = (minute, ua)
+        bucket = buckets.setdefault(key, {'events': 0, 'paths': set()})
+        bucket['events'] += 1
+        path = marketing_event_source_path(row, metadata)
+        if path:
+            bucket['paths'].add(path)
+    return {
+        key
+        for key, bucket in buckets.items()
+        if bucket['events'] >= 15 or (bucket['events'] >= 8 and len(bucket['paths']) >= 4)
+    }
+
+
+def marketing_event_is_synthetic(row, metadata=None, sweep_keys=None):
+    metadata = metadata if isinstance(metadata, dict) else marketing_event_metadata(row)
+    if marketing_event_is_known_bot(row, metadata):
+        return True
+    if sweep_keys and (marketing_event_minute(row), marketing_event_user_agent(metadata)) in sweep_keys:
+        return True
+    return False
+
+
 def marketing_source_surface_bucket(metadata):
-    source = str(metadata.get('source') or '').strip().lower()
+    source = str(metadata.get('sourceSurface') or metadata.get('source') or '').strip().lower()
     if source in MARKETING_SOURCE_SURFACE_BUCKETS:
         return source
     if source:
@@ -6543,7 +6985,7 @@ def launch_acquisition_action(kind, bucket):
             'pricing': 'Tighten pricing CTAs, checkout plan defaults, and proof around hosted key activation.',
             'article': 'Turn long-form local-first routing readers into quickstart, Codex setup, and gateway comparison CTAs.',
             'self-hosted': 'Turn self-hosted router evaluators into local quickstart, GitHub install, and hosted key activation CTAs.',
-            'model-routing-calculator': 'Turn calculator interest into implementation calls and preselected Pro/Max checkout.',
+            'model-routing-calculator': 'Turn calculator interest into generated-key-first Pro/Max activation and implementation calls.',
             'model-catalog': 'Turn catalog demand into hosted key activation, route-profile proof, and model availability copy.',
             'quickstart': 'Use copyable quickstart snippets to convert generated-key users into first routed requests.',
             'fusion': 'Convert Fusion page demand into Pro/Max checkout, gateway migration proof, and first high-stakes synthesis requests.',
@@ -6851,12 +7293,27 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'authProviderState': new_auth_provider_state_metrics(),
         'setupSnippetCopies': 0,
         'setupSnippetCopiesBySnippet': {},
+        'operatorFollowUpCopies': 0,
+        'operatorFollowUpCopiesByKind': {},
+        'operatorFollowUpWorked': 0,
+        'operatorFollowUpWorkedByKind': {},
+        'keyFirstRedirects': 0,
+        'keyFirstRedirectsByState': {},
+        'keyRecoveryViews': 0,
+        'keyRecoveryViewsByState': {},
+        'keyCreateAttempts': 0,
+        'keyCreateAttemptsByState': {},
+        'keyCreateSuccesses': 0,
+        'keyCreateSuccessesByState': {},
+        'keyCreateFailures': 0,
+        'keyCreateFailuresByState': {},
+        'filteredSyntheticEvents': 0,
     }
     try:
         try:
             rows = supabase_select(
                 SUPABASE_FUNNEL_EVENTS_TABLE,
-                f'select=event,plan,created_at,metadata&created_at=gte.{quoted_since}&limit={int(limit)}',
+                f'select=event,plan,created_at,source_page,metadata&created_at=gte.{quoted_since}&limit={int(limit)}',
                 timeout=6,
             ) or []
             metadata_available = True
@@ -6864,7 +7321,7 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             logger.debug(f'Launch funnel marketing event metadata read failed: {extract_http_error(e)}')
             rows = supabase_select(
                 SUPABASE_FUNNEL_EVENTS_TABLE,
-                f'select=event,plan,created_at&created_at=gte.{quoted_since}&limit={int(limit)}',
+                f'select=event,plan,created_at,source_page&created_at=gte.{quoted_since}&limit={int(limit)}',
                 timeout=6,
             ) or []
             metadata_available = False
@@ -6872,6 +7329,7 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         logger.debug(f'Launch funnel marketing event read failed: {extract_http_error(e)}')
         return None, 'marketing_funnel_events_unavailable'
 
+    synthetic_sweep_keys = marketing_synthetic_sweep_keys(rows, metadata_available)
     for row in rows:
         if not isinstance(row, dict):
             continue
@@ -6879,6 +7337,9 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         plan = str(row.get('plan') or '').strip().lower()
         metadata = marketing_event_metadata(row) if metadata_available else {}
         if marketing_event_is_smoke(row, metadata):
+            continue
+        if marketing_event_is_synthetic(row, metadata, synthetic_sweep_keys):
+            metrics['filteredSyntheticEvents'] += 1
             continue
         metrics['total'] += 1
         metrics['events'][event] = metrics['events'].get(event, 0) + 1
@@ -6913,6 +7374,33 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             metrics['setupSnippetCopies'] += 1
             snippet = str(metadata.get('snippet') or 'unknown').strip().lower()[:80] or 'unknown'
             metrics['setupSnippetCopiesBySnippet'][snippet] = metrics['setupSnippetCopiesBySnippet'].get(snippet, 0) + 1
+        if event in OPERATOR_FOLLOWUP_COPY_EVENTS:
+            metrics['operatorFollowUpCopies'] += 1
+            kind = str(metadata.get('state') or event).strip().lower()[:80] or event
+            metrics['operatorFollowUpCopiesByKind'][kind] = metrics['operatorFollowUpCopiesByKind'].get(kind, 0) + 1
+            if kind == 'marked_worked' or kind.endswith('_marked_worked'):
+                metrics['operatorFollowUpWorked'] += 1
+                metrics['operatorFollowUpWorkedByKind'][kind] = metrics['operatorFollowUpWorkedByKind'].get(kind, 0) + 1
+        if event in KEY_FIRST_REDIRECT_EVENTS:
+            metrics['keyFirstRedirects'] += 1
+            state = str(metadata.get('state') or event).strip().lower()[:80] or event
+            metrics['keyFirstRedirectsByState'][state] = metrics['keyFirstRedirectsByState'].get(state, 0) + 1
+        if event in KEY_RECOVERY_VIEW_EVENTS:
+            metrics['keyRecoveryViews'] += 1
+            state = str(metadata.get('state') or 'unknown').strip().lower()[:80] or 'unknown'
+            metrics['keyRecoveryViewsByState'][state] = metrics['keyRecoveryViewsByState'].get(state, 0) + 1
+        if event in KEY_CREATE_ATTEMPT_EVENTS:
+            metrics['keyCreateAttempts'] += 1
+            state = str(metadata.get('state') or event).strip().lower()[:80] or event
+            metrics['keyCreateAttemptsByState'][state] = metrics['keyCreateAttemptsByState'].get(state, 0) + 1
+        if event in KEY_CREATE_SUCCESS_EVENTS:
+            metrics['keyCreateSuccesses'] += 1
+            state = str(metadata.get('state') or event).strip().lower()[:80] or event
+            metrics['keyCreateSuccessesByState'][state] = metrics['keyCreateSuccessesByState'].get(state, 0) + 1
+        if event in KEY_CREATE_FAILURE_EVENTS:
+            metrics['keyCreateFailures'] += 1
+            state = str(metadata.get('state') or event).strip().lower()[:80] or event
+            metrics['keyCreateFailuresByState'][state] = metrics['keyCreateFailuresByState'].get(state, 0) + 1
     return metrics, None
 
 
@@ -6933,12 +7421,24 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
     now = int(time.time())
     since = now - int(window_seconds or 0) if window_seconds else 0
     customers = [normalize_customer(row) for row in read_launch_customer_rows() if isinstance(row, dict)]
+    auth_user_rows = read_launch_auth_user_rows()
+    auth_users_available = isinstance(auth_user_rows, list)
+    auth_users = [row for row in (auth_user_rows or []) if isinstance(row, dict)]
     api_keys = [row for row in read_launch_api_key_rows() if isinstance(row, dict)]
     event_source, route_events = route_events_for_window(window_seconds, event_limit)
     waitlist_metrics, waitlist_error = read_launch_waitlist_counts(since)
     marketing_metrics, marketing_error = read_launch_marketing_funnel_counts(since)
     acquisition_actions = launch_acquisition_actions(marketing_metrics)
     if isinstance(marketing_metrics, dict):
+        for key, default in {
+            'keyCreateAttempts': 0,
+            'keyCreateAttemptsByState': {},
+            'keyCreateSuccesses': 0,
+            'keyCreateSuccessesByState': {},
+            'keyCreateFailures': 0,
+            'keyCreateFailuresByState': {},
+        }.items():
+            marketing_metrics.setdefault(key, default)
         marketing_metrics = {
             **marketing_metrics,
             'acquisitionActions': acquisition_actions,
@@ -6952,11 +7452,32 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
     setup_snippet_copies = marketing_metrics.get('setupSnippetCopies', 0) if isinstance(marketing_metrics, dict) else None
 
     customer_ids = {str(c.get('id')) for c in customers if c and c.get('id')}
-    signup_ids = {
+    customer_user_ids = {str(c.get('user_id')) for c in customers if c and c.get('user_id')}
+    customer_signup_ids = {
         str(c.get('id'))
         for c in customers
         if c and c.get('id') and in_epoch_window(row_epoch(c, 'created_at_epoch', 'created_at'), since, now)
     }
+    customer_signup_user_ids = {
+        str(c.get('user_id'))
+        for c in customers
+        if c and c.get('user_id') and in_epoch_window(row_epoch(c, 'created_at_epoch', 'created_at'), since, now)
+    }
+    auth_signup_ids = {
+        str(row.get('id'))
+        for row in auth_users
+        if row.get('id') and in_epoch_window(row_epoch(row, 'created_at'), since, now)
+    }
+    auth_confirmed_signup_ids = {
+        str(row.get('id'))
+        for row in auth_users
+        if row.get('id') and row.get('email_confirmed') and in_epoch_window(row_epoch(row, 'created_at'), since, now)
+    }
+    auth_signup_count = len(auth_signup_ids) if auth_users_available else None
+    customer_signup_count = len(customer_signup_ids)
+    signups_count = max(auth_signup_count or 0, customer_signup_count) if auth_users_available else customer_signup_count
+    auth_signups_without_customer_rows = len(auth_signup_ids - customer_user_ids) if auth_users_available else 0
+    customer_signups_without_auth_rows = len(customer_signup_user_ids - auth_signup_ids) if auth_users_available else 0
     active_key_customer_ids = {
         str(k.get('customer_id'))
         for k in api_keys
@@ -6993,7 +7514,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'marketingIntentEvents': marketing_intent_events,
         'waitlistLeads': waitlist_count,
         'managedAccessBetaInterest': managed_access_interest,
-        'signups': len(signup_ids),
+        'signups': signups_count,
         'customersWithActiveApiKeys': len(active_key_customer_ids & customer_ids),
         'customersWithGeneratedApiKeys': len(generated_key_customer_ids & customer_ids),
         'setupSnippetCopies': setup_snippet_copies,
@@ -7002,7 +7523,20 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'paidCustomers': len(paid_customer_ids),
         'retainedPaidCustomers': len(retained_paid_ids),
     }
+    signup_hydration = {
+        'authSignups': len(auth_signup_ids) if auth_users_available else None,
+        'confirmedAuthSignups': len(auth_confirmed_signup_ids) if auth_users_available else None,
+        'customerRowsCreated': customer_signup_count,
+        'effectiveSignups': signups_count,
+        'customerSignupsWithoutAuthRows': customer_signups_without_auth_rows if auth_users_available else None,
+        'authSignupsWithoutCustomerRows': auth_signups_without_customer_rows if auth_users_available else None,
+        'source': 'supabase_auth_admin' if auth_users_available else ('unavailable' if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY else 'not_configured'),
+    }
     notes = []
+    if auth_signups_without_customer_rows:
+        notes.append(f'auth_signups_without_customer_rows:{auth_signups_without_customer_rows}')
+    if customer_signups_without_auth_rows:
+        notes.append(f'customer_signups_without_auth_rows:{customer_signups_without_auth_rows}')
     if waitlist_error:
         notes.append(f'waitlist_count_unavailable:{waitlist_error}')
     if marketing_error:
@@ -7021,6 +7555,38 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
     mrr = launch_mrr_snapshot(customers)
     checkout_friction = marketing_metrics.get('checkoutFriction') if isinstance(marketing_metrics, dict) else None
     conversion = launch_conversion_snapshot(rates, mrr, checkout_friction)
+    activation_follow_ups = launch_activation_follow_ups(
+        customers,
+        api_keys,
+        since=since,
+        now=now,
+        auth_users=auth_users if auth_users_available else None,
+    )
+    if isinstance(marketing_metrics, dict):
+        activation_follow_ups = {
+            **activation_follow_ups,
+            'operatorFollowUpCopies': int(marketing_metrics.get('operatorFollowUpCopies') or 0),
+            'operatorFollowUpCopiesByKind': marketing_metrics.get('operatorFollowUpCopiesByKind') or {},
+            'operatorFollowUpWorked': int(marketing_metrics.get('operatorFollowUpWorked') or 0),
+            'operatorFollowUpWorkedByKind': marketing_metrics.get('operatorFollowUpWorkedByKind') or {},
+            'keyFirstRedirects': int(marketing_metrics.get('keyFirstRedirects') or 0),
+            'keyFirstRedirectsByState': marketing_metrics.get('keyFirstRedirectsByState') or {},
+            'keyRecoveryViews': int(marketing_metrics.get('keyRecoveryViews') or 0),
+            'keyRecoveryViewsByState': marketing_metrics.get('keyRecoveryViewsByState') or {},
+            'keyCreateAttempts': int(marketing_metrics.get('keyCreateAttempts') or 0),
+            'keyCreateAttemptsByState': marketing_metrics.get('keyCreateAttemptsByState') or {},
+            'keyCreateSuccesses': int(marketing_metrics.get('keyCreateSuccesses') or 0),
+            'keyCreateSuccessesByState': marketing_metrics.get('keyCreateSuccessesByState') or {},
+            'keyCreateFailures': int(marketing_metrics.get('keyCreateFailures') or 0),
+            'keyCreateFailuresByState': marketing_metrics.get('keyCreateFailuresByState') or {},
+        }
+    next_best_action = launch_next_best_action(
+        stages,
+        rates,
+        mrr,
+        activation_follow_ups,
+        conversion.get('conversionActions') if isinstance(conversion, dict) else [],
+    )
 
     return {
         'version': 1,
@@ -7029,6 +7595,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'source': {
             'customers': 'supabase' if customer_store_uses_supabase() else 'local',
             'apiKeys': 'supabase' if customer_store_uses_supabase() else 'local',
+            'authUsers': 'supabase' if auth_users_available else ('unavailable' if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY else 'not_configured'),
             'routeEvents': event_source,
             'waitlist': 'supabase' if waitlist_count is not None else 'unavailable',
             'marketingFunnel': 'supabase' if marketing_intent_events is not None else 'unavailable',
@@ -7042,7 +7609,10 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         },
         'marketingIntent': marketing_metrics,
         'acquisitionActions': acquisition_actions,
+        'activationFollowUps': activation_follow_ups,
+        'nextBestAction': next_best_action,
         'stages': stages,
+        'signupHydration': signup_hydration,
         'waitlistInterest': waitlist_interest,
         'managedAccessDemand': managed_access_demand,
         'mrr': mrr,
@@ -7535,10 +8105,10 @@ def account_activation_for_customer(customer, usage=None, api_keys=None):
     quota_used_percent = None
     if quota > 0:
         quota_used_percent = min(100, max(0, round((requests / quota) * 100, 2)))
-    if not routing_enabled:
-        next_action = 'choose_plan'
-    elif not active_keys:
+    if not active_keys:
         next_action = 'create_key'
+    elif not routing_enabled:
+        next_action = 'choose_plan'
     elif requests <= 0:
         next_action = 'send_first_request'
     elif quota_used_percent is not None and quota_used_percent >= 90:
@@ -7558,6 +8128,133 @@ def account_activation_for_customer(customer, usage=None, api_keys=None):
         'quota': quota,
         'quotaUsedPercent': quota_used_percent,
         'nextAction': next_action,
+    }
+
+
+def launch_activation_follow_up_url(plan='pro', auth='github'):
+    plan = normalize_stripe_plan(plan) or 'pro'
+    params = {
+        'start': 'create_key',
+        'plan': plan,
+        'utm_source': 'operator',
+        'utm_medium': 'launch_funnel',
+        'utm_campaign': 'signup_to_key_recovery',
+    }
+    path = 'account.html'
+    if auth is False:
+        path = 'login.html'
+        params['auth'] = 'email'
+    else:
+        auth_value = str(auth or 'github').strip().lower()
+        if auth_value in {'password', 'email', 'email_password', 'password_fallback', 'fallback', 'none'}:
+            path = 'login.html'
+            params['auth'] = 'email'
+        else:
+            params['auth'] = auth_value
+    query = urllib.parse.urlencode(params)
+    return f'{APP_BASE_URL.rstrip("/")}/{path}?{query}'
+
+
+def launch_activation_follow_up_urls(plan='pro'):
+    plan = normalize_stripe_plan(plan) or 'pro'
+    return {
+        'githubOAuth': launch_activation_follow_up_url(plan, auth='github'),
+        'passwordFallback': launch_activation_follow_up_url(plan, auth=False),
+    }
+
+
+def operator_customer_follow_up(customer, activation=None, email_verification=None):
+    customer = normalize_customer(customer) or {}
+    activation = activation or account_activation_for_customer(customer)
+    plan = normalize_stripe_plan(customer.get('plan') or activation.get('plan') or 'pro') or 'pro'
+    urls = launch_activation_follow_up_urls(plan)
+    verification_bucket = auth_verification_bucket(email_verification or auth_verification_state_for_customer(customer))
+    return {
+        'nextAction': activation.get('nextAction') or 'create_key',
+        'suggestedPlan': plan,
+        'primaryCtaKind': 'same_email_password',
+        'primaryCtaUrl': urls['passwordFallback'],
+        'passwordFallback': urls['passwordFallback'],
+        'githubOAuth': urls['githubOAuth'],
+        'recommendedCtaOrder': ['passwordFallback', 'githubOAuth'],
+        'emailVerificationSegment': verification_bucket,
+        'utmCampaign': 'signup_to_key_recovery',
+        'privacy': {
+            'containsEmails': False,
+            'containsCustomerIds': False,
+            'containsApiKeys': False,
+            'containsProviderCredentials': False,
+        },
+    }
+
+
+def launch_activation_follow_ups(customers, api_keys, since=0, now=None, auth_users=None):
+    """Return privacy-safe aggregate follow-ups for signups blocked before key creation."""
+    now = int(now or now_epoch())
+    keys_by_customer = {}
+    for row in api_keys or []:
+        customer_id = str((row or {}).get('customer_id') or '')
+        if customer_id:
+            keys_by_customer.setdefault(customer_id, []).append(row)
+
+    counts_by_status = {}
+    counts_by_plan = {}
+    counts_by_email_verification = {}
+    total = 0
+    windowed_new_signups = 0
+    oldest_created_at = None
+    newest_created_at = None
+    for customer in customers or []:
+        customer = normalize_customer(customer)
+        if not customer or str(customer.get('status') or '').lower() == 'suspended':
+            continue
+        customer_id = str(customer.get('id') or '')
+        activation = account_activation_for_customer(
+            customer,
+            api_keys=keys_by_customer.get(customer_id, []),
+        )
+        if activation.get('nextAction') != 'create_key' or int(activation.get('activeKeyCount') or 0) > 0:
+            continue
+        total += 1
+        status = str(customer.get('status') or activation.get('status') or 'inactive').lower() or 'unknown'
+        plan = str(customer.get('plan') or activation.get('plan') or 'free').lower() or 'free'
+        suggested_plan = plan if plan in {'lite', 'pro', 'max'} else 'pro'
+        verification_bucket = auth_verification_bucket(auth_verification_state_for_customer(customer, auth_users=auth_users))
+        counts_by_status[status] = counts_by_status.get(status, 0) + 1
+        counts_by_plan[suggested_plan] = counts_by_plan.get(suggested_plan, 0) + 1
+        counts_by_email_verification[verification_bucket] = counts_by_email_verification.get(verification_bucket, 0) + 1
+        created_at = row_epoch(customer, 'created_at_epoch', 'created_at')
+        if in_epoch_window(created_at, since, now):
+            windowed_new_signups += 1
+        if created_at:
+            oldest_created_at = created_at if oldest_created_at is None else min(oldest_created_at, created_at)
+            newest_created_at = created_at if newest_created_at is None else max(newest_created_at, created_at)
+
+    primary_plan = 'pro'
+    if counts_by_plan:
+        primary_plan = sorted(counts_by_plan.items(), key=lambda item: (-item[1], item[0]))[0][0]
+    return {
+        'total': total,
+        'windowedNewSignups': windowed_new_signups,
+        'nextAction': 'create_key',
+        'suggestedPlan': primary_plan,
+        'countsBySuggestedPlan': counts_by_plan,
+        'countsByStatus': counts_by_status,
+        'countsByEmailVerification': counts_by_email_verification,
+        'oldestCreatedAtEpoch': oldest_created_at,
+        'newestCreatedAtEpoch': newest_created_at,
+        'primaryCtaUrl': launch_activation_follow_up_url(primary_plan, auth=False),
+        'primaryCtaKind': 'same_email_password',
+        'recommendedCtaOrder': ['passwordFallback', 'githubOAuth'],
+        'primaryCtaUrls': launch_activation_follow_up_urls(primary_plan),
+        'recommendedOperatorAction': 'Send the no-secret generated-key-first follow-up before asking for checkout or routing setup.',
+        'successMetric': 'Move no-key signups into generated-key accounts, then first routed request.',
+        'privacy': {
+            'containsEmails': False,
+            'containsCustomerIds': False,
+            'containsApiKeys': False,
+            'containsProviderCredentials': False,
+        },
     }
 
 
@@ -8042,15 +8739,54 @@ def operator_customer_summary(customer, include_audit=True):
     keys = api_keys_for_customer(customer.get('id')) if customer.get('id') else []
     usage = account_usage_for_customer(customer)
     activation = account_activation_for_customer(customer, usage=usage, api_keys=keys)
+    email_verification = auth_verification_state_for_customer(customer)
     audit_events = operator_audit_events_for_customer(customer.get('id'), limit=20) if include_audit and customer.get('id') else []
+    follow_up = operator_customer_follow_up(customer, activation=activation, email_verification=email_verification)
     return {
         'customer': public_customer(customer),
         'usage': usage,
         'activation': activation,
+        'followUp': follow_up,
+        'emailVerification': email_verification,
         'review': operator_customer_review(customer, usage=usage, api_keys=keys),
         'api_keys': [public_api_key(row, customer) for row in keys],
         'auditEvents': audit_events if include_audit else [],
         'latestAuditEvent': audit_events[0] if audit_events else None,
+    }
+
+
+def operator_customer_listing_summary(customers):
+    summaries = list(customers or [])
+    status_counts = {}
+    next_actions = {}
+    email_verification = {'verified': 0, 'unverified': 0, 'unknown': 0}
+    no_key_create_key = 0
+    has_emails = False
+    for summary in summaries:
+        customer = summary.get('customer') or {}
+        activation = summary.get('activation') or {}
+        verification = summary.get('emailVerification') or {}
+        status = str(customer.get('status') or activation.get('status') or 'unknown').strip().lower() or 'unknown'
+        next_action = str(activation.get('nextAction') or 'unknown').strip().lower() or 'unknown'
+        status_counts[status] = status_counts.get(status, 0) + 1
+        next_actions[next_action] = next_actions.get(next_action, 0) + 1
+        if customer.get('email'):
+            has_emails = True
+        if verification.get('verified') is True:
+            email_verification['verified'] += 1
+        elif verification.get('verified') is False:
+            email_verification['unverified'] += 1
+        else:
+            email_verification['unknown'] += 1
+        if int(activation.get('activeKeyCount') or 0) <= 0 and next_action == 'create_key':
+            no_key_create_key += 1
+    return {
+        'returned': len(summaries),
+        'statusCounts': status_counts,
+        'nextActions': next_actions,
+        'emailVerification': email_verification,
+        'noKeyCreateKey': no_key_create_key,
+        'hasEmails': has_emails,
     }
 
 
@@ -8865,6 +9601,59 @@ def user_email_verification_state(user):
         'verified': bool(verified or not required),
         'email': (user or {}).get('email') or ((user or {}).get('user_metadata') or {}).get('email') or '',
     }
+
+
+def hydrate_auth_signups_to_customers(auth_user_rows=None, limit=1000):
+    """Backfill inactive customer rows for Supabase Auth users missing one."""
+    rows = read_launch_auth_user_rows(limit=limit) if auth_user_rows is None else auth_user_rows
+    if not isinstance(rows, list):
+        return {
+            'status': 'unavailable',
+            'authUsers': 0,
+            'created': 0,
+            'existing': 0,
+            'failed': 0,
+            'confirmedAuthUsers': 0,
+            'privacy': {
+                'containsEmails': False,
+                'containsUserIds': False,
+                'containsApiKeys': False,
+            },
+        }
+    result = {
+        'status': 'ok',
+        'authUsers': 0,
+        'created': 0,
+        'existing': 0,
+        'failed': 0,
+        'confirmedAuthUsers': 0,
+        'privacy': {
+            'containsEmails': False,
+            'containsUserIds': False,
+            'containsApiKeys': False,
+        },
+    }
+    for row in rows:
+        if not isinstance(row, dict) or not row.get('id'):
+            continue
+        result['authUsers'] += 1
+        if row.get('email_confirmed'):
+            result['confirmedAuthUsers'] += 1
+        user = {'id': str(row.get('id')), 'email': row.get('email') or ''}
+        try:
+            existing = customer_for_user({'id': user['id']}, create=False)
+            if existing:
+                result['existing'] += 1
+                continue
+            customer = customer_for_user(user, create=True)
+            if customer and customer.get('id'):
+                result['created'] += 1
+            else:
+                result['failed'] += 1
+        except Exception as e:
+            result['failed'] += 1
+            logger.warning(f'Auth signup customer hydration failed: {extract_http_error(e)}')
+    return result
 
 
 def require_verified_account_user(handler, user):
@@ -9748,6 +10537,16 @@ def model_modalities_shared_enabled():
     return bool(MODEL_MODALITIES_SHARED_ENABLED and SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
 
 
+def model_modalities_shared_status():
+    return {
+        'enabled': model_modalities_shared_enabled(),
+        'configured': bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY),
+        'refreshSeconds': MODEL_MODALITIES_SHARED_REFRESH_SECONDS,
+        'table': SUPABASE_MODEL_MODALITIES_TABLE,
+        'rpc': SUPABASE_MODEL_MODALITIES_RPC,
+    }
+
+
 def _normalize_model_modality_entry(entry, now_ms=None):
     entry = entry or {}
     now_ms = now_ms or int(time.time() * 1000)
@@ -10046,9 +10845,9 @@ def model_learned_modalities(provider_name, model):
         return set(entry.get('modalities') or [])
 
 
-def model_modalities_summary():
+def model_modalities_summary(force=False):
     """Dashboard-safe view of the ledger."""
-    refresh_model_modalities_from_shared()
+    refresh_model_modalities_from_shared(force=force)
     with MODEL_MODALITIES_LOCK:
         return {
             key: {
@@ -10423,6 +11222,22 @@ def model_quality_tier(model):
 ROUTER_PROFILE_CACHE = {'mtime': None, 'profiles': {}}
 
 
+def builtin_router_profile(name):
+    name = str(name or '').strip().lower()
+    if name != 'auto':
+        return None
+    return {
+        'description': 'Default reliable auto-routing for first requests and general hosted traffic.',
+        'route': 'balanced',
+        'thinking': 'medium',
+        'defaultModel': 'google/gemini-2.5-flash',
+        'allowProviders': ['google', 'google-vertex', 'openrouter', 'nvidia-nim', 'openai', 'openai-codex'],
+        'fallbackProviders': ['google', 'google-vertex', 'openrouter', 'nvidia-nim', 'openai', 'openai-codex'],
+        'allowModels': ['*gemini-2.5-flash*', '*gemini-3-flash*'],
+        'suppressIntermediateToolText': True,
+    }
+
+
 def load_router_profiles():
     try:
         st = os.stat(ROUTER_PROFILES_PATH)
@@ -10467,6 +11282,14 @@ def apply_router_profile(payload):
     if not profile_name:
         return None
     profile = load_router_profiles().get(profile_name)
+    if profile_name == 'auto':
+        stale_allow = set((profile or {}).get('allowProviders') or [])
+        stale_fallbacks = set((profile or {}).get('fallbackProviders') or [])
+        if not isinstance(profile, dict) or (
+            stale_allow <= {'ollama-cloud', 'ollama'}
+            and stale_fallbacks <= {'ollama-cloud', 'ollama'}
+        ):
+            profile = builtin_router_profile(profile_name)
     if not isinstance(profile, dict):
         return None
     if profile.get('route'):
@@ -10508,7 +11331,7 @@ def apply_router_profile(payload):
         req['fallbackProviders'] = fallbacks
     payload['requirements'] = req
     if str(payload.get('model') or '').strip() in {profile_name, f'sage-router/{profile_name}'}:
-        payload['model'] = 'sage-router/auto'
+        payload['model'] = str(profile.get('defaultModel') or 'sage-router/auto')
     return profile_name
 
 
@@ -12068,13 +12891,14 @@ def stream_openai_compat_to_client(self, provider, model, payload, request_id, t
             if value:
                 self.send_header(key, str(value))
         self.end_headers()
-        if debug_mode and not payload.get('tools') and payload.get('response_format', {}).get('type') != 'json_object':
+        prefix_text = streaming_debug_prefix(provider.name, model, request_id) if debug_mode and not payload.get('tools') and payload.get('response_format', {}).get('type') != 'json_object' else ''
+        if prefix_text:
             debug_chunk = json.dumps({
                 'id': f'chatcmpl-{int(time.time())}',
                 'object': 'chat.completion.chunk',
                 'created': int(time.time()),
                 'model': display_model_id(provider.name, model),
-                'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': f'[sage-router {display_model_id(provider.name, model)}]\n'}, 'finish_reason': None}],
+                'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': prefix_text}, 'finish_reason': None}],
             })
             self.wfile.write(f'data: {debug_chunk}\n\n'.encode())
             self.wfile.flush()
@@ -12109,8 +12933,9 @@ def stream_ollama_to_client(self, provider, model, payload, request_id, thinking
             if value:
                 self.send_header(key, str(value))
         self.end_headers()
-        if debug_mode and not payload.get('tools') and payload.get('response_format', {}).get('type') != 'json_object':
-            debug_chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': int(time.time()), 'model': router_model, 'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': f'[sage-router {display_model_id(provider.name, model)}]\n'}, 'finish_reason': None}]})
+        prefix_text = streaming_debug_prefix(provider.name, model, request_id) if debug_mode and not payload.get('tools') and payload.get('response_format', {}).get('type') != 'json_object' else ''
+        if prefix_text:
+            debug_chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': int(time.time()), 'model': router_model, 'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': prefix_text}, 'finish_reason': None}]})
             self.wfile.write(f'data: {debug_chunk}\n\n'.encode())
             self.wfile.flush()
             sent_role = True
@@ -12216,11 +13041,12 @@ def stream_google_to_client(self, provider, model, payload, request_id, thinking
                 self.send_header(key, str(value))
         self.end_headers()
         
-        if debug_mode:
+        prefix_text = streaming_debug_prefix(provider.name, model, request_id) if debug_mode else ''
+        if prefix_text:
             debug_chunk = json.dumps({
                 'id': chat_id, 'object': 'chat.completion.chunk', 'created': int(time.time()),
                 'model': router_model,
-                'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': f'[sage-router {display_model_id(provider.name, model)}]\n'}, 'finish_reason': None}],
+                'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': prefix_text}, 'finish_reason': None}],
             })
             self.wfile.write(f'data: {debug_chunk}\n\n'.encode())
             self.wfile.flush()
@@ -13136,6 +13962,7 @@ class Handler(BaseHTTPRequestHandler):
                 "imageCapable": image_capable_models_summary(),
                 "audioCapable": audio_capable_models_summary(),
                 "videoCapable": video_capable_models_summary(),
+                "modelModalities": model_modalities_shared_status(),
                 "lastRoute": LAST_ROUTE_DEBUG,
                 "blocks": {key: {"until": info["until"], "reason": info["reason"]} for key, info in TEMP_MODEL_BLOCKS.items()},
             })
@@ -13151,7 +13978,7 @@ class Handler(BaseHTTPRequestHandler):
             if not require_operator_request(self):
                 return
             _persist_model_modalities(force=True)
-            self.write_json(200, {'modelModalities': model_modalities_summary(), 'path': APP_MODEL_MODALITIES})
+            self.write_json(200, {'modelModalities': model_modalities_summary(force=True), 'path': APP_MODEL_MODALITIES, 'shared': model_modalities_shared_status()})
         elif request_path == '/dashboard':
             if not require_operator_request(self):
                 return
@@ -13224,12 +14051,14 @@ class Handler(BaseHTTPRequestHandler):
             status = (qs.get('status') or [''])[0]
             limit = (qs.get('limit') or ['50'])[0]
             rows = operator_customer_rows(query=query, status=status, limit=limit)
+            customers = [operator_customer_summary(row, include_audit=False) for row in rows]
             self.write_json(200, {
-                'customers': [operator_customer_summary(row, include_audit=False) for row in rows],
+                'customers': customers,
                 'count': len(rows),
                 'limit': max(1, min(int(limit or 50) if str(limit or '').isdigit() else 50, 100)),
                 'query': query,
                 'status': status,
+                **operator_customer_listing_summary(customers),
                 'privacy': {
                     'containsRawApiKeys': False,
                     'containsApiKeyHashes': False,
@@ -13502,6 +14331,17 @@ class Handler(BaseHTTPRequestHandler):
                 logger.exception('Model modality reset failed')
                 self.write_json(500, {'error': 'model_modality_reset_failed', 'detail': str(e)})
             return
+        if request_path == '/admin/customers/hydrate-auth-users':
+            if not require_operator_request(self):
+                return
+            try:
+                payload = read_json_body(self)
+                limit = max(1, min(int(payload.get('limit') or 1000), 5000))
+                self.write_json(200, hydrate_auth_signups_to_customers(limit=limit))
+            except Exception as e:
+                logger.exception('Auth signup customer hydration failed')
+                self.write_json(500, {'error': 'auth_signup_customer_hydration_failed', 'detail': str(e)})
+            return
         if request_path == '/api/restart':
             if not require_operator_request(self):
                 return
@@ -13623,8 +14463,6 @@ class Handler(BaseHTTPRequestHandler):
             user, customer = require_user_customer(self)
             if not customer:
                 return
-            if not require_verified_account_user(self, user):
-                return
             payload = read_json_body(self)
             try:
                 raw_key, row = create_api_key_for_customer(customer, payload.get('name') or 'Default')
@@ -13639,7 +14477,11 @@ class Handler(BaseHTTPRequestHandler):
                     })
                     return
                 raise
-            self.write_json(201, {'api_key': public_api_key(row, customer), 'key': raw_key})
+            self.write_json(201, {
+                'api_key': public_api_key(row, customer),
+                'key': raw_key,
+                'emailVerification': user_email_verification_state(user),
+            })
             return
         if request_path.startswith('/account/api-keys/') and request_path.endswith('/revoke'):
             if not require_trusted_browser_origin(self):

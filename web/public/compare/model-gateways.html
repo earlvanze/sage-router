@@ -71,7 +71,7 @@
         <h1>Sage Router model gateway</h1>
         <p class="lead">Hosted model gateways are useful when you want one marketplace-style API. Sage Router is built for teams and agents that want one endpoint too, but with local-first control, BYOK routing, private provider credentials, Ollama support, health-aware fallback, and an optional hosted account layer.</p>
         <div class="actions">
-          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Create hosted API key</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key">Create hosted API key</a>
           <a class="button secondary" href="/docs/gateway-migration">Migration guide</a>
           <a class="button secondary" href="/fusion">Fusion compatibility</a>
           <a class="button secondary" href="/pricing">Compare plans</a>
@@ -82,11 +82,11 @@
           <a class="button secondary" href="/managed-access?intent=max-implementation">Max implementation review</a>
         </div>
         <form class="emailStart" id="gateway-compare-email-form">
-          <label for="gateway-compare-email">Get a Pro key setup link</label>
+          <label for="gateway-compare-email">Get an API key setup link</label>
           <button id="gateway-compare-github-pro" class="button primary oauthButton" type="button">Continue with GitHub for Pro</button>
           <input id="gateway-compare-email" type="email" name="email" autocomplete="email" placeholder="you@company.com" required />
-          <button class="button primary" type="submit">Email me the Pro key link</button>
-          <p class="emailStartStatus" id="gateway-compare-email-status" role="status">No provider key required to create your Sage Router account.</p>
+          <button class="button primary" type="submit">Email API key setup link</button>
+          <p class="emailStartStatus" id="gateway-compare-email-status" role="status">No provider key or credit card required until your generated sk_sage key exists.</p>
         </form>
         <p class="note">Compliance boundary: Sage Router routes access customers are authorized to use. The hosted service is account, billing, routing, telemetry, and reliability infrastructure, not a promise to bypass provider terms.</p>
         <p class="note">Evaluating OpenRouter specifically? Read the focused <a href="/compare/openrouter">Sage Router vs OpenRouter</a> comparison for marketplace API vs local-first routing tradeoffs.</p>
@@ -149,7 +149,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
             <strong>Copy setup first.</strong>
             <span class="muted">Paste the bundle into your current OpenAI-compatible client, then replace the placeholder with your generated <code>sk_sage_*</code> key.</span>
             <button id="gateway-copy-migration" class="button primary" type="button">Copy 60-second gateway setup</button>
-            <a id="gateway-copy-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout" hidden>Create Pro key next</a>
+            <a id="gateway-copy-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key" hidden>Create API key next</a>
             <span id="gateway-copy-status" role="status" aria-live="polite"></span>
           </div>
         </div>
@@ -190,7 +190,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
   <script>
     const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
-    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=checkout';
+    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=create_key';
 
     function loadSupabaseClient() {
       return new Promise((resolve, reject) => {
@@ -256,7 +256,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
     function gatewayMigrationBundleText() {
       return `# Sage Router 60-second gateway setup
 # 1. Create or paste your generated key from:
-# https://app.sagerouter.dev/account.html?plan=pro&start=checkout
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key
 # 2. Paste this into your current OpenAI-compatible client environment:
 
 export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
@@ -306,7 +306,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
           state: 'gateway-migration-copy',
           snippet: 'gateway-compare-migration-bundle'
         });
-        if (status) status.textContent = 'Copied. Create your key next; no provider key required.';
+        if (status) status.textContent = 'Copied. Create your API key next; no provider key or credit card required yet.';
         document.getElementById('gateway-copy-next-account')?.removeAttribute('hidden');
       } catch {
         if (status) status.textContent = 'Copy failed. Open the migration guide for manual setup.';
@@ -328,7 +328,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
       trackGatewayComparisonEvent('gateway_compare_magic_link_requested', {
         plan: 'pro',
         target: ACCOUNT_PAGE_URL,
-        button: 'Email me the Pro key link',
+        button: 'Email API key setup link',
         state: 'email-start'
       });
       try {
@@ -350,15 +350,15 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
         trackGatewayComparisonEvent('gateway_compare_magic_link_sent', {
           plan: 'pro',
           target: ACCOUNT_PAGE_URL,
-          button: 'Email me the Pro key link',
+          button: 'Email API key setup link',
           state: 'email-start'
         });
-        status.textContent = 'Check your email for a Pro setup link. It opens account setup with the Pro plan selected.';
+        status.textContent = 'Check your email for the API key setup link. It opens account setup with the Pro plan selected.';
       } catch (error) {
         trackGatewayComparisonEvent('gateway_compare_magic_link_failed', {
           plan: 'pro',
           target: ACCOUNT_PAGE_URL,
-          button: 'Email me the Pro key link',
+          button: 'Email API key setup link',
           state: 'email-start'
         });
         status.textContent = 'Email setup is unavailable right now. Opening account setup instead...';
@@ -412,7 +412,8 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
       const button = link.textContent.trim().slice(0, 60);
       const planMatch = href.match(/\/account\.html\?plan=(lite|pro|max)\b/);
       if (planMatch) {
-        link.addEventListener('click', () => trackGatewayComparisonEvent('gateway_compare_checkout_clicked', {
+        const eventName = href.includes('start=create_key') ? 'gateway_compare_key_activation_clicked' : 'gateway_compare_checkout_clicked';
+        link.addEventListener('click', () => trackGatewayComparisonEvent(eventName, {
           plan: planMatch[1],
           target: href,
           button

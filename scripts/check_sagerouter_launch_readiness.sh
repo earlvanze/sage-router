@@ -49,6 +49,36 @@ http_code_follow() {
   curl -sSL -o /tmp/sage-router-readiness-body -w '%{http_code}' "$url" "$@"
 }
 
+python_http_code() {
+  local url="$1"
+  local user_agent="${2:-}"
+  URL="$url" USER_AGENT="$user_agent" python3 - <<'PY'
+import os
+import urllib.error
+import urllib.request
+
+url = os.environ.get("URL", "")
+user_agent = os.environ.get("USER_AGENT", "")
+headers = {"accept": "application/json"}
+if user_agent:
+    headers["user-agent"] = user_agent
+req = urllib.request.Request(url, headers=headers)
+try:
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        body = resp.read(4096).decode("utf-8", errors="replace")
+        code = resp.status
+except urllib.error.HTTPError as exc:
+    body = exc.read(4096).decode("utf-8", errors="replace")
+    code = exc.code
+except Exception as exc:
+    body = str(exc)
+    code = 0
+with open("/tmp/sage-router-readiness-body", "w", encoding="utf-8") as handle:
+    handle.write(body)
+print(code)
+PY
+}
+
 require_jq() {
   if ! command -v jq >/dev/null 2>&1; then
     fail "jq is required"
@@ -176,7 +206,7 @@ PY
 check_edge_health() {
   local body
   body="$(curl -fsS "${API_BASE%/}/edge/health")"
-  local status auth_mode selected health_urls_redacted rate_limit_enabled auth_attempt_rate_limit_enabled auth_attempt_rate_limit quota_enabled api_key_auth_cache api_key_auth_cache_zero cors_wildcard_blocked cors_explicit_origin_required cors_allowed_origins_count failover_ok
+  local status auth_mode selected health_urls_redacted rate_limit_enabled auth_attempt_rate_limit_enabled auth_attempt_rate_limit quota_enabled api_key_auth_cache api_key_auth_cache_zero cors_wildcard_blocked cors_explicit_origin_required cors_allowed_origins_count failover_ok model_modalities_shared model_modalities_rpc
   status="$(printf '%s' "$body" | jq -r '.status // empty')"
   auth_mode="$(printf '%s' "$body" | jq -r '.authMode // empty')"
   selected="$(printf '%s' "$body" | jq -r '.selected // empty')"
@@ -199,10 +229,12 @@ check_edge_health() {
     ((.failover.retryStatuses // []) | index(502) and index(503) and index(504)) and
     ((.failover // {}) | .retryHeader == "X-Sage-Router-Retry-Count")
   ')"
-  if [[ "$status" == "ok" && "$auth_mode" == "supabase" && -n "$selected" && "$health_urls_redacted" == "true" && "$rate_limit_enabled" == "true" && "$auth_attempt_rate_limit_enabled" == "true" && "$auth_attempt_rate_limit" -gt 0 && "$quota_enabled" == "true" && "$api_key_auth_cache_zero" == "true" && "$cors_wildcard_blocked" == "true" && "$cors_explicit_origin_required" == "true" && "$cors_allowed_origins_count" -gt 0 && "$failover_ok" == "true" ]]; then
-    pass "edge healthy with supabase auth, redacted health snapshots, rate limits, auth-attempt throttling, durable quotas, immediate generated-key revocation, non-wildcard browser CORS, and retry failover; selected ${selected}"
+  model_modalities_shared="$(printf '%s' "$body" | jq -r '.modelModalities.sharedEnabled // false')"
+  model_modalities_rpc="$(printf '%s' "$body" | jq -r '.modelModalities.rpcConfigured // false')"
+  if [[ "$status" == "ok" && "$auth_mode" == "supabase" && -n "$selected" && "$health_urls_redacted" == "true" && "$rate_limit_enabled" == "true" && "$auth_attempt_rate_limit_enabled" == "true" && "$auth_attempt_rate_limit" -gt 0 && "$quota_enabled" == "true" && "$api_key_auth_cache_zero" == "true" && "$cors_wildcard_blocked" == "true" && "$cors_explicit_origin_required" == "true" && "$cors_allowed_origins_count" -gt 0 && "$failover_ok" == "true" && "$model_modalities_shared" == "true" && "$model_modalities_rpc" == "true" ]]; then
+    pass "edge healthy with supabase auth, redacted health snapshots, rate limits, auth-attempt throttling, durable quotas, immediate generated-key revocation, non-wildcard browser CORS, retry failover, and shared model modality persistence; selected ${selected}"
   else
-    fail "edge health unexpected: status=${status:-missing} authMode=${auth_mode:-missing} selected=${selected:-missing} healthUrlsRedacted=${health_urls_redacted:-missing} rateLimit=${rate_limit_enabled:-missing} authAttemptRateLimit=${auth_attempt_rate_limit_enabled:-missing}/${auth_attempt_rate_limit:-missing} quota=${quota_enabled:-missing} apiKeyAuthCache=${api_key_auth_cache:-missing} corsWildcardBlocked=${cors_wildcard_blocked:-missing} corsExplicitOrigin=${cors_explicit_origin_required:-missing} corsAllowedOrigins=${cors_allowed_origins_count:-missing} failover=${failover_ok:-missing}"
+    fail "edge health unexpected: status=${status:-missing} authMode=${auth_mode:-missing} selected=${selected:-missing} healthUrlsRedacted=${health_urls_redacted:-missing} rateLimit=${rate_limit_enabled:-missing} authAttemptRateLimit=${auth_attempt_rate_limit_enabled:-missing}/${auth_attempt_rate_limit:-missing} quota=${quota_enabled:-missing} apiKeyAuthCache=${api_key_auth_cache:-missing} corsWildcardBlocked=${cors_wildcard_blocked:-missing} corsExplicitOrigin=${cors_explicit_origin_required:-missing} corsAllowedOrigins=${cors_allowed_origins_count:-missing} failover=${failover_ok:-missing} modelModalities=${model_modalities_shared:-missing}/${model_modalities_rpc:-missing}"
   fi
 }
 
@@ -255,6 +287,28 @@ check_public_auth_gate() {
     pass "anonymous model and analytics APIs are blocked with hosted onboarding guidance"
   else
     fail "anonymous auth gate incomplete: /v1/models=${code} error=${error:-missing} accountUrl=${account_url:-missing} pricingUrl=${pricing_url:-missing} apiKeyPrefix=${api_key_prefix:-missing} /analytics=${analytics_code} /analytics/funnel=${funnel_code} /account/analytics=${account_analytics_code}, expected guided 401"
+  fi
+}
+
+check_api_client_user_agent_gate() {
+  local sdk_code raw_python_code raw_error raw_error_code
+  sdk_code="$(python_http_code "${API_BASE%/}/v1/models" "OpenAI/Python 1.0.0")"
+  rm -f /tmp/sage-router-readiness-body
+  raw_python_code="$(python_http_code "${API_BASE%/}/v1/models")"
+  raw_error="$(jq -r '.error_name // .title // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  raw_error_code="$(jq -r '.error_code // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  rm -f /tmp/sage-router-readiness-body
+  if [[ "$sdk_code" == "401" ]]; then
+    pass "OpenAI/Python-style API clients reach the edge auth gate"
+  else
+    fail "OpenAI/Python-style API client probe failed before guided auth gate: HTTP ${sdk_code}"
+  fi
+  if [[ "$raw_python_code" == "403" && "$raw_error_code" == "1010" ]]; then
+    warn "Cloudflare Browser Integrity Check blocks Python urllib's default signature; raw HTTP clients should send a normal SDK User-Agent or Cloudflare zone security should skip Browser Integrity Check for api.sagerouter.dev"
+  elif [[ "$raw_python_code" == "401" ]]; then
+    pass "raw Python urllib-style API clients reach the edge auth gate"
+  else
+    warn "raw Python urllib-style API client probe returned HTTP ${raw_python_code} (${raw_error:-no structured error})"
   fi
 }
 
@@ -661,6 +715,12 @@ check_hosted_onboarding_pages() {
   if [[ "$login_code" == "200" ]] && ! grep -q "Login · Sage Router" /tmp/sage-router-readiness-body; then
     login_code="200:unexpected-body"
   fi
+  if [[ "$login_code" == "200" ]] && ! grep -q "Finish setup key" /tmp/sage-router-readiness-body; then
+    login_code="200:missing-login-key-recovery"
+  fi
+  if [[ "$login_code" == "200" ]] && ! grep -q "No provider key or checkout is required until your" /tmp/sage-router-readiness-body; then
+    login_code="200:missing-login-key-recovery-copy"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   account_code="$(http_code_follow "${APP_BASE%/}/account.html")"
@@ -673,8 +733,8 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "Pro activation path selected" /tmp/sage-router-readiness-body; then
     account_code="200:missing-selected-plan-intent"
   fi
-  if [[ "$account_code" == "200" ]] && ! grep -q "No provider key is required to create an account" /tmp/sage-router-readiness-body; then
-    account_code="200:missing-no-provider-key-signup-copy"
+  if [[ "$account_code" == "200" ]] && ! grep -q "No provider key or credit card is required until your generated" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-no-provider-key-or-card-signup-copy"
   fi
   if [[ "$account_code" == "200" ]] && ! grep -q "key first, then complete checkout" /tmp/sage-router-readiness-body; then
     account_code="200:missing-key-first-account-copy"
@@ -691,7 +751,7 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "Continue with GitHub" /tmp/sage-router-readiness-body; then
     account_code="200:missing-github-signup-shortcut"
   fi
-  if [[ "$account_code" == "200" ]] && ! grep -q "Email me the Pro setup link" /tmp/sage-router-readiness-body; then
+  if [[ "$account_code" == "200" ]] && ! grep -q "Email API key setup link" /tmp/sage-router-readiness-body; then
     account_code="200:missing-magic-link-primary-cta"
   fi
   if [[ "$account_code" == "200" ]] && ! grep -q "preauth-setup-code" /tmp/sage-router-readiness-body; then
@@ -846,8 +906,20 @@ check_hosted_onboarding_pages() {
   if [[ "$account_js_code" == "200" ]] && ! grep -q "accountPageUrlWithPlan" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-plan-preserving-account-redirect"
   fi
-  if [[ "$account_js_code" == "200" ]] && ! grep -q "create a generated sk_sage key first and complete checkout" /tmp/sage-router-readiness-body; then
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "inferredStartActionFromReferrer" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-trusted-referrer-activation"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "create the key first and complete checkout" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-key-first-intent-copy"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "Finish your Sage Router setup key" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-key-recovery-title"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "This recovery link is set to create the generated sk_sage setup key first" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-key-recovery-copy"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "Continue with .* to create setup key" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-key-recovery-oauth-label"
   fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-app-account-url"
@@ -857,6 +929,15 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "account_intent_create_key_clicked" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-account-intent-key-create-funnel"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "account_activation_nudge_shown" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-account-activation-nudge"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "account_auto_oauth_started" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-account-auto-oauth"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "Create the key before checkout" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-account-activation-nudge-copy"
   fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "AUTO_KEY_ATTEMPT_STORAGE_KEY" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-auto-key-intent-guard"
@@ -985,12 +1066,14 @@ check_funnel_event_endpoint() {
   primary_table="$(jq -r '.primaryTable // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   privacy_ok="$(jq -r '(.privacy.promptsStored == false) and (.privacy.messageBodiesStored == false) and (.privacy.containsApiKeys == false)' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   allowed_events="$(jq -r '
+    ((.allowedEvents // []) | index("calculator_key_activation_clicked") != null) and
     ((.allowedEvents // []) | index("calculator_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("calculator_checkout_unavailable") != null) and
     ((.allowedEvents // []) | index("calculator_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("calculator_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("pricing_setup_next_clicked") != null) and
     ((.allowedEvents // []) | index("fusion_viewed") != null) and
+    ((.allowedEvents // []) | index("fusion_key_activation_clicked") != null) and
     ((.allowedEvents // []) | index("fusion_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("fusion_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("fusion_oauth_clicked") != null) and
@@ -1001,9 +1084,22 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("integrations_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("integrations_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_viewed") != null) and
+    ((.allowedEvents // []) | index("content_article_inline_offer_viewed") != null) and
+    ((.allowedEvents // []) | index("content_article_activation_dock_viewed") != null) and
     ((.allowedEvents // []) | index("content_article_quickstart_clicked") != null) and
+    ((.allowedEvents // []) | index("content_article_key_activation_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("content_article_oauth_clicked") != null) and
+    ((.allowedEvents // []) | index("content_article_oauth_failed") != null) and
+    ((.allowedEvents // []) | index("managed_access_quick_request_submitted") != null) and
+    ((.allowedEvents // []) | index("managed_access_quick_request_received") != null) and
+    ((.allowedEvents // []) | index("managed_access_quick_request_failed") != null) and
+    ((.allowedEvents // []) | index("content_article_ollama_clicked") != null) and
+    ((.allowedEvents // []) | index("content_article_pricing_clicked") != null) and
+    ((.allowedEvents // []) | index("content_article_status_clicked") != null) and
+    ((.allowedEvents // []) | index("content_article_launch_plan_clicked") != null) and
     ((.allowedEvents // []) | index("codex_docs_viewed") != null) and
+    ((.allowedEvents // []) | index("codex_docs_key_activation_clicked") != null) and
     ((.allowedEvents // []) | index("quickstart_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("quickstart_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("quickstart_setup_next_clicked") != null) and
@@ -1015,19 +1111,38 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("api_troubleshooting_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("api_troubleshooting_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("launch_plan_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("launch_plan_key_activation_clicked") != null) and
     ((.allowedEvents // []) | index("launch_plan_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("landing_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("landing_oauth_clicked") != null) and
+    ((.allowedEvents // []) | index("landing_key_first_direct_clicked") != null) and
+    ((.allowedEvents // []) | index("landing_activation_nudge_shown") != null) and
+    ((.allowedEvents // []) | index("landing_activation_nudge_clicked") != null) and
+    ((.allowedEvents // []) | index("landing_activation_nudge_dismissed") != null) and
+    ((.allowedEvents // []) | index("landing_post_copy_prompt_shown") != null) and
     ((.allowedEvents // []) | index("landing_setup_next_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
+    ((.allowedEvents // []) | index("gateway_compare_key_activation_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("gateway_compare_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("model_catalog_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("model_catalog_oauth_clicked") != null) and
+    ((.allowedEvents // []) | index("model_catalog_key_activation_clicked") != null) and
     ((.allowedEvents // []) | index("model_catalog_setup_next_clicked") != null) and
     ((.allowedEvents // []) | index("account_viewed") != null) and
+    ((.allowedEvents // []) | index("account_auto_oauth_started") != null) and
+    ((.allowedEvents // []) | index("account_oauth_failed") != null) and
+    ((.allowedEvents // []) | index("account_login_failed") != null) and
+    ((.allowedEvents // []) | index("account_signup_failed") != null) and
+    ((.allowedEvents // []) | index("account_magic_link_failed") != null) and
+    ((.allowedEvents // []) | index("login_key_recovery_shown") != null) and
+    ((.allowedEvents // []) | index("login_key_recovery_clicked") != null) and
+    ((.allowedEvents // []) | index("account_activation_nudge_shown") != null) and
+    ((.allowedEvents // []) | index("account_activation_nudge_clicked") != null) and
+    ((.allowedEvents // []) | index("account_activation_nudge_dismissed") != null) and
     ((.allowedEvents // []) | index("account_intent_primary_clicked") != null) and
     ((.allowedEvents // []) | index("account_preauth_setup_next_clicked") != null) and
+    ((.allowedEvents // []) | index("account_api_key_create_failed") != null) and
     ((.allowedEvents // []) | index("account_checkout_unavailable") != null) and
     ((.allowedEvents // []) | index("account_email_verification_resent") != null) and
     ((.allowedEvents // []) | index("account_snippet_copied") != null) and
@@ -1054,8 +1169,8 @@ check_marketing_email_activation_helper() {
   if [[ "$code" == "200" ]] && ! grep -q "Continue with GitHub for Pro" /tmp/sage-router-readiness-body; then
     code="200:missing-github-pro-copy"
   fi
-  if [[ "$code" == "200" ]] && ! grep -q "start=checkout" /tmp/sage-router-readiness-body; then
-    code="200:missing-saved-checkout-intent"
+  if [[ "$code" == "200" ]] && ! grep -q "start=create_key" /tmp/sage-router-readiness-body; then
+    code="200:missing-key-first-intent"
   fi
   if [[ "$code" == "200" ]] && ! grep -q "signInWithOAuth" /tmp/sage-router-readiness-body; then
     code="200:missing-github-oauth-login"
@@ -1091,23 +1206,32 @@ check_marketing_homepage_activation() {
   else
     : > "$bundle_body"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "Start Pro activation" "$homepage_body" "$bundle_body"; then
+  if [[ "$page_code" == "200" ]] && ! grep -q "Start API key activation" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-pro-activation-cta"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html?plan=pro" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-pro-account-link"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "start=checkout" "$homepage_body" "$bundle_body"; then
-    page_code="200:missing-saved-checkout-intent"
+  if [[ "$page_code" == "200" ]] && ! grep -q "start=create_key" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-key-first-intent"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "landing_account_clicked" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-account-funnel-event"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "landing_key_first_direct_clicked" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-direct-key-funnel-event"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Continue with GitHub for Pro" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-github-pro-activation"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "landing_oauth_clicked" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-landing-oauth-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "landing_activation_nudge_shown" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-activation-nudge-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Ready to try the live edge" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-activation-nudge-copy"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "hero-email-form" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-email-start-form"
@@ -1130,13 +1254,19 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "landing-hero-setup-bundle" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-hero-setup-copy-snippet"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "Create Pro key next" "$homepage_body" "$bundle_body"; then
+  if [[ "$page_code" == "200" ]] && ! grep -q "Create API key next" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-post-copy-account-cta"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Setup copied. Create your key now." "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-post-copy-panel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "landing_post_copy_prompt_shown" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-post-copy-prompt-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "stickyActivationBar" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-sticky-activation"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "Sticky create Pro key" "$homepage_body" "$bundle_body"; then
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sticky create API key" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-sticky-account-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" "$homepage_body" "$bundle_body"; then
@@ -1251,7 +1381,7 @@ check_marketing_comparison_page() {
 }
 
 check_marketing_local_first_article_page() {
-  local page_code sitemap_code llms_code
+  local page_code dock_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/local-first-routing-for-ai-agents")"
   if [[ "$page_code" == "200" ]] && ! grep -q "Local-first routing for AI agents" /tmp/sage-router-readiness-body; then
     page_code="200:unexpected-body"
@@ -1259,8 +1389,41 @@ check_marketing_local_first_article_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then
     page_code="200:missing-funnel-event"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_key_activation_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-article-key-activation-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "start=create_key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-article-generated-key-intent"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'id="article-copy-setup"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-article-setup-copy-button"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "content_article_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-article-setup-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "local-first-hero-setup" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-article-setup-copy-snippet-id"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Hosted Sage Router monetizes routing convenience" /tmp/sage-router-readiness-body; then
     page_code="200:missing-commercial-boundary"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  dock_code="$(http_code_follow "${MARKETING_BASE%/}/article-activation-dock.js")"
+  if [[ "$dock_code" == "200" ]] && ! grep -q "article-activation-email-form" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-email-form"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "content_article_magic_link_sent" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-magic-link-funnel"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "content_article_key_activation_clicked" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-key-activation-funnel"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "upgradePlainAccountLinks" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-account-link-upgrade"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "signInWithOtp" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-magic-link-send"
   fi
   rm -f /tmp/sage-router-readiness-body
 
@@ -1276,10 +1439,10 @@ check_marketing_local_first_article_page() {
   fi
   rm -f /tmp/sage-router-readiness-body
 
-  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
-    pass "marketing local-first routing article is live in sitemap and LLM discovery"
+  if [[ "$page_code" == "200" && "$dock_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing local-first routing article and shared article email activation are live in sitemap and LLM discovery"
   else
-    fail "marketing local-first routing article incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+    fail "marketing local-first routing article incomplete: page=${page_code} dock=${dock_code} sitemap=${sitemap_code} llms=${llms_code}"
   fi
 }
 
@@ -2687,7 +2850,7 @@ check_marketing_pricing_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router Hosted Pricing" /tmp/sage-router-readiness-body; then
     page_code="200:unexpected-body"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "Start Pro activation" /tmp/sage-router-readiness-body; then
+  if [[ "$page_code" == "200" ]] && ! grep -q "Start API key activation" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pro-activation-cta"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html?plan=pro" /tmp/sage-router-readiness-body; then
@@ -2695,6 +2858,12 @@ check_marketing_pricing_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "start=checkout" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-saved-checkout-intent"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "start=create_key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-generated-key-intent"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "pricing_key_activation_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-key-activation-funnel-event"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing_checkout_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-checkout-funnel-event"
@@ -2705,7 +2874,7 @@ check_marketing_pricing_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "Create the key before checkout" /tmp/sage-router-readiness-body; then
     page_code="200:missing-key-first-pricing-copy"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "Create Pro key first" /tmp/sage-router-readiness-body; then
+  if [[ "$page_code" == "200" ]] && ! grep -q "Create API key first" /tmp/sage-router-readiness-body; then
     page_code="200:missing-key-first-pricing-cta"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing-github-pro" /tmp/sage-router-readiness-body; then
@@ -2978,6 +3147,12 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "/api/waitlist" /tmp/sage-router-readiness-body; then
     page_code="200:missing-waitlist-submit"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-quick-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quick-review-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_request_received" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quick-review-funnel"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Do not submit prompts" /tmp/sage-router-readiness-body; then
     page_code="200:missing-no-secrets-boundary"
   fi
@@ -3044,7 +3219,7 @@ check_marketing_model_catalog_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "model_catalog_setup_next_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-model-catalog-setup-next-funnel"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "Create Pro key next" /tmp/sage-router-readiness-body; then
+  if [[ "$page_code" == "200" ]] && ! grep -q "Create API key next" /tmp/sage-router-readiness-body; then
     page_code="200:missing-model-catalog-setup-next-copy"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
@@ -3089,8 +3264,8 @@ check_marketing_quickstart_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html?plan=pro" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pro-account-link"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "start=checkout" /tmp/sage-router-readiness-body; then
-    page_code="200:missing-quickstart-saved-checkout-intent"
+  if [[ "$page_code" == "200" ]] && ! grep -q "start=create_key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-generated-key-intent"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_account_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-account-funnel-event"
@@ -3284,8 +3459,8 @@ check_marketing_codex_docs_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "codex_docs_snippet_copied" /tmp/sage-router-readiness-body; then
     page_code="200:missing-codex-snippet-funnel-event"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "codex_docs_account_clicked" /tmp/sage-router-readiness-body; then
-    page_code="200:missing-codex-account-funnel-event"
+  if [[ "$page_code" == "200" ]] && ! grep -q "codex_docs_key_activation_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-codex-key-activation-funnel-event"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "codex-docs-email-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-codex-email-form"
@@ -3428,8 +3603,11 @@ check_model_routing_calculator() {
   if [[ "$page_code" == "200" ]] && ! grep -q "Workflow text and prompt bodies stay in your browser." /tmp/sage-router-readiness-body; then
     page_code="200:missing-private-workflow-copy"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "calculator_checkout_unavailable" /tmp/sage-router-readiness-body; then
-    page_code="200:missing-billing-readiness-fallback"
+  if [[ "$page_code" == "200" ]] && ! grep -q "calculator_key_activation_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-key-activation-event"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "start=create_key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-key-first-calculator-handoff"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "calculator-email-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-calculator-email-form"
@@ -3701,7 +3879,7 @@ check_quota_schema() {
     warn "Supabase service role key not set; skipped quota, funnel-event, and operator-audit schema probe"
     return
   fi
-  local table_code rpc_code funnel_table_code audit_table_code
+  local table_code rpc_code funnel_table_code audit_table_code modalities_table_code modalities_rpc_code
   table_code="$(http_code "${SUPABASE_URL%/}/rest/v1/sage_router_usage_counters?select=id&limit=1" \
     -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
     -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}")"
@@ -3714,11 +3892,21 @@ check_quota_schema() {
     -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
     -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}")"
   rm -f /tmp/sage-router-readiness-body
+  modalities_table_code="$(http_code "${SUPABASE_URL%/}/rest/v1/sage_router_model_modalities?select=key&limit=1" \
+    -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}")"
+  rm -f /tmp/sage-router-readiness-body
   rpc_code="$(http_code "${SUPABASE_URL%/}/rest/v1/rpc/sage_router_increment_usage" \
     -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
     -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
     -H "Content-Type: application/json" \
     --data '{"p_customer_id":"readiness-probe","p_user_id":"readiness-probe","p_plan":"readiness","p_period":"2099-01","p_increment":1,"p_quota":1}')"
+  rm -f /tmp/sage-router-readiness-body
+  modalities_rpc_code="$(http_code "${SUPABASE_URL%/}/rest/v1/rpc/sage_router_record_model_modalities" \
+    -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+    -H "Content-Type: application/json" \
+    --data '{"provider_name":"","model_name":"","modalities_in":[],"seen_at_epoch_ms":0}')"
   rm -f /tmp/sage-router-readiness-body
   if [[ "$table_code" == "200" && ( "$rpc_code" == "200" || "$rpc_code" == "409" ) ]]; then
     pass "Supabase quota table and RPC are installed"
@@ -3735,12 +3923,18 @@ check_quota_schema() {
   else
     warn "Supabase operator audit schema not ready: table HTTP ${audit_table_code}; apply supabase/migrations/20260620092000_operator_audit_events.sql before relying on durable operator audit events"
   fi
+  if [[ "$modalities_table_code" == "200" && ( "$modalities_rpc_code" == "200" || "$modalities_rpc_code" == "204" ) ]]; then
+    pass "Supabase model modality table and RPC are installed"
+  else
+    warn "Supabase model modality schema not ready: table HTTP ${modalities_table_code}, RPC HTTP ${modalities_rpc_code}; apply supabase/migrations/20260626003000_model_modalities.sql before relying on CDN-wide learned modalities"
+  fi
 }
 
 require_jq
 check_edge_health
 check_public_edge_layer_headers
 check_public_auth_gate
+check_api_client_user_agent_gate
 check_public_api_browser_boundary
 check_browser_api_cors
 check_account_mutation_origin_guard

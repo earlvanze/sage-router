@@ -15,6 +15,25 @@ create index if not exists sage_router_model_modalities_provider_idx
 create index if not exists sage_router_model_modalities_last_seen_idx
   on public.sage_router_model_modalities(last_seen_epoch_ms desc);
 
+alter table public.sage_router_model_modalities enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'sage_router_model_modalities'
+      and policyname = 'service role manages sage router model modalities'
+  ) then
+    create policy "service role manages sage router model modalities"
+      on public.sage_router_model_modalities
+      for all
+      using (auth.role() = 'service_role')
+      with check (auth.role() = 'service_role');
+  end if;
+end $$;
+
 create or replace function public.sage_router_record_model_modalities(
   provider_name text,
   model_name text,
@@ -76,3 +95,8 @@ begin
     updated_at_epoch_ms = excluded.updated_at_epoch_ms;
 end;
 $$;
+
+revoke all on function public.sage_router_record_model_modalities(text, text, text[], bigint) from public;
+revoke all on function public.sage_router_record_model_modalities(text, text, text[], bigint) from anon;
+revoke all on function public.sage_router_record_model_modalities(text, text, text[], bigint) from authenticated;
+grant execute on function public.sage_router_record_model_modalities(text, text, text[], bigint) to service_role;

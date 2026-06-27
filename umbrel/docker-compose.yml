@@ -21,7 +21,7 @@ services:
       SAGE_ROUTER_CONFIG_SOURCE: auto
       SAGE_ROUTER_API_KEY: ${APP_SAGE_ROUTER_API_KEY:-local}
       SAGE_ROUTER_DISABLED_PROVIDERS: >-
-        ollama-cloud,anthropic,dario,openrouter,nvidia-nim,darkbloom,ollama-cyber
+        ollama-cloud,anthropic,dario,openrouter,nvidia-nim,darkbloom,ollama-cyber,google,google-vertex
       SAGE_ROUTER_DISABLED_MODELS: kimi-k2-thinking
       SAGE_ROUTER_PROFILE_OVERLAYS: ""
       SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS: "300"

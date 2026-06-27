@@ -62,6 +62,8 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
         self.assertIn("enforcement.corsWildcardAllowed === false", worker)
         self.assertIn("enforcement.corsExplicitOriginRequired === true", worker)
         self.assertIn("Number(enforcement.corsAllowedOriginsCount || 0) > 0", worker)
+        self.assertIn("modelModalities.sharedEnabled === true", worker)
+        self.assertIn("modelModalities.rpcConfigured === true", worker)
         self.assertIn("failover.mode === \"lowest-latency-healthy\"", worker)
         self.assertIn("!hasRawOriginUrl(payload.upstreams || [])", worker)
 
@@ -71,6 +73,33 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
         self.assertIn('"healthPath": "/edge/health"', example)
         self.assertNotIn("run.app", example)
         self.assertNotIn('"healthPath": "/health"', example)
+
+    def test_worker_records_successful_model_modalities_to_supabase(self):
+        worker = self.read_worker()
+        self.assertIn("function recordModelModalities(env, record)", worker)
+        self.assertIn("function modalityRecordFromResponseHeaders(headers, status)", worker)
+        self.assertIn("function modalityRecordFromResponse(headers, status, requestBodyText = \"\", responseBodyText = \"\")", worker)
+        self.assertIn("function requestModalitiesFromBodyText(bodyText)", worker)
+        self.assertIn("function applyModalityHeaders(headers, record)", worker)
+        self.assertIn("function boundedStreamText(stream, maxBytes)", worker)
+        self.assertIn("response.response.clone()", worker)
+        self.assertIn("const requestLengthKnown =", worker)
+        self.assertIn("!requestLengthKnown || requestLength <= maxModalityBodyBytes", worker)
+        self.assertNotIn("if (!length || length > maxBytes", worker)
+        self.assertIn('headers.get("x-sage-router-modalities")', worker)
+        self.assertIn('headers.get("x-sage-router-provider")', worker)
+        self.assertIn('headers.get("x-sage-router-model-name")', worker)
+        self.assertIn('env.SAGE_ROUTER_SUPABASE_MODEL_MODALITIES_RPC || "sage_router_record_model_modalities"', worker)
+        self.assertIn("ctx.waitUntil(modalityRecord)", worker)
+        self.assertIn("function modelModalitiesState(env)", worker)
+        self.assertIn("modelModalities: modelModalitiesState(env)", worker)
+
+    def test_worker_example_enables_shared_modality_ledger(self):
+        example = self.read_wrangler_example()
+        self.assertIn('SAGE_ROUTER_MODEL_MODALITIES_SHARED_ENABLED = "1"', example)
+        self.assertIn("SAGE_ROUTER_SUPABASE_URL", example)
+        self.assertIn("wrangler secret put SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY", example)
+        self.assertIn("SAGE_ROUTER_SUPABASE_MODEL_MODALITIES_RPC", example)
 
 
 if __name__ == "__main__":

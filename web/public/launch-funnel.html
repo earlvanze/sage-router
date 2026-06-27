@@ -53,6 +53,11 @@
         <div class="kpi"><div id="kpi-mrr" class="value">--</div><div class="label">Estimated MRR</div></div>
       </div>
       <div class="panel" style="margin-bottom:16px">
+        <h2>Do Next</h2>
+        <p class="muted">The single highest-priority conversion action from the live funnel.</p>
+        <div id="next-best-action-dock"><div class="empty">Load the funnel to show the current operator action.</div></div>
+      </div>
+      <div class="panel" style="margin-bottom:16px">
         <h2>Operational readiness</h2>
         <p class="muted">Live edge, checkout, and managed-provider launch controls from public metadata. Customer model traffic remains API-key gated.</p>
         <div id="operational-readiness" class="grid2"></div>
@@ -62,6 +67,11 @@
         <p class="muted">Copy a no-secret founder-sales and support brief from the current aggregate funnel snapshot.</p>
         <div class="actions"><button id="copy-launch-brief" class="btn secondary" type="button">Copy launch brief</button><span id="launch-brief-status" class="status">Load the funnel to generate a brief.</span></div>
         <pre id="launch-brief" class="briefBox">Load the funnel to generate a no-secret operator brief.</pre>
+      </div>
+      <div class="panel" style="margin-bottom:16px">
+        <h2>No-key signup follow-up</h2>
+        <p class="muted">Operator-only queue for signed-up customers whose next conversion step is generated-key creation. Snippets exclude prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, and raw provider responses.</p>
+        <div id="no-key-followups"><div class="empty">Load the funnel to fetch no-key signup follow-ups.</div></div>
       </div>
       <div class="grid2">
         <div class="panel">

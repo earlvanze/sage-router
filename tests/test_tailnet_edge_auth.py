@@ -183,6 +183,12 @@ class TailnetEdgeAuthTests(unittest.TestCase):
 
         self.assertEqual(["sk_sage_test", "sk_sage_test", "sk_sage_test"], calls)
 
+    def test_model_api_retries_stale_route_404_and_405(self):
+        self.assertTrue(self.edge.should_retry_upstream_status("/v1/chat/completions", 404))
+        self.assertTrue(self.edge.should_retry_upstream_status("/v1/responses", 405))
+        self.assertTrue(self.edge.should_retry_upstream_status("/account", 503))
+        self.assertFalse(self.edge.should_retry_upstream_status("/account", 404))
+
     def test_model_api_auth_errors_include_onboarding_links(self):
         payload = self.edge.edge_error_payload("unauthorized", "/v1/models")
         headers = self.edge.edge_error_headers("unauthorized", "/v1/models")
@@ -212,6 +218,37 @@ class TailnetEdgeAuthTests(unittest.TestCase):
                 self.assertEqual("https://api.sagerouter.dev/v1", payload["openaiBaseUrl"])
                 self.assertIn('rel="account"', headers["Link"])
                 self.assertIn('rel="status"', headers["Link"])
+
+    def test_reject_json_drains_post_body_and_closes_connection(self):
+        class Handler:
+            command = "POST"
+            headers = {"Content-Length": "13"}
+            rfile = BytesIO(b'{"ok": true}\n')
+            wfile = BytesIO()
+            path = "/setup/model-modalities/update"
+            close_connection = False
+            status = None
+            sent_headers = {}
+
+            def send_response(self, status):
+                self.status = status
+
+            def send_header(self, key, value):
+                self.sent_headers[key] = value
+
+            def end_headers(self):
+                pass
+
+            _json = self.edge.EdgeHandler._json
+            _cors_headers = self.edge.EdgeHandler._cors_headers
+
+        handler = Handler()
+        self.edge.EdgeHandler._reject_json(handler, 401, {"error": "unauthorized"})
+
+        self.assertEqual(401, handler.status)
+        self.assertEqual(b"", handler.rfile.read())
+        self.assertTrue(handler.close_connection)
+        self.assertEqual("close", handler.sent_headers["Connection"])
 
     def test_edge_health_exposes_public_safe_enforcement_state(self):
         self.edge.UPSTREAMS[0].set_health(True, 12.3, "")
@@ -259,9 +296,14 @@ class TailnetEdgeAuthTests(unittest.TestCase):
             "healthyUpstreamCount": 1,
             "controlPlanePinned": False,
             "retryEnabled": True,
-            "retryStatuses": [401, 429, 502, 503, 504],
+            "retryStatuses": [401, 404, 405, 429, 502, 503, 504],
             "retryHeader": "X-Sage-Router-Retry-Count",
         }, handler.payload["failover"])
+        self.assertEqual({
+            "sharedEnabled": True,
+            "supabaseConfigured": True,
+            "rpcConfigured": True,
+        }, handler.payload["modelModalities"])
 
     def test_public_response_headers_use_redacted_upstream_id(self):
         source = EDGE_PROXY.read_text(encoding="utf-8")
@@ -459,6 +501,24 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertFalse(self.edge.should_use_control_plane("/v1/models"))
         self.assertFalse(self.edge.should_use_control_plane("/health"))
 
+    def test_generated_key_model_routes_include_control_plane_fallback(self):
+        upstream = self.edge.Upstream("http://tailnet.local:8790")
+        upstream.set_health(True, latency_ms=10)
+        control_plane = self.edge.Upstream("https://control.example.test")
+        control_plane.set_health(True, latency_ms=500)
+        old_upstreams = self.edge.UPSTREAMS
+        old_control_plane = self.edge.CONTROL_PLANE_UPSTREAM
+        try:
+            self.edge.UPSTREAMS = [upstream]
+            self.edge.CONTROL_PLANE_UPSTREAM = control_plane
+
+            candidates = self.edge.generated_api_key_upstreams("/v1/chat/completions")
+        finally:
+            self.edge.UPSTREAMS = old_upstreams
+            self.edge.CONTROL_PLANE_UPSTREAM = old_control_plane
+
+        self.assertEqual([upstream, control_plane], candidates)
+
     def test_edge_token_bypasses_supabase_for_private_admin_access(self):
         self.edge.EDGE_TOKEN = "edge-secret"
 
@@ -469,6 +529,24 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         ctx = self.edge.EdgeHandler._auth_context(Handler())
         self.assertEqual("edge_token", ctx["type"])
         self.assertFalse(ctx["preserve_authorization"])
+
+    def test_analytics_token_only_unlocks_operator_analytics(self):
+        self.edge.ANALYTICS_TOKEN = "analytics-secret"
+
+        class Handler:
+            headers = {"Authorization": "Bearer analytics-secret"}
+
+        for path in ("/analytics", "/analytics/funnel?days=30"):
+            with self.subTest(path=path):
+                Handler.path = path
+                ctx = self.edge.EdgeHandler._auth_context(Handler())
+                self.assertEqual("analytics_token", ctx["type"])
+                self.assertFalse(ctx["preserve_authorization"])
+
+        for path in ("/admin/customers", "/setup/model-modalities", "/v1/models"):
+            with self.subTest(path=path):
+                Handler.path = path
+                self.assertIsNone(self.edge.EdgeHandler._auth_context(Handler()))
 
     def test_control_plane_routes_can_use_separate_outbound_token(self):
         self.edge.BACKEND_TOKEN = "tailnet-backend"
@@ -486,6 +564,20 @@ class TailnetEdgeAuthTests(unittest.TestCase):
             "tailnet-backend",
             self.edge.outbound_bearer_token("/v1/models", {"type": "generated_key", "preserve_authorization": False}),
         )
+        control_plane = self.edge.Upstream("https://control.example.test")
+        old_control_plane = self.edge.CONTROL_PLANE_UPSTREAM
+        try:
+            self.edge.CONTROL_PLANE_UPSTREAM = control_plane
+            self.assertEqual(
+                "hosted-control-plane",
+                self.edge.outbound_bearer_token(
+                    "/v1/chat/completions",
+                    {"type": "generated_key", "preserve_authorization": False},
+                    control_plane,
+                ),
+            )
+        finally:
+            self.edge.CONTROL_PLANE_UPSTREAM = old_control_plane
         self.assertIsNone(
             self.edge.outbound_bearer_token("/account/api-keys", {"type": "supabase_user", "preserve_authorization": True})
         )
@@ -725,21 +817,27 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         calls = []
 
         class ImmediateThread:
-            def __init__(self, target, daemon=False):
+            def __init__(self, target, daemon=False, **_kwargs):
                 self.target = target
                 self.daemon = daemon
 
             def start(self):
                 self.target()
 
-        self.edge.threading.Thread = ImmediateThread
-        self.edge.supabase_post_json = lambda path, payload, timeout=6: calls.append((path, payload, timeout)) or {}
+        original_thread = self.edge.threading.Thread
+        original_supabase_post_json = self.edge.supabase_post_json
+        try:
+            self.edge.threading.Thread = ImmediateThread
+            self.edge.supabase_post_json = lambda path, payload, timeout=6: calls.append((path, payload, timeout)) or {}
 
-        self.edge.record_model_modalities_from_response_headers([
-            ("X-Sage-Router-Provider", "google"),
-            ("X-Sage-Router-Model-Name", "gemini-2.5-pro"),
-            ("X-Sage-Router-Modalities", "text,image,video"),
-        ], 200)
+            self.edge.record_model_modalities_from_response_headers([
+                ("X-Sage-Router-Provider", "google"),
+                ("X-Sage-Router-Model-Name", "gemini-2.5-pro"),
+                ("X-Sage-Router-Modalities", "text,image,video"),
+            ], 200)
+        finally:
+            self.edge.threading.Thread = original_thread
+            self.edge.supabase_post_json = original_supabase_post_json
 
         self.assertEqual(1, len(calls))
         path, payload, _timeout = calls[0]
@@ -748,10 +846,31 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertEqual("gemini-2.5-pro", payload["model_name"])
         self.assertEqual(["image", "text", "video"], payload["modalities_in"])
 
+    def test_edge_derives_model_modalities_from_body_when_headers_missing(self):
+        request_body = b'{"model":"sage-router/frontier","input":[{"role":"user","content":[{"type":"input_image","image_url":"https://example.test/a.png"}]}]}'
+        response_body = b'{"id":"resp_1","model":"openai-codex/gpt-5.4-mini","output":[]}'
+
+        record = self.edge.modality_record_from_response(
+            [("Content-Type", "application/json"), ("Content-Length", str(len(response_body)))],
+            200,
+            request_body=request_body,
+            response_body=response_body,
+        )
+
+        self.assertEqual("openai-codex", record["provider"])
+        self.assertEqual("gpt-5.4-mini", record["model"])
+        self.assertEqual(["image", "text"], record["modalities"])
+
     def test_model_modality_setup_routes_to_control_plane(self):
         self.assertTrue(self.edge.should_use_control_plane("/setup/model-modalities"))
         self.assertTrue(self.edge.should_use_control_plane("/setup/model-modalities/update"))
         self.assertFalse(self.edge.should_use_control_plane("/setup/credentials"))
+
+    def test_public_api_dashboard_routes_to_control_plane(self):
+        self.assertTrue(self.edge.should_use_control_plane("/"))
+        self.assertTrue(self.edge.should_use_control_plane("/dashboard"))
+        self.assertTrue(self.edge.should_use_control_plane("/dashboard/"))
+        self.assertFalse(self.edge.should_use_control_plane("/v1/models"))
 
 
 if __name__ == "__main__":

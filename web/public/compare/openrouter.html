@@ -61,17 +61,17 @@
         <h1>Sage Router vs OpenRouter</h1>
         <p class="lead">OpenRouter is a strong hosted model marketplace and OpenAI-compatible API. Sage Router is for agent teams that want the same one-endpoint ergonomics while keeping provider keys, local models, Tailnet routers, failover policy, and routing telemetry under their own control.</p>
         <div class="actions">
-          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Create hosted Sage Router key</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key">Create hosted Sage Router key</a>
           <a class="button secondary" href="/docs/gateway-migration">Migrate a gateway client</a>
           <a class="button secondary" href="/quickstart">Try the quickstart</a>
           <a class="button secondary" href="/model-routing-calculator">Estimate routing fit</a>
           <a class="button secondary" href="https://github.com/earlvanze/sage-router">Run locally</a>
         </div>
         <form class="emailStart" id="openrouter-email-form">
-          <label for="openrouter-email">Get a Pro key setup link</label>
+          <label for="openrouter-email">Get an API key setup link</label>
           <input id="openrouter-email" type="email" name="email" autocomplete="email" placeholder="you@company.com" required />
-          <button class="button primary" type="submit">Email me the Pro key link</button>
-          <p class="emailStartStatus" id="openrouter-email-status" role="status">No provider key required to create your Sage Router account.</p>
+          <button class="button primary" type="submit">Email API key setup link</button>
+          <p class="emailStartStatus" id="openrouter-email-status" role="status">No provider key or credit card required until your generated sk_sage key exists.</p>
         </form>
         <p class="note">Boundary: Sage Router routes only authorized provider access, customer BYOK endpoints, subscriptions, and local models. OpenRouter can be used as a BYOK-compatible provider route; it is not bundled into public Sage Router subscription resale.</p>
       </section>
@@ -118,7 +118,7 @@
           <h2>Keep the OpenAI-compatible shape; change the control plane.</h2>
           <p class="muted">Most client changes are base URL, API key, and model profile. Start with <code>sage-router/frontier</code> for general routing and use <code>sage-router/fusion</code> on Pro/Max when you need panel-plus-judge synthesis.</p>
           <div class="actions">
-            <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Start Pro</a>
+            <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key">Start API key setup</a>
             <a class="button secondary" href="/docs/gateway-migration">Read migration guide</a>
           </div>
         </div>
@@ -168,7 +168,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
   <script>
     const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
-    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=checkout';
+    const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=create_key';
 
     function loadSupabaseClient() {
       return new Promise((resolve, reject) => {
@@ -245,7 +245,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       trackGatewayComparisonEvent('gateway_compare_magic_link_requested', {
         plan: 'pro',
         target: ACCOUNT_PAGE_URL,
-        button: 'Email me the Pro key link',
+        button: 'Email API key setup link',
         state: 'email-start'
       });
       try {
@@ -267,15 +267,15 @@ curl "$OPENAI_BASE_URL/chat/completions" \
         trackGatewayComparisonEvent('gateway_compare_magic_link_sent', {
           plan: 'pro',
           target: ACCOUNT_PAGE_URL,
-          button: 'Email me the Pro key link',
+          button: 'Email API key setup link',
           state: 'email-start'
         });
-        status.textContent = 'Check your email for a Pro setup link. It opens account setup with the Pro plan selected.';
+        status.textContent = 'Check your email for the API key setup link. It opens account setup with the Pro plan selected.';
       } catch (error) {
         trackGatewayComparisonEvent('gateway_compare_magic_link_failed', {
           plan: 'pro',
           target: ACCOUNT_PAGE_URL,
-          button: 'Email me the Pro key link',
+          button: 'Email API key setup link',
           state: 'email-start'
         });
         status.textContent = 'Email setup is unavailable right now. Opening account setup instead...';
@@ -291,7 +291,8 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       const button = link.textContent.trim().slice(0, 60);
       const planMatch = href.match(/\/account\.html\?plan=(lite|pro|max)\b/);
       if (planMatch) {
-        link.addEventListener('click', () => trackGatewayComparisonEvent('gateway_compare_checkout_clicked', {
+        const eventName = href.includes('start=create_key') ? 'gateway_compare_key_activation_clicked' : 'gateway_compare_checkout_clicked';
+        link.addEventListener('click', () => trackGatewayComparisonEvent(eventName, {
           plan: planMatch[1],
           target: href,
           button

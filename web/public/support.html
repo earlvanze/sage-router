@@ -25,7 +25,7 @@
         <a href="/docs/api-reference">API Reference</a>
         <a href="/api-troubleshooting">Troubleshooting</a>
         <a href="/status">Status</a>
-        <a href="https://app.sagerouter.dev/account.html">Account</a>
+        <a href="https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=support&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email" data-support-event="support_key_recovery_clicked" data-support-state="support-nav">Account</a>
         <a href="/security">Security</a>
       </div>
     </nav>
@@ -49,7 +49,7 @@
             <li>Use manual or crypto settlement only when Stripe is not available or a separate manual activation has been agreed.</li>
           </ul>
           <div class="actions">
-            <a class="button" href="https://app.sagerouter.dev/account.html">Open account</a>
+            <a class="button" href="https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=support&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email" data-support-event="support_key_recovery_clicked" data-support-state="support-account-billing">Finish setup key</a>
             <a class="button secondary" href="/pricing">Compare plans</a>
             <a class="button secondary" href="/billing">Billing help</a>
           </div>
@@ -66,7 +66,7 @@
             <a class="button" href="/quickstart">Read quickstart</a>
             <a class="button secondary" href="/docs/api-reference">API reference</a>
             <a class="button secondary" href="/api-troubleshooting">Troubleshoot errors</a>
-            <a class="button secondary" href="https://app.sagerouter.dev/account.html">Test API key</a>
+            <a class="button secondary" href="https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=support&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email" data-support-event="support_key_recovery_clicked" data-support-state="support-quota-api-keys">Create or test API key</a>
           </div>
         </article>
 
@@ -110,7 +110,7 @@
 
     <footer>
       <span>&copy; Sage Router</span>
-      <a href="https://app.sagerouter.dev/account.html">Account</a>
+      <a href="https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=support&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email" data-support-event="support_key_recovery_clicked" data-support-state="support-footer">Account</a>
       <a href="/pricing">Pricing</a>
       <a href="/billing">Billing</a>
       <a href="/quickstart">Quickstart</a>
@@ -123,5 +123,47 @@
       <a href="https://github.com/earlvanze/sage-router">GitHub</a>
     </footer>
   </div>
+  <script>
+    function trackSupportFunnelEvent(event, data = {}) {
+      const params = new URLSearchParams(window.location.search);
+      const payload = JSON.stringify({
+        event,
+        sourcePage: window.location.href,
+        target: data.target || null,
+        metadata: {
+          source: 'support',
+          button: data.button || null,
+          state: data.state || null,
+          utmSource: params.get('utm_source') || params.get('utmSource') || null,
+          utmMedium: params.get('utm_medium') || params.get('utmMedium') || null,
+          utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
+          landingPath: window.location.pathname
+        }
+      });
+      try {
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          if (navigator.sendBeacon('/api/funnel-event', blob)) return;
+        }
+      } catch {}
+      fetch('/api/funnel-event', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: payload,
+        keepalive: true,
+        credentials: 'omit'
+      }).catch(() => {});
+    }
+
+    document.querySelectorAll('[data-support-event]').forEach((link) => {
+      link.addEventListener('click', () => {
+        trackSupportFunnelEvent(link.dataset.supportEvent, {
+          target: link.getAttribute('href') || null,
+          button: link.textContent.trim().slice(0, 60),
+          state: link.dataset.supportState || null
+        });
+      });
+    });
+  </script>
 </body>
 </html>

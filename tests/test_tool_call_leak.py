@@ -55,6 +55,44 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertEqual('hello', content)
         self.assertNotIn('[ollama/qwen3-coder-next:cloud]', content)
 
+    def test_model_prefix_dedupes_existing_prefix_and_aliases(self):
+        old_show_model_prefix = router.SHOW_MODEL_PREFIX
+        router.SHOW_MODEL_PREFIX = True
+        router._PREFIX_SEEN.clear()
+        try:
+            first = router.build_openai_completion(
+                'ollama-cloud',
+                'qwen3-coder-next:cloud',
+                '1520266336406732954',
+                '[ollama/qwen3-coder-next] already prefixed',
+            )
+            second = router.build_openai_completion(
+                'ollama-cyber',
+                'qwen3-coder-next-cloud',
+                '1520266336406732954',
+                'second answer',
+            )
+        finally:
+            router.SHOW_MODEL_PREFIX = old_show_model_prefix
+            router._PREFIX_SEEN.clear()
+
+        first_content = first['choices'][0]['message']['content']
+        second_content = second['choices'][0]['message']['content']
+        self.assertEqual('[ollama/qwen3-coder-next] already prefixed', first_content)
+        self.assertEqual(1, first_content.count('[ollama/qwen3-coder-next]'))
+        self.assertEqual('second answer', second_content)
+
+    def test_debug_prefix_dedupes_against_model_prefix(self):
+        router._PREFIX_SEEN.clear()
+        try:
+            prefixed = router.model_prefix_once('ollama-cloud', 'glm-5.1:cloud', '1520266336406732954', 'first')
+            debug_prefix = router.streaming_debug_prefix('ollama-cyber', 'glm-5.1-cloud', '1520266336406732954')
+        finally:
+            router._PREFIX_SEEN.clear()
+
+        self.assertEqual('[ollama/glm-5.1] first', prefixed)
+        self.assertEqual('', debug_prefix)
+
     def test_structured_tool_calls_never_include_visible_narration(self):
         response = router.build_openai_completion(
             'ollama',

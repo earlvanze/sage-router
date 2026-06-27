@@ -55,18 +55,18 @@
         <h1>Sage Router Fusion</h1>
         <p class="lead">Run multiple eligible models side by side, then synthesize consensus, contradictions, and the strongest final answer through one OpenAI-compatible response. Use <code>sage-router/fusion</code> or the compatible <code>sage-router:fusion</code> server tool.</p>
         <div class="actions">
-          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Start Pro</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key">Start API key setup</a>
           <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max">Start Max</a>
           <a class="button secondary" href="/quickstart">Quickstart</a>
           <a class="button secondary" href="/docs/gateway-migration">Gateway migration</a>
           <a class="button secondary" href="/models">Model catalog</a>
         </div>
         <form class="emailStart" id="fusion-email-form" data-email-activation-form data-event-prefix="fusion" data-sent-event="fusion_magic_link_sent" data-source="fusion" data-status-id="fusion-email-status">
-          <label for="fusion-email">Get a Pro key setup link for Fusion</label>
+          <label for="fusion-email">Get an API key setup link for Fusion</label>
           <button id="fusion-github-pro" class="button primary oauthButton" type="button">Continue with GitHub for Pro</button>
           <input id="fusion-email" type="email" name="email" autocomplete="email" placeholder="you@company.com" required />
-          <button class="button primary" type="submit">Email me the Pro key link</button>
-          <p class="emailStartStatus" id="fusion-email-status" role="status">No provider key required to create your Sage Router account.</p>
+          <button class="button primary" type="submit">Email API key setup link</button>
+          <p class="emailStartStatus" id="fusion-email-status" role="status">No provider key or credit card required until your generated sk_sage key exists.</p>
         </form>
         <p class="note">Fusion is available to Pro, Max, metered, manual, and operator-enabled customers. Lite/free generated keys receive <code>402 fusion_plan_required</code>.</p>
       </section>
@@ -165,7 +165,7 @@
 
       <section class="section">
         <div class="actions">
-          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=checkout">Create Pro API key</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key">Create Pro API key</a>
           <a class="button secondary" href="/pricing">Compare pricing</a>
           <a class="button secondary" href="/quickstart">Copy first request</a>
           <a class="button secondary" href="/docs/gateway-migration">Migrate from an existing gateway</a>
@@ -188,7 +188,7 @@
     </footer>
   </div>
   <script>
-    const FUSION_ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=checkout';
+    const FUSION_ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=create_key';
     const FUSION_SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
     const FUSION_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
 
@@ -295,7 +295,8 @@
       const button = link.textContent.trim().slice(0, 60);
       const planMatch = href.match(/\/account\.html\?plan=(lite|pro|max)\b/);
       if (planMatch) {
-        link.addEventListener('click', () => trackFusionFunnelEvent('fusion_checkout_clicked', {
+        const eventName = href.includes('start=create_key') ? 'fusion_key_activation_clicked' : 'fusion_checkout_clicked';
+        link.addEventListener('click', () => trackFusionFunnelEvent(eventName, {
           plan: planMatch[1],
           target: href,
           button

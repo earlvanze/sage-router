@@ -1,5 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 3500;
 const DEFAULT_CACHE_SECONDS = 8;
+const DEFAULT_MODALITY_LEARN_BODY_BYTES = 2097152;
 const PUBLIC_EDGE_HEALTH_ERROR = "origin health did not prove public edge controls";
 const HOP_BY_HOP_HEADERS = new Set([
   "connection",
@@ -11,6 +12,7 @@ const HOP_BY_HOP_HEADERS = new Set([
   "transfer-encoding",
   "upgrade",
 ]);
+const MODEL_MODALITY_VALUES = new Set(["text", "image", "audio", "video", "document"]);
 
 let cachedHealth = {
   expiresAt: 0,
@@ -60,6 +62,194 @@ function truthyEnv(value, defaultValue = true) {
     return defaultValue;
   }
   return !["0", "false", "no", "off"].includes(String(value).trim().toLowerCase());
+}
+
+function modelModalitiesSharedEnabled(env) {
+  return truthyEnv(env.SAGE_ROUTER_MODEL_MODALITIES_SHARED_ENABLED, true)
+    && !!env.SAGE_ROUTER_SUPABASE_URL
+    && !!env.SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY;
+}
+
+function modelModalitiesState(env) {
+  const rpcName = String(env.SAGE_ROUTER_SUPABASE_MODEL_MODALITIES_RPC || "sage_router_record_model_modalities").trim();
+  return {
+    sharedEnabled: modelModalitiesSharedEnabled(env) && !!rpcName,
+    supabaseConfigured: !!env.SAGE_ROUTER_SUPABASE_URL && !!env.SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY,
+    rpcConfigured: !!rpcName,
+  };
+}
+
+function normalizeModelModalities(value) {
+  const values = Array.isArray(value) ? value : String(value || "").split(",");
+  return [...new Set(values
+    .map((item) => String(item || "").trim().toLowerCase())
+    .filter((item) => MODEL_MODALITY_VALUES.has(item)))]
+    .sort();
+}
+
+function requestModalitiesFromBodyText(bodyText) {
+  const modalities = new Set(["text"]);
+  if (!bodyText) {
+    return [...modalities].sort();
+  }
+  let payload;
+  try {
+    payload = JSON.parse(bodyText);
+  } catch (_error) {
+    return [...modalities].sort();
+  }
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (value && typeof value === "object") {
+      const keys = new Set(Object.keys(value).map((key) => String(key).toLowerCase()));
+      const type = String(value.type || "").toLowerCase();
+      if (type === "image_url" || type === "input_image" || keys.has("image_url")) {
+        modalities.add("image");
+      }
+      if (type === "input_audio" || type === "audio" || keys.has("audio_url") || keys.has("input_audio")) {
+        modalities.add("audio");
+      }
+      if (type === "input_video" || type === "video" || keys.has("video_url") || keys.has("input_video")) {
+        modalities.add("video");
+      }
+      if (type === "input_file" || type === "file" || type === "document" || keys.has("file_id") || keys.has("document")) {
+        modalities.add("document");
+      }
+      Object.values(value).forEach(visit);
+      return;
+    }
+    if (typeof value === "string") {
+      const lowered = value.toLowerCase();
+      if (lowered.startsWith("data:image/")) modalities.add("image");
+      if (lowered.startsWith("data:audio/")) modalities.add("audio");
+      if (lowered.startsWith("data:video/")) modalities.add("video");
+    }
+  };
+  visit(payload);
+  return [...modalities].sort();
+}
+
+async function boundedStreamText(stream, maxBytes) {
+  if (!stream || typeof stream.getReader !== "function") {
+    return "";
+  }
+  const reader = stream.getReader();
+  const chunks = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    received += value.byteLength;
+    if (received > maxBytes) {
+      await reader.cancel();
+      return "";
+    }
+    chunks.push(value);
+  }
+  const buffer = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(buffer);
+}
+
+async function boundedText(response, maxBytes) {
+  const length = Number(response.headers.get("content-length") || 0);
+  const type = String(response.headers.get("content-type") || "").toLowerCase();
+  if (length > maxBytes || !type.includes("application/json") || response.headers.has("content-encoding")) {
+    return "";
+  }
+  return boundedStreamText(response.body, maxBytes);
+}
+
+function modalityRecordFromResponse(headers, status, requestBodyText = "", responseBodyText = "") {
+  if (!(Number(status || 0) >= 200 && Number(status || 0) < 300)) {
+    return null;
+  }
+  let provider = (headers.get("x-sage-router-provider") || "").trim();
+  let model = (headers.get("x-sage-router-model-name") || "").trim();
+  const modelHeader = (headers.get("x-sage-router-model") || "").trim();
+  if (!model && modelHeader.includes("/")) {
+    const parts = modelHeader.split("/");
+    provider = provider || parts.shift().trim();
+    model = parts.join("/").trim();
+  } else if (!model) {
+    model = modelHeader;
+  }
+  if ((!provider || !model) && responseBodyText) {
+    try {
+      const payload = JSON.parse(responseBodyText);
+      const responseModel = String((payload && payload.model) || "").trim();
+      if (responseModel.includes("/")) {
+        const parts = responseModel.split("/");
+        provider = provider || parts.shift().trim();
+        model = model || parts.join("/").trim();
+      } else if (responseModel) {
+        model = model || responseModel;
+      }
+    } catch (_error) {}
+  }
+  const modalities = normalizeModelModalities(headers.get("x-sage-router-modalities") || "")
+    .concat(headers.get("x-sage-router-modalities") ? [] : requestModalitiesFromBodyText(requestBodyText));
+  if (!provider || !model || !modalities.length) {
+    return null;
+  }
+  return { provider, model, modalities: normalizeModelModalities(modalities) };
+}
+
+function modalityRecordFromResponseHeaders(headers, status) {
+  return modalityRecordFromResponse(headers, status);
+}
+
+function applyModalityHeaders(headers, record) {
+  if (!record) {
+    return;
+  }
+  if (!headers.has("x-sage-router-provider")) {
+    headers.set("x-sage-router-provider", record.provider);
+  }
+  if (!headers.has("x-sage-router-model-name")) {
+    headers.set("x-sage-router-model-name", record.model);
+  }
+  if (!headers.has("x-sage-router-model")) {
+    headers.set("x-sage-router-model", `${record.provider}/${record.model}`);
+  }
+  if (!headers.has("x-sage-router-modalities")) {
+    headers.set("x-sage-router-modalities", record.modalities.join(","));
+  }
+}
+
+async function recordModelModalities(env, record) {
+  if (!modelModalitiesSharedEnabled(env)) {
+    return false;
+  }
+  if (!record) {
+    return false;
+  }
+  const baseUrl = String(env.SAGE_ROUTER_SUPABASE_URL || "").replace(/\/+$/, "");
+  const rpcName = env.SAGE_ROUTER_SUPABASE_MODEL_MODALITIES_RPC || "sage_router_record_model_modalities";
+  const response = await fetch(`${baseUrl}/rest/v1/rpc/${rpcName}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${env.SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY}`,
+      apikey: env.SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      provider_name: record.provider,
+      model_name: record.model,
+      modalities_in: record.modalities,
+      seen_at_epoch_ms: Date.now(),
+    }),
+  });
+  return response.ok;
 }
 
 function privateHostname(hostname) {
@@ -142,6 +332,7 @@ function publicEdgeHealthSatisfied(payload) {
   }
   const enforcement = payload.enforcement || {};
   const failover = payload.failover || {};
+  const modelModalities = payload.modelModalities || {};
   const retryStatuses = Array.isArray(failover.retryStatuses) ? failover.retryStatuses : [];
   return payload.status === "ok"
     && payload.authMode === "supabase"
@@ -159,6 +350,8 @@ function publicEdgeHealthSatisfied(payload) {
     && retryStatuses.includes(503)
     && retryStatuses.includes(504)
     && failover.retryHeader === "X-Sage-Router-Retry-Count"
+    && modelModalities.sharedEnabled === true
+    && modelModalities.rpcConfigured === true
     && !hasRawOriginUrl(payload.upstreams || [])
     && !hasRawOriginUrl(payload.controlPlane || {});
 }
@@ -285,7 +478,7 @@ function outboundHeaders(request, selectedOrigin) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     try {
       const incoming = new URL(request.url);
       if (incoming.pathname === "/edge/health") {
@@ -299,6 +492,7 @@ export default {
           selected: selectedId,
           selectedOriginId: selectedId,
           origins: publicOriginsSnapshot(checks),
+          modelModalities: modelModalitiesState(env),
         }, healthy.length ? 200 : 503, {
           "x-sage-router-api-origin": selectedId || "origin-none",
           "x-sage-router-api-origin-kind": healthy[0] ? originKind(healthy[0].url) : "none",
@@ -311,7 +505,20 @@ export default {
       }
 
       const target = originTarget(origin, incoming);
-      const body = request.method === "GET" || request.method === "HEAD" ? undefined : request.body;
+      const maxModalityBodyBytes = Number(env.SAGE_ROUTER_EDGE_MODALITY_LEARN_BODY_BYTES || DEFAULT_MODALITY_LEARN_BODY_BYTES);
+      let requestBodyText = "";
+      let requestForOrigin = request;
+      if (request.method !== "GET" && request.method !== "HEAD") {
+        const requestLengthHeader = request.headers.get("content-length");
+        const requestLength = Number(requestLengthHeader || 0);
+        const requestLengthKnown = requestLengthHeader !== null && requestLengthHeader !== "";
+        const requestType = String(request.headers.get("content-type") || "").toLowerCase();
+        if ((!requestLengthKnown || requestLength <= maxModalityBodyBytes) && requestType.includes("application/json")) {
+          requestForOrigin = request.clone();
+          requestBodyText = await boundedStreamText(request.clone().body, maxModalityBodyBytes);
+        }
+      }
+      const body = request.method === "GET" || request.method === "HEAD" ? undefined : requestForOrigin.body;
       const response = await timedFetch(target, {
         method: request.method,
         headers: outboundHeaders(request, origin),
@@ -326,6 +533,21 @@ export default {
       headers.set("x-sage-router-api-origin", originId || "origin-unknown");
       headers.set("x-sage-router-api-origin-kind", selectedKind || "unknown");
       headers.set("x-sage-router-api-origin-latency-ms", String(response.latencyMs));
+      const responseBodyTextPromise = boundedText(response.response.clone(), maxModalityBodyBytes)
+        .catch(() => "");
+      const modalityRecordPromise = responseBodyTextPromise
+        .then((responseBodyText) => modalityRecordFromResponse(headers, response.response.status, requestBodyText, responseBodyText));
+      const modalityRecord = modalityRecordPromise
+        .then((record) => recordModelModalities(env, record))
+        .catch((error) => console.log("sage-router modality edge record failed", error && error.message ? error.message : error));
+      if (ctx && typeof ctx.waitUntil === "function") {
+        ctx.waitUntil(modalityRecord);
+      } else {
+        await modalityRecord;
+      }
+      if (!headers.has("x-sage-router-modalities")) {
+        applyModalityHeaders(headers, await modalityRecordPromise);
+      }
       return new Response(response.response.body, {
         status: response.response.status,
         statusText: response.response.statusText,
