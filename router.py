@@ -2865,6 +2865,7 @@ def public_launch_metadata():
         'billing': public_billing_metadata(),
         'apiKeyPrefix': API_KEY_PREFIX,
         'maxActiveApiKeysPerCustomer': MAX_ACTIVE_API_KEYS_PER_CUSTOMER,
+        'activationEmailReadiness': public_activation_email_readiness(),
         'recommendedModel': 'sage-router/frontier',
         'publicLaunch': launch,
     }
@@ -9020,6 +9021,32 @@ def activation_email_readiness():
             'containsApiKeyValues': False,
             'containsProviderCredentials': False,
             'containsEmails': False,
+        },
+    }
+
+
+def public_activation_email_readiness():
+    readiness = activation_email_readiness()
+    return {
+        'provider': readiness.get('provider') or 'resend',
+        'configured': bool(readiness.get('configured')),
+        'sendsEmailWhenConfigured': bool(readiness.get('sendsEmailWhenConfigured')),
+        'dryRunSupported': bool(readiness.get('dryRunSupported')),
+        'fromConfigured': bool(readiness.get('fromConfigured')),
+        'apiKeyConfigured': bool(readiness.get('apiKeyConfigured')),
+        'replyToConfigured': bool(readiness.get('replyToConfigured')),
+        'maxBatch': readiness.get('maxBatch'),
+        'requiredEnv': readiness.get('requiredEnv') or [],
+        'secretManagerNames': readiness.get('secretManagerNames') or [],
+        'setupScript': readiness.get('setupScript') or 'scripts/configure_activation_email_sender.sh',
+        'operatorAction': readiness.get('operatorAction') or '',
+        'fallback': 'copy_mailto_operator_packet',
+        'privacy': {
+            'containsSecrets': False,
+            'containsApiKeyValues': False,
+            'containsProviderCredentials': False,
+            'containsEmails': False,
+            'containsAdminCommands': False,
         },
     }
 

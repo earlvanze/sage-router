@@ -271,6 +271,66 @@ function renderControls(health = {}) {
   set('resilience-summary', `${healthyCount}/${upstreams.length} upstreams are healthy; control plane ${controlPlane.healthy ? 'healthy' : 'not healthy'}; auth mode ${authMode}; retry failover ${retryEnabled ? 'enabled' : 'not reported'}.`);
 }
 
+function renderLaunchReadiness(pricing = {}, health = {}) {
+  const billing = pricing.billing || {};
+  const stripe = billing.stripe || {};
+  const activation = pricing.activationEmailReadiness || {};
+  const managed = pricing.publicLaunch?.managedProviderAccess || {};
+  const managedSetup = managed.readinessSetup || {};
+  const configuredPlans = Array.isArray(stripe.configuredPlans) ? stripe.configuredPlans : [];
+  const missingManagedControls = Array.isArray(managed.missingControls) ? managed.missingControls : [];
+  const requiredActivationEnv = Array.isArray(activation.requiredEnv) ? activation.requiredEnv : [];
+  const clientGuidance = 'OpenAI/Python SDK clients should use a normal SDK User-Agent; bare Python urllib can be challenged by Cloudflare Browser Integrity Check until the host-scoped BIC skip is applied.';
+  const rows = [
+    {
+      title: 'Self-serve checkout',
+      value: stripe.checkoutReady ? 'ready' : 'not ready',
+      badge: configuredPlans.length ? configuredPlans.join('/') : 'no plans',
+      state: stripe.checkoutReady ? 'good' : 'warn',
+      meta: stripe.checkoutReady
+        ? `Stripe checkout and billing portal are configured for ${configuredPlans.join(', ')}.`
+        : 'Stripe checkout or billing portal metadata is incomplete.',
+    },
+    {
+      title: 'Activation sender',
+      value: activation.configured ? 'configured' : 'copy fallback',
+      badge: activation.provider || 'resend',
+      state: activation.configured ? 'good' : 'warn',
+      meta: activation.configured
+        ? `Operator email follow-ups can be dry-run before sending batches of up to ${fmtNumber(activation.maxBatch || 0)}.`
+        : `Real activation email sending is not configured; missing ${requiredActivationEnv.join(', ') || 'sender configuration'}, so operators use the copy/mailto packet.`,
+    },
+    {
+      title: 'Managed access',
+      value: managed.enabled ? 'private beta ready' : 'disabled',
+      badge: managed.status || 'pending controls',
+      state: managed.enabled ? 'good' : 'warn',
+      meta: managed.enabled
+        ? 'Managed provider access readiness is satisfied for private beta; keep provider authorization evidence current.'
+        : `One-subscription managed provider access remains disabled; missing ${missingManagedControls.slice(0, 5).join(', ') || 'provider readiness controls'}. Setup guard: ${managedSetup.setupScript || 'scripts/configure_managed_provider_resale_readiness.sh'}.`,
+    },
+    {
+      title: 'API client compatibility',
+      value: health.authMode === 'supabase' ? 'auth gate live' : 'check auth',
+      badge: 'BIC-aware',
+      state: health.authMode === 'supabase' ? 'good' : 'warn',
+      meta: clientGuidance,
+    },
+  ];
+
+  $('launch-readiness').innerHTML = rows.map(row => `<article class="upstream">
+    <div class="row"><div class="host">${esc(row.title)}: ${esc(row.value)}</div>${badge(row.badge, row.state)}</div>
+    <div class="meta">${esc(row.meta)}</div>
+  </article>`).join('');
+  const blockers = rows.filter(row => row.state !== 'good').map(row => row.title.toLowerCase());
+  set(
+    'launch-readiness-summary',
+    blockers.length
+      ? `Launch posture has ${blockers.length} visible follow-up${blockers.length === 1 ? '' : 's'}: ${blockers.join(', ')}.`
+      : 'Checkout, activation sending, managed-access guard, and API-client posture are ready.'
+  );
+}
+
 async function fetchJson(path) {
   const res = await fetch(`${sageRouterUrl}${path}`, { cache: 'no-store' });
   const data = await res.json().catch(() => ({}));
@@ -292,6 +352,7 @@ async function refreshStatus() {
     renderPlans(pricing);
     renderReliabilityEvidence(health);
     renderControls(health);
+    renderLaunchReadiness(pricing, health);
     const healthyCount = (health.upstreams || []).filter(row => row.healthy).length;
     const totalCount = (health.upstreams || []).length;
     const ok = health.status === 'ok' && healthyCount > 0;
@@ -318,6 +379,8 @@ async function refreshStatus() {
     set('reliability-summary', 'Public failover evidence is unavailable.');
     $('controls').innerHTML = '<p class="muted">Could not load edge enforcement controls.</p>';
     set('resilience-summary', 'Edge enforcement metadata is unavailable.');
+    $('launch-readiness').innerHTML = '<p class="muted">Could not load launch readiness metadata.</p>';
+    set('launch-readiness-summary', 'Checkout, activation, and managed-access readiness are unavailable.');
   }
 }
 

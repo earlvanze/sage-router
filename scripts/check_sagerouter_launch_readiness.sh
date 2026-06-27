@@ -957,6 +957,9 @@ check_hosted_onboarding_pages() {
   if [[ "$status_code" == "200" ]] && ! grep -q "CDN-style reliability evidence" /tmp/sage-router-readiness-body; then
     status_code="200:missing-reliability-evidence"
   fi
+  if [[ "$status_code" == "200" ]] && ! grep -q "SaaS Launch Readiness" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-launch-readiness"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   status_js_code="$(http_code_follow "${APP_BASE%/}/status.js")"
@@ -968,6 +971,15 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$status_js_code" == "200" ]] && ! grep -q "X-Sage-Router-Retry-Count" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-retry-failover-evidence"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "renderLaunchReadiness" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-launch-readiness-renderer"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "activationEmailReadiness" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-activation-readiness"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "Browser Integrity Check" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-bic-guidance"
   fi
   rm -f /tmp/sage-router-readiness-body
 
