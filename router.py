@@ -8883,11 +8883,28 @@ def activation_email_readiness():
             "SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO='support@sagerouter.dev' \\\n"
             "scripts/configure_activation_email_sender.sh"
         )
+    dry_run_command = (
+        'curl -fsS -X POST https://api.sagerouter.dev/admin/customers/send-activation-followups \\\n'
+        '  -H "Authorization: Bearer ${SAGE_ROUTER_API_KEY}" \\\n'
+        '  -H "Origin: https://app.sagerouter.dev" \\\n'
+        '  -H "Content-Type: application/json" \\\n'
+        '  --data \'{"status":"inactive","segment":"all","limit":25,"dryRun":true}\' \\\n'
+        "  | jq '{configured,dryRun,queued,sent,failed,segments,plans}'"
+    )
+    send_command_template = (
+        'curl -fsS -X POST https://api.sagerouter.dev/admin/customers/send-activation-followups \\\n'
+        '  -H "Authorization: Bearer ${SAGE_ROUTER_API_KEY}" \\\n'
+        '  -H "Origin: https://app.sagerouter.dev" \\\n'
+        '  -H "Content-Type: application/json" \\\n'
+        '  --data \'{"status":"inactive","segment":"all","limit":25,"dryRun":false}\''
+    )
     return {
         'provider': ACTIVATION_EMAIL_PROVIDER or 'resend',
         'configured': configured,
         'sendEndpoint': '/admin/customers/send-activation-followups',
         'dryRunSupported': True,
+        'dryRunCommand': dry_run_command,
+        'sendCommandTemplate': send_command_template,
         'sendsEmailWhenConfigured': configured,
         'fromConfigured': bool(ACTIVATION_EMAIL_FROM),
         'apiKeyConfigured': bool(ACTIVATION_EMAIL_API_KEY),

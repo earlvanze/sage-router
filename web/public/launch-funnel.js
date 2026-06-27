@@ -761,6 +761,8 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
     `Activation email sender: ${emailReadiness.configured ? 'configured' : 'fallback only'} via ${emailReadiness.provider || 'resend'}; endpoint=${emailReadiness.sendEndpoint || '/admin/customers/send-activation-followups'}; requiredEnv=${(emailReadiness.requiredEnv || []).join(', ') || 'none'}`,
     `Activation sender setup: ${emailReadiness.setupScript || 'scripts/configure_activation_email_sender.sh'}`,
     ...(emailReadiness.setupCommand ? ['', 'Setup command template:', emailReadiness.setupCommand] : []),
+    ...(emailReadiness.dryRunCommand ? ['', 'Dry-run send command:', emailReadiness.dryRunCommand] : []),
+    ...(emailReadiness.sendCommandTemplate ? ['', 'Real send command template:', emailReadiness.sendCommandTemplate] : []),
     `Privacy: aggregateOnly=${privacy.aggregateOnly === true}; emails=${privacy.containsEmails === true}; customerIds=${privacy.containsCustomerIds === true}; apiKeys=${privacy.containsApiKeys === true}; prompts=${privacy.containsPrompts === true}; oauthTokens=${privacy.containsOAuthTokens === true}`,
     '',
     'Segments:',
