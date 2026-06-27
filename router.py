@@ -6634,6 +6634,7 @@ KEY_FIRST_REDIRECT_EVENTS = {
     'landing_key_first_direct_clicked',
     'landing_setup_next_clicked',
     'launch_plan_key_activation_clicked',
+    'login_key_recovery_account_setup_clicked',
     'model_catalog_key_activation_clicked',
     'pricing_key_activation_clicked',
 }

@@ -208,6 +208,25 @@
         font-size: 14px;
         margin: 4px 0 10px;
       }
+      .recoverySteps {
+        display: grid;
+        gap: 6px;
+        margin: 12px 0 0;
+        padding: 0;
+        list-style: none;
+        color: #d2eadf;
+        font-size: 13px;
+      }
+      .recoverySteps li {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+      }
+      .recoverySteps li::before {
+        content: "->";
+        color: var(--brand);
+        font-weight: 900;
+      }
       .actions {
         display: flex;
         gap: 12px;
@@ -318,6 +337,11 @@
           <div class="recoveryPanel">
             <strong>Already signed up?</strong>
             <span id="login-key-recovery-copy">Go straight to generated-key setup. No provider key or checkout is required until your <code>sk_sage_*</code> setup key exists.</span>
+            <ul class="recoverySteps" aria-label="Generated key recovery steps">
+              <li>Use the same email or same OAuth identity from signup.</li>
+              <li>The next page opens with <code>start=create_key</code> and creates the setup key before checkout.</li>
+              <li>Copy setup first; billing only unlocks routing after the key exists.</li>
+            </ul>
             <div class="actions recoveryActions">
               <button id="login-key-recovery-email-focus" class="btn" type="button">Use same-email setup link</button>
               <a
@@ -325,7 +349,7 @@
                 class="btn secondary"
                 href="/account.html?plan=pro&start=create_key&utm_source=login&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email"
                 data-key-recovery="true"
-                >Finish setup key</a
+                >Open API key setup</a
               >
             </div>
           </div>

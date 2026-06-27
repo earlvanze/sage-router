@@ -234,10 +234,16 @@ async function magicLogin() { set('auth-status', 'Sending magic link...'); const
 async function walletLogin() { try { set('wallet-status', 'Connecting wallet...'); trackLoginFunnelEvent('login_wallet_clicked', { button: 'wallet_login', target: '/login.html', state: 'algorand' }); if (window.algorand?.enable) { const result = await window.algorand.enable({ genesisID: 'mainnet-v1.0' }); const account = result?.accounts?.[0]?.address || result?.accounts?.[0]; if (!account) throw new Error('No wallet account returned.'); localStorage.setItem('sage_wallet_address', account); trackLoginFunnelEvent('login_wallet_connected', { button: 'wallet_login', target: '/login.html', state: 'algorand' }); set('wallet-status', `Wallet connected: ${account.slice(0, 8)}…${account.slice(-6)}`); return; } throw new Error('Install or unlock an Algorand wallet extension, then try again.'); } catch (error) { set('wallet-status', error.message || 'Wallet connection failed.'); } }
 document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventListener('click', () => { if (!button.disabled) oauthLogin(button.dataset.oauth); }));
 document.querySelectorAll('[data-key-recovery]').forEach((link) => link.addEventListener('click', () => {
+  const target = link.getAttribute('href') || ACCOUNT_ACTIVATION_PATH;
   trackLoginFunnelEvent('login_key_recovery_clicked', {
     button: link.textContent.trim() || 'Finish setup key',
-    target: link.getAttribute('href') || ACCOUNT_ACTIVATION_PATH,
-    state: 'login_recovery_cta',
+    target,
+    state: keyRecoveryLandingState(),
+  });
+  trackLoginFunnelEvent('login_key_recovery_account_setup_clicked', {
+    button: link.textContent.trim() || 'Open API key setup',
+    target,
+    state: keyRecoveryLandingState(),
   });
 }));
 $('login-key-recovery-email-focus')?.addEventListener('click', () => {
