@@ -1,6 +1,7 @@
 const DEFAULT_TIMEOUT_MS = 3500;
 const DEFAULT_CACHE_SECONDS = 8;
 const DEFAULT_MODALITY_LEARN_BODY_BYTES = 2097152;
+const DEFAULT_RETRY_STATUSES = [502, 503, 504];
 const PUBLIC_EDGE_HEALTH_ERROR = "origin health did not prove public edge controls";
 const HOP_BY_HOP_HEADERS = new Set([
   "connection",
@@ -311,6 +312,36 @@ function selectedOriginId(checks, selected) {
   return index >= 0 ? publicOriginId(index) : null;
 }
 
+function retryStatuses(env) {
+  const raw = String(env.SAGE_ROUTER_EDGE_RETRY_STATUSES || DEFAULT_RETRY_STATUSES.join(","));
+  const statuses = raw
+    .split(",")
+    .map((item) => Number(String(item || "").trim()))
+    .filter((status) => Number.isInteger(status) && status >= 400 && status <= 599);
+  return new Set(statuses.length ? statuses : DEFAULT_RETRY_STATUSES);
+}
+
+function shouldRetryOriginStatus(env, status) {
+  return retryStatuses(env).has(Number(status || 0));
+}
+
+function retryCountFromFailedAttempts(failedAttempts, finalResponseReturned) {
+  if (finalResponseReturned) {
+    return failedAttempts.length;
+  }
+  return Math.max(0, failedAttempts.length - 1);
+}
+
+function sortedHealthyChecks(checks) {
+  return checks
+    .filter((check) => check.healthy)
+    .sort((a, b) => (a.latencyMs ?? Number.MAX_SAFE_INTEGER) - (b.latencyMs ?? Number.MAX_SAFE_INTEGER));
+}
+
+function originForCheck(origins, check) {
+  return origins.find((candidate) => candidate.name === check.name && candidate.url === check.url);
+}
+
 function hasRawOriginUrl(value) {
   if (!value || typeof value !== "object") {
     return false;
@@ -436,23 +467,18 @@ async function getHealth(env, force = false) {
   return checks;
 }
 
-async function chooseOrigin(env) {
+async function chooseOriginCandidates(env) {
   const origins = parseOrigins(env);
   const checks = await getHealth(env);
-  const healthy = checks
-    .filter((check) => check.healthy)
-    .sort((a, b) => (a.latencyMs ?? Number.MAX_SAFE_INTEGER) - (b.latencyMs ?? Number.MAX_SAFE_INTEGER));
-  const selected = healthy[0];
-  if (!selected) {
-    return { origin: null, checks };
-  }
-  const selectedId = selectedOriginId(checks, selected);
-  return {
-    origin: origins.find((candidate) => candidate.name === selected.name && candidate.url === selected.url),
-    checks,
-    originId: selectedId,
-    originKind: originKind(selected.url),
-  };
+  const candidates = sortedHealthyChecks(checks)
+    .map((check) => ({
+      check,
+      origin: originForCheck(origins, check),
+      originId: selectedOriginId(checks, check),
+      originKind: originKind(check.url),
+    }))
+    .filter((candidate) => candidate.origin);
+  return { candidates, checks };
 }
 
 function responseJson(payload, status = 200, extraHeaders = {}) {
@@ -483,15 +509,20 @@ export default {
       const incoming = new URL(request.url);
       if (incoming.pathname === "/edge/health") {
         const checks = await getHealth(env, incoming.searchParams.get("refresh") === "1");
-        const healthy = checks
-          .filter((check) => check.healthy)
-          .sort((a, b) => (a.latencyMs ?? Number.MAX_SAFE_INTEGER) - (b.latencyMs ?? Number.MAX_SAFE_INTEGER));
+        const healthy = sortedHealthyChecks(checks);
         const selectedId = selectedOriginId(checks, healthy[0]);
         return responseJson({
           status: healthy.length ? "ok" : "degraded",
           selected: selectedId,
           selectedOriginId: selectedId,
           origins: publicOriginsSnapshot(checks),
+          failover: {
+            mode: "lowest-latency-healthy",
+            retryEnabled: healthy.length > 1,
+            retryStatuses: [...retryStatuses(env)].sort((a, b) => a - b),
+            retryHeader: "X-Sage-Router-Retry-Count",
+            replayableBodyRequired: true,
+          },
           modelModalities: modelModalitiesState(env),
         }, healthy.length ? 200 : 503, {
           "x-sage-router-api-origin": selectedId || "origin-none",
@@ -499,59 +530,113 @@ export default {
         });
       }
 
-      const { origin, checks, originId, originKind: selectedKind } = await chooseOrigin(env);
-      if (!origin) {
+      const { candidates, checks } = await chooseOriginCandidates(env);
+      if (!candidates.length) {
         return responseJson({ error: "no healthy sage-router origins", origins: publicOriginsSnapshot(checks) }, 503);
       }
 
-      const target = originTarget(origin, incoming);
       const maxModalityBodyBytes = Number(env.SAGE_ROUTER_EDGE_MODALITY_LEARN_BODY_BYTES || DEFAULT_MODALITY_LEARN_BODY_BYTES);
       let requestBodyText = "";
       let requestForOrigin = request;
-      if (request.method !== "GET" && request.method !== "HEAD") {
+      const methodHasBody = request.method !== "GET" && request.method !== "HEAD";
+      let replayableBody = !methodHasBody;
+      let bufferedBody = undefined;
+      if (methodHasBody) {
         const requestLengthHeader = request.headers.get("content-length");
         const requestLength = Number(requestLengthHeader || 0);
         const requestLengthKnown = requestLengthHeader !== null && requestLengthHeader !== "";
         const requestType = String(request.headers.get("content-type") || "").toLowerCase();
+        replayableBody = requestLengthKnown && requestLength === 0;
+        bufferedBody = replayableBody ? "" : undefined;
         if ((!requestLengthKnown || requestLength <= maxModalityBodyBytes) && requestType.includes("application/json")) {
           requestForOrigin = request.clone();
           requestBodyText = await boundedStreamText(request.clone().body, maxModalityBodyBytes);
+          if (requestBodyText || !requestLengthKnown || requestLength > 0) {
+            replayableBody = true;
+            bufferedBody = requestBodyText;
+          }
         }
       }
-      const body = request.method === "GET" || request.method === "HEAD" ? undefined : requestForOrigin.body;
-      const response = await timedFetch(target, {
-        method: request.method,
-        headers: outboundHeaders(request, originId),
-        body,
-        redirect: "manual",
-      }, origin.timeoutMs);
 
-      const headers = new Headers(response.response.headers);
-      for (const header of HOP_BY_HOP_HEADERS) {
-        headers.delete(header);
+      const retryableCandidates = replayableBody ? candidates : candidates.slice(0, 1);
+      const failedAttempts = [];
+      for (let index = 0; index < retryableCandidates.length; index += 1) {
+        const candidate = retryableCandidates[index];
+        const { origin, originId, originKind: selectedKind } = candidate;
+        const target = originTarget(origin, incoming);
+        const body = !methodHasBody ? undefined : (replayableBody ? bufferedBody : requestForOrigin.body);
+        let response;
+        try {
+          response = await timedFetch(target, {
+            method: request.method,
+            headers: outboundHeaders(request, originId),
+            body,
+            redirect: "manual",
+          }, origin.timeoutMs);
+        } catch (error) {
+          failedAttempts.push({
+            originId,
+            originKind: selectedKind || "unknown",
+            status: 0,
+            latencyMs: null,
+            error: "origin fetch failed",
+          });
+          if (index < retryableCandidates.length - 1) {
+            continue;
+          }
+          return responseJson({
+            error: "all healthy sage-router origins failed",
+            attempts: failedAttempts,
+          }, 502, {
+            "x-sage-router-api-origin": originId || "origin-unknown",
+            "x-sage-router-api-origin-kind": selectedKind || "unknown",
+            "x-sage-router-retry-count": String(retryCountFromFailedAttempts(failedAttempts, false)),
+          });
+        }
+
+        if (index < retryableCandidates.length - 1 && shouldRetryOriginStatus(env, response.response.status)) {
+          failedAttempts.push({
+            originId,
+            originKind: selectedKind || "unknown",
+            status: response.response.status,
+            latencyMs: response.latencyMs,
+            error: "retryable origin response",
+          });
+          continue;
+        }
+
+        const headers = new Headers(response.response.headers);
+        for (const header of HOP_BY_HOP_HEADERS) {
+          headers.delete(header);
+        }
+        headers.set("x-sage-router-api-origin", originId || "origin-unknown");
+        headers.set("x-sage-router-api-origin-kind", selectedKind || "unknown");
+        headers.set("x-sage-router-api-origin-latency-ms", String(response.latencyMs));
+        headers.set("x-sage-router-retry-count", String(retryCountFromFailedAttempts(failedAttempts, true)));
+        const responseBodyTextPromise = boundedText(response.response.clone(), maxModalityBodyBytes)
+          .catch(() => "");
+        const modalityRecordPromise = responseBodyTextPromise
+          .then((responseBodyText) => modalityRecordFromResponse(headers, response.response.status, requestBodyText, responseBodyText));
+        const modalityRecord = modalityRecordPromise
+          .then((record) => recordModelModalities(env, record))
+          .catch((error) => console.log("sage-router modality edge record failed", error && error.message ? error.message : error));
+        if (ctx && typeof ctx.waitUntil === "function") {
+          ctx.waitUntil(modalityRecord);
+        } else {
+          await modalityRecord;
+        }
+        if (!headers.has("x-sage-router-modalities")) {
+          applyModalityHeaders(headers, await modalityRecordPromise);
+        }
+        return new Response(response.response.body, {
+          status: response.response.status,
+          statusText: response.response.statusText,
+          headers,
+        });
       }
-      headers.set("x-sage-router-api-origin", originId || "origin-unknown");
-      headers.set("x-sage-router-api-origin-kind", selectedKind || "unknown");
-      headers.set("x-sage-router-api-origin-latency-ms", String(response.latencyMs));
-      const responseBodyTextPromise = boundedText(response.response.clone(), maxModalityBodyBytes)
-        .catch(() => "");
-      const modalityRecordPromise = responseBodyTextPromise
-        .then((responseBodyText) => modalityRecordFromResponse(headers, response.response.status, requestBodyText, responseBodyText));
-      const modalityRecord = modalityRecordPromise
-        .then((record) => recordModelModalities(env, record))
-        .catch((error) => console.log("sage-router modality edge record failed", error && error.message ? error.message : error));
-      if (ctx && typeof ctx.waitUntil === "function") {
-        ctx.waitUntil(modalityRecord);
-      } else {
-        await modalityRecord;
-      }
-      if (!headers.has("x-sage-router-modalities")) {
-        applyModalityHeaders(headers, await modalityRecordPromise);
-      }
-      return new Response(response.response.body, {
-        status: response.response.status,
-        statusText: response.response.statusText,
-        headers,
+
+      return responseJson({ error: "all healthy sage-router origins failed", attempts: failedAttempts }, 502, {
+        "x-sage-router-retry-count": String(retryCountFromFailedAttempts(failedAttempts, false)),
       });
     } catch (error) {
       return responseJson({

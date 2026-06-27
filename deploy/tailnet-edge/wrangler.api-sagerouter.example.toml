@@ -24,6 +24,10 @@ SAGE_ROUTER_ORIGINS = """
 ]
 """
 SAGE_ROUTER_ORIGIN_CACHE_SECONDS = "8"
+# Default 502,503,504. Replayable API requests are retried against the next
+# healthy origin when the selected origin returns one of these transient
+# statuses or cannot be reached.
+SAGE_ROUTER_EDGE_RETRY_STATUSES = "502,503,504"
 # Default true. Candidate origins must expose /edge/health metadata proving
 # Supabase auth, rate limits, auth-attempt throttling, durable quotas,
 # immediate generated-key revocation, retry failover, and redacted health

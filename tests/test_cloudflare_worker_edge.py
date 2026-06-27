@@ -83,9 +83,31 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
         self.assertIn("const statusHealthy = result.response.status >= 200 && result.response.status < 300", worker)
         self.assertNotIn("const statusHealthy = result.response.status >= 200 && result.response.status < 500", worker)
 
+    def test_worker_retries_replayable_requests_across_healthy_origins(self):
+        worker = self.read_worker()
+        self.assertIn("const DEFAULT_RETRY_STATUSES = [502, 503, 504]", worker)
+        self.assertIn("function retryStatuses(env)", worker)
+        self.assertIn("function shouldRetryOriginStatus(env, status)", worker)
+        self.assertIn("function chooseOriginCandidates(env)", worker)
+        self.assertIn("const retryableCandidates = replayableBody ? candidates : candidates.slice(0, 1)", worker)
+        self.assertIn("if (index < retryableCandidates.length - 1 && shouldRetryOriginStatus(env, response.response.status))", worker)
+        self.assertIn('headers.set("x-sage-router-retry-count", String(retryCountFromFailedAttempts(failedAttempts, true)))', worker)
+        self.assertIn('"x-sage-router-retry-count": String(retryCountFromFailedAttempts(failedAttempts, false))', worker)
+        self.assertIn('error: "all healthy sage-router origins failed"', worker)
+        self.assertNotIn("attempts: checks", worker)
+
+    def test_worker_health_exposes_redacted_retry_policy(self):
+        worker = self.read_worker()
+        self.assertIn('mode: "lowest-latency-healthy"', worker)
+        self.assertIn("retryEnabled: healthy.length > 1", worker)
+        self.assertIn("retryStatuses: [...retryStatuses(env)].sort((a, b) => a - b)", worker)
+        self.assertIn('retryHeader: "X-Sage-Router-Retry-Count"', worker)
+        self.assertIn("replayableBodyRequired: true", worker)
+
     def test_worker_example_uses_edge_health_origins(self):
         example = self.read_wrangler_example()
         self.assertIn('SAGE_ROUTER_REQUIRE_PUBLIC_EDGE_HEALTH = "1"', example)
+        self.assertIn('SAGE_ROUTER_EDGE_RETRY_STATUSES = "502,503,504"', example)
         self.assertIn('"healthPath": "/edge/health"', example)
         self.assertNotIn("run.app", example)
         self.assertNotIn('"healthPath": "/health"', example)
