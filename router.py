@@ -81,8 +81,21 @@ def display_model_id(provider_name, model):
     ollama endpoint served it.
     """
     display_provider = 'ollama' if provider_name in _OLLAMA_PROVIDER_ALIASES else provider_name
+    display_model = str(model or '')
+    prefix_candidates = []
+    for prefix in [provider_name, display_provider] + (list(_OLLAMA_PROVIDER_ALIASES) if display_provider == 'ollama' else []):
+        if prefix and prefix not in prefix_candidates:
+            prefix_candidates.append(prefix)
+    changed = True
+    while changed:
+        changed = False
+        for prefix in sorted(prefix_candidates, key=len, reverse=True):
+            if prefix and display_model.lower().startswith(prefix.lower() + '/'):
+                display_model = display_model[len(prefix) + 1:]
+                changed = True
+                break
     # Strip :cloud and :cloud suffixes — they indicate routing mode, not a different model
-    display_model = model.removesuffix(':cloud').removesuffix('-cloud')
+    display_model = display_model.removesuffix(':cloud').removesuffix('-cloud')
     return f'{display_provider}/{display_model}'
 
 
@@ -3869,13 +3882,25 @@ def text_already_has_model_prefix(text, provider_name, model):
     return stripped.startswith(f'[{display_id}]') or stripped.startswith(f'[sage-router {display_id}]')
 
 
+def looks_like_model_prefix_label(label):
+    label = (label or '').strip()
+    if label.lower().startswith('sage-router '):
+        label = label.split(None, 1)[1].strip()
+    if len(label) > 140 or ' ' in label or '/' not in label:
+        return False
+    return bool(re.match(r'^[A-Za-z0-9_.-]+/[^\]\s]+$', label))
+
+
 def strip_leading_model_prefixes(text, provider_name, model):
     """Remove provider/model labels already emitted by an upstream response."""
     remaining = text or ''
     labels = {
         display_model_id(provider_name, model),
         f'{provider_name}/{model}',
+        str(model or ''),
     }
+    if '/' in str(model or ''):
+        labels.add(str(model or '').split('/', 1)[1])
     labels = {label for label in labels if label and label != 'None/None'}
     changed = True
     while changed:
@@ -3888,6 +3913,12 @@ def strip_leading_model_prefixes(text, provider_name, model):
                 remaining = leading_ws + stripped[len(prefix):].lstrip()
                 changed = True
                 break
+        if changed:
+            continue
+        match = re.match(r'^\[([^\]\n]{1,140})\]\s*', stripped)
+        if match and looks_like_model_prefix_label(match.group(1)):
+            remaining = leading_ws + stripped[match.end():].lstrip()
+            changed = True
     return remaining
 
 

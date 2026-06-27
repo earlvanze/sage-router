@@ -86,6 +86,19 @@ class ToolCallLeakTests(unittest.TestCase):
         text = '[ollama-2/kimi-k2.7-code] [ollama-2/kimi-k2.7-code] [ollama-2/kimi-k2.7-code]'
         self.assertEqual('', router.strip_leading_model_prefixes(text, 'ollama-2', 'kimi-k2.7-code'))
 
+    def test_provider_prefixed_model_id_does_not_double_display_provider(self):
+        self.assertEqual(
+            'ollama-2/kimi-k2.7-code',
+            router.display_model_id('ollama-2', 'ollama-2/kimi-k2.7-code'),
+        )
+
+    def test_repeated_upstream_model_prefixes_are_stripped_across_aliases(self):
+        text = '[ollama-2/kimi-k2.7-code] [ollama-2/kimi-k2.7-code] tool result ready'
+        self.assertEqual(
+            'tool result ready',
+            router.strip_leading_model_prefixes(text, 'ollama', 'kimi-k2.7-code'),
+        )
+
     def test_upstream_model_prefix_is_stripped_before_visible_content(self):
         text = '[ollama-2/kimi-k2.7-code] tool result ready'
         self.assertEqual(
