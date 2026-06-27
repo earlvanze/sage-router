@@ -515,6 +515,46 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertFalse(self.edge.should_use_control_plane("/v1/models"))
         self.assertFalse(self.edge.should_use_control_plane("/health"))
 
+    def test_launch_funnel_edge_transform_promotes_auth_provider_state(self):
+        body = (
+            b'{"marketingIntent":{"authProviderState":{"total":4,"loaded":4,'
+            b'"unavailable":0,"unknown":0,"githubEnabled":4,"githubDisabled":0,'
+            b'"enabledProviders":{"github":4,"google":4,"discord":4,"none":0,"other":0},'
+            b'"disabledProviders":{"github":0,"google":0,"discord":0,"none":4,"other":0}}}}'
+        )
+        headers = [("Content-Type", "application/json"), ("Content-Length", str(len(body)))]
+
+        transformed = self.edge.transform_edge_response_body("/analytics/funnel?days=30", headers, 200, body)
+        payload = self.edge.json.loads(transformed.decode("utf-8"))
+        auth_state = payload["authProviderState"]
+
+        self.assertEqual(4, auth_state["total"])
+        self.assertEqual(4, auth_state["githubEnabled"])
+        self.assertTrue(auth_state["githubAvailable"])
+        self.assertEqual("marketing_funnel", auth_state["source"])
+        self.assertEqual("email_first", auth_state["recommendedRecoveryAuth"])
+        self.assertIn("email/password", auth_state["operatorGuidance"])
+        self.assertEqual(4, auth_state["enabledProviders"]["github"])
+        self.assertEqual(4, auth_state["disabledProviders"]["none"])
+
+    def test_launch_funnel_edge_transform_keeps_current_auth_provider_state(self):
+        body = b'{"authProviderState":{"total":1},"marketingIntent":{"authProviderState":{"total":4}}}'
+        headers = [("Content-Type", "application/json"), ("Content-Length", str(len(body)))]
+
+        transformed = self.edge.transform_edge_response_body("/analytics/funnel", headers, 200, body)
+
+        self.assertEqual(body, transformed)
+
+    def test_launch_funnel_edge_transform_only_buffers_small_uncompressed_json(self):
+        body = b'{"marketingIntent":{}}'
+        json_headers = [("Content-Type", "application/json"), ("Content-Length", str(len(body)))]
+        encoded_headers = json_headers + [("Content-Encoding", "gzip")]
+
+        self.assertTrue(self.edge.should_buffer_response_for_edge_transform("/analytics/funnel", json_headers, 200))
+        self.assertFalse(self.edge.should_buffer_response_for_edge_transform("/analytics", json_headers, 200))
+        self.assertFalse(self.edge.should_buffer_response_for_edge_transform("/analytics/funnel", encoded_headers, 200))
+        self.assertFalse(self.edge.should_buffer_response_for_edge_transform("/analytics/funnel", json_headers, 500))
+
     def test_generated_key_model_routes_include_control_plane_fallback(self):
         upstream = self.edge.Upstream("http://tailnet.local:8790")
         upstream.set_health(True, latency_ms=10)

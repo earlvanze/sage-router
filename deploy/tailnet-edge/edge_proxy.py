@@ -654,6 +654,78 @@ def should_buffer_response_for_modality(response_headers, status):
     return 0 < content_length <= MAX_MODALITY_LEARN_BODY_BYTES
 
 
+def response_is_uncompressed_json(response_headers, status):
+    if not (200 <= int(status or 0) < 300):
+        return False
+    headers = {str(key).lower(): str(value) for key, value in (response_headers or [])}
+    if "application/json" not in headers.get("content-type", "").lower():
+        return False
+    return "content-encoding" not in headers
+
+
+def should_buffer_response_for_edge_transform(path, response_headers, status):
+    if not (is_launch_funnel_path(path) and response_is_uncompressed_json(response_headers, status)):
+        return False
+    headers = {str(key).lower(): str(value) for key, value in (response_headers or [])}
+    try:
+        content_length = int(headers.get("content-length") or "0")
+    except ValueError:
+        return False
+    return 0 < content_length <= MAX_MODALITY_LEARN_BODY_BYTES
+
+
+def launch_auth_provider_state_from_marketing(marketing_metrics):
+    base = {
+        "total": 0,
+        "loaded": 0,
+        "unavailable": 0,
+        "unknown": 0,
+        "githubEnabled": 0,
+        "githubDisabled": 0,
+        "enabledProviders": {"github": 0, "google": 0, "discord": 0, "none": 0, "other": 0},
+        "disabledProviders": {"github": 0, "google": 0, "discord": 0, "none": 0, "other": 0},
+    }
+    source = "unavailable"
+    if isinstance(marketing_metrics, dict) and isinstance(marketing_metrics.get("authProviderState"), dict):
+        raw = marketing_metrics.get("authProviderState") or {}
+        source = "marketing_funnel" if int(raw.get("total") or 0) > 0 else "marketing_funnel_empty"
+        for key, value in raw.items():
+            if key not in {"enabledProviders", "disabledProviders"}:
+                base[key] = value
+        if isinstance(raw.get("enabledProviders"), dict):
+            base["enabledProviders"].update(raw.get("enabledProviders") or {})
+        if isinstance(raw.get("disabledProviders"), dict):
+            base["disabledProviders"].update(raw.get("disabledProviders") or {})
+    github_available = int(base.get("githubEnabled") or 0) > 0 and int(base.get("githubEnabled") or 0) >= int(base.get("githubDisabled") or 0)
+    base.update({
+        "source": source,
+        "githubAvailable": github_available,
+        "recommendedRecoveryAuth": "email_first",
+        "operatorGuidance": (
+            "Use email/password recovery first; GitHub/OAuth is available only when it is the same signup account."
+            if github_available
+            else "Use email/password recovery first; do not rely on GitHub/OAuth until provider state is observed healthy."
+        ),
+    })
+    return base
+
+
+def transform_edge_response_body(path, response_headers, status, body):
+    if not (body and should_buffer_response_for_edge_transform(path, response_headers, status)):
+        return body
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except Exception:
+        return body
+    if not isinstance(payload, dict):
+        return body
+    if isinstance(payload.get("authProviderState"), dict):
+        return body
+    marketing_metrics = payload.get("marketingIntent") if isinstance(payload.get("marketingIntent"), dict) else {}
+    payload["authProviderState"] = launch_auth_provider_state_from_marketing(marketing_metrics)
+    return json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+
 def cache_get(key):
     now = time.time()
     with AUTH_CACHE_LOCK:
@@ -774,6 +846,10 @@ def is_operator_control_plane_path(path):
 def is_operator_analytics_path(path):
     clean_path = urlsplit(path).path
     return clean_path == "/analytics" or clean_path.startswith("/analytics/")
+
+
+def is_launch_funnel_path(path):
+    return urlsplit(path).path == "/analytics/funnel"
 
 
 def is_public_signed_backend_path(path):
@@ -1402,23 +1478,30 @@ class EdgeHandler(BaseHTTPRequestHandler):
 
                 response_headers = resp.getheaders()
                 buffered_response_body = None
-                if should_buffer_response_for_modality(response_headers, resp.status):
+                if should_buffer_response_for_modality(response_headers, resp.status) or should_buffer_response_for_edge_transform(self.path, response_headers, resp.status):
                     buffered_response_body = resp.read(MAX_MODALITY_LEARN_BODY_BYTES + 1)
                     if len(buffered_response_body) > MAX_MODALITY_LEARN_BODY_BYTES:
                         buffered_response_body = None
                         self.close_connection = True
                         resp.close()
-                        raise RuntimeError("response too large for modality learning buffer")
+                        raise RuntimeError("response too large for edge response buffer")
+                    buffered_response_body = transform_edge_response_body(self.path, response_headers, resp.status, buffered_response_body)
                 modality_record = modality_record_from_response(response_headers, resp.status, body, buffered_response_body)
 
                 self.close_connection = True
                 self.send_response(resp.status, resp.reason)
                 sent_header_names = set()
                 for key, value in response_headers:
-                    if key.lower() in HOP_BY_HOP_HEADERS or key.lower() in EDGE_OWNED_RESPONSE_HEADERS:
+                    lower_key = key.lower()
+                    if lower_key in HOP_BY_HOP_HEADERS or lower_key in EDGE_OWNED_RESPONSE_HEADERS:
                         continue
-                    sent_header_names.add(key.lower())
+                    if buffered_response_body is not None and lower_key == "content-length":
+                        continue
+                    sent_header_names.add(lower_key)
                     self.send_header(key, value)
+                if buffered_response_body is not None:
+                    self.send_header("Content-Length", str(len(buffered_response_body)))
+                    sent_header_names.add("content-length")
                 if modality_record:
                     derived_headers = {
                         "X-Sage-Router-Provider": modality_record["provider"],
