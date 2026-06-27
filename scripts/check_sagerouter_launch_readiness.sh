@@ -1,6 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+load_local_env_file() {
+  local path="$1"
+  [[ -f "$path" ]] || return 0
+
+  local key value current
+  while IFS='=' read -r -d '' key value; do
+    case "$key" in
+      SAGEROUTER_API_BASE_URL|SAGEROUTER_APP_BASE_URL|SAGEROUTER_MARKETING_BASE_URL|SAGEROUTER_ORIGIN_BASE_URL|\
+      SAGEROUTER_ORIGIN_AUTO_DISCOVER|SAGEROUTER_CLOUD_RUN_PROJECT|SAGEROUTER_CLOUD_RUN_REGION|SAGEROUTER_CLOUD_RUN_SERVICE|\
+      SAGE_ROUTER_GCP_PROJECT_ID|SUPABASE_PROJECT_REF|SAGE_ROUTER_SUPABASE_URL|SAGE_ROUTER_SUPABASE_ANON_KEY|\
+      PUBLIC_SUPABASE_ANON_KEY|VITE_SUPABASE_PUBLISHABLE_KEY|AOPS_SUPABASE_ANON_KEY|SUPABASE_ACCESS_TOKEN|\
+      SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY|SAGE_ROUTER_API_KEY|SAGE_ROUTER_EDGE_TOKEN|\
+      SAGE_ROUTER_OPERATOR_TOKEN|SAGE_ROUTER_CLIENT_API_KEY|SAGE_ROUTER_CLIENT_API_KEYS|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED|\
+      SAGEROUTER_PROVIDER_RESALE_TERMS_URL|SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL|\
+      SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED|SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS)
+        ;;
+      *)
+        continue
+        ;;
+    esac
+    current="${!key:-}"
+    if [[ -z "$current" && -n "$value" ]]; then
+      printf -v "$key" '%s' "$value"
+      export "$key"
+    fi
+  done < <(set +u; set -a; source "$path" >/dev/null 2>&1; env -0)
+}
+
+load_local_env_file "${SAGEROUTER_SECRET_ENV_FILE:-/home/digit/.openclaw/.env}"
+
 API_BASE="${SAGEROUTER_API_BASE_URL:-https://api.sagerouter.dev}"
 APP_BASE="${SAGEROUTER_APP_BASE_URL:-https://app.sagerouter.dev}"
 MARKETING_BASE="${SAGEROUTER_MARKETING_BASE_URL:-https://sagerouter.dev}"

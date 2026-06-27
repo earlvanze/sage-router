@@ -265,6 +265,12 @@ class HostedOnboardingTests(unittest.TestCase):
     def test_readiness_checks_public_supabase_auth_settings(self):
         readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")
         readme = self.read_text("README.md")
+        self.assertIn("load_local_env_file", readiness)
+        self.assertIn("SAGEROUTER_SECRET_ENV_FILE:-/home/digit/.openclaw/.env", readiness)
+        self.assertIn("SAGE_ROUTER_API_KEY|SAGE_ROUTER_EDGE_TOKEN", readiness)
+        self.assertIn("SUPABASE_ACCESS_TOKEN", readiness)
+        self.assertIn("SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY", readiness)
+        self.assertNotIn("while IFS='=' read -r key value", readiness)
         self.assertIn("discover_supabase_anon_key", readiness)
         self.assertIn("supabase_key_for_project", readiness)
         self.assertIn('SUPABASE_URL="${SAGE_ROUTER_SUPABASE_URL:-https://${SUPABASE_PROJECT_REF}.supabase.co}"', readiness)
