@@ -847,6 +847,12 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Operator launch brief" /tmp/sage-router-readiness-body; then
     launch_funnel_code="200:missing-operator-launch-brief"
   fi
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Execution packet" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:missing-operator-execution-packet"
+  fi
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "operator-execution-packet" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:missing-operator-execution-packet-container"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   launch_funnel_js_code="$(http_code_follow "${APP_BASE%/}/launch-funnel.js")"
@@ -885,6 +891,12 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "No secrets or customer data" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-launch-brief-privacy-boundary"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderOperatorExecutionPacket" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-operator-execution-packet-renderer"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "operator_execution_packet_copied" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-operator-execution-packet-telemetry"
   fi
   rm -f /tmp/sage-router-readiness-body
 
