@@ -3945,6 +3945,47 @@ def streaming_debug_prefix(provider_name, model, request_id):
     return f'[sage-router {display_model_id(provider_name, model)}]\n'
 
 
+def sanitize_openai_compat_stream_line(raw_line, provider_name, model):
+    """Sanitize visible content in proxied OpenAI-compatible SSE chunks."""
+    if not raw_line:
+        return raw_line
+    if isinstance(raw_line, bytes):
+        line = raw_line.decode('utf-8', errors='replace')
+        as_bytes = True
+    else:
+        line = str(raw_line)
+        as_bytes = False
+    stripped = line.lstrip()
+    if not stripped.startswith('data:'):
+        return raw_line
+    prefix_len = len(line) - len(stripped)
+    data = stripped[len('data:'):].strip()
+    if not data or data == '[DONE]':
+        return raw_line
+    try:
+        chunk = json.loads(data)
+    except Exception:
+        return raw_line
+    changed = False
+    for choice in chunk.get('choices') or []:
+        delta = choice.get('delta') if isinstance(choice, dict) else None
+        if not isinstance(delta, dict) or 'content' not in delta:
+            continue
+        original = delta.get('content') or ''
+        cleaned = strip_leading_model_prefixes(
+            sanitize_visible_output(original),
+            provider_name,
+            model,
+        )
+        if cleaned != original:
+            delta['content'] = cleaned
+            changed = True
+    if not changed:
+        return raw_line
+    sanitized = f"{line[:prefix_len]}data: {json.dumps(chunk, separators=(',', ':'))}\n"
+    return sanitized.encode('utf-8') if as_bytes else sanitized
+
+
 def maybe_prefix_debug_text(content, metadata, debug_mode=False, allow_prefix=True):
     text = strip_leading_model_prefixes(
         sanitize_visible_output(content or ''),
@@ -13111,7 +13152,7 @@ def stream_openai_compat_to_client(self, provider, model, payload, request_id, t
             line = resp.readline()
             if not line:
                 break
-            self.wfile.write(line)
+            self.wfile.write(sanitize_openai_compat_stream_line(line, provider.name, model))
             self.wfile.flush()
     return True
 

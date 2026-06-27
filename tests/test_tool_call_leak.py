@@ -86,6 +86,29 @@ class ToolCallLeakTests(unittest.TestCase):
         text = '[ollama-2/kimi-k2.7-code] [ollama-2/kimi-k2.7-code] [ollama-2/kimi-k2.7-code]'
         self.assertEqual('', router.strip_leading_model_prefixes(text, 'ollama-2', 'kimi-k2.7-code'))
 
+    def test_openai_compat_stream_strips_repeated_prefix_chunks(self):
+        raw = (
+            'data: {"id":"chatcmpl-1","choices":[{"index":0,'
+            '"delta":{"role":"assistant","content":"[ollama-2/kimi-k2.7-code] '
+            '[ollama-2/kimi-k2.7-code] [ollama-2/kimi-k2.7-code]"},"finish_reason":null}]}\n'
+        ).encode()
+        sanitized = router.sanitize_openai_compat_stream_line(raw, 'ollama-2', 'kimi-k2.7-code')
+        chunk = json.loads(sanitized.decode().split('data: ', 1)[1])
+        self.assertEqual('', chunk['choices'][0]['delta']['content'])
+
+    def test_openai_compat_stream_keeps_tool_call_delta_while_stripping_prefix(self):
+        raw = (
+            'data: {"id":"chatcmpl-1","choices":[{"index":0,'
+            '"delta":{"content":"[ollama-2/kimi-k2.7-code] ",'
+            '"tool_calls":[{"index":0,"id":"call_1","type":"function",'
+            '"function":{"name":"lookup","arguments":"{}"}}]},"finish_reason":null}]}\n'
+        ).encode()
+        sanitized = router.sanitize_openai_compat_stream_line(raw, 'ollama-2', 'kimi-k2.7-code')
+        chunk = json.loads(sanitized.decode().split('data: ', 1)[1])
+        delta = chunk['choices'][0]['delta']
+        self.assertEqual('', delta['content'])
+        self.assertEqual('lookup', delta['tool_calls'][0]['function']['name'])
+
     def test_provider_prefixed_model_id_does_not_double_display_provider(self):
         self.assertEqual(
             'ollama-2/kimi-k2.7-code',
