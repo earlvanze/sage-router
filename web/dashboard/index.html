@@ -132,7 +132,6 @@
               <option value="ollama">Ollama</option>
               <option value="openai-completions">OpenAI compatible</option>
               <option value="anthropic-messages">Anthropic</option>
-              <option value="google-generative-language">Google Gemini</option>
             </select>
           </div>
           <div class="field">
@@ -225,7 +224,6 @@
             <option value="openai-codex-responses">OpenAI Codex (ChatGPT subscription)</option>
             <option value="anthropic-messages">Anthropic</option>
             <option value="ollama">Ollama</option>
-            <option value="google-generative-language">Google Gemini</option>
           </select>
         </div>
         <div class="field" id="credBaseUrlField">
@@ -269,6 +267,12 @@
       <div id="profile"></div>
     </div>
     <div class="card">
+      <h2>First Request Smoke</h2>
+      <p class="muted" style="margin-bottom:8px">Verify generated-key routing end-to-end. Uses the operator token as a generated-key substitute.</p>
+      <button class="btn btn-primary" onclick="runFirstRequestSmoke()" style="margin:4px 4px 4px 0">🧪 Probe /v1/models</button>
+      <div id="firstRequestSmokeStatus" class="muted" style="margin-top:8px">Not run</div>
+    </div>
+    <div class="card">
       <h2>Quick Actions</h2>
       <div class="form-grid" style="margin-bottom:10px">
         <label for="operatorToken">Operator token <span class="muted">(stored in this tab only)</span></label>
@@ -289,8 +293,7 @@
       'ollama': {name: 'ollama', api: 'ollama', baseUrl: 'https://ollama.com'},
       'openai-completions': {name: 'openai', api: 'openai-completions', baseUrl: 'https://api.openai.com/v1'},
       'openai-codex-responses': {name: 'openai-codex', api: 'openai-codex-responses', baseUrl: 'https://chatgpt.com/backend-api/codex'},
-      'anthropic-messages': {name: 'anthropic', api: 'anthropic-messages', baseUrl: 'https://api.anthropic.com'},
-      'google-generative-language': {name: 'google', api: 'google-generative-language', baseUrl: 'https://generativelanguage.googleapis.com/v1beta'}
+      'anthropic-messages': {name: 'anthropic', api: 'anthropic-messages', baseUrl: 'https://api.anthropic.com'}
     };
     function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
     const OPERATOR_TOKEN_KEY = 'sageRouterOperatorToken';
@@ -563,13 +566,45 @@
       });
     }
 
+    async function runFirstRequestSmoke() {
+      const status = document.getElementById('firstRequestSmokeStatus');
+      status.textContent = 'Probing...';
+      status.className = 'muted';
+      const token = operatorToken();
+      if (!token) {
+        status.textContent = 'Set an operator token in Quick Actions first.';
+        status.className = 'muted';
+        return;
+      }
+      const start = performance.now();
+      try {
+        const r = await fetch(API + '/v1/models', { headers: { Authorization: `Bearer ${token}` } });
+        const elapsed = Math.round(performance.now() - start);
+        if (!r.ok) {
+          const body = await r.text().catch(() => '');
+          status.innerHTML = `<span style="color:var(--danger)">Failed: HTTP ${r.status} (${elapsed}ms)</span><br><span class="muted">${body.slice(0,200)}</span>`;
+          return;
+        }
+        const data = await r.json().catch(() => ({}));
+        const count = (data.models || []).length;
+        status.innerHTML = `<span style="color:var(--success)">OK: ${count} model(s) reachable (${elapsed}ms)</span><br><span class="muted">Routing is alive. If a generated-key customer cannot reach this, check key state and provider health.</span>`;
+      } catch (err) {
+        status.innerHTML = `<span style="color:var(--danger)">Error: ${err.message}</span>`;
+      }
+    }
+
     const MOD_ORDER = ['text','image','audio','video','document'];
     function modClass(m){ return m; }
-    function renderLearnedModalities(data) {
+    function renderLearnedModalities(resp) {
       const el = document.getElementById('learnedModalities');
+      const data = (resp || {}).modelModalities || {};
+      const shared = (resp || {}).shared || {};
       const entries = Object.entries(data || {});
+      const sharedLabel = shared.enabled ? 'CDN-wide Supabase ledger enabled' : (shared.configured ? 'Shared ledger configured but disabled' : 'Local ledger only');
+      const sharedDetail = shared.enabled ? `refresh ${shared.refreshSeconds || 60}s · ${escapeHtml(shared.table || 'sage_router_model_modalities')}` : escapeHtml((resp || {}).path || '');
+      const sharedHtml = `<div class="mm-card-actions"><span class="muted">${escapeHtml(sharedLabel)}${sharedDetail ? ` · ${sharedDetail}` : ''}</span></div>`;
       if (!entries.length) {
-        el.innerHTML = '<div class="mm-card-actions"><button class="mm-action danger" disabled>Reset all</button><span class="muted">No modalities recorded yet.</span></div>';
+        el.innerHTML = `${sharedHtml}<div class="mm-card-actions"><button class="mm-action danger" disabled>Reset all</button><span class="muted">No modalities recorded yet.</span></div>`;
         return;
       }
       entries.sort((a, b) => (b[1].lastSeen || 0) - (a[1].lastSeen || 0));
@@ -578,7 +613,7 @@
         const checks = MOD_ORDER.map(m => `<label class="mm-check"><input type="checkbox" value="${escapeHtml(m)}" ${mods.includes(m) ? 'checked' : ''}>${escapeHtml(m)}</label>`).join('');
         return `<div class="mm-row" id="mm-row-${idx}" data-key="${escapeHtml(key)}"><span class="mm-model">${escapeHtml(key)} <span class="muted">×${info.count || 0}</span></span><span class="mm-mods">${checks}<button class="mm-action" onclick="saveModalities(${idx})">Save</button><button class="mm-action danger" onclick="resetModalities(${idx})">Reset</button></span></div>`;
       }).join('');
-      el.innerHTML = `<div class="mm-card-actions"><button class="mm-action danger" onclick="resetAllModalities()">Reset all</button><span class="muted">${entries.length} model(s) learned</span></div>${body}`;
+      el.innerHTML = `${sharedHtml}<div class="mm-card-actions"><button class="mm-action danger" onclick="resetAllModalities()">Reset all</button><span class="muted">${entries.length} model(s) learned</span></div>${body}`;
     }
     function rowModalities(idx) {
       const row = document.getElementById(`mm-row-${idx}`);
@@ -674,7 +709,7 @@
       window.__sageCredentialProviders = Object.fromEntries((credentialGroups || []).map(group => [group.provider, group]));
       renderCredentials(credentialGroups);
       // Learned modalities
-      renderLearnedModalities((modalitiesResp || {}).modelModalities);
+      renderLearnedModalities(modalitiesResp || {});
       const configuredNames = (Array.isArray(configured) ? configured : Object.keys(configured || {}))
         .map(p => (typeof p === 'string' ? p : (p && (p.name || p.id)) || null))
         .filter(Boolean);
