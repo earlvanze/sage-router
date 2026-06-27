@@ -634,6 +634,77 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, len(detail.payload['auditEvents']))
         self.assertNotIn('api_key_hash', json.dumps(detail.payload['auditEvents']))
 
+    def test_operator_activation_contact_export_is_explicit_and_bounded(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        router.SUPABASE_AUTH_ENABLED = True
+        verified = router.customer_for_user({'id': 'auth-verified', 'email': 'verified@example.com'})
+        unverified = router.customer_for_user({'id': 'auth-unverified', 'email': 'unverified@example.com'})
+        suspended = router.customer_for_user({'id': 'auth-suspended', 'email': 'suspended@example.com'})
+        active = router.customer_for_user({'id': 'auth-active', 'email': 'active@example.com'})
+        router.update_customer(verified['id'], {'plan': 'free', 'status': 'inactive'})
+        router.update_customer(unverified['id'], {'plan': 'free', 'status': 'inactive'})
+        router.update_customer(suspended['id'], {'plan': 'free', 'status': 'suspended'})
+        router.update_customer(active['id'], {'plan': 'pro', 'status': 'active'})
+        router.create_api_key_for_customer(router.customer_by_id(active['id']), 'already-active')
+        router.read_launch_auth_user_rows = lambda limit=1000: [
+            {'id': 'auth-verified', 'email': 'verified@example.com', 'email_confirmed': True},
+            {'id': 'auth-unverified', 'email': 'unverified@example.com', 'email_confirmed': False},
+            {'id': 'auth-suspended', 'email': 'suspended@example.com', 'email_confirmed': True},
+            {'id': 'auth-active', 'email': 'active@example.com', 'email_confirmed': True},
+        ]
+
+        class Dummy:
+            def __init__(self, path, token='operator-token'):
+                self.path = path
+                self.headers = {'Authorization': f'Bearer {token}'}
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        unauthorized = Dummy('/admin/customers?contactExport=activation', token='bad-token')
+        router.Handler.do_GET(unauthorized)
+        self.assertEqual(401, unauthorized.status)
+
+        default_listing = Dummy('/admin/customers?status=inactive&limit=10')
+        router.Handler.do_GET(default_listing)
+        self.assertEqual(200, default_listing.status)
+        self.assertNotIn('contacts', default_listing.payload)
+
+        export = Dummy('/admin/customers?status=inactive&limit=10&contactExport=activation')
+        router.Handler.do_GET(export)
+
+        self.assertEqual(200, export.status)
+        self.assertEqual('activation_contact_export', export.payload['kind'])
+        self.assertEqual(2, export.payload['count'])
+        self.assertEqual({'unverified': 1, 'verified': 1}, export.payload['segments'])
+        self.assertTrue(export.payload['privacy']['operatorOnly'])
+        self.assertTrue(export.payload['privacy']['explicitContactExport'])
+        self.assertTrue(export.payload['privacy']['containsEmails'])
+        self.assertFalse(export.payload['privacy']['containsCustomerIds'])
+        self.assertFalse(export.payload['privacy']['containsRawApiKeys'])
+        self.assertFalse(export.payload['privacy']['containsApiKeyHashes'])
+        self.assertFalse(export.payload['privacy']['containsProviderCredentials'])
+        self.assertFalse(export.payload['privacy']['containsPrompts'])
+        self.assertFalse(export.payload['privacy']['containsRawProviderResponses'])
+        emails = [row['email'] for row in export.payload['contacts']]
+        self.assertEqual(['unverified@example.com', 'verified@example.com'], emails)
+        self.assertNotIn('suspended@example.com', emails)
+        self.assertNotIn('active@example.com', emails)
+        for contact in export.payload['contacts']:
+            self.assertIn('start=create_key', contact['passwordFallback'])
+            self.assertIn('auth=email', contact['passwordFallback'])
+            self.assertIn('auth=github', contact['githubOAuth'])
+            self.assertIn('generated sk_sage setup key', contact['body'])
+            self.assertNotIn('auth-', json.dumps(contact))
+            self.assertNotIn('customer_', json.dumps(contact))
+        self.assertIn('operator_no_key_contact_export_copied', export.payload['telemetry']['copyEvents'])
+        self.assertIn('verified@example.com', export.payload['csv'])
+        self.assertNotIn('api_key_hash', json.dumps(export.payload))
+        self.assertNotIn('sk_sage_', json.dumps(export.payload))
+
     def test_operator_can_hydrate_auth_signups_to_inactive_customers(self):
         router.CLIENT_API_KEYS = ['operator-token']
         router.read_launch_auth_user_rows = lambda limit=1000: [

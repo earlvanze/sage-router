@@ -227,6 +227,18 @@ function customerPrivacyLabel(privacy = {}) {
   return clean ? 'No raw keys/hashes' : 'Review payload';
 }
 
+function contactExportPrivacyLabel(privacy = {}) {
+  const bounded = privacy.operatorOnly === true &&
+    privacy.explicitContactExport === true &&
+    privacy.containsEmails === true &&
+    privacy.containsCustomerIds === false &&
+    privacy.containsRawApiKeys === false &&
+    privacy.containsApiKeyHashes === false &&
+    privacy.containsProviderCredentials === false &&
+    privacy.containsPrompts === false;
+  return bounded ? 'Explicit email export' : 'Review contact payload';
+}
+
 function formatDate(epoch) {
   const value = asNumber(epoch);
   return value > 0 ? new Date(value * 1000).toLocaleString() : '--';
@@ -1677,6 +1689,56 @@ function noKeyFollowUpCandidates(customers = []) {
   });
 }
 
+function contactExportSummaries(exportData = {}) {
+  return (exportData.contacts || []).map(contact => ({
+    customer: {
+      email: contact.email || '',
+      status: 'inactive',
+      plan: contact.suggestedPlan || 'pro',
+    },
+    activation: {
+      nextAction: contact.nextAction || 'create_key',
+      activeKeyCount: 0,
+      keyCount: 0,
+      plan: contact.suggestedPlan || 'pro',
+      status: 'inactive',
+    },
+    followUp: {
+      nextAction: contact.nextAction || 'create_key',
+      suggestedPlan: contact.suggestedPlan || 'pro',
+      primaryCtaKind: 'same_email_password',
+      primaryCtaUrl: contact.passwordFallback || '',
+      passwordFallback: contact.passwordFallback || '',
+      githubOAuth: contact.githubOAuth || '',
+      recommendedCtaOrder: ['passwordFallback', 'githubOAuth'],
+      emailVerificationSegment: contact.emailVerificationSegment || 'unverified',
+    },
+    emailVerification: {
+      required: true,
+      verified: contact.emailVerified === true,
+      source: 'operator_contact_export',
+    },
+    review: {
+      severity: 'warn',
+      flags: [{
+        code: 'no_key_contact_export',
+        label: 'No setup key',
+        detail: 'Explicit operator contact export row.',
+      }],
+      flagCodes: ['no_key_contact_export'],
+    },
+  }));
+}
+
+function noKeyFollowUpQueueData(data = {}) {
+  const customerCandidates = noKeyFollowUpCandidates(data.customers || []);
+  const exportCandidates = contactExportSummaries(data.contactExport || {});
+  if (exportCandidates.length && !customerCandidates.some(summary => String((summary.customer || {}).email || '').trim())) {
+    return exportCandidates;
+  }
+  return customerCandidates;
+}
+
 function renderNoKeySegmentControls({ segment, label, customers, batchText, urlsText, csvText, mailtoUrl, plan }) {
   if (!batchText) return '';
   const count = customers.length;
@@ -1686,7 +1748,7 @@ function renderNoKeySegmentControls({ segment, label, customers, batchText, urls
 }
 
 function renderNoKeyDockSegmentControls({ plan = 'pro' } = {}) {
-  const customers = noKeyFollowUpCandidates(lastCustomerData?.customers || []);
+  const customers = noKeyFollowUpQueueData(lastCustomerData || {});
   if (!customers.length) return '';
   const verified = customers.filter(summary => emailVerificationSegment(summary) === 'verified');
   const unverified = customers.filter(summary => emailVerificationSegment(summary) === 'unverified');
@@ -1716,9 +1778,12 @@ function renderNoKeyDockSegmentControls({ plan = 'pro' } = {}) {
 function renderNoKeyFollowUps(data = {}) {
   const target = $('no-key-followups');
   if (!target) return;
-  const customers = noKeyFollowUpCandidates(data.customers || []);
+  const customers = noKeyFollowUpQueueData(data);
   const privacy = data.privacy || {};
+  const contactExport = data.contactExport || {};
   const privacyTone = customerPrivacyLabel(privacy) === 'No raw keys/hashes' ? 'good' : 'bad';
+  const exportLabel = contactExport?.privacy ? contactExportPrivacyLabel(contactExport.privacy) : '';
+  const exportTone = exportLabel === 'Explicit email export' ? 'warn' : 'bad';
   if (!customers.length) {
     target.innerHTML = `<div class="empty">No no-key signup follow-ups in this result set. <span class="pill ${privacyTone}">${esc(customerPrivacyLabel(privacy))}</span></div>`;
     return;
@@ -1737,10 +1802,11 @@ function renderNoKeyFollowUps(data = {}) {
   const verifiedMailto = mailtoBatchFollowUpUrl(customers, 'verified');
   const unverifiedMailto = mailtoBatchFollowUpUrl(customers, 'unverified');
   const apiEmailVerification = data.emailVerification || {};
+  const exportSegmentCounts = contactExport.segments || {};
   const queueSummary = `<div class="metricList">
     <div class="metric"><span>Admin queue returned</span><strong>${integer(data.returned ?? customers.length)} / ${integer(data.count ?? customers.length)}</strong></div>
-    <div class="metric"><span>No-key create-key</span><strong>${integer(data.noKeyCreateKey ?? customers.length)}</strong></div>
-    <div class="metric"><span>Email verification</span><strong>${integer(apiEmailVerification.verified ?? verified.length)} verified · ${integer(apiEmailVerification.unverified ?? unverified.length)} unverified</strong></div>
+    <div class="metric"><span>No-key create-key</span><strong>${integer(data.noKeyCreateKey ?? contactExport.count ?? customers.length)}</strong></div>
+    <div class="metric"><span>Email verification</span><strong>${integer(apiEmailVerification.verified ?? exportSegmentCounts.verified ?? verified.length)} verified · ${integer(apiEmailVerification.unverified ?? exportSegmentCounts.unverified ?? unverified.length)} unverified</strong></div>
     <div class="metric"><span>Status / action</span><strong>${esc(bucketCountsLabel(data.statusCounts))} · ${esc(bucketCountsLabel(data.nextActions))}</strong></div>
   </div>`;
   const mode = noKeyFollowUpMode();
@@ -1783,7 +1849,7 @@ function renderNoKeyFollowUps(data = {}) {
       </tr>`;
     }).join('')}</tbody>
   </table></div>
-  <p><span class="pill ${privacyTone}">${esc(customerPrivacyLabel(privacy))}</span></p>`;
+  <p><span class="pill ${privacyTone}">${esc(customerPrivacyLabel(privacy))}</span>${exportLabel ? ` <span class="pill ${exportTone}">${esc(exportLabel)}</span>` : ''}</p>`;
   if (mode) target.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
@@ -1837,6 +1903,13 @@ async function fetchNoKeyFollowUps(token) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    const exportParams = new URLSearchParams({ status: 'inactive', limit: '50', contactExport: 'activation' });
+    const exportResponse = await fetch(`${API_BASE}/admin/customers?${exportParams.toString()}`, {
+      headers: authHeaders(token),
+    });
+    if (exportResponse.ok) {
+      data.contactExport = await exportResponse.json().catch(() => ({}));
+    }
     lastCustomerData = data;
     renderNoKeyFollowUps(data);
     if (lastFunnelData) renderNextBestActionDock(lastFunnelData);

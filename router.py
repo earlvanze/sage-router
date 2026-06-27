@@ -8532,6 +8532,143 @@ def operator_customer_follow_up(customer, activation=None, email_verification=No
     }
 
 
+def operator_activation_contact_subject(segment):
+    return (
+        'Verify email, then finish your Sage Router setup key'
+        if str(segment or '').lower() == 'unverified'
+        else 'Finish your Sage Router setup key'
+    )
+
+
+def operator_activation_contact_body(plan, urls, segment):
+    plan = normalize_stripe_plan(plan) or 'pro'
+    segment = str(segment or 'all').lower()
+    password_url = (urls or {}).get('passwordFallback') or launch_activation_follow_up_url(plan, auth=False)
+    github_url = (urls or {}).get('githubOAuth') or launch_activation_follow_up_url(plan, auth='github')
+    intro = (
+        'You already started Sage Router setup, but email verification and the hosted API key step are not complete yet.'
+        if segment == 'unverified'
+        else 'You already started Sage Router setup, but the hosted API key step is not complete yet.'
+    )
+    next_step = (
+        'Next step: use the same email you signed up with, verify it if prompted, then create the generated sk_sage setup key before checkout or routing setup:'
+        if segment == 'unverified'
+        else 'Next step: use the same email you signed up with, then create the generated sk_sage setup key before checkout or routing setup:'
+    )
+    return '\n'.join([
+        intro,
+        '',
+        next_step,
+        password_url,
+        '',
+        'Use GitHub/OAuth only if it is the same account you used before:',
+        github_url,
+        '',
+        f'Suggested path: {plan.upper()} activation -> generated key -> /v1/models verification -> first Responses API request.',
+        '',
+        'Boundary: do not send prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, or raw provider responses.',
+    ])
+
+
+def operator_activation_contact_csv(contacts):
+    rows = [[
+        'email',
+        'segment',
+        'plan',
+        'next_action',
+        'same_email_recovery_url',
+        'github_oauth_url',
+        'subject',
+    ]]
+    for contact in contacts or []:
+        rows.append([
+            contact.get('email') or '',
+            contact.get('emailVerificationSegment') or '',
+            contact.get('suggestedPlan') or '',
+            contact.get('nextAction') or '',
+            contact.get('passwordFallback') or '',
+            contact.get('githubOAuth') or '',
+            contact.get('subject') or '',
+        ])
+
+    def cell(value):
+        text = str(value if value is not None else '').replace('"', '""')
+        return f'"{text}"' if re.search(r'[",\n\r]', text) else text
+
+    return '\n'.join(','.join(cell(value) for value in row) for row in rows)
+
+
+def operator_activation_contact_export(customers):
+    contacts = []
+    segments = {}
+    plan_counts = {}
+    for customer in customers or []:
+        customer = normalize_customer(customer)
+        if not customer or str(customer.get('status') or '').lower() == 'suspended':
+            continue
+        email = str(customer.get('email') or '').strip()
+        if not email:
+            continue
+        keys = api_keys_for_customer(customer.get('id')) if customer.get('id') else []
+        usage = account_usage_for_customer(customer)
+        activation = account_activation_for_customer(customer, usage=usage, api_keys=keys)
+        if activation.get('nextAction') != 'create_key' or int(activation.get('activeKeyCount') or 0) > 0:
+            continue
+        email_verification = auth_verification_state_for_customer(customer)
+        follow_up = operator_customer_follow_up(customer, activation=activation, email_verification=email_verification)
+        segment = follow_up.get('emailVerificationSegment') or auth_verification_bucket(email_verification)
+        plan = follow_up.get('suggestedPlan') or 'pro'
+        subject = operator_activation_contact_subject(segment)
+        urls = {
+            'passwordFallback': follow_up.get('passwordFallback') or follow_up.get('primaryCtaUrl'),
+            'githubOAuth': follow_up.get('githubOAuth'),
+        }
+        contacts.append({
+            'sendOrder': len(contacts) + 1,
+            'email': email,
+            'emailVerificationSegment': segment,
+            'emailVerified': bool(email_verification.get('verified')),
+            'suggestedPlan': plan,
+            'nextAction': activation.get('nextAction') or 'create_key',
+            'subject': subject,
+            'body': operator_activation_contact_body(plan, urls, segment),
+            'passwordFallback': urls['passwordFallback'],
+            'githubOAuth': urls['githubOAuth'],
+        })
+        segments[segment] = segments.get(segment, 0) + 1
+        plan_counts[plan] = plan_counts.get(plan, 0) + 1
+    contacts.sort(key=lambda row: (str(row.get('emailVerificationSegment') or ''), row.get('email') or ''))
+    for idx, contact in enumerate(contacts, start=1):
+        contact['sendOrder'] = idx
+    return {
+        'kind': 'activation_contact_export',
+        'contacts': contacts,
+        'count': len(contacts),
+        'segments': segments,
+        'plans': plan_counts,
+        'csv': operator_activation_contact_csv(contacts),
+        'privacy': {
+            'operatorOnly': True,
+            'explicitContactExport': True,
+            'containsEmails': True,
+            'containsCustomerIds': False,
+            'containsRawApiKeys': False,
+            'containsApiKeys': False,
+            'containsApiKeyHashes': False,
+            'containsProviderCredentials': False,
+            'containsPrompts': False,
+            'containsRawProviderResponses': False,
+        },
+        'telemetry': {
+            'copyEvents': ['operator_no_key_contact_export_copied'],
+            'workedEvents': ['operator_no_key_contact_export_marked_worked'],
+            'recoveryViewEvents': ['account_key_recovery_viewed'],
+            'keyCreateAttemptEvents': ['account_api_key_create_clicked'],
+            'keyCreateSuccessEvents': ['account_key_recovery_key_created'],
+        },
+    }
+
+
 def launch_activation_follow_ups(customers, api_keys, since=0, now=None, auth_users=None):
     """Return privacy-safe aggregate follow-ups for signups blocked before key creation."""
     now = int(now or now_epoch())
@@ -14425,7 +14562,17 @@ class Handler(BaseHTTPRequestHandler):
             query = (qs.get('q') or [''])[0]
             status = (qs.get('status') or [''])[0]
             limit = (qs.get('limit') or ['50'])[0]
+            contact_export = str((qs.get('contactExport') or qs.get('contact_export') or [''])[0] or '').strip().lower()
             rows = operator_customer_rows(query=query, status=status, limit=limit)
+            if contact_export in {'activation', 'no-key', 'no_key', 'signup_to_key_recovery'}:
+                export = operator_activation_contact_export(rows)
+                self.write_json(200, {
+                    **export,
+                    'limit': max(1, min(int(limit or 50) if str(limit or '').isdigit() else 50, 100)),
+                    'query': query,
+                    'status': status,
+                })
+                return
             customers = [operator_customer_summary(row, include_audit=False) for row in rows]
             self.write_json(200, {
                 'customers': customers,
