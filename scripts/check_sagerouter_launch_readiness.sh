@@ -3807,7 +3807,7 @@ check_admin_token() {
     warn "SAGE_ROUTER_API_KEY/SAGE_ROUTER_EDGE_TOKEN not set; skipped private admin token probe"
     return
   fi
-  local code funnel_code funnel_ok customer_base customer_code customer_ok operator_token
+  local code funnel_code funnel_ok customer_base customer_code customer_ok operator_token contact_export_code contact_export_ok
   code="$(http_code "${API_BASE%/}/v1/models" -H "Authorization: Bearer ${ADMIN_TOKEN}")"
   rm -f /tmp/sage-router-readiness-body
   funnel_code="$(http_code "${API_BASE%/}/analytics/funnel?days=30" -H "Authorization: Bearer ${ADMIN_TOKEN}")"
@@ -3855,10 +3855,21 @@ check_admin_token() {
     ((tostring | contains("api_key_hash")) | not)
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$code" == "200" && "$funnel_code" == "200" && "$funnel_ok" == "true" && "$customer_code" == "200" && "$customer_ok" == "true" ]]; then
-    pass "private admin token can reach /v1/models, privacy-safe launch funnel, and bounded customer review with audit envelope"
+  contact_export_code="$(http_code "${API_BASE%/}/admin/customers?status=inactive&limit=20&contactExport=activation" -H "Authorization: Bearer ${ADMIN_TOKEN}")"
+  contact_export_ok="$(jq -r '
+    (.kind == "activation_contact_export") and
+    (.count | type == "number") and
+    ((.contacts // []) | type == "array") and
+    ((.customers // []) | length == 0) and
+    ((.csv // "") | type == "string") and
+    ((.privacy // {}) | .operatorOnly == true and .explicitContactExport == true and .containsEmails == true and .containsCustomerIds == false and .containsRawApiKeys == false and .containsApiKeyHashes == false and .containsProviderCredentials == false and .containsPrompts == false and .containsRawProviderResponses == false) and
+    ((tostring | contains("api_key_hash")) | not)
+  ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  rm -f /tmp/sage-router-readiness-body
+  if [[ "$code" == "200" && "$funnel_code" == "200" && "$funnel_ok" == "true" && "$customer_code" == "200" && "$customer_ok" == "true" && "$contact_export_code" == "200" && "$contact_export_ok" == "true" ]]; then
+    pass "private admin token can reach /v1/models, privacy-safe launch funnel, bounded customer review, and explicit activation contact export"
   else
-    fail "private admin token probe failed: /v1/models=${code} /analytics/funnel=${funnel_code} funnel=${funnel_ok:-missing} /admin/customers=${customer_code} customer=${customer_ok:-missing}, expected 200/true"
+    fail "private admin token probe failed: /v1/models=${code} /analytics/funnel=${funnel_code} funnel=${funnel_ok:-missing} /admin/customers=${customer_code} customer=${customer_ok:-missing} /admin/customers?contactExport=activation=${contact_export_code} contactExport=${contact_export_ok:-missing}, expected 200/true"
   fi
 }
 
