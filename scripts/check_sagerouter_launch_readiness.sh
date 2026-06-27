@@ -3830,6 +3830,9 @@ check_admin_token() {
     ((.conversionActions // []) | type == "array") and
     ((.conversionActions // []) | all(has("metric") and has("owner") and has("surface") and has("ctaPath") and has("action") and has("successMetric"))) and
     ((.acquisitionActions // []) | type == "array") and
+    ((.authProviderState // {}) | has("total") and has("githubEnabled") and has("githubDisabled") and has("source") and has("githubAvailable") and has("recommendedRecoveryAuth") and has("operatorGuidance")) and
+    ((.authProviderState.enabledProviders // {}) | has("github") and has("google") and has("discord") and has("none") and has("other")) and
+    ((.authProviderState.disabledProviders // {}) | has("github") and has("google") and has("discord") and has("none") and has("other")) and
     ((.marketingIntent.authProviderState // {}) | has("total") and has("githubEnabled") and has("githubDisabled")) and
     ((.marketingIntent // {}) | has("setupSnippetCopies") and has("setupSnippetCopiesBySnippet")) and
     ((.marketingIntent.authProviderState.enabledProviders // {}) | has("github") and has("google") and has("discord") and has("none") and has("other")) and

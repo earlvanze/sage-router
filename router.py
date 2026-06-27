@@ -7422,6 +7422,38 @@ def update_auth_provider_state_metrics(metrics, metadata):
         auth_state['disabledProviders'][provider] = auth_state['disabledProviders'].get(provider, 0) + 1
 
 
+def launch_auth_provider_state(marketing_metrics):
+    base = new_auth_provider_state_metrics()
+    source = 'unavailable'
+    if isinstance(marketing_metrics, dict) and isinstance(marketing_metrics.get('authProviderState'), dict):
+        raw = marketing_metrics.get('authProviderState') or {}
+        source = 'marketing_funnel' if int(raw.get('total') or 0) > 0 else 'marketing_funnel_empty'
+        base = {
+            **base,
+            **{k: v for k, v in raw.items() if k not in {'enabledProviders', 'disabledProviders'}},
+            'enabledProviders': {
+                **base['enabledProviders'],
+                **(raw.get('enabledProviders') if isinstance(raw.get('enabledProviders'), dict) else {}),
+            },
+            'disabledProviders': {
+                **base['disabledProviders'],
+                **(raw.get('disabledProviders') if isinstance(raw.get('disabledProviders'), dict) else {}),
+            },
+        }
+    github_available = int(base.get('githubEnabled') or 0) > 0 and int(base.get('githubEnabled') or 0) >= int(base.get('githubDisabled') or 0)
+    return {
+        **base,
+        'source': source,
+        'githubAvailable': github_available,
+        'recommendedRecoveryAuth': 'email_first',
+        'operatorGuidance': (
+            'Use email/password recovery first; GitHub/OAuth is available only when it is the same signup account.'
+            if github_available
+            else 'Use email/password recovery first; do not rely on GitHub/OAuth until provider state is observed healthy.'
+        ),
+    }
+
+
 def new_managed_access_demand_metrics():
     return {
         'targetProviderFamily': {bucket: 0 for bucket in (*MANAGED_ACCESS_TARGET_PROVIDER_BUCKETS, 'unknown')},
@@ -7824,6 +7856,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'keyCreateFailures': int(marketing_metrics.get('keyCreateFailures') or 0),
             'keyCreateFailuresByState': marketing_metrics.get('keyCreateFailuresByState') or {},
         }
+    auth_provider_state = launch_auth_provider_state(marketing_metrics)
     next_best_action = launch_next_best_action(
         stages,
         rates,
@@ -7853,6 +7886,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'containsApiKeys': False,
         },
         'marketingIntent': marketing_metrics,
+        'authProviderState': auth_provider_state,
         'acquisitionActions': acquisition_actions,
         'activationFollowUps': activation_follow_ups,
         'nextBestAction': next_best_action,

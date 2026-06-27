@@ -1580,6 +1580,13 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, snapshot['marketingIntent']['authProviderState']['total'])
         self.assertEqual(1, snapshot['marketingIntent']['authProviderState']['githubEnabled'])
         self.assertEqual(1, snapshot['marketingIntent']['authProviderState']['githubDisabled'])
+        self.assertEqual(2, snapshot['authProviderState']['total'])
+        self.assertEqual(1, snapshot['authProviderState']['githubEnabled'])
+        self.assertEqual(1, snapshot['authProviderState']['githubDisabled'])
+        self.assertEqual('marketing_funnel', snapshot['authProviderState']['source'])
+        self.assertTrue(snapshot['authProviderState']['githubAvailable'])
+        self.assertEqual('email_first', snapshot['authProviderState']['recommendedRecoveryAuth'])
+        self.assertIn('Use email/password recovery first', snapshot['authProviderState']['operatorGuidance'])
         self.assertEqual(4, snapshot['marketingIntent']['plans']['pro'])
         self.assertEqual(1, snapshot['marketingIntent']['sourceSurfaces']['landing'])
         self.assertEqual(1, snapshot['marketingIntent']['sourceSurfaces']['launch-plan'])
@@ -1877,6 +1884,9 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertNotIn('pending@example.com', json.dumps(snapshot))
         self.assertEqual(0, snapshot['activationFollowUps']['total'])
         self.assertFalse(snapshot['activationFollowUps']['privacy']['containsEmails'])
+        self.assertEqual('marketing_funnel_empty', snapshot['authProviderState']['source'])
+        self.assertFalse(snapshot['authProviderState']['githubAvailable'])
+        self.assertEqual('email_first', snapshot['authProviderState']['recommendedRecoveryAuth'])
 
     def test_launch_funnel_uses_customer_signup_rows_when_auth_page_is_incomplete(self):
         now = router.now_epoch()
