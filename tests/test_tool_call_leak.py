@@ -109,6 +109,88 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertEqual('', delta['content'])
         self.assertEqual('lookup', delta['tool_calls'][0]['function']['name'])
 
+    def test_openai_compat_stream_strips_fragmented_prefix_before_tool_call(self):
+        state = {'prefix_open': True, 'prefix_pending': ''}
+        lines = [
+            'data: {"choices":[{"delta":{"role":"assistant","content":"[ollama-2/"}}]}\n',
+            'data: {"choices":[{"delta":{"content":"kimi-k2.7-code] "}}]}\n',
+            'data: {"choices":[{"delta":{"content":"[ollama-2/kimi-k2.7-code] "}}]}\n',
+            (
+                'data: {"choices":[{"delta":{"content":"[ollama-2/kimi-k2.7-code] ",'
+                '"tool_calls":[{"index":0,"id":"call_1","type":"function",'
+                '"function":{"name":"lookup","arguments":"{}"}}]}}]}\n'
+            ),
+        ]
+        chunks = [
+            json.loads(
+                router.sanitize_openai_compat_stream_line(
+                    line.encode(),
+                    'ollama-2',
+                    'kimi-k2.7-code',
+                    state=state,
+                ).decode().split('data: ', 1)[1]
+            )
+            for line in lines
+        ]
+
+        self.assertEqual(['', '', '', ''], [
+            ((chunk['choices'][0]['delta']).get('content') or '')
+            for chunk in chunks
+        ])
+        self.assertEqual('lookup', chunks[-1]['choices'][0]['delta']['tool_calls'][0]['function']['name'])
+
+    def test_wrapped_sse_strips_stale_prefix_content_before_tool_call(self):
+        class FakeHandler:
+            def __init__(self):
+                self.writes = []
+
+            def send_response(self, _code):
+                pass
+
+            def send_header(self, _key, _value):
+                pass
+
+            def end_headers(self):
+                pass
+
+            def routing_headers(self, _payload, _request_id):
+                return {}
+
+            @property
+            def wfile(self):
+                outer = self
+
+                class W:
+                    def write(self, data):
+                        outer.writes.append(data)
+
+                    def flush(self):
+                        pass
+
+                return W()
+
+        handler = FakeHandler()
+        router.write_openai_completion_as_sse(handler, {
+            'id': 'chatcmpl-1',
+            'created': 1,
+            'model': 'ollama-2/kimi-k2.7-code',
+            'choices': [{
+                'message': {
+                    'content': '[ollama-2/kimi-k2.7-code] [ollama-2/kimi-k2.7-code] [ollama-2/kimi-k2.7-code]',
+                    'tool_calls': [{
+                        'id': 'call_1',
+                        'type': 'function',
+                        'function': {'name': 'lookup', 'arguments': '{}'},
+                    }],
+                },
+                'finish_reason': 'tool_calls',
+            }],
+        }, 'req-wrapped-tools')
+        body = b''.join(handler.writes).decode()
+        self.assertNotIn('[ollama-2/kimi-k2.7-code]', body)
+        self.assertIn('"tool_calls"', body)
+        self.assertIn('"finish_reason": "tool_calls"', body)
+
     def test_provider_prefixed_model_id_does_not_double_display_provider(self):
         self.assertEqual(
             'ollama-2/kimi-k2.7-code',

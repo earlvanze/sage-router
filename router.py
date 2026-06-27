@@ -3891,9 +3891,7 @@ def looks_like_model_prefix_label(label):
     return bool(re.match(r'^[A-Za-z0-9_.-]+/[^\]\s]+$', label))
 
 
-def strip_leading_model_prefixes(text, provider_name, model):
-    """Remove provider/model labels already emitted by an upstream response."""
-    remaining = text or ''
+def model_prefix_labels(provider_name, model):
     labels = {
         display_model_id(provider_name, model),
         f'{provider_name}/{model}',
@@ -3901,7 +3899,13 @@ def strip_leading_model_prefixes(text, provider_name, model):
     }
     if '/' in str(model or ''):
         labels.add(str(model or '').split('/', 1)[1])
-    labels = {label for label in labels if label and label != 'None/None'}
+    return {label for label in labels if label and label != 'None/None'}
+
+
+def strip_leading_model_prefixes(text, provider_name, model):
+    """Remove provider/model labels already emitted by an upstream response."""
+    remaining = text or ''
+    labels = model_prefix_labels(provider_name, model)
     changed = True
     while changed:
         changed = False
@@ -3920,6 +3924,65 @@ def strip_leading_model_prefixes(text, provider_name, model):
             remaining = leading_ws + stripped[match.end():].lstrip()
             changed = True
     return remaining
+
+
+def strip_leading_model_prefixes_for_display(text, display_id):
+    display_id = str(display_id or '')
+    if '/' in display_id:
+        provider_name, model = display_id.split('/', 1)
+    else:
+        provider_name, model = '', display_id
+    return strip_leading_model_prefixes(text, provider_name, model)
+
+
+def possible_model_prefix_fragment(text, provider_name, model):
+    stripped = (text or '').lstrip()
+    if not stripped:
+        return True
+    if not stripped.startswith('['):
+        return False
+    labels = model_prefix_labels(provider_name, model)
+    prefix_candidates = {
+        f'[{label}]'
+        for label in labels
+    } | {
+        f'[sage-router {label}]'
+        for label in labels
+    }
+    if any(candidate.startswith(stripped) for candidate in prefix_candidates):
+        return True
+    closing = stripped.find(']')
+    if closing < 0:
+        fragment = stripped[1:]
+        return len(stripped) <= 160 and '/' in fragment and ' ' not in fragment and '\n' not in stripped
+    return looks_like_model_prefix_label(stripped[1:closing])
+
+
+def sanitize_stream_content_fragment(content, provider_name, model, state=None):
+    """Remove leading provider/model labels even when split across SSE chunks."""
+    text = sanitize_visible_output(content or '')
+    if state is None:
+        return strip_leading_model_prefixes(text, provider_name, model)
+    if not state.get('prefix_open', True):
+        return text
+
+    combined = str(state.get('prefix_pending') or '') + text
+    cleaned = strip_leading_model_prefixes(combined, provider_name, model)
+    if cleaned != combined:
+        state['prefix_pending'] = ''
+        if cleaned:
+            state['prefix_open'] = False
+            return cleaned
+        return ''
+
+    if possible_model_prefix_fragment(combined, provider_name, model):
+        state['prefix_pending'] = combined
+        if len(combined) <= 200:
+            return ''
+
+    state['prefix_pending'] = ''
+    state['prefix_open'] = False
+    return combined
 
 
 def model_prefix_once(provider_name, model, request_id, text, sage_router_debug=False):
@@ -3945,7 +4008,7 @@ def streaming_debug_prefix(provider_name, model, request_id):
     return f'[sage-router {display_model_id(provider_name, model)}]\n'
 
 
-def sanitize_openai_compat_stream_line(raw_line, provider_name, model):
+def sanitize_openai_compat_stream_line(raw_line, provider_name, model, state=None):
     """Sanitize visible content in proxied OpenAI-compatible SSE chunks."""
     if not raw_line:
         return raw_line
@@ -3972,11 +4035,7 @@ def sanitize_openai_compat_stream_line(raw_line, provider_name, model):
         if not isinstance(delta, dict) or 'content' not in delta:
             continue
         original = delta.get('content') or ''
-        cleaned = strip_leading_model_prefixes(
-            sanitize_visible_output(original),
-            provider_name,
-            model,
-        )
+        cleaned = sanitize_stream_content_fragment(original, provider_name, model, state=state)
         if cleaned != original:
             delta['content'] = cleaned
             changed = True
@@ -13182,11 +13241,12 @@ def stream_openai_compat_to_client(self, provider, model, payload, request_id, t
             })
             self.wfile.write(f'data: {debug_chunk}\n\n'.encode())
             self.wfile.flush()
+        stream_sanitize_state = {'prefix_open': True, 'prefix_pending': ''}
         while True:
             line = resp.readline()
             if not line:
                 break
-            self.wfile.write(sanitize_openai_compat_stream_line(line, provider.name, model))
+            self.wfile.write(sanitize_openai_compat_stream_line(line, provider.name, model, state=stream_sanitize_state))
             self.wfile.flush()
     return True
 
@@ -13383,7 +13443,10 @@ def write_openai_completion_as_sse(self, result, request_id):
     created = int(result.get('created') or time.time())
     choice = (result.get('choices') or [{}])[0] or {}
     message = choice.get('message') or {}
-    content = message.get('content') or ''
+    content = strip_leading_model_prefixes_for_display(
+        sanitize_visible_output(message.get('content') or ''),
+        model,
+    )
     tool_calls = message.get('tool_calls') or []
     self.send_response(200)
     self.send_header('Content-Type', 'text/event-stream')
