@@ -191,6 +191,83 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertIn('"tool_calls"', body)
         self.assertIn('"finish_reason": "tool_calls"', body)
 
+    def test_native_ollama_stream_strips_fragmented_prefix_before_tool_call(self):
+        class FakeHandler:
+            def __init__(self):
+                self.writes = []
+
+            def send_response(self, _code):
+                pass
+
+            def send_header(self, _key, _value):
+                pass
+
+            def end_headers(self):
+                pass
+
+            def routing_headers(self, _payload, _request_id):
+                return {}
+
+            @property
+            def wfile(self):
+                outer = self
+
+                class W:
+                    def write(self, data):
+                        outer.writes.append(data)
+
+                    def flush(self):
+                        pass
+
+                return W()
+
+        class FakeResponse:
+            def __init__(self, lines):
+                self.lines = [line.encode() for line in lines]
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def readline(self):
+                if self.lines:
+                    return self.lines.pop(0)
+                return b''
+
+        lines = [
+            json.dumps({'message': {'content': '[ollama-2/'}, 'done': False}) + '\n',
+            json.dumps({'message': {'content': 'kimi-k2.7-code] '}, 'done': False}) + '\n',
+            json.dumps({'message': {
+                'content': '[ollama-2/kimi-k2.7-code] ',
+                'tool_calls': [{
+                    'id': 'call_1',
+                    'type': 'function',
+                    'function': {'name': 'lookup', 'arguments': {'id': 'abc'}},
+                }],
+            }, 'done': True}) + '\n',
+        ]
+        old_open = router.open_upstream_with_credential_failover
+        try:
+            router.open_upstream_with_credential_failover = lambda *_args, **_kwargs: (FakeResponse(lines), '')
+            handler = FakeHandler()
+            router.stream_ollama_to_client(
+                handler,
+                router.Provider('ollama-2', 'ollama', 'http://ollama.example', '', ['kimi-k2.7-code']),
+                'kimi-k2.7-code',
+                {'messages': [{'role': 'user', 'content': 'lookup abc'}], 'tools': [{'type': 'function'}]},
+                'req-native-tools',
+            )
+        finally:
+            router.open_upstream_with_credential_failover = old_open
+
+        body = b''.join(handler.writes).decode()
+        self.assertNotIn('[ollama-2/kimi-k2.7-code]', body)
+        self.assertNotIn('[ollama-2/', body)
+        self.assertIn('"tool_calls"', body)
+        self.assertIn('"finish_reason": "tool_calls"', body)
+
     def test_provider_prefixed_model_id_does_not_double_display_provider(self):
         self.assertEqual(
             'ollama-2/kimi-k2.7-code',

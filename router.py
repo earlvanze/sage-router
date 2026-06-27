@@ -3985,8 +3985,17 @@ def sanitize_stream_content_fragment(content, provider_name, model, state=None):
     return combined
 
 
+def sanitize_provider_visible_text(text, provider_name, model):
+    """Sanitize provider text before it can be wrapped or leak beside tools."""
+    return strip_leading_model_prefixes(
+        sanitize_visible_output(text or ''),
+        provider_name,
+        model,
+    )
+
+
 def model_prefix_once(provider_name, model, request_id, text, sage_router_debug=False):
-    text = strip_leading_model_prefixes(sanitize_visible_output(text or ''), provider_name, model)
+    text = sanitize_provider_visible_text(text, provider_name, model)
     if not text:
         return text
     if text_already_has_model_prefix(text, provider_name, model):
@@ -4046,11 +4055,7 @@ def sanitize_openai_compat_stream_line(raw_line, provider_name, model, state=Non
 
 
 def maybe_prefix_debug_text(content, metadata, debug_mode=False, allow_prefix=True):
-    text = strip_leading_model_prefixes(
-        sanitize_visible_output(content or ''),
-        metadata.get('provider'),
-        metadata.get('model'),
-    )
+    text = sanitize_provider_visible_text(content, metadata.get('provider'), metadata.get('model'))
     if debug_mode and allow_prefix and text:
         text = model_prefix_once(metadata.get('provider'), metadata.get('model'), metadata.get('request_id'), text, sage_router_debug=True)
     return text
@@ -12955,7 +12960,7 @@ def call_openai_compat_completion(base_url, model, payload, api_key='', provider
             body = json.loads(resp.read())
         choice = (body.get('choices') or [{}])[0]
         message = choice.get('message') or {}
-        text = sanitize_visible_output(message.get('content', '') or '')
+        text = sanitize_provider_visible_text(message.get('content', '') or '', provider_name, model)
         raw_tool_calls = message.get('tool_calls')
         logger.info(f"[openai-compat] Response tool_calls: {len(raw_tool_calls or [])}")
         tool_calls = normalize_tool_calls(raw_tool_calls)
@@ -12983,7 +12988,7 @@ def call_ollama_completion(base_url, model, payload, api_key='', thinking=DEFAUL
         with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT_SECONDS) as resp:
             body = json.loads(resp.read())
         message = body.get('message', {}) or {}
-        text = sanitize_visible_output(message.get('content', '') or '')
+        text = sanitize_provider_visible_text(message.get('content', '') or '', provider_name, model)
         raw_tool_calls = message.get('tool_calls')
         logger.info(f"[ollama] Response tool_calls: {len(raw_tool_calls or [])}")
         tool_calls = normalize_tool_calls(raw_tool_calls)
@@ -13279,6 +13284,8 @@ def stream_ollama_to_client(self, provider, model, payload, request_id, thinking
             self.wfile.write(f'data: {debug_chunk}\n\n'.encode())
             self.wfile.flush()
             sent_role = True
+        stream_sanitize_state = {'prefix_open': True, 'prefix_pending': ''}
+        saw_tool_calls = False
         while True:
             raw = resp.readline()
             if not raw:
@@ -13288,10 +13295,11 @@ def stream_ollama_to_client(self, provider, model, payload, request_id, thinking
                 continue
             body = json.loads(line)
             message = body.get('message', {}) or {}
-            content = strip_leading_model_prefixes(
-                sanitize_visible_output(message.get('content', '') or ''),
+            content = sanitize_stream_content_fragment(
+                message.get('content', '') or '',
                 provider.name,
                 model,
+                state=stream_sanitize_state,
             )
             tool_calls = normalize_tool_calls(message.get('tool_calls'))
             if content:
@@ -13303,6 +13311,7 @@ def stream_ollama_to_client(self, provider, model, payload, request_id, thinking
                 self.wfile.write(f'data: {chunk}\n\n'.encode())
                 self.wfile.flush()
             if tool_calls:
+                saw_tool_calls = True
                 delta = {'tool_calls': tool_calls}
                 if not sent_role:
                     delta['role'] = 'assistant'
@@ -13311,7 +13320,7 @@ def stream_ollama_to_client(self, provider, model, payload, request_id, thinking
                 self.wfile.write(f'data: {chunk}\n\n'.encode())
                 self.wfile.flush()
             if body.get('done'):
-                finish_reason = 'tool_calls' if tool_calls else (body.get('done_reason') or 'stop')
+                finish_reason = 'tool_calls' if (tool_calls or saw_tool_calls) else (body.get('done_reason') or 'stop')
                 done_chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': int(time.time()), 'model': router_model, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': finish_reason}]})
                 self.wfile.write(f'data: {done_chunk}\n\n'.encode())
                 self.wfile.write(b'data: [DONE]\n\n')
