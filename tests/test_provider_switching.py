@@ -65,6 +65,61 @@ class ProviderSwitchingTests(unittest.TestCase):
         self.assertEqual(('ollama', 'glm-5'), chain[0])
         self.assertIn(('ollama-2', 'glm-5.2'), chain[1:])
 
+    def test_empty_forced_provider_chain_falls_back_to_working_provider(self):
+        router.PROVIDERS['ollama-cloud'].models = ['nomic-embed-text:cloud']
+
+        _messages, _intent, _complexity, _tokens, chain = router.prepare_route(
+            [{'role': 'user', 'content': 'analyze this repository and use tools if needed'}],
+            request_id='test-empty-forced-provider-fallback',
+            thinking=router.ThinkingLevel.HIGH,
+            route_mode='best',
+            requirements={
+                'document': True,
+                'longContext': True,
+                'preferTools': True,
+                'agentic': True,
+            },
+            force_provider='ollama-cloud',
+        )
+
+        self.assertTrue(chain)
+        self.assertNotEqual('ollama-cloud', chain[0][0])
+        self.assertIn(('openai-codex', 'gpt-5.5'), chain)
+        self.assertTrue(router.LAST_ROUTE_DEBUG.get('forcedProviderFallback'))
+
+    def test_forced_ollama_cloud_chain_reserves_cross_provider_fallbacks(self):
+        router.PROVIDERS['ollama-cloud'].models = [
+            'glm-5.1:cloud',
+            'glm-5.2:cloud',
+            'kimi-k2.5:cloud',
+            'deepseek-v4-pro:cloud',
+            'qwen3.5:cloud',
+            'minimax-m3:cloud',
+        ]
+
+        _messages, _intent, _complexity, _tokens, chain = router.prepare_route(
+            [{'role': 'user', 'content': 'analyze this repository and use tools if needed'}],
+            request_id='test-forced-ollama-cloud-cross-provider-fallback',
+            thinking=router.ThinkingLevel.HIGH,
+            route_mode='best',
+            requirements={
+                'document': True,
+                'longContext': True,
+                'preferTools': True,
+                'agentic': True,
+            },
+            force_provider='ollama-cloud',
+        )
+
+        self.assertTrue(chain)
+        self.assertEqual('ollama-cloud', chain[0][0])
+        self.assertIn(('openai-codex', 'gpt-5.5'), chain)
+        self.assertLess(
+            sum(1 for provider, _model in chain if provider == 'ollama-cloud'),
+            len(chain),
+        )
+        self.assertTrue(any(router.PROVIDERS[provider].api_type != 'ollama' for provider, _model in chain))
+
     def test_ollama_cloud_model_switches_to_hosted_provider(self):
         provider, model = router.resolve_requested_provider_model({'model': 'ollama/glm-5.1:cloud'})
         self.assertEqual('ollama-cloud', provider)

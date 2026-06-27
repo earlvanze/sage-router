@@ -14286,7 +14286,7 @@ def prepare_route(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_
             chain = [(force_provider, model) for model in filtered_models[:MAX_PROVIDER_ATTEMPTS]]
             score_debug = [{'provider': force_provider, 'model': model, 'score': 100} for _, model in chain]
             rejections = forced_rejections
-            if prov.api_type == 'ollama' and requested_model and len(chain) < MAX_PROVIDER_ATTEMPTS:
+            if prov.api_type == 'ollama' and chain:
                 # Hosted Ollama catalogs can advertise models that still fail
                 # at runtime with subscription/auth errors. Honor the explicit
                 # Ollama request first, then keep normal router fallbacks alive.
@@ -14298,14 +14298,42 @@ def prepare_route(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_
                     if pn != force_provider and (pn, model) not in seen
                 ]
                 if fallback_chain:
-                    remaining = max(0, MAX_PROVIDER_ATTEMPTS - len(chain))
-                    chain = chain + fallback_chain[:remaining]
+                    if requested_model:
+                        remaining = max(0, MAX_PROVIDER_ATTEMPTS - len(chain))
+                        chain = chain + fallback_chain[:remaining]
+                    else:
+                        fallback_slots = min(len(fallback_chain), max(1, MAX_PROVIDER_ATTEMPTS // 2))
+                        forced_slots = max(1, MAX_PROVIDER_ATTEMPTS - fallback_slots)
+                        selected_fallbacks = fallback_chain[:fallback_slots]
+                        non_ollama_fallback = next(
+                            (
+                                item for item in fallback_chain
+                                if (PROVIDERS.get(item[0]) and PROVIDERS[item[0]].api_type != 'ollama')
+                            ),
+                            None,
+                        )
+                        if (
+                            non_ollama_fallback
+                            and non_ollama_fallback not in selected_fallbacks
+                            and all((PROVIDERS.get(pn) and PROVIDERS[pn].api_type == 'ollama') for pn, _model in selected_fallbacks)
+                        ):
+                            if selected_fallbacks:
+                                selected_fallbacks[-1] = non_ollama_fallback
+                            else:
+                                selected_fallbacks.append(non_ollama_fallback)
+                        chain = chain[:forced_slots] + selected_fallbacks
                     score_debug = score_debug + [
                         score for score in fb_scores
                         if score.get('provider') != force_provider
-                    ][:remaining]
+                    ][:MAX_PROVIDER_ATTEMPTS]
                     rejections = (rejections + fb_rejections)[:30]
             logger.info(f"[{request_id}] Chain (forced): {chain}")
+            if not chain:
+                fb_chain, fb_scores, fb_rejections = select_model(intent, complexity, thinking, route_mode, requirements, estimated_tokens)
+                if fb_chain:
+                    logger.info(f"[{request_id}] Forced provider had no eligible models; fallback chain: {fb_chain}")
+                    LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': fb_chain, 'scores': fb_scores[:12], 'rejections': (forced_rejections + fb_rejections)[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None, 'forcedProvider': force_provider, 'forcedProviderFallback': True})
+                    return normalized_messages, intent, complexity, estimated_tokens, fb_chain
             # Image/vision requests must route strictly to image-capable models.
             # If the forced provider/profile only offered non-vision or GLM
             # models, relax profile allow-lists and re-select globally so an
