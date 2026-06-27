@@ -704,6 +704,111 @@ function renderLaunchBrief(data = {}) {
   setText('launch-brief-status', 'No-secret launch brief generated from aggregate funnel data.');
 }
 
+function operatorExecutionPacketText(packet = {}) {
+  const telemetry = packet.telemetry || {};
+  const privacy = packet.privacy || {};
+  const urls = packet.recoveryUrls || {};
+  const draft = packet.draft || {};
+  const segmentActions = Array.isArray(packet.segmentActions) ? packet.segmentActions : [];
+  const instructions = Array.isArray(packet.instructions) ? packet.instructions : [];
+  return [
+    `${packet.title || 'Operator execution packet'} (${packet.kind || 'none'})`,
+    `Priority: ${packet.priority || 'monitor'} | Owner: ${packet.owner || 'Operator'} | Metric: ${packet.metric || 'launch'}`,
+    `Queued: ${integer(packet.totalQueued)} total, ${integer(packet.windowedNewSignups)} new in-window`,
+    `Privacy: aggregateOnly=${privacy.aggregateOnly === true}; emails=${privacy.containsEmails === true}; customerIds=${privacy.containsCustomerIds === true}; apiKeys=${privacy.containsApiKeys === true}; prompts=${privacy.containsPrompts === true}; oauthTokens=${privacy.containsOAuthTokens === true}`,
+    '',
+    'Segments:',
+    ...(segmentActions.length
+      ? segmentActions.map(row => `- ${row.sendOrder || ''}. ${row.label || row.segment}: ${integer(row.count)} queued; copy=${row.copyKind || ''}; worked=${row.workedKind || ''}`)
+      : ['- none']),
+    '',
+    'Recovery URLs:',
+    `- Email/password: ${urls.passwordFallback || ''}`,
+    `- GitHub/OAuth: ${urls.githubOAuth || ''}`,
+    '',
+    'Draft:',
+    `Subject: ${draft.subject || ''}`,
+    draft.body || '',
+    '',
+    'Telemetry:',
+    `- Copy events: ${(telemetry.copyEvents || []).join(', ')}`,
+    `- Recovery views: ${(telemetry.recoveryViewEvents || []).join(', ')}`,
+    `- Key attempts: ${(telemetry.keyCreateAttemptEvents || []).join(', ')}`,
+    `- Key successes: ${(telemetry.keyCreateSuccessEvents || []).join(', ')}`,
+    `- Success: ${telemetry.successMetric || ''}`,
+    '',
+    'Instructions:',
+    ...(instructions.length ? instructions.map((item, idx) => `${idx + 1}. ${item}`) : ['1. Monitor launch funnel.']),
+  ].join('\n').trim() + '\n';
+}
+
+function renderOperatorExecutionPacket(data = {}) {
+  const target = $('operator-execution-packet');
+  if (!target) return;
+  const packet = data.operatorExecutionPacket || {};
+  const followUps = data.activationFollowUps || {};
+  const plan = followUps.suggestedPlan || 'pro';
+  const privacy = packet.privacy || {};
+  const urls = packet.recoveryUrls || {};
+  const draft = packet.draft || {};
+  const telemetry = packet.telemetry || {};
+  const segmentActions = Array.isArray(packet.segmentActions) ? packet.segmentActions : [];
+  const clean = privacy.aggregateOnly === true &&
+    privacy.containsEmails === false &&
+    privacy.containsCustomerIds === false &&
+    privacy.containsApiKeys === false &&
+    privacy.containsProviderCredentials === false &&
+    privacy.containsPrompts === false &&
+    privacy.containsOAuthTokens === false;
+  if (!packet.kind || packet.kind === 'none') {
+    target.innerHTML = `<div class="empty">No operator execution packet is currently queued. <span class="pill ${clean ? 'good' : ''}">${clean ? 'Aggregate only' : 'No active packet'}</span></div>`;
+    return;
+  }
+  const segmentRows = segmentActions.length
+    ? segmentActions.map(row => {
+        const segment = row.segment || 'all';
+        const draftReady = followUpSegmentDraftReady(plan, segment);
+        const segmentDraft = [
+          `Subject: ${draft.subject || 'Finish your Sage Router setup key'}`,
+          '',
+          draft.body || '',
+          '',
+          `Segment: ${row.label || segment} (${integer(row.count)} queued)`,
+        ].join('\n');
+        return `<tr>
+          <td><span class="pill">${esc(segment)}</span></td>
+          <td>${integer(row.count)}</td>
+          <td>${integer(row.sendOrder)}</td>
+          <td><code>${esc(row.copyKind || '')}</code></td>
+          <td><code>${esc(row.workedKind || '')}</code></td>
+          <td><div class="actions"><button class="btn secondary small" type="button" data-copy-primary-followup-url="${esc(urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(segmentDraft)}" data-followup-copy-kind="${esc(row.copyKind || `${segment}_aggregate_draft_copied`)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(row.count)}">Copy draft</button><button class="btn small" type="button" data-mark-followup-worked="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(row.count)}" data-followup-draft-ready="${draftReady ? '1' : '0'}" ${draftReady ? '' : 'disabled'}>Mark worked</button></div></td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="6">No segment actions returned.</td></tr>';
+  const packetText = operatorExecutionPacketText(packet);
+  const draftText = [`Subject: ${draft.subject || 'Finish your Sage Router setup key'}`, '', draft.body || ''].join('\n');
+  target.innerHTML = `<div class="metricList">
+    <div class="metric"><span>Kind</span><strong>${esc(packet.kind)}</strong></div>
+    <div class="metric"><span>Priority</span><strong><span class="pill ${packet.priority === 'fix_now' ? 'bad' : 'warn'}">${esc(packet.priority || 'monitor')}</span></strong></div>
+    <div class="metric"><span>Queued</span><strong>${integer(packet.totalQueued)} total · ${integer(packet.windowedNewSignups)} new</strong></div>
+    <div class="metric"><span>Primary CTA</span><strong>${esc(packet.primaryCtaKind || 'same_email_password')}</strong></div>
+    <div class="metric"><span>Privacy</span><strong><span class="pill ${clean ? 'good' : 'bad'}">${clean ? 'Aggregate only' : 'Review payload'}</span></strong></div>
+    <div class="metric"><span>Success</span><strong>${esc(telemetry.successMetric || packet.metric || 'activation')}</strong></div>
+  </div>
+  <div class="actions">
+    <button class="btn secondary" type="button" data-copy-operator-packet="${esc(packetText)}">Copy execution packet</button>
+    <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(draftText)}" data-followup-copy-kind="operator_packet_draft_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(packet.totalQueued)}">Copy packet draft</button>
+    <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(primaryFollowUpLinkSet(plan, urls))}" data-followup-copy-kind="operator_packet_links_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(packet.totalQueued)}">Copy packet links</button>
+    ${urls.passwordFallback ? `<a class="btn secondary" href="${esc(urls.passwordFallback)}" target="_blank" rel="noopener noreferrer">Open email/password</a>` : ''}
+    ${urls.githubOAuth ? `<a class="btn secondary" href="${esc(urls.githubOAuth)}" target="_blank" rel="noopener noreferrer">Open GitHub/OAuth</a>` : ''}
+  </div>
+  <div class="tableWrap"><table>
+    <thead><tr><th>Segment</th><th>Queued</th><th>Order</th><th>Copy state</th><th>Worked state</th><th></th></tr></thead>
+    <tbody>${segmentRows}</tbody>
+  </table></div>
+  <p class="muted">Telemetry: ${esc((telemetry.copyEvents || []).slice(0, 3).join(', ') || 'copy events')} -> ${esc((telemetry.recoveryViewEvents || []).slice(0, 2).join(', ') || 'recovery views')} -> ${esc((telemetry.keyCreateSuccessEvents || []).slice(0, 2).join(', ') || 'key creation')}.</p>`;
+}
+
 function renderNextBestActionDock(data = {}) {
   const target = $('next-best-action-dock');
   if (!target) return;
@@ -971,6 +1076,29 @@ async function copyOperatorTokenCommand(button) {
   } catch (error) {
     button.textContent = 'Copy failed';
     setStatus(`Operator token command copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyOperatorExecutionPacket(button) {
+  const text = button.getAttribute('data-copy-operator-packet') || '';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    trackOperatorFunnelEvent('operator_execution_packet_copied', {
+      state: 'packet_copied',
+      resultCount: lastFunnelData?.operatorExecutionPacket?.totalQueued || 0,
+      snippet: 'operator-execution-packet',
+    });
+    setStatus('Copied no-secret operator execution packet.', 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Execution packet copy failed: ${error.message}`, 'bad');
   } finally {
     setTimeout(() => {
       button.textContent = original;
@@ -1398,6 +1526,7 @@ function renderFunnel(data) {
   renderRevenueActions(mrr.planRevenueActions || []);
   renderNextBestActionDock(data);
   renderLaunchBrief(data);
+  renderOperatorExecutionPacket(data);
   $('dashboard').classList.remove('hidden');
   fetchOperationalReadiness();
 }
@@ -1838,6 +1967,11 @@ function handleCampaignCopyClick(event) {
 }
 
 function handleFollowUpCopyClick(event) {
+  const operatorPacketButton = event.target.closest('[data-copy-operator-packet]');
+  if (operatorPacketButton) {
+    copyOperatorExecutionPacket(operatorPacketButton);
+    return;
+  }
   const operatorTokenCommandButton = event.target.closest('[data-copy-operator-token-command]');
   if (operatorTokenCommandButton) {
     copyOperatorTokenCommand(operatorTokenCommandButton);
@@ -1923,6 +2057,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('acquisition-actions').addEventListener('click', handleCampaignCopyClick);
   $('no-key-followups').addEventListener('click', handleFollowUpCopyClick);
   $('next-best-action-dock').addEventListener('click', handleFollowUpCopyClick);
+  $('operator-execution-packet')?.addEventListener('click', handleFollowUpCopyClick);
   $('copy-launch-brief').addEventListener('click', copyLaunchBrief);
   if ($('operator-token').value) {
     fetchFunnel();
