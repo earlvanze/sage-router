@@ -282,6 +282,40 @@ class ProviderSwitchingTests(unittest.TestCase):
         self.assertFalse(requirements.get('frontierLargeOnly', False))
         self.assertFalse(requirements.get('reasoning', False))
 
+    def test_discord_public_profile_allows_discovered_ollama_providers(self):
+        payload = {
+            'model': 'sage-router/frontier',
+            'metadata': {'agentId': 'discord-public'},
+            'messages': [{'role': 'user', 'content': 'hello'}],
+        }
+
+        self.assertTrue(router.apply_discord_public_route_profile(payload))
+
+        requirements = payload['requirements']
+        self.assertIn('ollama-2', requirements['allowProviders'])
+
+    def test_tool_safe_profile_relaxes_when_strict_catalog_filter_is_empty(self):
+        router.PROVIDERS = {
+            'ollama-2': router.Provider('ollama-2', 'ollama', 'http://ollama-2.invalid', '', ['devstral-2:123b-cloud']),
+        }
+        requirements = {
+            'qualitySensitive': True,
+            'suppressToolCallContent': True,
+            'frontierLargeOnly': True,
+            'allowModels': ['*gpt-5*'],
+            'allowProviders': ['ollama-2'],
+        }
+
+        _messages, _intent, _complexity, _tokens, chain = router.prepare_route(
+            [{'role': 'user', 'content': 'analyze this and use tools if needed'}],
+            request_id='test-tool-safe-relaxed-fallback',
+            thinking=router.ThinkingLevel.HIGH,
+            route_mode='best',
+            requirements=requirements,
+        )
+
+        self.assertEqual([('ollama-2', 'devstral-2:123b-cloud')], chain)
+
     def test_stale_hosted_auto_profile_keeps_cloud_fallbacks(self):
         old_load_router_profiles = router.load_router_profiles
         try:

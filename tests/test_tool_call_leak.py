@@ -395,6 +395,21 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         raw = '<|channel|>analysis<|message|>private reasoning<|channel|>final<|message|>public answer'
         self.assertEqual('public answer', router.sanitize_visible_output(raw))
 
+    def test_visible_output_strips_repeated_model_prefix_tool_placeholders(self):
+        raw = (
+            '[ollama-2/kimi-k2.5] [tool calls omitted]\n'
+            '[ollama-2/kimi-k2.5] [ollama-2/kimi-k2.5] [tool calls omitted]\n'
+            'final answer'
+        )
+        self.assertEqual('final answer', router.sanitize_visible_output(raw))
+
+    def test_visible_output_strips_thousand_model_prefix_tool_placeholders(self):
+        raw = '\n'.join(
+            '[ollama-2/kimi-k2.5] [ollama-2/kimi-k2.5] [tool calls omitted]'
+            for _ in range(1000)
+        )
+        self.assertEqual('', router.sanitize_visible_output(raw))
+
     def test_detects_structured_json_tool_leaks(self):
         leaked = '{"recipient_name":"functions.exec","parameters":{"command":"ls"}}'
         self.assertTrue(router.looks_like_visible_tool_call(leaked))

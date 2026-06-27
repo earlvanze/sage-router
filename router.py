@@ -3341,6 +3341,32 @@ def reject_visible_tool_call_leak(payload, text: str, tool_calls) -> str:
         return 'provider leaked tool call as visible text instead of structured tool_calls'
     return ''
 
+def strip_model_prefix_tool_placeholder_noise(text: str):
+    """Drop replay-only model prefix/tool-placeholder lines without context."""
+    remaining = str(text or '')
+    if not remaining:
+        return ''
+    prefix_re = r'\[[A-Za-z0-9_.-]+/[^\]\s]+\]'
+    cleaned_lines = []
+    changed = False
+    for line in remaining.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            cleaned_lines.append(line)
+            continue
+        labels = re.findall(prefix_re, stripped)
+        if labels:
+            without_labels = re.sub(prefix_re, '', stripped).strip()
+            if re.fullmatch(r'(?i)\[tool calls omitted\]', without_labels or ''):
+                changed = True
+                continue
+            if not without_labels:
+                changed = True
+                continue
+        cleaned_lines.append(line)
+    return '\n'.join(cleaned_lines).strip() if changed else remaining
+
+
 def sanitize_visible_output(text: str):
     """Remove provider-private reasoning/tool scratch from visible text.
 
@@ -3386,6 +3412,7 @@ def sanitize_visible_output(text: str):
     cleaned = _re.sub(r'(?m)^\s*(?:to\s*=\s*)?(?:functions\.)?(?:exec|read|browser|message|web_search|web_fetch|pdf)\s*(?:\(|\{).*$\n?', '', cleaned)
     cleaned = _re.sub(r'(?m)^\s*tool_code\s*$\n?', '', cleaned, flags=_re.IGNORECASE)
     cleaned = _re.sub(r'(?m)^\s*\{\s*["\'](?:cmd|command|path|tool|name)["\']\s*:\s*.*\}\s*$\n?', '', cleaned, flags=_re.IGNORECASE)
+    cleaned = strip_model_prefix_tool_placeholder_noise(cleaned)
 
     cleaned = cleaned.strip()
     return cleaned
@@ -12369,6 +12396,27 @@ def payload_discord_public_signal(payload):
     return 'discord-public' in haystack
 
 
+def discord_public_allowed_providers():
+    base = [
+        'google', 'google-vertex', 'openai-codex', 'openai',
+        'ollama-cyber', 'ollama', 'openrouter', 'nvidia-nim',
+    ]
+    discovered_ollama = [
+        provider_name
+        for provider_name, provider in PROVIDERS.items()
+        if provider.api_type == 'ollama'
+    ]
+    return dedupe_keep_order(base + discovered_ollama)
+
+
+def discord_public_relaxed_requirements(requirements):
+    relaxed = dict(requirements or {})
+    for key in ('allowModels', 'frontierLargeOnly', 'minParamsB'):
+        relaxed.pop(key, None)
+    relaxed['frontierOrReasoningTools'] = False
+    return relaxed
+
+
 def apply_discord_public_route_profile(payload):
     """Force public Discord traffic onto quality-first routing.
 
@@ -12386,10 +12434,7 @@ def apply_discord_public_route_profile(payload):
         req = {}
     existing_denies = list(req.get('denyModels') or [])
     existing_allows = list(req.get('allowModels') or [])
-    provider_allow = [
-        'google', 'google-vertex', 'openai-codex', 'openai',
-        'ollama-cyber', 'ollama', 'openrouter', 'nvidia-nim',
-    ]
+    provider_allow = discord_public_allowed_providers()
     provider_fallbacks = ['openrouter', 'nvidia-nim']
     req.update({
         'qualitySensitive': True,
@@ -14530,6 +14575,13 @@ def prepare_route(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_
             chain, score_debug = fb_chain, fb_scores
             rejections = (rejections + fb_rejections)
             logger.info(f"[{request_id}] Profile had no multimodal-capable model; modality-relaxed fallback chain: {chain}")
+    if requirements.get('suppressToolCallContent') and not chain:
+        relaxed = discord_public_relaxed_requirements(requirements)
+        fb_chain, fb_scores, fb_rejections = select_model(intent, complexity, thinking, route_mode, relaxed, estimated_tokens)
+        if fb_chain:
+            chain, score_debug = fb_chain, fb_scores
+            rejections = (rejections + fb_rejections)
+            logger.info(f"[{request_id}] Public/tool-safe profile had no strict eligible model; relaxed fallback chain: {chain}")
     LAST_ROUTE_DEBUG.update({'updated_at': int(time.time()), 'request_id': request_id, 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'requirements': requirements, 'estimatedTokens': estimated_tokens, 'json': want_json, 'chain': chain, 'scores': score_debug[:12], 'rejections': rejections[:30], 'selected': None, 'attempts': [], 'streaming': streaming_mode or ('buffered-wrapper' if requirements.get('streaming') else 'disabled'), 'status': 'routing', 'error': None, 'totalElapsedMs': None})
     logger.info(f"[{request_id}] Chain: {chain} (no mid-stream switching; each candidate tried sequentially until one succeeds)")
     return normalized_messages, intent, complexity, estimated_tokens, chain
