@@ -86,6 +86,29 @@ class ToolCallLeakTests(unittest.TestCase):
         text = '[ollama-2/kimi-k2.7-code] [ollama-2/kimi-k2.7-code] [ollama-2/kimi-k2.7-code]'
         self.assertEqual('', router.strip_leading_model_prefixes(text, 'ollama-2', 'kimi-k2.7-code'))
 
+    def test_repeated_model_prefixes_around_tool_call_omissions_are_stripped(self):
+        text = (
+            '[ollama-2/kimi-k2.5] [tool calls omitted]\n'
+            '[ollama-2/kimi-k2.5] [ollama-2/kimi-k2.5] [tool calls omitted]'
+        )
+        self.assertEqual('', router.strip_leading_model_prefixes(text, 'ollama-2', 'kimi-k2.5'))
+
+    def test_stream_strips_late_model_prefixes_and_tool_call_omissions(self):
+        state = {'prefix_open': True, 'prefix_pending': ''}
+        self.assertEqual(
+            'visible text',
+            router.sanitize_stream_content_fragment('visible text', 'ollama-2', 'kimi-k2.5', state=state),
+        )
+        self.assertEqual(
+            '',
+            router.sanitize_stream_content_fragment(
+                '[ollama-2/kimi-k2.5] [ollama-2/kimi-k2.5] [tool calls omitted]',
+                'ollama-2',
+                'kimi-k2.5',
+                state=state,
+            ),
+        )
+
     def test_openai_compat_stream_strips_repeated_prefix_chunks(self):
         raw = (
             'data: {"id":"chatcmpl-1","choices":[{"index":0,'

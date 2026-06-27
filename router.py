@@ -3912,6 +3912,78 @@ def model_prefix_labels(provider_name, model):
     return {label for label in labels if label and label != 'None/None'}
 
 
+def normalize_model_label_part(value):
+    value = str(value or '').strip()
+    return value.removesuffix(':cloud').removesuffix('-cloud').lower()
+
+
+def model_prefix_label_matches_context(label, provider_name, model):
+    label = (label or '').strip()
+    if label.lower().startswith('sage-router '):
+        label = label.split(None, 1)[1].strip()
+    if not looks_like_model_prefix_label(label):
+        return False
+    labels = model_prefix_labels(provider_name, model)
+    if label in labels:
+        return True
+    if '/' not in label:
+        return False
+    label_provider, label_model = label.split('/', 1)
+    display_id = display_model_id(provider_name, model)
+    display_provider, display_model = display_id.split('/', 1) if '/' in display_id else ('', display_id)
+    provider_candidates = {
+        str(provider_name or '').strip().lower(),
+        str(display_provider or '').strip().lower(),
+    }
+    if display_provider == 'ollama' or str(provider_name or '').strip().lower().startswith('ollama'):
+        provider_candidates.update(p.lower() for p in _OLLAMA_PROVIDER_ALIASES)
+        provider_candidates.add('ollama')
+    model_candidates = {
+        normalize_model_label_part(model),
+        normalize_model_label_part(display_model),
+    }
+    if '/' in str(model or ''):
+        model_candidates.add(normalize_model_label_part(str(model).split('/', 1)[1]))
+    label_provider_l = label_provider.strip().lower()
+    label_model_l = normalize_model_label_part(label_model)
+    provider_matches = (
+        label_provider_l in provider_candidates
+        or any(label_provider_l.startswith(candidate + '-') for candidate in provider_candidates if candidate)
+    )
+    return provider_matches and label_model_l in model_candidates
+
+
+def strip_standalone_model_prefix_labels(text, provider_name, model):
+    """Remove contextual provider/model labels that appear as standalone text."""
+    remaining = text or ''
+    if '[' not in remaining or ']' not in remaining:
+        return remaining
+
+    def replace(match):
+        leading = match.group(1) or ''
+        label = match.group(2) or ''
+        if model_prefix_label_matches_context(label, provider_name, model):
+            return leading
+        return match.group(0)
+
+    previous = None
+    while previous != remaining:
+        previous = remaining
+        remaining = re.sub(r'(^|[\s])\[([^\]\n]{1,140})\](?=\s|$)', replace, remaining)
+    return remaining
+
+
+def strip_tool_call_omission_placeholders(text):
+    """Remove provider placeholders that only describe hidden tool calls."""
+    remaining = text or ''
+    if '[tool calls omitted]' not in remaining.lower():
+        return remaining
+    remaining = re.sub(r'(?i)(^|[\s])\[tool calls omitted\](?=\s|$)', r'\1', remaining)
+    remaining = re.sub(r'[ \t]{2,}', ' ', remaining)
+    remaining = re.sub(r'\n{3,}', '\n\n', remaining)
+    return remaining.strip()
+
+
 def strip_leading_model_prefixes(text, provider_name, model):
     """Remove provider/model labels already emitted by an upstream response."""
     remaining = text or ''
@@ -3933,7 +4005,8 @@ def strip_leading_model_prefixes(text, provider_name, model):
         if match and looks_like_model_prefix_label(match.group(1)):
             remaining = leading_ws + stripped[match.end():].lstrip()
             changed = True
-    return remaining
+    remaining = strip_standalone_model_prefix_labels(remaining, provider_name, model)
+    return strip_tool_call_omission_placeholders(remaining)
 
 
 def strip_leading_model_prefixes_for_display(text, display_id):
@@ -3974,7 +4047,8 @@ def sanitize_stream_content_fragment(content, provider_name, model, state=None):
     if state is None:
         return strip_leading_model_prefixes(text, provider_name, model)
     if not state.get('prefix_open', True):
-        return text
+        cleaned = strip_standalone_model_prefix_labels(text, provider_name, model)
+        return strip_tool_call_omission_placeholders(cleaned)
 
     combined = str(state.get('prefix_pending') or '') + text
     cleaned = strip_leading_model_prefixes(combined, provider_name, model)
@@ -3992,7 +4066,8 @@ def sanitize_stream_content_fragment(content, provider_name, model, state=None):
 
     state['prefix_pending'] = ''
     state['prefix_open'] = False
-    return combined
+    cleaned = strip_standalone_model_prefix_labels(combined, provider_name, model)
+    return strip_tool_call_omission_placeholders(cleaned)
 
 
 def sanitize_provider_visible_text(text, provider_name, model):
