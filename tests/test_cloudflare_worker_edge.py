@@ -141,6 +141,12 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
 
     def test_cloudflare_bic_skip_script_reports_ruleset_permission_failures(self):
         script = self.read_bic_skip_script()
+        self.assertIn("Usage: scripts/configure_cloudflare_api_bic_skip.sh [--check]", script)
+        self.assertIn('MODE="apply"', script)
+        self.assertIn('--check)', script)
+        self.assertIn('if [[ "$MODE" == "check" ]]', script)
+        self.assertIn("without --check to create the host-scoped BIC skip rule", script)
+        self.assertIn("without --check to apply it", script)
         self.assertIn("cloudflare_error_summary", script)
         self.assertIn("Cloudflare zone lookup for ${ZONE_NAME}", script)
         self.assertIn("api_get_ruleset_entrypoint", script)

@@ -22,6 +22,18 @@ load_local_env_file() {
   done < <(set +u; set -a; source "$path" >/dev/null 2>&1; env -0)
 }
 
+usage() {
+  cat <<'EOF'
+Usage: scripts/configure_cloudflare_api_bic_skip.sh [--check]
+
+Creates or verifies a host-scoped Cloudflare configuration rule that disables
+Browser Integrity Check for api.sagerouter.dev only.
+
+Options:
+  --check   Verify token permissions and the existing rule without modifying Cloudflare.
+EOF
+}
+
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     printf 'Missing required command: %s\n' "$1" >&2
@@ -97,6 +109,24 @@ api_get_ruleset_entrypoint() {
 
 load_local_env_file "${SAGEROUTER_SECRET_ENV_FILE:-/home/digit/.openclaw/.env}"
 
+MODE="apply"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --check)
+      MODE="check"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
 require_cmd curl
 require_cmd jq
 
@@ -129,6 +159,10 @@ api_get_ruleset_entrypoint "$entrypoint_url" >"$current"
 entrypoint_status="$?"
 set -e
 if [[ "$entrypoint_status" == "2" ]]; then
+  if [[ "$MODE" == "check" ]]; then
+    printf 'Cloudflare %s ruleset entrypoint does not exist for %s; run this script without --check to create the host-scoped BIC skip rule.\n' "$PHASE" "$ZONE_NAME" >&2
+    exit 1
+  fi
   cat >"$current" <<'JSON'
 {
   "success": true,
@@ -143,6 +177,30 @@ if [[ "$entrypoint_status" == "2" ]]; then
 JSON
 elif [[ "$entrypoint_status" != "0" ]]; then
   exit "$entrypoint_status"
+fi
+
+if [[ "$MODE" == "check" ]]; then
+  rule_ok="$(
+    jq -r \
+      --arg host "$API_HOST" \
+      --arg ref "$RULE_REF" \
+      --arg description "$RULE_DESCRIPTION" \
+      '
+      ((.result.rules // .rules // []) | any(
+        ((.ref // "") == $ref or (.description // "") == $description) and
+        (.enabled != false) and
+        (.action == "set_config") and
+        (.action_parameters.bic == false) and
+        ((.expression // "") | contains($host))
+      ))
+      ' "$current"
+  )"
+  if [[ "$rule_ok" == "true" ]]; then
+    printf 'Cloudflare Browser Integrity Check is disabled for %s by a host-scoped configuration rule.\n' "$API_HOST"
+    exit 0
+  fi
+  printf 'Cloudflare Browser Integrity Check skip rule is missing or disabled for %s; run this script without --check to apply it.\n' "$API_HOST" >&2
+  exit 1
 fi
 
 jq \

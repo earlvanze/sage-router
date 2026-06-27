@@ -13,6 +13,7 @@ load_local_env_file() {
       SAGE_ROUTER_GCP_PROJECT_ID|SUPABASE_PROJECT_REF|SAGE_ROUTER_SUPABASE_URL|SAGE_ROUTER_SUPABASE_ANON_KEY|\
       PUBLIC_SUPABASE_ANON_KEY|VITE_SUPABASE_PUBLISHABLE_KEY|AOPS_SUPABASE_ANON_KEY|SUPABASE_ACCESS_TOKEN|\
       SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY|SAGE_ROUTER_API_KEY|SAGE_ROUTER_EDGE_TOKEN|\
+      CLOUDFLARE_API_TOKEN|CLOUDFLARE_ZONE_ID|SAGEROUTER_CLOUDFLARE_ZONE_ID|SAGEROUTER_API_HOST|\
       SAGE_ROUTER_OPERATOR_TOKEN|SAGE_ROUTER_CLIENT_API_KEY|SAGE_ROUTER_CLIENT_API_KEYS|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED|\
       SAGEROUTER_PROVIDER_RESALE_TERMS_URL|SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL|\
       SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED|SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS)
@@ -334,7 +335,16 @@ check_api_client_user_agent_gate() {
     fail "OpenAI/Python-style API client probe failed before guided auth gate: HTTP ${sdk_code}"
   fi
   if [[ "$raw_python_code" == "403" && "$raw_error_code" == "1010" ]]; then
-    warn "Cloudflare Browser Integrity Check blocks Python urllib's default signature; raw HTTP clients should send a normal SDK User-Agent or Cloudflare zone security should skip Browser Integrity Check for api.sagerouter.dev"
+    if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+      if bash scripts/configure_cloudflare_api_bic_skip.sh --check >/tmp/sage-router-cloudflare-bic-check 2>&1; then
+        warn "Cloudflare Browser Integrity Check still blocks raw Python urllib even though the host-scoped BIC skip rule is present; wait for propagation or inspect Cloudflare security events"
+      else
+        fail "Cloudflare Browser Integrity Check blocks Python urllib and the available Cloudflare token/rule check failed: $(tr '\n' ' ' </tmp/sage-router-cloudflare-bic-check)"
+      fi
+      rm -f /tmp/sage-router-cloudflare-bic-check
+    else
+      warn "Cloudflare Browser Integrity Check blocks Python urllib's default signature; raw HTTP clients should send a normal SDK User-Agent or run scripts/configure_cloudflare_api_bic_skip.sh with a Zone Rulesets token for api.sagerouter.dev"
+    fi
   elif [[ "$raw_python_code" == "401" ]]; then
     pass "raw Python urllib-style API clients reach the edge auth gate"
   else

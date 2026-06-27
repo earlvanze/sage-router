@@ -199,6 +199,9 @@ warns that Python urllib receives Cloudflare `1010`, run
 Zone Rulesets read/edit permission. The script creates a host-scoped
 configuration rule for `api.sagerouter.dev` only, setting Browser Integrity
 Check off while leaving app and marketing hosts unchanged.
+Use `scripts/configure_cloudflare_api_bic_skip.sh --check` first when you only
+want to verify token permissions and whether the host-scoped rule already
+exists.
 
 ## Google Cloud VM bootstrap
 
