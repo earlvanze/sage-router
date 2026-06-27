@@ -898,6 +898,12 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "operator_execution_packet_copied" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-operator-execution-packet-telemetry"
   fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "operatorAuthPosture" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-operator-auth-posture"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "Auth provider state unknown" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-operator-auth-posture-fallback"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   status_code="$(http_code_follow "${APP_BASE%/}/status")"

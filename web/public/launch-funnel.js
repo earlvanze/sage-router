@@ -704,17 +704,45 @@ function renderLaunchBrief(data = {}) {
   setText('launch-brief-status', 'No-secret launch brief generated from aggregate funnel data.');
 }
 
-function operatorExecutionPacketText(packet = {}) {
+function operatorAuthPosture(data = {}) {
+  const marketingIntent = data.marketingIntent || {};
+  const authState = data.authProviderState || marketingIntent.authProviderState || {};
+  const githubEnabled = asNumber(authState.githubEnabled);
+  const githubDisabled = asNumber(authState.githubDisabled);
+  if (githubEnabled > 0) {
+    return {
+      label: 'GitHub visible',
+      tone: 'good',
+      action: 'Use email/password recovery first; GitHub/OAuth is available only when it is the same signup account.',
+    };
+  }
+  if (githubDisabled > 0) {
+    return {
+      label: 'GitHub disabled observed',
+      tone: 'warn',
+      action: 'Use email/password recovery first and avoid GitHub-only follow-up.',
+    };
+  }
+  return {
+    label: 'Auth provider state unknown',
+    tone: 'warn',
+    action: 'Use email/password recovery first; offer GitHub/OAuth only if the user confirms it is the same account.',
+  };
+}
+
+function operatorExecutionPacketText(packet = {}, data = {}) {
   const telemetry = packet.telemetry || {};
   const privacy = packet.privacy || {};
   const urls = packet.recoveryUrls || {};
   const draft = packet.draft || {};
   const segmentActions = Array.isArray(packet.segmentActions) ? packet.segmentActions : [];
   const instructions = Array.isArray(packet.instructions) ? packet.instructions : [];
+  const authPosture = operatorAuthPosture(data);
   return [
     `${packet.title || 'Operator execution packet'} (${packet.kind || 'none'})`,
     `Priority: ${packet.priority || 'monitor'} | Owner: ${packet.owner || 'Operator'} | Metric: ${packet.metric || 'launch'}`,
     `Queued: ${integer(packet.totalQueued)} total, ${integer(packet.windowedNewSignups)} new in-window`,
+    `Auth posture: ${authPosture.label}. ${authPosture.action}`,
     `Privacy: aggregateOnly=${privacy.aggregateOnly === true}; emails=${privacy.containsEmails === true}; customerIds=${privacy.containsCustomerIds === true}; apiKeys=${privacy.containsApiKeys === true}; prompts=${privacy.containsPrompts === true}; oauthTokens=${privacy.containsOAuthTokens === true}`,
     '',
     'Segments:',
@@ -753,6 +781,7 @@ function renderOperatorExecutionPacket(data = {}) {
   const draft = packet.draft || {};
   const telemetry = packet.telemetry || {};
   const segmentActions = Array.isArray(packet.segmentActions) ? packet.segmentActions : [];
+  const authPosture = operatorAuthPosture(data);
   const clean = privacy.aggregateOnly === true &&
     privacy.containsEmails === false &&
     privacy.containsCustomerIds === false &&
@@ -785,16 +814,18 @@ function renderOperatorExecutionPacket(data = {}) {
         </tr>`;
       }).join('')
     : '<tr><td colspan="6">No segment actions returned.</td></tr>';
-  const packetText = operatorExecutionPacketText(packet);
+  const packetText = operatorExecutionPacketText(packet, data);
   const draftText = [`Subject: ${draft.subject || 'Finish your Sage Router setup key'}`, '', draft.body || ''].join('\n');
   target.innerHTML = `<div class="metricList">
     <div class="metric"><span>Kind</span><strong>${esc(packet.kind)}</strong></div>
     <div class="metric"><span>Priority</span><strong><span class="pill ${packet.priority === 'fix_now' ? 'bad' : 'warn'}">${esc(packet.priority || 'monitor')}</span></strong></div>
     <div class="metric"><span>Queued</span><strong>${integer(packet.totalQueued)} total · ${integer(packet.windowedNewSignups)} new</strong></div>
     <div class="metric"><span>Primary CTA</span><strong>${esc(packet.primaryCtaKind || 'same_email_password')}</strong></div>
+    <div class="metric"><span>Auth posture</span><strong><span class="pill ${esc(authPosture.tone)}">${esc(authPosture.label)}</span></strong></div>
     <div class="metric"><span>Privacy</span><strong><span class="pill ${clean ? 'good' : 'bad'}">${clean ? 'Aggregate only' : 'Review payload'}</span></strong></div>
     <div class="metric"><span>Success</span><strong>${esc(telemetry.successMetric || packet.metric || 'activation')}</strong></div>
   </div>
+  <p class="muted">${esc(authPosture.action)}</p>
   <div class="actions">
     <button class="btn secondary" type="button" data-copy-operator-packet="${esc(packetText)}">Copy execution packet</button>
     <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(draftText)}" data-followup-copy-kind="operator_packet_draft_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(packet.totalQueued)}">Copy packet draft</button>
