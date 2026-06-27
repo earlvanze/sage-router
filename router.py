@@ -12668,7 +12668,35 @@ def select_model(intent, complexity, thinking=DEFAULT_THINKING_LEVEL, route_mode
             all_candidates.append(scored)
 
     all_candidates.sort(key=lambda item: (-item[0], item[1], item[2]))
-    return [(pn, model) for _, pn, model in all_candidates[:MAX_PROVIDER_ATTEMPTS]], sorted(debug_scores, key=lambda item: item['score'], reverse=True), rejections
+    ranked_pairs = [(pn, model) for _, pn, model in all_candidates]
+    chain = diversify_ranked_chain(ranked_pairs, MAX_PROVIDER_ATTEMPTS)
+    return chain, sorted(debug_scores, key=lambda item: item['score'], reverse=True), rejections
+
+
+def diversify_ranked_chain(ranked_pairs, limit=MAX_PROVIDER_ATTEMPTS):
+    """Keep best-first routing while reserving early failover slots by provider."""
+    ranked_pairs = dedupe_keep_order(ranked_pairs or [])
+    if len(ranked_pairs) <= 1:
+        return ranked_pairs
+    diversified = []
+    seen = set()
+    seen_providers = set()
+    for provider_name, model in ranked_pairs:
+        if provider_name in seen_providers:
+            continue
+        pair = (provider_name, model)
+        diversified.append(pair)
+        seen.add(pair)
+        seen_providers.add(provider_name)
+        if len(diversified) >= limit:
+            return diversified
+    for pair in ranked_pairs:
+        if pair in seen:
+            continue
+        diversified.append(pair)
+        if len(diversified) >= limit:
+            break
+    return diversified
 
 def call_ollama(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL):
     url = base_url.rstrip('/') + '/api/chat'

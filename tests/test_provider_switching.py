@@ -235,6 +235,38 @@ class ProviderSwitchingTests(unittest.TestCase):
             [name for name, _value in codex_score['contributions']],
         )
 
+    def test_ranked_chain_reserves_slots_for_distinct_providers(self):
+        router.PROVIDERS = {
+            'openai-codex': router.Provider(
+                'openai-codex',
+                'openai-codex-responses',
+                'https://codex.invalid',
+                'token',
+                ['gpt-5.5', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-5.2-codex'],
+            ),
+            'openai': router.Provider(
+                'openai',
+                'openai-completions',
+                'https://api.openai.invalid/v1',
+                'token',
+                ['gpt-5.4'],
+            ),
+            'ollama': router.Provider('ollama', 'ollama', 'http://ollama.invalid', '', ['glm-5']),
+        }
+
+        chain, _scores, _rejections = router.select_model(
+            router.Intent.ANALYSIS,
+            router.Complexity.COMPLEX,
+            router.ThinkingLevel.HIGH,
+            'best',
+            {'document': True, 'longContext': True, 'preferTools': True, 'agentic': True},
+            10000,
+        )
+
+        self.assertEqual('openai-codex', chain[0][0])
+        self.assertIn('openai', [provider for provider, _model in chain])
+        self.assertGreaterEqual(len({provider for provider, _model in chain[:3]}), 2)
+
     def test_balanced_profile_is_explicit_non_frontier_ollama_first(self):
         payload = {'model': 'sage-router/balanced', 'messages': [{'role': 'user', 'content': 'hello'}]}
         profile = router.apply_router_profile(payload)
