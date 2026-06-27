@@ -3009,13 +3009,44 @@ class SaaSAuthTests(unittest.TestCase):
         generated = Dummy(f'Bearer {raw}')
         router.Handler.do_GET(generated)
         self.assertEqual(200, generated.status)
-        self.assertIn('models', generated.payload)
+        self.assertEqual('list', generated.payload['object'])
+        self.assertIn('data', generated.payload)
+        self.assertNotIn('models', generated.payload)
+        model_ids = {row['id'] for row in generated.payload['data']}
+        self.assertIn('sage-router/frontier', model_ids)
+        self.assertIn('sage-router/fusion', model_ids)
+        self.assertTrue(all(row.get('object') == 'model' for row in generated.payload['data']))
 
         router.CLIENT_API_KEYS = ['operator-secret']
         operator = Dummy('Bearer operator-secret')
         router.Handler.do_GET(operator)
         self.assertEqual(200, operator.status)
-        self.assertIn('models', operator.payload)
+        self.assertEqual('list', operator.payload['object'])
+        self.assertIn('data', operator.payload)
+
+    def test_v1beta_model_listing_keeps_google_shape(self):
+        customer = self.active_customer()
+        raw, _row = router.create_api_key_for_customer(customer, 'prod')
+
+        class Dummy:
+            path = '/v1beta/models'
+            command = 'GET'
+            headers = {'Authorization': f'Bearer {raw}'}
+            status = None
+            payload = None
+            extra_headers = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+                self.extra_headers = extra_headers
+
+        handler = Dummy()
+        router.Handler.do_GET(handler)
+        self.assertEqual(200, handler.status)
+        self.assertIn('models', handler.payload)
+        self.assertNotIn('data', handler.payload)
+        self.assertTrue(all('supportedGenerationMethods' in row for row in handler.payload['models']))
 
     def test_origin_model_post_auth_error_includes_onboarding_guidance(self):
         body = b'{}'

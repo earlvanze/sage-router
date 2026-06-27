@@ -3925,6 +3925,80 @@ def openai_chat_completion_to_responses(result, request_payload, request_id):
     }
 
 
+def openai_model_row(model_id, owned_by='sage-router', **metadata):
+    row = {
+        'id': str(model_id or ''),
+        'object': 'model',
+        'created': 0,
+        'owned_by': str(owned_by or 'sage-router'),
+    }
+    for key, value in metadata.items():
+        if value is not None:
+            row[key] = value
+    return row
+
+
+def openai_models_payload():
+    rows = []
+    seen = set()
+
+    def add(model_id, owned_by='sage-router', **metadata):
+        model_id = str(model_id or '').strip()
+        if not model_id or model_id in seen:
+            return
+        seen.add(model_id)
+        rows.append(openai_model_row(model_id, owned_by=owned_by, **metadata))
+
+    profiles = load_router_profiles()
+    for name, profile in sorted(profiles.items()):
+        profile = profile if isinstance(profile, dict) else {}
+        add(
+            f'sage-router/{name}',
+            'sage-router',
+            type='router_profile',
+            route=profile.get('route'),
+            thinking=profile.get('thinking'),
+            description=profile.get('description'),
+        )
+    for name in ('auto', 'fusion'):
+        add(f'sage-router/{name}', 'sage-router', type='router_profile')
+
+    for provider_name, provider in sorted(PROVIDERS.items()):
+        if provider_name in DISABLED_PROVIDERS:
+            continue
+        for model in dedupe_keep_order(provider.models or []):
+            if model_disabled_reason(provider_name, model):
+                continue
+            add(
+                display_model_id(provider_name, model),
+                provider_name,
+                type='provider_model',
+                provider=provider_name,
+            )
+    return {'object': 'list', 'data': rows}
+
+
+def google_models_payload():
+    models_data = []
+    seen = set()
+    for name, prov in PROVIDERS.items():
+        if name in DISABLED_PROVIDERS:
+            continue
+        for m in prov.models:
+            if model_disabled_reason(name, m):
+                continue
+            model_name = f'models/{m}'
+            if model_name in seen:
+                continue
+            seen.add(model_name)
+            models_data.append({
+                'name': model_name,
+                'displayName': m,
+                'supportedGenerationMethods': ['generateContent', 'streamGenerateContent'],
+            })
+    return {'models': models_data}
+
+
 def write_responses_as_sse(self, response, request_id, extra_headers=None):
     def write_event(event_name, data):
         payload = dict(data)
@@ -15418,20 +15492,17 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 "totalProviders": len(openclaw_file) + len(hermes_file)
             })
-        elif request_path.startswith('/v1beta/models') or request_path.startswith('/v1/models'):
+        elif request_path == '/v1/models' or request_path.startswith('/v1/models/'):
             if not client_request_authorized(self):
                 self.write_json(401, model_api_auth_error_payload(), extra_headers=model_api_auth_error_headers())
                 return
-            # Google Generative AI models listing endpoint
-            models_data = []
-            for name, prov in PROVIDERS.items():
-                for m in prov.models:
-                    models_data.append({
-                        'name': f'models/{m}',
-                        'displayName': m,
-                        'supportedGenerationMethods': ['generateContent', 'streamGenerateContent'],
-                    })
-            self.write_json(200, {'models': models_data})
+            self.write_json(200, openai_models_payload())
+        elif request_path.startswith('/v1beta/models'):
+            if not client_request_authorized(self):
+                self.write_json(401, model_api_auth_error_payload(), extra_headers=model_api_auth_error_headers())
+                return
+            # Google Generative AI models listing endpoint.
+            self.write_json(200, google_models_payload())
         else:
             self.send_response(404)
             self.end_headers()
