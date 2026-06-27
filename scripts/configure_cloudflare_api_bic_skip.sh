@@ -29,17 +29,70 @@ require_cmd() {
   fi
 }
 
+cloudflare_error_summary() {
+  local body="$1"
+  if jq -e '.errors? | length > 0' "$body" >/dev/null 2>&1; then
+    jq -r '.errors[] | "- " + ((.code // "unknown")|tostring) + ": " + (.message // "unknown error")' "$body" >&2
+  fi
+}
+
 api_get() {
-  curl -fsS "$1" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+  local url="$1"
+  local label="${2:-Cloudflare API request}"
+  local body status
+  body="$(mktemp)"
+  status="$(curl -sS -o "$body" -w '%{http_code}' "$url" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")"
+  if [[ "$status" =~ ^2[0-9][0-9]$ ]]; then
+    cat "$body"
+    rm -f "$body"
+    return 0
+  fi
+  printf '%s failed with HTTP %s.\n' "$label" "$status" >&2
+  cloudflare_error_summary "$body"
+  rm -f "$body"
+  return 1
 }
 
 api_put_json() {
   local url="$1"
   local payload="$2"
-  curl -fsS -X PUT "$url" \
+  local body status
+  body="$(mktemp)"
+  status="$(curl -sS -o "$body" -w '%{http_code}' -X PUT "$url" \
     -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
     -H "Content-Type: application/json" \
-    --data-binary @"$payload"
+    --data-binary @"$payload")"
+  if [[ "$status" =~ ^2[0-9][0-9]$ ]]; then
+    cat "$body"
+    rm -f "$body"
+    return 0
+  fi
+  printf 'Cloudflare ruleset update failed with HTTP %s.\n' "$status" >&2
+  printf 'The token must have Zone:Zone:Read and Zone Rulesets:Edit for %s.\n' "$ZONE_NAME" >&2
+  cloudflare_error_summary "$body"
+  rm -f "$body"
+  return 1
+}
+
+api_get_ruleset_entrypoint() {
+  local url="$1"
+  local body status
+  body="$(mktemp)"
+  status="$(curl -sS -o "$body" -w '%{http_code}' "$url" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")"
+  if [[ "$status" =~ ^2[0-9][0-9]$ ]]; then
+    cat "$body"
+    rm -f "$body"
+    return 0
+  fi
+  if [[ "$status" == "404" ]]; then
+    rm -f "$body"
+    return 2
+  fi
+  printf 'Cloudflare %s ruleset lookup for %s failed with HTTP %s.\n' "$PHASE" "$ZONE_NAME" "$status" >&2
+  printf 'The token must have Zone:Zone:Read and Zone Rulesets:Read/Edit for %s.\n' "$ZONE_NAME" >&2
+  cloudflare_error_summary "$body"
+  rm -f "$body"
+  return 1
 }
 
 load_local_env_file "${SAGEROUTER_SECRET_ENV_FILE:-/home/digit/.openclaw/.env}"
@@ -57,12 +110,12 @@ PHASE="http_config_settings"
 ZONE_ID="${SAGEROUTER_CLOUDFLARE_ZONE_ID:-${CLOUDFLARE_ZONE_ID:-}}"
 if [[ -z "$ZONE_ID" ]]; then
   ZONE_ID="$(
-    api_get "https://api.cloudflare.com/client/v4/zones?name=${ZONE_NAME}" \
+    api_get "https://api.cloudflare.com/client/v4/zones?name=${ZONE_NAME}" "Cloudflare zone lookup for ${ZONE_NAME}" \
       | jq -r '.result[0].id // empty'
   )"
 fi
 if [[ -z "$ZONE_ID" ]]; then
-  printf 'Could not resolve Cloudflare zone id for %s\n' "$ZONE_NAME" >&2
+  printf 'Could not resolve Cloudflare zone id for %s. The token must have Zone:Zone:Read for this zone, or set SAGEROUTER_CLOUDFLARE_ZONE_ID/CLOUDFLARE_ZONE_ID.\n' "$ZONE_NAME" >&2
   exit 2
 fi
 
@@ -71,7 +124,11 @@ current="$(mktemp)"
 payload="$(mktemp)"
 trap 'rm -f "$current" "$payload"' EXIT
 
-if ! api_get "$entrypoint_url" >"$current"; then
+set +e
+api_get_ruleset_entrypoint "$entrypoint_url" >"$current"
+entrypoint_status="$?"
+set -e
+if [[ "$entrypoint_status" == "2" ]]; then
   cat >"$current" <<'JSON'
 {
   "success": true,
@@ -84,6 +141,8 @@ if ! api_get "$entrypoint_url" >"$current"; then
   }
 }
 JSON
+elif [[ "$entrypoint_status" != "0" ]]; then
+  exit "$entrypoint_status"
 fi
 
 jq \

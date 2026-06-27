@@ -7,6 +7,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 WORKER = ROOT / "deploy" / "tailnet-edge" / "cloudflare-api-worker.js"
 WRANGLER_EXAMPLE = ROOT / "deploy" / "tailnet-edge" / "wrangler.api-sagerouter.example.toml"
+CLOUDFLARE_BIC_SKIP = ROOT / "scripts" / "configure_cloudflare_api_bic_skip.sh"
 
 
 class CloudflareWorkerEdgeTests(unittest.TestCase):
@@ -15,6 +16,9 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
 
     def read_wrangler_example(self):
         return WRANGLER_EXAMPLE.read_text(encoding="utf-8")
+
+    def read_bic_skip_script(self):
+        return CLOUDFLARE_BIC_SKIP.read_text(encoding="utf-8")
 
     def test_public_edge_health_uses_redacted_origin_snapshots(self):
         worker = self.read_worker()
@@ -112,6 +116,15 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
         self.assertIn("SAGE_ROUTER_SUPABASE_URL", example)
         self.assertIn("wrangler secret put SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY", example)
         self.assertIn("SAGE_ROUTER_SUPABASE_MODEL_MODALITIES_RPC", example)
+
+    def test_cloudflare_bic_skip_script_reports_ruleset_permission_failures(self):
+        script = self.read_bic_skip_script()
+        self.assertIn("cloudflare_error_summary", script)
+        self.assertIn("Cloudflare zone lookup for ${ZONE_NAME}", script)
+        self.assertIn("api_get_ruleset_entrypoint", script)
+        self.assertIn("failed with HTTP %s", script)
+        self.assertIn("Zone:Zone:Read and Zone Rulesets:Read/Edit", script)
+        self.assertIn("SAGEROUTER_CLOUDFLARE_ZONE_ID/CLOUDFLARE_ZONE_ID", script)
 
 
 if __name__ == "__main__":
