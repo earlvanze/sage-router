@@ -57,6 +57,7 @@ class SaaSAuthTests(unittest.TestCase):
             'SUPABASE_MIRROR_ENABLED': router.SUPABASE_MIRROR_ENABLED,
             'read_launch_waitlist_counts': router.read_launch_waitlist_counts,
             'read_launch_marketing_funnel_counts': router.read_launch_marketing_funnel_counts,
+            'read_launch_auth_user_rows': router.read_launch_auth_user_rows,
         }
         router.CUSTOMER_STORE_PATH = os.path.join(self.tmp.name, 'customers.json')
         router.SUPABASE_URL = ''
@@ -115,6 +116,7 @@ class SaaSAuthTests(unittest.TestCase):
         router.SUPABASE_MIRROR_ENABLED = self.old['SUPABASE_MIRROR_ENABLED']
         router.read_launch_waitlist_counts = self.old['read_launch_waitlist_counts']
         router.read_launch_marketing_funnel_counts = self.old['read_launch_marketing_funnel_counts']
+        router.read_launch_auth_user_rows = self.old['read_launch_auth_user_rows']
         if self._billing_env is None:
             os.environ.pop('SAGE_ROUTER_BILLING_ENABLED', None)
         else:
@@ -228,7 +230,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(handler.payload['emailVerification']['required'])
         self.assertFalse(handler.payload['emailVerification']['verified'])
 
-    def test_unverified_hosted_user_cannot_create_key_or_start_checkout(self):
+    def test_unverified_hosted_user_can_create_non_routing_key_but_not_checkout(self):
         router.SUPABASE_AUTH_ENABLED = True
         router.REQUIRE_VERIFIED_EMAIL = True
         router.STRIPE_SECRET_KEY = 'sk_test'
@@ -252,10 +254,13 @@ class SaaSAuthTests(unittest.TestCase):
 
         key_handler = Dummy('/account/api-keys', b'{"name":"prod"}')
         router.Handler.do_POST(key_handler)
-        self.assertEqual(403, key_handler.status)
-        self.assertEqual('email_verification_required', key_handler.payload['error'])
+        self.assertEqual(201, key_handler.status)
+        self.assertTrue(key_handler.payload['key'].startswith('sk_sage_'))
+        self.assertFalse(key_handler.payload['api_key']['routing_enabled'])
+        self.assertFalse(key_handler.payload['emailVerification']['verified'])
         customer = router.customer_for_user({'id': 'user-unverified'}, create=False)
-        self.assertEqual(0, router.active_api_key_count_for_customer(customer['id']))
+        self.assertEqual(1, router.active_api_key_count_for_customer(customer['id']))
+        self.assertIsNone(router.verify_generated_api_key(key_handler.payload['key']))
 
         checkout_handler = Dummy('/billing/stripe/checkout', b'{"plan":"pro"}')
         router.Handler.do_POST(checkout_handler)
@@ -588,9 +593,23 @@ class SaaSAuthTests(unittest.TestCase):
         router.Handler.do_GET(listing)
         self.assertEqual(200, listing.status)
         self.assertEqual(1, listing.payload['count'])
+        self.assertEqual(1, listing.payload['returned'])
+        self.assertEqual({'active': 1}, listing.payload['statusCounts'])
+        self.assertEqual({'send_first_request': 1}, listing.payload['nextActions'])
+        self.assertIn('verified', listing.payload['emailVerification'])
+        self.assertEqual(0, listing.payload['noKeyCreateKey'])
+        self.assertTrue(listing.payload['hasEmails'])
         self.assertEqual(customer['id'], listing.payload['customers'][0]['customer']['id'])
         self.assertIn('no_first_request', listing.payload['customers'][0]['review']['flagCodes'])
         self.assertEqual('warn', listing.payload['customers'][0]['review']['severity'])
+        self.assertIn('emailVerification', listing.payload['customers'][0])
+        self.assertIn('verified', listing.payload['customers'][0]['emailVerification'])
+        self.assertIn('followUp', listing.payload['customers'][0])
+        self.assertIn('/login.html?', listing.payload['customers'][0]['followUp']['passwordFallback'])
+        self.assertIn('auth=email', listing.payload['customers'][0]['followUp']['passwordFallback'])
+        self.assertIn('signup_to_key_recovery', listing.payload['customers'][0]['followUp']['passwordFallback'])
+        self.assertIn('/account.html?', listing.payload['customers'][0]['followUp']['githubOAuth'])
+        self.assertIn('auth=github', listing.payload['customers'][0]['followUp']['githubOAuth'])
         self.assertTrue(listing.payload['privacy']['operatorOnly'])
         self.assertFalse(listing.payload['privacy']['containsApiKeyHashes'])
         self.assertNotIn('api_key_hash', json.dumps(listing.payload))
@@ -601,6 +620,9 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(other['id'], detail.payload['customer']['id'])
         self.assertEqual('inactive', detail.payload['activation']['status'])
         self.assertIn('new_signup', detail.payload['review']['flagCodes'])
+        self.assertEqual('create_key', detail.payload['followUp']['nextAction'])
+        self.assertEqual('same_email_password', detail.payload['followUp']['primaryCtaKind'])
+        self.assertEqual(['passwordFallback', 'githubOAuth'], detail.payload['followUp']['recommendedCtaOrder'])
         self.assertEqual([], detail.payload['auditEvents'])
 
         router.suspend_customer_for_operator(customer['id'], reason_code='security')
@@ -611,6 +633,45 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('security', detail.payload['latestAuditEvent']['reason_code'])
         self.assertEqual(1, len(detail.payload['auditEvents']))
         self.assertNotIn('api_key_hash', json.dumps(detail.payload['auditEvents']))
+
+    def test_operator_can_hydrate_auth_signups_to_inactive_customers(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        router.read_launch_auth_user_rows = lambda limit=1000: [
+            {'id': 'auth-user-1', 'email': 'buyer@example.com', 'created_at': router.now_epoch(), 'email_confirmed': True},
+            {'id': 'auth-user-2', 'email': 'pending@example.com', 'created_at': router.now_epoch(), 'email_confirmed': False},
+        ]
+        existing = router.customer_for_user({'id': 'auth-user-2', 'email': 'pending@example.com'})
+
+        class Dummy:
+            path = '/admin/customers/hydrate-auth-users'
+            headers = {'Authorization': 'Bearer operator-token', 'Content-Length': '2'}
+            rfile = BytesIO(b'{}')
+            status = None
+            payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(200, handler.status)
+        self.assertEqual('ok', handler.payload['status'])
+        self.assertEqual(2, handler.payload['authUsers'])
+        self.assertEqual(1, handler.payload['confirmedAuthUsers'])
+        self.assertEqual(1, handler.payload['created'])
+        self.assertEqual(1, handler.payload['existing'])
+        self.assertEqual(0, handler.payload['failed'])
+        self.assertFalse(handler.payload['privacy']['containsEmails'])
+        self.assertFalse(handler.payload['privacy']['containsUserIds'])
+        self.assertNotIn('buyer@example.com', json.dumps(handler.payload))
+        self.assertNotIn('auth-user-1', json.dumps(handler.payload))
+        created = router.customer_for_user({'id': 'auth-user-1'}, create=False)
+        self.assertEqual('buyer@example.com', created['email'])
+        self.assertEqual('free', created['plan'])
+        self.assertEqual('inactive', created['status'])
+        self.assertEqual(existing['id'], router.customer_for_user({'id': 'auth-user-2'}, create=False)['id'])
 
     def test_operator_customer_review_flags_are_bounded_and_actionable(self):
         customer = self.active_customer()
@@ -734,6 +795,11 @@ class SaaSAuthTests(unittest.TestCase):
 
         inactive_customer = router.customer_for_user({'id': 'user-free', 'email': 'free@example.com'})
         activation = router.account_activation_for_customer(inactive_customer)
+        self.assertEqual('create_key', activation['nextAction'])
+        self.assertFalse(activation['routingEnabled'])
+
+        _free_raw, free_key = router.create_api_key_for_customer(inactive_customer, 'setup')
+        activation = router.account_activation_for_customer(inactive_customer, api_keys=[free_key])
         self.assertEqual('choose_plan', activation['nextAction'])
         self.assertFalse(activation['routingEnabled'])
 
@@ -1303,13 +1369,25 @@ class SaaSAuthTests(unittest.TestCase):
             },
         }, None)
         router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
-            'total': 22,
+            'total': 29,
             'events': {
                 'landing_account_clicked': 1,
+                'landing_key_first_direct_clicked': 1,
                 'model_catalog_viewed': 1,
                 'model_catalog_search_bucketed': 2,
                 'model_catalog_filter_clicked': 1,
+                'model_catalog_key_activation_clicked': 1,
+                'pricing_key_activation_clicked': 1,
+                'content_article_key_activation_clicked': 1,
+                'fusion_key_activation_clicked': 1,
+                'codex_docs_key_activation_clicked': 1,
+                'gateway_compare_key_activation_clicked': 1,
+                'launch_plan_key_activation_clicked': 1,
                 'account_api_key_created': 1,
+                'account_key_recovery_viewed': 1,
+                'account_auto_oauth_skipped': 1,
+                'account_checkout_key_first_redirected': 1,
+                'account_intent_create_key_clicked': 1,
                 'account_snippet_copied': 1,
                 'quickstart_snippet_copied': 1,
                 'account_usage_upgrade_clicked': 1,
@@ -1382,6 +1460,42 @@ class SaaSAuthTests(unittest.TestCase):
                 'codex-cli': 1,
                 'quickstart-curl': 1,
             },
+            'keyFirstRedirects': 10,
+            'keyFirstRedirectsByState': {
+                'checkout_key_first': 1,
+                'codex-docs-main': 1,
+                'compare-gateways-hero': 1,
+                'content-article-dock': 1,
+                'fusion-hero': 1,
+                'hero-key-first': 1,
+                'launch-plan-hero': 1,
+                'model-catalog-hero': 1,
+                'pricing-pro': 1,
+                'saved_key_recovery_auto_key': 1,
+            },
+            'keyRecoveryViews': 1,
+            'keyRecoveryViewsByState': {
+                'github': 1,
+            },
+            'keyCreateAttempts': 1,
+            'keyCreateAttemptsByState': {
+                'saved_key_recovery_auto_key': 1,
+            },
+            'keyCreateSuccesses': 1,
+            'keyCreateSuccessesByState': {
+                'created': 1,
+            },
+            'keyCreateFailures': 0,
+            'keyCreateFailuresByState': {},
+            'operatorFollowUpCopies': 2,
+            'operatorFollowUpCopiesByKind': {
+                'single_copied': 1,
+                'batch_copied': 1,
+            },
+            'operatorFollowUpWorked': 1,
+            'operatorFollowUpWorkedByKind': {
+                'verified_marked_worked': 1,
+            },
         }, None)
         customer = self.active_customer()
         raw, _row = router.create_api_key_for_customer(customer, 'prod')
@@ -1403,12 +1517,41 @@ class SaaSAuthTests(unittest.TestCase):
         snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
 
         self.assertEqual(3, snapshot['stages']['waitlistLeads'])
-        self.assertEqual(22, snapshot['stages']['marketingIntentEvents'])
+        self.assertEqual(29, snapshot['stages']['marketingIntentEvents'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['landing_account_clicked'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['landing_key_first_direct_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['model_catalog_viewed'])
         self.assertEqual(2, snapshot['marketingIntent']['events']['model_catalog_search_bucketed'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['model_catalog_filter_clicked'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['model_catalog_key_activation_clicked'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['pricing_key_activation_clicked'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['content_article_key_activation_clicked'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['fusion_key_activation_clicked'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['codex_docs_key_activation_clicked'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['gateway_compare_key_activation_clicked'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['launch_plan_key_activation_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['account_api_key_created'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['account_key_recovery_viewed'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['account_checkout_key_first_redirected'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['account_intent_create_key_clicked'])
+        self.assertEqual(10, snapshot['marketingIntent']['keyFirstRedirects'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyFirstRedirectsByState']['checkout_key_first'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyFirstRedirectsByState']['codex-docs-main'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyFirstRedirectsByState']['compare-gateways-hero'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyFirstRedirectsByState']['content-article-dock'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyFirstRedirectsByState']['fusion-hero'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyFirstRedirectsByState']['hero-key-first'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyFirstRedirectsByState']['launch-plan-hero'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyFirstRedirectsByState']['model-catalog-hero'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyFirstRedirectsByState']['pricing-pro'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyFirstRedirectsByState']['saved_key_recovery_auto_key'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyRecoveryViews'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyRecoveryViewsByState']['github'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyCreateAttempts'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyCreateAttemptsByState']['saved_key_recovery_auto_key'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyCreateSuccesses'])
+        self.assertEqual(1, snapshot['marketingIntent']['keyCreateSuccessesByState']['created'])
+        self.assertEqual(0, snapshot['marketingIntent']['keyCreateFailures'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['account_snippet_copied'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['quickstart_snippet_copied'])
         self.assertEqual(2, snapshot['marketingIntent']['setupSnippetCopies'])
@@ -1468,6 +1611,53 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, snapshot['stages']['signups'])
         self.assertEqual(1, snapshot['stages']['customersWithGeneratedApiKeys'])
         self.assertEqual(1, snapshot['stages']['customersWithActiveApiKeys'])
+        self.assertEqual(1, snapshot['activationFollowUps']['total'])
+        self.assertEqual(1, snapshot['activationFollowUps']['windowedNewSignups'])
+        self.assertEqual('create_key', snapshot['activationFollowUps']['nextAction'])
+        self.assertEqual('pro', snapshot['activationFollowUps']['suggestedPlan'])
+        self.assertEqual(1, snapshot['activationFollowUps']['countsBySuggestedPlan']['pro'])
+        self.assertEqual(1, snapshot['activationFollowUps']['countsByStatus']['inactive'])
+        self.assertIn('signup_to_key_recovery', snapshot['activationFollowUps']['primaryCtaUrl'])
+        self.assertIn('start=create_key', snapshot['activationFollowUps']['primaryCtaUrl'])
+        self.assertIn('/login.html', snapshot['activationFollowUps']['primaryCtaUrl'])
+        self.assertIn('auth=email', snapshot['activationFollowUps']['primaryCtaUrl'])
+        self.assertEqual('same_email_password', snapshot['activationFollowUps']['primaryCtaKind'])
+        self.assertEqual(['passwordFallback', 'githubOAuth'], snapshot['activationFollowUps']['recommendedCtaOrder'])
+        self.assertIn('primaryCtaUrls', snapshot['activationFollowUps'])
+        self.assertEqual(snapshot['activationFollowUps']['primaryCtaUrls']['passwordFallback'], snapshot['activationFollowUps']['primaryCtaUrl'])
+        self.assertIn('/account.html', snapshot['activationFollowUps']['primaryCtaUrls']['githubOAuth'])
+        self.assertIn('auth=github', snapshot['activationFollowUps']['primaryCtaUrls']['githubOAuth'])
+        self.assertIn('/login.html', snapshot['activationFollowUps']['primaryCtaUrls']['passwordFallback'])
+        self.assertIn('auth=email', snapshot['activationFollowUps']['primaryCtaUrls']['passwordFallback'])
+        self.assertIn('signup_to_key_recovery', snapshot['activationFollowUps']['primaryCtaUrls']['passwordFallback'])
+        self.assertIn('generated-key-first', snapshot['activationFollowUps']['recommendedOperatorAction'])
+        self.assertEqual(1, snapshot['activationFollowUps']['countsByEmailVerification']['not_required'])
+        self.assertEqual(2, snapshot['activationFollowUps']['operatorFollowUpCopies'])
+        self.assertEqual(1, snapshot['activationFollowUps']['operatorFollowUpWorked'])
+        self.assertEqual(1, snapshot['activationFollowUps']['keyRecoveryViews'])
+        self.assertEqual(1, snapshot['activationFollowUps']['keyRecoveryViewsByState']['github'])
+        self.assertEqual(1, snapshot['activationFollowUps']['keyCreateAttempts'])
+        self.assertEqual(1, snapshot['activationFollowUps']['keyCreateSuccesses'])
+        self.assertEqual(0, snapshot['activationFollowUps']['keyCreateFailures'])
+        self.assertEqual(1, snapshot['activationFollowUps']['operatorFollowUpCopiesByKind']['single_copied'])
+        self.assertEqual(1, snapshot['activationFollowUps']['operatorFollowUpCopiesByKind']['batch_copied'])
+        self.assertEqual(1, snapshot['activationFollowUps']['operatorFollowUpWorkedByKind']['verified_marked_worked'])
+        self.assertFalse(snapshot['activationFollowUps']['privacy']['containsEmails'])
+        self.assertFalse(snapshot['activationFollowUps']['privacy']['containsCustomerIds'])
+        self.assertFalse(snapshot['activationFollowUps']['privacy']['containsApiKeys'])
+        self.assertEqual('signupToGeneratedKey', snapshot['nextBestAction']['metric'])
+        self.assertEqual('fix_now', snapshot['nextBestAction']['priority'])
+        self.assertIn('start=create_key', snapshot['nextBestAction']['ctaPath'])
+        self.assertIn('auth=email', snapshot['nextBestAction']['ctaPath'])
+        self.assertEqual(1, snapshot['nextBestAction']['evidence']['noKeyFollowUpsQueued'])
+        self.assertEqual(2, snapshot['nextBestAction']['evidence']['operatorFollowUpCopies'])
+        self.assertEqual(1, snapshot['nextBestAction']['evidence']['operatorFollowUpWorked'])
+        self.assertEqual(1, snapshot['nextBestAction']['evidence']['keyRecoveryViews'])
+        self.assertEqual(1, snapshot['nextBestAction']['evidence']['keyCreateAttempts'])
+        self.assertEqual(1, snapshot['nextBestAction']['evidence']['keyCreateSuccesses'])
+        self.assertEqual(0, snapshot['nextBestAction']['evidence']['keyCreateFailures'])
+        self.assertFalse(snapshot['nextBestAction']['privacy']['containsEmails'])
+        self.assertNotIn('buyer@example.com', json.dumps(snapshot['nextBestAction']))
         self.assertEqual(2, snapshot['stages']['setupSnippetCopies'])
         self.assertEqual(1, snapshot['stages']['customersWithFirstRoutedRequest'])
         self.assertEqual(1, snapshot['stages']['paidConversions'])
@@ -1518,6 +1708,145 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertFalse(snapshot['privacy']['containsApiKeys'])
         self.assertNotIn('u@example.com', json.dumps(snapshot))
         self.assertNotIn(raw, json.dumps(snapshot))
+
+    def test_next_best_action_points_to_operator_queue_until_followups_are_worked(self):
+        stages = {'signups': 2, 'customersWithGeneratedApiKeys': 0, 'customersWithFirstRoutedRequest': 0, 'paidCustomers': 0}
+        rates = {'signupToGeneratedKey': 0.0}
+        privacy = {'containsEmails': False, 'containsCustomerIds': False, 'containsApiKeys': False, 'containsProviderCredentials': False}
+        activation_follow_ups = {
+            'total': 2,
+            'windowedNewSignups': 2,
+            'operatorFollowUpCopies': 0,
+            'operatorFollowUpWorked': 0,
+            'keyFirstRedirects': 1,
+            'keyFirstRedirectsByState': {'checkout_key_first': 1},
+            'countsByEmailVerification': {'verified': 1, 'unverified': 1},
+            'primaryCtaUrl': 'https://app.sagerouter.dev/login.html?start=create_key&plan=pro&auth=email',
+            'privacy': privacy,
+        }
+
+        action = router.launch_next_best_action(stages, rates, {'estimatedCurrentMrrUsd': 0, 'targetMrrUsd': 10000}, activation_follow_ups, [])
+
+        self.assertEqual('signupToGeneratedKey', action['metric'])
+        self.assertEqual('launch funnel', action['surface'])
+        self.assertIn('/launch-funnel.html#no-key-followups:segments', action['ctaPath'])
+        self.assertIn('operator no-key signup queue', action['action'])
+        self.assertEqual(0, action['evidence']['operatorFollowUpCopies'])
+        self.assertEqual(0, action['evidence']['operatorFollowUpWorked'])
+        self.assertEqual(1, action['evidence']['keyFirstRedirects'])
+        self.assertEqual(1, action['evidence']['keyFirstRedirectsByState']['checkout_key_first'])
+        self.assertEqual(['verified', 'unverified'], action['evidence']['recommendedSegments'])
+        self.assertEqual('verified', action['executionChecklist'][0]['segment'])
+        self.assertIn('verified drafts first', action['executionChecklist'][0]['action'])
+        self.assertEqual('unverified', action['executionChecklist'][1]['segment'])
+        self.assertIn('Mark the worked segment', action['executionChecklist'][2]['action'])
+        self.assertEqual('measure', action['executionChecklist'][3]['segment'])
+        self.assertFalse(action['privacy']['containsEmails'])
+
+        worked = router.launch_next_best_action(
+            stages,
+            rates,
+            {'estimatedCurrentMrrUsd': 0, 'targetMrrUsd': 10000},
+            {**activation_follow_ups, 'operatorFollowUpCopies': 1, 'operatorFollowUpWorked': 1, 'operatorFollowUpWorkedByKind': {'verified_marked_worked': 1}},
+            [],
+        )
+
+        self.assertEqual('account', worked['surface'])
+        self.assertIn('start=create_key', worked['ctaPath'])
+        self.assertIn('/login.html', worked['ctaPath'])
+        self.assertIn('auth=email', worked['ctaPath'])
+        self.assertEqual(1, worked['evidence']['operatorFollowUpCopies'])
+        self.assertEqual(1, worked['evidence']['operatorFollowUpWorked'])
+
+        copied_only = router.launch_next_best_action(
+            stages,
+            rates,
+            {'estimatedCurrentMrrUsd': 0, 'targetMrrUsd': 10000},
+            {**activation_follow_ups, 'operatorFollowUpCopies': 1, 'operatorFollowUpWorked': 0},
+            [],
+        )
+        self.assertEqual('launch funnel', copied_only['surface'])
+        self.assertIn('/launch-funnel.html#no-key-followups:segments', copied_only['ctaPath'])
+
+    def test_launch_funnel_counts_supabase_auth_signups_without_customer_rows(self):
+        now = router.now_epoch()
+        router.SUPABASE_URL = 'https://example.supabase.co'
+        router.SUPABASE_SERVICE_ROLE_KEY = 'service'
+        router.read_launch_auth_user_rows = lambda limit=1000: [
+            {'id': 'auth-user-1', 'email': 'buyer@example.com', 'created_at': now - 60, 'email_confirmed': True},
+            {'id': 'auth-user-2', 'email': 'pending@example.com', 'created_at': now - 120, 'email_confirmed': False},
+        ]
+        router.read_launch_waitlist_counts = lambda _since, limit=10000: ({
+            'total': 0,
+            'interest': {'managedAccess': 0},
+            'managedAccessDemand': router.new_managed_access_demand_metrics(),
+        }, None)
+        router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
+            'total': 0,
+            'events': {},
+            'plans': {},
+            'sourceSurfaces': {},
+            'attributionChannels': {},
+            'authProviderState': router.new_auth_provider_state_metrics(),
+            'modelCatalogDemand': router.new_model_catalog_demand_metrics(),
+            'setupSnippetCopies': 0,
+            'setupSnippetCopiesBySnippet': {},
+        }, None)
+
+        snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
+
+        self.assertEqual(2, snapshot['stages']['signups'])
+        self.assertEqual(2, snapshot['signupHydration']['authSignups'])
+        self.assertEqual(1, snapshot['signupHydration']['confirmedAuthSignups'])
+        self.assertEqual(0, snapshot['signupHydration']['customerRowsCreated'])
+        self.assertEqual(2, snapshot['signupHydration']['authSignupsWithoutCustomerRows'])
+        self.assertEqual('supabase_auth_admin', snapshot['signupHydration']['source'])
+        self.assertEqual('supabase', snapshot['source']['authUsers'])
+        self.assertIn('auth_signups_without_customer_rows:2', snapshot['notes'])
+        self.assertNotIn('auth-user-1', json.dumps(snapshot))
+        self.assertNotIn('auth-user-2', json.dumps(snapshot))
+        self.assertNotIn('buyer@example.com', json.dumps(snapshot))
+        self.assertNotIn('pending@example.com', json.dumps(snapshot))
+        self.assertEqual(0, snapshot['activationFollowUps']['total'])
+        self.assertFalse(snapshot['activationFollowUps']['privacy']['containsEmails'])
+
+    def test_launch_funnel_uses_customer_signup_rows_when_auth_page_is_incomplete(self):
+        now = router.now_epoch()
+        router.read_launch_auth_user_rows = lambda limit=1000: [
+            {'id': 'auth-user-1', 'email': 'buyer@example.com', 'created_at': now - 60, 'email_confirmed': True},
+        ]
+        router.read_launch_waitlist_counts = lambda _since, limit=10000: ({
+            'total': 0,
+            'interest': {'managedAccess': 0},
+            'managedAccessDemand': router.new_managed_access_demand_metrics(),
+        }, None)
+        router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
+            'total': 0,
+            'events': {},
+            'plans': {},
+            'sourceSurfaces': {},
+            'attributionChannels': {},
+            'authProviderState': router.new_auth_provider_state_metrics(),
+            'modelCatalogDemand': router.new_model_catalog_demand_metrics(),
+            'setupSnippetCopies': 0,
+            'setupSnippetCopiesBySnippet': {},
+        }, None)
+        first = router.customer_for_user({'id': 'auth-user-1', 'email': 'buyer@example.com'})
+        second = router.customer_for_user({'id': 'auth-user-2', 'email': 'pending@example.com'})
+        router.update_customer(first['id'], {'created_at_epoch': now - 60})
+        router.update_customer(second['id'], {'created_at_epoch': now - 120})
+
+        snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
+
+        self.assertEqual(2, snapshot['stages']['signups'])
+        self.assertEqual(1, snapshot['signupHydration']['authSignups'])
+        self.assertEqual(2, snapshot['signupHydration']['customerRowsCreated'])
+        self.assertEqual(2, snapshot['signupHydration']['effectiveSignups'])
+        self.assertEqual(1, snapshot['signupHydration']['customerSignupsWithoutAuthRows'])
+        self.assertIn('customer_signups_without_auth_rows:1', snapshot['notes'])
+        self.assertEqual(2, snapshot['activationFollowUps']['total'])
+        self.assertNotIn('buyer@example.com', json.dumps(snapshot))
+        self.assertNotIn('pending@example.com', json.dumps(snapshot))
 
     def test_launch_waitlist_counts_group_managed_access_interest(self):
         router.SUPABASE_URL = 'https://example.supabase.co'
@@ -1581,7 +1910,7 @@ class SaaSAuthTests(unittest.TestCase):
 
         def fake_select(table, query, timeout=8):
             self.assertEqual(router.SUPABASE_FUNNEL_EVENTS_TABLE, table)
-            self.assertIn('select=event,plan,created_at,metadata', query)
+            self.assertIn('select=event,plan,created_at,source_page,metadata', query)
             self.assertIn('created_at=gte.', query)
             return [
                 {
@@ -1594,6 +1923,15 @@ class SaaSAuthTests(unittest.TestCase):
                     },
                 },
                 {
+                    'event': 'landing_key_first_direct_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'landing',
+                        'state': 'hero-key-first',
+                    },
+                },
+                {
                     'event': 'landing_viewed',
                     'plan': None,
                     'created_at': '2026-06-19T00:00:00Z',
@@ -1603,12 +1941,120 @@ class SaaSAuthTests(unittest.TestCase):
                     },
                 },
                 {
+                    'event': 'landing_key_recovery_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'landing',
+                        'state': 'landing-returning-user',
+                    },
+                },
+                {
+                    'event': 'content_article_key_recovery_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'article',
+                        'state': 'article-returning-user',
+                    },
+                },
+                {
+                    'event': 'pricing_key_recovery_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'pricing',
+                        'state': 'pricing_returning_no_key',
+                    },
+                },
+                {
                     'event': 'account_api_key_created',
                     'plan': 'pro',
                     'created_at': '2026-06-19T00:00:00Z',
                     'metadata': {
                         'source': 'account',
                         'state': 'created',
+                    },
+                },
+                {
+                    'event': 'account_key_recovery_viewed',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'account',
+                        'state': 'github',
+                    },
+                },
+                {
+                    'event': 'account_auto_oauth_skipped',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'account',
+                        'state': 'email_auth_requested',
+                    },
+                },
+                {
+                    'event': 'account_checkout_key_first_redirected',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'account',
+                        'state': 'checkout_key_first',
+                    },
+                },
+                {
+                    'event': 'account_intent_create_key_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'account',
+                        'state': 'saved_key_recovery_auto_key',
+                    },
+                },
+                {
+                    'event': 'login_key_recovery_shown',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'login',
+                        'state': 'login_recovery_cta',
+                    },
+                },
+                {
+                    'event': 'login_key_recovery_landed',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'login',
+                        'state': 'password_fallback',
+                    },
+                },
+                {
+                    'event': 'login_key_recovery_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'login',
+                        'state': 'login_recovery_cta',
+                    },
+                },
+                {
+                    'event': 'login_key_recovery_same_account_prompted',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'login',
+                        'state': 'manual_same_email_focus',
+                    },
+                },
+                {
+                    'event': 'login_key_recovery_session_redirected',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'login',
+                        'state': 'signed_in_recovery_redirect',
                     },
                 },
                 {
@@ -1659,6 +2105,66 @@ class SaaSAuthTests(unittest.TestCase):
                     'metadata': {
                         'source': 'quickstart',
                         'snippet': 'quickstart-curl',
+                    },
+                },
+                {
+                    'event': 'operator_no_key_followup_copied',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'launch-plan',
+                        'state': 'single_copied',
+                        'snippet': 'no-key-followup',
+                    },
+                },
+                {
+                    'event': 'operator_no_key_followup_batch_copied',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'launch-plan',
+                        'state': 'batch_copied',
+                        'snippet': 'no-key-followup',
+                    },
+                },
+                {
+                    'event': 'operator_no_key_followup_batch_copied',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'launch-plan',
+                        'state': 'verified_batch_copied',
+                        'snippet': 'no-key-followup',
+                    },
+                },
+                {
+                    'event': 'operator_no_key_followup_mailto_opened',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'launch-plan',
+                        'state': 'verified_mailto_opened',
+                        'snippet': 'no-key-followup',
+                    },
+                },
+                {
+                    'event': 'operator_no_key_followup_csv_copied',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'launch-plan',
+                        'state': 'verified_csv_copied',
+                        'snippet': 'no-key-followup',
+                    },
+                },
+                {
+                    'event': 'operator_no_key_followup_batch_copied',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'launch-plan',
+                        'state': 'verified_marked_worked',
+                        'snippet': 'no-key-followup',
                     },
                 },
                 {
@@ -1777,6 +2283,105 @@ class SaaSAuthTests(unittest.TestCase):
                         'billing': 'payment-recovery',
                     },
                 },
+                {
+                    'event': 'billing_account_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'billing',
+                        'state': 'key-recovery',
+                    },
+                },
+                {
+                    'event': 'model_catalog_key_recovery_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'model-catalog',
+                        'state': 'model-catalog-returning-user',
+                    },
+                },
+                {
+                    'event': 'model_catalog_key_activation_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'model-catalog',
+                        'state': 'model-catalog-hero',
+                    },
+                },
+                {
+                    'event': 'pricing_key_activation_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'pricing',
+                        'state': 'pricing-pro',
+                    },
+                },
+                {
+                    'event': 'content_article_key_activation_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'article-dock',
+                        'state': 'content-article-dock',
+                    },
+                },
+                {
+                    'event': 'fusion_key_activation_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'fusion',
+                        'state': 'fusion-hero',
+                    },
+                },
+                {
+                    'event': 'codex_docs_key_activation_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'codex-docs',
+                        'state': 'codex-docs-main',
+                    },
+                },
+                {
+                    'event': 'gateway_compare_key_activation_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'compare-gateways',
+                        'state': 'compare-gateways-hero',
+                    },
+                },
+                {
+                    'event': 'launch_plan_key_activation_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'launch-plan',
+                        'state': 'launch-plan-hero',
+                    },
+                },
+                {
+                    'event': 'status_key_recovery_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'status',
+                        'state': 'status-hero',
+                    },
+                },
+                {
+                    'event': 'support_key_recovery_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'support',
+                        'state': 'support-quota-api-keys',
+                    },
+                },
                 {'event': '', 'plan': None, 'created_at': '2026-06-19T00:00:00Z', 'metadata': {}},
             ]
 
@@ -1785,18 +2390,81 @@ class SaaSAuthTests(unittest.TestCase):
         metrics, error = router.read_launch_marketing_funnel_counts(0)
 
         self.assertIsNone(error)
-        self.assertEqual(21, metrics['total'])
+        self.assertEqual(51, metrics['total'])
         self.assertEqual(1, metrics['events']['landing_account_clicked'])
+        self.assertEqual(1, metrics['events']['landing_key_first_direct_clicked'])
+        self.assertEqual(1, metrics['events']['landing_key_recovery_clicked'])
+        self.assertEqual(1, metrics['events']['content_article_key_recovery_clicked'])
+        self.assertEqual(1, metrics['events']['pricing_key_recovery_clicked'])
         self.assertEqual(1, metrics['events']['landing_viewed'])
         self.assertEqual(1, metrics['events']['account_api_key_created'])
+        self.assertEqual(1, metrics['events']['account_key_recovery_viewed'])
+        self.assertEqual(1, metrics['events']['account_auto_oauth_skipped'])
+        self.assertEqual(1, metrics['events']['account_checkout_key_first_redirected'])
+        self.assertEqual(1, metrics['events']['account_intent_create_key_clicked'])
+        self.assertEqual(1, metrics['events']['login_key_recovery_shown'])
+        self.assertEqual(1, metrics['events']['login_key_recovery_landed'])
+        self.assertEqual(1, metrics['events']['login_key_recovery_clicked'])
+        self.assertEqual(1, metrics['events']['login_key_recovery_same_account_prompted'])
+        self.assertEqual(1, metrics['events']['login_key_recovery_session_redirected'])
         self.assertEqual(1, metrics['events']['model_catalog_viewed'])
         self.assertEqual(1, metrics['events']['model_catalog_search_bucketed'])
         self.assertEqual(1, metrics['events']['model_catalog_filter_clicked'])
+        self.assertEqual(1, metrics['events']['model_catalog_key_recovery_clicked'])
+        self.assertEqual(1, metrics['events']['model_catalog_key_activation_clicked'])
+        self.assertEqual(1, metrics['events']['pricing_key_activation_clicked'])
+        self.assertEqual(1, metrics['events']['content_article_key_activation_clicked'])
+        self.assertEqual(1, metrics['events']['fusion_key_activation_clicked'])
+        self.assertEqual(1, metrics['events']['codex_docs_key_activation_clicked'])
+        self.assertEqual(1, metrics['events']['gateway_compare_key_activation_clicked'])
+        self.assertEqual(1, metrics['events']['launch_plan_key_activation_clicked'])
         self.assertEqual(1, metrics['events']['account_snippet_copied'])
         self.assertEqual(1, metrics['events']['quickstart_snippet_copied'])
+        self.assertEqual(1, metrics['events']['operator_no_key_followup_copied'])
+        self.assertEqual(3, metrics['events']['operator_no_key_followup_batch_copied'])
+        self.assertEqual(1, metrics['events']['operator_no_key_followup_mailto_opened'])
+        self.assertEqual(1, metrics['events']['operator_no_key_followup_csv_copied'])
         self.assertEqual(2, metrics['setupSnippetCopies'])
         self.assertEqual(1, metrics['setupSnippetCopiesBySnippet']['codex-cli'])
         self.assertEqual(1, metrics['setupSnippetCopiesBySnippet']['quickstart-curl'])
+        self.assertEqual(6, metrics['operatorFollowUpCopies'])
+        self.assertEqual(1, metrics['operatorFollowUpWorked'])
+        self.assertEqual(10, metrics['keyFirstRedirects'])
+        self.assertEqual(1, metrics['keyFirstRedirectsByState']['checkout_key_first'])
+        self.assertEqual(1, metrics['keyFirstRedirectsByState']['codex-docs-main'])
+        self.assertEqual(1, metrics['keyFirstRedirectsByState']['compare-gateways-hero'])
+        self.assertEqual(1, metrics['keyFirstRedirectsByState']['content-article-dock'])
+        self.assertEqual(1, metrics['keyFirstRedirectsByState']['fusion-hero'])
+        self.assertEqual(1, metrics['keyFirstRedirectsByState']['hero-key-first'])
+        self.assertEqual(1, metrics['keyFirstRedirectsByState']['launch-plan-hero'])
+        self.assertEqual(1, metrics['keyFirstRedirectsByState']['model-catalog-hero'])
+        self.assertEqual(1, metrics['keyFirstRedirectsByState']['pricing-pro'])
+        self.assertEqual(1, metrics['keyFirstRedirectsByState']['saved_key_recovery_auto_key'])
+        self.assertEqual(12, metrics['keyRecoveryViews'])
+        self.assertEqual(1, metrics['keyRecoveryViewsByState']['github'])
+        self.assertEqual(1, metrics['keyCreateAttempts'])
+        self.assertEqual(1, metrics['keyCreateAttemptsByState']['saved_key_recovery_auto_key'])
+        self.assertEqual(1, metrics['keyCreateSuccesses'])
+        self.assertEqual(1, metrics['keyCreateSuccessesByState']['created'])
+        self.assertEqual(0, metrics['keyCreateFailures'])
+        self.assertEqual(1, metrics['keyRecoveryViewsByState']['password_fallback'])
+        self.assertEqual(1, metrics['keyRecoveryViewsByState']['login_recovery_cta'])
+        self.assertEqual(1, metrics['keyRecoveryViewsByState']['manual_same_email_focus'])
+        self.assertEqual(1, metrics['keyRecoveryViewsByState']['key-recovery'])
+        self.assertEqual(1, metrics['keyRecoveryViewsByState']['model-catalog-returning-user'])
+        self.assertEqual(1, metrics['keyRecoveryViewsByState']['landing-returning-user'])
+        self.assertEqual(1, metrics['keyRecoveryViewsByState']['article-returning-user'])
+        self.assertEqual(1, metrics['keyRecoveryViewsByState']['pricing_returning_no_key'])
+        self.assertEqual(1, metrics['keyRecoveryViewsByState']['status-hero'])
+        self.assertEqual(1, metrics['keyRecoveryViewsByState']['support-quota-api-keys'])
+        self.assertEqual(1, metrics['keyRecoveryViewsByState']['signed_in_recovery_redirect'])
+        self.assertEqual(1, metrics['operatorFollowUpCopiesByKind']['single_copied'])
+        self.assertEqual(1, metrics['operatorFollowUpCopiesByKind']['batch_copied'])
+        self.assertEqual(1, metrics['operatorFollowUpCopiesByKind']['verified_batch_copied'])
+        self.assertEqual(1, metrics['operatorFollowUpCopiesByKind']['verified_csv_copied'])
+        self.assertEqual(1, metrics['operatorFollowUpCopiesByKind']['verified_mailto_opened'])
+        self.assertEqual(1, metrics['operatorFollowUpCopiesByKind']['verified_marked_worked'])
+        self.assertEqual(1, metrics['operatorFollowUpWorkedByKind']['verified_marked_worked'])
         self.assertEqual(1, metrics['events']['account_login_submitted'])
         self.assertEqual(2, metrics['events']['auth_provider_state_checked'])
         self.assertEqual(2, metrics['events']['calculator_checkout_clicked'])
@@ -1808,28 +2476,30 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['events']['pricing_viewed'])
         self.assertEqual(1, metrics['events']['billing_payment_recovery_clicked'])
         self.assertEqual(1, metrics['events']['unknown'])
-        self.assertEqual(6, metrics['plans']['pro'])
+        self.assertEqual(36, metrics['plans']['pro'])
         self.assertEqual(1, metrics['plans']['lite'])
         self.assertEqual(1, metrics['plans']['manual'])
-        self.assertEqual(2, metrics['sourceSurfaces']['landing'])
-        self.assertEqual(2, metrics['sourceSurfaces']['launch-plan'])
+        self.assertEqual(4, metrics['sourceSurfaces']['landing'])
+        self.assertEqual(9, metrics['sourceSurfaces']['launch-plan'])
         self.assertEqual(2, metrics['sourceSurfaces']['model-routing-calculator'])
-        self.assertEqual(3, metrics['sourceSurfaces']['model-catalog'])
-        self.assertEqual(2, metrics['sourceSurfaces']['compare-gateways'])
-        self.assertEqual(2, metrics['sourceSurfaces']['pricing'])
-        self.assertEqual(3, metrics['sourceSurfaces']['account'])
-        self.assertEqual(2, metrics['sourceSurfaces']['login'])
+        self.assertEqual(5, metrics['sourceSurfaces']['model-catalog'])
+        self.assertEqual(3, metrics['sourceSurfaces']['compare-gateways'])
+        self.assertEqual(4, metrics['sourceSurfaces']['pricing'])
+        self.assertEqual(7, metrics['sourceSurfaces']['account'])
+        self.assertEqual(7, metrics['sourceSurfaces']['login'])
         self.assertEqual(1, metrics['sourceSurfaces']['quickstart'])
         self.assertEqual(0, metrics['sourceSurfaces']['agent-native'])
         self.assertEqual(0, metrics['sourceSurfaces']['integrations'])
-        self.assertEqual(1, metrics['sourceSurfaces']['billing'])
+        self.assertEqual(2, metrics['sourceSurfaces']['billing'])
+        self.assertEqual(1, metrics['sourceSurfaces']['status'])
+        self.assertEqual(1, metrics['sourceSurfaces']['support'])
         self.assertEqual(1, metrics['sourceSurfaces']['unknown'])
         self.assertEqual(2, metrics['attributionChannels']['github'])
         self.assertEqual(4, metrics['attributionChannels']['model-gateway'])
         self.assertEqual(2, metrics['attributionChannels']['newsletter'])
         self.assertEqual(2, metrics['attributionChannels']['google'])
         self.assertEqual(1, metrics['attributionChannels']['discord'])
-        self.assertEqual(10, metrics['attributionChannels']['direct'])
+        self.assertEqual(40, metrics['attributionChannels']['direct'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['all'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['ollama'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['openai-codex'])
@@ -1859,9 +2529,66 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('integrations', router.marketing_source_surface_bucket({'source': 'integrations'}))
         self.assertIn('first agent request proof', router.launch_acquisition_action('sourceSurface', 'agent-native'))
         self.assertIn('first routed requests', router.launch_acquisition_action('sourceSurface', 'integrations'))
-        self.assertNotIn('email', json.dumps(metrics))
-        self.assertNotIn('buyer@example.com', json.dumps(metrics))
+        # Ensure no raw email values leak into aggregate marketing funnel metrics.
+        # State names like 'email_auth_requested' are intentional and allowed.
+        metrics_json = json.dumps(metrics)
+        self.assertNotIn('buyer@example.com', metrics_json)
+        self.assertNotIn('email@example.com', metrics_json)
+        self.assertNotIn('"email": "buyer@example.com"', metrics_json)
+        self.assertNotIn("'email': 'buyer@example.com'", metrics_json)
         self.assertNotIn('gpt raw text must not appear', json.dumps(metrics))
+
+    def test_launch_marketing_funnel_filters_synthetic_sweeps(self):
+        router.SUPABASE_URL = 'https://example.supabase.co'
+        router.SUPABASE_SERVICE_ROLE_KEY = 'service'
+        old_chrome = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/79.0.3945.79 Safari/537.36'
+        sweep_ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36'
+
+        def fake_select(_table, query, timeout=8):
+            self.assertIn('source_page', query)
+            rows = [{
+                'event': 'pricing_viewed',
+                'plan': 'pro',
+                'created_at': '2026-06-19T00:00:00Z',
+                'source_page': 'https://sagerouter.dev/pricing',
+                'metadata': {'source': 'pricing', 'user_agent': 'Mozilla/5.0 real buyer'},
+            }, {
+                'event': 'content_article_snippet_copied',
+                'plan': 'pro',
+                'created_at': '2026-06-19T00:00:20Z',
+                'source_page': 'https://sagerouter.dev/openai-api-router',
+                'metadata': {'source': 'article', 'snippet': 'article-hosted-setup', 'user_agent': 'Mozilla/5.0 real buyer'},
+            }, {
+                'event': 'content_article_viewed',
+                'plan': None,
+                'created_at': '2026-06-19T00:01:00Z',
+                'source_page': 'https://sagerouter.dev/openai-api-router',
+                'metadata': {'source': 'article', 'user_agent': old_chrome},
+            }]
+            for idx in range(8):
+                rows.append({
+                    'event': 'content_article_viewed',
+                    'plan': None,
+                    'created_at': f'2026-06-19T00:02:0{idx % 6}Z',
+                    'source_page': f'https://sagerouter.dev/article-{idx}',
+                    'metadata': {'source': 'article', 'user_agent': sweep_ua},
+                })
+            return rows
+
+        router.supabase_select = fake_select
+
+        metrics, error = router.read_launch_marketing_funnel_counts(0)
+
+        self.assertIsNone(error)
+        self.assertEqual(2, metrics['total'])
+        self.assertEqual(9, metrics['filteredSyntheticEvents'])
+        self.assertEqual(1, metrics['events']['pricing_viewed'])
+        self.assertEqual(1, metrics['events']['content_article_snippet_copied'])
+        self.assertNotIn('content_article_viewed', metrics['events'])
+        self.assertEqual(1, metrics['setupSnippetCopies'])
+        self.assertEqual(1, metrics['setupSnippetCopiesBySnippet']['article-hosted-setup'])
+        self.assertEqual(1, metrics['sourceSurfaces']['pricing'])
+        self.assertEqual(1, metrics['sourceSurfaces']['article'])
 
     def test_analytics_funnel_requires_operator_auth_when_hosted_auth_enabled(self):
         router.SUPABASE_AUTH_ENABLED = True
