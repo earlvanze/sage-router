@@ -863,8 +863,10 @@ provider authorization is added later.
 ```
 
 Models are auto-discovered via `/v1/models`. Set
-`SAGE_ROUTER_OPENROUTER_FREE_ONLY=1` to keep discovery constrained to free
-model IDs when using that account mode.
+`SAGE_ROUTER_DISABLED_PROVIDERS` only for operational failures; do not disable
+OpenRouter merely to keep it out of Sage Router's managed subscription
+packaging. Set `SAGE_ROUTER_OPENROUTER_FREE_ONLY=1` to keep discovery
+constrained to free model IDs when using that account mode.
 
 
 ### Darkbloom
