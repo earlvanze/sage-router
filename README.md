@@ -5,7 +5,7 @@
 One endpoint. Any provider. The router figures out the rest.
 
 [![Umbrel](https://img.shields.io/badge/Umbrel-1.0.4-purple)](https://github.com/getumbrel/umbrel-apps/pull/5720)
-[![ClawHub](https://img.shields.io/badge/ClawHub-v4.157.7-blue)](https://clawhub.ai/earlvanze/sage-router)
+[![ClawHub](https://img.shields.io/badge/ClawHub-v4.157.8-blue)](https://clawhub.ai/earlvanze/sage-router)
 [![GitHub](https://img.shields.io/badge/GitHub-earlvanze%2Fsage--router-black)](https://github.com/earlvanze/sage-router)
 
 ---
@@ -584,6 +584,12 @@ codex --profile sage-router-frontier
 ```
 
 The `sage-router/frontier` model name selects the bundled `frontier` routing profile from `router-profiles.json`.
+
+Sage Router also normalizes Codex/OpenClaw goal traffic. Raw `/goal ...`
+messages and Codex `<codex_internal_context source="goal">` blocks are treated
+as persistent user-provided objective context instead of ordinary slash-command
+text, then routed with high-quality, reasoning-capable, long-context agent
+requirements.
 
 ---
 
@@ -1267,3 +1273,9 @@ Bundled profiles:
 - `frontier-large` — strict frontier/large-model-only routing
 - `fast-local` — low-latency local-first routing
 - `coding-max` — high-thinking coding route with weak model exclusions
+
+Codex/OpenClaw `/goal` compatibility is automatic for Chat Completions,
+Responses, and Anthropic-compatible requests. The router strips raw goal control
+markup from visible user text, injects a plain objective context message, and
+sets `best`/high-thinking agent requirements so local and hosted providers do
+not answer as if `/goal` is an unknown command.

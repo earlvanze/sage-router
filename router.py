@@ -11816,6 +11816,111 @@ def apply_router_profile(payload):
     return profile_name
 
 
+GOAL_CONTEXT_RE = re.compile(r'<codex_internal_context\b[^>]*source=["\']goal["\'][^>]*>.*?</codex_internal_context>', re.IGNORECASE | re.DOTALL)
+GOAL_OBJECTIVE_RE = re.compile(r'<objective>\s*(.*?)\s*</objective>', re.IGNORECASE | re.DOTALL)
+GOAL_SLASH_RE = re.compile(r'(?m)^\s*/goal(?:\s+(.*))?\s*$')
+
+
+def _plain_xml_text(text):
+    return re.sub(r'<[^>]+>', '', str(text or '')).strip()
+
+
+def extract_goal_compat_text(text):
+    """Return (clean_text, goal_items) for Codex/OpenClaw /goal compatibility."""
+    raw = str(text or '')
+    goal_items = []
+
+    def remember_context(match):
+        block = match.group(0)
+        objective_match = GOAL_OBJECTIVE_RE.search(block)
+        objective = _plain_xml_text(objective_match.group(1)) if objective_match else ''
+        if not objective:
+            objective = _plain_xml_text(block)
+        if objective:
+            goal_items.append({'kind': 'codex_internal_context', 'objective': objective})
+        return ''
+
+    cleaned = GOAL_CONTEXT_RE.sub(remember_context, raw)
+
+    def remember_slash(match):
+        value = (match.group(1) or '').strip()
+        goal_items.append({'kind': 'slash_goal', 'objective': value or 'resume'})
+        return ''
+
+    cleaned = GOAL_SLASH_RE.sub(remember_slash, cleaned).strip()
+    return cleaned, goal_items
+
+
+def goal_compat_instruction(goal_items):
+    if not goal_items:
+        return ''
+    objectives = []
+    for item in goal_items:
+        objective = str((item or {}).get('objective') or '').strip()
+        if objective:
+            objectives.append(objective)
+    if not objectives:
+        return ''
+    unique = dedupe_keep_order(objectives)
+    lines = [
+        'Codex/OpenClaw goal mode is active.',
+        'Treat the following user-provided goal objective as persistent task context; do not answer as if `/goal` is an unknown slash command.',
+    ]
+    for idx, objective in enumerate(unique, start=1):
+        lines.append(f'Goal {idx}: {objective}')
+    lines.extend([
+        'Continue concrete work toward the goal, preserve tool-call compatibility, and avoid exposing internal control markup unless the user asks for it.',
+    ])
+    return '\n'.join(lines)
+
+
+def apply_goal_compat(payload):
+    if not isinstance(payload, dict):
+        return False
+    messages = payload.get('messages')
+    if not isinstance(messages, list):
+        return False
+    updated = []
+    goal_items = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            updated.append(msg)
+            continue
+        content = msg.get('content')
+        if isinstance(content, str):
+            cleaned, found = extract_goal_compat_text(content)
+            if found:
+                goal_items.extend(found)
+                msg = dict(msg)
+                if cleaned:
+                    msg['content'] = cleaned
+                    updated.append(msg)
+                continue
+        updated.append(msg)
+    instruction = goal_compat_instruction(goal_items)
+    if not instruction:
+        return False
+    updated.insert(0, {'role': 'user', 'content': instruction})
+    payload['messages'] = updated
+    req = payload.get('requirements') if isinstance(payload.get('requirements'), dict) else {}
+    req.update({
+        'qualitySensitive': True,
+        'reasoning': True,
+        'longContext': True,
+        'agentic': True,
+        'suppressToolCallContent': True,
+        'frontierOrReasoningTools': True,
+    })
+    payload['requirements'] = req
+    payload.setdefault('route', 'best')
+    payload.setdefault('thinking', {'effort': 'high'})
+    metadata = payload.get('metadata') if isinstance(payload.get('metadata'), dict) else {}
+    metadata['codexGoalMode'] = True
+    metadata['goalObjectiveCount'] = len(goal_items)
+    payload['metadata'] = metadata
+    return True
+
+
 def _match_any_pattern(value, patterns):
     if not patterns:
         return False
@@ -13636,6 +13741,13 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
     want_stream = False
     debug_mode = normalize_debug_mode(payload)
     logger.info(f"[{request_id}] Incoming /v1/chat/completions with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}, modalities={modalities}, routerProfile={router_profile}, discordPublicProfile={discord_public_profile}, debug={debug_mode}")
+    goal_compat = apply_goal_compat(payload)
+    if goal_compat:
+        thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning'))
+        route_mode = normalize_route_mode(payload.get('route'))
+        requirements = normalize_requirements(payload, thinking)
+        modalities = request_modalities(requirements, payload)
+        LAST_ROUTE_DEBUG['goalCompat'] = {'enabled': True, 'source': 'codex_openclaw_goal'}
 
     # Resolve model switches across providers. If the client carries a stale
     # provider prefix, e.g. ollama/gpt-5.5, prefer the provider that actually
@@ -14218,11 +14330,14 @@ def handle_anthropic_messages(self, body, request_id, started):
         thinking = normalize_thinking(openai_payload.get('thinking') or openai_payload.get('reasoning'))
         router_profile = apply_router_profile(openai_payload)
         discord_public_profile = apply_discord_public_route_profile(openai_payload)
+        goal_compat = apply_goal_compat(openai_payload)
         thinking = normalize_thinking(openai_payload.get('thinking') or openai_payload.get('reasoning'))
         route_mode = normalize_route_mode(openai_payload.get('route'))
         requirements = normalize_requirements(openai_payload, thinking)
         want_json = False
         logger.info(f"[{request_id}] Incoming /v1/messages (Anthropic compat) with {message_count} messages, model={request_model}, thinking={thinking.value}, route={route_mode}, stream={want_stream}")
+        if goal_compat:
+            LAST_ROUTE_DEBUG['goalCompat'] = {'enabled': True, 'source': 'codex_openclaw_goal'}
         _fp, _rm = resolve_requested_provider_model(openai_payload)
         result = route_request(openai_payload.get('messages', []), request_id=request_id, thinking=thinking, route_mode=route_mode, requirements=requirements, want_json=want_json, force_provider=_fp, requested_model=_rm)
         if isinstance(result, dict) and result.get('error'):

@@ -1,7 +1,7 @@
 ---
 name: sage-router
 description: Local-first AI model routing for serious agents. One endpoint. Any provider. The router figures out the rest.
-version: 4.157.7
+version: 4.157.8
 env:
   - SAGE_ROUTER_HOME (required: path to sage-router repo)
   - SAGE_ROUTER_DISABLED_PROVIDERS (optional: comma-separated provider names to suppress)
@@ -257,3 +257,9 @@ Current profiles:
 - `frontier-large`: strict frontier-large-only routing.
 - `fast-local`: low-latency local-first routing.
 - `coding-max`: high-thinking code route with weak model exclusions.
+
+Codex/OpenClaw `/goal` compatibility is automatic. Raw `/goal ...` messages and
+Codex `<codex_internal_context source="goal">` blocks are normalized into
+plain persistent objective context, then routed with best/high, reasoning,
+long-context, agentic requirements so providers do not treat `/goal` as an
+ordinary unknown slash command.

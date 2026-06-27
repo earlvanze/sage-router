@@ -375,6 +375,49 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         self.assertEqual('required', router.responses_tool_choice('required'))
         self.assertIsNone(router.responses_tool_choice('auto'))
 
+    def test_goal_slash_command_becomes_agent_objective_context(self):
+        payload = {
+            'model': 'sage-router/frontier',
+            'messages': [{'role': 'user', 'content': '/goal ship the activation funnel'}],
+        }
+
+        self.assertTrue(router.apply_goal_compat(payload))
+
+        self.assertEqual('best', payload['route'])
+        self.assertEqual({'effort': 'high'}, payload['thinking'])
+        self.assertTrue(payload['requirements']['agentic'])
+        self.assertTrue(payload['requirements']['reasoning'])
+        self.assertTrue(payload['requirements']['longContext'])
+        self.assertTrue(payload['metadata']['codexGoalMode'])
+        self.assertIn('Codex/OpenClaw goal mode is active', payload['messages'][0]['content'])
+        self.assertIn('ship the activation funnel', payload['messages'][0]['content'])
+        self.assertNotIn('/goal ship the activation funnel', json.dumps(payload['messages']))
+
+    def test_codex_internal_goal_context_is_normalized_for_responses_payload(self):
+        chat_payload = router.responses_payload_to_chat_payload({
+            'model': 'sage-router/frontier',
+            'input': [{
+                'role': 'user',
+                'content': [{
+                    'type': 'input_text',
+                    'text': (
+                        '<codex_internal_context source="goal">'
+                        '<objective>make sage-router compatible with Codex goals</objective>'
+                        '</codex_internal_context>\n'
+                        'Continue from the newest request.'
+                    ),
+                }],
+            }],
+        })
+
+        self.assertTrue(router.apply_goal_compat(chat_payload))
+
+        self.assertEqual('Continue from the newest request.', chat_payload['messages'][1]['content'])
+        self.assertIn('make sage-router compatible with Codex goals', chat_payload['messages'][0]['content'])
+        self.assertNotIn('codex_internal_context', json.dumps(chat_payload['messages']))
+        self.assertTrue(chat_payload['requirements']['frontierOrReasoningTools'])
+        self.assertTrue(chat_payload['requirements']['suppressToolCallContent'])
+
     def test_parse_responses_stream_returns_function_calls(self):
         lines = [
             b'event: response.output_item.added\n',
