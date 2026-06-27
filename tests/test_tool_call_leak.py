@@ -82,6 +82,17 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertEqual(1, first_content.count('[ollama/qwen3-coder-next]'))
         self.assertEqual('second answer', second_content)
 
+    def test_repeated_upstream_model_prefixes_are_stripped(self):
+        text = '[ollama-2/kimi-k2.7-code] [ollama-2/kimi-k2.7-code] [ollama-2/kimi-k2.7-code]'
+        self.assertEqual('', router.strip_leading_model_prefixes(text, 'ollama-2', 'kimi-k2.7-code'))
+
+    def test_upstream_model_prefix_is_stripped_before_visible_content(self):
+        text = '[ollama-2/kimi-k2.7-code] tool result ready'
+        self.assertEqual(
+            'tool result ready',
+            router.strip_leading_model_prefixes(text, 'ollama-2', 'kimi-k2.7-code'),
+        )
+
     def test_debug_prefix_dedupes_against_model_prefix(self):
         router._PREFIX_SEEN.clear()
         try:

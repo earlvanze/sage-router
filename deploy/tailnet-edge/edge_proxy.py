@@ -1369,6 +1369,8 @@ class EdgeHandler(BaseHTTPRequestHandler):
             lower = key.lower()
             if lower in HOP_BY_HOP_HEADERS or lower == "host":
                 continue
+            if lower == "content-length" and body is not None:
+                value = str(len(body))
             base_headers[key] = value
 
         attempts = []

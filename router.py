@@ -3869,8 +3869,30 @@ def text_already_has_model_prefix(text, provider_name, model):
     return stripped.startswith(f'[{display_id}]') or stripped.startswith(f'[sage-router {display_id}]')
 
 
+def strip_leading_model_prefixes(text, provider_name, model):
+    """Remove provider/model labels already emitted by an upstream response."""
+    remaining = text or ''
+    labels = {
+        display_model_id(provider_name, model),
+        f'{provider_name}/{model}',
+    }
+    labels = {label for label in labels if label and label != 'None/None'}
+    changed = True
+    while changed:
+        changed = False
+        stripped = remaining.lstrip()
+        leading_ws = remaining[:len(remaining) - len(stripped)]
+        for label in sorted(labels, key=len, reverse=True):
+            prefix = f'[{label}]'
+            if stripped.startswith(prefix):
+                remaining = leading_ws + stripped[len(prefix):].lstrip()
+                changed = True
+                break
+    return remaining
+
+
 def model_prefix_once(provider_name, model, request_id, text, sage_router_debug=False):
-    text = sanitize_visible_output(text or '')
+    text = strip_leading_model_prefixes(sanitize_visible_output(text or ''), provider_name, model)
     if not text:
         return text
     if text_already_has_model_prefix(text, provider_name, model):
@@ -3893,7 +3915,11 @@ def streaming_debug_prefix(provider_name, model, request_id):
 
 
 def maybe_prefix_debug_text(content, metadata, debug_mode=False, allow_prefix=True):
-    text = sanitize_visible_output(content or '')
+    text = strip_leading_model_prefixes(
+        sanitize_visible_output(content or ''),
+        metadata.get('provider'),
+        metadata.get('model'),
+    )
     if debug_mode and allow_prefix and text:
         text = model_prefix_once(metadata.get('provider'), metadata.get('model'), metadata.get('request_id'), text, sage_router_debug=True)
     return text
@@ -13096,7 +13122,11 @@ def stream_ollama_to_client(self, provider, model, payload, request_id, thinking
                 continue
             body = json.loads(line)
             message = body.get('message', {}) or {}
-            content = sanitize_visible_output(message.get('content', '') or '')
+            content = strip_leading_model_prefixes(
+                sanitize_visible_output(message.get('content', '') or ''),
+                provider.name,
+                model,
+            )
             tool_calls = normalize_tool_calls(message.get('tool_calls'))
             if content:
                 delta = {'content': content}

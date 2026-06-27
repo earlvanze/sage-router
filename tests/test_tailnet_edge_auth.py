@@ -198,6 +198,11 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         body = b'{"model":"ollama/glm-5","messages":[{"role":"user","content":"hi"}]}'
         self.assertEqual(body, self.edge.reroute_known_ollama_subscription_body("/v1/chat/completions", body))
 
+    def test_edge_recalculates_content_length_after_body_rewrite(self):
+        source = EDGE_PROXY.read_text()
+        self.assertIn('lower == "content-length" and body is not None', source)
+        self.assertIn('value = str(len(body))', source)
+
     def test_model_api_auth_errors_include_onboarding_links(self):
         payload = self.edge.edge_error_payload("unauthorized", "/v1/models")
         headers = self.edge.edge_error_headers("unauthorized", "/v1/models")
