@@ -93,6 +93,40 @@ class ToolCallLeakTests(unittest.TestCase):
         )
         self.assertEqual('', router.strip_leading_model_prefixes(text, 'ollama-2', 'kimi-k2.5'))
 
+    def test_assistant_replay_noise_strips_thousand_placeholder_prefixes(self):
+        replay = '\n'.join(
+            '[ollama-2/kimi-k2.5] [ollama-2/kimi-k2.5] [tool calls omitted]'
+            for _ in range(1000)
+        )
+        messages = [
+            {'role': 'system', 'content': 'system instructions'},
+            {'role': 'assistant', 'content': replay},
+            {'role': 'user', 'content': 'Bug report: [tool calls omitted] should stay literal here.'},
+        ]
+
+        sanitized = router.sanitize_replay_messages(messages)
+
+        self.assertEqual(2, len(sanitized))
+        self.assertEqual('system instructions', sanitized[0]['content'])
+        self.assertEqual('Bug report: [tool calls omitted] should stay literal here.', sanitized[1]['content'])
+        self.assertNotIn('ollama-2/kimi-k2.5', json.dumps(sanitized))
+
+    def test_assistant_replay_noise_preserves_structured_tool_calls(self):
+        messages = [{
+            'role': 'assistant',
+            'content': '[ollama-2/kimi-k2.5] [tool calls omitted]',
+            'tool_calls': [{
+                'id': 'call_1',
+                'type': 'function',
+                'function': {'name': 'lookup', 'arguments': {'path': '/tmp'}},
+            }],
+        }]
+
+        sanitized = router.sanitize_replay_messages(messages)
+
+        self.assertEqual('', sanitized[0]['content'])
+        self.assertEqual('lookup', sanitized[0]['tool_calls'][0]['function']['name'])
+
     def test_stream_strips_late_model_prefixes_and_tool_call_omissions(self):
         state = {'prefix_open': True, 'prefix_pending': ''}
         self.assertEqual(

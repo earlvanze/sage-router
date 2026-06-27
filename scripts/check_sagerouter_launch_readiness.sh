@@ -571,6 +571,16 @@ check_public_pricing_metadata() {
   launch_ok="$(jq -r '
     (.publicLaunch.targetMrrUsd == 10000) and
     (.publicLaunch.recommendedMix.monthlyRevenueUsd == 10200) and
+    ((.publicLaunch.revenuePaths // []) | length == 4) and
+    ((.publicLaunch.revenuePaths // []) | any(.label == "Pro-only" and .mix.proCustomers == 334 and .monthlyRevenueUsd == 10020)) and
+    ((.publicLaunch.revenuePaths // []) | any(.label == "Max-only" and .mix.maxCustomers == 139 and .monthlyRevenueUsd == 10008)) and
+    ((.publicLaunch.revenuePaths // []) | any(.label == "Recommended mixed path" and .mix.liteCustomers == 100 and .mix.proCustomers == 200 and .mix.maxCustomers == 50 and .monthlyRevenueUsd == 10200)) and
+    ((.publicLaunch.conversionFunnelTargets // []) | length == 5) and
+    ((.publicLaunch.conversionFunnelTargets // []) | any(.stage == "visitor_to_signup" and .targetRate == 0.05)) and
+    ((.publicLaunch.conversionFunnelTargets // []) | any(.stage == "signup_to_generated_key" and .targetRate == 0.60)) and
+    ((.publicLaunch.conversionFunnelTargets // []) | any(.stage == "generated_key_to_first_routed_request" and .targetRate == 0.50)) and
+    ((.publicLaunch.conversionFunnelTargets // []) | any(.stage == "trial_or_free_to_paid" and .targetRate == 0.15)) and
+    ((.publicLaunch.conversionFunnelTargets // []) | any(.stage == "paid_logo_monthly_retention" and .targetRate == 0.85)) and
     (.publicLaunch.primaryRevenueModel == "hosted_routing_control_plane") and
     (.publicLaunch.pricingPage == "https://sagerouter.dev/pricing") and
     (.publicLaunch.modelCatalogPage == "https://sagerouter.dev/models") and

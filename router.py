@@ -391,6 +391,59 @@ PUBLIC_LAUNCH_POSITIONING = {
         'maxCustomers': 50,
         'monthlyRevenueUsd': 10200,
     },
+    'revenuePaths': [
+        {
+            'label': 'Pro-only',
+            'mix': {'proCustomers': 334},
+            'monthlyRevenueUsd': 10020,
+            'useCase': 'Focused daily developer adoption through Pro activation.',
+        },
+        {
+            'label': 'Max-only',
+            'mix': {'maxCustomers': 139},
+            'monthlyRevenueUsd': 10008,
+            'useCase': 'Founder-led automation, teams, and implementation-review accounts.',
+        },
+        {
+            'label': 'Recommended mixed path',
+            'mix': {'liteCustomers': 100, 'proCustomers': 200, 'maxCustomers': 50},
+            'monthlyRevenueUsd': 10200,
+            'useCase': 'Balanced low-friction signup, daily Pro usage, and Max implementation support.',
+        },
+        {
+            'label': 'Higher-Max mixed path',
+            'mix': {'liteCustomers': 50, 'proCustomers': 150, 'maxCustomers': 75},
+            'monthlyRevenueUsd': 10200,
+            'useCase': 'More founder-led Max conversion with fewer lightweight accounts.',
+        },
+    ],
+    'conversionFunnelTargets': [
+        {
+            'stage': 'visitor_to_signup',
+            'targetRate': 0.05,
+            'surface': 'sagerouter.dev, pricing, model gateway comparison',
+        },
+        {
+            'stage': 'signup_to_generated_key',
+            'targetRate': 0.60,
+            'surface': 'app.sagerouter.dev/account.html',
+        },
+        {
+            'stage': 'generated_key_to_first_routed_request',
+            'targetRate': 0.50,
+            'surface': 'quickstart and account first request',
+        },
+        {
+            'stage': 'trial_or_free_to_paid',
+            'targetRate': 0.15,
+            'surface': 'Stripe checkout and plan gating',
+        },
+        {
+            'stage': 'paid_logo_monthly_retention',
+            'targetRate': 0.85,
+            'surface': 'usage quotas, status, analytics, fallback reliability',
+        },
+    ],
     'conversionSurfaces': [
         'sagerouter.dev',
         'sagerouter.dev/pricing',
@@ -3984,6 +4037,60 @@ def strip_tool_call_omission_placeholders(text):
     return remaining.strip()
 
 
+def strip_assistant_replay_noise(text):
+    """Remove harness replay placeholders before they reach upstream models."""
+    remaining = str(text or '')
+    if not remaining:
+        return ''
+    cleaned_lines = []
+    for line in remaining.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            cleaned_lines.append(line)
+            continue
+        if '[tool calls omitted]' in stripped.lower():
+            labels = re.findall(r'\[([^\]\n]{1,140})\]', stripped)
+            if labels and labels[-1].strip().lower() == 'tool calls omitted' and all(
+                looks_like_model_prefix_label(label)
+                for label in labels[:-1]
+            ):
+                remainder = re.sub(r'\[[^\]\n]{1,140}\]\s*', '', stripped).strip()
+                if not remainder:
+                    continue
+        cleaned_lines.append(line)
+    remaining = '\n'.join(cleaned_lines).strip()
+    while True:
+        stripped = remaining.lstrip()
+        leading_ws = remaining[:len(remaining) - len(stripped)]
+        match = re.match(r'^\[([^\]\n]{1,140})\]\s*', stripped)
+        if not match or not looks_like_model_prefix_label(match.group(1)):
+            break
+        remaining = leading_ws + stripped[match.end():].lstrip()
+    remaining = strip_tool_call_omission_placeholders(remaining)
+    return remaining.strip()
+
+
+def sanitize_replay_messages(messages):
+    """Clean assistant-history artifacts while preserving structured tool calls."""
+    sanitized = []
+    for msg in messages or []:
+        if not isinstance(msg, dict):
+            continue
+        if msg.get('role') != 'assistant':
+            sanitized.append(msg)
+            continue
+        cleaned_content = strip_assistant_replay_noise(normalize_content(msg.get('content', '')))
+        tool_calls = normalize_tool_calls(msg.get('tool_calls'))
+        if not cleaned_content and not tool_calls:
+            continue
+        updated = dict(msg)
+        updated['content'] = cleaned_content
+        if tool_calls:
+            updated['tool_calls'] = tool_calls
+        sanitized.append(updated)
+    return sanitized
+
+
 def strip_leading_model_prefixes(text, provider_name, model):
     """Remove provider/model labels already emitted by an upstream response."""
     remaining = text or ''
@@ -4618,7 +4725,7 @@ def build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=
     proxied = {'model': model, 'stream': bool(stream)}
     for key in allowed_keys:
         if key in payload:
-            proxied[key] = payload.get(key)
+            proxied[key] = sanitize_replay_messages(payload.get(key)) if key == 'messages' else payload.get(key)
     if supports_reasoning:
         proxied['reasoning'] = payload.get('reasoning') or {'effort': thinking.value}
     return proxied
@@ -4626,7 +4733,7 @@ def build_openai_proxy_payload(payload, model, stream=False, supports_reasoning=
 
 def openai_messages_to_ollama(messages):
     converted = []
-    for msg in messages or []:
+    for msg in sanitize_replay_messages(messages):
         if not isinstance(msg, dict):
             continue
         item = {
@@ -4702,7 +4809,7 @@ def openai_tools_to_anthropic(tools):
 def openai_messages_to_anthropic(messages):
     system_text = []
     converted = []
-    for msg in messages or []:
+    for msg in sanitize_replay_messages(messages):
         if not isinstance(msg, dict):
             continue
         role = msg.get('role', 'user')
@@ -5916,7 +6023,7 @@ def normalize_content(content: Any) -> str:
 
 def normalize_messages(messages):
     normalized = []
-    for msg in messages or []:
+    for msg in sanitize_replay_messages(messages):
         if not isinstance(msg, dict):
             continue
         normalized.append({
@@ -10802,7 +10909,7 @@ def ollama_family_bonus(model: str, intent: Intent):
 def build_openclaw_gateway_prompt(messages):
     system_parts = []
     conversation_parts = []
-    for msg in messages or []:
+    for msg in sanitize_replay_messages(messages):
         role = msg.get('role', 'user')
         content = (msg.get('content') or '').strip()
         if not content:
@@ -13257,7 +13364,7 @@ def build_google_generate_payload(messages, thinking=DEFAULT_THINKING_LEVEL, wan
     system_text = ''
     contents = []
     tool_call_names = {}
-    for msg in messages:
+    for msg in sanitize_replay_messages(messages):
         role = msg.get('role', 'user')
         content = google_text_from_content(msg.get('content', ''))
         tool_calls = normalize_tool_calls(msg.get('tool_calls'))
@@ -13854,7 +13961,7 @@ def stream_google_to_client(self, provider, model, payload, request_id, thinking
     # Build Google payload from OpenAI messages
     system_text = ''
     contents = []
-    for msg in payload.get('messages', []):
+    for msg in sanitize_replay_messages(payload.get('messages', [])):
         role = msg.get('role', 'user')
         content = msg.get('content', '')
         if not content:
@@ -13988,6 +14095,8 @@ def write_openai_completion_as_sse(self, result, request_id):
     self.wfile.flush()
 
 def handle_openai_chat_completions(self, payload, request_id, started, force_realtime=False, return_result=False):
+    if isinstance(payload.get('messages'), list):
+        payload['messages'] = sanitize_replay_messages(payload.get('messages'))
     message_count = len(payload.get('messages', []) or [])
     if is_sage_router_fusion_request(payload):
         return handle_sage_router_fusion(self, payload, request_id, started, return_result=return_result)
@@ -14012,6 +14121,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
     logger.info(f"[{request_id}] Incoming /v1/chat/completions with {message_count} messages, thinking={thinking.value}, route={route_mode}, json={want_json}, requirements={requirements}, modalities={modalities}, routerProfile={router_profile}, discordPublicProfile={discord_public_profile}, debug={debug_mode}")
     goal_compat = apply_goal_compat(payload)
     if goal_compat:
+        payload['messages'] = sanitize_replay_messages(payload.get('messages'))
         thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning'))
         route_mode = normalize_route_mode(payload.get('route'))
         requirements = normalize_requirements(payload, thinking)
@@ -14623,6 +14733,7 @@ def handle_anthropic_messages(self, body, request_id, started):
         request_model = anthropic_payload.get('model', 'sage-router/auto')
         want_stream = anthropic_payload.get('stream', False)
         openai_payload = anthropic_to_openai_request(anthropic_payload)
+        openai_payload['messages'] = sanitize_replay_messages(openai_payload.get('messages', []))
         message_count = len(openai_payload.get('messages', []))
         thinking = normalize_thinking(openai_payload.get('thinking') or openai_payload.get('reasoning'))
         router_profile = apply_router_profile(openai_payload)

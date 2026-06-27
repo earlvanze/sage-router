@@ -691,7 +691,10 @@ Keep this disabled for Codex, OpenClaw, Discord, and other conversational
 clients. Those clients store assistant messages in history, so visible routing
 labels can be replayed by later turns and appear as duplicated content. Provider
 and model attribution remain available through Sage Router metadata, logs, and
-debug responses without adding labels to assistant text.
+debug responses without adding labels to assistant text. Sage Router also strips
+known assistant replay placeholders such as `[tool calls omitted]` before
+forwarding history to upstream providers, while preserving structured tool
+calls.
 ## Supported API Formats
 
 | Endpoint | Format | Used By |

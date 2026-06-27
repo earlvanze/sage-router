@@ -1025,6 +1025,32 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('https://sagerouter.dev/model-routing-calculator', launch['calculatorPage'])
         self.assertEqual('https://app.sagerouter.dev/account.html', launch['accountPage'])
         self.assertEqual(10200, launch['recommendedMix']['monthlyRevenueUsd'])
+        self.assertEqual(4, len(launch['revenuePaths']))
+        self.assertTrue(any(
+            path['label'] == 'Pro-only'
+            and path['mix']['proCustomers'] == 334
+            and path['monthlyRevenueUsd'] == 10020
+            for path in launch['revenuePaths']
+        ))
+        self.assertTrue(any(
+            path['label'] == 'Max-only'
+            and path['mix']['maxCustomers'] == 139
+            and path['monthlyRevenueUsd'] == 10008
+            for path in launch['revenuePaths']
+        ))
+        self.assertTrue(any(
+            path['label'] == 'Recommended mixed path'
+            and path['mix']['liteCustomers'] == 100
+            and path['mix']['proCustomers'] == 200
+            and path['mix']['maxCustomers'] == 50
+            and path['monthlyRevenueUsd'] == 10200
+            for path in launch['revenuePaths']
+        ))
+        self.assertEqual(
+            ['visitor_to_signup', 'signup_to_generated_key', 'generated_key_to_first_routed_request', 'trial_or_free_to_paid', 'paid_logo_monthly_retention'],
+            [target['stage'] for target in launch['conversionFunnelTargets']],
+        )
+        self.assertEqual(0.60, launch['conversionFunnelTargets'][1]['targetRate'])
         self.assertIn('sagerouter.dev/pricing', router.PUBLIC_LAUNCH_POSITIONING['conversionSurfaces'])
         self.assertIn('sagerouter.dev/models', router.PUBLIC_LAUNCH_POSITIONING['conversionSurfaces'])
         self.assertIn('https://sagerouter.dev/models', launch['conversionSurfaces'])
