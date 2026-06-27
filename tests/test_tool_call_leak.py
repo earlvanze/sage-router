@@ -111,6 +111,22 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertEqual('Bug report: [tool calls omitted] should stay literal here.', sanitized[1]['content'])
         self.assertNotIn('ollama-2/kimi-k2.5', json.dumps(sanitized))
 
+    def test_assistant_replay_noise_strips_same_line_placeholder_prefixes(self):
+        replay = ' '.join(
+            '[ollama-2/kimi-k2.5] [tool calls omitted]'
+            for _ in range(1000)
+        )
+        messages = [
+            {'role': 'assistant', 'content': replay},
+            {'role': 'user', 'content': 'Bug report: [tool calls omitted] should stay literal here.'},
+        ]
+
+        sanitized = router.sanitize_replay_messages(messages)
+
+        self.assertEqual(1, len(sanitized))
+        self.assertEqual('Bug report: [tool calls omitted] should stay literal here.', sanitized[0]['content'])
+        self.assertNotIn('ollama-2/kimi-k2.5', json.dumps(sanitized))
+
     def test_assistant_replay_noise_preserves_structured_tool_calls(self):
         messages = [{
             'role': 'assistant',
@@ -155,6 +171,25 @@ class ToolCallLeakTests(unittest.TestCase):
             '[tool calls omitted]',
             '[ollama-2/kimi-k2.5] ',
             '[tool calls omitted]',
+        ]
+        cleaned = [
+            router.sanitize_stream_content_fragment(fragment, 'ollama-2', 'kimi-k2.5', state=state)
+            for fragment in fragments
+        ]
+        self.assertEqual(['', '', '', '', ''], cleaned)
+
+    def test_stream_strips_late_fragmented_tool_call_omission_after_visible_text(self):
+        state = {'prefix_open': True, 'prefix_pending': ''}
+        self.assertEqual(
+            'visible text',
+            router.sanitize_stream_content_fragment('visible text', 'ollama-2', 'kimi-k2.5', state=state),
+        )
+        fragments = [
+            '[ollama-2/kimi-k2.5] ',
+            '[tool calls ',
+            'omitted]',
+            '[ollama-2/kimi-k2.5] [tool calls ',
+            'omitted]',
         ]
         cleaned = [
             router.sanitize_stream_content_fragment(fragment, 'ollama-2', 'kimi-k2.5', state=state)
@@ -214,6 +249,32 @@ class ToolCallLeakTests(unittest.TestCase):
             for chunk in chunks
         ])
         self.assertEqual('lookup', chunks[-1]['choices'][0]['delta']['tool_calls'][0]['function']['name'])
+
+    def test_openai_compat_stream_strips_fragmented_tool_call_omission(self):
+        state = {'prefix_open': True, 'prefix_pending': ''}
+        lines = [
+            'data: {"choices":[{"delta":{"role":"assistant","content":"visible text"}}]}\n',
+            'data: {"choices":[{"delta":{"content":"[ollama-2/kimi-k2.5] "}}]}\n',
+            'data: {"choices":[{"delta":{"content":"[tool calls "}}]}\n',
+            'data: {"choices":[{"delta":{"content":"omitted]"}}]}\n',
+        ]
+        chunks = [
+            json.loads(
+                router.sanitize_openai_compat_stream_line(
+                    line.encode(),
+                    'ollama-2',
+                    'kimi-k2.5',
+                    state=state,
+                ).decode().split('data: ', 1)[1]
+            )
+            for line in lines
+        ]
+
+        self.assertEqual('visible text', chunks[0]['choices'][0]['delta']['content'])
+        self.assertEqual(['', '', ''], [
+            ((chunk['choices'][0]['delta']).get('content') or '')
+            for chunk in chunks[1:]
+        ])
 
     def test_wrapped_sse_strips_stale_prefix_content_before_tool_call(self):
         class FakeHandler:
@@ -425,6 +486,13 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
     def test_visible_output_strips_thousand_model_prefix_tool_placeholders(self):
         raw = '\n'.join(
             '[ollama-2/kimi-k2.5] [ollama-2/kimi-k2.5] [tool calls omitted]'
+            for _ in range(1000)
+        )
+        self.assertEqual('', router.sanitize_visible_output(raw))
+
+    def test_visible_output_strips_same_line_model_prefix_tool_placeholders(self):
+        raw = ' '.join(
+            '[ollama-2/kimi-k2.5] [tool calls omitted]'
             for _ in range(1000)
         )
         self.assertEqual('', router.sanitize_visible_output(raw))

@@ -3398,6 +3398,9 @@ def reject_visible_tool_call_leak(payload, text: str, tool_calls) -> str:
         return 'provider leaked tool call as visible text instead of structured tool_calls'
     return ''
 
+TOOL_CALLS_OMITTED_RE = r'\[\s*tool\s+calls\s*omitted\s*\]'
+
+
 def strip_model_prefix_tool_placeholder_noise(text: str):
     """Drop replay-only model prefix/tool-placeholder lines without context."""
     remaining = str(text or '')
@@ -3412,14 +3415,14 @@ def strip_model_prefix_tool_placeholder_noise(text: str):
             cleaned_lines.append(line)
             continue
         labels = re.findall(prefix_re, stripped)
-        if labels:
-            without_labels = re.sub(prefix_re, '', stripped).strip()
-            if re.fullmatch(r'(?i)\[tool calls omitted\]', without_labels or ''):
-                changed = True
-                continue
-            if not without_labels:
-                changed = True
-                continue
+        without_noise = re.sub(prefix_re, '', stripped).strip()
+        without_noise = re.sub(TOOL_CALLS_OMITTED_RE, '', without_noise, flags=re.IGNORECASE).strip()
+        if labels and not without_noise:
+            changed = True
+            continue
+        if not labels and not without_noise and re.search(TOOL_CALLS_OMITTED_RE, stripped, flags=re.IGNORECASE):
+            changed = True
+            continue
         cleaned_lines.append(line)
     return '\n'.join(cleaned_lines).strip() if changed else remaining
 
@@ -4113,9 +4116,9 @@ def strip_standalone_model_prefix_labels(text, provider_name, model):
 def strip_tool_call_omission_placeholders(text):
     """Remove provider placeholders that only describe hidden tool calls."""
     remaining = text or ''
-    if '[tool calls omitted]' not in remaining.lower():
+    if not re.search(TOOL_CALLS_OMITTED_RE, remaining, flags=re.IGNORECASE):
         return remaining
-    remaining = re.sub(r'(?i)(^|[\s])\[tool calls omitted\](?=\s|$)', r'\1', remaining)
+    remaining = re.sub(rf'(^|[\s]){TOOL_CALLS_OMITTED_RE}(?=\s|$)', r'\1', remaining, flags=re.IGNORECASE)
     remaining = re.sub(r'[ \t]{2,}', ' ', remaining)
     remaining = re.sub(r'\n{3,}', '\n\n', remaining)
     return remaining.strip()
@@ -4132,14 +4135,14 @@ def strip_assistant_replay_noise(text):
         if not stripped:
             cleaned_lines.append(line)
             continue
-        if '[tool calls omitted]' in stripped.lower():
-            labels = re.findall(r'\[([^\]\n]{1,140})\]', stripped)
-            if labels and labels[-1].strip().lower() == 'tool calls omitted' and all(
-                looks_like_model_prefix_label(label)
-                for label in labels[:-1]
+        if re.search(TOOL_CALLS_OMITTED_RE, stripped, flags=re.IGNORECASE):
+            placeholder_labels = re.findall(r'\[([^\]\n]{1,140})\]', stripped)
+            if placeholder_labels and placeholder_labels[-1].strip().lower() == 'tool calls omitted' and all(
+                label.strip().lower() == 'tool calls omitted' or looks_like_model_prefix_label(label)
+                for label in placeholder_labels
             ):
-                remainder = re.sub(r'\[[^\]\n]{1,140}\]\s*', '', stripped).strip()
-                if not remainder:
+                without_labels = re.sub(r'\[[^\]\n]{1,140}\]\s*', '', stripped).strip()
+                if not without_labels:
                     continue
         cleaned_lines.append(line)
     remaining = '\n'.join(cleaned_lines).strip()
@@ -4232,6 +4235,15 @@ def possible_model_prefix_fragment(text, provider_name, model):
     return looks_like_model_prefix_label(stripped[1:closing])
 
 
+def possible_tool_call_omission_fragment(text):
+    stripped = (text or '').lstrip()
+    if not stripped or not stripped.startswith('['):
+        return False
+    compact = re.sub(r'\s+', ' ', stripped.lower()).strip()
+    compact_no_space = re.sub(r'\s+', '', stripped.lower())
+    return '[tool calls omitted]'.startswith(compact) or '[toolcallsomitted]'.startswith(compact_no_space)
+
+
 def sanitize_stream_content_fragment(content, provider_name, model, state=None):
     """Remove leading provider/model labels even when split across SSE chunks."""
     text = sanitize_visible_output(content or '')
@@ -4243,6 +4255,10 @@ def sanitize_stream_content_fragment(content, provider_name, model, state=None):
     if cleaned != combined:
         state['prefix_pending'] = ''
         if cleaned:
+            if possible_tool_call_omission_fragment(cleaned):
+                state['prefix_pending'] = cleaned
+                if len(cleaned) <= 200:
+                    return ''
             state['prefix_open'] = False
             return cleaned
         return ''
@@ -4254,6 +4270,10 @@ def sanitize_stream_content_fragment(content, provider_name, model, state=None):
         and ']' not in combined
     )
     if possible_model_prefix_fragment(combined, provider_name, model) and (prefix_still_open or possible_late_fragment):
+        state['prefix_pending'] = combined
+        if len(combined) <= 200:
+            return ''
+    if possible_tool_call_omission_fragment(combined):
         state['prefix_pending'] = combined
         if len(combined) <= 200:
             return ''
