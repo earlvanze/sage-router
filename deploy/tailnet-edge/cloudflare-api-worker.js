@@ -394,7 +394,7 @@ async function checkOrigin(origin, requirePublicEdgeHealth) {
     } catch (_error) {
       health = null;
     }
-    const statusHealthy = result.response.status >= 200 && result.response.status < 500;
+    const statusHealthy = result.response.status >= 200 && result.response.status < 300;
     const publicEdgeHealthy = !requirePublicEdgeHealth || publicEdgeHealthSatisfied(health);
     return {
       name: origin.name,
@@ -466,14 +466,14 @@ function responseJson(payload, status = 200, extraHeaders = {}) {
   });
 }
 
-function outboundHeaders(request, selectedOrigin) {
+function outboundHeaders(request, selectedOriginId) {
   const headers = new Headers(request.headers);
   for (const header of HOP_BY_HOP_HEADERS) {
     headers.delete(header);
   }
   headers.delete("host");
   headers.set("x-sage-router-cloudflare-edge", "api.sagerouter.dev");
-  headers.set("x-sage-router-origin", selectedOrigin.name);
+  headers.set("x-sage-router-origin", selectedOriginId || "origin-unknown");
   return headers;
 }
 
@@ -521,7 +521,7 @@ export default {
       const body = request.method === "GET" || request.method === "HEAD" ? undefined : requestForOrigin.body;
       const response = await timedFetch(target, {
         method: request.method,
-        headers: outboundHeaders(request, origin),
+        headers: outboundHeaders(request, originId),
         body,
         redirect: "manual",
       }, origin.timeoutMs);

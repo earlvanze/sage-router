@@ -35,6 +35,13 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
         self.assertNotRegex(worker, re.compile(r"headers\.set\([^)]*origin\.url", re.DOTALL))
         self.assertIn('"x-sage-router-api-origin-kind"', worker)
 
+    def test_outbound_origin_header_uses_redacted_origin_id(self):
+        worker = self.read_worker()
+        self.assertIn("function outboundHeaders(request, selectedOriginId)", worker)
+        self.assertIn('headers.set("x-sage-router-origin", selectedOriginId || "origin-unknown")', worker)
+        self.assertIn("headers: outboundHeaders(request, originId)", worker)
+        self.assertNotIn('headers.set("x-sage-router-origin", selectedOrigin.name)', worker)
+
     def test_public_snapshot_does_not_return_raw_url_or_health_path(self):
         worker = self.read_worker()
         match = re.search(
@@ -66,6 +73,11 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
         self.assertIn("modelModalities.rpcConfigured === true", worker)
         self.assertIn("failover.mode === \"lowest-latency-healthy\"", worker)
         self.assertIn("!hasRawOriginUrl(payload.upstreams || [])", worker)
+
+    def test_worker_health_requires_2xx_even_without_public_edge_proof(self):
+        worker = self.read_worker()
+        self.assertIn("const statusHealthy = result.response.status >= 200 && result.response.status < 300", worker)
+        self.assertNotIn("const statusHealthy = result.response.status >= 200 && result.response.status < 500", worker)
 
     def test_worker_example_uses_edge_health_origins(self):
         example = self.read_wrangler_example()
