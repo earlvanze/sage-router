@@ -102,6 +102,9 @@ api_get_ruleset_entrypoint() {
   fi
   printf 'Cloudflare %s ruleset lookup for %s failed with HTTP %s.\n' "$PHASE" "$ZONE_NAME" "$status" >&2
   printf 'The token must have Zone:Zone:Read and Zone Rulesets:Read/Edit for %s.\n' "$ZONE_NAME" >&2
+  if [[ "$status" == "403" ]]; then
+    printf 'If zone lookup succeeded before this step, the token can see the zone but is missing Zone Rulesets permissions. Rotate CLOUDFLARE_API_TOKEN to a token scoped to %s with Zone:Zone:Read plus Zone Rulesets:Read/Edit, then rerun this script.\n' "$ZONE_NAME" >&2
+  fi
   cloudflare_error_summary "$body"
   rm -f "$body"
   return 1

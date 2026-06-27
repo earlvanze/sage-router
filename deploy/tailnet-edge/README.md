@@ -201,7 +201,8 @@ configuration rule for `api.sagerouter.dev` only, setting Browser Integrity
 Check off while leaving app and marketing hosts unchanged.
 Use `scripts/configure_cloudflare_api_bic_skip.sh --check` first when you only
 want to verify token permissions and whether the host-scoped rule already
-exists.
+exists. See `docs/cloudflare-api-bic-skip.md` for the exact token permissions
+and confirmation flow.
 
 ## Google Cloud VM bootstrap
 

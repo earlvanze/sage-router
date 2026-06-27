@@ -8,6 +8,8 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKER = ROOT / "deploy" / "tailnet-edge" / "cloudflare-api-worker.js"
 WRANGLER_EXAMPLE = ROOT / "deploy" / "tailnet-edge" / "wrangler.api-sagerouter.example.toml"
 CLOUDFLARE_BIC_SKIP = ROOT / "scripts" / "configure_cloudflare_api_bic_skip.sh"
+CLOUDFLARE_BIC_DOC = ROOT / "docs" / "cloudflare-api-bic-skip.md"
+README = ROOT / "README.md"
 
 
 class CloudflareWorkerEdgeTests(unittest.TestCase):
@@ -19,6 +21,12 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
 
     def read_bic_skip_script(self):
         return CLOUDFLARE_BIC_SKIP.read_text(encoding="utf-8")
+
+    def read_bic_skip_doc(self):
+        return CLOUDFLARE_BIC_DOC.read_text(encoding="utf-8")
+
+    def read_readme(self):
+        return README.read_text(encoding="utf-8")
 
     def test_public_edge_health_uses_redacted_origin_snapshots(self):
         worker = self.read_worker()
@@ -152,7 +160,21 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
         self.assertIn("api_get_ruleset_entrypoint", script)
         self.assertIn("failed with HTTP %s", script)
         self.assertIn("Zone:Zone:Read and Zone Rulesets:Read/Edit", script)
+        self.assertIn("token can see the zone but is missing Zone Rulesets permissions", script)
         self.assertIn("SAGEROUTER_CLOUDFLARE_ZONE_ID/CLOUDFLARE_ZONE_ID", script)
+
+    def test_cloudflare_bic_runbook_is_discoverable(self):
+        doc = self.read_bic_skip_doc()
+        readme = self.read_readme()
+
+        self.assertIn("Cloudflare BIC Skip For api.sagerouter.dev", doc)
+        self.assertIn("Zone:Zone:Read", doc)
+        self.assertIn("Zone Rulesets:Read", doc)
+        self.assertIn("Zone Rulesets:Edit", doc)
+        self.assertIn("bash scripts/configure_cloudflare_api_bic_skip.sh --check", doc)
+        self.assertIn("bash scripts/configure_cloudflare_api_bic_skip.sh", doc)
+        self.assertIn('http.host eq "api.sagerouter.dev"', doc)
+        self.assertIn("docs/cloudflare-api-bic-skip.md", readme)
 
 
 if __name__ == "__main__":
