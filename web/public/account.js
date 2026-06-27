@@ -8,7 +8,9 @@ const SELECTED_PLAN_STORAGE_KEY = 'sage_router_selected_plan';
 const START_ACTION_STORAGE_KEY = 'sage_router_start_action';
 const AUTO_CHECKOUT_ATTEMPT_STORAGE_KEY = 'sage_router_auto_checkout_attempt';
 const AUTO_KEY_ATTEMPT_STORAGE_KEY = 'sage_router_auto_key_attempt';
+const AUTO_OAUTH_ATTEMPT_STORAGE_KEY = 'sage_router_auto_oauth_attempt';
 const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
+const ACCOUNT_AUTH_NUDGE_STORAGE_KEY = 'sage_router_account_auth_nudge_dismissed_until';
 const FALLBACK_PLANS = {
   lite: { name: 'Lite', price: '$6/month', limits: { monthlyRequests: 10000, rateLimitPerMinute: 60 }, features: ['agent-native routing', 'API keys', 'usage analytics'] },
   pro: { name: 'Pro', price: '$30/month', limits: { monthlyRequests: 50000, rateLimitPerMinute: 180 }, features: ['frontier routing', 'agentic tool-use preference', 'Fusion synthesis', 'analytics snapshots'] },
@@ -145,13 +147,42 @@ function requestedPlanFromUrl() {
 }
 
 function normalizeStartAction(action) {
-  const normalized = String(action || '').trim().toLowerCase();
-  return normalized === 'checkout' ? normalized : '';
+  const normalized = String(action || '').trim().toLowerCase().replace(/[-\s]+/g, '_');
+  return ['checkout', 'create_key'].includes(normalized) ? normalized : '';
 }
 
 function requestedStartActionFromUrl() {
   const params = new URLSearchParams(window.location.search || '');
   return normalizeStartAction(params.get('start') || params.get('action'));
+}
+
+function inferredStartActionFromReferrer() {
+  try {
+    const referrer = document.referrer ? new URL(document.referrer) : null;
+    if (!referrer) return '';
+    const trustedMarketingHosts = new Set(['sagerouter.dev', 'www.sagerouter.dev']);
+    return trustedMarketingHosts.has(referrer.hostname) ? 'checkout' : '';
+  } catch (_error) {
+    return '';
+  }
+}
+
+function requestedAuthProviderFromUrl() {
+  const params = new URLSearchParams(window.location.search || '');
+  const provider = String(params.get('auth') || params.get('provider') || '').trim().toLowerCase();
+  return OAUTH_PROVIDER_ORDER.includes(provider) ? provider : '';
+}
+
+function requestedEmailAuthFromUrl() {
+  const params = new URLSearchParams(window.location.search || '');
+  const auth = String(params.get('auth') || params.get('provider') || '').trim().toLowerCase();
+  return ['email', 'password', 'email_password', 'password_fallback', 'fallback', 'none'].includes(auth);
+}
+
+function requestedKeyRecoveryStateFromUrl() {
+  const params = new URLSearchParams(window.location.search || '');
+  if (requestedEmailAuthFromUrl()) return 'same_email';
+  return requestedAuthProviderFromUrl() || String(params.get('auth') || params.get('provider') || 'no_auth_provider').trim().toLowerCase() || 'no_auth_provider';
 }
 
 function storedStartAction() {
@@ -212,12 +243,31 @@ function markAutoKeyAttempted(plan = selectedPlan) {
   }
 }
 
+function autoOauthAttemptKey(provider = 'github', plan = selectedPlan) {
+  return `${AUTO_OAUTH_ATTEMPT_STORAGE_KEY}:${provider}:${normalizePlan(plan) || 'unknown'}:${pendingStartAction || 'none'}`;
+}
+
+function hasAutoOauthAttempted(provider = 'github', plan = selectedPlan) {
+  try {
+    return window.sessionStorage?.getItem(autoOauthAttemptKey(provider, plan)) === '1';
+  } catch (_error) {
+    return false;
+  }
+}
+
+function markAutoOauthAttempted(provider = 'github', plan = selectedPlan) {
+  try {
+    window.sessionStorage?.setItem(autoOauthAttemptKey(provider, plan), '1');
+  } catch (_error) {
+  }
+}
+
 function planDisplay(plan) {
   return plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : 'Pro';
 }
 
 let selectedPlan = requestedPlanFromUrl() || storedPlan() || 'pro';
-let pendingStartAction = rememberStartAction(requestedStartActionFromUrl() || storedStartAction());
+let pendingStartAction = rememberStartAction(requestedStartActionFromUrl() || inferredStartActionFromReferrer() || storedStartAction());
 let availablePlans = FALLBACK_PLANS;
 let billingMetadata = null;
 let recommendedUpgradePlan = '';
@@ -225,6 +275,7 @@ let currentRawKey = '';
 let lastManualPaymentIntentId = '';
 let billingReturnHandled = false;
 let keyVerifiedThisSession = false;
+let lastNextActionShownKey = '';
 let activationState = {
   signedIn: false,
   emailVerified: true,
@@ -252,6 +303,7 @@ let supportContextState = {
 let emailActionAllowed = true;
 let verificationEmail = '';
 let latestOauthExternalState = null;
+let signupOptionsShownTracked = false;
 
 function configuredStripePlans() {
   const configured = billingMetadata?.stripe?.configuredPlans || [];
@@ -285,25 +337,53 @@ function stripeCheckoutUnavailableMessage(plan = selectedPlan) {
   return 'Stripe checkout is temporarily unavailable. Use manual settlement or billing help.';
 }
 
+function checkoutNeedsGeneratedKeyFirst() {
+  return Boolean(activationState.signedIn && !activationState.keyCount && !hasSessionApiKey());
+}
+
+function renderKeyRecoveryDock() {
+  const recoveryIntent = isKeyRecoveryIntent();
+  const sameEmailRecovery = recoveryIntent && requestedEmailAuthFromUrl();
+  show('key-recovery-dock', recoveryIntent && !activationState.signedIn);
+  if (!recoveryIntent) return;
+  set('key-recovery-dock-copy', sameEmailRecovery
+    ? 'Same-email recovery requested. Use the exact email from signup, then this page will create the generated sk_sage setup key before checkout.'
+    : 'Key recovery requested. Use the same GitHub/OAuth identity or email from signup, then this page creates the generated sk_sage setup key first.');
+  set('key-recovery-dock-status', sameEmailRecovery
+    ? 'Recommended: send the same-email magic link, then create the key before checkout.'
+    : 'Recommended: use GitHub only if it is the same signup account; otherwise use email.');
+}
+
 function renderAccountIntent() {
   const plan = availablePlans?.[selectedPlan] || {};
   const checkoutReady = stripeCheckoutReadyForPlan(selectedPlan);
   const planName = plan.name || planDisplay(selectedPlan);
   const price = plan.price || (planPriceAmount(plan) ? `$${planPriceAmount(plan)}/month` : '');
+  const recoveryIntent = isKeyRecoveryIntent();
+  const sameEmailRecovery = recoveryIntent && requestedEmailAuthFromUrl();
+  renderKeyRecoveryDock();
   show('intent-email-field', !activationState.signedIn);
-  set('account-intent-title', `${planName} activation path selected`);
+  set('account-intent-title', recoveryIntent ? 'Finish your Sage Router setup key' : `${planName} activation path selected`);
   set('account-intent-plan', price ? `${planName} · ${price}` : planName);
-  set('account-intent-checkout', checkoutReady ? 'Stripe checkout ready' : 'Manual fallback available');
+  set('account-intent-checkout', recoveryIntent ? 'Key first, checkout after' : (checkoutReady ? 'Stripe checkout ready' : 'Manual fallback available'));
   if (!activationState.signedIn) {
-    set('account-intent-copy', 'No provider key is required to create an account. Continue with an enabled OAuth provider, or enter your email for a magic link, then create a generated sk_sage key first and complete checkout to unlock routing.');
+    set('account-intent-copy', recoveryIntent
+      ? (sameEmailRecovery
+        ? 'Same-email recovery requested. Enter the email used at signup so the magic link opens this existing account and creates the generated sk_sage setup key first. OAuth is available only if it is the same account.'
+        : 'This recovery link is set to create the generated sk_sage setup key first. Continue with GitHub, or email yourself the setup link; checkout and routing unlock after the key exists.')
+      : 'No provider key or credit card is required until your generated sk_sage key exists. Continue with an enabled OAuth provider, or enter your email for the API key setup link, then create the key first and complete checkout to unlock routing.');
     const intentButton = $('intent-primary');
-    if (intentButton) intentButton.textContent = `Email me the ${planName} setup link`;
+    if (intentButton) intentButton.textContent = sameEmailRecovery ? 'Send same-email setup link' : (recoveryIntent ? 'Email setup key link instead' : 'Email API key setup link');
     return;
   }
   if (!activationState.emailVerified) {
-    set('account-intent-copy', 'You are signed in. Verify your email next so checkout, generated keys, and hosted routing can attach safely.');
+    set('account-intent-copy', activationState.keyCount > 0
+      ? 'Your generated key is ready. Verify your email next so checkout and hosted routing can attach safely.'
+      : recoveryIntent
+      ? 'Key recovery link active. Create the sk_sage setup key now; checkout waits until after the key exists and email is verified.'
+      : 'You are signed in. Create the generated key now; it will stay blocked from routing until email verification and checkout are complete.');
     const intentButton = $('intent-primary');
-    if (intentButton) intentButton.textContent = 'Verify email first';
+    if (intentButton) intentButton.textContent = activationState.keyCount > 0 ? 'Verify email next' : (recoveryIntent ? 'Create setup key now' : 'Create API key');
     return;
   }
   if (!activationState.routingEnabled) {
@@ -311,9 +391,11 @@ function renderAccountIntent() {
       ? (checkoutReady
         ? 'Your generated key is ready. Complete the selected paid plan to unlock hosted routing for it.'
         : 'Your generated key is ready. Stripe checkout is not ready for this plan, so use manual settlement or billing help.')
-      : 'You are signed in. Create a generated sk_sage_* key now, then complete checkout to unlock hosted routing for it.');
+      : recoveryIntent
+      ? 'Key recovery link active. Create the sk_sage setup key now; checkout can happen after the key exists.'
+      : 'You are signed in. Create an API key now, then complete checkout to unlock hosted routing for it.');
     const intentButton = $('intent-primary');
-    if (intentButton) intentButton.textContent = activationState.keyCount > 0 ? (checkoutReady ? 'Continue to Stripe' : 'Open billing options') : 'Create API key';
+    if (intentButton) intentButton.textContent = activationState.keyCount > 0 ? (checkoutReady ? 'Continue to Stripe' : 'Open billing options') : (recoveryIntent ? 'Create setup key now' : 'Create API key');
     return;
   }
   set('account-intent-copy', 'Routing is active. Create or verify a generated sk_sage_* key, then send the quickstart request to record first usage.');
@@ -323,18 +405,24 @@ function renderAccountIntent() {
 
 function updateBillingControls(status = '') {
   const checkoutReady = stripeCheckoutReadyForPlan(selectedPlan);
+  const keyFirst = checkoutNeedsGeneratedKeyFirst();
   const portalReady = billingMetadata?.stripe?.billingPortalReady !== false;
   const checkout = $('stripe-checkout');
   const portal = $('stripe-portal');
   if (checkout) {
-    checkout.disabled = !emailActionAllowed || !checkoutReady;
-    checkout.title = checkoutReady ? '' : stripeCheckoutUnavailableMessage(selectedPlan);
+    checkout.disabled = !keyFirst && (!emailActionAllowed || !checkoutReady);
+    checkout.textContent = keyFirst ? 'Create API key first' : 'Continue to Stripe';
+    checkout.title = keyFirst
+      ? 'Create the generated sk_sage setup key before checkout.'
+      : (checkoutReady ? '' : stripeCheckoutUnavailableMessage(selectedPlan));
   }
   if (portal) {
     portal.disabled = !portalReady;
     portal.title = portalReady ? '' : 'Stripe billing management is not ready yet.';
   }
-  const next = !emailActionAllowed
+  const next = keyFirst
+    ? 'Create API key first'
+    : !emailActionAllowed
     ? 'Verify email first'
     : (checkoutReady ? (activationState.signedIn ? 'Continue to Stripe' : 'Sign in to continue to checkout') : 'Manual settlement available');
   set('plan-preview-next', next);
@@ -370,7 +458,8 @@ function applyOauthButtons(external = {}, status = '') {
   if (!status) latestOauthExternalState = external;
   const enabledProviders = OAUTH_PROVIDER_ORDER.filter((provider) => external[provider] === true);
   const enabledLabels = new Set();
-  const recommendedProvider = enabledProviders[0] || '';
+  const sameEmailRecovery = isKeyRecoveryIntent() && requestedEmailAuthFromUrl();
+  const recommendedProvider = sameEmailRecovery ? '' : (enabledProviders[0] || '');
   const planName = planDisplay(selectedPlan);
   document.querySelectorAll('[data-oauth]').forEach((button) => {
     const provider = button.dataset.oauth;
@@ -380,9 +469,17 @@ function applyOauthButtons(external = {}, status = '') {
     button.classList.toggle('recommended', enabled && provider === recommendedProvider && button.dataset.intentOauth === 'true');
     button.disabled = !enabled;
     if (button.dataset.intentOauth === 'true') {
-      button.textContent = provider === recommendedProvider
-        ? `Continue with ${label} for ${planName}`
-        : `${label} for ${planName}`;
+      if (sameEmailRecovery && !activationState.signedIn) {
+        button.textContent = `${label} only if same account`;
+      } else if (isKeyRecoveryIntent() && !activationState.signedIn) {
+        button.textContent = provider === recommendedProvider
+          ? `Continue with ${label} to create setup key`
+          : `${label} setup key`;
+      } else {
+        button.textContent = provider === recommendedProvider
+          ? `Continue with ${label} for ${planName}`
+          : `${label} for ${planName}`;
+      }
     } else {
       button.textContent = label;
     }
@@ -391,12 +488,21 @@ function applyOauthButtons(external = {}, status = '') {
   const labels = [...enabledLabels];
   set('oauth-status', oauthStatusText(external, labels, status));
   if (!activationState.signedIn && labels.length && !status) {
-    set('intent-email-status', `Recommended: continue with ${labels[0]} for ${planName}. Email magic link remains available.`);
+    set('intent-email-status', sameEmailRecovery
+      ? 'Same-email recovery requested. Enter the original signup email; use OAuth only if it is the same account.'
+      : isKeyRecoveryIntent()
+      ? `Recommended: continue with ${labels[0]} to create the setup key now. Email setup link remains available.`
+      : `Recommended: continue with ${labels[0]} for ${planName}. Email magic link remains available.`);
   }
 }
 
 function oauthStatusText(external = {}, enabledLabels = [], status = '') {
   if (status) return status;
+  if (isKeyRecoveryIntent() && requestedEmailAuthFromUrl()) {
+    return enabledLabels.length
+      ? 'Same-email recovery requested. OAuth is available only if it matches the original signup account.'
+      : 'Same-email recovery requested. Use magic link or password to recover the setup-key flow.';
+  }
   if (enabledLabels.length) {
     return `OAuth enabled: ${enabledLabels.join(', ')}. Email sign-in is also available.`;
   }
@@ -423,6 +529,18 @@ function trackAuthProviderState(external = {}, state = 'loaded') {
     state,
     ...summarizeOauthProviderState(external),
   });
+  trackSignupOptionsShown(external, state);
+}
+
+function trackSignupOptionsShown(external = {}, state = 'loaded') {
+  if (signupOptionsShownTracked) return;
+  signupOptionsShownTracked = true;
+  trackAccountFunnelEvent('account_signup_options_shown', {
+    button: 'account_auth_panel',
+    target: '#intent-oauth-actions',
+    state,
+    ...summarizeOauthProviderState(external),
+  });
 }
 
 async function applyAuthSettings() {
@@ -437,6 +555,7 @@ async function applyAuthSettings() {
     const external = (await res.json()).external || {};
     applyOauthButtons(external);
     trackAuthProviderState(external, 'loaded');
+    maybeStartOauthFromIntent(external);
   } catch (_error) {
     applyOauthButtons({}, 'OAuth status is unavailable. Use email magic link or password.');
     trackAuthProviderState({}, 'unavailable');
@@ -553,6 +672,123 @@ function focusApiKeyVerifier(message = 'Paste an existing sk_sage key or create 
   target?.focus?.();
 }
 
+function isKeyRecoveryIntent() {
+  return pendingStartAction === 'create_key';
+}
+
+function signedInNextActionState() {
+  if (!activationState.signedIn) {
+    return {
+      title: 'Sign in to start',
+      copy: 'Create an account, then Sage Router will guide you to a generated key and first routed request.',
+      label: 'Sign in',
+      state: 'sign_in',
+      target: '#auth-panel',
+    };
+  }
+  if (!activationState.keyCount && !hasSessionApiKey()) {
+    if (isKeyRecoveryIntent()) {
+      return {
+        title: 'Finish key recovery',
+        copy: 'This recovery link is ready to create your hosted sk_sage setup key now. Checkout and email verification can follow after the key exists.',
+        label: 'Create setup key now',
+        state: 'create_key',
+        target: '/account/api-keys',
+      };
+    }
+    return {
+      title: 'Finish activation: create API key',
+      copy: activationState.emailVerified
+        ? 'Create the generated sk_sage setup key now. The raw key is shown once, inserted into setup snippets, and becomes the fastest path to first routed request.'
+        : 'Create the setup key now. It remains blocked from routing until email verification and checkout are complete, but the key step no longer has to wait.',
+      label: 'Create setup key now',
+      state: 'create_key',
+      target: '/account/api-keys',
+    };
+  }
+  if (!activationState.emailVerified) {
+    return {
+      title: 'Verify email next',
+      copy: 'Your generated key exists. Email verification unlocks checkout and hosted routing for it.',
+      label: 'Resend verification email',
+      state: 'verify_email',
+      target: '#resend-verification-email',
+    };
+  }
+  if (!activationState.routingEnabled) {
+    return {
+      title: 'Unlock routing for this key',
+      copy: stripeCheckoutReadyForPlan(selectedPlan)
+        ? `Your generated key exists. Continue to ${planDisplay(selectedPlan)} checkout so it can route hosted traffic.`
+        : 'Your generated key exists. Stripe checkout is not ready, so use manual settlement or billing help.',
+      label: stripeCheckoutReadyForPlan(selectedPlan) ? `Continue to ${planDisplay(selectedPlan)} checkout` : 'Open billing options',
+      state: 'checkout',
+      target: stripeCheckoutReadyForPlan(selectedPlan) ? '/billing/stripe/checkout' : '#billing',
+    };
+  }
+  if (!(activationState.keyVerified || activationState.requestCount > 0)) {
+    return {
+      title: 'Verify public edge access',
+      copy: 'Check /v1/models with your generated key before wiring Codex, OpenAI SDKs, or agents.',
+      label: 'Verify /v1/models',
+      state: 'verify_key',
+      target: '/v1/models',
+    };
+  }
+  if (!activationState.requestCount) {
+    return {
+      title: 'Send the first routed request',
+      copy: 'One browser Responses API test proves sage-router/frontier is working and records first-request activation.',
+      label: 'Send first request',
+      state: 'first_request',
+      target: '/v1/responses',
+    };
+  }
+  return {
+    title: 'Activation complete',
+    copy: `${fmtNumber(activationState.requestCount)} routed request${activationState.requestCount === 1 ? '' : 's'} recorded. Keep setup snippets handy for agents and production clients.`,
+    label: 'Open dashboard',
+    state: 'dashboard',
+    target: '/analytics.html',
+  };
+}
+
+function renderSignedInNextAction() {
+  const action = signedInNextActionState();
+  set('signed-in-next-title', action.title);
+  set('signed-in-next-copy', action.copy);
+  const button = $('signed-in-next-button');
+  if (button) {
+    button.textContent = action.label;
+    button.dataset.nextAction = action.state;
+    button.dataset.nextTarget = action.target;
+  }
+  const actionKey = [
+    action.state,
+    action.target,
+    activationState.signedIn ? 'in' : 'out',
+    activationState.emailVerified ? 'verified' : 'unverified',
+    activationState.keyCount > 0 ? 'has-key' : 'no-key',
+    activationState.routingEnabled ? 'routing' : 'blocked',
+    activationState.requestCount > 0 ? 'used' : 'unused',
+  ].join('|');
+  if (actionKey !== lastNextActionShownKey) {
+    lastNextActionShownKey = actionKey;
+    trackAccountFunnelEvent('account_next_action_shown', {
+      button: action.label,
+      target: action.target,
+      state: action.state,
+    });
+    if (action.state === 'create_key' && activationState.signedIn && !activationState.keyCount && !isKeyRecoveryIntent()) {
+      trackAccountFunnelEvent('account_key_recovery_viewed', {
+        button: 'signed_in_no_key_prompt',
+        target: '/account/api-keys',
+        state: 'in_app_no_key_prompt',
+      });
+    }
+  }
+}
+
 function renderPostKeyActivationPanel() {
   const keyVerified = activationState.keyVerified || activationState.requestCount > 0;
   const canUseSessionKey = hasSessionApiKey();
@@ -566,7 +802,9 @@ function renderPostKeyActivationPanel() {
   if (!activationState.signedIn) {
     set('post-key-activation-status', 'Sign in first, then generate the hosted key.');
   } else if (!activationState.emailVerified) {
-    set('post-key-activation-status', 'Verify your email before creating or using hosted keys.');
+    set('post-key-activation-status', activationState.keyCount || canUseSessionKey
+      ? 'Setup key created. Verify your email before checkout or hosted routing can use it.'
+      : 'Create the setup key now; it remains blocked from routing until email verification and checkout are complete.');
   } else if (!activationState.keyCount && !canUseSessionKey) {
     set('post-key-activation-status', 'Create a generated sk_sage key first; the raw key is shown once and inserted into these setup snippets.');
   } else if (!canUseSessionKey) {
@@ -598,20 +836,21 @@ function renderLaunchNextAction(patch = {}) {
 
   if (!activationState.signedIn) {
     set('launch-next-action', 'Next: sign in or create an account.');
-  } else if (!activationState.emailVerified) {
-    set('launch-next-action', 'Next: verify your email before creating API keys or starting checkout.');
   } else if (!activationState.keyCount) {
-    set('launch-next-action', 'Next: create an sk_sage key so setup can be copied before checkout.');
+    set('launch-next-action', 'Next: create an API key so setup can be copied before checkout.');
+  } else if (!activationState.emailVerified) {
+    set('launch-next-action', 'Next: verify your email so checkout and routing can unlock the generated key.');
   } else if (!activationState.routingEnabled) {
     set('launch-next-action', 'Next: choose a paid plan or finish checkout so generated keys can route.');
   } else if (!keyVerified) {
     set('launch-next-action', 'Next: test the key against /v1/models using the verifier below.');
   } else if (!activationState.requestCount) {
-    set('launch-next-action', 'Next: send the first sage-router/frontier chat completion from this page or copy the quickstart.');
+    set('launch-next-action', 'Next: send the first sage-router/frontier Responses request from this page or copy the quickstart.');
   } else {
     set('launch-next-action', `Activated: ${fmtNumber(activationState.requestCount)} routed request${activationState.requestCount === 1 ? '' : 's'} recorded this period.`);
   }
   renderPostKeyActivationPanel();
+  renderSignedInNextAction();
   renderSupportContext();
 }
 
@@ -623,13 +862,13 @@ function applyEmailVerificationState(state = {}) {
   verificationEmail = blocked ? String(state.email || '').trim() : '';
   emailActionAllowed = !blocked;
   const message = blocked
-    ? `Verify ${email} before creating API keys or starting checkout.`
+    ? `Verify ${email} before checkout or hosted routing. You can still create a setup key first.`
     : (required ? 'Email verified.' : 'Email verification is not required for this deployment.');
   set('email-verification-status', message);
   const status = $('email-verification-status');
   if (status) status.classList.toggle('danger', blocked);
   show('resend-verification-email', blocked && Boolean(verificationEmail));
-  ['create-key', 'crypto-intent'].forEach((id) => {
+  ['crypto-intent'].forEach((id) => {
     const button = $(id);
     if (button) button.disabled = blocked;
   });
@@ -916,18 +1155,24 @@ async function maybeStartCheckoutFromIntent({ emailVerified, routingEnabled } = 
 }
 
 async function maybeCreateKeyFromIntent({ emailVerified, keyCount } = {}) {
-  if (pendingStartAction !== 'checkout') return false;
-  if (!activationState.signedIn || !emailVerified || Number(keyCount || 0) > 0) return false;
+  if (!activationState.signedIn || Number(keyCount || 0) > 0) return false;
   if (hasAutoKeyAttempted(selectedPlan)) return false;
-  markAutoKeyAttempted(selectedPlan);
-  set('key-once', 'Creating your sk_sage key from the saved activation intent...');
+  const fromSavedIntent = ['checkout', 'create_key'].includes(pendingStartAction);
+  const fromKeyRecoveryIntent = pendingStartAction === 'create_key';
+  set('key-once', fromKeyRecoveryIntent
+    ? 'Creating your sk_sage key from the saved key-recovery link...'
+    : fromSavedIntent
+    ? 'Creating your sk_sage key from the saved activation intent...'
+    : 'Creating your first sk_sage setup key...');
   $('create-key')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   trackAccountFunnelEvent('account_intent_create_key_clicked', {
-    button: 'saved_activation_intent',
+    button: fromKeyRecoveryIntent ? 'saved_key_recovery_intent' : (fromSavedIntent ? 'saved_activation_intent' : 'first_signed_in_auto_setup'),
     target: '/account/api-keys',
-    state: 'saved_intent_auto_key'
+    state: fromKeyRecoveryIntent ? 'saved_key_recovery_auto_key' : (fromSavedIntent ? 'saved_intent_auto_key' : 'first_signed_in_auto_key')
   });
-  await createKey();
+  const created = await createKey();
+  if (!created) return false;
+  markAutoKeyAttempted(selectedPlan);
   $('key-once')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   return true;
 }
@@ -1080,7 +1325,40 @@ async function oauthLogin(provider, options = {}) {
   trackAccountFunnelEvent('account_oauth_clicked', { button, target: '/auth/v1/authorize', state: provider });
   const redirectTo = accountPageUrlWithPlan();
   const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo } });
-  if (error) setAuthStatus(error.message, mirrorIntent);
+  if (error) {
+    trackAccountFunnelEvent('account_oauth_failed', { button, target: '/auth/v1/authorize', state: provider });
+    setAuthStatus(error.message, mirrorIntent);
+  }
+}
+
+async function maybeStartOauthFromIntent(external = {}) {
+  if (!['checkout', 'create_key'].includes(pendingStartAction)) return;
+  const currentSession = await session();
+  if (currentSession) return;
+  if (requestedEmailAuthFromUrl()) {
+    setAuthStatus('Use same-email magic link or password to finish key setup.', true);
+    trackAccountFunnelEvent('account_auto_oauth_skipped', {
+      button: pendingStartAction === 'create_key' ? 'email_key_recovery' : 'email_activation',
+      target: '#intent-email',
+      state: 'email_auth_requested',
+    });
+    focusEmailInput(true);
+    return;
+  }
+  const provider = requestedAuthProviderFromUrl() || 'github';
+  if (external[provider] !== true) return;
+  if (hasAutoOauthAttempted(provider, selectedPlan)) return;
+  markAutoOauthAttempted(provider, selectedPlan);
+  const isKeyRecovery = pendingStartAction === 'create_key';
+  setAuthStatus(`Opening ${OAUTH_LABELS[provider] || provider} sign-in from your saved ${isKeyRecovery ? 'key-recovery' : 'activation'} intent...`, true);
+  trackAccountFunnelEvent('account_auto_oauth_started', {
+    button: isKeyRecovery ? 'auto_key_recovery_oauth' : 'auto_checkout_oauth',
+    target: '/auth/v1/authorize',
+    state: provider,
+  });
+  window.setTimeout(() => {
+    oauthLogin(provider, { button: isKeyRecovery ? 'auto_key_recovery_oauth' : 'auto_checkout_oauth', mirrorIntent: true });
+  }, 900);
 }
 
 async function passwordLogin() {
@@ -1098,10 +1376,12 @@ async function passwordLogin() {
   trackAccountFunnelEvent('account_login_submitted', { button: 'password_login', target: '/auth/v1/token', state: 'password' });
   const { error } = await sb.auth.signInWithPassword({ email, password });
   set('auth-status', error ? error.message : 'Signed in.');
-  if (!error) {
-    trackAccountFunnelEvent('account_login_succeeded', { button: 'password_login', target: ACCOUNT_PAGE_URL, state: 'password' });
-    refresh();
+  if (error) {
+    trackAccountFunnelEvent('account_login_failed', { button: 'password_login', target: '/auth/v1/token', state: 'password' });
+    return;
   }
+  trackAccountFunnelEvent('account_login_succeeded', { button: 'password_login', target: ACCOUNT_PAGE_URL, state: 'password' });
+  refresh();
 }
 
 async function passwordSignup() {
@@ -1132,6 +1412,7 @@ async function passwordSignup() {
     options: { emailRedirectTo: accountPageUrlWithPlan(metadata.selected_plan), data: metadata },
   });
   if (error) {
+    trackAccountFunnelEvent('account_signup_failed', { button: 'password_signup', target: '/auth/v1/signup', state: 'password' });
     set('auth-status', error.message);
     return;
   }
@@ -1157,7 +1438,89 @@ async function magicLogin(options = {}) {
   rememberOnboardingContext(metadata);
   const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: accountPageUrlWithPlan(metadata.selected_plan), data: metadata } });
   setAuthStatus(error ? error.message : 'Magic link sent. Check your email.', preferIntent);
-  if (!error) trackAccountFunnelEvent('account_magic_link_sent', { button, target: ACCOUNT_PAGE_URL, state: 'email' });
+  if (error) {
+    trackAccountFunnelEvent('account_magic_link_failed', { button, target: '/auth/v1/otp', state: 'email' });
+    return;
+  }
+  trackAccountFunnelEvent('account_magic_link_sent', { button, target: ACCOUNT_PAGE_URL, state: 'email' });
+}
+
+function dismissAccountAuthNudge() {
+  try {
+    window.localStorage?.setItem(ACCOUNT_AUTH_NUDGE_STORAGE_KEY, String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+  } catch (_error) {
+    // Dismissal persistence is best-effort.
+  }
+  trackAccountFunnelEvent('account_activation_nudge_dismissed', {
+    button: 'account_activation_nudge_dismiss',
+    target: '#auth-panel',
+    state: 'dismissed',
+  });
+  document.getElementById('account-auth-nudge')?.remove();
+}
+
+function mountAccountAuthNudge() {
+  if (activationState.signedIn || document.getElementById('account-auth-nudge')) return;
+  try {
+    const dismissedUntil = Number(window.localStorage?.getItem(ACCOUNT_AUTH_NUDGE_STORAGE_KEY) || 0);
+    if (dismissedUntil && dismissedUntil > Date.now()) return;
+  } catch (_error) {
+    // A missing dismissal marker should not block the conversion prompt.
+  }
+
+  const style = document.createElement('style');
+  style.textContent = `
+    #account-auth-nudge{position:fixed;right:18px;bottom:18px;z-index:40;display:grid;gap:10px;width:min(380px,calc(100vw - 36px));padding:18px;border:1px solid rgba(116,224,163,.35);border-radius:8px;background:linear-gradient(180deg,rgba(17,26,28,.97),rgba(8,13,16,.97));box-shadow:0 24px 80px rgba(0,0,0,.45);backdrop-filter:blur(18px)}
+    #account-auth-nudge strong,#account-auth-nudge span{display:block}
+    #account-auth-nudge strong{color:#edf6f7;font:900 18px/1.2 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    #account-auth-nudge span{color:#9fb2b8;font:600 14px/1.35 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    #account-auth-nudge .nudgeActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    #account-auth-nudge button{min-height:42px;border:0;border-radius:8px;padding:0 12px;font:900 13px/1 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+    #account-auth-nudge .nudgePrimary{background:linear-gradient(135deg,#74e0a3,#48c97f);color:#04150d}
+    #account-auth-nudge .nudgeSecondary{background:rgba(255,255,255,.055);color:#edf6f7;border:1px solid rgba(182,210,218,.18)}
+    #account-auth-nudge .nudgeClose{position:absolute;top:8px;right:8px;min-height:28px;width:28px;padding:0;border-radius:999px;background:rgba(255,255,255,.07);color:#9fb2b8;font-size:20px}
+    @media(max-width:560px){#account-auth-nudge{left:18px;right:18px;width:auto}#account-auth-nudge .nudgeActions{grid-template-columns:1fr}}
+  `;
+  document.head.appendChild(style);
+
+  const nudge = document.createElement('aside');
+  nudge.id = 'account-auth-nudge';
+  nudge.setAttribute('aria-label', 'Start Sage Router account activation');
+  nudge.innerHTML = `
+    <button class="nudgeClose" type="button" aria-label="Dismiss account activation prompt">×</button>
+    <div><strong>Create the key before checkout.</strong><span>Continue with GitHub, or jump to email setup. No provider key or card is required before the generated sk_sage key exists.</span></div>
+    <div class="nudgeActions"><button class="nudgePrimary" type="button" data-account-nudge-oauth>Continue with GitHub</button><button class="nudgeSecondary" type="button" data-account-nudge-email>Email setup link</button></div>
+  `;
+  nudge.querySelector('.nudgeClose')?.addEventListener('click', dismissAccountAuthNudge);
+  nudge.querySelector('[data-account-nudge-oauth]')?.addEventListener('click', () => {
+    trackAccountFunnelEvent('account_activation_nudge_clicked', {
+      button: 'account_activation_nudge_github',
+      target: '/auth/v1/authorize',
+      state: 'github',
+    });
+    oauthLogin('github', { button: 'account_activation_nudge_github', mirrorIntent: true });
+  });
+  nudge.querySelector('[data-account-nudge-email]')?.addEventListener('click', () => {
+    trackAccountFunnelEvent('account_activation_nudge_clicked', {
+      button: 'account_activation_nudge_email',
+      target: '#intent-email',
+      state: 'email',
+    });
+    focusEmailInput(true);
+    setAuthStatus('Enter your email, then Sage Router will send the API key setup link.', true);
+  });
+  document.body.appendChild(nudge);
+  trackAccountFunnelEvent('account_activation_nudge_shown', {
+    button: 'account_activation_nudge',
+    target: '#auth-panel',
+    state: 'signed_out',
+  });
+}
+
+function scheduleAccountAuthNudge() {
+  window.setTimeout(() => {
+    if (!activationState.signedIn) mountAccountAuthNudge();
+  }, 6500);
 }
 
 async function resendVerificationEmail() {
@@ -1191,6 +1554,7 @@ async function createKey() {
   set('test-api-key-status', '');
   set('test-chat-status', '');
   setBusy('create-key', true, 'Creating...');
+  const recoveryIntent = isKeyRecoveryIntent();
   try {
     const name = $('key-name')?.value || 'Default';
     trackAccountFunnelEvent('account_api_key_create_clicked', { button: 'create_key', target: '/account/api-keys', state: 'create' });
@@ -1198,10 +1562,28 @@ async function createKey() {
     const key = data.key || '';
     renderQuickstart(key);
     trackAccountFunnelEvent('account_api_key_created', { button: 'create_key', target: '/account/api-keys', state: 'created' });
-    $('key-once').innerHTML = `<p>Copy now. This key is only shown once. Next, test it against <code>/v1/models</code>, then send the first routed request.</p><div class="codeBox"><pre id="raw-api-key-once">${esc(key)}</pre><div class="copyRow"><button class="btn ghost" data-copy-target="raw-api-key-once" data-copy-label="Copy key">Copy key</button><button class="btn ghost" data-copy-target="quickstart-code" data-copy-label="Copy quickstart">Copy quickstart</button><button class="btn ghost" data-after-key-action="test-key">Test this key</button><button class="btn ghost" data-after-key-action="first-request">Send first request</button></div></div>`;
+    if (recoveryIntent) {
+      trackAccountFunnelEvent('account_key_recovery_key_created', { button: 'key_recovery_link', target: '/account/api-keys', state: 'created' });
+    }
+    const keyOnceCopy = recoveryIntent
+      ? 'Key recovered. Copy this sk_sage setup key now; it is only shown once. Verify email and checkout can follow after the key exists.'
+      : 'Copy now. This key is only shown once. Next, test it against <code>/v1/models</code>, then send the first routed request.';
+    $('key-once').innerHTML = `<p>${keyOnceCopy}</p><div class="codeBox"><pre id="raw-api-key-once">${esc(key)}</pre><div class="copyRow"><button class="btn ghost" data-copy-target="raw-api-key-once" data-copy-label="Copy key">Copy key</button><button class="btn ghost" data-copy-target="quickstart-code" data-copy-label="Copy quickstart">Copy quickstart</button><button class="btn ghost" data-after-key-action="test-key">Test this key</button><button class="btn ghost" data-after-key-action="first-request">Send first request</button></div></div>`;
+    renderLaunchNextAction({ keyCount: Math.max(1, Number(activationState.keyCount || 0)), keyVerified: false });
+    if (recoveryIntent) {
+      set('post-key-activation-status', 'Key recovered. Copy the sk_sage setup key now; then verify email and finish checkout to unlock hosted routing.');
+    }
+    trackAccountFunnelEvent('account_next_action_shown', { button: 'post_key_next_action', target: '/v1/models', state: 'verify_key' });
     refresh();
+    return true;
   } catch (error) {
+    trackAccountFunnelEvent('account_api_key_create_failed', {
+      button: 'create_key',
+      target: '/account/api-keys',
+      state: billingFailureState(error, 'key_create_failed'),
+    });
     set('key-once', error.message);
+    return false;
   } finally {
     setBusy('create-key', false);
   }
@@ -1265,11 +1647,11 @@ async function sendTestChat() {
     return;
   }
   currentRawKey = key;
-  trackAccountFunnelEvent('account_first_request_clicked', { button: 'test_chat', target: '/v1/chat/completions', state: 'sage-router/frontier' });
-  set('test-chat-status', 'Sending sage-router/frontier through the public edge...');
+  trackAccountFunnelEvent('account_first_request_clicked', { button: 'test_chat', target: '/v1/responses', state: 'sage-router/frontier' });
+  set('test-chat-status', 'Sending sage-router/frontier through the public edge Responses API...');
   setBusy('test-chat-button', true, 'Sending...');
   try {
-    const res = await fetch(`${openaiBaseUrl}/chat/completions`, {
+    const res = await fetch(`${openaiBaseUrl}/responses`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${key}`,
@@ -1278,8 +1660,8 @@ async function sendTestChat() {
       },
       body: JSON.stringify({
         model: 'sage-router/frontier',
-        messages: [{ role: 'user', content: 'Reply with one short sentence confirming Sage Router is working.' }],
-        max_tokens: 96,
+        input: 'Reply with one short sentence confirming Sage Router is working.',
+        max_output_tokens: 96,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -1287,10 +1669,10 @@ async function sendTestChat() {
       set('test-chat-status', explainModelProbeFailure(res.status, data));
       return;
     }
-    const text = data?.choices?.[0]?.message?.content || data?.output_text || 'Completion returned.';
+    const text = data?.output_text || data?.output?.[0]?.content?.[0]?.text || data?.choices?.[0]?.message?.content || 'Completion returned.';
     keyVerifiedThisSession = true;
     set('test-chat-status', `First routed completion succeeded: ${String(text).slice(0, 220)}`);
-    trackAccountFunnelEvent('account_first_request_succeeded', { button: 'test_chat', target: '/v1/chat/completions', state: 'success' });
+    trackAccountFunnelEvent('account_first_request_succeeded', { button: 'test_chat', target: '/v1/responses', state: 'success' });
     renderLaunchNextAction({ keyVerified: true, requestCount: Math.max(1, Number(activationState.requestCount || 0)) });
     setTimeout(() => refresh(), 2500);
     setTimeout(() => refresh(), 9000);
@@ -1301,9 +1683,71 @@ async function sendTestChat() {
   }
 }
 
+async function runSignedInNextAction() {
+  const action = signedInNextActionState();
+  trackAccountFunnelEvent('account_next_action_clicked', {
+    button: 'signed_in_next_action',
+    target: action.target,
+    state: action.state,
+  });
+  if (action.state === 'sign_in') {
+    $('auth-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  if (action.state === 'verify_email') {
+    $('resend-verification-email')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (verificationEmail) await resendVerificationEmail();
+    return;
+  }
+  if (action.state === 'create_key') {
+    $('create-key')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await createKey();
+    return;
+  }
+  if (action.state === 'checkout') {
+    if (stripeCheckoutReadyForPlan(selectedPlan)) await stripeCheckout({ button: 'signed_in_next_action', state: 'next_action_checkout' });
+    else $('crypto-intent')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  if (action.state === 'verify_key') {
+    if (!hasSessionApiKey()) {
+      focusApiKeyVerifier('Paste the sk_sage key shown once above, or create a fresh key to populate the verifier.');
+      return;
+    }
+    await testApiKey();
+    return;
+  }
+  if (action.state === 'first_request') {
+    if (!hasSessionApiKey()) {
+      focusApiKeyVerifier('Paste the sk_sage key shown once above, or create a fresh key to send the first request.');
+      return;
+    }
+    await sendTestChat();
+    return;
+  }
+  if (action.state === 'dashboard') {
+    window.location.href = '/analytics.html';
+  }
+}
+
 async function stripeCheckout(options = {}) {
   let redirecting = false;
   const button = options.button || 'stripe_checkout';
+  if (checkoutNeedsGeneratedKeyFirst()) {
+    set('billing-status', 'Create the generated sk_sage setup key first. Checkout unlocks routing after the key exists.');
+    trackAccountFunnelEvent('account_checkout_key_first_redirected', {
+      button,
+      target: '/account/api-keys',
+      state: 'checkout_key_first',
+    });
+    $('create-key')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const created = await createKey();
+    if (created && !activationState.emailVerified) {
+      set('email-verification-status', 'Setup key created. Verify your email next so checkout and hosted routing can unlock it.');
+      $('resend-verification-email')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    return;
+  }
   if (!stripeCheckoutReadyForPlan(selectedPlan)) {
     const message = stripeCheckoutUnavailableMessage(selectedPlan);
     set('billing-status', message);
@@ -1436,6 +1880,30 @@ $('stripe-checkout')?.addEventListener('click', stripeCheckout);
 $('stripe-portal')?.addEventListener('click', billingPortal);
 $('crypto-intent')?.addEventListener('click', cryptoIntent);
 $('crypto-status-check')?.addEventListener('click', cryptoStatus);
+$('signed-in-next-button')?.addEventListener('click', runSignedInNextAction);
+$('key-recovery-email-focus')?.addEventListener('click', () => {
+  trackAccountFunnelEvent('account_key_recovery_same_email_selected', {
+    button: 'key_recovery_email_focus',
+    target: '#intent-email',
+    state: requestedKeyRecoveryStateFromUrl(),
+  });
+  set('key-recovery-dock-status', 'Enter the same signup email, then send the setup magic link.');
+  focusEmailInput(true);
+});
+$('key-recovery-github')?.addEventListener('click', async () => {
+  trackAccountFunnelEvent('account_key_recovery_github_selected', {
+    button: 'key_recovery_github',
+    target: '/auth/v1/authorize',
+    state: 'github',
+  });
+  if (latestOauthExternalState?.github === false) {
+    set('key-recovery-dock-status', 'GitHub OAuth is not enabled right now. Use the same-email magic link.');
+    focusEmailInput(true);
+    return;
+  }
+  set('key-recovery-dock-status', 'Opening GitHub. Continue only if it is the same signup account.');
+  await oauthLogin('github', { button: 'key_recovery_github', mirrorIntent: true });
+});
 async function handleIntentPrimary(event) {
   event?.preventDefault?.();
   trackAccountFunnelEvent('account_intent_primary_clicked', {
@@ -1445,10 +1913,6 @@ async function handleIntentPrimary(event) {
   });
   if (!activationState.signedIn) {
     await magicLogin({ button: 'intent_primary', preferIntent: true });
-    return;
-  }
-  if (!activationState.emailVerified) {
-    $('resend-verification-email')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
   if (!activationState.keyCount) {
@@ -1462,11 +1926,19 @@ async function handleIntentPrimary(event) {
       state: 'create_key_direct'
     });
     try {
-      await createKey();
+      const created = await createKey();
       $('key-once')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (created && !activationState.emailVerified) {
+        set('email-verification-status', 'Setup key created. Verify your email next so checkout and hosted routing can unlock it.');
+        $('resend-verification-email')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     } finally {
       setElementBusy(intentButton, false);
     }
+    return;
+  }
+  if (!activationState.emailVerified) {
+    $('resend-verification-email')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
   if (!activationState.routingEnabled) {
@@ -1551,14 +2023,14 @@ document.addEventListener('click', async (event) => {
     if (!hasSessionApiKey()) {
       trackAccountFunnelEvent(action === 'first-request' ? 'account_post_key_first_request_clicked' : 'account_post_key_verify_clicked', {
         button: postKeyButton.textContent.trim() || action,
-        target: action === 'first-request' ? '/v1/chat/completions' : '/v1/models',
+        target: action === 'first-request' ? '/v1/responses' : '/v1/models',
         state: 'missing_session_key',
       });
       focusApiKeyVerifier('Paste an existing sk_sage key or create a fresh key before running this step.');
       return;
     }
     if (action === 'first-request') {
-      trackAccountFunnelEvent('account_post_key_first_request_clicked', { button: postKeyButton.textContent.trim() || 'Send first request', target: '/v1/chat/completions', state: 'sage-router/frontier' });
+      trackAccountFunnelEvent('account_post_key_first_request_clicked', { button: postKeyButton.textContent.trim() || 'Send first request', target: '/v1/responses', state: 'sage-router/frontier' });
       await sendTestChat();
     } else {
       trackAccountFunnelEvent('account_post_key_verify_clicked', { button: postKeyButton.textContent.trim() || 'Verify /v1/models', target: '/v1/models', state: 'models' });
@@ -1574,7 +2046,7 @@ document.addEventListener('click', async (event) => {
       state: 'preauth_setup_next',
       snippet: 'preauth-setup-before-signup',
     });
-    set('intent-email-status', 'Enter your email to send the Pro setup link.');
+    set('intent-email-status', 'Enter your email to send the API key setup link.');
     focusEmailInput(true);
     return;
   }
@@ -1622,6 +2094,14 @@ trackAccountFunnelEvent('account_viewed', {
   button: requestedPlanFromUrl() ? 'pricing_plan_link' : 'direct',
   state: requestedPlanFromUrl() ? 'plan_prefilled' : 'default',
 });
+if (pendingStartAction === 'create_key') {
+  trackAccountFunnelEvent('account_key_recovery_viewed', {
+    button: 'key_recovery_link',
+    target: '/account.html',
+    state: requestedKeyRecoveryStateFromUrl(),
+  });
+}
 refresh();
 handleBillingReturn();
 applyAuthSettings();
+scheduleAccountAuthNudge();

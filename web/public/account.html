@@ -37,18 +37,24 @@
       <h2>Sign up</h2>
       <div class="intentBanner">
         <strong id="account-intent-title">Pro activation path selected</strong>
-        <p id="account-intent-copy">No provider key is required to create an account. Sign in by email, create a generated <code>sk_sage_*</code> key first, then complete checkout to unlock routing.</p>
-        <div id="intent-oauth-actions" class="intentOauthActions" aria-label="One-click signup options"><button data-oauth="github" data-intent-oauth="true" class="btn hidden" disabled>Continue with GitHub</button><button data-oauth="google" data-intent-oauth="true" class="btn hidden" disabled>Continue with Google</button><button data-oauth="discord" data-intent-oauth="true" class="btn hidden" disabled>Continue with Discord</button></div>
-        <form id="intent-email-form" class="intentEmailStart"><div id="intent-email-field" class="intentEmailField"><label for="intent-email">Email for setup link</label><input id="intent-email" type="email" autocomplete="email" placeholder="you@company.com"></div><button id="intent-primary" class="btn" type="submit">Email me the Pro setup link</button></form>
-        <p id="intent-email-status" class="intentEmailStatus" role="status" aria-live="polite">Enter your email to receive the selected plan setup link.</p>
+        <p id="account-intent-copy">No provider key or credit card is required until your generated <code>sk_sage_*</code> key exists. Sign in by email, create the key first, then complete checkout to unlock routing.</p>
+        <div id="intent-oauth-actions" class="intentOauthActions" aria-label="One-click signup options"><button data-oauth="github" data-intent-oauth="true" class="btn recommended">Continue with GitHub for Pro</button><button data-oauth="google" data-intent-oauth="true" class="btn">Continue with Google</button><button data-oauth="discord" data-intent-oauth="true" class="btn">Continue with Discord</button></div>
+        <form id="intent-email-form" class="intentEmailStart"><div id="intent-email-field" class="intentEmailField"><label for="intent-email">Email for setup link</label><input id="intent-email" type="email" autocomplete="email" placeholder="you@company.com"></div><button id="intent-primary" class="btn" type="submit">Email API key setup link</button></form>
+        <p id="intent-email-status" class="intentEmailStatus" role="status" aria-live="polite">Enter your email to receive the API key setup link for the selected plan.</p>
         <div class="intentMeta"><span id="account-intent-plan" class="pill">Pro</span><span id="account-intent-checkout" class="pill">Stripe checkout ready</span></div>
+      </div>
+      <div id="key-recovery-dock" class="intentBanner hidden">
+        <strong>Finish the setup key on the same account</strong>
+        <p id="key-recovery-dock-copy">Use the same email or OAuth identity from signup. The next signed-in step creates the generated <code>sk_sage_*</code> key before checkout.</p>
+        <div class="actions"><button id="key-recovery-email-focus" class="btn" type="button">Use same-email magic link</button><button id="key-recovery-github" class="btn secondary" type="button">Use GitHub only if same account</button></div>
+        <p id="key-recovery-dock-status" class="intentEmailStatus" role="status" aria-live="polite">Same-email recovery avoids creating a second no-key account.</p>
       </div>
       <div class="codeBox">
         <pre id="preauth-setup-code"></pre>
         <div class="copyRow"><button class="btn ghost" data-copy-target="preauth-setup-code" data-copy-label="Copy setup before signup">Copy setup before signup</button><button class="btn ghost" data-preauth-focus-email type="button">Email setup link next</button></div>
       </div>
       <p>Fastest path: continue with an enabled OAuth provider, or enter your email and use a magic link. Password sign-in is available when you need it.</p>
-      <div class="actions"><button data-oauth="discord" class="btn hidden" disabled>Discord</button><button data-oauth="google" class="btn hidden" disabled>Google</button><button data-oauth="github" class="btn hidden" disabled>GitHub</button></div>
+      <div class="actions"><button data-oauth="github" class="btn">GitHub</button><button data-oauth="google" class="btn">Google</button><button data-oauth="discord" class="btn">Discord</button></div>
       <div id="oauth-status" class="status">Checking enabled OAuth providers...</div>
       <h3>Pick a hosted plan first</h3>
       <p class="small">Selection is saved in this browser and used after sign-in for checkout.</p>
@@ -76,6 +82,11 @@
         <h2>Account</h2>
         <p id="account-status">Loading...</p>
         <p id="email-verification-status" class="status"></p>
+        <div class="intentBanner" id="signed-in-next-action">
+          <strong id="signed-in-next-title">Finish activation</strong>
+          <p id="signed-in-next-copy">Create an API key, verify it against the public edge, then send the first routed request.</p>
+          <div class="actions"><button id="signed-in-next-button" class="btn" type="button">Create API key</button></div>
+        </div>
         <div class="actions"><button id="resend-verification-email" class="btn secondary hidden" type="button">Resend verification email</button></div>
         <p id="routing-status"></p>
         <div class="actions"><a class="btn secondary" href="/analytics.html">Open dashboard</a></div>
@@ -89,7 +100,7 @@
           <div class="activationItem"><span id="launch-key-status" class="pill">Waiting</span><div><strong>Generated key</strong><p class="small">Create at least one active <code>sk_sage_*</code> key.</p></div></div>
           <div class="activationItem"><span id="launch-plan-status" class="pill">Waiting</span><div><strong>Paid routing</strong><p class="small">Choose Lite, Pro, or Max so generated keys can route production traffic.</p></div></div>
           <div class="activationItem"><span id="launch-verify-status" class="pill">Waiting</span><div><strong>Public edge verification</strong><p class="small">Use the verifier below to check <code>/v1/models</code> before wiring an agent.</p></div></div>
-          <div class="activationItem"><span id="launch-first-request-status" class="pill">Waiting</span><div><strong>First routed request</strong><p class="small">Run the quickstart chat completion and refresh usage after it succeeds.</p></div></div>
+          <div class="activationItem"><span id="launch-first-request-status" class="pill">Waiting</span><div><strong>First routed request</strong><p class="small">Run the browser Responses API probe and refresh usage after it succeeds.</p></div></div>
         </div>
         <p id="launch-next-action" class="status small"></p>
       </div>
@@ -157,7 +168,7 @@
 
       <div class="panel">
         <h3>OpenAI-compatible quickstart</h3>
-        <p class="small">After creating a key, send a first hosted request from this browser or copy the command for your own shell.</p>
+        <p class="small">After creating a key, send a first hosted Responses API request from this browser or copy the command for your own shell.</p>
         <div class="actions"><button id="test-chat-button" class="btn">Send test request</button></div>
         <div id="test-chat-status" class="status"></div>
         <div class="codeBox">
