@@ -862,6 +862,15 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "/admin/customers" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-customer-review-call"
   fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "/admin/customers/send-activation-followups" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-activation-followup-sender"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "data-send-followups" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-activation-followup-send-controls"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "operator_no_key_followup_sent" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-activation-followup-send-telemetry"
+  fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderReviewFlags" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-customer-review-flags"
   fi

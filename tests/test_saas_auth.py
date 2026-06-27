@@ -58,6 +58,12 @@ class SaaSAuthTests(unittest.TestCase):
             'read_launch_waitlist_counts': router.read_launch_waitlist_counts,
             'read_launch_marketing_funnel_counts': router.read_launch_marketing_funnel_counts,
             'read_launch_auth_user_rows': router.read_launch_auth_user_rows,
+            'ACTIVATION_EMAIL_PROVIDER': router.ACTIVATION_EMAIL_PROVIDER,
+            'ACTIVATION_EMAIL_API_KEY': router.ACTIVATION_EMAIL_API_KEY,
+            'ACTIVATION_EMAIL_FROM': router.ACTIVATION_EMAIL_FROM,
+            'ACTIVATION_EMAIL_REPLY_TO': router.ACTIVATION_EMAIL_REPLY_TO,
+            'ACTIVATION_EMAIL_MAX_BATCH': router.ACTIVATION_EMAIL_MAX_BATCH,
+            'send_activation_email': router.send_activation_email,
         }
         router.CUSTOMER_STORE_PATH = os.path.join(self.tmp.name, 'customers.json')
         router.SUPABASE_URL = ''
@@ -84,6 +90,11 @@ class SaaSAuthTests(unittest.TestCase):
         router.ROUTE_EVENTS_PATH = os.path.join(self.tmp.name, 'route-events.jsonl')
         router.FIRESTORE_ENABLED = False
         router.SUPABASE_MIRROR_ENABLED = False
+        router.ACTIVATION_EMAIL_PROVIDER = 'resend'
+        router.ACTIVATION_EMAIL_API_KEY = ''
+        router.ACTIVATION_EMAIL_FROM = ''
+        router.ACTIVATION_EMAIL_REPLY_TO = ''
+        router.ACTIVATION_EMAIL_MAX_BATCH = 25
 
     def tearDown(self):
         router.CUSTOMER_STORE_PATH = self.old['CUSTOMER_STORE_PATH']
@@ -117,6 +128,12 @@ class SaaSAuthTests(unittest.TestCase):
         router.read_launch_waitlist_counts = self.old['read_launch_waitlist_counts']
         router.read_launch_marketing_funnel_counts = self.old['read_launch_marketing_funnel_counts']
         router.read_launch_auth_user_rows = self.old['read_launch_auth_user_rows']
+        router.ACTIVATION_EMAIL_PROVIDER = self.old['ACTIVATION_EMAIL_PROVIDER']
+        router.ACTIVATION_EMAIL_API_KEY = self.old['ACTIVATION_EMAIL_API_KEY']
+        router.ACTIVATION_EMAIL_FROM = self.old['ACTIVATION_EMAIL_FROM']
+        router.ACTIVATION_EMAIL_REPLY_TO = self.old['ACTIVATION_EMAIL_REPLY_TO']
+        router.ACTIVATION_EMAIL_MAX_BATCH = self.old['ACTIVATION_EMAIL_MAX_BATCH']
+        router.send_activation_email = self.old['send_activation_email']
         if self._billing_env is None:
             os.environ.pop('SAGE_ROUTER_BILLING_ENABLED', None)
         else:
@@ -704,6 +721,101 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('verified@example.com', export.payload['csv'])
         self.assertNotIn('api_key_hash', json.dumps(export.payload))
         self.assertNotIn('sk_sage_', json.dumps(export.payload))
+
+    def test_operator_activation_followup_sender_is_gated_and_dry_runnable(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        router.SUPABASE_AUTH_ENABLED = True
+        verified = router.customer_for_user({'id': 'send-verified', 'email': 'verified-send@example.com'})
+        unverified = router.customer_for_user({'id': 'send-unverified', 'email': 'unverified-send@example.com'})
+        router.update_customer(verified['id'], {'plan': 'free', 'status': 'inactive'})
+        router.update_customer(unverified['id'], {'plan': 'free', 'status': 'inactive'})
+        router.read_launch_auth_user_rows = lambda limit=1000: [
+            {'id': 'send-verified', 'email': 'verified-send@example.com', 'email_confirmed': True},
+            {'id': 'send-unverified', 'email': 'unverified-send@example.com', 'email_confirmed': False},
+        ]
+
+        class Dummy:
+            def __init__(self, body):
+                self.path = '/admin/customers/send-activation-followups'
+                self.headers = {
+                    'Authorization': 'Bearer operator-token',
+                    'Content-Length': str(len(body)),
+                    'Origin': 'https://app.sagerouter.dev',
+                }
+                self.rfile = BytesIO(body)
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        dry_run = Dummy(b'{"status":"inactive","segment":"verified","dryRun":true,"limit":10}')
+        router.Handler.do_POST(dry_run)
+        self.assertEqual(200, dry_run.status)
+        self.assertEqual('activation_followup_send', dry_run.payload['kind'])
+        self.assertTrue(dry_run.payload['dryRun'])
+        self.assertFalse(dry_run.payload['configured'])
+        self.assertEqual(1, dry_run.payload['queued'])
+        self.assertEqual(0, dry_run.payload['sent'])
+        self.assertEqual('verified-send@example.com', dry_run.payload['results'][0]['email'])
+        self.assertEqual('dry_run', dry_run.payload['results'][0]['status'])
+
+        not_configured = Dummy(b'{"status":"inactive","segment":"verified","limit":10}')
+        router.Handler.do_POST(not_configured)
+        self.assertEqual(503, not_configured.status)
+        self.assertEqual('activation_email_not_configured', not_configured.payload['error'])
+        self.assertEqual(1, not_configured.payload['failed'])
+        self.assertIn('SAGE_ROUTER_ACTIVATION_EMAIL_FROM', not_configured.payload['requiredEnv'])
+        self.assertTrue(not_configured.payload['privacy']['operatorOnly'])
+        self.assertTrue(not_configured.payload['privacy']['containsEmails'])
+        self.assertFalse(not_configured.payload['privacy']['containsRawApiKeys'])
+        self.assertNotIn('api_key_hash', json.dumps(not_configured.payload))
+        self.assertNotIn('sk_sage_', json.dumps(not_configured.payload))
+
+    def test_operator_activation_followup_sender_uses_configured_provider(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        router.SUPABASE_AUTH_ENABLED = True
+        router.ACTIVATION_EMAIL_API_KEY = 'resend-key'
+        router.ACTIVATION_EMAIL_FROM = 'Sage Router <activation@sagerouter.dev>'
+        router.ACTIVATION_EMAIL_REPLY_TO = 'support@sagerouter.dev'
+        customer = router.customer_for_user({'id': 'send-configured', 'email': 'buyer@example.com'})
+        router.update_customer(customer['id'], {'plan': 'free', 'status': 'inactive'})
+        router.read_launch_auth_user_rows = lambda limit=1000: [
+            {'id': 'send-configured', 'email': 'buyer@example.com', 'email_confirmed': True},
+        ]
+        sent = []
+        router.send_activation_email = lambda contact: sent.append(contact) or {'id': 'email_123', 'status': 200}
+        body = b'{"status":"inactive","limit":10}'
+
+        class Dummy:
+            path = '/admin/customers/send-activation-followups'
+            headers = {
+                'Authorization': 'Bearer operator-token',
+                'Content-Length': str(len(body)),
+                'Origin': 'https://app.sagerouter.dev',
+            }
+            rfile = BytesIO(body)
+            status = None
+            payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        handler = Dummy()
+        router.Handler.do_POST(handler)
+
+        self.assertEqual(200, handler.status)
+        self.assertTrue(handler.payload['configured'])
+        self.assertFalse(handler.payload['dryRun'])
+        self.assertEqual(1, handler.payload['sent'])
+        self.assertEqual(0, handler.payload['failed'])
+        self.assertEqual('sent', handler.payload['results'][0]['status'])
+        self.assertEqual('email_123', handler.payload['results'][0]['providerMessageId'])
+        self.assertEqual(1, len(sent))
+        self.assertEqual('buyer@example.com', sent[0]['email'])
+        self.assertIn('generated sk_sage setup key', sent[0]['body'])
 
     def test_operator_can_hydrate_auth_signups_to_inactive_customers(self):
         router.CLIENT_API_KEYS = ['operator-token']

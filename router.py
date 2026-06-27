@@ -240,6 +240,16 @@ CUSTOMER_STORE_PATH = os.path.expanduser(os.environ.get('SAGE_ROUTER_CUSTOMER_ST
 API_KEY_PREFIX = os.environ.get('SAGE_ROUTER_API_KEY_PREFIX', 'sk_sage_')
 API_KEY_HASH_PEPPER = os.environ.get('SAGE_ROUTER_API_KEY_HASH_PEPPER') or os.environ.get('SAGE_ROUTER_SIGNING_SECRET') or ''
 MAX_ACTIVE_API_KEYS_PER_CUSTOMER = int(os.environ.get('SAGE_ROUTER_MAX_ACTIVE_API_KEYS_PER_CUSTOMER', '5'))
+ACTIVATION_EMAIL_PROVIDER = os.environ.get('SAGE_ROUTER_ACTIVATION_EMAIL_PROVIDER', 'resend').strip().lower()
+ACTIVATION_EMAIL_API_KEY = (
+    os.environ.get('SAGE_ROUTER_ACTIVATION_EMAIL_API_KEY')
+    or os.environ.get('SAGE_ROUTER_RESEND_API_KEY')
+    or os.environ.get('RESEND_API_KEY')
+    or ''
+)
+ACTIVATION_EMAIL_FROM = os.environ.get('SAGE_ROUTER_ACTIVATION_EMAIL_FROM', '').strip()
+ACTIVATION_EMAIL_REPLY_TO = os.environ.get('SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO', '').strip()
+ACTIVATION_EMAIL_MAX_BATCH = max(1, min(int(os.environ.get('SAGE_ROUTER_ACTIVATION_EMAIL_MAX_BATCH', '25') or '25'), 100))
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY') or os.environ.get('SAGE_ROUTER_STRIPE_SECRET_KEY') or ''
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET') or os.environ.get('SAGE_ROUTER_STRIPE_WEBHOOK_SECRET') or ''
 STRIPE_PRICE_ID = os.environ.get('SAGE_ROUTER_STRIPE_PRICE_ID') or os.environ.get('STRIPE_PRICE_ID') or ''
@@ -8669,6 +8679,128 @@ def operator_activation_contact_export(customers):
     }
 
 
+def activation_email_configured():
+    return bool(
+        ACTIVATION_EMAIL_PROVIDER == 'resend'
+        and ACTIVATION_EMAIL_API_KEY
+        and ACTIVATION_EMAIL_FROM
+    )
+
+
+def send_activation_email(contact):
+    if ACTIVATION_EMAIL_PROVIDER != 'resend':
+        raise RuntimeError('activation_email_provider_unsupported')
+    if not activation_email_configured():
+        raise RuntimeError('activation_email_not_configured')
+    payload = {
+        'from': ACTIVATION_EMAIL_FROM,
+        'to': [contact.get('email') or ''],
+        'subject': contact.get('subject') or operator_activation_contact_subject(contact.get('emailVerificationSegment')),
+        'text': contact.get('body') or '',
+    }
+    if ACTIVATION_EMAIL_REPLY_TO:
+        payload['reply_to'] = [ACTIVATION_EMAIL_REPLY_TO]
+    req = urllib.request.Request(
+        'https://api.resend.com/emails',
+        data=json.dumps(payload).encode('utf-8'),
+        headers={
+            'Authorization': f'Bearer {ACTIVATION_EMAIL_API_KEY}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'User-Agent': 'sage-router-activation-followup/1.0',
+        },
+        method='POST',
+    )
+    with urllib.request.urlopen(req, timeout=12) as resp:
+        raw = resp.read().decode('utf-8')
+        try:
+            body = json.loads(raw) if raw else {}
+        except Exception:
+            body = {}
+        return {
+            'status': resp.status,
+            'provider': 'resend',
+            'id': body.get('id'),
+        }
+
+
+def operator_activation_followup_send(customers, segment='', limit=25, dry_run=False):
+    export = operator_activation_contact_export(customers)
+    requested_segment = str(segment or '').strip().lower()
+    max_limit = max(1, min(int(limit or ACTIVATION_EMAIL_MAX_BATCH), ACTIVATION_EMAIL_MAX_BATCH))
+    contacts = export.get('contacts') or []
+    if requested_segment and requested_segment not in {'all', '*'}:
+        contacts = [
+            contact for contact in contacts
+            if str(contact.get('emailVerificationSegment') or '').strip().lower() == requested_segment
+        ]
+    contacts = contacts[:max_limit]
+    configured = activation_email_configured()
+    result = {
+        'kind': 'activation_followup_send',
+        'provider': ACTIVATION_EMAIL_PROVIDER or 'resend',
+        'configured': configured,
+        'dryRun': bool(dry_run),
+        'requestedSegment': requested_segment or 'all',
+        'limit': max_limit,
+        'queued': len(contacts),
+        'sent': 0,
+        'failed': 0,
+        'results': [],
+        'segments': {},
+        'plans': {},
+        'privacy': {
+            'operatorOnly': True,
+            'containsEmails': True,
+            'containsCustomerIds': False,
+            'containsRawApiKeys': False,
+            'containsApiKeys': False,
+            'containsApiKeyHashes': False,
+            'containsProviderCredentials': False,
+            'containsPrompts': False,
+            'containsRawProviderResponses': False,
+            'sendsEmailWhenConfigured': configured and not dry_run,
+        },
+    }
+    for contact in contacts:
+        segment_name = contact.get('emailVerificationSegment') or 'unknown'
+        plan = contact.get('suggestedPlan') or 'pro'
+        result['segments'][segment_name] = result['segments'].get(segment_name, 0) + 1
+        result['plans'][plan] = result['plans'].get(plan, 0) + 1
+        row = {
+            'sendOrder': contact.get('sendOrder'),
+            'email': contact.get('email'),
+            'emailVerificationSegment': segment_name,
+            'suggestedPlan': plan,
+            'subject': contact.get('subject'),
+        }
+        if dry_run:
+            row['status'] = 'dry_run'
+            result['results'].append(row)
+            continue
+        if not configured:
+            row['status'] = 'not_configured'
+            result['failed'] += 1
+            result['results'].append(row)
+            continue
+        try:
+            sent = send_activation_email(contact)
+            row.update({'status': 'sent', 'providerMessageId': sent.get('id')})
+            result['sent'] += 1
+        except Exception as e:
+            logger.warning(f'Activation follow-up send failed: {extract_http_error(e)}')
+            row.update({'status': 'failed', 'error': 'activation_email_send_failed'})
+            result['failed'] += 1
+        result['results'].append(row)
+    if not configured and not dry_run:
+        result['error'] = 'activation_email_not_configured'
+        result['requiredEnv'] = [
+            'SAGE_ROUTER_ACTIVATION_EMAIL_FROM',
+            'SAGE_ROUTER_RESEND_API_KEY or SAGE_ROUTER_ACTIVATION_EMAIL_API_KEY',
+        ]
+    return result
+
+
 def launch_activation_follow_ups(customers, api_keys, since=0, now=None, auth_users=None):
     """Return privacy-safe aggregate follow-ups for signups blocked before key creation."""
     now = int(now or now_epoch())
@@ -14978,6 +15110,30 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 logger.exception('Auth signup customer hydration failed')
                 self.write_json(500, {'error': 'auth_signup_customer_hydration_failed', 'detail': str(e)})
+            return
+        if request_path == '/admin/customers/send-activation-followups':
+            if not require_trusted_browser_origin(self):
+                return
+            if not require_operator_request(self):
+                return
+            try:
+                payload = read_json_body(self)
+                limit = max(1, min(int(payload.get('limit') or ACTIVATION_EMAIL_MAX_BATCH), ACTIVATION_EMAIL_MAX_BATCH))
+                rows = operator_customer_rows(
+                    query=payload.get('q') or payload.get('query') or '',
+                    status=payload.get('status') or 'inactive',
+                    limit=limit,
+                )
+                result = operator_activation_followup_send(
+                    rows,
+                    segment=payload.get('segment') or '',
+                    limit=limit,
+                    dry_run=bool(payload.get('dryRun') or payload.get('dry_run')),
+                )
+                self.write_json(200 if result.get('configured') or result.get('dryRun') else 503, result)
+            except Exception as e:
+                logger.exception('Activation follow-up send failed')
+                self.write_json(500, {'error': 'activation_followup_send_failed', 'detail': extract_http_error(e)})
             return
         if request_path == '/api/restart':
             if not require_operator_request(self):

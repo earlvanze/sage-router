@@ -499,6 +499,11 @@ provider resale claim, or runtime feature flag.
   actions, and provide per-customer plus batch snippet copy for outreach without
   raw generated keys, key hashes, prompts, provider credentials, or raw provider
   responses.
+- Allow the queue to become real outreach when configured: private
+  `POST /admin/customers/send-activation-followups` may send the same
+  generated-key-first recovery drafts through the configured Resend sender,
+  must support dry runs, and must fail closed with required env names when no
+  activation email provider is configured.
 - Track operator follow-up work separately from queued follow-ups:
   per-customer and batch copy actions emit privacy-safe
   `operator_no_key_followup_*` events, and `/analytics/funnel` exposes
