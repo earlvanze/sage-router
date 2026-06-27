@@ -865,6 +865,9 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "/admin/customers/send-activation-followups" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-activation-followup-sender"
   fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "Activation email sender" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-activation-email-readiness"
+  fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "data-send-followups" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-activation-followup-send-controls"
   fi

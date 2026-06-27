@@ -6748,6 +6748,7 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
     github_url = urls.get('githubOAuth') or launch_activation_follow_up_url(plan, auth='github')
     counts = activation_follow_ups.get('countsByEmailVerification') if isinstance(activation_follow_ups.get('countsByEmailVerification'), dict) else {}
     evidence = next_best_action.get('evidence') if isinstance(next_best_action.get('evidence'), dict) else {}
+    email_readiness = activation_follow_ups.get('emailReadiness') if isinstance(activation_follow_ups.get('emailReadiness'), dict) else activation_email_readiness()
     recommended_segments = [
         segment for segment in (evidence.get('recommendedSegments') or [])
         if isinstance(segment, str) and segment
@@ -6819,8 +6820,10 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
             'keyCreateSuccessEvents': sorted(KEY_CREATE_SUCCESS_EVENTS),
             'successMetric': next_best_action.get('successMetric') or activation_follow_ups.get('successMetric') or 'Move no-key signups into generated-key accounts, then first routed request.',
         },
+        'emailReadiness': email_readiness,
         'instructions': [
             'Send or copy the draft to the queued signup segment.',
+            email_readiness.get('operatorAction') or 'Dry-run the activation sender before real outreach.',
             'Mark the segment worked only after real outreach is sent or copied into the outbound channel.',
             'Refresh the funnel and watch keyRecoveryViews, keyCreateAttempts, and customersWithGeneratedApiKeys.',
         ],
@@ -8005,6 +8008,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'keyCreateFailures': int(marketing_metrics.get('keyCreateFailures') or 0),
             'keyCreateFailuresByState': marketing_metrics.get('keyCreateFailuresByState') or {},
         }
+    activation_follow_ups['emailReadiness'] = activation_email_readiness()
     auth_provider_state = launch_auth_provider_state(marketing_metrics)
     next_best_action = launch_next_best_action(
         stages,
@@ -8760,6 +8764,36 @@ def activation_email_configured():
         and ACTIVATION_EMAIL_API_KEY
         and ACTIVATION_EMAIL_FROM
     )
+
+
+def activation_email_readiness():
+    configured = activation_email_configured()
+    return {
+        'provider': ACTIVATION_EMAIL_PROVIDER or 'resend',
+        'configured': configured,
+        'sendEndpoint': '/admin/customers/send-activation-followups',
+        'dryRunSupported': True,
+        'sendsEmailWhenConfigured': configured,
+        'fromConfigured': bool(ACTIVATION_EMAIL_FROM),
+        'apiKeyConfigured': bool(ACTIVATION_EMAIL_API_KEY),
+        'replyToConfigured': bool(ACTIVATION_EMAIL_REPLY_TO),
+        'maxBatch': ACTIVATION_EMAIL_MAX_BATCH,
+        'requiredEnv': [] if configured else [
+            'SAGE_ROUTER_ACTIVATION_EMAIL_FROM',
+            'SAGE_ROUTER_RESEND_API_KEY or SAGE_ROUTER_ACTIVATION_EMAIL_API_KEY',
+        ],
+        'operatorAction': (
+            'Use Send from the operator dashboard after dry-run verification.'
+            if configured
+            else 'Configure the activation email sender or use the mailto/copy fallback for signup-to-key recovery.'
+        ),
+        'privacy': {
+            'containsSecrets': False,
+            'containsApiKeyValues': False,
+            'containsProviderCredentials': False,
+            'containsEmails': False,
+        },
+    }
 
 
 def send_activation_email(contact):

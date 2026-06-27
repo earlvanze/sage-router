@@ -649,6 +649,7 @@ function buildLaunchBrief(data = {}) {
   const authState = marketingIntent.authProviderState || {};
   const managedAccessDemand = data.managedAccessDemand || {};
   const activationFollowUps = data.activationFollowUps || {};
+  const activationEmailReadiness = activationFollowUps.emailReadiness || {};
   const noKeyVerification = activationFollowUps.countsByEmailVerification || {};
   const acquisitionActions = data.acquisitionActions || marketingIntent.acquisitionActions || [];
   const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
@@ -675,6 +676,7 @@ function buildLaunchBrief(data = {}) {
     `- Signups: ${integer(stages.signups)}; generated-key accounts: ${integer(stages.customersWithGeneratedApiKeys ?? stages.generatedApiKeys)}; first routed request: ${integer(stages.customersWithFirstRoutedRequest ?? stages.firstRoutedRequest)}`,
     `- Generated-key to first request: ${percent(rates.generatedKeyToFirstRequest)}; setup-copy to first request: ${percent(rates.setupCopyToFirstRequest)}`,
     `- No-key follow-ups queued: ${integer(activationFollowUps.total)} total, ${integer(activationFollowUps.windowedNewSignups)} new in-window; worked: ${integer(activationFollowUps.operatorFollowUpWorked)}; copied/opened: ${integer(activationFollowUps.operatorFollowUpCopies)}; key-first redirects: ${integer(activationFollowUps.keyFirstRedirects)}. Action: ${activationFollowUps.recommendedOperatorAction || 'Send the generated-key-first follow-up.'}`,
+    `- Activation email sender: ${activationEmailReadiness.configured ? 'configured' : 'fallback only'} via ${activationEmailReadiness.provider || 'resend'}; dry run ${activationEmailReadiness.dryRunSupported ? 'supported' : 'not reported'}; action: ${activationEmailReadiness.operatorAction || 'Use copy/mailto fallback until sender config is ready.'}`,
     `- No-key email verification: verified ${integer(noKeyVerification.verified)}, unverified ${integer(noKeyVerification.unverified)}, missing ${integer(noKeyVerification.missing_auth_user || noKeyVerification.missing_user_id)}, unavailable ${integer(noKeyVerification.unavailable)}`,
     `- Follow-up CTA: ${activationFollowUps.primaryCtaUrl || activationFollowUpUrl({}, { auth: false })}`,
     `- Checkout unavailable: ${integer(checkoutFriction.unavailableEvents)} / ${integer(checkoutFriction.totalCheckoutIntent)} intent events (${percent(checkoutFriction.unavailableRate)})`,
@@ -749,12 +751,14 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
   const draft = packet.draft || {};
   const segmentActions = Array.isArray(packet.segmentActions) ? packet.segmentActions : [];
   const instructions = Array.isArray(packet.instructions) ? packet.instructions : [];
+  const emailReadiness = packet.emailReadiness || data.activationFollowUps?.emailReadiness || {};
   const authPosture = operatorAuthPosture(data);
   return [
     `${packet.title || 'Operator execution packet'} (${packet.kind || 'none'})`,
     `Priority: ${packet.priority || 'monitor'} | Owner: ${packet.owner || 'Operator'} | Metric: ${packet.metric || 'launch'}`,
     `Queued: ${integer(packet.totalQueued)} total, ${integer(packet.windowedNewSignups)} new in-window`,
     `Auth posture: ${authPosture.label}. ${authPosture.action}`,
+    `Activation email sender: ${emailReadiness.configured ? 'configured' : 'fallback only'} via ${emailReadiness.provider || 'resend'}; endpoint=${emailReadiness.sendEndpoint || '/admin/customers/send-activation-followups'}; requiredEnv=${(emailReadiness.requiredEnv || []).join(', ') || 'none'}`,
     `Privacy: aggregateOnly=${privacy.aggregateOnly === true}; emails=${privacy.containsEmails === true}; customerIds=${privacy.containsCustomerIds === true}; apiKeys=${privacy.containsApiKeys === true}; prompts=${privacy.containsPrompts === true}; oauthTokens=${privacy.containsOAuthTokens === true}`,
     '',
     'Segments:',
@@ -793,6 +797,7 @@ function renderOperatorExecutionPacket(data = {}) {
   const draft = packet.draft || {};
   const telemetry = packet.telemetry || {};
   const segmentActions = Array.isArray(packet.segmentActions) ? packet.segmentActions : [];
+  const emailReadiness = packet.emailReadiness || data.activationFollowUps?.emailReadiness || {};
   const authPosture = operatorAuthPosture(data);
   const clean = privacy.aggregateOnly === true &&
     privacy.containsEmails === false &&
@@ -833,11 +838,12 @@ function renderOperatorExecutionPacket(data = {}) {
     <div class="metric"><span>Priority</span><strong><span class="pill ${packet.priority === 'fix_now' ? 'bad' : 'warn'}">${esc(packet.priority || 'monitor')}</span></strong></div>
     <div class="metric"><span>Queued</span><strong>${integer(packet.totalQueued)} total · ${integer(packet.windowedNewSignups)} new</strong></div>
     <div class="metric"><span>Primary CTA</span><strong>${esc(packet.primaryCtaKind || 'same_email_password')}</strong></div>
+    <div class="metric"><span>Email sender</span><strong><span class="pill ${emailReadiness.configured ? 'good' : 'warn'}">${emailReadiness.configured ? 'Configured' : 'Fallback only'}</span></strong></div>
     <div class="metric"><span>Auth posture</span><strong><span class="pill ${esc(authPosture.tone)}">${esc(authPosture.label)}</span></strong></div>
     <div class="metric"><span>Privacy</span><strong><span class="pill ${clean ? 'good' : 'bad'}">${clean ? 'Aggregate only' : 'Review payload'}</span></strong></div>
     <div class="metric"><span>Success</span><strong>${esc(telemetry.successMetric || packet.metric || 'activation')}</strong></div>
   </div>
-  <p class="muted">${esc(authPosture.action)}</p>
+  <p class="muted">${esc(authPosture.action)} ${esc(emailReadiness.operatorAction || 'Dry-run activation follow-up sending before real outreach.')}</p>
   <div class="actions">
     <button class="btn secondary" type="button" data-copy-operator-packet="${esc(packetText)}">Copy execution packet</button>
     <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(draftText)}" data-followup-copy-kind="operator_packet_draft_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(packet.totalQueued)}">Copy packet draft</button>
