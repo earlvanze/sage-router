@@ -674,11 +674,19 @@ model traffic uses generated `sk_sage_*` API keys at
 
 ### outputProviderPrefix
 
-Enable `SAGE_ROUTER_SHOW_MODEL_PREFIX=1` to prefix every chat response with `[provider/model]` so you can see which model answered:
+Enable `SAGE_ROUTER_SHOW_MODEL_PREFIX=1` only for short manual diagnostics to
+prefix every chat response with `[provider/model]` so you can see which model
+answered:
 
 ```
 [openai-codex/gpt-5.5] Here is the response...
 ```
+
+Keep this disabled for Codex, OpenClaw, Discord, and other conversational
+clients. Those clients store assistant messages in history, so visible routing
+labels can be replayed by later turns and appear as duplicated content. Provider
+and model attribution remain available through Sage Router metadata, logs, and
+debug responses without adding labels to assistant text.
 ## Supported API Formats
 
 | Endpoint | Format | Used By |
@@ -1166,7 +1174,7 @@ CODEX_ACCESS_TOKEN=                # fallback OAuth access token when no auth pr
 # Router behavior
 SAGE_ROUTER_DEFAULT_MODE=balanced
 SAGE_ROUTER_TIMEOUT=60
-SAGE_ROUTER_SHOW_MODEL_PREFIX=1   # prefix responses with [provider/model]
+SAGE_ROUTER_SHOW_MODEL_PREFIX=0   # diagnostic only; keep off for chat clients
 SAGE_ROUTER_DISABLED_PROVIDERS=    # comma-separated: ollama-cloud,anthropic,...
 ```
 {

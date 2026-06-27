@@ -7,7 +7,7 @@ services:
       APP_PORT: 8790
 
   app:
-    image: ghcr.io/earlvanze/sage-router-public:v3.28.11@sha256:2b486dddd654a83d82a2c04f9d38482c2069632e8371c5117d6ef3c62f1cbf8d
+    image: ghcr.io/earlvanze/sage-router-public:v3.28.11@sha256:8beb14de0d9fed7e89702b4eb9b2ac9e29c63335d5017578defd17e63bcbf637
     restart: on-failure
     user: "1000:1000"
     extra_hosts:
@@ -32,5 +32,5 @@ services:
       SAGE_ROUTER_OLLAMA_BASE_URL: $APP_OLLAMA_URL
       OPENAI_CODEX_API_KEY: ${APP_SAGE_ROUTER_OPENAI_CODEX_API_KEY:-}
       SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATH: /config/agents/main/agent/auth-profiles.json
-      SAGE_ROUTER_SHOW_MODEL_PREFIX: "1"
+      SAGE_ROUTER_SHOW_MODEL_PREFIX: "0"
       SAGE_ROUTER_ALLOW_RESTART: "1"
