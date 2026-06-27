@@ -1661,6 +1661,27 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(0, snapshot['nextBestAction']['evidence']['keyCreateFailures'])
         self.assertFalse(snapshot['nextBestAction']['privacy']['containsEmails'])
         self.assertNotIn('buyer@example.com', json.dumps(snapshot['nextBestAction']))
+        packet = snapshot['operatorExecutionPacket']
+        self.assertEqual('signup_to_key_recovery', packet['kind'])
+        self.assertEqual('Signup-to-key recovery packet', packet['title'])
+        self.assertEqual('signupToGeneratedKey', packet['metric'])
+        self.assertEqual(1, packet['totalQueued'])
+        self.assertIn('not_required', packet['segmentCounts'])
+        self.assertEqual('not_required', packet['segmentActions'][0]['segment'])
+        self.assertIn('start=create_key', packet['recoveryUrls']['passwordFallback'])
+        self.assertIn('auth=email', packet['recoveryUrls']['passwordFallback'])
+        self.assertIn('auth=github', packet['recoveryUrls']['githubOAuth'])
+        self.assertIn('Finish your Sage Router setup key', packet['draft']['subject'])
+        self.assertIn('same email/password path first', packet['draft']['body'])
+        self.assertIn('operator_no_key_followup_batch_copied', packet['telemetry']['copyEvents'])
+        self.assertIn('account_key_recovery_viewed', packet['telemetry']['recoveryViewEvents'])
+        self.assertIn('account_api_key_create_clicked', packet['telemetry']['keyCreateAttemptEvents'])
+        self.assertIn('account_key_recovery_key_created', packet['telemetry']['keyCreateSuccessEvents'])
+        self.assertTrue(packet['privacy']['aggregateOnly'])
+        self.assertFalse(packet['privacy']['containsEmails'])
+        self.assertFalse(packet['privacy']['containsCustomerIds'])
+        self.assertNotIn('buyer@example.com', json.dumps(packet))
+        self.assertNotIn(raw, json.dumps(packet))
         self.assertEqual(2, snapshot['stages']['setupSnippetCopies'])
         self.assertEqual(1, snapshot['stages']['customersWithFirstRoutedRequest'])
         self.assertEqual(1, snapshot['stages']['paidConversions'])
@@ -1770,6 +1791,50 @@ class SaaSAuthTests(unittest.TestCase):
         )
         self.assertEqual('launch funnel', copied_only['surface'])
         self.assertIn('/launch-funnel.html#no-key-followups:segments', copied_only['ctaPath'])
+
+    def test_operator_execution_packet_is_aggregate_only(self):
+        privacy = {'containsEmails': False, 'containsCustomerIds': False, 'containsApiKeys': False, 'containsProviderCredentials': False}
+        activation_follow_ups = {
+            'total': 2,
+            'windowedNewSignups': 2,
+            'countsByEmailVerification': {'verified': 1, 'unverified': 1},
+            'suggestedPlan': 'pro',
+            'primaryCtaKind': 'same_email_password',
+            'primaryCtaUrl': 'https://app.sagerouter.dev/login.html?start=create_key&plan=pro&auth=email',
+            'primaryCtaUrls': {
+                'passwordFallback': 'https://app.sagerouter.dev/login.html?start=create_key&plan=pro&auth=email',
+                'githubOAuth': 'https://app.sagerouter.dev/account.html?start=create_key&plan=pro&auth=github',
+            },
+            'recommendedCtaOrder': ['passwordFallback', 'githubOAuth'],
+            'successMetric': 'Move no-key signups into generated-key accounts, then first routed request.',
+            'privacy': privacy,
+        }
+        action = {
+            'metric': 'signupToGeneratedKey',
+            'priority': 'fix_now',
+            'owner': 'Activation',
+            'surface': 'launch funnel',
+            'successMetric': activation_follow_ups['successMetric'],
+            'evidence': {'recommendedSegments': ['verified', 'unverified']},
+        }
+
+        packet = router.launch_operator_execution_packet(action, activation_follow_ups)
+
+        self.assertEqual('signup_to_key_recovery', packet['kind'])
+        self.assertEqual(2, packet['totalQueued'])
+        self.assertEqual(2, packet['windowedNewSignups'])
+        self.assertEqual(['passwordFallback', 'githubOAuth'], packet['recommendedCtaOrder'])
+        self.assertEqual(['verified', 'unverified'], [row['segment'] for row in packet['segmentActions']])
+        self.assertEqual('verified_aggregate_draft_copied', packet['segmentActions'][0]['copyKind'])
+        self.assertEqual('verified_marked_worked', packet['segmentActions'][0]['workedKind'])
+        self.assertEqual('unverified_marked_worked', packet['segmentActions'][1]['workedKind'])
+        self.assertIn('No provider key, prompt text, OAuth token, generated API key, or checkout', packet['draft']['body'])
+        self.assertFalse(packet['privacy']['containsEmails'])
+        self.assertFalse(packet['privacy']['containsCustomerIds'])
+        self.assertFalse(packet['privacy']['containsApiKeys'])
+        self.assertTrue(packet['privacy']['aggregateOnly'])
+        self.assertNotIn('buyer@example.com', json.dumps(packet))
+        self.assertNotIn('cus_', json.dumps(packet))
 
     def test_launch_funnel_counts_supabase_auth_signups_without_customer_rows(self):
         now = router.now_epoch()

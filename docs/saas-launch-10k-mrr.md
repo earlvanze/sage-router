@@ -488,6 +488,12 @@ provider resale claim, or runtime feature flag.
   recovery CTA with `start=create_key&auth=github`, and no-secret operator
   action, without returning emails, customer IDs, generated keys, provider
   credentials, or raw support content.
+- Include `operatorExecutionPacket` in `/analytics/funnel` as an aggregate,
+  no-secret execution contract for dashboards, agents, and runbooks. It should
+  contain signup-to-key recovery URLs, segment counts, draft subject/body,
+  telemetry event names, and privacy flags without returning emails, customer
+  IDs, generated keys, prompts, OAuth tokens, provider credentials, or raw
+  support content.
 - Keep the operator-only launch funnel no-key queue executable: it should read
   bounded `/admin/customers` rows, render generated-key-first mailto/link
   actions, and provide per-customer plus batch snippet copy for outreach without

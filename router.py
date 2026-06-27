@@ -6443,6 +6443,107 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
     }
 
 
+def launch_operator_execution_packet(next_best_action, activation_follow_ups):
+    """Return a no-secret action packet for operator dashboards and agents."""
+    next_best_action = next_best_action or {}
+    activation_follow_ups = activation_follow_ups or {}
+    total = int(activation_follow_ups.get('total') or 0)
+    plan = normalize_stripe_plan(activation_follow_ups.get('suggestedPlan') or 'pro') or 'pro'
+    urls = activation_follow_ups.get('primaryCtaUrls') if isinstance(activation_follow_ups.get('primaryCtaUrls'), dict) else {}
+    if not urls:
+        urls = launch_activation_follow_up_urls(plan)
+    password_url = urls.get('passwordFallback') or activation_follow_ups.get('primaryCtaUrl') or launch_activation_follow_up_url(plan, auth=False)
+    github_url = urls.get('githubOAuth') or launch_activation_follow_up_url(plan, auth='github')
+    counts = activation_follow_ups.get('countsByEmailVerification') if isinstance(activation_follow_ups.get('countsByEmailVerification'), dict) else {}
+    evidence = next_best_action.get('evidence') if isinstance(next_best_action.get('evidence'), dict) else {}
+    recommended_segments = [
+        segment for segment in (evidence.get('recommendedSegments') or [])
+        if isinstance(segment, str) and segment
+    ]
+    if not recommended_segments:
+        recommended_segments = [
+            segment for segment in ('verified', 'unverified', 'missing_auth_user', 'missing_user_id', 'unavailable', 'not_required')
+            if int((counts or {}).get(segment) or 0) > 0
+        ]
+    if not recommended_segments and total > 0:
+        recommended_segments = ['all']
+
+    segment_labels = {
+        'verified': 'verified signups',
+        'unverified': 'unverified signups',
+        'missing_auth_user': 'missing auth-user signups',
+        'missing_user_id': 'missing user-id signups',
+        'unavailable': 'verification-unavailable signups',
+        'not_required': 'verification-not-required signups',
+        'all': 'all no-key signups',
+    }
+    segment_actions = []
+    for segment in recommended_segments:
+        count = total if segment == 'all' else int((counts or {}).get(segment) or 0)
+        if count <= 0:
+            continue
+        segment_actions.append({
+            'segment': segment,
+            'label': segment_labels.get(segment, segment),
+            'count': count,
+            'copyKind': f'{segment}_aggregate_draft_copied',
+            'workedKind': f'{segment}_marked_worked' if segment in {'verified', 'unverified'} else 'marked_worked',
+            'sendOrder': len(segment_actions) + 1,
+        })
+
+    draft_subject = 'Finish your Sage Router setup key'
+    draft_body = (
+        'You already started Sage Router. The next step is to create your generated sk_sage setup key before checkout or routing setup.\n\n'
+        f'Use the same email/password path first: {password_url}\n'
+        f'If you signed in with GitHub, use this path instead: {github_url}\n\n'
+        'No provider key, prompt text, OAuth token, generated API key, or checkout is needed before the setup key exists.'
+    )
+    return {
+        'kind': 'signup_to_key_recovery' if total > 0 else 'none',
+        'title': 'Signup-to-key recovery packet',
+        'priority': next_best_action.get('priority') or ('fix_now' if total > 0 else 'monitor'),
+        'owner': next_best_action.get('owner') or 'Activation',
+        'surface': next_best_action.get('surface') or 'launch funnel',
+        'metric': next_best_action.get('metric') or 'signupToGeneratedKey',
+        'totalQueued': total,
+        'windowedNewSignups': int(activation_follow_ups.get('windowedNewSignups') or 0),
+        'segmentCounts': counts or {},
+        'segmentActions': segment_actions,
+        'primaryCtaKind': activation_follow_ups.get('primaryCtaKind') or 'same_email_password',
+        'recommendedCtaOrder': activation_follow_ups.get('recommendedCtaOrder') or ['passwordFallback', 'githubOAuth'],
+        'recoveryUrls': {
+            'passwordFallback': password_url,
+            'githubOAuth': github_url,
+        },
+        'draft': {
+            'subject': draft_subject,
+            'body': draft_body,
+        },
+        'telemetry': {
+            'copyEvents': sorted(OPERATOR_FOLLOWUP_COPY_EVENTS),
+            'workedKindPattern': '<segment>_marked_worked',
+            'recoveryViewEvents': sorted(KEY_RECOVERY_VIEW_EVENTS),
+            'keyCreateAttemptEvents': sorted(KEY_CREATE_ATTEMPT_EVENTS),
+            'keyCreateSuccessEvents': sorted(KEY_CREATE_SUCCESS_EVENTS),
+            'successMetric': next_best_action.get('successMetric') or activation_follow_ups.get('successMetric') or 'Move no-key signups into generated-key accounts, then first routed request.',
+        },
+        'instructions': [
+            'Send or copy the draft to the queued signup segment.',
+            'Mark the segment worked only after real outreach is sent or copied into the outbound channel.',
+            'Refresh the funnel and watch keyRecoveryViews, keyCreateAttempts, and customersWithGeneratedApiKeys.',
+        ],
+        'privacy': {
+            'containsEmails': False,
+            'containsCustomerIds': False,
+            'containsApiKeys': False,
+            'containsProviderCredentials': False,
+            'containsPrompts': False,
+            'containsOAuthTokens': False,
+            'aggregateOnly': True,
+        },
+    }
+
+
 def public_plan_monthly_price_usd(plan_name):
     plan = PUBLIC_PLAN_CATALOG.get(str(plan_name or '').strip().lower()) or {}
     price = str(plan.get('price') or '')
@@ -7587,6 +7688,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         activation_follow_ups,
         conversion.get('conversionActions') if isinstance(conversion, dict) else [],
     )
+    operator_execution_packet = launch_operator_execution_packet(next_best_action, activation_follow_ups)
 
     return {
         'version': 1,
@@ -7611,6 +7713,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'acquisitionActions': acquisition_actions,
         'activationFollowUps': activation_follow_ups,
         'nextBestAction': next_best_action,
+        'operatorExecutionPacket': operator_execution_packet,
         'stages': stages,
         'signupHydration': signup_hydration,
         'waitlistInterest': waitlist_interest,
