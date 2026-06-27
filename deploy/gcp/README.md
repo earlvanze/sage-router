@@ -54,6 +54,33 @@ readiness gate. If `SAGEROUTER_DEPLOY_CLOUD_RUN=1` is set without a digest, it
 resolves the latest successful GitHub Actions `Release image` digest from the
 run log instead of trusting the mutable `latest` tag.
 
+### Activation follow-up email sender
+
+Signup-to-key recovery can send private operator follow-ups through Resend once
+the sender is configured. Store sender values in Secret Manager and bind them to
+Cloud Run with:
+
+```bash
+SAGE_ROUTER_ACTIVATION_EMAIL_FROM='Sage Router <activation@sagerouter.dev>' \
+SAGE_ROUTER_RESEND_API_KEY='re_...' \
+SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO='support@sagerouter.dev' \
+scripts/configure_activation_email_sender.sh
+```
+
+The script never prints secret values. It updates these runtime variables:
+
+- `SAGE_ROUTER_ACTIVATION_EMAIL_PROVIDER=resend`
+- `SAGE_ROUTER_ACTIVATION_EMAIL_FROM` from Secret Manager
+- `SAGE_ROUTER_RESEND_API_KEY` from Secret Manager
+- optional `SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO` from Secret Manager
+- `SAGE_ROUTER_ACTIVATION_EMAIL_MAX_BATCH`
+
+Afterward, `/analytics/funnel` should report
+`activationFollowUps.emailReadiness.configured=true`; use a dry run from the
+operator dashboard before sending a real batch. Full source-built Cloud Run
+deploys preserve these bindings automatically when the corresponding Secret
+Manager secrets exist.
+
 Defaults for that path:
 
 - Project: `sage-router-demo-20260428`

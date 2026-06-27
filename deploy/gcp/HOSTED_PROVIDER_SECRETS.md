@@ -14,6 +14,9 @@ Create these Secret Manager secrets before deploy, using dedicated hosted-router
 - `STRIPE_WEBHOOK_SECRET` or `SAGE_ROUTER_STRIPE_WEBHOOK_SECRET`
 - `SAGE_ROUTER_STRIPE_PRICE_IDS` — comma-separated plan map, for example `lite=price_...,pro=price_...,max=price_...`
 - `SAGE_ROUTER_STRIPE_PRICE_ID` or `STRIPE_PRICE_ID` — legacy single-price fallback
+- `SAGE_ROUTER_ACTIVATION_EMAIL_FROM` — sender identity for signup-to-key recovery follow-ups
+- `SAGE_ROUTER_RESEND_API_KEY` — Resend API key for activation follow-ups
+- `SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO` — optional reply-to for activation follow-ups
 - `SAGE_ROUTER_PUBLIC_BASE_URL` — public account/control-plane origin, for example `https://app.sagerouter.dev`
 - `SAGE_ROUTER_API_BASE_URL` — public API origin, for example `https://api.sagerouter.dev`
 - `SAGE_ROUTER_CRYPTO_PAYMENT_ADDRESS` — optional manual crypto receiving address
