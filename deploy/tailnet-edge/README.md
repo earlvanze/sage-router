@@ -192,6 +192,14 @@ docker run -d --name sage-router-public-caddy --restart unless-stopped \
 
 Set `api.sagerouter.dev` to an unproxied `A` record first so Caddy can obtain a public certificate, verify `https://api.sagerouter.dev/edge/health`, then enable Cloudflare proxying on the same record.
 
+For API compatibility, keep Cloudflare browser-only checks from blocking
+server-side clients before they reach the Sage Router auth gate. If readiness
+warns that Python urllib receives Cloudflare `1010`, run
+`scripts/configure_cloudflare_api_bic_skip.sh` with a Cloudflare token that has
+Zone Rulesets read/edit permission. The script creates a host-scoped
+configuration rule for `api.sagerouter.dev` only, setting Browser Integrity
+Check off while leaving app and marketing hosts unchanged.
+
 ## Google Cloud VM bootstrap
 
 Use `cloud-init-gcp.yaml.example` when creating or replacing a small Google Cloud VM. Replace:
