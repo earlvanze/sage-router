@@ -21,6 +21,7 @@ class ProviderSwitchingTests(unittest.TestCase):
         self.old_temp_blocks = dict(router.TEMP_MODEL_BLOCKS)
         router.PROVIDERS = {
             'ollama': router.Provider('ollama', 'ollama', 'http://ollama.invalid', '', ['glm-5']),
+            'ollama-2': router.Provider('ollama-2', 'ollama', 'http://ollama-2.invalid', '', ['glm-5.2']),
             'ollama-cloud': router.Provider('ollama-cloud', 'ollama', 'https://ollama.com', 'test-key', ['glm-5.1:cloud']),
             'openai-codex': router.Provider('openai-codex', 'openclaw-gateway', 'ws://gateway.invalid', '', ['gpt-5.5', 'gpt-5.4']),
         }
@@ -57,6 +58,25 @@ class ProviderSwitchingTests(unittest.TestCase):
         provider, model = router.resolve_requested_provider_model({'model': 'ollama/glm-5.1:cloud'})
         self.assertEqual('ollama-cloud', provider)
         self.assertEqual('glm-5.1:cloud', model)
+
+    def test_unknown_ollama_prefix_switches_to_sibling_ollama_provider(self):
+        provider, model = router.resolve_requested_provider_model({'model': 'ollama/kimi-k2.7-code'})
+        self.assertEqual('ollama-2', provider)
+        self.assertEqual('kimi-k2.7-code', model)
+
+        _messages, _intent, _complexity, _tokens, chain = router.prepare_route(
+            [{'role': 'user', 'content': 'hello'}],
+            request_id='test-stale-ollama-prefix',
+            force_provider=provider,
+            requested_model=model,
+        )
+        self.assertTrue(chain)
+        self.assertEqual(('ollama-2', 'glm-5.2'), chain[0])
+
+    def test_unknown_ollama_provider_field_switches_to_sibling_ollama_provider(self):
+        provider, model = router.resolve_requested_provider_model({'provider': 'ollama', 'model': 'kimi-k2.7-code'})
+        self.assertEqual('ollama-2', provider)
+        self.assertEqual('kimi-k2.7-code', model)
 
     def test_router_profile_model_does_not_force_self_provider(self):
         provider, model = router.resolve_requested_provider_model({'model': 'sage-router/balanced'})

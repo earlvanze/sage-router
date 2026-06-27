@@ -2940,6 +2940,32 @@ def infer_provider_for_requested_model(model, avoid_provider=None):
     return matches[0]
 
 
+def alternate_ollama_provider_for_stale_request(requested_provider, requested_model):
+    """Find a sibling Ollama endpoint when a stale Ollama prefix names the wrong host."""
+    candidates = []
+    for provider_name, provider in PROVIDERS.items():
+        if provider_name == requested_provider or provider_name in DISABLED_PROVIDERS:
+            continue
+        if provider.api_type != 'ollama':
+            continue
+        try:
+            models = fetch_ollama_models(provider)
+        except Exception:
+            models = provider.models or []
+        if not any(is_chat_capable_model(provider, model) for model in models or []):
+            continue
+        if not provider_endpoint_reachable(provider):
+            continue
+        local_rank = 0 if is_local_ollama_provider(provider) else 1
+        cloud_rank = 1 if any(is_cloud_ollama_model(model) for model in models or []) else 0
+        family_rank = 0 if provider_name.startswith('ollama-') else 1
+        candidates.append((local_rank, cloud_rank, family_rank, requested_model_provider_rank(provider_name), provider_name))
+    if not candidates:
+        return None
+    candidates.sort()
+    return candidates[0][-1]
+
+
 def resolve_requested_provider_model(payload):
     requested_provider = str(payload.get('provider') or '').strip() or None
     model_provider, requested_model = split_provider_model(payload.get('model'))
@@ -2995,6 +3021,25 @@ def resolve_requested_provider_model(payload):
                 requested_provider,
             )
         return inferred_provider, requested_model
+
+    if requested_provider:
+        provider = PROVIDERS.get(requested_provider)
+        if provider and provider.api_type == 'ollama':
+            alternate_provider = alternate_ollama_provider_for_stale_request(requested_provider, requested_model)
+            if alternate_provider:
+                logger.info(
+                    "Requested Ollama-family provider %s does not advertise model %s; using sibling provider %s as the routing hint",
+                    requested_provider,
+                    requested_model,
+                    alternate_provider,
+                )
+                return alternate_provider, requested_model
+            logger.info(
+                "Requested Ollama-family provider %s does not advertise model %s; treating provider prefix as a routing hint",
+                requested_provider,
+                requested_model,
+            )
+            return None, requested_model
 
     return requested_provider, requested_model
 
