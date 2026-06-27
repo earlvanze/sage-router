@@ -54,6 +54,17 @@ class ProviderSwitchingTests(unittest.TestCase):
         self.assertEqual('ollama', provider)
         self.assertEqual('glm-5', model)
 
+    def test_forced_ollama_model_keeps_fallbacks_after_exact_attempt(self):
+        _messages, _intent, _complexity, _tokens, chain = router.prepare_route(
+            [{'role': 'user', 'content': 'hello'}],
+            request_id='test-forced-ollama-fallback',
+            force_provider='ollama',
+            requested_model='glm-5',
+        )
+        self.assertGreaterEqual(len(chain), 2)
+        self.assertEqual(('ollama', 'glm-5'), chain[0])
+        self.assertIn(('ollama-2', 'glm-5.2'), chain[1:])
+
     def test_ollama_cloud_model_switches_to_hosted_provider(self):
         provider, model = router.resolve_requested_provider_model({'model': 'ollama/glm-5.1:cloud'})
         self.assertEqual('ollama-cloud', provider)

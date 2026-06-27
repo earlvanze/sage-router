@@ -13588,6 +13588,25 @@ def prepare_route(messages, request_id='req-unknown', thinking=DEFAULT_THINKING_
             chain = [(force_provider, model) for model in filtered_models[:MAX_PROVIDER_ATTEMPTS]]
             score_debug = [{'provider': force_provider, 'model': model, 'score': 100} for _, model in chain]
             rejections = forced_rejections
+            if prov.api_type == 'ollama' and requested_model and len(chain) < MAX_PROVIDER_ATTEMPTS:
+                # Hosted Ollama catalogs can advertise models that still fail
+                # at runtime with subscription/auth errors. Honor the explicit
+                # Ollama request first, then keep normal router fallbacks alive.
+                fb_chain, fb_scores, fb_rejections = select_model(intent, complexity, thinking, route_mode, requirements, estimated_tokens)
+                seen = set(chain)
+                fallback_chain = [
+                    (pn, model)
+                    for pn, model in fb_chain
+                    if pn != force_provider and (pn, model) not in seen
+                ]
+                if fallback_chain:
+                    remaining = max(0, MAX_PROVIDER_ATTEMPTS - len(chain))
+                    chain = chain + fallback_chain[:remaining]
+                    score_debug = score_debug + [
+                        score for score in fb_scores
+                        if score.get('provider') != force_provider
+                    ][:remaining]
+                    rejections = (rejections + fb_rejections)[:30]
             logger.info(f"[{request_id}] Chain (forced): {chain}")
             # Image/vision requests must route strictly to image-capable models.
             # If the forced provider/profile only offered non-vision or GLM
