@@ -143,6 +143,25 @@ class ToolCallLeakTests(unittest.TestCase):
             ),
         )
 
+    def test_stream_strips_late_fragmented_model_prefix_after_visible_text(self):
+        state = {'prefix_open': True, 'prefix_pending': ''}
+        self.assertEqual(
+            'visible text',
+            router.sanitize_stream_content_fragment('visible text', 'ollama-2', 'kimi-k2.5', state=state),
+        )
+        fragments = [
+            '[ollama-2/',
+            'kimi-k2.5] ',
+            '[tool calls omitted]',
+            '[ollama-2/kimi-k2.5] ',
+            '[tool calls omitted]',
+        ]
+        cleaned = [
+            router.sanitize_stream_content_fragment(fragment, 'ollama-2', 'kimi-k2.5', state=state)
+            for fragment in fragments
+        ]
+        self.assertEqual(['', '', '', '', ''], cleaned)
+
     def test_openai_compat_stream_strips_repeated_prefix_chunks(self):
         raw = (
             'data: {"id":"chatcmpl-1","choices":[{"index":0,'

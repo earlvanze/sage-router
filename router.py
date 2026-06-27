@@ -4237,9 +4237,6 @@ def sanitize_stream_content_fragment(content, provider_name, model, state=None):
     text = sanitize_visible_output(content or '')
     if state is None:
         return strip_leading_model_prefixes(text, provider_name, model)
-    if not state.get('prefix_open', True):
-        cleaned = strip_standalone_model_prefix_labels(text, provider_name, model)
-        return strip_tool_call_omission_placeholders(cleaned)
 
     combined = str(state.get('prefix_pending') or '') + text
     cleaned = strip_leading_model_prefixes(combined, provider_name, model)
@@ -4250,7 +4247,13 @@ def sanitize_stream_content_fragment(content, provider_name, model, state=None):
             return cleaned
         return ''
 
-    if possible_model_prefix_fragment(combined, provider_name, model):
+    prefix_still_open = state.get('prefix_open', True)
+    possible_late_fragment = (
+        not prefix_still_open
+        and combined.lstrip().startswith('[')
+        and ']' not in combined
+    )
+    if possible_model_prefix_fragment(combined, provider_name, model) and (prefix_still_open or possible_late_fragment):
         state['prefix_pending'] = combined
         if len(combined) <= 200:
             return ''
