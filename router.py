@@ -8875,6 +8875,14 @@ def activation_email_configured():
 
 def activation_email_readiness():
     configured = activation_email_configured()
+    setup_command = ''
+    if not configured:
+        setup_command = (
+            "SAGE_ROUTER_ACTIVATION_EMAIL_FROM='Sage Router <activation@sagerouter.dev>' \\\n"
+            "SAGE_ROUTER_RESEND_API_KEY='re_...' \\\n"
+            "SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO='support@sagerouter.dev' \\\n"
+            "scripts/configure_activation_email_sender.sh"
+        )
     return {
         'provider': ACTIVATION_EMAIL_PROVIDER or 'resend',
         'configured': configured,
@@ -8889,6 +8897,13 @@ def activation_email_readiness():
             'SAGE_ROUTER_ACTIVATION_EMAIL_FROM',
             'SAGE_ROUTER_RESEND_API_KEY or SAGE_ROUTER_ACTIVATION_EMAIL_API_KEY',
         ],
+        'secretManagerNames': [] if configured else [
+            'SAGE_ROUTER_ACTIVATION_EMAIL_FROM',
+            'SAGE_ROUTER_RESEND_API_KEY',
+            'SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO',
+        ],
+        'setupCommand': setup_command,
+        'setupScript': 'scripts/configure_activation_email_sender.sh',
         'operatorAction': (
             'Use Send from the operator dashboard after dry-run verification.'
             if configured
