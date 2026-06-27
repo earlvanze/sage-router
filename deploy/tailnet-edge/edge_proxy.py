@@ -32,6 +32,11 @@ REQUEST_TIMEOUT = float(os.environ.get(
 READ_CHUNK_SIZE = int(os.environ.get("SAGE_ROUTER_EDGE_READ_CHUNK_SIZE", "65536"))
 MAX_REJECTED_BODY_DRAIN_BYTES = int(os.environ.get("SAGE_ROUTER_EDGE_MAX_REJECTED_BODY_DRAIN_BYTES", "1048576"))
 MAX_MODALITY_LEARN_BODY_BYTES = int(os.environ.get("SAGE_ROUTER_EDGE_MODALITY_LEARN_BODY_BYTES", "2097152"))
+OLLAMA_SIBLING_REROUTE_MODELS = {
+    item.strip()
+    for item in os.environ.get("SAGE_ROUTER_EDGE_OLLAMA_SIBLING_REROUTE_MODELS", "kimi-k2.7-code").split(",")
+    if item.strip()
+}
 RETRY_STATUSES = {401, 429, 502, 503, 504}
 MODEL_API_STALE_ROUTE_RETRY_STATUSES = {404, 405}
 SUPABASE_URL = (os.environ.get("SAGE_ROUTER_SUPABASE_URL") or os.environ.get("SUPABASE_URL") or "").rstrip("/")
@@ -1051,6 +1056,25 @@ def generated_api_key_upstreams(path):
     return upstreams
 
 
+def reroute_known_ollama_subscription_body(path, body):
+    if not body or not is_generated_api_key_path(path) or not OLLAMA_SIBLING_REROUTE_MODELS:
+        return body
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except Exception:
+        return body
+    if not isinstance(payload, dict):
+        return body
+    model = str(payload.get("model") or "").strip()
+    if not model.startswith("ollama/"):
+        return body
+    model_name = model.split("/", 1)[1].strip()
+    if model_name not in OLLAMA_SIBLING_REROUTE_MODELS:
+        return body
+    payload["model"] = f"ollama-2/{model_name}"
+    return json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+
 def edge_enforcement_state():
     return {
         "rateLimitEnabled": RATE_LIMIT_ENABLED,
@@ -1338,6 +1362,7 @@ class EdgeHandler(BaseHTTPRequestHandler):
         content_length = self.headers.get("Content-Length")
         if content_length:
             body = self.rfile.read(int(content_length))
+        body = reroute_known_ollama_subscription_body(self.path, body)
 
         base_headers = {}
         for key, value in self.headers.items():

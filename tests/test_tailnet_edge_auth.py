@@ -189,6 +189,15 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertTrue(self.edge.should_retry_upstream_status("/account", 503))
         self.assertFalse(self.edge.should_retry_upstream_status("/account", 404))
 
+    def test_edge_reroutes_known_ollama_subscription_model_to_sibling(self):
+        body = b'{"model":"ollama/kimi-k2.7-code","messages":[{"role":"user","content":"hi"}]}'
+        rewritten = self.edge.reroute_known_ollama_subscription_body("/v1/chat/completions", body)
+        self.assertIn(b'"model":"ollama-2/kimi-k2.7-code"', rewritten)
+
+    def test_edge_does_not_reroute_other_ollama_models(self):
+        body = b'{"model":"ollama/glm-5","messages":[{"role":"user","content":"hi"}]}'
+        self.assertEqual(body, self.edge.reroute_known_ollama_subscription_body("/v1/chat/completions", body))
+
     def test_model_api_auth_errors_include_onboarding_links(self):
         payload = self.edge.edge_error_payload("unauthorized", "/v1/models")
         headers = self.edge.edge_error_headers("unauthorized", "/v1/models")
