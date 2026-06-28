@@ -1222,6 +1222,12 @@ check_hosted_onboarding_pages() {
   if [[ "$account_js_code" == "200" ]] && ! grep -q "testApiKey" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-api-key-test"
   fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q 'data-copy-label="Nudge copy setup"' /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-account-auth-nudge-setup-copy"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "Copy the setup bundle first" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-account-auth-nudge-setup-copy-guidance"
+  fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "emailVerification" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-email-verification-flow"
   fi

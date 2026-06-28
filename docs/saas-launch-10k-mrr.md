@@ -523,6 +523,10 @@ provider resale claim, or runtime feature flag.
   `account_snippet_copied` event with `state=selected`, setup snippet ID, and no
   snippet body, so `setupCopyToFirstRequest` does not go dark in locked-down
   browsers.
+- Keep the signed-out account activation nudge executable: it should expose a
+  measured placeholder setup-copy action before GitHub or email setup, using the
+  existing `account_snippet_copied` event and `preauth-setup-before-signup`
+  snippet ID without copying a real API key.
 - Include `activationFollowUps` in `/analytics/funnel` as a privacy-safe
   aggregate for no-key signups, including count, suggested plan, generated-key
   recovery CTA with `start=create_key&auth=github`, and no-secret operator

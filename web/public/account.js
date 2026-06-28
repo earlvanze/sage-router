@@ -1588,12 +1588,13 @@ function mountAccountAuthNudge() {
     #account-auth-nudge strong,#account-auth-nudge span{display:block}
     #account-auth-nudge strong{color:#edf6f7;font:900 18px/1.2 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     #account-auth-nudge span{color:#9fb2b8;font:600 14px/1.35 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    #account-auth-nudge .nudgeActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    #account-auth-nudge .nudgeActions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
     #account-auth-nudge button{min-height:42px;border:0;border-radius:8px;padding:0 12px;font:900 13px/1 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
     #account-auth-nudge .nudgePrimary{background:linear-gradient(135deg,#74e0a3,#48c97f);color:#04150d}
     #account-auth-nudge .nudgeSecondary{background:rgba(255,255,255,.055);color:#edf6f7;border:1px solid rgba(182,210,218,.18)}
     #account-auth-nudge .nudgeClose{position:absolute;top:8px;right:8px;min-height:28px;width:28px;padding:0;border-radius:999px;background:rgba(255,255,255,.07);color:#9fb2b8;font-size:20px}
-    @media(max-width:560px){#account-auth-nudge{left:18px;right:18px;width:auto}#account-auth-nudge .nudgeActions{grid-template-columns:1fr}}
+    @media(max-width:680px){#account-auth-nudge .nudgeActions{grid-template-columns:1fr}}
+    @media(max-width:560px){#account-auth-nudge{left:18px;right:18px;width:auto}}
   `;
   document.head.appendChild(style);
 
@@ -1602,8 +1603,8 @@ function mountAccountAuthNudge() {
   nudge.setAttribute('aria-label', 'Start Sage Router account activation');
   nudge.innerHTML = `
     <button class="nudgeClose" type="button" aria-label="Dismiss account activation prompt">×</button>
-    <div><strong>Create the key before checkout.</strong><span>Continue with GitHub, or jump to email setup. No provider key or card is required before the generated sk_sage key exists.</span></div>
-    <div class="nudgeActions"><button class="nudgePrimary" type="button" data-account-nudge-oauth>Continue with GitHub</button><button class="nudgeSecondary" type="button" data-account-nudge-email>Email setup link</button></div>
+    <div><strong>Create the key before checkout.</strong><span>Copy the setup bundle first, then continue with GitHub or email setup. No provider key or card is required before the generated sk_sage key exists.</span></div>
+    <div class="nudgeActions"><button class="nudgePrimary" type="button" data-copy-target="preauth-setup-code" data-copy-label="Nudge copy setup">Copy setup</button><button class="nudgeSecondary" type="button" data-account-nudge-oauth>Continue with GitHub</button><button class="nudgeSecondary" type="button" data-account-nudge-email>Email setup link</button></div>
   `;
   nudge.querySelector('.nudgeClose')?.addEventListener('click', dismissAccountAuthNudge);
   nudge.querySelector('[data-account-nudge-oauth]')?.addEventListener('click', () => {
