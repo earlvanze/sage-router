@@ -82,7 +82,7 @@
           <p class="note">Use company email and non-secret deployment context only. For immediate usage, start with Max and bring authorized provider access.</p>
           <div class="intentQuickPick" aria-label="Managed-access qualification shortcuts">
             <button type="button" data-managed-intent="max-implementation" data-support-need="implementation-support" data-commercial-preference="private-contract" data-provider-access="byok">Max implementation <span>Need deployment help this month</span></button>
-            <button type="button" data-managed-intent="one-subscription" data-commercial-preference="one-subscription" data-provider-access="needs-managed-access">One subscription <span>Want reviewed managed access</span></button>
+            <button type="button" data-managed-intent="one-subscription" data-commercial-preference="one-subscription" data-provider-access="needs-managed-access" data-target-provider-family="mixed-frontier" data-support-need="managed-provider-review">One subscription <span>Want reviewed managed access</span></button>
             <button type="button" data-managed-intent="gateway-migration" data-support-need="migration-help" data-provider-access="byok">Gateway migration <span>Move from another API gateway</span></button>
             <button type="button" data-managed-intent="private-deployment" data-support-need="private-deployment" data-deployment="tailnet-private">Private deployment <span>Tailnet or self-hosted review</span></button>
           </div>
@@ -251,6 +251,8 @@
         markIntentQuickPick('one-subscription');
         setSelectValue('commercialPreference', 'one-subscription');
         setSelectValue('providerAccess', 'needs-managed-access');
+        setSelectValue('targetProviderFamily', 'mixed-frontier');
+        setSelectValue('supportNeed', 'managed-provider-review');
       } else if (['ollama', 'openai', 'anthropic'].includes(requestedIntent)) {
         setSelectValue('targetProviderFamily', requestedIntent);
       }
@@ -271,6 +273,7 @@
     }
 
     function quickReviewPayload(email) {
+      const oneSubscription = requestedIntent === 'one-subscription';
       return {
         email,
         company: '',
@@ -278,10 +281,10 @@
         intent: requestedIntent || 'max-implementation',
         deployment: 'hybrid',
         monthlyVolume: '200k-1m',
-        providerAccess: 'byok',
+        providerAccess: oneSubscription ? 'needs-managed-access' : 'byok',
         targetProviderFamily: 'mixed-frontier',
-        commercialPreference: 'private-contract',
-        supportNeed: 'implementation-support',
+        commercialPreference: oneSubscription ? 'one-subscription' : 'private-contract',
+        supportNeed: oneSubscription ? 'managed-provider-review' : 'implementation-support',
         targetLaunchWindow: 'this-month',
         sourcePage: `${window.location.origin}${window.location.pathname}`,
         turnstileToken: turnstileState.token,

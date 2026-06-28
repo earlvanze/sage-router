@@ -1589,6 +1589,12 @@ check_marketing_comparison_page() {
   if [[ "$openrouter_code" == "200" ]] && ! grep -q "OpenRouter can be used as a BYOK-compatible provider route" /tmp/sage-router-readiness-body; then
     openrouter_code="200:missing-byok-boundary"
   fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "managed-access?intent=one-subscription" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-one-subscription-managed-access"
+  fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "not a public pooled-provider entitlement" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-one-subscription-boundary"
+  fi
   if [[ "$openrouter_code" == "200" ]] && ! grep -q "gateway_compare_viewed" /tmp/sage-router-readiness-body; then
     openrouter_code="200:missing-funnel-event"
   fi

@@ -2105,8 +2105,13 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("applyRequestedIntent", managed_access)
         self.assertIn("requestedIntent === 'max-implementation'", managed_access)
         self.assertIn("requestedIntent === 'gateway-migration'", managed_access)
+        self.assertIn("requestedIntent === 'one-subscription'", managed_access)
         self.assertIn("setSelectValue('supportNeed', 'implementation-support')", managed_access)
         self.assertIn("setSelectValue('supportNeed', 'migration-help')", managed_access)
+        self.assertIn("setSelectValue('supportNeed', 'managed-provider-review')", managed_access)
+        self.assertIn("const oneSubscription = requestedIntent === 'one-subscription'", managed_access)
+        self.assertIn("providerAccess: oneSubscription ? 'needs-managed-access' : 'byok'", managed_access)
+        self.assertIn("commercialPreference: oneSubscription ? 'one-subscription' : 'private-contract'", managed_access)
         self.assertIn("supportNeed: data.get('supportNeed')", managed_access)
         self.assertIn("targetLaunchWindow: data.get('targetLaunchWindow')", managed_access)
         self.assertIn("trackQuickstartFunnelEvent", quickstart)
@@ -2425,6 +2430,18 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("SAGEROUTER_MARKETING_BASE_URL", readiness)
         self.assertIn("marketing model gateway and OpenRouter comparison pages are live in sitemap and LLM discovery", readiness)
 
+    def test_openrouter_comparison_routes_one_subscription_demand_to_private_beta(self):
+        page = self.read_text("web", "public", "compare", "openrouter.html")
+
+        self.assertIn("Sage Router vs OpenRouter", page)
+        self.assertIn("/managed-access?intent=one-subscription", page)
+        self.assertIn("Request one-subscription review", page)
+        self.assertIn("Want one commercial relationship? Ask for review.", page)
+        self.assertIn("provider authorization, an authorized provider allowlist", page)
+        self.assertIn("What gets captured", page)
+        self.assertIn("does not collect prompts, provider credentials, OAuth tokens, generated API keys", page)
+        self.assertIn("gateway_compare_managed_access_clicked", page)
+
     def test_gateway_migration_guide_is_discoverable(self):
         page = self.read_text("web", "public", "docs", "gateway-migration.html")
         compare = self.read_text("web", "public", "compare", "model-gateways.html")
@@ -2496,6 +2513,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("intentQuickPick", page)
         self.assertIn('data-managed-intent="max-implementation"', page)
         self.assertIn('data-managed-intent="one-subscription"', page)
+        self.assertIn('data-target-provider-family="mixed-frontier"', page)
+        self.assertIn('data-support-need="managed-provider-review"', page)
         self.assertIn("applyIntentQuickPick", page)
         self.assertIn("source: 'managed-access'", page)
         self.assertIn("sendBeacon?.('/api/funnel-event'", page)
