@@ -185,6 +185,9 @@ const routePaths = [
 
 const ACCOUNT_PAGE_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=landing&utm_medium=activation&utm_campaign=sage-router-launch';
 const ACCOUNT_PAGE_HREF = ACCOUNT_PAGE_URL;
+const LANDING_SETUP_ACCOUNT_URL = `${ACCOUNT_PAGE_URL}&setup=landing-full-setup-bundle&source_surface=landing`;
+const HERO_SETUP_ACCOUNT_URL = `${ACCOUNT_PAGE_URL}&setup=landing-hero-setup-bundle&source_surface=landing`;
+const STICKY_SETUP_ACCOUNT_URL = `${ACCOUNT_PAGE_URL}&setup=landing-sticky-setup-bundle&source_surface=landing`;
 const LANDING_KEY_RECOVERY_URL = 'https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=landing&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email';
 const ACTIVATION_NUDGE_STORAGE_KEY = 'sage_router_activation_nudge_dismissed_until';
 const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
@@ -236,7 +239,7 @@ function trackLandingFunnelEvent(event, data = {}) {
 function landingSetupBundleText() {
   return `# Sage Router hosted edge setup
 # 1) Create a hosted key:
-# https://app.sagerouter.dev/account.html?plan=pro&start=create_key
+# ${LANDING_SETUP_ACCOUNT_URL}
 
 export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
 export OPENAI_API_KEY=sk_sage_your_key_here
@@ -356,9 +359,9 @@ function HeroSetupCopy() {
         }}>
           {copied ? 'Setup copied ✓' : 'Copy 60-second setup bundle'}
         </button>
-        <a className="button postCopyAccountButton" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_setup_next_clicked', {
+        <a className="button postCopyAccountButton" href={copied ? HERO_SETUP_ACCOUNT_URL : ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_setup_next_clicked', {
           plan: 'pro',
-          target: ACCOUNT_PAGE_HREF,
+          target: copied ? HERO_SETUP_ACCOUNT_URL : ACCOUNT_PAGE_HREF,
           button: copied ? 'Create API key next after copy' : 'Create API key next',
           state: copied ? 'post-copy' : 'pre-copy',
           snippet: 'landing-hero-setup-bundle',
@@ -371,9 +374,9 @@ function HeroSetupCopy() {
         <div className="heroPostCopyPrompt" role="status" aria-live="polite">
           <strong>Setup copied. Create your key now.</strong>
           <span>The bundle is already pointed at <code>https://api.sagerouter.dev/v1</code>; it only needs your generated <code>sk_sage_*</code> key.</span>
-          <a href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_setup_next_clicked', {
+          <a href={HERO_SETUP_ACCOUNT_URL} onClick={() => trackLandingFunnelEvent('landing_setup_next_clicked', {
             plan: 'pro',
-            target: ACCOUNT_PAGE_HREF,
+            target: HERO_SETUP_ACCOUNT_URL,
             button: 'Post-copy create API key panel',
             state: 'post-copy-panel',
             snippet: 'landing-hero-setup-bundle',
@@ -394,12 +397,12 @@ function StickyActivationBar() {
     if (copied) {
       trackLandingFunnelEvent('landing_setup_next_clicked', {
         plan: 'pro',
-        target: ACCOUNT_PAGE_HREF,
+        target: STICKY_SETUP_ACCOUNT_URL,
         button: 'Sticky create API key after copy',
         state: 'sticky-post-copy',
         snippet: 'landing-sticky-setup-bundle',
       });
-      window.location.href = ACCOUNT_PAGE_HREF;
+      window.location.href = STICKY_SETUP_ACCOUNT_URL;
       return;
     }
     try {

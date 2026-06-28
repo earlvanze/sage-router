@@ -86,7 +86,10 @@ leads with `Open account key creator` and records `landing_key_first_direct_clic
 before GitHub, email magic-link, or setup-copy fallbacks. The hero also exposes a
 no-secret `Copy 60-second setup bundle` action that records `quickstart_snippet_copied`
 with `landing-hero-setup-bundle` metadata, so setup-copy intent is measurable
-before signup. A persistent bottom activation bar keeps `Create API key`,
+before signup. The copied bundle and post-copy account handoffs include
+`setup=landing-*-setup-bundle` and `source_surface=landing`, which lets the
+account page focus the generated-key setup path and emit
+`account_setup_handoff_viewed`. A persistent bottom activation bar keeps `Create API key`,
 `Copy 60-second setup`, and `Finish setup key` visible after scroll; the setup
 button records `quickstart_snippet_copied` with `landing-sticky-setup-bundle`
 metadata, then becomes a `landing_setup_next_clicked` account handoff. The hero keeps pricing, quickstart, public status,

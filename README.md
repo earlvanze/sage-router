@@ -293,7 +293,10 @@ is `Create hosted API key`, links directly to `https://app.sagerouter.dev/accoun
 the above-the-fold key-first panel leads with `Open account key creator` before
 GitHub, email magic-link, or setup-copy fallbacks. It also promotes a no-secret
 `Copy 60-second setup bundle` action so visitors can copy hosted edge,
-`sage-router/frontier`, and Codex profile setup before signing in. A persistent bottom activation bar keeps `Create API key`,
+`sage-router/frontier`, and Codex profile setup before signing in; copied setup
+links include `setup=landing-*-setup-bundle` plus `source_surface=landing` so
+the signed-in account page can focus the generated-key handoff and record
+`account_setup_handoff_viewed`. A persistent bottom activation bar keeps `Create API key`,
 `Copy 60-second setup`, and `Finish setup key` visible after scrolling; the setup copy records
 `quickstart_snippet_copied` with `landing-sticky-setup-bundle` before handing off to account
 key creation. It keeps pricing, quickstart, status, model gateway comparison, model catalog,

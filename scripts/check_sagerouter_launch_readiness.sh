@@ -1586,6 +1586,18 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "landing-hero-setup-bundle" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-hero-setup-copy-snippet"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup=landing-full-setup-bundle" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-setup-copy-handoff"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup=landing-hero-setup-bundle" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-hero-setup-handoff"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup=landing-sticky-setup-bundle" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-sticky-setup-handoff"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "source_surface=landing" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-setup-source-surface"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Create API key next" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-post-copy-account-cta"
   fi
