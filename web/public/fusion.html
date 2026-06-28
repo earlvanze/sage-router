@@ -60,6 +60,7 @@
           <a class="button secondary" href="/quickstart">Quickstart</a>
           <a class="button secondary" href="/docs/gateway-migration">Gateway migration</a>
           <a class="button secondary" href="/models">Model catalog</a>
+          <a class="button secondary" href="/managed-access?intent=max-implementation" data-fusion-managed-access="max-implementation">Request Max review</a>
         </div>
         <form class="emailStart" id="fusion-email-form" data-email-activation-form data-event-prefix="fusion" data-sent-event="fusion_magic_link_sent" data-source="fusion" data-status-id="fusion-email-status">
           <label for="fusion-email">Get an API key setup link for Fusion</label>
@@ -158,6 +159,7 @@
         <ul class="list">
           <li><strong>Pro:</strong> daily high-stakes agent work with premium Fusion synthesis and frontier routing profiles.</li>
           <li><strong>Max:</strong> higher volume automation, priority fallback, and a larger Fusion budget for teams.</li>
+          <li><strong>One-subscription review:</strong> private beta demand is captured through managed-access review while public managed-provider resale stays disabled until authorization, terms, allowlist, margin, quota, audit, and abuse controls pass.</li>
           <li><strong>Local/private:</strong> self-hosted deployments can keep provider credentials on the router host or Tailnet while using the same model names and server-tool shape.</li>
           <li><strong>Telemetry:</strong> route events record status, elapsed time, selected route IDs, plan, and auth type, not prompts, panel answers, final answers, API keys, OAuth tokens, or provider credentials.</li>
         </ul>
@@ -169,6 +171,7 @@
           <a class="button secondary" href="/pricing">Compare pricing</a>
           <a class="button secondary" href="/quickstart">Copy first request</a>
           <a class="button secondary" href="/docs/gateway-migration">Migrate from an existing gateway</a>
+          <a class="button secondary" href="/managed-access?intent=one-subscription" data-fusion-managed-access="one-subscription">Request one-subscription review</a>
         </div>
       </section>
     </main>
@@ -309,6 +312,12 @@
         link.addEventListener('click', () => trackFusionFunnelEvent('fusion_pricing_clicked', { target: href, button }));
       } else if (href === '/models') {
         link.addEventListener('click', () => trackFusionFunnelEvent('fusion_models_clicked', { target: href, button }));
+      } else if (href.startsWith('/managed-access')) {
+        link.addEventListener('click', () => trackFusionFunnelEvent('fusion_managed_access_clicked', {
+          target: href,
+          button,
+          state: link.dataset.fusionManagedAccess || 'managed-access'
+        }));
       }
     });
   </script>

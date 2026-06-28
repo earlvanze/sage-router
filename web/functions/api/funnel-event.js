@@ -30,6 +30,7 @@ const ALLOWED_EVENTS = new Set([
   'fusion_gateway_migration_clicked',
   'fusion_pricing_clicked',
   'fusion_models_clicked',
+  'fusion_managed_access_clicked',
   'fusion_magic_link_requested',
   'fusion_magic_link_sent',
   'fusion_magic_link_failed',

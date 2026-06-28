@@ -1382,6 +1382,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("fusion_checkout_clicked") != null) and
     ((.allowedEvents // []) | index("fusion_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("fusion_oauth_clicked") != null) and
+    ((.allowedEvents // []) | index("fusion_managed_access_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_migration_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("gateway_migration_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("agent_native_magic_link_sent") != null) and
@@ -3301,6 +3302,15 @@ check_marketing_fusion_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "fusion_checkout_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-funnel-event"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "fusion_managed_access_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-fusion-managed-access-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/managed-access?intent=max-implementation" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-fusion-max-review-cta"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/managed-access?intent=one-subscription" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-fusion-one-subscription-cta"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "fusion-email-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-fusion-email-form"
