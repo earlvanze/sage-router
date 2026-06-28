@@ -19,7 +19,7 @@ BYOK_ONLY_PROVIDER_FAMILIES="openrouter"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--stage-public-controls|--unit-economics]
+Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--terms-approval-packet|--stage-public-controls|--unit-economics]
 
 Stage Sage Router managed provider-access readiness on Cloud Run.
 
@@ -48,6 +48,10 @@ Options:
                            Cloud Run binding presence, safe plan thresholds, and
                            next commands. It never prints provider costs or
                            authorization references.
+  --terms-approval-packet  Print the no-secret provider-terms acknowledgment
+                           review packet. It separates the terms decision from
+                           the private cost model and never prints provider
+                           authorization reference values.
   --stage-public-controls  Bind non-secret terms, margin-policy, allowlist, and
                            disabled public-enable env without requiring or
                            writing the private cost model.
@@ -74,6 +78,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --operator-packet)
       MODE="operator-packet"
+      shift
+      ;;
+    --terms-approval-packet)
+      MODE="terms-approval-packet"
       shift
       ;;
     --stage-public-controls)
@@ -384,6 +392,70 @@ managed_provider_operator_packet() {
   printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false.\n'
 }
 
+managed_provider_terms_approval_packet() {
+  require_cmd curl
+  require_cmd jq
+
+  local body code terms_url margin_url terms_ack auth_evidence missing allowed eligible byok ready blocked
+  body="$(mktemp)"
+  code="$(curl -sS -o "$body" -w '%{http_code}' https://api.sagerouter.dev/pricing || printf '000')"
+
+  printf 'Sage Router managed provider terms approval packet\n'
+  printf 'Boundary: read-only approval review; no provider credentials, provider authorization reference values, private provider costs, prompts, OAuth tokens, generated API keys, customer data, or raw provider responses.\n'
+  printf 'Effect: this command does not acknowledge terms, write secrets, deploy Cloud Run, enable managed resale, or send customer email.\n\n'
+
+  if [[ "$code" == "200" ]]; then
+    terms_url="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsUrl // ""' "$body")"
+    margin_url="$(jq -r '.publicLaunch.managedProviderAccess.marginPolicyUrl // ""' "$body")"
+    terms_ack="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsAcknowledged // false' "$body")"
+    auth_evidence="$(jq -r '.publicLaunch.managedProviderAccess.providerAuthorizationEvidenceConfigured // false' "$body")"
+    missing="$(jq -r '(.publicLaunch.managedProviderAccess.missingControls // []) | join(", ")' "$body")"
+    allowed="$(jq -r '(.publicLaunch.managedProviderAccess.allowedProviderFamilies // []) | join(", ")' "$body")"
+    eligible="$(jq -r '(.publicLaunch.managedProviderAccess.resaleEligibleProviderFamilies // []) | join(", ")' "$body")"
+    byok="$(jq -r '(.publicLaunch.managedProviderAccess.byokOnlyProviderFamilies // []) | join(", ")' "$body")"
+    ready="$(jq -r '(.publicLaunch.managedProviderAccess.oneSubscriptionReadiness.readyProviderFamilies // []) | join(", ")' "$body")"
+    blocked="$(jq -r '(.publicLaunch.managedProviderAccess.oneSubscriptionReadiness.blockedProviderFamilies // []) | join(", ")' "$body")"
+
+    printf 'Public decision inputs:\n'
+    printf -- '- provider terms URL: %s\n' "${terms_url:-missing}"
+    printf -- '- margin policy URL: %s\n' "${margin_url:-missing}"
+    printf -- '- terms already acknowledged: %s\n' "$terms_ack"
+    printf -- '- authorization evidence configured: %s\n' "$auth_evidence"
+    printf -- '- missing controls: %s\n' "${missing:-none}"
+    printf -- '- currently allowed managed families: %s\n' "${allowed:-none}"
+    printf -- '- resale-eligible families: %s\n' "${eligible:-none}"
+    printf -- '- BYOK-only families excluded from resale: %s\n' "${byok:-none}"
+    printf -- '- one-subscription ready families: %s\n' "${ready:-none}"
+    printf -- '- one-subscription blocked families: %s\n\n' "${blocked:-none}"
+  else
+    printf 'Public decision inputs: unavailable HTTP %s from https://api.sagerouter.dev/pricing\n\n' "$code"
+  fi
+  rm -f "$body"
+
+  printf 'Local approval input presence:\n'
+  printf -- '- termsUrl=%s marginPolicyUrl=%s authorizationEvidence=%s allowedProviders=%s costModel=%s minimumMargin=%s enablePublic=%s\n\n' \
+    "$(presence "$TERMS_URL")" "$(presence "$MARGIN_POLICY_URL")" "$(presence "$AUTHORIZATION_REF")" "$(presence "$ALLOWED_PROVIDERS")" "$(presence "$COST_CENTS_PER_1K")" "$MIN_MARGIN" "$ENABLE_PUBLIC"
+
+  printf 'Approval checklist:\n'
+  printf -- '- Review provider-resale terms and provider authorization evidence out of band.\n'
+  printf -- '- Confirm each managed provider family is resale-eligible: %s.\n' "$RESALE_ELIGIBLE_PROVIDER_FAMILIES"
+  printf -- '- Keep BYOK-only families out of the managed resale allowlist: %s.\n' "$BYOK_ONLY_PROVIDER_FAMILIES"
+  printf -- '- Confirm the authorization evidence reference exists before setting SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=1.\n'
+  printf -- '- Keep SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0 until the private cost model and unit economics also pass.\n\n'
+
+  printf 'Safe next commands:\n'
+  printf -- '- Stage public controls without terms acknowledgment or private cost:\n'
+  printf '  scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls\n'
+  printf -- '- Generate this packet again after evidence review:\n'
+  printf '  scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet\n'
+  printf -- '- After written approval, acknowledge terms while keeping public resale disabled and without printing the evidence reference:\n'
+  printf "  SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls\n"
+  printf -- '- Then run the secret-safe private cost preflight:\n'
+  printf "  SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n\n"
+
+  printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false.\n'
+}
+
 secret_exists() {
   gcloud secrets describe "$1" --project "$PROJECT_ID" >/dev/null 2>&1
 }
@@ -411,6 +483,11 @@ if [[ "$MODE" == "operator-packet" ]]; then
   exit 0
 fi
 
+if [[ "$MODE" == "terms-approval-packet" ]]; then
+  managed_provider_terms_approval_packet
+  exit 0
+fi
+
 if [[ "$MODE" == "unit-economics" ]]; then
   require_cmd python3
   "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/managed_provider_unit_economics.py"
@@ -427,12 +504,16 @@ if [[ "$MODE" == "stage-public-controls" ]]; then
   validate_allowed_providers "$ALLOWED_PROVIDERS"
   validate_margin_threshold
   validate_authorization_reference
+  stage_env_vars="^|^SAGEROUTER_PROVIDER_RESALE_TERMS_URL=${TERMS_URL}|SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL=${MARGIN_POLICY_URL}|SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=${TERMS_ACKNOWLEDGED}|SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS=${ALLOWED_PROVIDERS}|SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT=${MIN_MARGIN}|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=0"
+  if [[ -n "$AUTHORIZATION_REF" ]]; then
+    stage_env_vars="${stage_env_vars}|SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF=${AUTHORIZATION_REF}"
+  fi
   printf 'Updating Cloud Run service=%s region=%s managed-access non-secret readiness controls\n' "$SERVICE_NAME" "$REGION" >&2
   gcloud run services update "$SERVICE_NAME" \
     --project "$PROJECT_ID" \
     --region "$REGION" \
     --platform managed \
-    --update-env-vars "^|^SAGEROUTER_PROVIDER_RESALE_TERMS_URL=${TERMS_URL}|SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL=${MARGIN_POLICY_URL}|SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=${TERMS_ACKNOWLEDGED}|SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS=${ALLOWED_PROVIDERS}|SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT=${MIN_MARGIN}|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=0"
+    --update-env-vars "$stage_env_vars"
   printf 'Managed provider-access public controls staged without writing the private cost model. Review terms acknowledgment and unit economics before enabling managed access.\n' >&2
   if [[ "$RUN_READINESS" != "0" ]]; then
     "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/check_sagerouter_launch_readiness.sh"

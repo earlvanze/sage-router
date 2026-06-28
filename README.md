@@ -553,6 +553,7 @@ public resale or writing the private provider-cost model:
 ```bash
 scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
 scripts/configure_managed_provider_resale_readiness.sh --operator-packet
+scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet
 scripts/configure_managed_provider_resale_readiness.sh --check
 ```
 
@@ -563,6 +564,15 @@ acknowledgment, an operator-held provider authorization evidence reference, and
 private cost model / positive unit-economics review. The authorization reference
 is never printed in public metadata; `/pricing` exposes only whether it is
 configured.
+
+Use `--terms-approval-packet` for the provider-terms acknowledgment review. It
+prints public terms/margin URLs, local input presence, resale-eligible provider
+families, BYOK-only exclusions, and safe next commands without printing provider
+costs or authorization-reference values. Only set
+`SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=1` after the provider terms and
+authorization evidence are approved out of band, and keep
+`SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0` until the private
+cost-model and unit-economics preflight also pass.
 
 Before writing the private provider-cost model to Secret Manager, run the
 secret-safe unit-economics preflight with the candidate cost in the environment:

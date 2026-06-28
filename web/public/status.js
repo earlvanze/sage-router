@@ -360,6 +360,7 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
   const openaiBase = pricing.openaiBaseUrl || `${sageRouterUrl}/v1`;
   const activationCheck = activation.setupCheckCommand || `${activation.setupScript || 'scripts/configure_activation_email_sender.sh'} --check`;
   const managedDryRun = managedSetup.dryRunCommand || 'scripts/configure_managed_provider_resale_readiness.sh --check';
+  const managedTermsApproval = managedSetup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
   const managedUnitEconomics = managedSetup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
   const cloudflareBicCheck = [
     'scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens',
@@ -401,6 +402,16 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
         : `${topManagedAction.action || 'Run the dry-run before staging provider terms, allowlist, private cost model, and margin controls.'} OpenRouter remains BYOK-only unless separate authorization is added.`,
       command: managed.enabled ? (managedSetup.enableCommandTemplate || managedDryRun) : managedDryRun,
       copyEvent: 'status_managed_resale_dry_run_copied',
+    },
+    {
+      id: 'managed-terms-approval',
+      title: 'Provider terms approval',
+      value: managed.providerTermsAcknowledged ? 'Terms acknowledged' : 'Approval packet required',
+      badge: managed.providerTermsAcknowledged ? 'acknowledged' : 'no-secret review',
+      state: managed.providerTermsAcknowledged ? 'good' : 'warn',
+      meta: 'Review provider terms, authorization-evidence presence, resale-eligible families, and BYOK-only exclusions before setting terms acknowledgment.',
+      command: managedTermsApproval,
+      copyEvent: 'status_managed_terms_approval_copied',
     },
     {
       id: 'managed-unit-economics',

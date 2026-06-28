@@ -2656,6 +2656,9 @@ def managed_provider_resale_readiness_setup(enabled=False):
     dry_run_command = (
         "scripts/configure_managed_provider_resale_readiness.sh --check"
     )
+    terms_approval_command = (
+        "scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet"
+    )
     unit_economics_command = (
         "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' "
         "scripts/configure_managed_provider_resale_readiness.sh --unit-economics"
@@ -2670,6 +2673,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
         'setupScript': 'scripts/configure_managed_provider_resale_readiness.sh',
         'setupCommand': '' if enabled else setup_command,
         'dryRunCommand': dry_run_command,
+        'termsApprovalCommand': terms_approval_command,
         'unitEconomicsCommand': unit_economics_command,
         'enableCommandTemplate': enable_command_template,
         'requiredEnv': [] if enabled else [
