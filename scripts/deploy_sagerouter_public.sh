@@ -10,6 +10,10 @@ DEPLOY_PAGES="${SAGEROUTER_DEPLOY_PAGES:-1}"
 DEPLOY_CLOUD_RUN="${SAGEROUTER_DEPLOY_CLOUD_RUN:-0}"
 RUN_READINESS="${SAGEROUTER_DEPLOY_RUN_READINESS:-1}"
 GHCR_IMAGE_DIGEST="${GHCR_IMAGE_DIGEST:-${SAGEROUTER_GHCR_IMAGE_DIGEST:-}}"
+API_BASE="${SAGEROUTER_API_BASE_URL:-https://api.sagerouter.dev}"
+POST_DEPLOY_WARMUP_ATTEMPTS="${SAGEROUTER_POST_DEPLOY_WARMUP_ATTEMPTS:-18}"
+POST_DEPLOY_WARMUP_DELAY_SECONDS="${SAGEROUTER_POST_DEPLOY_WARMUP_DELAY_SECONDS:-5}"
+CLOUD_RUN_DEPLOYED=0
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -107,6 +111,47 @@ deploy_cloud_run() {
   printf 'Deploying Cloud Run from GHCR digest %s\n' "$GHCR_IMAGE_DIGEST" >&2
   DEPLOY_FROM_GHCR_REMOTE=1 GHCR_IMAGE_DIGEST="$GHCR_IMAGE_DIGEST" \
     "$ROOT/deploy/gcp/cloudrun-deploy.sh"
+  CLOUD_RUN_DEPLOYED=1
+}
+
+http_code_to_file() {
+  local url="$1"
+  shift
+  curl -sS -o /tmp/sage-router-deploy-warmup-body -w '%{http_code}' "$url" "$@"
+}
+
+wait_for_public_edge_after_cloud_run_deploy() {
+  require_cmd curl
+  require_cmd jq
+
+  local attempt health_code health_ok pricing_code catalog_code webhook_code webhook_error
+  for attempt in $(seq 1 "$POST_DEPLOY_WARMUP_ATTEMPTS"); do
+    health_code="$(http_code_to_file "${API_BASE%/}/edge/health")"
+    health_ok="$(jq -r '.status == "ok" and (.failover.controlPlanePinned == true)' /tmp/sage-router-deploy-warmup-body 2>/dev/null || true)"
+
+    pricing_code="$(http_code_to_file "${API_BASE%/}/pricing")"
+    catalog_code="$(http_code_to_file "${API_BASE%/}/model-catalog")"
+    webhook_code="$(http_code_to_file "${API_BASE%/}/billing/stripe/webhook" \
+      -H "Content-Type: application/json" \
+      --data '{"id":"evt_deploy_warmup_unsigned","type":"deploy.warmup"}')"
+    webhook_error="$(jq -r '.error // empty' /tmp/sage-router-deploy-warmup-body 2>/dev/null || true)"
+
+    if [[ "$health_code" == "200" && "$health_ok" == "true" && "$pricing_code" == "200" && "$catalog_code" == "200" && "$webhook_code" == "400" && "$webhook_error" == "invalid_signature" ]]; then
+      rm -f /tmp/sage-router-deploy-warmup-body
+      printf 'Post-deploy public edge warmup passed after %s attempt(s).\n' "$attempt" >&2
+      return 0
+    fi
+
+    printf 'Waiting for public edge warmup attempt %s/%s: health=%s controlPlanePinned=%s pricing=%s modelCatalog=%s stripeWebhook=%s/%s\n' \
+      "$attempt" "$POST_DEPLOY_WARMUP_ATTEMPTS" "$health_code" "${health_ok:-missing}" "$pricing_code" "$catalog_code" "$webhook_code" "${webhook_error:-missing}" >&2
+    if [[ "$attempt" -lt "$POST_DEPLOY_WARMUP_ATTEMPTS" ]]; then
+      sleep "$POST_DEPLOY_WARMUP_DELAY_SECONDS"
+    fi
+  done
+
+  rm -f /tmp/sage-router-deploy-warmup-body
+  printf 'Post-deploy public edge warmup failed after %s attempt(s).\n' "$POST_DEPLOY_WARMUP_ATTEMPTS" >&2
+  return 1
 }
 
 if [[ "$DEPLOY_PAGES" != "0" ]]; then
@@ -122,6 +167,9 @@ else
 fi
 
 if [[ "$RUN_READINESS" != "0" ]]; then
+  if [[ "$CLOUD_RUN_DEPLOYED" == "1" ]]; then
+    wait_for_public_edge_after_cloud_run_deploy
+  fi
   "$ROOT/scripts/check_sagerouter_launch_readiness.sh"
 else
   printf 'Skipping launch readiness because SAGEROUTER_DEPLOY_RUN_READINESS=0\n' >&2

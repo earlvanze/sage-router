@@ -655,7 +655,13 @@ GHCR_IMAGE_DIGEST=sha256:... scripts/deploy_sagerouter_public.sh
 
 If `SAGEROUTER_DEPLOY_CLOUD_RUN=1` is set without a digest, the helper resolves
 the latest successful GitHub Actions `Release image` digest from the run log and
-deploys that digest through the Artifact Registry GHCR remote cache.
+deploys that digest through the Artifact Registry GHCR remote cache. After a
+Cloud Run traffic switch, the helper waits for the public edge to serve
+`/edge/health`, `/pricing`, `/model-catalog`, and the unsigned Stripe webhook
+fail-closed guard before running the full readiness suite; tune that bounded
+warmup with `SAGEROUTER_POST_DEPLOY_WARMUP_ATTEMPTS` and
+`SAGEROUTER_POST_DEPLOY_WARMUP_DELAY_SECONDS` if the edge cache needs longer to
+settle.
 
 Monthly API-key quotas require the Supabase usage counter table and RPC. Apply
 the idempotent migration through the Supabase Management API before enabling
