@@ -7299,6 +7299,10 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
             'workedKind': f'{segment}_marked_worked' if segment in {'verified', 'unverified'} else 'marked_worked',
             'sendOrder': len(segment_actions) + 1,
         })
+        if not review_only:
+            segment_commands = (email_readiness.get('segmentCommandTemplates') or {}).get(segment) or {}
+            segment_actions[-1]['dryRunCommand'] = segment_commands.get('dryRunCommand') or activation_followup_send_command(segment=segment, dry_run=True)
+            segment_actions[-1]['sendCommand'] = segment_commands.get('sendCommand') or activation_followup_send_command(segment=segment, dry_run=False)
     send_telemetry = {
         'dryRunActions': int(activation_follow_ups.get('operatorFollowUpSendDryRuns') or 0),
         'dryRunRecipients': int(activation_follow_ups.get('operatorFollowUpSendDryRunRecipients') or 0),
@@ -9366,6 +9370,29 @@ def activation_email_provider_label():
     return ACTIVATION_EMAIL_PROVIDER or 'resend'
 
 
+def activation_followup_send_command(segment='all', dry_run=True, limit=None):
+    segment = re.sub(r'[^a-z0-9_.-]+', '_', str(segment or 'all').strip().lower()) or 'all'
+    max_limit = max(1, min(int(limit or ACTIVATION_EMAIL_MAX_BATCH), ACTIVATION_EMAIL_MAX_BATCH))
+    payload = {
+        'status': 'inactive',
+        'segment': segment,
+        'limit': max_limit,
+        'dryRun': bool(dry_run),
+    }
+    if not dry_run:
+        payload['sendConfirmation'] = ACTIVATION_FOLLOWUP_SEND_CONFIRMATION
+    command = (
+        'curl -fsS -X POST https://api.sagerouter.dev/admin/customers/send-activation-followups \\\n'
+        '  -H "Authorization: Bearer ${SAGE_ROUTER_API_KEY}" \\\n'
+        '  -H "Origin: https://app.sagerouter.dev" \\\n'
+        '  -H "Content-Type: application/json" \\\n'
+        f"  --data '{json.dumps(payload, separators=(',', ':'))}'"
+    )
+    if dry_run:
+        command += " \\\n  | jq '{configured,dryRun,queued,sent,failed,segments,plans}'"
+    return command
+
+
 def activation_email_readiness():
     configured = activation_email_configured()
     provider = activation_email_provider_label()
@@ -9384,21 +9411,19 @@ def activation_email_readiness():
                 "SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO='support@sagerouter.dev' \\\n"
                 "scripts/configure_activation_email_sender.sh"
             )
-    dry_run_command = (
-        'curl -fsS -X POST https://api.sagerouter.dev/admin/customers/send-activation-followups \\\n'
-        '  -H "Authorization: Bearer ${SAGE_ROUTER_API_KEY}" \\\n'
-        '  -H "Origin: https://app.sagerouter.dev" \\\n'
-        '  -H "Content-Type: application/json" \\\n'
-        '  --data \'{"status":"inactive","segment":"all","limit":25,"dryRun":true}\' \\\n'
-        "  | jq '{configured,dryRun,queued,sent,failed,segments,plans}'"
-    )
-    send_command_template = (
-        'curl -fsS -X POST https://api.sagerouter.dev/admin/customers/send-activation-followups \\\n'
-        '  -H "Authorization: Bearer ${SAGE_ROUTER_API_KEY}" \\\n'
-        '  -H "Origin: https://app.sagerouter.dev" \\\n'
-        '  -H "Content-Type: application/json" \\\n'
-        f'  --data \'{{"status":"inactive","segment":"all","limit":25,"dryRun":false,"sendConfirmation":"{ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}"}}\''
-    )
+    dry_run_command = activation_followup_send_command(segment='all', dry_run=True)
+    send_command_template = activation_followup_send_command(segment='all', dry_run=False)
+    segment_command_templates = {
+        segment: {
+            'dryRunCommand': activation_followup_send_command(segment=segment, dry_run=True),
+            'sendCommand': activation_followup_send_command(segment=segment, dry_run=False),
+        }
+        for segment in ('verified', 'unverified')
+    }
+    segment_command_templates['all'] = {
+        'dryRunCommand': dry_run_command,
+        'sendCommand': send_command_template,
+    }
     return {
         'provider': provider,
         'configured': configured,
@@ -9407,6 +9432,7 @@ def activation_email_readiness():
         'sendConfirmation': ACTIVATION_FOLLOWUP_SEND_CONFIRMATION,
         'dryRunCommand': dry_run_command,
         'sendCommandTemplate': send_command_template,
+        'segmentCommandTemplates': segment_command_templates,
         'sendsEmailWhenConfigured': configured,
         'fromConfigured': bool(ACTIVATION_EMAIL_FROM),
         'apiKeyConfigured': bool(ACTIVATION_EMAIL_API_KEY) if provider == 'resend' else bool(SUPABASE_ANON_KEY),

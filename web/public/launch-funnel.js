@@ -851,7 +851,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
     '',
     'Segments:',
     ...(segmentActions.length
-      ? segmentActions.map(row => `- ${row.sendOrder || ''}. ${row.label || row.segment}: ${integer(row.count)} queued; mode=${row.deliveryMode || (row.sendable === false ? 'review' : 'send')}; copy=${row.copyKind || ''}; worked=${row.workedKind || ''}${row.reviewReason ? `; review=${row.reviewReason}` : ''}`)
+      ? segmentActions.map(row => `- ${row.sendOrder || ''}. ${row.label || row.segment}: ${integer(row.count)} queued; mode=${row.deliveryMode || (row.sendable === false ? 'review' : 'send')}; copy=${row.copyKind || ''}; worked=${row.workedKind || ''}; sendCommand=${row.sendCommand ? 'segment-specific' : 'none'}${row.reviewReason ? `; review=${row.reviewReason}` : ''}`)
       : ['- none']),
     '',
     'Recovery URLs:',
@@ -907,6 +907,8 @@ function renderOperatorExecutionPacket(data = {}) {
     ? segmentActions.map(row => {
         const segment = row.segment || 'all';
         const draftReady = followUpSegmentDraftReady(plan, segment);
+        const segmentSendCommand = row.sendCommand || (row.sendable === false ? '' : activationSendCommand(emailReadiness, { ...activationSend, nextSendSegment: segment }));
+        const canCopySegmentSend = Boolean(segmentSendCommand && row.sendable !== false && activationSend.dryRunVerified && activationSend.sendApprovalRequired);
         const segmentDraft = [
           `Subject: ${draft.subject || 'Finish your Sage Router setup key'}`,
           '',
@@ -920,7 +922,7 @@ function renderOperatorExecutionPacket(data = {}) {
           <td>${integer(row.sendOrder)}</td>
           <td><code>${esc(row.copyKind || '')}</code></td>
           <td><code>${esc(row.workedKind || '')}</code></td>
-          <td><div class="actions"><button class="btn secondary small" type="button" data-copy-primary-followup-url="${esc(urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(segmentDraft)}" data-followup-copy-kind="${esc(row.copyKind || `${segment}_aggregate_draft_copied`)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(row.count)}">Copy draft</button><button class="btn small" type="button" data-mark-followup-worked="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(row.count)}" data-followup-draft-ready="${draftReady ? '1' : '0'}" ${draftReady ? '' : 'disabled'}>Mark worked</button></div></td>
+          <td><div class="actions"><button class="btn secondary small" type="button" data-copy-primary-followup-url="${esc(urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(segmentDraft)}" data-followup-copy-kind="${esc(row.copyKind || `${segment}_aggregate_draft_copied`)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(row.count)}">Copy draft</button>${segmentSendCommand ? `<button class="btn secondary small" type="button" data-copy-activation-send-command="${esc(segmentSendCommand)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(row.count)}" ${canCopySegmentSend ? '' : 'disabled'}>Copy ${esc(segment)} send</button>` : ''}<button class="btn small" type="button" data-mark-followup-worked="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(row.count)}" data-followup-draft-ready="${draftReady ? '1' : '0'}" ${draftReady ? '' : 'disabled'}>Mark worked</button></div></td>
         </tr>`;
       }).join('')
     : '<tr><td colspan="6">No segment actions returned.</td></tr>';
