@@ -5,9 +5,9 @@
   const path = window.location.pathname || '/';
   const title = (document.querySelector('h1')?.textContent || document.title || 'Sage Router').trim();
   const articleSlug = attributionValue(path)?.replace(/^\/+/, '').replace(/\/+/g, '-') || 'article';
-  const accountUrl = `https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-pro-key`)}`;
-  const accountEmailUrl = `https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-email`)}`;
-  const recoveryUrl = `https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=article-dock&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&utm_content=${encodeURIComponent(`${articleSlug}-returning-user`)}`;
+  const accountUrl = `https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&source_surface=article&utm_content=${encodeURIComponent(`${articleSlug}-pro-key`)}`;
+  const accountEmailUrl = `https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&source_surface=article&utm_content=${encodeURIComponent(`${articleSlug}-email`)}`;
+  const recoveryUrl = `https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=article-dock&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&source_surface=article&utm_content=${encodeURIComponent(`${articleSlug}-returning-user`)}`;
   const quickstartUrl = `/quickstart?utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-quickstart`)}`;
   const calculatorUrl = `/model-routing-calculator?utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-calculator`)}`;
   const managedAccessUrl = `/managed-access?intent=max-implementation&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-max-review`)}`;
@@ -33,6 +33,12 @@ curl https://api.sagerouter.dev/v1/models \\
       .replace(/[^a-z0-9._/-]+/g, '-')
       .slice(0, 100);
     return sanitized || undefined;
+  }
+
+  function accountUrlWithSetup(setup) {
+    const url = new URL(accountUrl);
+    if (setup) url.searchParams.set('setup', setup);
+    return url.toString();
   }
 
   function track(event, extra = {}) {
@@ -219,12 +225,14 @@ curl https://api.sagerouter.dev/v1/models \\
     button.textContent = label;
     button.addEventListener('click', async () => {
       if (button.dataset.setupCopied === 'true') {
+        const target = accountUrlWithSetup('article-hosted-setup');
         track('content_article_key_activation_clicked', {
-          target: accountUrl,
+          target,
           button: `${id}-create-key-next`,
           state: 'after-copy',
+          snippet: 'article-hosted-setup',
         });
-        window.location.href = accountUrl;
+        window.location.href = target;
         return;
       }
       button.disabled = true;
@@ -233,7 +241,7 @@ curl https://api.sagerouter.dev/v1/models \\
         button.dataset.setupCopied = 'true';
         button.textContent = 'Create API key next';
         track('content_article_snippet_copied', {
-          target: accountUrl,
+          target: accountUrlWithSetup('article-hosted-setup'),
           button: id,
           state: 'copied',
           snippet: 'article-hosted-setup',
