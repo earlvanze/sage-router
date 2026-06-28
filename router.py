@@ -3465,6 +3465,7 @@ def reject_visible_tool_call_leak(payload, text: str, tool_calls) -> str:
 
 TOOL_CALLS_OMITTED_RE = r'\[\s*tool\s+calls\s*omitted\s*\]'
 MODEL_PREFIX_LABEL_RE = r'\[[A-Za-z0-9_.-]+/[^\]\s]+\]'
+PARTIAL_MODEL_PREFIX_LABEL_RE = r'\[[A-Za-z0-9_.-]*(?:/[^\]\s]*)?$'
 
 
 def strip_leading_generic_model_prefix_labels(text: str):
@@ -3500,6 +3501,8 @@ def strip_model_prefix_tool_placeholder_noise(text: str):
         labels = re.findall(prefix_re, stripped)
         without_noise = re.sub(prefix_re, '', stripped).strip()
         without_noise = re.sub(TOOL_CALLS_OMITTED_RE, '', without_noise, flags=re.IGNORECASE).strip()
+        if labels:
+            without_noise = re.sub(PARTIAL_MODEL_PREFIX_LABEL_RE, '', without_noise).strip()
         if labels and not without_noise:
             changed = True
             continue
@@ -3513,7 +3516,10 @@ def strip_model_prefix_tool_placeholder_noise(text: str):
     suffix_noise_re = rf'(?:\s+(?:{placeholder_run_re}|{prefix_run_re}))+\s*$'
     suffix_cleaned = re.sub(suffix_noise_re, '', cleaned, flags=re.IGNORECASE).rstrip()
     if suffix_cleaned != cleaned:
-        return suffix_cleaned
+        cleaned = suffix_cleaned
+        changed = True
+    if changed:
+        return re.sub(PARTIAL_MODEL_PREFIX_LABEL_RE, '', cleaned.strip()).rstrip()
     return cleaned
 
 

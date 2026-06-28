@@ -33,6 +33,11 @@ class CodexSageRouterProxyTests(unittest.TestCase):
 
         self.assertEqual("", codex_proxy.sanitize_visible_output(raw))
 
+    def test_sanitizes_truncated_prefix_storm_tail(self):
+        raw = " ".join("[ollama-2/glm-5.2]" for _ in range(1000)) + " [olama"
+
+        self.assertEqual("", codex_proxy.sanitize_visible_output(raw))
+
     def test_sanitizes_newline_split_prefix_placeholder_noise(self):
         raw = (
             "[ollama-2/kimi-k2.5]\n"
