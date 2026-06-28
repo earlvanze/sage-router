@@ -10774,6 +10774,18 @@ def client_request_authorized(handler):
     return bool(client_auth_context(handler))
 
 
+def model_api_auth_setup_snippet():
+    api_base_url = API_BASE_URL or 'https://api.sagerouter.dev'
+    return (
+        '# Sage Router hosted setup\n'
+        f'export OPENAI_BASE_URL={api_base_url.rstrip("/")}/v1\n'
+        'export OPENAI_API_KEY=sk_sage_REPLACE_WITH_GENERATED_KEY\n'
+        '\n'
+        'curl "$OPENAI_BASE_URL/models" \\\n'
+        '  -H "Authorization: Bearer $OPENAI_API_KEY"'
+    )
+
+
 def model_api_auth_error_payload():
     api_base_url = API_BASE_URL or 'https://api.sagerouter.dev'
     key_recovery_url = (
@@ -10789,6 +10801,7 @@ def model_api_auth_error_payload():
         'statusUrl': f"{APP_BASE_URL}/status",
         'openaiBaseUrl': f"{api_base_url.rstrip('/')}/v1",
         'apiKeyPrefix': API_KEY_PREFIX,
+        'setupSnippet': model_api_auth_setup_snippet(),
     }
 
 

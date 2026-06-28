@@ -1207,6 +1207,17 @@ def outbound_bearer_token(path, auth_context, upstream=None):
     return BACKEND_TOKEN
 
 
+def model_api_auth_setup_snippet():
+    return (
+        "# Sage Router hosted setup\n"
+        f"export OPENAI_BASE_URL={API_BASE_URL.rstrip('/')}/v1\n"
+        "export OPENAI_API_KEY=sk_sage_REPLACE_WITH_GENERATED_KEY\n"
+        "\n"
+        'curl "$OPENAI_BASE_URL/models" \\\n'
+        '  -H "Authorization: Bearer $OPENAI_API_KEY"'
+    )
+
+
 def edge_error_payload(error, path, message=None, **extra):
     payload = {"error": error}
     if message:
@@ -1218,6 +1229,7 @@ def edge_error_payload(error, path, message=None, **extra):
         payload["statusUrl"] = STATUS_URL
         payload["openaiBaseUrl"] = API_BASE_URL.rstrip("/") + "/v1"
         payload["apiKeyPrefix"] = API_KEY_PREFIX
+        payload["setupSnippet"] = model_api_auth_setup_snippet()
     elif is_user_jwt_path(path):
         payload["loginUrl"] = LOGIN_URL
         payload["accountUrl"] = ACCOUNT_URL

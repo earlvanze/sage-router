@@ -122,7 +122,8 @@ provider resale claim, or runtime feature flag.
 - Keep `/api-troubleshooting` as the no-secret customer diagnostic path for
   hosted 401/402/429/503 responses, generated key prefix checks,
   `WWW-Authenticate`, `Retry-After`, rate-limit headers, quota headers,
-  account/pricing/status onboarding links, and safe support context.
+  account/pricing/status onboarding links, placeholder 401 `setupSnippet`, and
+  safe support context.
 - Keep `/setup-key-recovery` as the public no-key signup recovery destination
   for API 401 `keyRecoveryUrl` handoffs and public marketing/docs/status/support
   recovery CTAs, with direct same-email setup-link requests, same-email or
