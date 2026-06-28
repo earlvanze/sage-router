@@ -769,6 +769,65 @@ function activationApprovalReadiness(data = {}) {
   };
 }
 
+function activationApprovalChecklist(data = {}) {
+  const delivery = activationDeliveryCounts(data);
+  const activationSend = activationSendTelemetry(data);
+  const approvalReadiness = activationApprovalReadiness(data);
+  const hasSendable = asNumber(delivery.sendableQueued || activationSend.sendableQueued) > 0;
+  const hasReviewOnly = asNumber(delivery.reviewOnlyQueued) > 0;
+  return [
+    {
+      id: 'no_secret_boundary',
+      label: 'No-secret packet',
+      status: 'ready',
+      detail: 'Approval packet omits emails, customer IDs, API keys, prompts, OAuth tokens, provider credentials, and raw responses.',
+    },
+    {
+      id: 'dry_run_coverage',
+      label: 'Dry-run coverage',
+      status: hasSendable ? (activationSend.dryRunVerified ? 'ready' : 'blocked') : 'skipped',
+      detail: hasSendable
+        ? `${integer(activationSend.dryRunRecipients)} unique sendable recipient(s); covered ${activationSend.dryRunCoveredSegments.join(', ') || 'none'}; pending ${activationSend.dryRunPendingSegments.join(', ') || 'none'}.`
+        : 'No sendable activation follow-up segment is queued.',
+    },
+    {
+      id: 'operator_approval',
+      label: 'Operator approval',
+      status: approvalReadiness.status === 'approval_required' ? 'needs_approval' : (approvalReadiness.approvalRequired ? 'blocked' : 'ready'),
+      detail: approvalReadiness.approvalRequired
+        ? `Approve or hold the next real send for segment "${approvalReadiness.nextSendSegment || activationSend.nextSendSegment || 'all'}".`
+        : 'No pending real activation send needs approval.',
+    },
+    {
+      id: 'confirmation_token',
+      label: 'Confirmation token',
+      status: approvalReadiness.approvalRequired ? 'protected' : 'ready',
+      detail: approvalReadiness.approvalRequired
+        ? `Real sends still require ${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION} in the browser prompt and request body.`
+        : 'Real-send confirmation protection is configured.',
+    },
+    {
+      id: 'review_only_segments',
+      label: 'Review-only segments',
+      status: hasReviewOnly ? 'review' : 'ready',
+      detail: hasReviewOnly
+        ? `${integer(delivery.reviewOnlyQueued)} queued signup(s) need auth-repair review before outreach.`
+        : 'No review-only auth-repair segment is queued.',
+    },
+  ];
+}
+
+function renderActivationApprovalChecklist(data = {}) {
+  const rows = activationApprovalChecklist(data);
+  return `<div class="approvalChecklist">
+    <h3>Activation approval checklist</h3>
+    <table>
+      <thead><tr><th>Gate</th><th>Status</th><th>Detail</th></tr></thead>
+      <tbody>${rows.map(row => `<tr><td><span class="pill">${esc(row.label)}</span></td><td><span class="pill ${row.status === 'ready' || row.status === 'protected' ? 'good' : row.status === 'skipped' ? '' : 'warn'}">${esc(row.status)}</span></td><td>${esc(row.detail)}</td></tr>`).join('')}</tbody>
+    </table>
+  </div>`;
+}
+
 function segmentActionGroups(packet = {}) {
   const segmentActions = Array.isArray(packet.segmentActions) ? packet.segmentActions : [];
   return {
@@ -858,6 +917,7 @@ function buildLaunchBrief(data = {}) {
     `- Generated-key to first request: ${percent(rates.generatedKeyToFirstRequest)}; setup-copy to first request: ${percent(rates.setupCopyToFirstRequest)}`,
     `- No-key follow-ups queued: ${integer(activationDelivery.totalQueued || activationFollowUps.total)} total, ${integer(activationDelivery.sendableQueued)} sendable, ${integer(activationDelivery.reviewOnlyQueued)} review-only, ${integer(activationFollowUps.windowedNewSignups)} new in-window; worked: ${integer(activationFollowUps.operatorFollowUpWorked)}; copied/opened: ${integer(activationFollowUps.operatorFollowUpCopies)}; dry-run verified: ${activationSend.dryRunVerified ? 'yes' : 'no'} (${integer(activationSend.dryRunRecipients)} unique sendable recipients; covered ${activationSend.dryRunCoveredSegments.join(', ') || 'none'}); sent: ${integer(activationSend.sentRecipients)} recipients; key-first redirects: ${integer(activationFollowUps.keyFirstRedirects)}. Action: ${activationFollowUps.recommendedOperatorAction || 'Send the generated-key-first follow-up.'}`,
     `- Send approval handoff: next segment=${activationSend.nextSendSegment || 'all'}; approval required=${activationSend.sendApprovalRequired ? 'yes' : 'no'}; command copy remains operator-token gated and confirmation-token protected.`,
+    `- Approval checklist: ${(activationApprovalChecklist(data)).map(row => `${row.id}=${row.status}`).join('; ')}`,
     `- Activation email sender: ${activationEmailReadiness.configured ? 'configured' : 'fallback only'} via ${activationEmailReadiness.provider || 'resend'}; dry run ${activationEmailReadiness.dryRunSupported ? 'supported' : 'not reported'}; action: ${activationEmailReadiness.operatorAction || 'Use copy/mailto fallback until sender config is ready.'}`,
     `- No-key email verification: verified ${integer(noKeyVerification.verified)}, unverified ${integer(noKeyVerification.unverified)}, missing ${integer(noKeyVerification.missing_auth_user || noKeyVerification.missing_user_id)}, unavailable ${integer(noKeyVerification.unavailable)}`,
     `- Follow-up CTA: ${activationFollowUps.primaryCtaUrl || activationFollowUpUrl({}, { auth: false })}`,
@@ -1049,6 +1109,7 @@ function renderOperatorExecutionPacket(data = {}) {
   const packetText = operatorExecutionPacketText(packet, data);
   const approvalPacketText = activationApprovalPacketText(data);
   const draftText = [`Subject: ${draft.subject || 'Finish your Sage Router setup key'}`, '', draft.body || ''].join('\n');
+  const approvalChecklist = renderActivationApprovalChecklist(data);
   target.innerHTML = `<div class="metricList">
     <div class="metric"><span>Kind</span><strong>${esc(packet.kind)}</strong></div>
     <div class="metric"><span>Priority</span><strong><span class="pill ${packet.priority === 'fix_now' ? 'bad' : 'warn'}">${esc(packet.priority || 'monitor')}</span></strong></div>
@@ -1065,6 +1126,7 @@ function renderOperatorExecutionPacket(data = {}) {
     <div class="metric"><span>Success</span><strong>${esc(telemetry.successMetric || packet.metric || 'activation')}</strong></div>
   </div>
   <p class="muted">${esc(authPosture.action)} Approval readiness is ${esc(approvalReadiness.status || 'unknown')}${approvalReadiness.blockedReason ? ` (${esc(approvalReadiness.blockedReason)})` : ''}. ${activationSend.sendApprovalRequired ? `Dry-run is ${activationSend.dryRunVerified ? 'verified' : 'not complete'} for ${integer(activationSend.dryRunRecipients)} unique sendable recipient(s); covered segments: ${activationSend.dryRunCoveredSegments.join(', ') || 'none'}; wait for explicit operator approval before real send.` : esc(emailReadiness.operatorAction || 'Dry-run activation follow-up sending before real outreach.')} ${esc(managedSetup.operatorAction || 'Keep managed provider access disabled until resale controls pass.')}</p>
+  ${approvalChecklist}
   <div class="actions">
     <button class="btn secondary" type="button" data-copy-operator-packet="${esc(packetText)}">Copy execution packet</button>
     <button class="btn secondary" type="button" data-copy-activation-approval-packet="${esc(approvalPacketText)}" data-followup-count="${integer(activationDelivery.sendableQueued)}">Copy approval packet</button>
