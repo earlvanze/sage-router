@@ -2900,10 +2900,18 @@ def model_context_window(provider, model):
 
 
 def model_disabled_reason(provider_name, model):
-    if not DISABLED_MODELS:
-        return None
     model_s = str(model or '')
     provider_s = str(provider_name or '')
+    if provider_s and model_s:
+        block_key = f'{provider_s}/{model_s}'
+        blocked = TEMP_MODEL_BLOCKS.get(block_key)
+        if blocked:
+            if float(blocked.get('until', 0) or 0) <= time.time():
+                TEMP_MODEL_BLOCKS.pop(block_key, None)
+            else:
+                return f"temporarily blocked: {blocked.get('reason') or 'runtime error'}"
+    if not DISABLED_MODELS:
+        return None
     candidates = {model_s}
     if provider_s:
         candidates.add(f'{provider_s}/{model_s}')
@@ -2946,6 +2954,40 @@ def set_temp_model_block(provider_name, model, seconds, reason):
         'reason': reason,
     }
     invalidate_model_health_cache(provider_name, model)
+
+
+def set_temp_provider_models_block(provider_name, seconds, reason):
+    provider = PROVIDERS.get(provider_name)
+    if not provider:
+        return
+    for model in dedupe_keep_order(provider.models or []):
+        set_temp_model_block(provider_name, model, seconds, reason)
+
+
+def maybe_block_ollama_runtime_error(provider_name, model, error_text):
+    provider = PROVIDERS.get(provider_name)
+    if not provider or provider.api_type != 'ollama':
+        return
+    err = str(error_text or '')
+    err_l = err.lower()
+    if 'http 410' in err_l or ' was retired ' in f' {err_l} ':
+        set_temp_model_block(
+            provider_name,
+            model,
+            int(os.environ.get('SAGE_ROUTER_MODEL_RETIRED_COOLDOWN_SECONDS', '86400')),
+            err[:180] or 'retired model',
+        )
+        return
+    if 'http 403' in err_l and any(marker in err_l for marker in (
+        'payment is past due',
+        'requires a subscription',
+        'upgrade for access',
+    )):
+        seconds = int(os.environ.get('SAGE_ROUTER_OLLAMA_SUBSCRIPTION_COOLDOWN_SECONDS', '3600'))
+        if 'payment is past due' in err_l:
+            set_temp_provider_models_block(provider_name, seconds, err[:180] or 'ollama subscription unavailable')
+        else:
+            set_temp_model_block(provider_name, model, seconds, err[:180] or 'ollama subscription unavailable')
 
 
 
@@ -3407,6 +3449,7 @@ def strip_model_prefix_tool_placeholder_noise(text: str):
     if not remaining:
         return ''
     prefix_re = r'\[[A-Za-z0-9_.-]+/[^\]\s]+\]'
+    noise_unit_re = rf'(?:{prefix_re}\s*)*{TOOL_CALLS_OMITTED_RE}'
     cleaned_lines = []
     changed = False
     for line in remaining.splitlines():
@@ -3424,7 +3467,11 @@ def strip_model_prefix_tool_placeholder_noise(text: str):
             changed = True
             continue
         cleaned_lines.append(line)
-    return '\n'.join(cleaned_lines).strip() if changed else remaining
+    cleaned = '\n'.join(cleaned_lines).strip() if changed else remaining
+    suffix_cleaned = re.sub(rf'(?:\s+{noise_unit_re})+\s*$', '', cleaned, flags=re.IGNORECASE).rstrip()
+    if suffix_cleaned != cleaned:
+        return suffix_cleaned
+    return cleaned
 
 
 def sanitize_visible_output(text: str):
@@ -13887,6 +13934,7 @@ def call_ollama_completion(base_url, model, payload, api_key='', thinking=DEFAUL
             if prov and is_local_ollama_provider(prov):
                 set_local_ollama_cloud_auth_block(provider_name, seconds=int(os.environ.get('SAGE_ROUTER_OLLAMA_CLOUD_AUTH_COOLDOWN_SECONDS', '3600')))
                 logger.warning(f"Ollama Cloud auth unavailable for local provider {provider_name}; suppressing local :cloud routing temporarily")
+        maybe_block_ollama_runtime_error(provider_name, model, err)
         logger.warning(f"Ollama {base_url} {model}: {err}")
         return False, err
 

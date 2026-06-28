@@ -235,6 +235,45 @@ class ProviderSwitchingTests(unittest.TestCase):
             [name for name, _value in codex_score['contributions']],
         )
 
+    def test_temp_model_blocks_are_honored_without_static_disabled_models(self):
+        old_disabled_models = set(router.DISABLED_MODELS)
+        try:
+            router.DISABLED_MODELS = set()
+            router.set_temp_model_block('ollama', 'glm-5', 3600, 'HTTP 429 Too Many Requests')
+
+            self.assertIn('temporarily blocked', router.model_disabled_reason('ollama', 'glm-5'))
+
+            chain, _scores, _rejections = router.select_model(
+                router.Intent.ANALYSIS,
+                router.Complexity.COMPLEX,
+                router.ThinkingLevel.HIGH,
+                'best',
+                {'document': True, 'qualitySensitive': True},
+                10000,
+            )
+
+            self.assertNotIn(('ollama', 'glm-5'), chain)
+            self.assertIn(('openai-codex', 'gpt-5.5'), chain)
+        finally:
+            router.DISABLED_MODELS = old_disabled_models
+
+    def test_ollama_payment_error_blocks_provider_models_temporarily(self):
+        old_disabled_models = set(router.DISABLED_MODELS)
+        try:
+            router.DISABLED_MODELS = set()
+            router.PROVIDERS['ollama-2'].models = ['glm-5.2', 'qwen3-next:80b']
+
+            router.maybe_block_ollama_runtime_error(
+                'ollama-2',
+                'glm-5.2',
+                'HTTP 403 Forbidden | {"error":"your subscription payment is past due. update your payment method"}',
+            )
+
+            self.assertIn('temporarily blocked', router.model_disabled_reason('ollama-2', 'glm-5.2'))
+            self.assertIn('temporarily blocked', router.model_disabled_reason('ollama-2', 'qwen3-next:80b'))
+        finally:
+            router.DISABLED_MODELS = old_disabled_models
+
     def test_ranked_chain_reserves_slots_for_distinct_providers(self):
         router.PROVIDERS = {
             'openai-codex': router.Provider(
