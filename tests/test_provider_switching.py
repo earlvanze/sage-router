@@ -397,6 +397,7 @@ class ProviderSwitchingTests(unittest.TestCase):
                 'https://openrouter.invalid/api/v1',
                 'key',
                 ['x-ai/grok-4', 'anthropic/claude-sonnet-4.5', 'openai/gpt-5.4'],
+                {'x-ai/grok-4', 'anthropic/claude-sonnet-4.5', 'openai/gpt-5.4'},
             ),
         }
 
@@ -410,6 +411,7 @@ class ProviderSwitchingTests(unittest.TestCase):
         )
 
         self.assertIn(('openrouter', 'gemini-2.5-flash'), chain)
+        self.assertLess(chain.index(('openrouter', 'gemini-2.5-flash')), router.FUSION_PANEL_SIZE)
 
     def test_temp_model_blocks_are_honored_without_static_disabled_models(self):
         old_disabled_models = set(router.DISABLED_MODELS)

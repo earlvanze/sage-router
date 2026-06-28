@@ -12467,6 +12467,21 @@ def apply_router_profile(payload):
     return profile_name
 
 
+def client_visible_model_for_request(payload, applied_profile=None, original_model=''):
+    """Return the model id clients should see for router-profile requests."""
+    original_model = str(original_model or '').strip()
+    if applied_profile:
+        if original_model.startswith('sage-router/') or original_model.startswith('smart-router/'):
+            return f'sage-router/{applied_profile}'
+        if original_model == applied_profile:
+            return f'sage-router/{applied_profile}'
+        if any(str((payload or {}).get(key) or '').strip() for key in ('profile', 'routerProfile', 'sageRouterProfile')):
+            return f'sage-router/{applied_profile}'
+    if original_model.startswith('sage-router/') or original_model.startswith('smart-router/'):
+        return original_model.replace('smart-router/', 'sage-router/', 1)
+    return ''
+
+
 GOAL_CONTEXT_RE = re.compile(r'<codex_internal_context\b[^>]*source=["\']goal["\'][^>]*>.*?</codex_internal_context>', re.IGNORECASE | re.DOTALL)
 GOAL_OBJECTIVE_RE = re.compile(r'<objective>\s*(.*?)\s*</objective>', re.IGNORECASE | re.DOTALL)
 GOAL_SLASH_RE = re.compile(r'(?m)^\s*/goal(?:\s+(.*))?\s*$')
@@ -13160,6 +13175,7 @@ def ensure_reliable_public_chat_fallback(chain, requirements, estimated_tokens, 
         if not is_chat_capable_model(provider, model):
             continue
         ok_req, _reason = model_meets_requirements(provider, model, requirements, estimated_tokens)
+        used_relaxed_gate = False
         if not ok_req:
             relaxed = dict(requirements)
             for key in ('allowModels', 'frontierLargeOnly', 'frontierOrReasoningTools', 'minParamsB', 'reasoning'):
@@ -13167,7 +13183,11 @@ def ensure_reliable_public_chat_fallback(chain, requirements, estimated_tokens, 
             ok_req, _reason = model_meets_requirements(provider, model, relaxed, estimated_tokens)
             if not ok_req:
                 continue
+            used_relaxed_gate = True
         fallback = (provider_name, model)
+        if used_relaxed_gate and chain:
+            insert_at = min(2, len(chain))
+            return dedupe_keep_order(chain[:insert_at] + [fallback] + chain[insert_at:])[:limit]
         if len(chain) < limit:
             return chain + [fallback]
         insert_at = min(2, len(chain))
@@ -14467,6 +14487,7 @@ def write_openai_completion_as_sse(self, result, request_id):
 def handle_openai_chat_completions(self, payload, request_id, started, force_realtime=False, return_result=False):
     if isinstance(payload.get('messages'), list):
         payload['messages'] = sanitize_replay_messages(payload.get('messages'))
+    original_requested_model = str(payload.get('model') or '').strip()
     message_count = len(payload.get('messages', []) or [])
     if is_sage_router_fusion_request(payload):
         return handle_sage_router_fusion(self, payload, request_id, started, return_result=return_result)
@@ -14474,6 +14495,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         return handle_sage_router_fusion(self, fusion_payload_from_server_tool(payload), request_id, started, return_result=return_result)
     payload = strip_fusion_server_tools_from_payload(payload)
     router_profile = apply_router_profile(payload)
+    client_visible_model = client_visible_model_for_request(payload, router_profile, original_requested_model)
     discord_public_profile = apply_discord_public_route_profile(payload)
     thinking = normalize_thinking(payload.get('thinking') or payload.get('reasoning'))
     route_mode = normalize_route_mode(payload.get('route'))
@@ -14497,6 +14519,7 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         requirements = normalize_requirements(payload, thinking)
         modalities = request_modalities(requirements, payload)
         LAST_ROUTE_DEBUG['goalCompat'] = {'enabled': True, 'source': 'codex_openclaw_goal'}
+        client_visible_model = client_visible_model or client_visible_model_for_request(payload, router_profile, original_requested_model)
 
     # Resolve model switches across providers. If the client carries a stale
     # provider prefix, e.g. ollama/gpt-5.5, prefer the provider that actually
@@ -14629,6 +14652,10 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         if ok:
             total_elapsed = time.time() - overall_started
             record_model_modalities(pn, model, modalities)
+            if client_visible_model and isinstance(result, dict):
+                result = dict(result)
+                result['upstream_model'] = result.get('model')
+                result['model'] = client_visible_model
             LAST_ROUTE_DEBUG.update({'selected': {'provider': pn, 'model': model}, 'status': 'ok', 'error': None, 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'modalities': modalities})
             append_route_event({'request_id': request_id, 'status': 'ok', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': bool(want_stream), 'requirements': requirements, 'selected': {'provider': pn, 'model': model}, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]]})
             logger.info(f"[{request_id}] OK: {pn}/{model} (provider={elapsed:.2f}s, total={total_elapsed:.2f}s, stream={want_stream})")
@@ -15191,6 +15218,13 @@ class Handler(BaseHTTPRequestHandler):
                 provider, model_name = model.split('/', 1)
                 headers['X-Sage-Router-Provider'] = provider
                 headers['X-Sage-Router-Model-Name'] = model_name
+        upstream_model = payload.get('upstream_model') or ''
+        if upstream_model:
+            headers['X-Sage-Router-Upstream-Model'] = upstream_model
+            if '/' in upstream_model:
+                upstream_provider, upstream_model_name = upstream_model.split('/', 1)
+                headers['X-Sage-Router-Upstream-Provider'] = upstream_provider
+                headers['X-Sage-Router-Upstream-Model-Name'] = upstream_model_name
         if request_id:
             headers['X-Sage-Router-Request-Id'] = request_id
         if LAST_ROUTE_DEBUG.get('intent'):

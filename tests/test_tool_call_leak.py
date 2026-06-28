@@ -328,6 +328,65 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertIn('"tool_calls"', body)
         self.assertIn('"finish_reason": "tool_calls"', body)
 
+    def test_router_profile_wrapped_sse_keeps_profile_model_for_tool_calls(self):
+        class FakeHandler:
+            def __init__(self):
+                self.writes = []
+
+            def send_response(self, _code):
+                pass
+
+            def send_header(self, _key, _value):
+                pass
+
+            def end_headers(self):
+                pass
+
+            def routing_headers(self, _payload, _request_id):
+                return {}
+
+            @property
+            def wfile(self):
+                outer = self
+
+                class W:
+                    def write(self, data):
+                        outer.writes.append(data)
+
+                    def flush(self):
+                        pass
+
+                return W()
+
+        result = router.build_openai_completion(
+            'ollama-2',
+            'kimi-k2.5',
+            'req-profile-tools',
+            '',
+            [{
+                'id': 'call_1',
+                'type': 'function',
+                'function': {'name': 'lookup', 'arguments': '{}'},
+            }],
+            'tool_calls',
+        )
+        result['upstream_model'] = result['model']
+        result['model'] = router.client_visible_model_for_request({'model': 'sage-router/frontier'}, None, 'sage-router/frontier')
+
+        handler = FakeHandler()
+        router.write_openai_completion_as_sse(handler, result, 'req-profile-tools')
+        body = b''.join(handler.writes).decode()
+        chunks = [
+            json.loads(line[len('data: '):])
+            for line in body.splitlines()
+            if line.startswith('data: ') and line != 'data: [DONE]'
+        ]
+
+        self.assertTrue(chunks)
+        self.assertTrue(all(chunk['model'] == 'sage-router/frontier' for chunk in chunks))
+        self.assertNotIn('"model": "ollama-2/kimi-k2.5"', body)
+        self.assertIn('"tool_calls"', body)
+
     def test_native_ollama_stream_strips_fragmented_prefix_before_tool_call(self):
         class FakeHandler:
             def __init__(self):
