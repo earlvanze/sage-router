@@ -387,6 +387,7 @@ jq -r --arg days "$DAYS" '
   | ($root.rates // {}) as $rates
   | ($root.mrr // {}) as $mrr
   | ($root.nextBestAction // {}) as $action
+  | ($root.marketingIntent.events // {}) as $events
   | ($root.managedProviderReadiness // $root.pricing.publicLaunch.managedProviderAccess // {}) as $managed
   | ($root.managedAccessDemand // {}) as $managedDemand
   | ($root.activationFollowUps // {}) as $followups
@@ -399,6 +400,7 @@ jq -r --arg days "$DAYS" '
       "- Generated at epoch: \(n($root.generatedAt))",
       "- Marketing intent events: \(n($stages.marketingIntentEvents))",
       "- Setup snippet copies: \(n($stages.setupSnippetCopies))",
+      "- Recovery auth starts: magic=\(n($events.login_key_recovery_magic_link_requested)), password=\(n($events.login_key_recovery_password_submitted)), oauth=\(n($events.login_key_recovery_oauth_clicked))",
       "- Signups: \(n($stages.signups))",
       "- Generated-key customers: \(n($stages.customersWithGeneratedApiKeys))",
       "- First-routed-request customers: \(n($stages.customersWithFirstRoutedRequest))",

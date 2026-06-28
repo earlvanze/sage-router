@@ -946,7 +946,7 @@ check_hosted_onboarding_pages() {
   if [[ "$login_code" == "200" ]] && ! grep -q "Finish setup key" /tmp/sage-router-readiness-body; then
     login_code="200:missing-login-key-recovery"
   fi
-  if [[ "$login_code" == "200" ]] && ! grep -q "No provider key or checkout is required until your" /tmp/sage-router-readiness-body; then
+  if [[ "$login_code" == "200" ]] && ! grep -q "No provider key or checkout is required until that setup key exists" /tmp/sage-router-readiness-body; then
     login_code="200:missing-login-key-recovery-copy"
   fi
   rm -f /tmp/sage-router-readiness-body
@@ -1454,6 +1454,10 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("account_magic_link_failed") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_shown") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_clicked") != null) and
+    ((.allowedEvents // []) | index("login_key_recovery_magic_link_requested") != null) and
+    ((.allowedEvents // []) | index("login_key_recovery_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("login_key_recovery_password_submitted") != null) and
+    ((.allowedEvents // []) | index("login_key_recovery_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("account_activation_nudge_shown") != null) and
     ((.allowedEvents // []) | index("account_activation_nudge_clicked") != null) and
     ((.allowedEvents // []) | index("account_activation_nudge_dismissed") != null) and
