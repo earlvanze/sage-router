@@ -1372,6 +1372,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("model_catalog_key_activation_clicked") != null) and
     ((.allowedEvents // []) | index("model_catalog_setup_next_clicked") != null) and
     ((.allowedEvents // []) | index("account_viewed") != null) and
+    ((.allowedEvents // []) | index("account_setup_handoff_viewed") != null) and
     ((.allowedEvents // []) | index("account_auto_oauth_started") != null) and
     ((.allowedEvents // []) | index("account_oauth_failed") != null) and
     ((.allowedEvents // []) | index("account_login_failed") != null) and

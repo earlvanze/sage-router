@@ -190,6 +190,16 @@ function requestedKeyRecoveryStateFromUrl() {
   return requestedAuthProviderFromUrl() || String(params.get('auth') || params.get('provider') || 'no_auth_provider').trim().toLowerCase() || 'no_auth_provider';
 }
 
+function requestedSetupSourceFromUrl() {
+  const params = new URLSearchParams(window.location.search || '');
+  return attributionValue(params.get('setup') || params.get('setupSource'));
+}
+
+function requestedSourceSurfaceFromUrl() {
+  const params = new URLSearchParams(window.location.search || '');
+  return attributionValue(params.get('source_surface') || params.get('sourceSurface'));
+}
+
 function storedStartAction() {
   try {
     return normalizeStartAction(window.sessionStorage?.getItem(START_ACTION_STORAGE_KEY));
@@ -402,19 +412,22 @@ function renderAccountIntent() {
   const price = plan.price || (planPriceAmount(plan) ? `$${planPriceAmount(plan)}/month` : '');
   const recoveryIntent = isKeyRecoveryIntent();
   const sameEmailRecovery = recoveryIntent && requestedEmailAuthFromUrl();
+  const setupSource = requestedSetupSourceFromUrl();
   renderKeyRecoveryDock();
   show('intent-email-field', !activationState.signedIn);
-  set('account-intent-title', recoveryIntent ? 'Finish your Sage Router setup key' : `${planName} activation path selected`);
+  set('account-intent-title', recoveryIntent || setupSource ? 'Finish your Sage Router setup key' : `${planName} activation path selected`);
   set('account-intent-plan', price ? `${planName} · ${price}` : planName);
   set('account-intent-checkout', recoveryIntent ? 'Key first, checkout after' : (checkoutReady ? 'Stripe checkout ready' : 'Manual fallback available'));
   if (!activationState.signedIn) {
-    set('account-intent-copy', recoveryIntent
+    set('account-intent-copy', setupSource
+      ? 'Setup was copied before account creation. Continue with GitHub or email the setup link, then this page will create the generated sk_sage key first.'
+      : recoveryIntent
       ? (sameEmailRecovery
         ? 'Same-email recovery requested. Enter the email used at signup so the magic link opens this existing account and creates the generated sk_sage setup key first. OAuth is available only if it is the same account.'
         : 'This recovery link is set to create the generated sk_sage setup key first. Continue with GitHub, or email yourself the setup link; checkout and routing unlock after the key exists.')
       : 'No provider key or credit card is required until your generated sk_sage key exists. Continue with an enabled OAuth provider, or enter your email for the API key setup link, then create the key first and complete checkout to unlock routing.');
     const intentButton = $('intent-primary');
-    if (intentButton) intentButton.textContent = sameEmailRecovery ? 'Send same-email setup link' : (recoveryIntent ? 'Email setup key link instead' : 'Email API key setup link');
+    if (intentButton) intentButton.textContent = sameEmailRecovery ? 'Send same-email setup link' : (recoveryIntent || setupSource ? 'Email setup key link instead' : 'Email API key setup link');
     return;
   }
   if (!activationState.emailVerified) {
@@ -442,6 +455,22 @@ function renderAccountIntent() {
   set('account-intent-copy', 'Routing is active. Create or verify a generated sk_sage_* key, then send the quickstart request to record first usage.');
   const intentButton = $('intent-primary');
   if (intentButton) intentButton.textContent = activationState.keyCount > 0 ? 'Verify API key' : 'Create API key';
+}
+
+function maybePrimeSetupHandoffLanding() {
+  const setupSource = requestedSetupSourceFromUrl();
+  if (!setupSource) return;
+  window.setTimeout(() => {
+    trackAccountFunnelEvent('account_setup_handoff_viewed', {
+      button: 'setup_handoff',
+      target: '#intent-email',
+      state: requestedSourceSurfaceFromUrl() || 'unknown',
+      snippet: setupSource,
+    });
+    if (activationState.signedIn) return;
+    set('intent-email-status', 'Setup copied. Continue with GitHub or send the setup link, then create the sk_sage key before checkout.');
+    focusEmailInput(true);
+  }, 300);
 }
 
 function updateBillingControls(status = '') {
@@ -2169,6 +2198,7 @@ if (pendingStartAction === 'create_key') {
     state: requestedKeyRecoveryStateFromUrl(),
   });
 }
+maybePrimeSetupHandoffLanding();
 refresh();
 handleBillingReturn();
 applyAuthSettings();
