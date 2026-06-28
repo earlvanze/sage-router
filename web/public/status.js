@@ -356,6 +356,7 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
   const openaiBase = pricing.openaiBaseUrl || `${sageRouterUrl}/v1`;
   const activationCheck = activation.setupCheckCommand || `${activation.setupScript || 'scripts/configure_activation_email_sender.sh'} --check`;
   const managedDryRun = managedSetup.dryRunCommand || 'scripts/configure_managed_provider_resale_readiness.sh --check';
+  const managedUnitEconomics = managedSetup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
   const managedSetupCommand = managedSetup.setupCommand || [
     "SAGEROUTER_PROVIDER_RESALE_TERMS_URL='https://sagerouter.dev/provider-resale-terms' \\",
     "SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL='https://sagerouter.dev/margin-policy' \\",
@@ -392,6 +393,16 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
         : 'Run the dry-run before staging provider terms, allowlist, private cost model, and margin controls. OpenRouter remains BYOK-only unless separate authorization is added.',
       command: managed.enabled ? (managedSetup.enableCommandTemplate || managedDryRun) : managedDryRun,
       copyEvent: 'status_managed_resale_dry_run_copied',
+    },
+    {
+      id: 'managed-unit-economics',
+      title: 'Provider cost preflight',
+      value: managed.unitEconomics?.satisfied ? 'Plan margins pass' : 'Review private cost candidate',
+      badge: managed.unitEconomics?.costModelConfigured ? 'cost model present' : 'secret-safe dry-run',
+      state: managed.unitEconomics?.satisfied ? 'good' : 'warn',
+      meta: 'Run before writing the private provider-cost model; output shows only candidate presence, public plan revenue, max-safe thresholds, and pass/fail status.',
+      command: managedUnitEconomics,
+      copyEvent: 'status_managed_unit_economics_copied',
     },
     {
       id: 'managed-resale-stage',
