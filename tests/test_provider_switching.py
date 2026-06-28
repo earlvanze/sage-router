@@ -179,9 +179,49 @@ class ProviderSwitchingTests(unittest.TestCase):
         requirements = payload['requirements']
         self.assertEqual('google', requirements['allowProviders'][0])
         self.assertNotIn('google', requirements['fallbackProviders'])
+        self.assertIn('google/gemini-2.5-flash', requirements['allowModels'])
         self.assertIn('google/gemini-2.5-pro', requirements['allowModels'])
         self.assertNotIn('requiresReasoning', payload)
         self.assertFalse(router.normalize_requirements(payload)['reasoning'])
+        self.assertFalse(requirements.get('frontierLargeOnly', False))
+
+    def test_discord_public_explicit_google_flash_fallback_builds_chain(self):
+        old_providers = router.PROVIDERS
+        old_disabled = set(router.DISABLED_PROVIDERS)
+        try:
+            router.PROVIDERS = {
+                'google': router.Provider(
+                    'google',
+                    'google-generative-language',
+                    'https://generativelanguage.googleapis.com/v1beta',
+                    'test-key',
+                    ['gemini-2.5-flash'],
+                ),
+            }
+            router.DISABLED_PROVIDERS.clear()
+            payload = {
+                'model': 'sage-router/google/gemini-2.5-flash',
+                'metadata': {'agent': 'discord-public'},
+                'messages': [{'role': 'user', 'content': 'summarize this public thread'}],
+            }
+            self.assertTrue(router.apply_discord_public_route_profile(payload))
+            provider, model = router.resolve_requested_provider_model(payload)
+
+            _messages, _intent, _complexity, _tokens, chain = router.prepare_route(
+                payload['messages'],
+                request_id='test-discord-public-google-flash-fallback',
+                thinking=router.ThinkingLevel.HIGH,
+                route_mode='best',
+                requirements=payload['requirements'],
+                force_provider=provider,
+                requested_model=model,
+            )
+
+            self.assertEqual([('google', 'gemini-2.5-flash')], chain)
+        finally:
+            router.PROVIDERS = old_providers
+            router.DISABLED_PROVIDERS.clear()
+            router.DISABLED_PROVIDERS.update(old_disabled)
 
     def test_prepare_route_uses_inferred_provider_for_stale_forced_provider(self):
         _messages, _intent, _complexity, _tokens, chain = router.prepare_route(

@@ -12679,7 +12679,7 @@ def apply_discord_public_route_profile(payload):
     req.update({
         'qualitySensitive': True,
         'reasoning': False,
-        'frontierLargeOnly': True,
+        'frontierLargeOnly': False,
         'frontierOrReasoningTools': False,
         'suppressToolCallContent': True,
         'allowModels': dedupe_keep_order(existing_allows + [
@@ -12691,8 +12691,10 @@ def apply_discord_public_route_profile(payload):
             '*minimax-m3*',
             '*minimax-m2.[7-9]*',
             '*mistral-large-3*',
+            'google/gemini-2.5-flash',
             'google/gemini-3-flash-preview',
             'google/gemini-2.5-pro',
+            'google-vertex/gemini-2.5-flash',
             'google-vertex/gemini-3-flash-preview',
             'google-vertex/gemini-2.5-pro',
         ]),
