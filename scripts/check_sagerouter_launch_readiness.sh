@@ -1623,6 +1623,12 @@ check_marketing_comparison_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "gateway_compare_oauth_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-gateway-compare-oauth-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Finish setup key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-compare-key-recovery"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "gateway_compare_key_recovery_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-gateway-compare-key-recovery-funnel"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "gateway-copy-migration" /tmp/sage-router-readiness-body; then
     page_code="200:missing-gateway-migration-copy"
   fi
@@ -1661,6 +1667,18 @@ check_marketing_comparison_page() {
   fi
   if [[ "$openrouter_code" == "200" ]] && ! grep -q "gateway_compare_magic_link_sent" /tmp/sage-router-readiness-body; then
     openrouter_code="200:missing-gateway-compare-magic-link-funnel"
+  fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "Continue with GitHub for Pro" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-openrouter-github-pro-activation"
+  fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "gateway_compare_oauth_clicked" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-openrouter-oauth-funnel"
+  fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "gateway_compare_key_recovery_clicked" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-openrouter-key-recovery-funnel"
+  fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "signup_to_key_recovery" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-openrouter-key-recovery-campaign"
   fi
   rm -f /tmp/sage-router-readiness-body
 

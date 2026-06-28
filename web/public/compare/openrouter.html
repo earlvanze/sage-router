@@ -70,8 +70,10 @@
         </div>
         <form class="emailStart" id="openrouter-email-form">
           <label for="openrouter-email">Get an API key setup link</label>
+          <button id="openrouter-github-pro" class="button primary oauthButton" type="button">Continue with GitHub for Pro</button>
           <input id="openrouter-email" type="email" name="email" autocomplete="email" placeholder="you@company.com" required />
           <button class="button primary" type="submit">Email API key setup link</button>
+          <a class="button secondary" href="https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=openrouter-comparison&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email" data-gateway-key-recovery="openrouter-returning-user">Finish setup key</a>
           <p class="emailStartStatus" id="openrouter-email-status" role="status">No provider key or credit card required until your generated sk_sage key exists.</p>
         </form>
         <p class="note">Boundary: Sage Router routes only authorized provider access, customer BYOK endpoints, subscriptions, and local models. OpenRouter can be used as a BYOK-compatible provider route; it is not bundled into public Sage Router subscription resale.</p>
@@ -301,8 +303,53 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       }
     }
 
+    async function gatewayCompareOauthLogin(event) {
+      const button = event.currentTarget;
+      const original = button.textContent;
+      const status = document.getElementById('openrouter-email-status');
+      button.disabled = true;
+      button.textContent = 'Opening GitHub...';
+      if (status) status.textContent = 'Opening GitHub sign-in for Pro.';
+      trackGatewayComparisonEvent('gateway_compare_oauth_clicked', {
+        plan: 'pro',
+        target: ACCOUNT_PAGE_URL,
+        button: 'Continue with GitHub for Pro',
+        state: 'github'
+      });
+      try {
+        const api = await loadSupabaseClient();
+        const client = api.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const { error } = await client.auth.signInWithOAuth({
+          provider: 'github',
+          options: { redirectTo: ACCOUNT_PAGE_URL }
+        });
+        if (error) throw error;
+      } catch (error) {
+        trackGatewayComparisonEvent('gateway_compare_oauth_failed', {
+          plan: 'pro',
+          target: ACCOUNT_PAGE_URL,
+          button: 'Continue with GitHub for Pro',
+          state: 'github'
+        });
+        if (status) status.textContent = 'GitHub sign-in failed here. Opening account setup instead...';
+        setTimeout(() => { window.location.href = ACCOUNT_PAGE_URL; }, 900);
+      } finally {
+        button.disabled = false;
+        button.textContent = original;
+      }
+    }
+
     trackGatewayComparisonEvent('gateway_compare_viewed', { state: 'page-view' });
     document.getElementById('openrouter-email-form')?.addEventListener('submit', sendGatewayCompareMagicLink);
+    document.getElementById('openrouter-github-pro')?.addEventListener('click', gatewayCompareOauthLogin);
+    document.querySelectorAll('[data-gateway-key-recovery]').forEach((link) => {
+      link.addEventListener('click', () => trackGatewayComparisonEvent('gateway_compare_key_recovery_clicked', {
+        plan: 'pro',
+        target: link.getAttribute('href') || '',
+        button: link.getAttribute('data-gateway-key-recovery') || link.textContent.trim(),
+        state: 'returning-no-key'
+      }));
+    });
 
     document.querySelectorAll('a[href]').forEach((link) => {
       const href = link.getAttribute('href') || '';

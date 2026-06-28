@@ -86,6 +86,7 @@
           <button id="gateway-compare-github-pro" class="button primary oauthButton" type="button">Continue with GitHub for Pro</button>
           <input id="gateway-compare-email" type="email" name="email" autocomplete="email" placeholder="you@company.com" required />
           <button class="button primary" type="submit">Email API key setup link</button>
+          <a class="button secondary" href="https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=gateway-comparison&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email" data-gateway-key-recovery="gateway-compare-returning-user">Finish setup key</a>
           <p class="emailStartStatus" id="gateway-compare-email-status" role="status">No provider key or credit card required until your generated sk_sage key exists.</p>
         </form>
         <p class="note">Compliance boundary: Sage Router routes access customers are authorized to use. The hosted service is account, billing, routing, telemetry, and reliability infrastructure, not a promise to bypass provider terms.</p>
@@ -406,6 +407,14 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
     document.getElementById('gateway-compare-email-form')?.addEventListener('submit', sendGatewayCompareMagicLink);
     document.getElementById('gateway-compare-github-pro')?.addEventListener('click', gatewayCompareOauthLogin);
     document.getElementById('gateway-copy-migration')?.addEventListener('click', copyGatewayMigrationBundle);
+    document.querySelectorAll('[data-gateway-key-recovery]').forEach((link) => {
+      link.addEventListener('click', () => trackGatewayComparisonEvent('gateway_compare_key_recovery_clicked', {
+        plan: 'pro',
+        target: link.getAttribute('href') || '',
+        button: link.getAttribute('data-gateway-key-recovery') || link.textContent.trim(),
+        state: 'returning-no-key'
+      }));
+    });
 
     document.querySelectorAll('a[href]').forEach((link) => {
       const href = link.getAttribute('href') || '';
