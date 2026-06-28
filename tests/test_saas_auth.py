@@ -761,7 +761,17 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('verified-send@example.com', dry_run.payload['results'][0]['email'])
         self.assertEqual('dry_run', dry_run.payload['results'][0]['status'])
 
-        not_configured = Dummy(b'{"status":"inactive","segment":"verified","limit":10}')
+        missing_confirmation = Dummy(b'{"status":"inactive","segment":"verified","limit":10}')
+        router.Handler.do_POST(missing_confirmation)
+        self.assertEqual(400, missing_confirmation.status)
+        self.assertEqual('activation_followup_send_confirmation_required', missing_confirmation.payload['error'])
+        self.assertEqual('SEND_ACTIVATION_FOLLOWUPS', missing_confirmation.payload['requiredConfirmation'])
+        self.assertTrue(missing_confirmation.payload['dryRunSupported'])
+
+        not_configured = Dummy(
+            b'{"status":"inactive","segment":"verified","limit":10,'
+            b'"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS"}'
+        )
         router.Handler.do_POST(not_configured)
         self.assertEqual(503, not_configured.status)
         self.assertEqual('activation_email_not_configured', not_configured.payload['error'])
@@ -786,7 +796,7 @@ class SaaSAuthTests(unittest.TestCase):
         ]
         sent = []
         router.send_activation_email = lambda contact: sent.append(contact) or {'id': 'email_123', 'status': 200}
-        body = b'{"status":"inactive","limit":10}'
+        body = b'{"status":"inactive","limit":10,"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS"}'
 
         class Dummy:
             path = '/admin/customers/send-activation-followups'
@@ -1118,6 +1128,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('SAGE_ROUTER_ACTIVATION_EMAIL_FROM', activation_email['requiredEnv'])
         self.assertIn('SAGE_ROUTER_RESEND_API_KEY', activation_email['secretManagerNames'])
         self.assertEqual('scripts/configure_activation_email_sender.sh', activation_email['setupScript'])
+        self.assertTrue(activation_email['sendConfirmationRequired'])
+        self.assertEqual('SEND_ACTIVATION_FOLLOWUPS', activation_email['sendConfirmation'])
         self.assertFalse(activation_email['privacy']['containsSecrets'])
         self.assertFalse(activation_email['privacy']['containsEmails'])
         self.assertFalse(activation_email['privacy']['containsAdminCommands'])
@@ -1897,6 +1909,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('/admin/customers/send-activation-followups', snapshot['activationFollowUps']['emailReadiness']['dryRunCommand'])
         self.assertIn('"dryRun":true', snapshot['activationFollowUps']['emailReadiness']['dryRunCommand'])
         self.assertIn('"dryRun":false', snapshot['activationFollowUps']['emailReadiness']['sendCommandTemplate'])
+        self.assertIn('"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS"', snapshot['activationFollowUps']['emailReadiness']['sendCommandTemplate'])
+        self.assertEqual('SEND_ACTIVATION_FOLLOWUPS', snapshot['activationFollowUps']['emailReadiness']['sendConfirmation'])
         self.assertFalse(snapshot['activationFollowUps']['emailReadiness']['privacy']['containsSecrets'])
         self.assertFalse(snapshot['activationFollowUps']['emailReadiness']['privacy']['containsEmails'])
         self.assertFalse(snapshot['activationFollowUps']['privacy']['containsEmails'])
@@ -1947,6 +1961,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('scripts/configure_activation_email_sender.sh', packet['emailReadiness']['setupCommand'])
         self.assertIn('"dryRun":true', packet['emailReadiness']['dryRunCommand'])
         self.assertIn('Origin: https://app.sagerouter.dev', packet['emailReadiness']['dryRunCommand'])
+        self.assertIn('"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS"', packet['emailReadiness']['sendCommandTemplate'])
         self.assertFalse(packet['emailReadiness']['privacy']['containsApiKeyValues'])
         self.assertTrue(packet['privacy']['aggregateOnly'])
         self.assertFalse(packet['privacy']['containsEmails'])

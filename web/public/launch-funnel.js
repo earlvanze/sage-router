@@ -3,6 +3,7 @@ const MARKETING_BASE = window.SAGE_ROUTER_MARKETING_URL || 'https://sagerouter.d
 const APP_BASE = window.SAGE_ROUTER_APP_URL || window.location.origin;
 const SESSION_TOKEN_KEY = 'sage_router_operator_launch_funnel_token';
 const FOLLOWUP_DRAFT_ACTION_PREFIX = 'sage_router_operator_no_key_followup_draft';
+const ACTIVATION_FOLLOWUP_SEND_CONFIRMATION = 'SEND_ACTIVATION_FOLLOWUPS';
 const OPERATOR_TOKEN_COMMAND = [
   "python3 - <<'PY'",
   "import os, subprocess",
@@ -1961,7 +1962,13 @@ async function sendActivationFollowUps(button) {
     const response = await fetch(`${API_BASE}/admin/customers/send-activation-followups`, {
       method: 'POST',
       headers: authHeaders(token, { 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ status: 'inactive', segment, limit: 50, dryRun }),
+      body: JSON.stringify({
+        status: 'inactive',
+        segment,
+        limit: 50,
+        dryRun,
+        ...(dryRun ? {} : { sendConfirmation: ACTIVATION_FOLLOWUP_SEND_CONFIRMATION }),
+      }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {

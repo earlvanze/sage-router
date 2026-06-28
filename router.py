@@ -250,6 +250,7 @@ ACTIVATION_EMAIL_API_KEY = (
 ACTIVATION_EMAIL_FROM = os.environ.get('SAGE_ROUTER_ACTIVATION_EMAIL_FROM', '').strip()
 ACTIVATION_EMAIL_REPLY_TO = os.environ.get('SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO', '').strip()
 ACTIVATION_EMAIL_MAX_BATCH = max(1, min(int(os.environ.get('SAGE_ROUTER_ACTIVATION_EMAIL_MAX_BATCH', '25') or '25'), 100))
+ACTIVATION_FOLLOWUP_SEND_CONFIRMATION = 'SEND_ACTIVATION_FOLLOWUPS'
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY') or os.environ.get('SAGE_ROUTER_STRIPE_SECRET_KEY') or ''
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET') or os.environ.get('SAGE_ROUTER_STRIPE_WEBHOOK_SECRET') or ''
 STRIPE_PRICE_ID = os.environ.get('SAGE_ROUTER_STRIPE_PRICE_ID') or os.environ.get('STRIPE_PRICE_ID') or ''
@@ -9131,13 +9132,14 @@ def activation_email_readiness():
         '  -H "Authorization: Bearer ${SAGE_ROUTER_API_KEY}" \\\n'
         '  -H "Origin: https://app.sagerouter.dev" \\\n'
         '  -H "Content-Type: application/json" \\\n'
-        '  --data \'{"status":"inactive","segment":"all","limit":25,"dryRun":false}\''
+        f'  --data \'{{"status":"inactive","segment":"all","limit":25,"dryRun":false,"sendConfirmation":"{ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}"}}\''
     )
     return {
         'provider': ACTIVATION_EMAIL_PROVIDER or 'resend',
         'configured': configured,
         'sendEndpoint': '/admin/customers/send-activation-followups',
         'dryRunSupported': True,
+        'sendConfirmation': ACTIVATION_FOLLOWUP_SEND_CONFIRMATION,
         'dryRunCommand': dry_run_command,
         'sendCommandTemplate': send_command_template,
         'sendsEmailWhenConfigured': configured,
@@ -9181,6 +9183,8 @@ def public_activation_email_readiness():
         'apiKeyConfigured': bool(readiness.get('apiKeyConfigured')),
         'replyToConfigured': bool(readiness.get('replyToConfigured')),
         'maxBatch': readiness.get('maxBatch'),
+        'sendConfirmationRequired': True,
+        'sendConfirmation': readiness.get('sendConfirmation') or ACTIVATION_FOLLOWUP_SEND_CONFIRMATION,
         'requiredEnv': readiness.get('requiredEnv') or [],
         'secretManagerNames': readiness.get('secretManagerNames') or [],
         'setupScript': readiness.get('setupScript') or 'scripts/configure_activation_email_sender.sh',
@@ -15710,6 +15714,14 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 payload = read_json_body(self)
+                dry_run = bool(payload.get('dryRun') or payload.get('dry_run'))
+                if not dry_run and payload.get('sendConfirmation') != ACTIVATION_FOLLOWUP_SEND_CONFIRMATION:
+                    self.write_json(400, {
+                        'error': 'activation_followup_send_confirmation_required',
+                        'requiredConfirmation': ACTIVATION_FOLLOWUP_SEND_CONFIRMATION,
+                        'dryRunSupported': True,
+                    })
+                    return
                 limit = max(1, min(int(payload.get('limit') or ACTIVATION_EMAIL_MAX_BATCH), ACTIVATION_EMAIL_MAX_BATCH))
                 rows = operator_customer_rows(
                     query=payload.get('q') or payload.get('query') or '',
@@ -15720,7 +15732,7 @@ class Handler(BaseHTTPRequestHandler):
                     rows,
                     segment=payload.get('segment') or '',
                     limit=limit,
-                    dry_run=bool(payload.get('dryRun') or payload.get('dry_run')),
+                    dry_run=dry_run,
                 )
                 self.write_json(200 if result.get('configured') or result.get('dryRun') else 503, result)
             except Exception as e:
