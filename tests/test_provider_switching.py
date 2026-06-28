@@ -365,6 +365,52 @@ class ProviderSwitchingTests(unittest.TestCase):
 
         self.assertIn(('openrouter', 'gemini-2.5-flash'), chain)
 
+    def test_frontier_route_reserves_reliable_plain_chat_fallback(self):
+        router.PROVIDERS = {
+            'ollama': router.Provider('ollama', 'ollama', 'https://ollama.invalid', 'key', ['glm-5:cloud']),
+            'openrouter': router.Provider('openrouter', 'openai-completions', 'https://openrouter.invalid/api/v1', 'key', ['openai/gpt-5.4']),
+        }
+        requirements = {
+            'qualitySensitive': True,
+            'reasoning': True,
+            'frontierLargeOnly': True,
+            'allowProviders': ['ollama', 'openrouter'],
+            'allowModels': ['*glm-5*', '*gpt-5*'],
+        }
+
+        chain, _scores, _rejections = router.select_model(
+            router.Intent.GENERAL,
+            router.Complexity.SIMPLE,
+            router.ThinkingLevel.HIGH,
+            'best',
+            requirements,
+            100,
+        )
+
+        self.assertIn(('openrouter', 'gemini-2.5-flash'), chain[:3])
+
+    def test_fusion_selection_includes_reliable_plain_chat_fallback(self):
+        router.PROVIDERS = {
+            'openrouter': router.Provider(
+                'openrouter',
+                'openai-completions',
+                'https://openrouter.invalid/api/v1',
+                'key',
+                ['x-ai/grok-4', 'anthropic/claude-sonnet-4.5', 'openai/gpt-5.4'],
+            ),
+        }
+
+        chain = router.select_fusion_panel_chain(
+            [{'role': 'user', 'content': 'compare these choices'}],
+            'test-fusion-reliable-fallback',
+            router.ThinkingLevel.HIGH,
+            'best',
+            {'qualitySensitive': True, 'reasoning': True},
+            False,
+        )
+
+        self.assertIn(('openrouter', 'gemini-2.5-flash'), chain)
+
     def test_temp_model_blocks_are_honored_without_static_disabled_models(self):
         old_disabled_models = set(router.DISABLED_MODELS)
         try:

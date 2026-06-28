@@ -13145,7 +13145,7 @@ def ensure_reliable_public_chat_fallback(chain, requirements, estimated_tokens, 
     """Keep a known text-chat escape hatch inside hosted balanced/best chains."""
     chain = dedupe_keep_order(chain or [])
     requirements = requirements or {}
-    if not chain or has_modality_requirement(requirements):
+    if has_modality_requirement(requirements):
         return chain
     if requirements.get('tools') or requirements.get('preferTools') or requirements.get('agentic'):
         return chain
@@ -13161,7 +13161,12 @@ def ensure_reliable_public_chat_fallback(chain, requirements, estimated_tokens, 
             continue
         ok_req, _reason = model_meets_requirements(provider, model, requirements, estimated_tokens)
         if not ok_req:
-            continue
+            relaxed = dict(requirements)
+            for key in ('allowModels', 'frontierLargeOnly', 'frontierOrReasoningTools', 'minParamsB', 'reasoning'):
+                relaxed.pop(key, None)
+            ok_req, _reason = model_meets_requirements(provider, model, relaxed, estimated_tokens)
+            if not ok_req:
+                continue
         fallback = (provider_name, model)
         if len(chain) < limit:
             return chain + [fallback]
