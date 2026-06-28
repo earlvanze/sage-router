@@ -23,6 +23,33 @@ class CodexSageRouterProxyTests(unittest.TestCase):
 
         self.assertEqual("", codex_proxy.sanitize_visible_output(raw))
 
+    def test_sanitizes_large_replayed_prefix_storms(self):
+        raw = " ".join("[ollama-2/kimi-k2.5] [tool calls omitted]" for _ in range(1000))
+
+        self.assertEqual("", codex_proxy.sanitize_visible_output(raw))
+
+    def test_sanitizes_prefix_only_storms(self):
+        raw = " ".join("[ollama-2/kimi-k2.5]" for _ in range(1000))
+
+        self.assertEqual("", codex_proxy.sanitize_visible_output(raw))
+
+    def test_sanitizes_newline_split_prefix_placeholder_noise(self):
+        raw = (
+            "[ollama-2/kimi-k2.5]\n"
+            "[tool calls omitted]\n"
+            "[ollama-2/kimi-k2.5]\n"
+            "[ollama-2/kimi-k2.5] [tool calls omitted]"
+        )
+
+        self.assertEqual("", codex_proxy.sanitize_visible_output(raw))
+
+    def test_preserves_visible_text_before_replayed_prefix_storm(self):
+        raw = "Done.\n" + "\n".join(
+            "[ollama-2/kimi-k2.5] [tool calls omitted]" for _ in range(1000)
+        )
+
+        self.assertEqual("Done.", codex_proxy.sanitize_visible_output(raw))
+
     def test_response_request_preserves_function_calls_and_tool_outputs(self):
         messages = codex_proxy.messages_from_response_request({
             "input": [
