@@ -3449,6 +3449,7 @@ def reject_visible_tool_call_leak(payload, text: str, tool_calls) -> str:
     return ''
 
 TOOL_CALLS_OMITTED_RE = r'\[\s*tool\s+calls\s*omitted\s*\]'
+MODEL_PREFIX_LABEL_RE = r'\[[A-Za-z0-9_.-]+/[^\]\s]+\]'
 
 
 def strip_model_prefix_tool_placeholder_noise(text: str):
@@ -3456,8 +3457,9 @@ def strip_model_prefix_tool_placeholder_noise(text: str):
     remaining = str(text or '')
     if not remaining:
         return ''
-    prefix_re = r'\[[A-Za-z0-9_.-]+/[^\]\s]+\]'
-    noise_unit_re = rf'(?:{prefix_re}\s*)*{TOOL_CALLS_OMITTED_RE}'
+    prefix_re = MODEL_PREFIX_LABEL_RE
+    prefix_run_re = rf'(?:{prefix_re}\s*)+'
+    placeholder_run_re = rf'(?:{prefix_re}\s*)*{TOOL_CALLS_OMITTED_RE}'
     cleaned_lines = []
     changed = False
     for line in remaining.splitlines():
@@ -3476,7 +3478,8 @@ def strip_model_prefix_tool_placeholder_noise(text: str):
             continue
         cleaned_lines.append(line)
     cleaned = '\n'.join(cleaned_lines).strip() if changed else remaining
-    suffix_cleaned = re.sub(rf'(?:\s+{noise_unit_re})+\s*$', '', cleaned, flags=re.IGNORECASE).rstrip()
+    suffix_noise_re = rf'(?:\s+(?:{placeholder_run_re}|{prefix_run_re}))+\s*$'
+    suffix_cleaned = re.sub(suffix_noise_re, '', cleaned, flags=re.IGNORECASE).rstrip()
     if suffix_cleaned != cleaned:
         return suffix_cleaned
     return cleaned

@@ -549,6 +549,13 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         )
         self.assertEqual('', router.sanitize_visible_output(raw))
 
+    def test_visible_output_strips_thousand_model_prefix_only_placeholders(self):
+        raw = '\n'.join(
+            '[ollama-2/kimi-k2.5] [ollama-2/kimi-k2.5] [ollama-2/kimi-k2.5]'
+            for _ in range(1000)
+        )
+        self.assertEqual('', router.sanitize_visible_output(raw))
+
     def test_visible_output_strips_same_line_model_prefix_tool_placeholders(self):
         raw = ' '.join(
             '[ollama-2/kimi-k2.5] [tool calls omitted]'
@@ -556,9 +563,23 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         )
         self.assertEqual('', router.sanitize_visible_output(raw))
 
+    def test_visible_output_strips_same_line_model_prefix_only_placeholders(self):
+        raw = ' '.join(
+            '[ollama-2/kimi-k2.5]'
+            for _ in range(1000)
+        )
+        self.assertEqual('', router.sanitize_visible_output(raw))
+
     def test_visible_output_strips_suffix_model_prefix_tool_placeholder_storm(self):
         raw = 'final answer ' + ' '.join(
             '[ollama-2/kimi-k2.5] [tool calls omitted]'
+            for _ in range(1000)
+        )
+        self.assertEqual('final answer', router.sanitize_visible_output(raw))
+
+    def test_visible_output_strips_suffix_model_prefix_only_storm(self):
+        raw = 'final answer ' + ' '.join(
+            '[ollama-2/kimi-k2.5]'
             for _ in range(1000)
         )
         self.assertEqual('final answer', router.sanitize_visible_output(raw))
