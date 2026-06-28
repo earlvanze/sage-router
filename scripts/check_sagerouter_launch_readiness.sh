@@ -1473,6 +1473,9 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("setup_key_recovery_viewed") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_same_email_clicked") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_account_clicked") != null) and
+    ((.allowedEvents // []) | index("setup_key_recovery_magic_link_requested") != null) and
+    ((.allowedEvents // []) | index("setup_key_recovery_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("setup_key_recovery_magic_link_failed") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_setup_copied") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_troubleshooting_clicked") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_support_clicked") != null)
@@ -3823,6 +3826,12 @@ check_marketing_setup_key_recovery_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_same_email_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-same-email-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Email setup key link" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-email-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_magic_link_requested" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-magic-link-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_account_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-account-funnel"

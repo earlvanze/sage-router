@@ -109,7 +109,7 @@ The current public deployment is intentionally split:
 - `https://app.sagerouter.dev/login.html?start=create_key` is the no-key signup recovery bridge. It keeps same-email recovery first, shows the generated-key-before-checkout steps, preserves the `start=create_key` activation URL, records same-email magic-link, password, and OAuth recovery starts without storing email addresses, and records `login_key_recovery_account_setup_clicked` as a key-first redirect signal so operators can distinguish passive login recovery views from users who clicked through toward API-key setup.
 - `https://app.sagerouter.dev/account.html` and `/analytics.html` expose same-email `Finish setup key` recovery beside account/API-access CTAs, recording `account_auth_key_recovery_clicked` and `analytics_key_recovery_clicked` so returning no-key users do not have to rediscover the login recovery URL from marketing pages.
 - `https://sagerouter.dev/api-troubleshooting` is the no-secret diagnostic path for hosted 401/402/429/503 responses. It documents safe probes, `WWW-Authenticate`, `Retry-After`, `X-RateLimit-*`, `X-Quota-*`, account/pricing/status onboarding links, a measured `Finish setup key` recovery CTA, and the non-secret `apiKeyPrefix` without asking customers to paste prompts or credentials.
-- `https://sagerouter.dev/setup-key-recovery` is the public no-key recovery destination for API 401 `keyRecoveryUrl` responses. It sends returning signups through the same-email or same-OAuth account flow, explains generated-key-before-checkout behavior, and provides a placeholder setup bundle that can be copied without exposing secrets.
+- `https://sagerouter.dev/setup-key-recovery` is the public no-key recovery destination for API 401 `keyRecoveryUrl` responses. It can send the same-email setup key link directly from the recovery page, sends returning signups through the same-email or same-OAuth account flow, explains generated-key-before-checkout behavior, and provides a placeholder setup bundle that can be copied without exposing secrets.
 - Anonymous model API 401 responses include a measured `keyRecoveryUrl` (`utm_source=api-auth`) in addition to `accountUrl`, `pricingUrl`, `statusUrl`, `openaiBaseUrl`, and `apiKeyPrefix`, so API-client failures can route returning no-key users into setup-key recovery.
 - `https://sagerouter.dev/docs/api-reference` is the hosted API reference for OpenAI-compatible customers. It documents `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public `/model-catalog`, generated `sk_sage_*` keys, quotas, rate limits, failover signals, and a measured `Finish setup key` recovery CTA for developers returning from API docs without a generated key.
 - `https://sagerouter.dev/docs/gateway-migration` is the Gateway migration guide for OpenAI-compatible customers. It maps `OPENAI_BASE_URL=https://gateway.example/api/v1` to `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, premium `sage-router/fusion`, model catalog discovery, and the provider terms boundary.
@@ -262,7 +262,8 @@ customers a first hosted API request path, `https://sagerouter.dev/api-troublesh
 gives customers a no-secret 401/402/429/503 diagnostic path,
 `https://sagerouter.dev/setup-key-recovery` gives no-key signups a same-email
 generated-key recovery path after API 401 `keyRecoveryUrl` handoffs and public
-marketing/docs/status/support recovery CTA clicks,
+marketing/docs/status/support recovery CTA clicks, including a direct same-email
+setup-link form before the app login handoff,
 `https://sagerouter.dev/docs/api-reference` gives OpenAI-compatible customers
 the hosted API contract for models, chat completions, Responses API, quotas,
 rate limits, and failover signals,
