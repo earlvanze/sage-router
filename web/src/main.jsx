@@ -1050,11 +1050,11 @@ function App() {
                 button: 'Estimate routing savings',
                 state: 'hero-secondary',
               })}>Estimate routing savings</a>
-              <a href="/managed-access?intent=max-implementation" onClick={() => trackLandingFunnelEvent('landing_managed_access_clicked', {
-                target: '/managed-access?intent=max-implementation',
-                button: 'Max implementation review',
-                state: 'hero-secondary-max-implementation',
-              })}>Max implementation review</a>
+              <a href="/managed-access?intent=one-subscription" onClick={() => trackLandingFunnelEvent('landing_managed_access_clicked', {
+                target: '/managed-access?intent=one-subscription',
+                button: 'One-subscription review',
+                state: 'hero-secondary-one-subscription',
+              })}>One-subscription review</a>
               <a href="/security" onClick={() => trackLandingFunnelEvent('landing_security_clicked', {
                 target: '/security',
                 button: 'Review security',
@@ -1233,7 +1233,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <p><a className="inlineLink" href="/coding-agent-model-router">Route Codex, Cursor, Aider, Continue, and OpenHands →</a></p>
           <p><a className="inlineLink" href="/cursor-ai-model-router">Route Cursor through Sage Router →</a></p>
           <p><a className="inlineLink" href="/model-routing-calculator">Estimate routing savings for one workflow →</a></p>
-          <p><a className="inlineLink" href="/managed-access?intent=max-implementation">Request Max implementation review →</a></p>
+          <p><a className="inlineLink" href="/managed-access?intent=one-subscription">Request one-subscription review →</a></p>
           <p><a className="inlineLink" href="/pricing">See hosted routing pricing and plan limits →</a></p>
         </div>
         <div className="cards">
@@ -1383,7 +1383,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
         <div className="sectionHeader">
           <p className="eyebrow">Updates</p>
           <h2>Get launch and integration updates.</h2>
-          <p>Hosted signup is live. Use this list for release notes, integration updates, private deployment help, and future managed-provider beta interest.</p>
+          <p>Hosted signup is live. Use this list for release notes, integration updates, private deployment help, and one-subscription managed-provider beta interest.</p>
         </div>
         <WaitlistForm />
       </section>
