@@ -123,7 +123,8 @@ provider resale claim, or runtime feature flag.
   hosted 401/402/429/503 responses, generated key prefix checks,
   `WWW-Authenticate`, `Retry-After`, rate-limit headers, quota headers,
   account/pricing/status onboarding links, placeholder 401 `setupSnippet`, safe
-  support context, and one-subscription managed-access beta review demand when
+  support context, measured `api_troubleshooting_setup_copied` 401 setup-copy
+  telemetry, and one-subscription managed-access beta review demand when
   BYOK/provider access is the blocker.
 - Keep `/setup-key-recovery` as the public no-key signup recovery destination
   for API 401 `keyRecoveryUrl` handoffs and public marketing/docs/status/support

@@ -1424,6 +1424,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("api_reference_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("api_reference_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("api_troubleshooting_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("api_troubleshooting_setup_copied") != null) and
     ((.allowedEvents // []) | index("api_troubleshooting_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("launch_plan_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("launch_plan_key_activation_clicked") != null) and
@@ -3794,6 +3795,12 @@ check_marketing_api_troubleshooting_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "api_troubleshooting_managed_access_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-api-troubleshooting-managed-access-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "api-troubleshooting-setup-snippet" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-troubleshooting-setup-snippet"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "api_troubleshooting_setup_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-troubleshooting-setup-copy-funnel"
   fi
   rm -f /tmp/sage-router-readiness-body
 

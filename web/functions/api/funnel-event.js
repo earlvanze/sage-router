@@ -101,6 +101,7 @@ const ALLOWED_EVENTS = new Set([
   'api_troubleshooting_magic_link_failed',
   'api_troubleshooting_key_recovery_clicked',
   'api_troubleshooting_managed_access_clicked',
+  'api_troubleshooting_setup_copied',
   'api_troubleshooting_oauth_clicked',
   'api_troubleshooting_oauth_failed',
   'launch_plan_viewed',
