@@ -4105,59 +4105,62 @@ def write_responses_as_sse(self, response, request_id, extra_headers=None):
         payload.setdefault('type', event_name)
         self.wfile.write(f"event: {event_name}\ndata: {json.dumps(payload)}\n\n".encode())
 
-    self.send_response(200)
-    self.send_header('Content-Type', 'text/event-stream')
-    self.send_header('Cache-Control', 'no-cache')
-    self.send_cors_headers()
-    for key, value in (extra_headers or {}).items():
-        if value:
-            self.send_header(key, str(value))
-    self.end_headers()
-    created = dict(response)
-    created['status'] = 'in_progress'
-    created['output'] = []
-    write_event('response.created', {'response': created})
-    for output_index, item in enumerate(response.get('output') or []):
-        write_event('response.output_item.added', {'output_index': output_index, 'item': item})
-        if item.get('type') == 'message':
-            for content_index, part in enumerate(item.get('content') or []):
-                write_event('response.content_part.added', {
-                    'item_id': item.get('id'),
-                    'output_index': output_index,
-                    'content_index': content_index,
-                    'part': part,
-                })
-                if part.get('type') == 'output_text' and part.get('text'):
-                    write_event('response.output_text.delta', {
+    try:
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/event-stream')
+        self.send_header('Cache-Control', 'no-cache')
+        self.send_cors_headers()
+        for key, value in (extra_headers or {}).items():
+            if value:
+                self.send_header(key, str(value))
+        self.end_headers()
+        created = dict(response)
+        created['status'] = 'in_progress'
+        created['output'] = []
+        write_event('response.created', {'response': created})
+        for output_index, item in enumerate(response.get('output') or []):
+            write_event('response.output_item.added', {'output_index': output_index, 'item': item})
+            if item.get('type') == 'message':
+                for content_index, part in enumerate(item.get('content') or []):
+                    write_event('response.content_part.added', {
                         'item_id': item.get('id'),
                         'output_index': output_index,
                         'content_index': content_index,
-                        'delta': part.get('text') or '',
+                        'part': part,
                     })
-                    write_event('response.output_text.done', {
+                    if part.get('type') == 'output_text' and part.get('text'):
+                        write_event('response.output_text.delta', {
+                            'item_id': item.get('id'),
+                            'output_index': output_index,
+                            'content_index': content_index,
+                            'delta': part.get('text') or '',
+                        })
+                        write_event('response.output_text.done', {
+                            'item_id': item.get('id'),
+                            'output_index': output_index,
+                            'content_index': content_index,
+                            'text': part.get('text') or '',
+                        })
+                    write_event('response.content_part.done', {
                         'item_id': item.get('id'),
                         'output_index': output_index,
                         'content_index': content_index,
-                        'text': part.get('text') or '',
+                        'part': part,
                     })
-                write_event('response.content_part.done', {
+            elif item.get('type') == 'function_call':
+                write_event('response.function_call_arguments.done', {
                     'item_id': item.get('id'),
                     'output_index': output_index,
-                    'content_index': content_index,
-                    'part': part,
+                    'call_id': item.get('call_id'),
+                    'name': item.get('name'),
+                    'arguments': item.get('arguments') or '',
                 })
-        elif item.get('type') == 'function_call':
-            write_event('response.function_call_arguments.done', {
-                'item_id': item.get('id'),
-                'output_index': output_index,
-                'call_id': item.get('call_id'),
-                'name': item.get('name'),
-                'arguments': item.get('arguments') or '',
-            })
-        write_event('response.output_item.done', {'output_index': output_index, 'item': item})
-    write_event('response.completed', {'response': response})
-    self.wfile.write(b'data: [DONE]\n\n')
-    self.wfile.flush()
+            write_event('response.output_item.done', {'output_index': output_index, 'item': item})
+        write_event('response.completed', {'response': response})
+        self.wfile.write(b'data: [DONE]\n\n')
+        self.wfile.flush()
+    except (BrokenPipeError, ConnectionResetError):
+        logger.warning(f"[{request_id}] Client disconnected during Responses SSE write")
 
 
 def build_router_metadata(provider_name, model, request_id=''):
@@ -14755,24 +14758,27 @@ def write_openai_completion_as_sse(self, result, request_id):
         model,
     )
     tool_calls = message.get('tool_calls') or []
-    self.send_response(200)
-    self.send_header('Content-Type', 'text/event-stream')
-    self.send_header('Cache-Control', 'no-cache')
-    for key, value in self.routing_headers(result, request_id).items():
-        if value:
-            self.send_header(key, str(value))
-    self.end_headers()
-    if content:
-        chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': created, 'model': model, 'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': content}, 'finish_reason': None}]})
-        self.wfile.write(f'data: {chunk}\n\n'.encode())
-    if tool_calls:
-        chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': created, 'model': model, 'choices': [{'index': 0, 'delta': {'role': 'assistant', 'tool_calls': tool_calls}, 'finish_reason': None}]})
-        self.wfile.write(f'data: {chunk}\n\n'.encode())
-    finish_reason = 'tool_calls' if tool_calls else (choice.get('finish_reason') or 'stop')
-    done_chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': created, 'model': model, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': finish_reason}]})
-    self.wfile.write(f'data: {done_chunk}\n\n'.encode())
-    self.wfile.write(b'data: [DONE]\n\n')
-    self.wfile.flush()
+    try:
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/event-stream')
+        self.send_header('Cache-Control', 'no-cache')
+        for key, value in self.routing_headers(result, request_id).items():
+            if value:
+                self.send_header(key, str(value))
+        self.end_headers()
+        if content:
+            chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': created, 'model': model, 'choices': [{'index': 0, 'delta': {'role': 'assistant', 'content': content}, 'finish_reason': None}]})
+            self.wfile.write(f'data: {chunk}\n\n'.encode())
+        if tool_calls:
+            chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': created, 'model': model, 'choices': [{'index': 0, 'delta': {'role': 'assistant', 'tool_calls': tool_calls}, 'finish_reason': None}]})
+            self.wfile.write(f'data: {chunk}\n\n'.encode())
+        finish_reason = 'tool_calls' if tool_calls else (choice.get('finish_reason') or 'stop')
+        done_chunk = json.dumps({'id': chat_id, 'object': 'chat.completion.chunk', 'created': created, 'model': model, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': finish_reason}]})
+        self.wfile.write(f'data: {done_chunk}\n\n'.encode())
+        self.wfile.write(b'data: [DONE]\n\n')
+        self.wfile.flush()
+    except (BrokenPipeError, ConnectionResetError):
+        logger.warning(f"[{request_id}] Client disconnected during Chat Completions SSE write")
 
 def handle_openai_chat_completions(self, payload, request_id, started, force_realtime=False, return_result=False):
     if isinstance(payload.get('messages'), list):

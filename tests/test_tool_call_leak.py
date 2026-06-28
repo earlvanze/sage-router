@@ -418,6 +418,89 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertNotIn('"model": "ollama-2/kimi-k2.5"', body)
         self.assertIn('"tool_calls"', body)
 
+    def test_wrapped_chat_sse_ignores_client_disconnect(self):
+        class FakeHandler:
+            def __init__(self):
+                self.status = None
+
+            def send_response(self, code):
+                self.status = code
+
+            def send_header(self, _key, _value):
+                pass
+
+            def end_headers(self):
+                pass
+
+            def routing_headers(self, _payload, _request_id):
+                return {}
+
+            @property
+            def wfile(self):
+                class W:
+                    def write(self, _data):
+                        raise BrokenPipeError()
+
+                    def flush(self):
+                        raise BrokenPipeError()
+
+                return W()
+
+        handler = FakeHandler()
+        router.write_openai_completion_as_sse(handler, {
+            'id': 'chatcmpl-1',
+            'created': 1,
+            'model': 'sage-router/frontier',
+            'choices': [{
+                'message': {'content': 'OK'},
+                'finish_reason': 'stop',
+            }],
+        }, 'req-disconnect')
+        self.assertEqual(200, handler.status)
+
+    def test_responses_sse_ignores_client_disconnect(self):
+        class FakeHandler:
+            def __init__(self):
+                self.status = None
+
+            def send_response(self, code):
+                self.status = code
+
+            def send_header(self, _key, _value):
+                pass
+
+            def send_cors_headers(self):
+                pass
+
+            def end_headers(self):
+                pass
+
+            @property
+            def wfile(self):
+                class W:
+                    def write(self, _data):
+                        raise BrokenPipeError()
+
+                    def flush(self):
+                        raise BrokenPipeError()
+
+                return W()
+
+        handler = FakeHandler()
+        router.write_responses_as_sse(handler, {
+            'id': 'resp-1',
+            'object': 'response',
+            'created_at': 1,
+            'model': 'sage-router/frontier',
+            'output': [{
+                'id': 'msg-1',
+                'type': 'message',
+                'role': 'assistant',
+                'content': [{'type': 'output_text', 'text': 'OK'}],
+            }],
+        }, 'req-responses-disconnect')
+        self.assertEqual(200, handler.status)
+
     def test_native_ollama_stream_strips_fragmented_prefix_before_tool_call(self):
         class FakeHandler:
             def __init__(self):
