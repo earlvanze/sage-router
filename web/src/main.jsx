@@ -1055,6 +1055,11 @@ function App() {
                 button: 'One-subscription review',
                 state: 'hero-secondary-one-subscription',
               })}>One-subscription review</a>
+              <a href="/managed-access?intent=max-implementation" onClick={() => trackLandingFunnelEvent('landing_managed_access_clicked', {
+                target: '/managed-access?intent=max-implementation',
+                button: 'Max implementation review',
+                state: 'hero-secondary-max-implementation',
+              })}>Max implementation review</a>
               <a href="/security" onClick={() => trackLandingFunnelEvent('landing_security_clicked', {
                 target: '/security',
                 button: 'Review security',

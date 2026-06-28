@@ -746,6 +746,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("/managed-access", landing)
         self.assertIn("One-subscription review", landing)
         self.assertIn("/managed-access?intent=one-subscription", landing)
+        self.assertIn("Max implementation review", landing)
+        self.assertIn("/managed-access?intent=max-implementation", landing)
         self.assertIn("const routePaths", landing)
         self.assertIn("Choose your route path", landing)
         self.assertIn("Start from the tool or provider you already use.", landing)
