@@ -23,7 +23,7 @@ Live funnel snapshot from 2026-06-28:
 
 - Reliability gate: `SAGEROUTER_MIN_HEALTHY_UPSTREAMS=6
   scripts/check_sagerouter_launch_readiness.sh` has no hard failures and the
-  public edge currently reports `6` healthy upstreams. The remaining warning is
+  public edge currently reports `7` healthy upstreams. The remaining warning is
   Cloudflare Browser Integrity Check ruleset verification; the current token
   cannot read/edit the host-scoped ruleset for `api.sagerouter.dev`. A
   no-secret local audit found `3` Cloudflare token candidates, `2` zone-readable
@@ -46,10 +46,10 @@ Live funnel snapshot from 2026-06-28:
 - Email boundary: activation sender dry-run has covered the `2` sendable
   recipients, but real sending still requires explicit operator approval.
 - Acquisition signals: internal Sage Router navigation remains the largest
-  channel (`282` privacy-safe clicks), long-form/article traffic is the largest
+  channel (`292` privacy-safe clicks), long-form/article traffic is the largest
   source surface (`114`), the landing page has `91` privacy-safe source-surface
   clicks, Reddit is the strongest external community channel (`34`), and the
-  account surface has `29` privacy-safe clicks. The shared article dock now
+  account surface has `39` privacy-safe clicks. The shared article dock now
   links those readers directly to OpenRouter comparison, Codex setup, hosted
   setup copy, email setup, key recovery, and Max review paths.
 - Revenue gap: Pro is now the largest gap (`199` more Pro customers, `$5,970`
@@ -66,7 +66,7 @@ those are the strongest external signals currently visible.
 
 | Channel | Status | Link to use | Success signal |
 | --- | --- | --- | --- |
-| No-key activation recovery | Priority 0; live funnel says send verified/unverified drafts first, review the missing-auth-user segment separately, then mark the worked segment through launch-funnel telemetry. Account page now also shows a signed-in no-key setup panel so returning users can copy setup, then self-serve key creation before any approved follow-up send. | `https://app.sagerouter.dev/launch-funnel.html#no-key-followups:segments` | `operatorFollowUpCopies` or approved sends increase, then `keyRecoveryViews`, `keyCreateAttempts`, `account_snippet_copied` for `preauth-setup-before-signup`, `account_no_key_setup_create_clicked`, and `customersWithGeneratedApiKeys` increase |
+| No-key activation recovery | Priority 0; live funnel says send verified/unverified drafts first, review the missing-auth-user segment separately, then mark the worked segment through launch-funnel telemetry. Account page now also shows a signed-in no-key setup panel so returning users can copy setup, then self-serve key creation before any approved follow-up send; the panel keeps the copy button id distinct from explanatory copy so recovery actions stay browser-addressable. | `https://app.sagerouter.dev/launch-funnel.html#no-key-followups:segments` | `operatorFollowUpCopies` or approved sends increase, then `keyRecoveryViews`, `keyCreateAttempts`, `account_snippet_copied` for `preauth-setup-before-signup`, `account_no_key_setup_create_clicked`, and `customersWithGeneratedApiKeys` increase |
 | GitHub repository discovery | Live; README now leads with hosted activation and repo topics include `ai-gateway`, `llm-gateway`, `model-router`, `codex-cli`, `openai-api`, `openai-compatible-api`, `ollama-cloud`, and `nvidia-nim`; keep using README/docs traffic to push users into key-first setup. | `https://app.sagerouter.dev/account.html?plan=pro&start=checkout&utm_source=github&utm_medium=readme&utm_campaign=sage-router-launch` | `github` attribution clicks, account page views, generated keys, GitHub stars |
 | Founder sales | Ready; public founder-sales kit includes copyable Pro activation, Max implementation, gateway migration, and calculator follow-up snippets | `https://sagerouter.dev/founder-sales-kit?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch` | Direct replies, Pro generated keys, Max review requests, calculator completions |
 | Reliability proof | Ready; public proof kit includes copyable 429 failover, credential load-balancing, multimodal routing, and Reddit proof-reply snippets | `https://sagerouter.dev/reliability-proof?utm_source=reddit&utm_medium=community&utm_campaign=sage-router-launch` | Proof CTA clicks, quickstart snippet copies, Pro generated keys, Max review requests |

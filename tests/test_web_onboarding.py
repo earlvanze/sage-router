@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 import unittest
 
 
@@ -169,6 +170,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn('id="no-key-setup-panel"', html)
         self.assertIn('id="no-key-setup-create"', html)
         self.assertIn('id="no-key-setup-copy"', html)
+        self.assertIn('id="no-key-setup-copy-text"', html)
         self.assertIn('data-copy-target="preauth-setup-code"', html)
         self.assertIn('data-copy-label="Copy setup before key"', html)
         self.assertIn("Copy setup first", html)
@@ -182,6 +184,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("account_next_action_shown", js)
         self.assertIn("account_no_key_setup_create_clicked", js)
         self.assertIn("account_no_key_setup_focus_clicked", js)
+        self.assertIn("set('no-key-setup-copy-text'", js)
         self.assertIn("button.id === 'no-key-setup-copy'", js)
         self.assertIn("Setup copied with a placeholder key", js)
         self.assertIn("Setup selected with a placeholder key", js)
@@ -302,6 +305,12 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn('data-revoke="${esc(k.id)}"', js)
         self.assertIn("/account/api-keys/${encodeURIComponent(id)}/revoke", js)
         self.assertIn("Revoking...", js)
+
+    def test_account_page_does_not_duplicate_dom_ids(self):
+        html = self.read_public("account.html")
+        ids = re.findall(r'\bid="([^"]+)"', html)
+        duplicates = sorted({dom_id for dom_id in ids if ids.count(dom_id) > 1})
+        self.assertEqual([], duplicates)
 
     def test_readiness_checks_public_supabase_auth_settings(self):
         readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")

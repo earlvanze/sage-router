@@ -879,7 +879,7 @@ function renderNoKeySetupPanel() {
   show('no-key-setup-panel', visible);
   if (!visible) return;
   const recoveryIntent = isKeyRecoveryIntent();
-  set('no-key-setup-copy', recoveryIntent
+  set('no-key-setup-copy-text', recoveryIntent
     ? 'Recovery sign-in is complete and this account still needs a generated sk_sage setup key. Create it now; checkout and email verification can follow after the key exists.'
     : 'You are signed in but do not have a generated sk_sage key yet. Create the setup key first; checkout and email verification can follow after the key exists.');
   set('no-key-setup-status', activationState.emailVerified
