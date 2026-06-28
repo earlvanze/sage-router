@@ -401,6 +401,7 @@ jq -r --arg days "$DAYS" '
       "- Marketing intent events: \(n($stages.marketingIntentEvents))",
       "- Setup snippet copies: \(n($stages.setupSnippetCopies))",
       "- Recovery auth starts: magic=\(n($events.login_key_recovery_magic_link_requested)), password=\(n($events.login_key_recovery_password_submitted)), oauth=\(n($events.login_key_recovery_oauth_clicked))",
+      "- Managed-access anonymous interest: clicks=\(n($events.managed_access_interest_clicked)), quickSubmitted=\(n($events.managed_access_quick_request_submitted)), quickReceived=\(n($events.managed_access_quick_request_received))",
       "- Signups: \(n($stages.signups))",
       "- Generated-key customers: \(n($stages.customersWithGeneratedApiKeys))",
       "- First-routed-request customers: \(n($stages.customersWithFirstRoutedRequest))",
