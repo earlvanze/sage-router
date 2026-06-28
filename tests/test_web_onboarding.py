@@ -1595,6 +1595,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("status_activation_email_preflight_copied", js)
         self.assertIn("status_first_request_setup_copied", js)
         self.assertIn("scripts/configure_cloudflare_api_bic_skip.sh --check", js)
+        self.assertIn("scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens", js)
+        self.assertIn("never token values", js)
         self.assertIn("writeClipboardText", js)
         self.assertIn("Browser Integrity Check", js)
         self.assertIn("host-scoped BIC skip", js)

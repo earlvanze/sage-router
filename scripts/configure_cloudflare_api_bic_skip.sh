@@ -219,6 +219,8 @@ print(json.dumps({
     'printsTokenValues': False,
 }))
 
+zone_readable_candidates = 0
+usable_ruleset_candidates = 0
 for idx, (token, sources) in enumerate(candidates.items(), start=1):
     zone_status, zone_body = cf_get(
         token,
@@ -232,6 +234,7 @@ for idx, (token, sources) in enumerate(candidates.items(), start=1):
     ruleset_status = 'skipped'
     ruleset_error = ''
     if zone_id:
+        zone_readable_candidates += 1
         ruleset_status, ruleset_body = cf_get(
             token,
             f'https://api.cloudflare.com/client/v4/zones/{zone_id}/rulesets/phases/http_config_settings/entrypoint',
@@ -240,6 +243,8 @@ for idx, (token, sources) in enumerate(candidates.items(), start=1):
             str(err.get('code') or err.get('message') or '')
             for err in (ruleset_body.get('errors') or [])[:3]
         )
+        if isinstance(ruleset_status, int) and 200 <= ruleset_status < 300:
+            usable_ruleset_candidates += 1
     zone_error = ','.join(
         str(err.get('code') or err.get('message') or '')
         for err in (zone_body.get('errors') or [])[:3]
@@ -255,6 +260,20 @@ for idx, (token, sources) in enumerate(candidates.items(), start=1):
         'rulesetReadableOrExists': isinstance(ruleset_status, int) and 200 <= ruleset_status < 300,
         'rulesetError': ruleset_error,
     }))
+
+print(json.dumps({
+    'kind': 'cloudflare_token_candidate_audit_summary',
+    'zone': zone_name,
+    'uniqueTokenCandidates': len(candidates),
+    'zoneReadableCandidates': zone_readable_candidates,
+    'usableRulesetTokenCandidates': usable_ruleset_candidates,
+    'printsTokenValues': False,
+    'recommendedAction': (
+        'use_candidate_with_rulesets_permissions'
+        if usable_ruleset_candidates
+        else 'rotate_CLOUDFLARE_API_TOKEN_with_Zone_Zone_Read_and_Zone_Rulesets_Read_Edit'
+    ),
+}))
 PY
   exit 0
 fi

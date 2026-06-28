@@ -357,6 +357,10 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
   const activationCheck = activation.setupCheckCommand || `${activation.setupScript || 'scripts/configure_activation_email_sender.sh'} --check`;
   const managedDryRun = managedSetup.dryRunCommand || 'scripts/configure_managed_provider_resale_readiness.sh --check';
   const managedUnitEconomics = managedSetup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
+  const cloudflareBicCheck = [
+    'scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens',
+    'scripts/configure_cloudflare_api_bic_skip.sh --check',
+  ].join('\n');
   const managedSetupCommand = managedSetup.setupCommand || [
     "SAGEROUTER_PROVIDER_RESALE_TERMS_URL='https://sagerouter.dev/provider-resale-terms' \\",
     "SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL='https://sagerouter.dev/margin-policy' \\",
@@ -430,8 +434,8 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
       value: health.authMode === 'supabase' ? 'SDK auth gate live' : 'Verify edge auth',
       badge: 'Cloudflare check',
       state: health.authMode === 'supabase' ? 'good' : 'warn',
-      meta: 'SDK-style clients reach the auth gate; raw Python urllib may still need the host-scoped Browser Integrity Check skip rule.',
-      command: 'scripts/configure_cloudflare_api_bic_skip.sh --check',
+      meta: 'SDK-style clients reach the auth gate; raw Python urllib may still need the host-scoped Browser Integrity Check skip rule. Audit local token candidates first; the audit prints status only, never token values.',
+      command: cloudflareBicCheck,
       copyEvent: 'status_cloudflare_bic_check_copied',
     },
   ];
