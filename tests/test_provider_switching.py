@@ -223,6 +223,52 @@ class ProviderSwitchingTests(unittest.TestCase):
             router.DISABLED_PROVIDERS.clear()
             router.DISABLED_PROVIDERS.update(old_disabled)
 
+    def test_discord_public_disabled_google_flash_fallback_allows_openrouter_equivalent(self):
+        old_providers = router.PROVIDERS
+        old_disabled = set(router.DISABLED_PROVIDERS)
+        try:
+            router.PROVIDERS = {
+                'google': router.Provider(
+                    'google',
+                    'google-generative-language',
+                    'https://generativelanguage.googleapis.com/v1beta',
+                    'test-key',
+                    ['gemini-2.5-flash'],
+                ),
+                'openrouter': router.Provider(
+                    'openrouter',
+                    'openai-completions',
+                    'https://openrouter.ai/api/v1',
+                    'test-key',
+                    ['gemini-2.5-flash'],
+                ),
+            }
+            router.DISABLED_PROVIDERS.clear()
+            router.DISABLED_PROVIDERS.add('google')
+            payload = {
+                'model': 'sage-router/google/gemini-2.5-flash',
+                'metadata': {'agent': 'discord-public'},
+                'messages': [{'role': 'user', 'content': 'summarize this public thread'}],
+            }
+            self.assertTrue(router.apply_discord_public_route_profile(payload))
+            provider, model = router.resolve_requested_provider_model(payload)
+
+            _messages, _intent, _complexity, _tokens, chain = router.prepare_route(
+                payload['messages'],
+                request_id='test-discord-public-google-flash-openrouter-fallback',
+                thinking=router.ThinkingLevel.HIGH,
+                route_mode='best',
+                requirements=payload['requirements'],
+                force_provider=provider,
+                requested_model=model,
+            )
+
+            self.assertEqual([('openrouter', 'gemini-2.5-flash')], chain)
+        finally:
+            router.PROVIDERS = old_providers
+            router.DISABLED_PROVIDERS.clear()
+            router.DISABLED_PROVIDERS.update(old_disabled)
+
     def test_prepare_route_uses_inferred_provider_for_stale_forced_provider(self):
         _messages, _intent, _complexity, _tokens, chain = router.prepare_route(
             [{'role': 'user', 'content': 'hello'}],
