@@ -398,6 +398,7 @@ jq -r --arg days "$DAYS" '
       "- Window: last \($days) days",
       "- Generated at epoch: \(n($root.generatedAt))",
       "- Marketing intent events: \(n($stages.marketingIntentEvents))",
+      "- Setup snippet copies: \(n($stages.setupSnippetCopies))",
       "- Signups: \(n($stages.signups))",
       "- Generated-key customers: \(n($stages.customersWithGeneratedApiKeys))",
       "- First-routed-request customers: \(n($stages.customersWithFirstRoutedRequest))",

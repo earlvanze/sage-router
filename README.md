@@ -375,10 +375,11 @@ The account page also renders hosted plan selection before sign-in from public
 storage, shows quota, rate limit, and estimated cost per 1,000 requests, and is
 used after login when the customer continues to Stripe checkout.
 
-The public homepage, calculator, pricing, launch plan, quickstart, and
-model gateway comparison pages emit anonymous pre-signup page-view, CTA, and
-quickstart snippet-copy intent to `/api/funnel-event` so the private launch
-funnel can count demand before users create accounts.
+The public homepage, calculator, pricing, launch plan, quickstart, article
+activation dock, and model gateway comparison pages emit anonymous pre-signup
+page-view, CTA, and quickstart or hosted setup snippet-copy intent to
+`/api/funnel-event` so the private launch funnel can count demand before users
+create accounts.
 The public model catalog also emits page-view, filter, CTA, setup-copy,
 setup-next, and bucketed search intent so operators can measure model-family
 demand without storing raw search text.
