@@ -495,6 +495,11 @@ provider resale claim, or runtime feature flag.
   acquisition, managed-access, and OAuth onboarding state without copying
   emails, prompts, OAuth tokens, generated API keys, provider credentials, raw
   campaign URLs, or raw responses.
+- Count account-page setup snippets even when clipboard permission is denied:
+  the fallback manual selection path emits the same aggregate
+  `account_snippet_copied` event with `state=selected`, setup snippet ID, and no
+  snippet body, so `setupCopyToFirstRequest` does not go dark in locked-down
+  browsers.
 - Include `activationFollowUps` in `/analytics/funnel` as a privacy-safe
   aggregate for no-key signups, including count, suggested plan, generated-key
   recovery CTA with `start=create_key&auth=github`, and no-secret operator

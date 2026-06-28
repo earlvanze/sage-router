@@ -2057,6 +2057,25 @@ function snippetIdForCopyTarget(targetId = '') {
   return snippets[targetId] || String(targetId || 'unknown').replace(/-code$/, '').slice(0, 80);
 }
 
+function trackAccountSnippetCopy(copyTarget, button, fallbackState = 'copied', originalLabel = '') {
+  const isSupportContext = copyTarget === 'support-context-code';
+  const label = button?.dataset?.copyLabel || originalLabel || button?.textContent || 'Copy';
+  trackAccountFunnelEvent(isSupportContext ? 'account_support_context_copied' : 'account_snippet_copied', {
+    button: label,
+    target: `#${copyTarget}`,
+    state: fallbackState,
+    snippet: snippetIdForCopyTarget(copyTarget),
+  });
+  if (copyTarget === 'client-codex-code') {
+    trackAccountFunnelEvent('account_post_key_codex_copied', {
+      button: label || 'Copy Codex setup',
+      target: '#client-codex-code',
+      state: fallbackState,
+      snippet: 'codex-cli',
+    });
+  }
+}
+
 document.addEventListener('click', async (event) => {
   const afterKeyButton = event.target?.closest?.('[data-after-key-action]');
   if (afterKeyButton) {
@@ -2112,19 +2131,8 @@ document.addEventListener('click', async (event) => {
     await navigator.clipboard.writeText(text);
     button.textContent = 'Copied';
     if (isSupportContext) set('support-context-status', 'Safe support context copied.');
-    trackAccountFunnelEvent(isSupportContext ? 'account_support_context_copied' : 'account_snippet_copied', {
-      button: button.dataset.copyLabel || original || 'Copy',
-      target: `#${copyTarget}`,
-      state: 'copied',
-      snippet: snippetIdForCopyTarget(copyTarget),
-    });
+    trackAccountSnippetCopy(copyTarget, button, 'copied', original);
     if (button.id === 'post-key-copy-codex-button') {
-      trackAccountFunnelEvent('account_post_key_codex_copied', {
-        button: button.dataset.copyLabel || original || 'Copy Codex setup',
-        target: '#client-codex-code',
-        state: 'copied',
-        snippet: 'codex-cli',
-      });
       set('post-key-activation-status', 'Codex setup copied. Export the shown API key in your shell before running Codex.');
     }
   } catch (_error) {
@@ -2135,6 +2143,10 @@ document.addEventListener('click', async (event) => {
     selection.addRange(range);
     button.textContent = 'Selected';
     if (isSupportContext) set('support-context-status', 'Clipboard unavailable; safe support context selected.');
+    trackAccountSnippetCopy(copyTarget, button, 'selected', original);
+    if (button.id === 'post-key-copy-codex-button') {
+      set('post-key-activation-status', 'Codex setup selected. Copy the selected text, then export the shown API key in your shell before running Codex.');
+    }
   }
   setTimeout(() => { button.textContent = button.dataset.copyLabel || original || 'Copy'; }, 1200);
 });

@@ -78,9 +78,12 @@ PII or request content:
   fix
 
 The funnel reads only timestamps, allowlisted managed-access qualification
-buckets, coarse CTA attribution buckets, setup snippet IDs, and countable customer/key status
-fields from the customer store, API-key store, waitlist tables, and route
-telemetry. It does not return email addresses, prompts, message bodies, API
+buckets, coarse CTA attribution buckets, setup snippet IDs, and countable
+customer/key status fields from the customer store, API-key store, waitlist
+tables, and route telemetry. Account-page setup copy telemetry also records a
+bounded `state` such as `copied` or `selected`, so clipboard-denied browsers
+still count manual text selection as setup-copy activation without storing the
+snippet body. It does not return email addresses, prompts, message bodies, API
 keys, copied snippet bodies, provider credentials, OAuth tokens, raw campaign
 URLs, or raw responses.
 
