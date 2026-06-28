@@ -1554,6 +1554,12 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "Sticky create API key" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-sticky-account-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sticky finish setup key" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-sticky-key-recovery-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "sticky-recovery" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-sticky-key-recovery-state"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-setup-copy-funnel"
   fi

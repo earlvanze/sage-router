@@ -408,6 +408,14 @@ function StickyActivationBar() {
       })}>
         60-second setup
       </a>
+      <a className="button secondary stickyRecoveryButton" href={LANDING_KEY_RECOVERY_URL} onClick={() => trackLandingFunnelEvent('landing_key_recovery_clicked', {
+        plan: 'pro',
+        target: LANDING_KEY_RECOVERY_URL,
+        button: 'Sticky finish setup key',
+        state: 'sticky-recovery',
+      })}>
+        Finish setup key
+      </a>
     </aside>
   );
 }
