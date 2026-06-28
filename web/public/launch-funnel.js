@@ -918,6 +918,7 @@ function buildLaunchBrief(data = {}) {
     `- No-key follow-ups queued: ${integer(activationDelivery.totalQueued || activationFollowUps.total)} total, ${integer(activationDelivery.sendableQueued)} sendable, ${integer(activationDelivery.reviewOnlyQueued)} review-only, ${integer(activationFollowUps.windowedNewSignups)} new in-window; worked: ${integer(activationFollowUps.operatorFollowUpWorked)}; copied/opened: ${integer(activationFollowUps.operatorFollowUpCopies)}; dry-run verified: ${activationSend.dryRunVerified ? 'yes' : 'no'} (${integer(activationSend.dryRunRecipients)} unique sendable recipients; covered ${activationSend.dryRunCoveredSegments.join(', ') || 'none'}); sent: ${integer(activationSend.sentRecipients)} recipients; key-first redirects: ${integer(activationFollowUps.keyFirstRedirects)}. Action: ${activationFollowUps.recommendedOperatorAction || 'Send the generated-key-first follow-up.'}`,
     `- Send approval handoff: next segment=${activationSend.nextSendSegment || 'all'}; approval required=${activationSend.sendApprovalRequired ? 'yes' : 'no'}; command copy remains operator-token gated and confirmation-token protected.`,
     `- Approval checklist: ${(activationApprovalChecklist(data)).map(row => `${row.id}=${row.status}`).join('; ')}`,
+    `- Recovery auth starts: magic=${integer(managedAccessEvents.login_key_recovery_magic_link_requested)}; password=${integer(managedAccessEvents.login_key_recovery_password_submitted)}; oauth=${integer(managedAccessEvents.login_key_recovery_oauth_clicked)}; account setup clicks=${integer(managedAccessEvents.login_key_recovery_account_setup_clicked)}`,
     `- Activation email sender: ${activationEmailReadiness.configured ? 'configured' : 'fallback only'} via ${activationEmailReadiness.provider || 'resend'}; dry run ${activationEmailReadiness.dryRunSupported ? 'supported' : 'not reported'}; action: ${activationEmailReadiness.operatorAction || 'Use copy/mailto fallback until sender config is ready.'}`,
     `- No-key email verification: verified ${integer(noKeyVerification.verified)}, unverified ${integer(noKeyVerification.unverified)}, missing ${integer(noKeyVerification.missing_auth_user || noKeyVerification.missing_user_id)}, unavailable ${integer(noKeyVerification.unavailable)}`,
     `- Follow-up CTA: ${activationFollowUps.primaryCtaUrl || activationFollowUpUrl({}, { auth: false })}`,
@@ -1730,6 +1731,33 @@ function renderManagedAccessDemand(demand = {}, marketingIntent = {}) {
   }</div>`;
 }
 
+function recoveryAuthPulse(marketingIntent = {}) {
+  const events = marketingIntent.events || {};
+  return [
+    ['Magic link requested', events.login_key_recovery_magic_link_requested],
+    ['Password submitted', events.login_key_recovery_password_submitted],
+    ['OAuth clicked', events.login_key_recovery_oauth_clicked],
+    ['Magic link sent', events.login_key_recovery_magic_link_sent],
+    ['Account setup clicked', events.login_key_recovery_account_setup_clicked],
+  ];
+}
+
+function hasRecoveryAuthPulseSignal(marketingIntent = {}) {
+  return recoveryAuthPulse(marketingIntent).some(([, count]) => asNumber(count) > 0);
+}
+
+function renderRecoveryAuthPulse(marketingIntent = {}) {
+  const rows = recoveryAuthPulse(marketingIntent);
+  const hasSignal = hasRecoveryAuthPulseSignal(marketingIntent);
+  return `<div>
+    <h3>Recovery auth starts</h3>
+    <table>
+      <thead><tr><th>Signal</th><th>Count</th></tr></thead>
+      <tbody>${rows.map(([name, count]) => `<tr><td><span class="pill${hasSignal ? ' good' : ''}">${esc(name)}</span></td><td>${integer(count)}</td></tr>`).join('')}</tbody>
+    </table>
+  </div>`;
+}
+
 function renderMarketingIntent(marketingIntent = {}) {
   const eventRows = sortedEntries(marketingIntent.events);
   const planRows = sortedEntries(marketingIntent.plans);
@@ -1766,7 +1794,8 @@ function renderMarketingIntent(marketingIntent = {}) {
       }</tbody>
     </table>
   </div>` : '';
-  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length && !modelFamilyRows.length && !modelQueryRows.length && !setupBlock && !checkoutBlock) {
+  const recoveryAuthBlock = renderRecoveryAuthPulse(marketingIntent);
+  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length && !modelFamilyRows.length && !modelQueryRows.length && !setupBlock && !checkoutBlock && !hasRecoveryAuthPulseSignal(marketingIntent)) {
     $('marketing-intent-breakdown').innerHTML = '<div class="empty">No anonymous marketing CTA intent events in this window.</div>';
     return;
   }
@@ -1779,7 +1808,7 @@ function renderMarketingIntent(marketingIntent = {}) {
   </div>` : '<div class="empty">No event breakdown returned.</div>';
   $('marketing-intent-breakdown').innerHTML = `<div class="grid2">${
     renderTable('Events', eventRows, eventLabel)
-  }${
+  }${recoveryAuthBlock}${
     renderTable('Plans', planRows)
   }${
     renderTable('Source surfaces', surfaceRows)
