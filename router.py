@@ -2592,8 +2592,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
         "scripts/configure_managed_provider_resale_readiness.sh"
     )
     dry_run_command = (
-        "curl -fsS https://api.sagerouter.dev/pricing \\\n"
-        "  | jq '.publicLaunch.managedProviderAccess | {enabled,requested,readinessSatisfied,status,missingControls,allowedProviderFamilies,providerFamilyReadiness,oneSubscriptionReadiness,unitEconomics}'"
+        "scripts/configure_managed_provider_resale_readiness.sh --check"
     )
     enable_command_template = (
         "SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' \\\n"

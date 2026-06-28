@@ -414,6 +414,10 @@ provider resale claim, or runtime feature flag.
   the reviewed provider-cost model in Secret Manager, updates the Cloud Run
   readiness env, and keeps public managed resale disabled unless
   `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=1` is explicitly set.
+  Run `scripts/configure_managed_provider_resale_readiness.sh --check` before
+  applying; the helper must reject BYOK-only families such as OpenRouter from
+  the managed resale allowlist and reject minimum gross-margin thresholds below
+  the launch floor.
   `/pricing` and the operator launch funnel expose the no-secret
   `readinessSetup` packet so the dry run and enable template are visible
   without printing provider credentials or actual provider costs.

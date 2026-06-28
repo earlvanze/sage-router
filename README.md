@@ -302,7 +302,10 @@ migration, and implementation demand can be measured without enabling public
 provider resale. The intake asks which target provider family and commercial
 preference a prospect would buy first, plus support need and target launch
 window, including Ollama, OpenAI, and Anthropic private-beta interest for
-authorization review.
+authorization review. Before staging any managed-provider readiness env, run
+`scripts/configure_managed_provider_resale_readiness.sh --check`; the helper
+rejects BYOK-only families such as OpenRouter from the managed resale allowlist
+and refuses minimum gross-margin thresholds below the launch floor.
 Browser-originating waitlist writes are guarded before Supabase inserts: Sage
 Router production hosts, Cloudflare Pages previews, local development, and exact
 origins configured with `SAGEROUTER_WAITLIST_ALLOWED_ORIGINS` are accepted, and

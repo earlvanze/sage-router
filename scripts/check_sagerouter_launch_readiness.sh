@@ -712,7 +712,7 @@ check_managed_provider_access_guard() {
   ' /tmp/sage-router-readiness-body)"
   readiness_setup_ok="$(jq -r '
     (.publicLaunch.managedProviderAccess.readinessSetup.setupScript == "scripts/configure_managed_provider_resale_readiness.sh") and
-    ((.publicLaunch.managedProviderAccess.readinessSetup.dryRunCommand // "") | contains("/pricing")) and
+    ((.publicLaunch.managedProviderAccess.readinessSetup.dryRunCommand // "") | contains("scripts/configure_managed_provider_resale_readiness.sh --check")) and
     ((.publicLaunch.managedProviderAccess.readinessSetup.enableCommandTemplate // "") | contains("SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC")) and
     (
       (.publicLaunch.managedProviderAccess.enabled == true) or

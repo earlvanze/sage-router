@@ -1156,7 +1156,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS', setup['setupCommand'])
         self.assertIn('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS', setup['setupCommand'])
         self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC', setup['setupCommand'])
-        self.assertIn('/pricing', setup['dryRunCommand'])
+        self.assertEqual('scripts/configure_managed_provider_resale_readiness.sh --check', setup['dryRunCommand'])
         self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC', setup['enableCommandTemplate'])
         self.assertFalse(setup['defaultPublicEnable'])
         self.assertIn('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS', setup['secretManagerNames'])
