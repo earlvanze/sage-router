@@ -13,6 +13,7 @@ load_local_env_file() {
       SAGE_ROUTER_GCP_PROJECT_ID|SUPABASE_PROJECT_REF|SAGE_ROUTER_SUPABASE_URL|SAGE_ROUTER_SUPABASE_ANON_KEY|\
       PUBLIC_SUPABASE_ANON_KEY|VITE_SUPABASE_PUBLISHABLE_KEY|AOPS_SUPABASE_ANON_KEY|SUPABASE_ACCESS_TOKEN|\
       SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY|SAGE_ROUTER_API_KEY|SAGE_ROUTER_EDGE_TOKEN|\
+      SAGE_ROUTER_API_KEY_HASH_PEPPER|SAGE_ROUTER_SIGNING_SECRET|\
       CLOUDFLARE_API_TOKEN|CLOUDFLARE_ZONE_ID|SAGEROUTER_CLOUDFLARE_ZONE_ID|SAGEROUTER_API_HOST|\
       SAGE_ROUTER_OPERATOR_TOKEN|SAGE_ROUTER_CLIENT_API_KEY|SAGE_ROUTER_CLIENT_API_KEYS|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED|\
       SAGEROUTER_PROVIDER_RESALE_TERMS_URL|SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL|\
@@ -349,6 +350,63 @@ check_api_client_user_agent_gate() {
     pass "raw Python urllib-style API clients reach the edge auth gate"
   else
     warn "raw Python urllib-style API client probe returned HTTP ${raw_python_code} (${raw_error:-no structured error})"
+  fi
+}
+
+check_public_router_profile_contract() {
+  local responses_body stream_body responses_ok responses_status responses_model responses_prefix responses_text stream_ok stream_status stream_model stream_prefix stream_text stream_events smoke_key
+  smoke_key="${SAGEROUTER_SMOKE_API_KEY:-${SAGE_ROUTER_CLIENT_API_KEY:-${SAGE_ROUTER_API_KEY:-}}}"
+  if [[ -z "$smoke_key" && ( -z "$SUPABASE_SERVICE_ROLE_KEY" || -z "${SAGE_ROUTER_API_KEY_HASH_PEPPER:-${SAGE_ROUTER_SIGNING_SECRET:-}}" ) ]]; then
+    warn "No smoke API key and Supabase generated-key credentials incomplete; skipped live generated-key router-profile contract smoke"
+    return
+  fi
+
+  responses_body="$(mktemp)"
+  stream_body="$(mktemp)"
+  if ! SAGEROUTER_API_BASE_URL="${API_BASE%/}" \
+      SAGE_ROUTER_SUPABASE_URL="$SUPABASE_URL" \
+      SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+      SAGE_ROUTER_API_KEY_HASH_PEPPER="${SAGE_ROUTER_API_KEY_HASH_PEPPER:-${SAGE_ROUTER_SIGNING_SECRET:-}}" \
+      SAGEROUTER_SMOKE_API_KEY="$smoke_key" \
+      python3 scripts/smoke_public_profile_alias.py \
+      --api-base "${API_BASE%/}" \
+      --model sage-router/frontier \
+      --mode responses >"$responses_body"; then
+    fail "public Responses profile smoke failed to execute"
+    rm -f "$responses_body" "$stream_body"
+    return
+  fi
+  if ! SAGEROUTER_API_BASE_URL="${API_BASE%/}" \
+      SAGE_ROUTER_SUPABASE_URL="$SUPABASE_URL" \
+      SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+      SAGE_ROUTER_API_KEY_HASH_PEPPER="${SAGE_ROUTER_API_KEY_HASH_PEPPER:-${SAGE_ROUTER_SIGNING_SECRET:-}}" \
+      SAGEROUTER_SMOKE_API_KEY="$smoke_key" \
+      python3 scripts/smoke_public_profile_alias.py \
+      --api-base "${API_BASE%/}" \
+      --model sage-router/frontier \
+      --mode responses-stream >"$stream_body"; then
+    fail "public streaming Responses profile smoke failed to execute"
+    rm -f "$responses_body" "$stream_body"
+    return
+  fi
+
+  responses_ok="$(jq -r '.profileContractOk // false' "$responses_body" 2>/dev/null || true)"
+  responses_status="$(jq -r '.status // empty' "$responses_body" 2>/dev/null || true)"
+  responses_model="$(jq -r '.headerModel // .bodyModel // empty' "$responses_body" 2>/dev/null || true)"
+  responses_prefix="$(jq -r '.prefixLeak // true' "$responses_body" 2>/dev/null || true)"
+  responses_text="$(jq -r '.visibleText // empty' "$responses_body" 2>/dev/null | head -c 120 || true)"
+  stream_ok="$(jq -r '.profileContractOk // false' "$stream_body" 2>/dev/null || true)"
+  stream_status="$(jq -r '.status // empty' "$stream_body" 2>/dev/null || true)"
+  stream_model="$(jq -r '.headerModel // empty' "$stream_body" 2>/dev/null || true)"
+  stream_prefix="$(jq -r '.prefixLeak // true' "$stream_body" 2>/dev/null || true)"
+  stream_text="$(jq -r '.visibleText // empty' "$stream_body" 2>/dev/null | head -c 120 || true)"
+  stream_events="$(jq -r '(.streamEvents // []) | join(",")' "$stream_body" 2>/dev/null | head -c 180 || true)"
+  rm -f "$responses_body" "$stream_body"
+
+  if [[ "$responses_ok" == "true" && "$stream_ok" == "true" ]]; then
+    pass "public generated-key Responses profile contract is clean for buffered and streaming Codex/OpenClaw calls"
+  else
+    fail "public Responses profile contract failed: responses status=${responses_status:-missing} model=${responses_model:-missing} prefixLeak=${responses_prefix:-missing} text=${responses_text:-empty}; stream status=${stream_status:-missing} model=${stream_model:-missing} prefixLeak=${stream_prefix:-missing} text=${stream_text:-empty} events=${stream_events:-missing}"
   fi
 }
 
@@ -4093,6 +4151,7 @@ check_edge_health
 check_public_edge_layer_headers
 check_public_auth_gate
 check_api_client_user_agent_gate
+check_public_router_profile_contract
 check_public_api_browser_boundary
 check_browser_api_cors
 check_account_mutation_origin_guard
