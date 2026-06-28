@@ -216,6 +216,11 @@ print(json.dumps({
     'zone': zone_name,
     'auditDir': str(audit_dir),
     'uniqueTokenCandidates': len(candidates),
+    'requiredPermissions': [
+        'Zone:Zone:Read',
+        'Zone Rulesets:Read',
+        'Zone Rulesets:Edit',
+    ],
     'printsTokenValues': False,
 }))
 
@@ -267,6 +272,12 @@ print(json.dumps({
     'uniqueTokenCandidates': len(candidates),
     'zoneReadableCandidates': zone_readable_candidates,
     'usableRulesetTokenCandidates': usable_ruleset_candidates,
+    'canApplyExistingCandidate': usable_ruleset_candidates > 0,
+    'requiredPermissions': [
+        'Zone:Zone:Read',
+        'Zone Rulesets:Read',
+        'Zone Rulesets:Edit',
+    ],
     'printsTokenValues': False,
     'recommendedAction': (
         'use_candidate_with_rulesets_permissions'

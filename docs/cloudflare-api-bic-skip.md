@@ -36,9 +36,12 @@ bash scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens
 
 The audit prints candidate numbers, source variable names, zone-read status, and
 ruleset-read status only, followed by a no-secret summary with
-`usableRulesetTokenCandidates` and a `recommendedAction`. A launch-ready token
+`requiredPermissions`, `usableRulesetTokenCandidates`,
+`canApplyExistingCandidate`, and a `recommendedAction`. A launch-ready token
 must show the zone as readable and the `http_config_settings` ruleset as
-readable or creatable.
+readable or creatable. If `canApplyExistingCandidate` is `false`, rotate or
+create a separate Cloudflare token with the three required permissions above;
+do not reuse the Pages deploy token.
 
 ## Apply
 

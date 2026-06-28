@@ -25,7 +25,11 @@ Live funnel snapshot from 2026-06-28:
   scripts/check_sagerouter_launch_readiness.sh` has no hard failures and the
   public edge currently reports `6` healthy upstreams. The remaining warning is
   Cloudflare Browser Integrity Check ruleset verification; the current token
-  cannot read/edit the host-scoped ruleset for `api.sagerouter.dev`.
+  cannot read/edit the host-scoped ruleset for `api.sagerouter.dev`. A
+  no-secret local audit found `3` Cloudflare token candidates, `2` zone-readable
+  candidates, and `0` candidates with usable Rulesets permissions, so the next
+  infrastructure action is to rotate `CLOUDFLARE_API_TOKEN` with `Zone:Zone:Read`
+  plus `Zone Rulesets:Read/Edit`.
 - Hosted app deploy: Cloudflare Pages production branch `main` was redeployed
   after commit `0dd643b`; `https://app.sagerouter.dev/account.html` now serves
   the signed-in no-key setup panel and `account_no_key_setup_create_clicked`
