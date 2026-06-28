@@ -498,6 +498,17 @@ set -a; source /home/digit/.openclaw/.env; set +a
 scripts/check_sagerouter_launch_readiness.sh
 ```
 
+Check activation email sender readiness without writing or printing secrets:
+
+```bash
+set -a; source /home/digit/.openclaw/.env; set +a
+scripts/configure_activation_email_sender.sh --check
+```
+
+The activation email preflight reports public `/pricing` readiness, Cloud Run
+binding presence, and local apply-input presence only as booleans or binding
+names. It does not print sender values or Resend API-key values.
+
 If the readiness check reports Cloudflare `403` / `1010` before the Sage Router
 auth gate, use [docs/cloudflare-api-bic-skip.md](docs/cloudflare-api-bic-skip.md)
 to verify or apply the host-scoped Browser Integrity Check skip for
