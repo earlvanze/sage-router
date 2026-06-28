@@ -766,6 +766,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, dry_run.payload['queued'])
         self.assertEqual(0, dry_run.payload['sent'])
         self.assertEqual('verified-send@example.com', dry_run.payload['results'][0]['email'])
+        self.assertEqual('verified', dry_run.payload['results'][0]['segment'])
+        self.assertEqual('verified', dry_run.payload['results'][0]['emailVerificationSegment'])
         self.assertEqual('dry_run', dry_run.payload['results'][0]['status'])
 
         missing_confirmation = Dummy(b'{"status":"inactive","segment":"verified","limit":10}')
@@ -2245,9 +2247,13 @@ class SaaSAuthTests(unittest.TestCase):
 
         self.assertEqual('signup_to_key_recovery', packet['kind'])
         self.assertEqual(2, packet['totalQueued'])
+        self.assertEqual(2, packet['sendableQueued'])
+        self.assertEqual(0, packet['reviewOnlyQueued'])
         self.assertEqual(2, packet['windowedNewSignups'])
         self.assertEqual(['passwordFallback', 'githubOAuth'], packet['recommendedCtaOrder'])
         self.assertEqual(['verified', 'unverified'], [row['segment'] for row in packet['segmentActions']])
+        self.assertTrue(packet['segmentActions'][0]['sendable'])
+        self.assertEqual('send', packet['segmentActions'][0]['deliveryMode'])
         self.assertEqual('verified_aggregate_draft_copied', packet['segmentActions'][0]['copyKind'])
         self.assertEqual('verified_marked_worked', packet['segmentActions'][0]['workedKind'])
         self.assertEqual('unverified_marked_worked', packet['segmentActions'][1]['workedKind'])
@@ -2258,6 +2264,31 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(packet['privacy']['aggregateOnly'])
         self.assertNotIn('buyer@example.com', json.dumps(packet))
         self.assertNotIn('cus_', json.dumps(packet))
+
+    def test_operator_execution_packet_marks_auth_repair_segments_review_only(self):
+        action = {
+            'metric': 'signupToGeneratedKey',
+            'priority': 'fix_now',
+            'evidence': {'recommendedSegments': ['verified', 'unverified', 'missing_auth_user']},
+        }
+        activation_follow_ups = {
+            'total': 3,
+            'windowedNewSignups': 3,
+            'countsByEmailVerification': {'verified': 1, 'unverified': 1, 'missing_auth_user': 1},
+            'suggestedPlan': 'pro',
+        }
+
+        packet = router.launch_operator_execution_packet(action, activation_follow_ups)
+
+        self.assertEqual(3, packet['totalQueued'])
+        self.assertEqual(2, packet['sendableQueued'])
+        self.assertEqual(1, packet['reviewOnlyQueued'])
+        rows = {row['segment']: row for row in packet['segmentActions']}
+        self.assertTrue(rows['verified']['sendable'])
+        self.assertEqual('send', rows['verified']['deliveryMode'])
+        self.assertFalse(rows['missing_auth_user']['sendable'])
+        self.assertEqual('review', rows['missing_auth_user']['deliveryMode'])
+        self.assertIn('auth-user repair', rows['missing_auth_user']['reviewReason'])
 
     def test_launch_funnel_counts_supabase_auth_signups_without_customer_rows(self):
         now = router.now_epoch()

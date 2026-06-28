@@ -3467,6 +3467,21 @@ TOOL_CALLS_OMITTED_RE = r'\[\s*tool\s+calls\s*omitted\s*\]'
 MODEL_PREFIX_LABEL_RE = r'\[[A-Za-z0-9_.-]+/[^\]\s]+\]'
 
 
+def strip_leading_generic_model_prefix_labels(text: str):
+    """Remove leading provider/model labels without requiring route context."""
+    remaining = str(text or '')
+    changed = False
+    while True:
+        stripped = remaining.lstrip()
+        leading_ws = remaining[:len(remaining) - len(stripped)]
+        match = re.match(r'^\[([^\]\n]{1,140})\](?=\s|$)\s*', stripped)
+        if not match or not looks_like_model_prefix_label(match.group(1)):
+            break
+        remaining = leading_ws + stripped[match.end():].lstrip()
+        changed = True
+    return remaining.strip() if changed else remaining
+
+
 def strip_model_prefix_tool_placeholder_noise(text: str):
     """Drop replay-only model prefix/tool-placeholder lines without context."""
     remaining = str(text or '')
@@ -3493,6 +3508,8 @@ def strip_model_prefix_tool_placeholder_noise(text: str):
             continue
         cleaned_lines.append(line)
     cleaned = '\n'.join(cleaned_lines).strip() if changed else remaining
+    if not cleaned.rstrip().endswith(']'):
+        return cleaned
     suffix_noise_re = rf'(?:\s+(?:{placeholder_run_re}|{prefix_run_re}))+\s*$'
     suffix_cleaned = re.sub(suffix_noise_re, '', cleaned, flags=re.IGNORECASE).rstrip()
     if suffix_cleaned != cleaned:
@@ -3546,6 +3563,7 @@ def sanitize_visible_output(text: str):
     cleaned = _re.sub(r'(?m)^\s*tool_code\s*$\n?', '', cleaned, flags=_re.IGNORECASE)
     cleaned = _re.sub(r'(?m)^\s*\{\s*["\'](?:cmd|command|path|tool|name)["\']\s*:\s*.*\}\s*$\n?', '', cleaned, flags=_re.IGNORECASE)
     cleaned = strip_model_prefix_tool_placeholder_noise(cleaned)
+    cleaned = strip_leading_generic_model_prefix_labels(cleaned)
 
     cleaned = cleaned.strip()
     return cleaned
@@ -3936,7 +3954,7 @@ def openai_chat_completion_to_responses(result, request_payload, request_id):
     model = result.get('model') or request_payload.get('model') or 'sage-router/auto'
     choice = (result.get('choices') or [{}])[0] or {}
     message = choice.get('message') or {}
-    content = message.get('content') or ''
+    content = sanitize_visible_output(message.get('content') or '')
     output = []
     output_text = ''
     if content:
@@ -7137,15 +7155,26 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
         'not_required': 'verification-not-required signups',
         'all': 'all no-key signups',
     }
+    review_only_segments = {'missing_auth_user', 'missing_user_id', 'unavailable'}
     segment_actions = []
+    sendable_queued = 0
+    review_only_queued = 0
     for segment in recommended_segments:
         count = total if segment == 'all' else int((counts or {}).get(segment) or 0)
         if count <= 0:
             continue
+        review_only = segment in review_only_segments
+        if review_only:
+            review_only_queued += count
+        else:
+            sendable_queued += count
         segment_actions.append({
             'segment': segment,
             'label': segment_labels.get(segment, segment),
             'count': count,
+            'deliveryMode': 'review' if review_only else 'send',
+            'sendable': not review_only,
+            'reviewReason': 'Needs auth-user repair before recovery email can be sent.' if review_only else '',
             'copyKind': f'{segment}_aggregate_draft_copied',
             'workedKind': f'{segment}_marked_worked' if segment in {'verified', 'unverified'} else 'marked_worked',
             'sendOrder': len(segment_actions) + 1,
@@ -7182,6 +7211,8 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
         ),
         'executionChecklist': next_best_action.get('executionChecklist') or launch_no_key_execution_checklist(recommended_segments, True),
         'totalQueued': total,
+        'sendableQueued': sendable_queued,
+        'reviewOnlyQueued': review_only_queued,
         'windowedNewSignups': int(activation_follow_ups.get('windowedNewSignups') or 0),
         'segmentCounts': counts or {},
         'segmentActions': segment_actions,
@@ -7205,7 +7236,8 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
         },
         'emailReadiness': email_readiness,
         'instructions': [
-            'Send or copy the draft to the queued signup segment.',
+            'Send or copy the draft to sendable signup segments.',
+            'Review auth-repair segments separately before expecting recovery email delivery.',
             email_readiness.get('operatorAction') or 'Dry-run the activation sender before real outreach.',
             'Mark the segment worked only after real outreach is sent or copied into the outbound channel.',
             'Refresh the funnel and watch keyRecoveryViews, keyCreateAttempts, and customersWithGeneratedApiKeys.',
@@ -9402,6 +9434,7 @@ def operator_activation_followup_send(customers, segment='', limit=25, dry_run=F
         row = {
             'sendOrder': contact.get('sendOrder'),
             'email': contact.get('email'),
+            'segment': segment_name,
             'emailVerificationSegment': segment_name,
             'suggestedPlan': plan,
             'subject': contact.get('subject'),

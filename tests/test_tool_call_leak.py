@@ -615,6 +615,13 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         )
         self.assertEqual('final answer', router.sanitize_visible_output(raw))
 
+    def test_visible_output_strips_plain_repeated_model_prefix_before_text(self):
+        raw = ' '.join('[ollama-2/glm-5.2]' for _ in range(1000)) + ' The goal is already complete. No further action needed.'
+        self.assertEqual(
+            'The goal is already complete. No further action needed.',
+            router.sanitize_visible_output(raw),
+        )
+
     def test_detects_structured_json_tool_leaks(self):
         leaked = '{"recipient_name":"functions.exec","parameters":{"command":"ls"}}'
         self.assertTrue(router.looks_like_visible_tool_call(leaked))
@@ -751,6 +758,27 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         self.assertEqual('ollama/qwen3', response['model'])
         self.assertEqual('function_call', response['output'][0]['type'])
         self.assertEqual('lookup_record', response['output'][0]['name'])
+
+    def test_responses_output_sanitizes_client_visible_model_prefix_replay(self):
+        chat = {
+            'id': 'chatcmpl-test',
+            'created': 1,
+            'model': 'sage-router/frontier',
+            'choices': [{
+                'message': {
+                    'role': 'assistant',
+                    'content': '[ollama-2/glm-5.2] [ollama-2/glm-5.2] The goal is already complete. No further action needed.',
+                },
+                'finish_reason': 'stop',
+            }],
+            'usage': {},
+        }
+
+        response = router.openai_chat_completion_to_responses(chat, {'model': 'sage-router/frontier'}, 'req1')
+
+        self.assertEqual('sage-router/frontier', response['model'])
+        self.assertEqual('The goal is already complete. No further action needed.', response['output_text'])
+        self.assertEqual(response['output_text'], response['output'][0]['content'][0]['text'])
 
     def test_direct_codex_scoring_is_not_capped_as_recursive_gateway(self):
         debug_scores = []
