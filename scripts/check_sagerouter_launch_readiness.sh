@@ -1748,6 +1748,15 @@ check_marketing_local_first_article_page() {
   if [[ "$dock_code" == "200" ]] && ! grep -q "upgradePlainAccountLinks" /tmp/sage-router-readiness-body; then
     dock_code="200:missing-article-account-link-upgrade"
   fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "mountHeroRecoveryLinks" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-hero-key-recovery"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q 'data-article-dock-recovery' /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-hero-key-recovery-marker"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "hero-returning-user" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-hero-key-recovery-funnel-state"
+  fi
   if [[ "$dock_code" == "200" ]] && ! grep -q "signInWithOtp" /tmp/sage-router-readiness-body; then
     dock_code="200:missing-article-magic-link-send"
   fi

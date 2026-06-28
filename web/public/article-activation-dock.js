@@ -170,6 +170,36 @@ curl https://api.sagerouter.dev/v1/models \\
     });
   }
 
+  function mountHeroRecoveryLinks() {
+    document.querySelectorAll('.actions a[href*="app.sagerouter.dev/account.html?"]').forEach((link) => {
+      if (link.dataset.articleDockRecoverySource === 'true') return;
+      const actionGroup = link.closest('.actions');
+      if (!actionGroup || actionGroup.querySelector('[data-article-dock-recovery="true"]')) return;
+
+      let url;
+      try {
+        url = new URL(link.href);
+      } catch {
+        return;
+      }
+      if (url.hostname !== 'app.sagerouter.dev') return;
+      if (url.pathname !== '/account.html') return;
+      if (url.searchParams.get('plan') !== 'pro') return;
+      if (url.searchParams.get('start') !== 'create_key') return;
+
+      const recovery = makeLink(
+        'Finish setup key',
+        recoveryUrl,
+        'button secondary',
+        'content_article_key_recovery_clicked',
+        'hero-returning-user'
+      );
+      recovery.dataset.articleDockRecovery = 'true';
+      link.dataset.articleDockRecoverySource = 'true';
+      link.insertAdjacentElement('afterend', recovery);
+    });
+  }
+
   function makeOauthButton(id) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -420,11 +450,13 @@ curl https://api.sagerouter.dev/v1/models \\
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       upgradePlainAccountLinks();
+      mountHeroRecoveryLinks();
       mountInlineOffer();
       mountDock();
     }, { once: true });
   } else {
     upgradePlainAccountLinks();
+    mountHeroRecoveryLinks();
     mountInlineOffer();
     mountDock();
   }
