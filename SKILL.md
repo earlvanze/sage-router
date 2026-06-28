@@ -1,7 +1,7 @@
 ---
 name: sage-router
 description: Local-first AI model routing for serious agents. One endpoint. Any provider. The router figures out the rest.
-version: 4.157.8
+version: 4.157.9
 env:
   - SAGE_ROUTER_HOME (required: path to sage-router repo)
   - SAGE_ROUTER_DISABLED_PROVIDERS (optional: comma-separated provider names to suppress)
