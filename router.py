@@ -4486,14 +4486,17 @@ def sanitize_openai_compat_stream_line(raw_line, provider_name, model, state=Non
         return raw_line
     changed = False
     for choice in chunk.get('choices') or []:
-        delta = choice.get('delta') if isinstance(choice, dict) else None
-        if not isinstance(delta, dict) or 'content' not in delta:
+        if not isinstance(choice, dict):
             continue
-        original = delta.get('content') or ''
-        cleaned = sanitize_stream_content_fragment(original, provider_name, model, state=state)
-        if cleaned != original:
-            delta['content'] = cleaned
-            changed = True
+        for container_key in ('delta', 'message'):
+            container = choice.get(container_key)
+            if not isinstance(container, dict) or 'content' not in container:
+                continue
+            original = container.get('content') or ''
+            cleaned = sanitize_stream_content_fragment(original, provider_name, model, state=state)
+            if cleaned != original:
+                container['content'] = cleaned
+                changed = True
     if not changed:
         return raw_line
     sanitized = f"{line[:prefix_len]}data: {json.dumps(chunk, separators=(',', ':'))}\n"

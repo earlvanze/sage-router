@@ -207,6 +207,37 @@ class ToolCallLeakTests(unittest.TestCase):
         chunk = json.loads(sanitized.decode().split('data: ', 1)[1])
         self.assertEqual('', chunk['choices'][0]['delta']['content'])
 
+    def test_openai_compat_stream_strips_repeated_prefix_message_chunks(self):
+        raw = (
+            'data: {"id":"chatcmpl-1","choices":[{"index":0,'
+            '"message":{"role":"assistant","content":"[ollama-2/kimi-k2.5] '
+            '[ollama-2/kimi-k2.5] [tool calls omitted]"},"finish_reason":null}]}\n'
+        ).encode()
+        sanitized = router.sanitize_openai_compat_stream_line(raw, 'ollama-2', 'kimi-k2.5')
+        chunk = json.loads(sanitized.decode().split('data: ', 1)[1])
+        self.assertEqual('', chunk['choices'][0]['message']['content'])
+
+    def test_openai_compat_stream_strips_same_line_message_prefix_storm(self):
+        raw = (
+            'data: ' + json.dumps({
+                'id': 'chatcmpl-1',
+                'choices': [{
+                    'index': 0,
+                    'message': {
+                        'role': 'assistant',
+                        'content': ' '.join(
+                            '[ollama-2/kimi-k2.5] [tool calls omitted]'
+                            for _ in range(1000)
+                        ),
+                    },
+                    'finish_reason': None,
+                }],
+            }) + '\n'
+        ).encode()
+        sanitized = router.sanitize_openai_compat_stream_line(raw, 'ollama-2', 'kimi-k2.5')
+        chunk = json.loads(sanitized.decode().split('data: ', 1)[1])
+        self.assertEqual('', chunk['choices'][0]['message']['content'])
+
     def test_openai_compat_stream_keeps_tool_call_delta_while_stripping_prefix(self):
         raw = (
             'data: {"id":"chatcmpl-1","choices":[{"index":0,'
