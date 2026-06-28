@@ -149,12 +149,17 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
 
     def test_cloudflare_bic_skip_script_reports_ruleset_permission_failures(self):
         script = self.read_bic_skip_script()
-        self.assertIn("Usage: scripts/configure_cloudflare_api_bic_skip.sh [--check|--audit-local-tokens]", script)
+        self.assertIn("Usage: scripts/configure_cloudflare_api_bic_skip.sh [--check|--operator-packet|--audit-local-tokens]", script)
         self.assertIn('MODE="apply"', script)
         self.assertIn('--check)', script)
+        self.assertIn('--operator-packet)', script)
         self.assertIn('--audit-local-tokens)', script)
         self.assertIn('if [[ "$MODE" == "check" ]]', script)
+        self.assertIn('if [[ "$MODE" == "operator-packet" ]]', script)
         self.assertIn('if [[ "$MODE" == "audit-local-tokens" ]]', script)
+        self.assertIn("Sage Router Cloudflare BIC operator packet", script)
+        self.assertIn("read-only review packet", script)
+        self.assertIn("does not create rules, edit Cloudflare, deploy Pages, change DNS, or disable Browser Integrity Check", script)
         self.assertIn("cloudflare_token_candidate_audit", script)
         self.assertIn("cloudflare_token_candidate_audit_summary", script)
         self.assertIn("printsTokenValues", script)
@@ -182,7 +187,9 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
         self.assertIn("Zone Rulesets:Read", doc)
         self.assertIn("Zone Rulesets:Edit", doc)
         self.assertIn("bash scripts/configure_cloudflare_api_bic_skip.sh --check", doc)
+        self.assertIn("bash scripts/configure_cloudflare_api_bic_skip.sh --operator-packet", doc)
         self.assertIn("bash scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens", doc)
+        self.assertIn("single operator handoff", doc)
         self.assertIn("without printing token values", doc)
         self.assertIn("usableRulesetTokenCandidates", doc)
         self.assertIn("canApplyExistingCandidate", doc)
@@ -190,6 +197,8 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
         self.assertIn("bash scripts/configure_cloudflare_api_bic_skip.sh", doc)
         self.assertIn('http.host eq "api.sagerouter.dev"', doc)
         self.assertIn("docs/cloudflare-api-bic-skip.md", readme)
+        self.assertIn("configure_cloudflare_api_bic_skip.sh --operator-packet", readme)
+        self.assertIn("read-only reliability handoff", readme)
 
 
 if __name__ == "__main__":

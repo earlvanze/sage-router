@@ -24,13 +24,16 @@ load_local_env_file() {
 
 usage() {
   cat <<'EOF'
-Usage: scripts/configure_cloudflare_api_bic_skip.sh [--check|--audit-local-tokens]
+Usage: scripts/configure_cloudflare_api_bic_skip.sh [--check|--operator-packet|--audit-local-tokens]
 
 Creates or verifies a host-scoped Cloudflare configuration rule that disables
 Browser Integrity Check for api.sagerouter.dev only.
 
 Options:
   --check               Verify token permissions and the existing rule without modifying Cloudflare.
+  --operator-packet     Print a read-only, no-secret reliability handoff with
+                        active-token check status, local token-candidate audit
+                        summary, required permissions, and next commands.
   --audit-local-tokens  Test local Cloudflare token candidates by API status
                         without printing token values.
 EOF
@@ -121,6 +124,10 @@ while [[ $# -gt 0 ]]; do
       MODE="check"
       shift
       ;;
+    --operator-packet)
+      MODE="operator-packet"
+      shift
+      ;;
     --audit-local-tokens)
       MODE="audit-local-tokens"
       shift
@@ -138,6 +145,60 @@ done
 
 require_cmd curl
 require_cmd jq
+
+if [[ "$MODE" == "operator-packet" ]]; then
+  audit_body="$(mktemp)"
+  audit_err="$(mktemp)"
+  check_body="$(mktemp)"
+  check_err="$(mktemp)"
+  trap 'rm -f "$audit_body" "$audit_err" "$check_body" "$check_err"' EXIT
+
+  printf 'Sage Router Cloudflare BIC operator packet\n'
+  printf 'Boundary: read-only review packet; no Cloudflare token values, customer data, provider credentials, API keys, prompts, OAuth tokens, or raw provider responses.\n'
+  printf 'Effect: this command does not create rules, edit Cloudflare, deploy Pages, change DNS, or disable Browser Integrity Check.\n\n'
+
+  if bash "${BASH_SOURCE[0]}" --audit-local-tokens >"$audit_body" 2>"$audit_err"; then
+    summary="$(tail -n1 "$audit_body")"
+    printf 'Local token-candidate audit:\n'
+    printf -- '- unique candidates: %s\n' "$(jq -r '.uniqueTokenCandidates // 0' <<<"$summary")"
+    printf -- '- zone-readable candidates: %s\n' "$(jq -r '.zoneReadableCandidates // 0' <<<"$summary")"
+    printf -- '- usable ruleset candidates: %s\n' "$(jq -r '.usableRulesetTokenCandidates // 0' <<<"$summary")"
+    printf -- '- can apply existing candidate: %s\n' "$(jq -r '.canApplyExistingCandidate // false' <<<"$summary")"
+    printf -- '- recommended action: %s\n\n' "$(jq -r '.recommendedAction // "rotate_CLOUDFLARE_API_TOKEN_with_Zone_Zone_Read_and_Zone_Rulesets_Read_Edit"' <<<"$summary")"
+  else
+    printf 'Local token-candidate audit:\n'
+    printf -- '- unavailable: %s\n\n' "$(tr '\n' ' ' <"$audit_err" | sed 's/[[:space:]]\+/ /g')"
+  fi
+
+  if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+    if bash "${BASH_SOURCE[0]}" --check >"$check_body" 2>"$check_err"; then
+      printf 'Active token BIC rule check:\n'
+      printf -- '- status: verified\n'
+      printf -- '- result: %s\n\n' "$(tr '\n' ' ' <"$check_body" | sed 's/[[:space:]]\+/ /g')"
+    else
+      printf 'Active token BIC rule check:\n'
+      printf -- '- status: not verified\n'
+      printf -- '- result: %s\n\n' "$(tr '\n' ' ' <"$check_err" | sed 's/[[:space:]]\+/ /g')"
+    fi
+  else
+    printf 'Active token BIC rule check:\n'
+    printf -- '- status: missing CLOUDFLARE_API_TOKEN\n\n'
+  fi
+
+  printf 'Required token permissions for zone %s:\n' "${SAGEROUTER_CLOUDFLARE_ZONE_NAME:-sagerouter.dev}"
+  printf -- '- Zone:Zone:Read\n'
+  printf -- '- Zone Rulesets:Read\n'
+  printf -- '- Zone Rulesets:Edit\n\n'
+
+  printf 'Next operator actions:\n'
+  printf -- '- Rotate or create CLOUDFLARE_API_TOKEN scoped to sagerouter.dev with the three permissions above.\n'
+  printf -- '- Verify without mutation: bash scripts/configure_cloudflare_api_bic_skip.sh --check\n'
+  printf -- '- Apply only after verification: bash scripts/configure_cloudflare_api_bic_skip.sh\n'
+  printf -- '- Re-run launch readiness after propagation: bash scripts/check_sagerouter_launch_readiness.sh\n\n'
+
+  printf 'Privacy flags: printsTokenValues=false; containsCustomerData=false; containsProviderCredentials=false; mutatesCloudflare=false.\n'
+  exit 0
+fi
 
 if [[ "$MODE" == "audit-local-tokens" ]]; then
   require_cmd python3

@@ -34,6 +34,14 @@ without printing token values:
 bash scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens
 ```
 
+For a single operator handoff that combines the active-token check, local
+candidate audit summary, required permissions, and next commands without
+mutating Cloudflare or printing token values, run:
+
+```bash
+bash scripts/configure_cloudflare_api_bic_skip.sh --operator-packet
+```
+
 The audit prints candidate numbers, source variable names, zone-read status, and
 ruleset-read status only, followed by a no-secret summary with
 `requiredPermissions`, `usableRulesetTokenCandidates`,
