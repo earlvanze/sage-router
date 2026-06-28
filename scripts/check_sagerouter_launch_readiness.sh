@@ -17,7 +17,8 @@ load_local_env_file() {
       CLOUDFLARE_API_TOKEN|CLOUDFLARE_ZONE_ID|SAGEROUTER_CLOUDFLARE_ZONE_ID|SAGEROUTER_API_HOST|\
       SAGE_ROUTER_OPERATOR_TOKEN|SAGE_ROUTER_CLIENT_API_KEY|SAGE_ROUTER_CLIENT_API_KEYS|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED|\
       SAGEROUTER_PROVIDER_RESALE_TERMS_URL|SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL|\
-      SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED|SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS)
+      SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED|SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS|\
+      SAGEROUTER_MIN_HEALTHY_UPSTREAMS)
         ;;
       *)
         continue
@@ -49,6 +50,7 @@ SUPABASE_SERVICE_ROLE_KEY="${SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_S
 ADMIN_TOKEN="${SAGE_ROUTER_API_KEY:-${SAGE_ROUTER_EDGE_TOKEN:-}}"
 OPERATOR_TOKEN="${SAGE_ROUTER_OPERATOR_TOKEN:-${SAGE_ROUTER_CLIENT_API_KEY:-}}"
 MANAGED_PROVIDER_RESALE_ENABLED="${SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED:-0}"
+MIN_HEALTHY_UPSTREAMS="${SAGEROUTER_MIN_HEALTHY_UPSTREAMS:-0}"
 PROVIDER_RESALE_TERMS_URL="${SAGEROUTER_PROVIDER_RESALE_TERMS_URL:-}"
 PROVIDER_RESALE_MARGIN_POLICY_URL="${SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL:-}"
 PROVIDER_RESALE_TERMS_ACKNOWLEDGED="${SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED:-0}"
@@ -238,7 +240,7 @@ PY
 check_edge_health() {
   local body
   body="$(curl -fsS "${API_BASE%/}/edge/health")"
-  local status auth_mode selected health_urls_redacted rate_limit_enabled auth_attempt_rate_limit_enabled auth_attempt_rate_limit quota_enabled api_key_auth_cache api_key_auth_cache_zero cors_wildcard_blocked cors_explicit_origin_required cors_allowed_origins_count failover_ok model_modalities_shared model_modalities_rpc
+  local status auth_mode selected health_urls_redacted rate_limit_enabled auth_attempt_rate_limit_enabled auth_attempt_rate_limit quota_enabled api_key_auth_cache api_key_auth_cache_zero cors_wildcard_blocked cors_explicit_origin_required cors_allowed_origins_count failover_ok model_modalities_shared model_modalities_rpc healthy_upstream_count unhealthy_summary
   status="$(printf '%s' "$body" | jq -r '.status // empty')"
   auth_mode="$(printf '%s' "$body" | jq -r '.authMode // empty')"
   selected="$(printf '%s' "$body" | jq -r '.selected // empty')"
@@ -263,10 +265,21 @@ check_edge_health() {
   ')"
   model_modalities_shared="$(printf '%s' "$body" | jq -r '.modelModalities.sharedEnabled // false')"
   model_modalities_rpc="$(printf '%s' "$body" | jq -r '.modelModalities.rpcConfigured // false')"
+  healthy_upstream_count="$(printf '%s' "$body" | jq -r '.failover.healthyUpstreamCount // ([.upstreams[]? | select(.healthy == true)] | length)')"
+  unhealthy_summary="$(printf '%s' "$body" | jq -r '[.upstreams[]? | select(.healthy != true) | "\(.id // "unknown"):\(.last_error // "unhealthy")"] | join(",")')"
   if [[ "$status" == "ok" && "$auth_mode" == "supabase" && -n "$selected" && "$health_urls_redacted" == "true" && "$rate_limit_enabled" == "true" && "$auth_attempt_rate_limit_enabled" == "true" && "$auth_attempt_rate_limit" -gt 0 && "$quota_enabled" == "true" && "$api_key_auth_cache_zero" == "true" && "$cors_wildcard_blocked" == "true" && "$cors_explicit_origin_required" == "true" && "$cors_allowed_origins_count" -gt 0 && "$failover_ok" == "true" && "$model_modalities_shared" == "true" && "$model_modalities_rpc" == "true" ]]; then
-    pass "edge healthy with supabase auth, redacted health snapshots, rate limits, auth-attempt throttling, durable quotas, immediate generated-key revocation, non-wildcard browser CORS, retry failover, and shared model modality persistence; selected ${selected}"
+    pass "edge healthy with supabase auth, redacted health snapshots, rate limits, auth-attempt throttling, durable quotas, immediate generated-key revocation, non-wildcard browser CORS, retry failover, and shared model modality persistence; selected ${selected}; healthyUpstreams=${healthy_upstream_count}"
   else
-    fail "edge health unexpected: status=${status:-missing} authMode=${auth_mode:-missing} selected=${selected:-missing} healthUrlsRedacted=${health_urls_redacted:-missing} rateLimit=${rate_limit_enabled:-missing} authAttemptRateLimit=${auth_attempt_rate_limit_enabled:-missing}/${auth_attempt_rate_limit:-missing} quota=${quota_enabled:-missing} apiKeyAuthCache=${api_key_auth_cache:-missing} corsWildcardBlocked=${cors_wildcard_blocked:-missing} corsExplicitOrigin=${cors_explicit_origin_required:-missing} corsAllowedOrigins=${cors_allowed_origins_count:-missing} failover=${failover_ok:-missing} modelModalities=${model_modalities_shared:-missing}/${model_modalities_rpc:-missing}"
+    fail "edge health unexpected: status=${status:-missing} authMode=${auth_mode:-missing} selected=${selected:-missing} healthUrlsRedacted=${health_urls_redacted:-missing} rateLimit=${rate_limit_enabled:-missing} authAttemptRateLimit=${auth_attempt_rate_limit_enabled:-missing}/${auth_attempt_rate_limit:-missing} quota=${quota_enabled:-missing} apiKeyAuthCache=${api_key_auth_cache:-missing} corsWildcardBlocked=${cors_wildcard_blocked:-missing} corsExplicitOrigin=${cors_explicit_origin_required:-missing} corsAllowedOrigins=${cors_allowed_origins_count:-missing} failover=${failover_ok:-missing} healthyUpstreams=${healthy_upstream_count:-missing} unhealthy=${unhealthy_summary:-none} modelModalities=${model_modalities_shared:-missing}/${model_modalities_rpc:-missing}"
+  fi
+  if [[ "$MIN_HEALTHY_UPSTREAMS" =~ ^[0-9]+$ && "$MIN_HEALTHY_UPSTREAMS" -gt 0 ]]; then
+    if [[ "$healthy_upstream_count" -ge "$MIN_HEALTHY_UPSTREAMS" ]]; then
+      pass "edge healthy upstream count ${healthy_upstream_count} meets expected minimum ${MIN_HEALTHY_UPSTREAMS}"
+    else
+      fail "edge healthy upstream count ${healthy_upstream_count:-missing} is below expected minimum ${MIN_HEALTHY_UPSTREAMS}; unhealthy=${unhealthy_summary:-none}"
+    fi
+  elif [[ -n "$MIN_HEALTHY_UPSTREAMS" && "$MIN_HEALTHY_UPSTREAMS" != "0" ]]; then
+    fail "SAGEROUTER_MIN_HEALTHY_UPSTREAMS must be a positive integer or 0, got ${MIN_HEALTHY_UPSTREAMS}"
   fi
 }
 

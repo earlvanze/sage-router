@@ -21,10 +21,11 @@ readiness guard enables it.
 
 Live funnel snapshot from 2026-06-28:
 
-- Reliability gate: `scripts/check_sagerouter_launch_readiness.sh` has no hard
-  failures. The remaining warning is Cloudflare Browser Integrity Check ruleset
-  verification; the current token cannot read/edit the host-scoped ruleset for
-  `api.sagerouter.dev`.
+- Reliability gate: `SAGEROUTER_MIN_HEALTHY_UPSTREAMS=6
+  scripts/check_sagerouter_launch_readiness.sh` has no hard failures and the
+  public edge currently reports `7` healthy upstreams. The remaining warning is
+  Cloudflare Browser Integrity Check ruleset verification; the current token
+  cannot read/edit the host-scoped ruleset for `api.sagerouter.dev`.
 - Activation: `3` signups, `1` customer with a generated `sk_sage_*` key, `1`
   customer with a first routed request, `1` paid Pro customer, and `$30`
   estimated current MRR.
@@ -34,7 +35,7 @@ Live funnel snapshot from 2026-06-28:
 - Email boundary: activation sender dry-run has covered the `2` sendable
   recipients, but real sending still requires explicit operator approval.
 - Acquisition signals: internal Sage Router navigation remains the largest
-  channel (`280` privacy-safe clicks), long-form/article traffic is the largest
+  channel (`282` privacy-safe clicks), long-form/article traffic is the largest
   source surface (`114`), Reddit is the strongest external community channel
   (`34`), and GitHub shows `21` privacy-safe clicks.
 - Revenue gap: Pro is now the largest gap (`199` more Pro customers, `$5,970`

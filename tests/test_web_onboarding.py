@@ -27,6 +27,16 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY=...", env)
         self.assertIn("SAGE_ROUTER_SUPABASE_MODEL_MODALITIES_RPC=sage_router_record_model_modalities", env)
 
+    def test_launch_readiness_can_enforce_expected_healthy_upstreams(self):
+        readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")
+        readme = self.read_text("README.md")
+        self.assertIn("SAGEROUTER_MIN_HEALTHY_UPSTREAMS", readiness)
+        self.assertIn("healthyUpstreams=${healthy_upstream_count}", readiness)
+        self.assertIn("edge healthy upstream count", readiness)
+        self.assertIn("unhealthy=${unhealthy_summary:-none}", readiness)
+        self.assertIn("SAGEROUTER_MIN_HEALTHY_UPSTREAMS", readme)
+        self.assertIn("expected healthy Tailnet/cloud origin count", readme)
+
     def test_dashboard_new_provider_credentials_require_endpoint_defaults(self):
         dashboard = self.read_text("web", "dashboard", "index.html")
         self.assertIn('id="credProvider" onchange="onCredProviderChange()"', dashboard)
