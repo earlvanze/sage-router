@@ -3551,6 +3551,15 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "Ollama, OpenAI, and Anthropic" /tmp/sage-router-readiness-body; then
     page_code="200:missing-target-provider-copy"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Live one-subscription readiness" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-readiness-panel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "loadManagedReadiness" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-readiness-fetch"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "maximumProviderCostCentsPerThousandRequests" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-readiness-plan-thresholds"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
