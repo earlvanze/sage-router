@@ -50,6 +50,9 @@
     .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
     .btn{min-height:42px;border:0;border-radius:8px;padding:0 15px;background:linear-gradient(135deg,var(--brand),#48c97f);color:#04150d;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
     .btn.secondary{background:rgba(255,255,255,.045);color:var(--text);border:1px solid var(--border)}
+    .commandText{margin:10px 0 0;padding:12px;border:1px solid rgba(182,210,218,.14);border-radius:8px;background:rgba(0,0,0,.22);color:#d9f8e6;font-size:.82rem;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+    .actionGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+    .launchAction{padding:14px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.035)}
     code{color:#d9f8e6}
     @media(max-width:900px){.links{display:none}.hero,.grid2,.kpis,.evidenceGrid{grid-template-columns:1fr}h1{font-size:2.8rem}}
   </style>
@@ -104,6 +107,11 @@
       <h2>SaaS Launch Readiness</h2>
       <p id="launch-readiness-summary" class="muted">Loading checkout, activation, managed-access, and API-client launch posture.</p>
       <div id="launch-readiness" class="controls"></div>
+    </section>
+    <section class="panel">
+      <h2>Operator Launch Actions</h2>
+      <p id="operator-launch-summary" class="muted">Loading no-secret activation and managed-access action packet.</p>
+      <div id="operator-launch-actions" class="actionGrid"></div>
     </section>
     <section class="panel">
       <h2>Endpoint</h2>

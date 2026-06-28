@@ -1169,6 +1169,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('SAGE_ROUTER_ACTIVATION_EMAIL_FROM', activation_email['requiredEnv'])
         self.assertIn('SAGE_ROUTER_RESEND_API_KEY', activation_email['secretManagerNames'])
         self.assertEqual('scripts/configure_activation_email_sender.sh', activation_email['setupScript'])
+        self.assertEqual('scripts/configure_activation_email_sender.sh --check', activation_email['setupCheckCommand'])
         self.assertTrue(activation_email['sendConfirmationRequired'])
         self.assertEqual('SEND_ACTIVATION_FOLLOWUPS', activation_email['sendConfirmation'])
         self.assertFalse(activation_email['privacy']['containsSecrets'])

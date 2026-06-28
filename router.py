@@ -9179,6 +9179,7 @@ def activation_email_readiness():
 
 def public_activation_email_readiness():
     readiness = activation_email_readiness()
+    setup_script = readiness.get('setupScript') or 'scripts/configure_activation_email_sender.sh'
     return {
         'provider': readiness.get('provider') or 'resend',
         'configured': bool(readiness.get('configured')),
@@ -9192,7 +9193,8 @@ def public_activation_email_readiness():
         'sendConfirmation': readiness.get('sendConfirmation') or ACTIVATION_FOLLOWUP_SEND_CONFIRMATION,
         'requiredEnv': readiness.get('requiredEnv') or [],
         'secretManagerNames': readiness.get('secretManagerNames') or [],
-        'setupScript': readiness.get('setupScript') or 'scripts/configure_activation_email_sender.sh',
+        'setupScript': setup_script,
+        'setupCheckCommand': f'{setup_script} --check',
         'operatorAction': readiness.get('operatorAction') or '',
         'fallback': 'copy_mailto_operator_packet',
         'privacy': {

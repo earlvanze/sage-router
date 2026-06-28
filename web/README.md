@@ -98,6 +98,11 @@ direct route from the homepage to the most relevant setup page while recording
 `landing_article_clicked` intent metadata. The waitlist remains secondary for release
 notes, integration updates, private deployment help, and future managed-provider
 beta interest.
+The public status page doubles as a no-secret operator launch-actions surface:
+it copies activation-email preflight, managed-provider resale dry-run/staging,
+first-request setup, and Cloudflare BIC verification commands from safe public
+metadata without exposing provider credentials, private costs, customer data, or
+tokens.
 The same hero CTAs and successful waitlist submissions emit privacy-safe homepage funnel events with the `landing` source surface, so the private launch funnel can measure visitor-to-signup movement without storing form emails, company names, prompts, API keys, provider credentials, or raw query strings.
 
 ## Hot-swappable copy
