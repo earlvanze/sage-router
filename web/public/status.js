@@ -362,6 +362,7 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
   const managedDryRun = managedSetup.dryRunCommand || 'scripts/configure_managed_provider_resale_readiness.sh --check';
   const managedTermsApproval = managedSetup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
   const managedUnitEconomics = managedSetup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
+  const activationApprovalPacket = 'scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet';
   const cloudflareBicCheck = [
     'scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens',
     'scripts/configure_cloudflare_api_bic_skip.sh --check',
@@ -390,6 +391,16 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
         : `Missing ${(activation.requiredEnv || []).join(', ') || 'sender inputs'}; public readiness stays failed until this check passes.`,
       command: activationCheck,
       copyEvent: 'status_activation_email_preflight_copied',
+    },
+    {
+      id: 'activation-approval-packet',
+      title: 'Signup-to-key approval packet',
+      value: activation.configured ? 'Sender configured; approval still required' : 'Copy fallback active',
+      badge: 'no-secret review',
+      state: 'warn',
+      meta: 'Prints the current no-key signup queue, dry-run coverage, next segment, and explicit-confirmation send command without sending email or exposing emails, keys, prompts, or provider credentials.',
+      command: activationApprovalPacket,
+      copyEvent: 'status_activation_approval_packet_copied',
     },
     {
       id: 'managed-resale-dry-run',
