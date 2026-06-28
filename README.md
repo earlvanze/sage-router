@@ -78,6 +78,15 @@ tailscale serve --bg --https=443 http://127.0.0.1:8790
 
 The edge health-checks each configured Tailnet upstream, routes OpenAI-compatible traffic to the lowest-latency healthy Sage Router node, and keeps provider credentials on the private routers. Publish it privately with Tailscale Serve/Funnel, or front a stable cloud VM edge with Cloudflare for a CDN-style public endpoint. See [deploy/tailnet-edge](deploy/tailnet-edge/README.md) for Google Cloud VM bootstrap and public monetization notes.
 
+After changing the public edge, verify generated-key routing preserves router-profile model aliases even when a stale Tailnet upstream serves the request:
+
+```bash
+python3 scripts/smoke_public_profile_alias.py \
+  --env-file /opt/sage-router/deploy/tailnet-edge/.env \
+  --api-base https://api.sagerouter.dev \
+  --model sage-router/frontier
+```
+
 ### sagerouter.dev Deployment Map
 
 The current public deployment is intentionally split:

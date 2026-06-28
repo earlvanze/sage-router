@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import hashlib
 import importlib.util
+import json
 import os
 import sys
 import unittest
@@ -918,6 +919,61 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertEqual("openai-codex", record["provider"])
         self.assertEqual("gpt-5.4-mini", record["model"])
         self.assertEqual(["image", "text"], record["modalities"])
+
+    def test_router_profile_response_keeps_client_visible_profile_model(self):
+        request_body = b'{"model":"sage-router/frontier","messages":[{"role":"user","content":"hi"}]}'
+        response_body = b'{"id":"chatcmpl_1","model":"ollama/kimi-k2.5","choices":[]}'
+        headers = [
+            ("Content-Type", "application/json"),
+            ("Content-Length", str(len(response_body))),
+            ("X-Sage-Router-Model", "ollama/kimi-k2.5"),
+            ("X-Sage-Router-Provider", "ollama"),
+            ("X-Sage-Router-Model-Name", "kimi-k2.5"),
+            ("X-Sage-Router-Modalities", "text"),
+        ]
+
+        rewritten_headers, rewritten_body = self.edge.rewrite_router_profile_response(
+            "/v1/chat/completions",
+            request_body,
+            headers,
+            200,
+            response_body,
+        )
+        payload = json.loads(rewritten_body.decode("utf-8"))
+        header_map = {key.lower(): value for key, value in rewritten_headers}
+
+        self.assertEqual("sage-router/frontier", payload["model"])
+        self.assertEqual("ollama/kimi-k2.5", payload["upstream_model"])
+        self.assertEqual("sage-router/frontier", header_map["x-sage-router-model"])
+        self.assertEqual("sage-router", header_map["x-sage-router-provider"])
+        self.assertEqual("frontier", header_map["x-sage-router-model-name"])
+        self.assertEqual("ollama/kimi-k2.5", header_map["x-sage-router-upstream-model"])
+        self.assertEqual("ollama", header_map["x-sage-router-upstream-provider"])
+        self.assertEqual("kimi-k2.5", header_map["x-sage-router-upstream-model-name"])
+        self.assertNotIn("content-length", header_map)
+
+    def test_model_modality_record_prefers_upstream_headers(self):
+        response_body = b'{"id":"chatcmpl_1","model":"sage-router/frontier","upstream_model":"ollama/kimi-k2.5","choices":[]}'
+
+        record = self.edge.modality_record_from_response(
+            [
+                ("Content-Type", "application/json"),
+                ("X-Sage-Router-Model", "sage-router/frontier"),
+                ("X-Sage-Router-Provider", "sage-router"),
+                ("X-Sage-Router-Model-Name", "frontier"),
+                ("X-Sage-Router-Upstream-Model", "ollama/kimi-k2.5"),
+                ("X-Sage-Router-Upstream-Provider", "ollama"),
+                ("X-Sage-Router-Upstream-Model-Name", "kimi-k2.5"),
+                ("X-Sage-Router-Modalities", "text"),
+            ],
+            200,
+            request_body=b'{"model":"sage-router/frontier","messages":[{"role":"user","content":"hi"}]}',
+            response_body=response_body,
+        )
+
+        self.assertEqual("ollama", record["provider"])
+        self.assertEqual("kimi-k2.5", record["model"])
+        self.assertEqual(["text"], record["modalities"])
 
     def test_model_modality_setup_routes_to_control_plane(self):
         self.assertTrue(self.edge.should_use_control_plane("/setup/model-modalities"))

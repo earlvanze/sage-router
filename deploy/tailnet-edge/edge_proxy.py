@@ -580,10 +580,19 @@ def modality_record_from_response(response_headers, status, request_body=None, r
     if not (MODEL_MODALITIES_SHARED_ENABLED and 200 <= int(status or 0) < 300 and supabase_auth_configured(require_service=True)):
         return None
     headers = {str(key).lower(): str(value) for key, value in (response_headers or [])}
-    provider = headers.get("x-sage-router-provider", "").strip()
-    model = headers.get("x-sage-router-model-name", "").strip()
+    provider = (
+        headers.get("x-sage-router-upstream-provider", "").strip()
+        or headers.get("x-sage-router-provider", "").strip()
+    )
+    model = (
+        headers.get("x-sage-router-upstream-model-name", "").strip()
+        or headers.get("x-sage-router-model-name", "").strip()
+    )
     if not model:
-        model_header = headers.get("x-sage-router-model", "").strip()
+        model_header = (
+            headers.get("x-sage-router-upstream-model", "").strip()
+            or headers.get("x-sage-router-model", "").strip()
+        )
         if "/" in model_header:
             provider_from_model, model_from_header = model_header.split("/", 1)
             provider = provider or provider_from_model.strip()
@@ -661,6 +670,89 @@ def response_is_uncompressed_json(response_headers, status):
     if "application/json" not in headers.get("content-type", "").lower():
         return False
     return "content-encoding" not in headers
+
+
+def router_profile_alias_from_body(path, body):
+    if not (body and is_generated_api_key_path(path)):
+        return ""
+    try:
+        payload = json.loads(body.decode("utf-8") if isinstance(body, (bytes, bytearray)) else str(body))
+    except Exception:
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    model = str(payload.get("model") or "").strip()
+    if model.startswith("sage-router/") or model.startswith("smart-router/"):
+        return model
+    return ""
+
+
+def model_provider_and_name(model):
+    value = str(model or "").strip()
+    if "/" in value:
+        provider, model_name = value.split("/", 1)
+        return provider.strip(), model_name.strip()
+    return "", value
+
+
+def rewrite_router_profile_response(path, request_body, response_headers, status, response_body):
+    alias = router_profile_alias_from_body(path, request_body)
+    if not (alias and response_is_uncompressed_json(response_headers, status) and response_body):
+        return response_headers, response_body
+    try:
+        payload = json.loads(response_body.decode("utf-8") if isinstance(response_body, (bytes, bytearray)) else str(response_body))
+    except Exception:
+        return response_headers, response_body
+    if not isinstance(payload, dict):
+        return response_headers, response_body
+
+    headers = {str(key).lower(): str(value) for key, value in (response_headers or [])}
+    body_model = str(payload.get("model") or "").strip()
+    upstream_model = (
+        headers.get("x-sage-router-upstream-model", "").strip()
+        or headers.get("x-sage-router-model", "").strip()
+        or body_model
+    )
+    upstream_provider = headers.get("x-sage-router-upstream-provider", "").strip()
+    upstream_model_name = headers.get("x-sage-router-upstream-model-name", "").strip()
+    if upstream_model and (not upstream_provider or not upstream_model_name):
+        parsed_provider, parsed_model_name = model_provider_and_name(upstream_model)
+        upstream_provider = upstream_provider or parsed_provider
+        upstream_model_name = upstream_model_name or parsed_model_name
+    upstream_provider = upstream_provider or headers.get("x-sage-router-provider", "").strip()
+    upstream_model_name = upstream_model_name or headers.get("x-sage-router-model-name", "").strip()
+
+    if body_model and body_model != alias and "upstream_model" not in payload:
+        payload["upstream_model"] = body_model
+    payload["model"] = alias
+    transformed_body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+    alias_provider, alias_model_name = model_provider_and_name(alias)
+    replaced_headers = []
+    rewrite_header_names = {
+        "content-length",
+        "x-sage-router-model",
+        "x-sage-router-provider",
+        "x-sage-router-model-name",
+        "x-sage-router-upstream-model",
+        "x-sage-router-upstream-provider",
+        "x-sage-router-upstream-model-name",
+    }
+    for key, value in (response_headers or []):
+        if str(key).lower() not in rewrite_header_names:
+            replaced_headers.append((key, value))
+    replaced_headers.extend([
+        ("X-Sage-Router-Model", alias),
+        ("X-Sage-Router-Provider", alias_provider),
+        ("X-Sage-Router-Model-Name", alias_model_name),
+    ])
+    if upstream_model:
+        replaced_headers.append(("X-Sage-Router-Upstream-Model", upstream_model))
+    if upstream_provider:
+        replaced_headers.append(("X-Sage-Router-Upstream-Provider", upstream_provider))
+    if upstream_model_name:
+        replaced_headers.append(("X-Sage-Router-Upstream-Model-Name", upstream_model_name))
+    return replaced_headers, transformed_body
 
 
 def should_buffer_response_for_edge_transform(path, response_headers, status):
@@ -1486,7 +1578,15 @@ class EdgeHandler(BaseHTTPRequestHandler):
 
                 response_headers = resp.getheaders()
                 buffered_response_body = None
-                if should_buffer_response_for_modality(response_headers, resp.status) or should_buffer_response_for_edge_transform(self.path, response_headers, resp.status):
+                should_buffer_for_router_profile = bool(
+                    router_profile_alias_from_body(self.path, body)
+                    and response_is_uncompressed_json(response_headers, resp.status)
+                )
+                if (
+                    should_buffer_response_for_modality(response_headers, resp.status)
+                    or should_buffer_response_for_edge_transform(self.path, response_headers, resp.status)
+                    or should_buffer_for_router_profile
+                ):
                     buffered_response_body = resp.read(MAX_MODALITY_LEARN_BODY_BYTES + 1)
                     if len(buffered_response_body) > MAX_MODALITY_LEARN_BODY_BYTES:
                         buffered_response_body = None
@@ -1494,6 +1594,13 @@ class EdgeHandler(BaseHTTPRequestHandler):
                         resp.close()
                         raise RuntimeError("response too large for edge response buffer")
                     buffered_response_body = transform_edge_response_body(self.path, response_headers, resp.status, buffered_response_body)
+                    response_headers, buffered_response_body = rewrite_router_profile_response(
+                        self.path,
+                        body,
+                        response_headers,
+                        resp.status,
+                        buffered_response_body,
+                    )
                 modality_record = modality_record_from_response(response_headers, resp.status, body, buffered_response_body)
 
                 self.close_connection = True
