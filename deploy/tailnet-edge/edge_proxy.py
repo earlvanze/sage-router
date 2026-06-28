@@ -67,6 +67,10 @@ CORS_ORIGINS = [origin.strip() for origin in CORS_ORIGIN.split(",") if origin.st
 BROWSER_ALLOWED_ORIGINS_RAW = os.environ.get("SAGE_ROUTER_BROWSER_ALLOWED_ORIGINS", "").strip()
 ACCOUNT_URL = os.environ.get("SAGE_ROUTER_ACCOUNT_URL", "https://app.sagerouter.dev/account.html")
 LOGIN_URL = os.environ.get("SAGE_ROUTER_LOGIN_URL", "https://app.sagerouter.dev/login.html")
+KEY_RECOVERY_URL = os.environ.get(
+    "SAGE_ROUTER_KEY_RECOVERY_URL",
+    "https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email",
+)
 PRICING_URL = os.environ.get("SAGE_ROUTER_PRICING_URL", "https://sagerouter.dev/pricing")
 BILLING_URL = os.environ.get("SAGE_ROUTER_BILLING_URL", "https://sagerouter.dev/billing")
 SUPPORT_URL = os.environ.get("SAGE_ROUTER_SUPPORT_URL", "https://sagerouter.dev/support")
@@ -1209,6 +1213,7 @@ def edge_error_payload(error, path, message=None, **extra):
         payload["message"] = message
     if is_generated_api_key_path(path):
         payload["accountUrl"] = ACCOUNT_URL
+        payload["keyRecoveryUrl"] = KEY_RECOVERY_URL
         payload["pricingUrl"] = PRICING_URL
         payload["statusUrl"] = STATUS_URL
         payload["openaiBaseUrl"] = API_BASE_URL.rstrip("/") + "/v1"
@@ -1281,11 +1286,14 @@ def quota_recovery_payload(error, path, quota_state, auth_context=None):
 def edge_error_headers(error, path):
     headers = {}
     if is_generated_api_key_path(path) or is_public_api_browser_path(path):
-        headers["Link"] = (
-            f'<{ACCOUNT_URL}>; rel="account", '
-            f'<{PRICING_URL}>; rel="pricing", '
-            f'<{STATUS_URL}>; rel="status"'
-        )
+        links = [f'<{ACCOUNT_URL}>; rel="account"']
+        if is_generated_api_key_path(path):
+            links.append(f'<{KEY_RECOVERY_URL}>; rel="key-recovery"')
+        links.extend([
+            f'<{PRICING_URL}>; rel="pricing"',
+            f'<{STATUS_URL}>; rel="status"',
+        ])
+        headers["Link"] = ", ".join(links)
     if error == "unauthorized" and is_generated_api_key_path(path):
         headers["WWW-Authenticate"] = (
             'Bearer realm="Sage Router", error="invalid_token", '
