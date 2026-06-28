@@ -24,5 +24,8 @@ jobs:
       - name: Node syntax check
         run: node --check openclaw_gateway_agent.mjs
 
+      - name: Shell syntax check
+        run: for file in scripts/*.sh; do bash -n "$file"; done
+
       - name: Docker build check
         run: docker build -t sage-router:ci .
