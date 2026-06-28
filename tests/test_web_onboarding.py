@@ -1313,6 +1313,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("missing-activation-email-readiness", self.read_text("scripts", "check_sagerouter_launch_readiness.sh"))
         self.assertIn("missing-activation-followup-send-controls", self.read_text("scripts", "check_sagerouter_launch_readiness.sh"))
         self.assertIn("missing-activation-followup-send-telemetry", self.read_text("scripts", "check_sagerouter_launch_readiness.sh"))
+        self.assertIn("activationEmailReadiness.configured == true", self.read_text("scripts", "check_sagerouter_launch_readiness.sh"))
+        self.assertIn("configure_activation_email_sender.sh before treating signup recovery as launch-ready", self.read_text("scripts", "check_sagerouter_launch_readiness.sh"))
         activation_script = self.read_text("scripts", "configure_activation_email_sender.sh")
         self.assertIn("SAGE_ROUTER_ACTIVATION_EMAIL_FROM", activation_script)
         self.assertIn("SAGE_ROUTER_RESEND_API_KEY", activation_script)

@@ -518,7 +518,7 @@ check_static_security_headers() {
 }
 
 check_public_pricing_metadata() {
-  local code plans api_base openai_base checkout_path portal_path api_key_limit limits_ok stripe_ok billing_ok billing_secret_free launch_ok
+  local code plans api_base openai_base checkout_path portal_path api_key_limit limits_ok stripe_ok billing_ok billing_secret_free launch_ok activation_email_ok activation_email_configured activation_email_setup
   code="$(http_code "${API_BASE%/}/pricing")"
   if [[ "$code" != "200" ]]; then
     rm -f /tmp/sage-router-readiness-body
@@ -586,11 +586,25 @@ check_public_pricing_metadata() {
     (.publicLaunch.modelCatalogPage == "https://sagerouter.dev/models") and
     ((.publicLaunch.complianceBoundary // "") | contains("does not grant unauthorized model access"))
   ' /tmp/sage-router-readiness-body)"
+  activation_email_configured="$(jq -r '.activationEmailReadiness.configured // false' /tmp/sage-router-readiness-body)"
+  activation_email_setup="$(jq -r '.activationEmailReadiness.setupScript // empty' /tmp/sage-router-readiness-body)"
+  activation_email_ok="$(jq -r '
+    (.activationEmailReadiness.configured == true) and
+    (.activationEmailReadiness.provider == "resend") and
+    (.activationEmailReadiness.sendsEmailWhenConfigured == true) and
+    (.activationEmailReadiness.fromConfigured == true) and
+    (.activationEmailReadiness.apiKeyConfigured == true) and
+    (.activationEmailReadiness.dryRunSupported == true) and
+    (.activationEmailReadiness.setupScript == "scripts/configure_activation_email_sender.sh") and
+    (.activationEmailReadiness.privacy.containsSecrets == false) and
+    (.activationEmailReadiness.privacy.containsEmails == false) and
+    (.activationEmailReadiness.privacy.containsAdminCommands == false)
+  ' /tmp/sage-router-readiness-body)"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$plans" =~ ^[0-9]+$ && "$plans" -gt 0 && "$api_key_limit" =~ ^[0-9]+$ && "$api_key_limit" -gt 0 && "$api_base" == "${API_BASE%/}" && "$openai_base" == "${API_BASE%/}/v1" && "$checkout_path" == "/billing/stripe/checkout" && "$portal_path" == "/billing/stripe/portal" && "$limits_ok" == "true" && "$stripe_ok" == "true" && "$billing_ok" == "true" && "$billing_secret_free" == "true" && "$launch_ok" == "true" ]]; then
-    pass "public /pricing exposes hosted plan, secret-free Stripe checkout readiness, endpoint, limit, and launch metadata"
+  if [[ "$plans" =~ ^[0-9]+$ && "$plans" -gt 0 && "$api_key_limit" =~ ^[0-9]+$ && "$api_key_limit" -gt 0 && "$api_base" == "${API_BASE%/}" && "$openai_base" == "${API_BASE%/}/v1" && "$checkout_path" == "/billing/stripe/checkout" && "$portal_path" == "/billing/stripe/portal" && "$limits_ok" == "true" && "$stripe_ok" == "true" && "$billing_ok" == "true" && "$billing_secret_free" == "true" && "$launch_ok" == "true" && "$activation_email_ok" == "true" ]]; then
+    pass "public /pricing exposes hosted plan, secret-free Stripe checkout readiness, activation email sender readiness, endpoint, limit, and launch metadata"
   else
-    fail "public /pricing metadata incomplete: plans=${plans:-missing} apiBaseUrl=${api_base:-missing} openaiBaseUrl=${openai_base:-missing} checkoutPath=${checkout_path:-missing} billingPortalPath=${portal_path:-missing} apiKeyLimit=${api_key_limit:-missing} limits=${limits_ok:-missing} stripe=${stripe_ok:-missing} billing=${billing_ok:-missing} billingSecretFree=${billing_secret_free:-missing} launch=${launch_ok:-missing}"
+    fail "public /pricing metadata incomplete: plans=${plans:-missing} apiBaseUrl=${api_base:-missing} openaiBaseUrl=${openai_base:-missing} checkoutPath=${checkout_path:-missing} billingPortalPath=${portal_path:-missing} apiKeyLimit=${api_key_limit:-missing} limits=${limits_ok:-missing} stripe=${stripe_ok:-missing} billing=${billing_ok:-missing} billingSecretFree=${billing_secret_free:-missing} launch=${launch_ok:-missing} activationEmail=${activation_email_ok:-missing} activationEmailConfigured=${activation_email_configured:-missing} activationEmailSetup=${activation_email_setup:-missing}. Configure with scripts/configure_activation_email_sender.sh before treating signup recovery as launch-ready."
   fi
 }
 
