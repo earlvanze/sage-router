@@ -352,7 +352,7 @@ check_public_auth_gate() {
   rm -f /tmp/sage-router-readiness-body
   account_analytics_code="$(http_code "${API_BASE%/}/account/analytics?days=7")"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$code" == "401" && "$error" == "unauthorized" && "$account_url" == "${APP_BASE%/}/account.html" && "$key_recovery_url" == "${APP_BASE%/}/login.html?plan=pro&start=create_key&utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email" && "$pricing_url" == "${MARKETING_BASE%/}/pricing" && "$api_key_prefix" == "sk_sage_" && "$analytics_code" == "401" && "$funnel_code" == "401" && "$account_analytics_code" == "401" ]]; then
+  if [[ "$code" == "401" && "$error" == "unauthorized" && "$account_url" == "${APP_BASE%/}/account.html" && "$key_recovery_url" == "${MARKETING_BASE%/}/setup-key-recovery?utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery" && "$pricing_url" == "${MARKETING_BASE%/}/pricing" && "$api_key_prefix" == "sk_sage_" && "$analytics_code" == "401" && "$funnel_code" == "401" && "$account_analytics_code" == "401" ]]; then
     pass "anonymous model and analytics APIs are blocked with hosted onboarding guidance"
   else
     fail "anonymous auth gate incomplete: /v1/models=${code} error=${error:-missing} accountUrl=${account_url:-missing} keyRecoveryUrl=${key_recovery_url:-missing} pricingUrl=${pricing_url:-missing} apiKeyPrefix=${api_key_prefix:-missing} /analytics=${analytics_code} /analytics/funnel=${funnel_code} /account/analytics=${account_analytics_code}, expected guided 401"
@@ -1469,7 +1469,13 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("account_snippet_copied") != null) and
     ((.allowedEvents // []) | index("account_support_context_copied") != null) and
     ((.allowedEvents // []) | index("analytics_account_access_clicked") != null) and
-    ((.allowedEvents // []) | index("analytics_key_recovery_clicked") != null)
+    ((.allowedEvents // []) | index("analytics_key_recovery_clicked") != null) and
+    ((.allowedEvents // []) | index("setup_key_recovery_viewed") != null) and
+    ((.allowedEvents // []) | index("setup_key_recovery_same_email_clicked") != null) and
+    ((.allowedEvents // []) | index("setup_key_recovery_account_clicked") != null) and
+    ((.allowedEvents // []) | index("setup_key_recovery_setup_copied") != null) and
+    ((.allowedEvents // []) | index("setup_key_recovery_troubleshooting_clicked") != null) and
+    ((.allowedEvents // []) | index("setup_key_recovery_support_clicked") != null)
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   write_guard="$(jq -r '.writeGuard.browserOriginRequired == true' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   referer_fallback="$(jq -r '.writeGuard.refererFallbackAccepted == false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
@@ -3800,6 +3806,63 @@ check_marketing_api_troubleshooting_page() {
   fi
 }
 
+check_marketing_setup_key_recovery_page() {
+  local page_code sitemap_code llms_code
+  page_code="$(http_code_follow "${MARKETING_BASE%/}/setup-key-recovery")"
+  if [[ "$page_code" == "200" ]] && ! grep -q "Finish Sage Router Setup Key" /tmp/sage-router-readiness-body; then
+    page_code="200:unexpected-body"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "same email or GitHub identity" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-same-identity-guidance"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "sk_sage_" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-generated-key-guidance"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_viewed" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-view-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_same_email_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-same-email-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_account_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-account-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_setup_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup-key-recovery-bundle" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-copy-snippet"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "signup_to_key_recovery" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-campaign"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/api-troubleshooting" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-troubleshooting-link"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/support" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-support-link"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
+  if [[ "$sitemap_code" == "200" ]] && ! grep -q "${MARKETING_BASE%/}/setup-key-recovery" /tmp/sage-router-readiness-body; then
+    sitemap_code="200:missing-setup-key-recovery-url"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  llms_code="$(http_code_follow "${MARKETING_BASE%/}/llms.txt")"
+  if [[ "$llms_code" == "200" ]] && ! grep -q "Setup-key recovery: ${MARKETING_BASE%/}/setup-key-recovery" /tmp/sage-router-readiness-body; then
+    llms_code="200:missing-setup-key-recovery-discovery"
+  fi
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$page_code" == "200" && "$sitemap_code" == "200" && "$llms_code" == "200" ]]; then
+    pass "marketing setup-key recovery page is live in sitemap and LLM discovery"
+  else
+    fail "marketing setup-key recovery incomplete: page=${page_code} sitemap=${sitemap_code} llms=${llms_code}"
+  fi
+}
+
 check_marketing_api_reference_page() {
   local page_code sitemap_code llms_code
   page_code="$(http_code_follow "${MARKETING_BASE%/}/docs/api-reference")"
@@ -4439,6 +4502,7 @@ check_marketing_managed_access_page
 check_marketing_model_catalog_page
 check_marketing_quickstart_page
 check_marketing_api_troubleshooting_page
+check_marketing_setup_key_recovery_page
 check_marketing_api_reference_page
 check_marketing_codex_docs_page
 check_marketing_agent_native_page

@@ -7056,6 +7056,7 @@ SETUP_SNIPPET_COPY_EVENTS = {
     'codex_docs_snippet_copied',
     'account_snippet_copied',
     'content_article_snippet_copied',
+    'setup_key_recovery_setup_copied',
 }
 OPERATOR_FOLLOWUP_COPY_EVENTS = {
     'operator_no_key_followup_copied',
@@ -7102,6 +7103,12 @@ KEY_RECOVERY_VIEW_EVENTS = {
     'api_troubleshooting_key_recovery_clicked',
     'landing_key_recovery_clicked',
     'model_catalog_key_recovery_clicked',
+    'setup_key_recovery_account_clicked',
+    'setup_key_recovery_quickstart_clicked',
+    'setup_key_recovery_same_email_clicked',
+    'setup_key_recovery_support_clicked',
+    'setup_key_recovery_troubleshooting_clicked',
+    'setup_key_recovery_viewed',
     'status_key_recovery_clicked',
     'support_key_recovery_clicked',
 }
@@ -10767,8 +10774,8 @@ def client_request_authorized(handler):
 def model_api_auth_error_payload():
     api_base_url = API_BASE_URL or 'https://api.sagerouter.dev'
     key_recovery_url = (
-        f"{APP_BASE_URL}/login.html?plan=pro&start=create_key"
-        "&utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email"
+        f"{MARKETING_BASE_URL}/setup-key-recovery"
+        "?utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery"
     )
     return {
         'error': 'unauthorized',
@@ -10785,8 +10792,8 @@ def model_api_auth_error_payload():
 def model_api_auth_error_headers():
     account_url = f"{APP_BASE_URL}/account.html"
     key_recovery_url = (
-        f"{APP_BASE_URL}/login.html?plan=pro&start=create_key"
-        "&utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email"
+        f"{MARKETING_BASE_URL}/setup-key-recovery"
+        "?utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery"
     )
     pricing_url = f"{MARKETING_BASE_URL}/pricing"
     status_url = f"{APP_BASE_URL}/status"

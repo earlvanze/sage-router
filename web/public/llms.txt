@@ -38,6 +38,7 @@ Billing help: https://sagerouter.dev/billing
 Managed-access private beta: https://sagerouter.dev/managed-access
 API quickstart: https://sagerouter.dev/quickstart
 API troubleshooting: https://sagerouter.dev/api-troubleshooting
+Setup-key recovery: https://sagerouter.dev/setup-key-recovery
 Hosted API reference: https://sagerouter.dev/docs/api-reference
 Codex setup: https://sagerouter.dev/docs/codex
 Model catalog: https://sagerouter.dev/models
@@ -68,6 +69,7 @@ Docs: https://github.com/earlvanze/sage-router#readme
 - API quickstart lives at https://sagerouter.dev/quickstart and shows `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, premium `sage-router/fusion`, curl, JavaScript, Python, and Codex setup.
 - Gateway migration lives at https://sagerouter.dev/docs/gateway-migration and maps `OPENAI_BASE_URL=https://gateway.example/api/v1` to `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, generated `sk_sage_*` keys, `sage-router/frontier`, premium `sage-router/fusion`, public model catalog discovery, and the provider terms boundary.
 - API troubleshooting lives at https://sagerouter.dev/api-troubleshooting and explains safe diagnosis for hosted 401, 402, 429, and 503 responses, including `WWW-Authenticate`, `Retry-After`, `X-RateLimit-*`, `X-Quota-*`, `accountUrl`, `keyRecoveryUrl`, `pricingUrl`, `statusUrl`, `openaiBaseUrl`, and the non-secret `apiKeyPrefix`.
+- Setup-key recovery lives at https://sagerouter.dev/setup-key-recovery and routes no-key signups from API 401 `keyRecoveryUrl` responses into same-email or same-OAuth generated-key setup before checkout.
 - Hosted API reference lives at https://sagerouter.dev/docs/api-reference and documents `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public `/model-catalog`, generated `sk_sage_*` keys, quotas, rate-limit headers, and the authenticated model API boundary.
 - Dedicated Codex setup lives at https://sagerouter.dev/docs/codex and shows hosted `https://api.sagerouter.dev/v1/`, local `http://127.0.0.1:8790/v1/`, Tailnet `http://<tailnet-host>:8790/v1/`, `wire_api = "responses"`, and `sage-router/frontier` profiles.
 - Public integrations live at https://sagerouter.dev/integrations and collect hosted, local port 8790, and Tailnet setup paths for OpenAI-compatible clients, Codex, Cursor, Aider, Continue, Claude Code, OpenHands, Anthropic-compatible clients, Ollama, Ollama Cloud, NVIDIA NIM, OpenClaw, Hermes, and Pi agents.
