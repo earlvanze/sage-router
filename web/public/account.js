@@ -874,6 +874,19 @@ function renderSignedInNextAction() {
   }
 }
 
+function renderNoKeySetupPanel() {
+  const visible = Boolean(activationState.signedIn && !activationState.keyCount && !hasSessionApiKey());
+  show('no-key-setup-panel', visible);
+  if (!visible) return;
+  const recoveryIntent = isKeyRecoveryIntent();
+  set('no-key-setup-copy', recoveryIntent
+    ? 'Recovery sign-in is complete and this account still needs a generated sk_sage setup key. Create it now; checkout and email verification can follow after the key exists.'
+    : 'You are signed in but do not have a generated sk_sage key yet. Create the setup key first; checkout and email verification can follow after the key exists.');
+  set('no-key-setup-status', activationState.emailVerified
+    ? 'Next conversion step: create the setup key, then verify /v1/models.'
+    : 'Next conversion step: create the setup key now; email verification can happen after the key exists.');
+}
+
 function renderPostKeyActivationPanel() {
   const keyVerified = activationState.keyVerified || activationState.requestCount > 0;
   const canUseSessionKey = hasSessionApiKey();
@@ -936,6 +949,7 @@ function renderLaunchNextAction(patch = {}) {
   }
   renderPostKeyActivationPanel();
   renderSignedInNextAction();
+  renderNoKeySetupPanel();
   renderSupportContext();
 }
 
@@ -1966,6 +1980,31 @@ $('stripe-portal')?.addEventListener('click', billingPortal);
 $('crypto-intent')?.addEventListener('click', cryptoIntent);
 $('crypto-status-check')?.addEventListener('click', cryptoStatus);
 $('signed-in-next-button')?.addEventListener('click', runSignedInNextAction);
+$('no-key-setup-focus')?.addEventListener('click', () => {
+  trackAccountFunnelEvent('account_no_key_setup_focus_clicked', {
+    button: 'no_key_setup_focus',
+    target: '#create-key',
+    state: isKeyRecoveryIntent() ? 'key_recovery_no_key' : 'signed_in_no_key',
+  });
+  $('create-key')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  $('key-name')?.focus?.();
+});
+$('no-key-setup-create')?.addEventListener('click', async () => {
+  const button = $('no-key-setup-create');
+  setElementBusy(button, true, 'Creating...');
+  set('no-key-setup-status', 'Creating the setup key...');
+  trackAccountFunnelEvent('account_no_key_setup_create_clicked', {
+    button: 'no_key_setup_create',
+    target: '/account/api-keys',
+    state: isKeyRecoveryIntent() ? 'key_recovery_no_key' : 'signed_in_no_key',
+  });
+  try {
+    const created = await createKey();
+    if (created) set('no-key-setup-status', 'Setup key created. Copy it now, then verify /v1/models.');
+  } finally {
+    setElementBusy(button, false);
+  }
+});
 $('key-recovery-email-focus')?.addEventListener('click', () => {
   trackAccountFunnelEvent('account_key_recovery_same_email_selected', {
     button: 'key_recovery_email_focus',

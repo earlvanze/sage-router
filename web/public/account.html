@@ -105,6 +105,13 @@
         <p id="launch-next-action" class="status small"></p>
       </div>
 
+      <div id="no-key-setup-panel" class="panel hidden">
+        <h3>One-minute setup key</h3>
+        <p id="no-key-setup-copy" class="small">You are signed in but do not have a generated <code>sk_sage_*</code> key yet. Create the setup key first; checkout and email verification can follow after the key exists.</p>
+        <div class="actions"><button id="no-key-setup-create" class="btn" type="button">Create setup key now</button><button id="no-key-setup-focus" class="btn secondary" type="button">Review key form</button></div>
+        <p id="no-key-setup-status" class="status small"></p>
+      </div>
+
       <div id="post-key-activation-panel" class="panel">
         <h3>Post-key activation</h3>
         <p class="small">After creating an <code>sk_sage_*</code> key, keep the next conversion step visible: verify <code>/v1/models</code>, send the first <code>sage-router/frontier</code> request, or copy Codex setup.</p>
