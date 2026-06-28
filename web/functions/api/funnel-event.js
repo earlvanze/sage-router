@@ -169,6 +169,7 @@ const ALLOWED_EVENTS = new Set([
   'account_auto_oauth_skipped',
   'account_auto_oauth_started',
   'account_key_recovery_viewed',
+  'account_auth_key_recovery_clicked',
   'account_setup_handoff_viewed',
   'account_oauth_clicked',
   'account_oauth_failed',
@@ -274,6 +275,8 @@ const ALLOWED_EVENTS = new Set([
   'landing_login_clicked',
   'landing_github_clicked',
   'landing_waitlist_submitted',
+  'analytics_account_access_clicked',
+  'analytics_key_recovery_clicked',
 ]);
 
 const ALLOWED_PLANS = new Set(['lite', 'pro', 'max', 'trial', 'manual']);

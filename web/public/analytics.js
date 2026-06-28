@@ -14,6 +14,42 @@ function fmtPct(v) { return v == null ? '—' : `${Math.round(v * 1000) / 10}%`;
 function fmtNumber(v) { return Number.isFinite(Number(v)) ? Number(v).toLocaleString() : '—'; }
 const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
 
+function trackAnalyticsFunnelEvent(event, data = {}) {
+  const params = new URLSearchParams(window.location.search);
+  let referrerHost = null;
+  try {
+    const referrer = document.referrer ? new URL(document.referrer) : null;
+    referrerHost = referrer && referrer.host !== window.location.host ? referrer.host : null;
+  } catch (_error) {
+    referrerHost = null;
+  }
+  const payload = JSON.stringify({
+    event,
+    plan: data.plan || 'pro',
+    sourcePage: window.location.href,
+    target: data.target || null,
+    metadata: {
+      source: 'analytics',
+      button: data.button || null,
+      state: data.state || null,
+      utmSource: params.get('utm_source') || null,
+      utmMedium: params.get('utm_medium') || null,
+      utmCampaign: params.get('utm_campaign') || null,
+      referrerHost,
+    },
+  });
+  try {
+    if (navigator.sendBeacon?.('/api/funnel-event', new Blob([payload], { type: 'application/json' }))) return;
+  } catch (_error) {}
+  fetch('/api/funnel-event', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: payload,
+    credentials: 'omit',
+    keepalive: true,
+  }).catch(() => {});
+}
+
 function table(rows, cols, empty='No data yet') {
   if (!rows?.length) return `<p class="muted">${empty}</p>`;
   return `<table><thead><tr>${cols.map(c => `<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${cols.map(c => `<td>${c.render ? c.render(r) : esc(r[c.key])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
@@ -296,6 +332,20 @@ async function magicLogin() {
 }
 
 document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventListener('click', () => { if (!button.disabled) oauthLogin(button.dataset.oauth); }));
+$('analytics-account-access')?.addEventListener('click', (event) => {
+  trackAnalyticsFunnelEvent('analytics_account_access_clicked', {
+    button: 'manage_api_access',
+    target: event.currentTarget?.href,
+    state: 'account-readiness',
+  });
+});
+$('analytics-key-recovery')?.addEventListener('click', (event) => {
+  trackAnalyticsFunnelEvent('analytics_key_recovery_clicked', {
+    button: 'finish_setup_key',
+    target: event.currentTarget?.href,
+    state: 'returning-no-key',
+  });
+});
 $('wallet-login')?.addEventListener('click', walletLogin);
 $('password-signup')?.addEventListener('click', passwordSignup);
 $('password-login')?.addEventListener('click', passwordLogin);

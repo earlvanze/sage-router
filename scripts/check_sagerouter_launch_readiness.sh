@@ -981,6 +981,15 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "Email API key setup link" /tmp/sage-router-readiness-body; then
     account_code="200:missing-magic-link-primary-cta"
   fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "Already signed up? Finish setup key" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-account-auth-key-recovery"
+  fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "account_auth_key_recovery_clicked" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-account-auth-key-recovery-funnel"
+  fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "utm_source=account&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-account-auth-key-recovery-url"
+  fi
   if [[ "$account_code" == "200" ]] && ! grep -q "preauth-setup-code" /tmp/sage-router-readiness-body; then
     account_code="200:missing-preauth-setup-code"
   fi
@@ -1022,6 +1031,18 @@ check_hosted_onboarding_pages() {
   analytics_code="$(http_code_follow "${APP_BASE%/}/analytics.html")"
   if [[ "$analytics_code" == "200" ]] && ! grep -q "Router analytics that prove the best route" /tmp/sage-router-readiness-body; then
     analytics_code="200:unexpected-body"
+  fi
+  if [[ "$analytics_code" == "200" ]] && ! grep -q "Finish setup key" /tmp/sage-router-readiness-body; then
+    analytics_code="200:missing-analytics-key-recovery"
+  fi
+  if [[ "$analytics_code" == "200" ]] && ! grep -q "analytics-key-recovery" /tmp/sage-router-readiness-body; then
+    analytics_code="200:missing-analytics-key-recovery-id"
+  fi
+  if [[ "$analytics_code" == "200" ]] && ! grep -q "analytics_key_recovery_clicked" /tmp/sage-router-readiness-body; then
+    analytics_code="200:missing-analytics-key-recovery-funnel"
+  fi
+  if [[ "$analytics_code" == "200" ]] && ! grep -q "utm_source=analytics&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email" /tmp/sage-router-readiness-body; then
+    analytics_code="200:missing-analytics-key-recovery-url"
   fi
   rm -f /tmp/sage-router-readiness-body
 
@@ -1417,6 +1438,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("model_catalog_setup_next_clicked") != null) and
     ((.allowedEvents // []) | index("account_viewed") != null) and
     ((.allowedEvents // []) | index("account_setup_handoff_viewed") != null) and
+    ((.allowedEvents // []) | index("account_auth_key_recovery_clicked") != null) and
     ((.allowedEvents // []) | index("account_auto_oauth_started") != null) and
     ((.allowedEvents // []) | index("account_oauth_failed") != null) and
     ((.allowedEvents // []) | index("account_login_failed") != null) and
@@ -1433,7 +1455,9 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("account_checkout_unavailable") != null) and
     ((.allowedEvents // []) | index("account_email_verification_resent") != null) and
     ((.allowedEvents // []) | index("account_snippet_copied") != null) and
-    ((.allowedEvents // []) | index("account_support_context_copied") != null)
+    ((.allowedEvents // []) | index("account_support_context_copied") != null) and
+    ((.allowedEvents // []) | index("analytics_account_access_clicked") != null) and
+    ((.allowedEvents // []) | index("analytics_key_recovery_clicked") != null)
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   write_guard="$(jq -r '.writeGuard.browserOriginRequired == true' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   referer_fallback="$(jq -r '.writeGuard.refererFallbackAccepted == false' /tmp/sage-router-readiness-body 2>/dev/null || true)"

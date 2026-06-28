@@ -1971,6 +1971,13 @@ document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventLis
 $('password-signup')?.addEventListener('click', passwordSignup);
 $('password-login')?.addEventListener('click', passwordLogin);
 $('magic-login')?.addEventListener('click', magicLogin);
+$('account-auth-key-recovery')?.addEventListener('click', (event) => {
+  trackAccountFunnelEvent('account_auth_key_recovery_clicked', {
+    button: 'account_auth_key_recovery',
+    target: event.currentTarget?.href || 'https://app.sagerouter.dev/login.html?plan=pro&start=create_key',
+    state: 'returning-no-key',
+  });
+});
 $('resend-verification-email')?.addEventListener('click', resendVerificationEmail);
 $('create-key')?.addEventListener('click', createKey);
 $('test-api-key-button')?.addEventListener('click', testApiKey);
