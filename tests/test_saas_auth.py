@@ -2023,6 +2023,11 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('signup_to_key_recovery', snapshot['activationFollowUps']['primaryCtaUrls']['passwordFallback'])
         self.assertIn('generated-key-first', snapshot['activationFollowUps']['recommendedOperatorAction'])
         self.assertEqual(1, snapshot['activationFollowUps']['countsByEmailVerification']['not_required'])
+        self.assertEqual(1, snapshot['activationFollowUps']['sendableQueued'])
+        self.assertEqual(0, snapshot['activationFollowUps']['reviewOnlyQueued'])
+        self.assertEqual(0, snapshot['activationFollowUps']['unknownQueued'])
+        self.assertEqual(['not_required'], snapshot['activationFollowUps']['sendableSegments'])
+        self.assertEqual([], snapshot['activationFollowUps']['reviewOnlySegments'])
         self.assertEqual(2, snapshot['activationFollowUps']['operatorFollowUpCopies'])
         self.assertEqual(1, snapshot['activationFollowUps']['operatorFollowUpWorked'])
         self.assertEqual(1, snapshot['activationFollowUps']['keyRecoveryViews'])
@@ -2066,6 +2071,11 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('start=create_key', snapshot['nextBestAction']['ctaPath'])
         self.assertIn('auth=email', snapshot['nextBestAction']['ctaPath'])
         self.assertEqual(1, snapshot['nextBestAction']['evidence']['noKeyFollowUpsQueued'])
+        self.assertEqual(1, snapshot['nextBestAction']['evidence']['sendableQueued'])
+        self.assertEqual(0, snapshot['nextBestAction']['evidence']['reviewOnlyQueued'])
+        self.assertEqual(0, snapshot['nextBestAction']['evidence']['unknownQueued'])
+        self.assertEqual(['not_required'], snapshot['nextBestAction']['evidence']['sendableSegments'])
+        self.assertEqual([], snapshot['nextBestAction']['evidence']['reviewOnlySegments'])
         self.assertEqual(2, snapshot['nextBestAction']['evidence']['operatorFollowUpCopies'])
         self.assertEqual(1, snapshot['nextBestAction']['evidence']['operatorFollowUpWorked'])
         self.assertEqual(1, snapshot['nextBestAction']['evidence']['keyRecoveryViews'])
@@ -2180,6 +2190,12 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('launch funnel', action['surface'])
         self.assertIn('/launch-funnel.html#no-key-followups:segments', action['ctaPath'])
         self.assertIn('operator no-key signup queue', action['action'])
+        self.assertIn('auth-repair segments separately', action['action'])
+        self.assertEqual(2, action['evidence']['sendableQueued'])
+        self.assertEqual(0, action['evidence']['reviewOnlyQueued'])
+        self.assertEqual(0, action['evidence']['unknownQueued'])
+        self.assertEqual(['verified', 'unverified'], action['evidence']['sendableSegments'])
+        self.assertEqual([], action['evidence']['reviewOnlySegments'])
         self.assertEqual(0, action['evidence']['operatorFollowUpCopies'])
         self.assertEqual(0, action['evidence']['operatorFollowUpWorked'])
         self.assertEqual(1, action['evidence']['keyFirstRedirects'])
@@ -2216,6 +2232,22 @@ class SaaSAuthTests(unittest.TestCase):
         )
         self.assertEqual('launch funnel', copied_only['surface'])
         self.assertIn('/launch-funnel.html#no-key-followups:segments', copied_only['ctaPath'])
+
+    def test_activation_delivery_counts_mark_auth_repair_review_only(self):
+        delivery = router.launch_activation_delivery_counts({
+            'total': 4,
+            'countsByEmailVerification': {
+                'verified': 1,
+                'unverified': 1,
+                'missing_auth_user': 1,
+            },
+        })
+
+        self.assertEqual(2, delivery['sendableQueued'])
+        self.assertEqual(1, delivery['reviewOnlyQueued'])
+        self.assertEqual(1, delivery['unknownQueued'])
+        self.assertEqual(['verified', 'unverified'], delivery['sendableSegments'])
+        self.assertEqual(['missing_auth_user'], delivery['reviewOnlySegments'])
 
     def test_operator_execution_packet_is_aggregate_only(self):
         privacy = {'containsEmails': False, 'containsCustomerIds': False, 'containsApiKeys': False, 'containsProviderCredentials': False}

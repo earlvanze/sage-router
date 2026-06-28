@@ -7005,6 +7005,42 @@ def launch_no_key_execution_checklist(recommended_segments, outreach_not_worked)
     return checklist
 
 
+ACTIVATION_REVIEW_ONLY_SEGMENTS = {'missing_auth_user', 'missing_user_id', 'unavailable'}
+
+
+def launch_activation_delivery_counts(activation_follow_ups=None, counts=None, total=None):
+    activation_follow_ups = activation_follow_ups or {}
+    if counts is None:
+        counts = activation_follow_ups.get('countsByEmailVerification') if isinstance(activation_follow_ups, dict) else {}
+    counts = counts if isinstance(counts, dict) else {}
+    if total is None:
+        total = activation_follow_ups.get('total') if isinstance(activation_follow_ups, dict) else 0
+    total = int(total or 0)
+    sendable_queued = 0
+    review_only_queued = 0
+    known_queued = 0
+    sendable_segments = []
+    review_only_segments = []
+    for segment, raw_count in counts.items():
+        count = int(raw_count or 0)
+        if count <= 0:
+            continue
+        known_queued += count
+        if segment in ACTIVATION_REVIEW_ONLY_SEGMENTS:
+            review_only_queued += count
+            review_only_segments.append(segment)
+        else:
+            sendable_queued += count
+            sendable_segments.append(segment)
+    return {
+        'sendableQueued': sendable_queued,
+        'reviewOnlyQueued': review_only_queued,
+        'unknownQueued': max(0, total - known_queued),
+        'sendableSegments': sendable_segments,
+        'reviewOnlySegments': review_only_segments,
+    }
+
+
 def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversion_actions=None):
     """Return one privacy-safe operator action tied to the current launch bottleneck."""
     stages = stages or {}
@@ -7026,6 +7062,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
     if no_key_total > 0 and signup_to_key_below_target:
         outreach_not_worked = operator_follow_up_worked <= 0
         verification_counts = activation_follow_ups.get('countsByEmailVerification') if isinstance(activation_follow_ups, dict) else {}
+        delivery_counts = launch_activation_delivery_counts(activation_follow_ups, verification_counts, no_key_total)
         recommended_segments = [
             segment for segment in ('verified', 'unverified', 'missing_auth_user', 'missing_user_id', 'unavailable', 'not_required')
             if int((verification_counts or {}).get(segment) or 0) > 0
@@ -7043,7 +7080,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 else activation_follow_ups.get('primaryCtaUrl') or launch_activation_follow_up_url(activation_follow_ups.get('suggestedPlan') or 'pro')
             ),
             'action': (
-                'Open the operator no-key signup queue, use the verified/unverified email drafts, then mark the worked segment through the launch funnel telemetry.'
+                'Open the operator no-key signup queue, send the sendable verified/unverified drafts, review auth-repair segments separately, then mark the worked segment through the launch funnel telemetry.'
                 if outreach_not_worked
                 else activation_follow_ups.get('recommendedOperatorAction') or 'Send the generated-key-first recovery link to no-key signups.'
             ),
@@ -7053,6 +7090,11 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 'signups': signups,
                 'generatedKeyCustomers': generated_keys,
                 'noKeyFollowUpsQueued': no_key_total,
+                'sendableQueued': delivery_counts.get('sendableQueued', 0),
+                'reviewOnlyQueued': delivery_counts.get('reviewOnlyQueued', 0),
+                'unknownQueued': delivery_counts.get('unknownQueued', 0),
+                'sendableSegments': delivery_counts.get('sendableSegments') or [],
+                'reviewOnlySegments': delivery_counts.get('reviewOnlySegments') or [],
                 'windowedNoKeySignups': no_key_new,
                 'operatorFollowUpCopies': operator_follow_up_copies,
                 'operatorFollowUpWorked': operator_follow_up_worked,
@@ -7155,7 +7197,6 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
         'not_required': 'verification-not-required signups',
         'all': 'all no-key signups',
     }
-    review_only_segments = {'missing_auth_user', 'missing_user_id', 'unavailable'}
     segment_actions = []
     sendable_queued = 0
     review_only_queued = 0
@@ -7163,7 +7204,7 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
         count = total if segment == 'all' else int((counts or {}).get(segment) or 0)
         if count <= 0:
             continue
-        review_only = segment in review_only_segments
+        review_only = segment in ACTIVATION_REVIEW_ONLY_SEGMENTS
         if review_only:
             review_only_queued += count
         else:
@@ -9511,8 +9552,13 @@ def launch_activation_follow_ups(customers, api_keys, since=0, now=None, auth_us
     primary_plan = 'pro'
     if counts_by_plan:
         primary_plan = sorted(counts_by_plan.items(), key=lambda item: (-item[1], item[0]))[0][0]
+    delivery_counts = launch_activation_delivery_counts(
+        counts=counts_by_email_verification,
+        total=total,
+    )
     return {
         'total': total,
+        **delivery_counts,
         'windowedNewSignups': windowed_new_signups,
         'nextAction': 'create_key',
         'suggestedPlan': primary_plan,
