@@ -51,3 +51,9 @@ bash scripts/check_sagerouter_launch_readiness.sh
 The raw Python `urllib` probe should reach the Sage Router guided auth gate and
 return `401` with account, pricing, status, OpenAI base URL, and `sk_sage_`
 setup guidance.
+
+If OpenAI-compatible SDK-style probes return the guided `401` but raw default
+Python `urllib` still returns Cloudflare `403` / `1010`, launch readiness treats
+that as an operator warning rather than a customer-impacting failure. Rotate the
+Cloudflare token with the Rulesets permissions above so the script can verify
+the host-scoped rule instead of guessing from live probes.

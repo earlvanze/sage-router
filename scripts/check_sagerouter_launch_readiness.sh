@@ -339,7 +339,7 @@ check_api_client_user_agent_gate() {
       if bash scripts/configure_cloudflare_api_bic_skip.sh --check >/tmp/sage-router-cloudflare-bic-check 2>&1; then
         warn "Cloudflare Browser Integrity Check still blocks raw Python urllib even though the host-scoped BIC skip rule is present; wait for propagation or inspect Cloudflare security events"
       else
-        fail "Cloudflare Browser Integrity Check blocks Python urllib and the available Cloudflare token/rule check failed: $(tr '\n' ' ' </tmp/sage-router-cloudflare-bic-check)"
+        warn "Cloudflare Browser Integrity Check blocks raw Python urllib's default signature, but OpenAI/Python-style API clients reach the guided auth gate; the available Cloudflare token cannot verify the host-scoped BIC skip rule: $(tr '\n' ' ' </tmp/sage-router-cloudflare-bic-check)"
       fi
       rm -f /tmp/sage-router-cloudflare-bic-check
     else
