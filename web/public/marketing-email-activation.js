@@ -38,6 +38,20 @@ function activationAccountUrl(content = 'email-setup-link') {
   return target.toString();
 }
 
+function activationRecoveryUrl(content = 'email-key-recovery') {
+  const sourceParams = new URLSearchParams(window.location.search);
+  const target = new URL('https://app.sagerouter.dev/login.html');
+  const targetParams = target.searchParams;
+  targetParams.set('plan', 'pro');
+  targetParams.set('start', 'create_key');
+  targetParams.set('auth', 'email');
+  targetParams.set('utm_source', sourceParams.get('utm_source') || sourceParams.get('utmSource') || activationSourceSlug());
+  targetParams.set('utm_medium', 'recovery');
+  targetParams.set('utm_campaign', 'signup_to_key_recovery');
+  targetParams.set('utm_content', sourceParams.get('utm_content') || sourceParams.get('utmContent') || content);
+  return target.toString();
+}
+
 function loadSageRouterSupabaseClient() {
   return new Promise((resolve, reject) => {
     if (window.supabase?.createClient) {
@@ -182,6 +196,32 @@ function insertSageRouterSetupCopyButton(form) {
   }
 }
 
+function insertSageRouterRecoveryLink(form) {
+  if (form.querySelector('[data-shared-key-recovery]')) return;
+  const eventPrefix = form.dataset.eventPrefix;
+  if (!eventPrefix) return;
+  const source = form.dataset.source || eventPrefix;
+  const submitButton = form.querySelector('button[type="submit"]');
+  const target = activationRecoveryUrl(`${eventPrefix}-finish-setup-key`);
+  const link = document.createElement('a');
+  link.href = target;
+  link.className = submitButton?.className || 'button secondary';
+  link.dataset.sharedKeyRecovery = 'true';
+  link.textContent = 'Finish setup key';
+  link.addEventListener('click', () => {
+    trackSageRouterActivationEvent('shared_email_key_recovery_clicked', source, {
+      button: 'shared-email-activation-key-recovery',
+      state: 'returning-no-key',
+      target,
+    });
+  });
+  if (submitButton) {
+    submitButton.insertAdjacentElement('afterend', link);
+  } else {
+    form.appendChild(link);
+  }
+}
+
 async function submitSageRouterActivationForm(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -307,6 +347,7 @@ function insertSageRouterOauthButton(form) {
 
 document.querySelectorAll('[data-email-activation-form]').forEach((form) => {
   insertSageRouterSetupCopyButton(form);
+  insertSageRouterRecoveryLink(form);
   insertSageRouterOauthButton(form);
   form.addEventListener('submit', submitSageRouterActivationForm);
 });

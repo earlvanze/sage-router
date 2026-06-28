@@ -1457,6 +1457,15 @@ check_marketing_email_activation_helper() {
   if [[ "$code" == "200" ]] && ! grep -q "start=create_key" /tmp/sage-router-readiness-body; then
     code="200:missing-key-first-intent"
   fi
+  if [[ "$code" == "200" ]] && ! grep -q "activationRecoveryUrl" /tmp/sage-router-readiness-body; then
+    code="200:missing-shared-key-recovery-url"
+  fi
+  if [[ "$code" == "200" ]] && ! grep -q "shared_email_key_recovery_clicked" /tmp/sage-router-readiness-body; then
+    code="200:missing-shared-key-recovery-funnel"
+  fi
+  if [[ "$code" == "200" ]] && ! grep -q "signup_to_key_recovery" /tmp/sage-router-readiness-body; then
+    code="200:missing-shared-key-recovery-campaign"
+  fi
   if [[ "$code" == "200" ]] && ! grep -q "signInWithOAuth" /tmp/sage-router-readiness-body; then
     code="200:missing-github-oauth-login"
   fi
