@@ -511,6 +511,13 @@ provider resale claim, or runtime feature flag.
   acquisition, managed-access, and OAuth onboarding state without copying
   emails, prompts, OAuth tokens, generated API keys, provider credentials, raw
   campaign URLs, or raw responses.
+- Render a dedicated managed-access readiness panel in the private operator
+  dashboard with a copyable no-secret approval packet, terms packet command,
+  resale dry-run, unit-economics preflight, staging command, one-subscription
+  ready/blocked families, BYOK-only boundary, prerequisite URLs, and public plan
+  threshold rows. The panel must omit provider credentials, authorization
+  reference values, actual provider costs, prompts, raw provider responses,
+  generated API keys, and customer data.
 - Count account-page setup snippets even when clipboard permission is denied:
   the fallback manual selection path emits the same aggregate
   `account_snippet_copied` event with `state=selected`, setup snippet ID, and no

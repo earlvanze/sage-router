@@ -1055,6 +1055,153 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
   ].join('\n').trim() + '\n';
 }
 
+function safeList(value) {
+  return Array.isArray(value) ? value.filter(item => item !== null && item !== undefined && String(item).trim() !== '') : [];
+}
+
+function listLine(label, value) {
+  const values = safeList(value);
+  return `- ${label}: ${values.length ? values.join(', ') : 'none'}`;
+}
+
+function managedAccessApprovalPacketText(data = {}) {
+  const managed = data.pricing?.publicLaunch?.managedProviderAccess || {};
+  const setup = managed.readinessSetup || {};
+  const oneSubscription = managed.oneSubscriptionReadiness || {};
+  const unitEconomics = managed.unitEconomics || {};
+  const actions = Array.isArray(managed.nextActions) ? managed.nextActions : [];
+  const plans = Array.isArray(unitEconomics.evaluatedPlans) ? unitEconomics.evaluatedPlans : [];
+  const termsCommand = setup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
+  const dryRunCommand = setup.dryRunCommand || 'scripts/configure_managed_provider_resale_readiness.sh --check';
+  const unitEconomicsCommand = setup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
+  const setupCommand = setup.setupCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
+  const enableCommand = setup.enableCommandTemplate || "SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='1' scripts/configure_managed_provider_resale_readiness.sh";
+  const planLines = plans.length
+    ? plans.map(plan => `- ${plan.plan || 'plan'}: revenue=${asNumber(plan.revenueCentsPerThousandRequests).toFixed(4)} cents/1k; maxSafeProviderCost=${asNumber(plan.maximumProviderCostCentsPerThousandRequests).toFixed(4)} cents/1k; minimumGrossMargin=${integer(plan.minimumGrossMarginPercent)}%; pass=${plan.meetsMinimumGrossMargin === true}`)
+    : ['- none returned'];
+  const actionLines = actions.length
+    ? actions.map(action => `- ${action.priority || 'next'}:${action.id || 'managed_access'} - ${action.title || 'Review managed-access controls'}; action=${action.action || 'Review the next missing control.'}; success=${action.successMetric || 'Remove one managed-access blocker.'}; requiredEnv=${safeList(action.requiredEnv).join(', ') || 'none'}`)
+    : ['- Review managed provider resale controls before enabling public one-subscription access.'];
+  return [
+    'Sage Router managed-access approval packet',
+    'Boundary: no provider credentials, no authorization-reference values, no actual provider costs, no prompts, no raw provider responses, no generated API keys, and no customer data.',
+    '',
+    `Status: enabled=${managed.enabled === true}; requested=${managed.requested === true}; readinessSatisfied=${managed.readinessSatisfied === true}; status=${managed.status || 'unknown'}.`,
+    `Terms acknowledged=${managed.providerTermsAcknowledged === true}; authorizationEvidenceConfigured=${managed.providerAuthorizationEvidenceConfigured === true}; costModelConfigured=${unitEconomics.costModelConfigured === true}; unitEconomicsSatisfied=${unitEconomics.satisfied === true}.`,
+    listLine('Missing controls', managed.missingControls),
+    `Provider terms URL: ${managed.providerTermsUrl || 'not configured'}`,
+    `Margin policy URL: ${managed.marginPolicyUrl || 'not configured'}`,
+    `Acceptable-use URL: ${managed.acceptableUseUrl || 'not configured'}`,
+    '',
+    'Provider-family boundary',
+    listLine('Allowed managed resale families', managed.allowedProviderFamilies),
+    listLine('Resale-eligible families', managed.resaleEligibleProviderFamilies),
+    listLine('BYOK-only families', managed.byokOnlyProviderFamilies),
+    listLine('One-subscription ready families', oneSubscription.readyProviderFamilies),
+    listLine('One-subscription blocked families', oneSubscription.blockedProviderFamilies),
+    `Boundary note: ${managed.providerBoundary || 'OpenRouter remains supported as BYOK routing unless separately authorized for managed resale.'}`,
+    '',
+    'Next actions',
+    ...actionLines,
+    '',
+    'Unit-economics public thresholds',
+    ...planLines,
+    '',
+    'Secret-safe commands',
+    `- Terms approval packet: ${termsCommand}`,
+    `- Resale dry-run: ${dryRunCommand}`,
+    `- Unit-economics preflight: ${unitEconomicsCommand}`,
+    `- Stage public controls: ${setupCommand}`,
+    `- Enable template: ${enableCommand}`,
+    '',
+    'Enable template is not approval. Keep public managed resale disabled until terms, authorization evidence, allowlist, private cost model, and unit economics all pass with explicit operator approval.',
+  ].join('\n') + '\n';
+}
+
+function managedAccessCommand(button, data = {}) {
+  const managed = data.pricing?.publicLaunch?.managedProviderAccess || {};
+  const setup = managed.readinessSetup || {};
+  const kind = button.getAttribute('data-copy-managed-command') || '';
+  if (kind === 'terms-approval') return setup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
+  if (kind === 'unit-economics') return setup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
+  if (kind === 'stage') return setup.setupCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
+  if (kind === 'enable-template') return setup.enableCommandTemplate || "SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='1' scripts/configure_managed_provider_resale_readiness.sh";
+  return setup.dryRunCommand || 'scripts/configure_managed_provider_resale_readiness.sh --check';
+}
+
+function renderManagedAccessReadiness(data = {}) {
+  const target = $('managed-access-readiness');
+  if (!target) return;
+  const managed = data.pricing?.publicLaunch?.managedProviderAccess || {};
+  const setup = managed.readinessSetup || {};
+  const oneSubscription = managed.oneSubscriptionReadiness || {};
+  const unitEconomics = managed.unitEconomics || {};
+  const actions = Array.isArray(managed.nextActions) ? managed.nextActions : [];
+  const missingControls = safeList(managed.missingControls);
+  const plans = Array.isArray(unitEconomics.evaluatedPlans) ? unitEconomics.evaluatedPlans : [];
+  const approvalPacket = managedAccessApprovalPacketText(data);
+  const statusTone = managed.enabled ? 'good' : (missingControls.length ? 'warn' : 'good');
+  const renderList = (items, empty = 'none') => safeList(items).map(item => `<span class="pill">${esc(item)}</span>`).join(' ') || `<span class="muted">${esc(empty)}</span>`;
+  const planRows = plans.length
+    ? plans.map(plan => `<tr>
+      <td><span class="pill">${esc(plan.plan || 'plan')}</span></td>
+      <td>${asNumber(plan.revenueCentsPerThousandRequests).toFixed(4)}</td>
+      <td>${asNumber(plan.maximumProviderCostCentsPerThousandRequests).toFixed(4)}</td>
+      <td>${integer(plan.minimumGrossMarginPercent)}%</td>
+      <td><span class="pill ${plan.meetsMinimumGrossMargin ? 'good' : 'warn'}">${plan.meetsMinimumGrossMargin ? 'pass' : 'pending private cost'}</span></td>
+    </tr>`).join('')
+    : '<tr><td colspan="5">No fixed-plan unit-economics rows returned.</td></tr>';
+  const actionRows = actions.length
+    ? actions.map(action => `<tr>
+      <td><span class="pill ${action.priority === 'fix_now' ? 'bad' : 'warn'}">${esc(action.priority || 'next')}</span></td>
+      <td>${esc(action.title || action.id || 'Review managed-access controls')}</td>
+      <td>${esc(action.action || '')}</td>
+      <td>${esc(action.successMetric || '')}</td>
+    </tr>`).join('')
+    : '<tr><td colspan="4">No managed-access next actions returned.</td></tr>';
+  target.innerHTML = `<div class="metricList">
+    <div class="metric"><span>Status</span><strong><span class="pill ${statusTone}">${esc(managed.status || (managed.enabled ? 'enabled' : 'gated'))}</span></strong></div>
+    <div class="metric"><span>Public enable</span><strong>${managed.enabled ? 'enabled' : 'disabled'} · requested=${managed.requested === true}</strong></div>
+    <div class="metric"><span>Readiness</span><strong>${managed.readinessSatisfied ? 'satisfied' : 'blocked'} · missing ${integer(missingControls.length)}</strong></div>
+    <div class="metric"><span>One-subscription ready</span><strong>${renderList(oneSubscription.readyProviderFamilies)}</strong></div>
+    <div class="metric"><span>One-subscription blocked</span><strong>${renderList(oneSubscription.blockedProviderFamilies)}</strong></div>
+    <div class="metric"><span>Managed resale allowlist</span><strong>${renderList(managed.allowedProviderFamilies)}</strong></div>
+    <div class="metric"><span>BYOK-only boundary</span><strong>${renderList(managed.byokOnlyProviderFamilies)}</strong></div>
+    <div class="metric"><span>Cost model</span><strong><span class="pill ${unitEconomics.costModelConfigured ? 'good' : 'warn'}">${unitEconomics.costModelConfigured ? 'configured privately' : 'missing private cost'}</span></strong></div>
+  </div>
+  <p class="muted">${esc(managed.providerBoundary || 'OpenRouter remains supported as BYOK routing unless separately authorized for managed resale.')} Actual provider costs and authorization-reference values are intentionally omitted.</p>
+  <div class="actions">
+    <button class="btn secondary" type="button" data-copy-managed-access-packet="${esc(approvalPacket)}">Copy managed-access packet</button>
+    <button class="btn secondary" type="button" data-copy-managed-command="terms-approval">Copy terms packet command</button>
+    <button class="btn secondary" type="button" data-copy-managed-command="dry-run">Copy resale dry-run</button>
+    <button class="btn secondary" type="button" data-copy-managed-command="unit-economics">Copy unit-economics preflight</button>
+    <button class="btn secondary" type="button" data-copy-managed-command="stage">Copy staging command</button>
+    ${setup.enableCommandTemplate ? '<button class="btn danger" type="button" data-copy-managed-command="enable-template">Copy enable template</button>' : ''}
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div>
+      <h3>Missing controls</h3>
+      <div class="empty">${renderList(missingControls, 'No missing controls reported.')}</div>
+    </div>
+    <div>
+      <h3>Prerequisite links</h3>
+      <div class="metricList">
+        <div class="metric"><span>Terms</span><strong>${managed.providerTermsUrl ? `<a class="pill" href="${esc(managed.providerTermsUrl)}" target="_blank" rel="noopener noreferrer">Open terms</a>` : '<span class="muted">not configured</span>'}</strong></div>
+        <div class="metric"><span>Margin policy</span><strong>${managed.marginPolicyUrl ? `<a class="pill" href="${esc(managed.marginPolicyUrl)}" target="_blank" rel="noopener noreferrer">Open policy</a>` : '<span class="muted">not configured</span>'}</strong></div>
+        <div class="metric"><span>Acceptable use</span><strong>${managed.acceptableUseUrl ? `<a class="pill" href="${esc(managed.acceptableUseUrl)}" target="_blank" rel="noopener noreferrer">Open AUP</a>` : '<span class="muted">not configured</span>'}</strong></div>
+      </div>
+    </div>
+  </div>
+  <div class="tableWrap" style="margin-top:14px"><table>
+    <thead><tr><th>Priority</th><th>Task</th><th>Action</th><th>Success</th></tr></thead>
+    <tbody>${actionRows}</tbody>
+  </table></div>
+  <div class="tableWrap" style="margin-top:14px"><table>
+    <thead><tr><th>Plan</th><th>Revenue cents/1k</th><th>Max safe cost cents/1k</th><th>Min margin</th><th>Private cost check</th></tr></thead>
+    <tbody>${planRows}</tbody>
+  </table></div>`;
+}
+
 function renderOperatorExecutionPacket(data = {}) {
   const target = $('operator-execution-packet');
   if (!target) return;
@@ -1490,6 +1637,53 @@ async function copyActivationSendCommand(button) {
   } catch (error) {
     button.textContent = 'Copy failed';
     setStatus(`Activation send command copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyManagedAccessApprovalPacket(button) {
+  const text = button.getAttribute('data-copy-managed-access-packet') || '';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    trackOperatorFunnelEvent('operator_managed_access_packet_copied', {
+      state: 'managed_access_approval_packet_copied',
+      resultCount: safeList(lastFunnelData?.pricing?.publicLaunch?.managedProviderAccess?.missingControls).length,
+      snippet: 'managed-access-approval-packet',
+    });
+    setStatus('Copied no-secret managed-access approval packet. Keep resale disabled until every control passes.', 'warn');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Managed-access packet copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyManagedAccessCommand(button) {
+  const text = managedAccessCommand(button, lastFunnelData || {});
+  const kind = button.getAttribute('data-copy-managed-command') || 'dry-run';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    trackOperatorFunnelEvent('operator_managed_access_command_copied', {
+      state: `${kind}_copied`,
+      resultCount: safeList(lastFunnelData?.pricing?.publicLaunch?.managedProviderAccess?.missingControls).length,
+      snippet: 'managed-access-readiness',
+    });
+    setStatus(`Copied managed-access ${kind} command. Review it locally before changing production env.`, kind === 'enable-template' ? 'warn' : 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Managed-access command copy failed: ${error.message}`, 'bad');
   } finally {
     setTimeout(() => {
       button.textContent = original;
@@ -1973,6 +2167,7 @@ function renderFunnel(data) {
   renderRevenueActions(mrr.planRevenueActions || []);
   renderNextBestActionDock(data);
   renderLaunchBrief(data);
+  renderManagedAccessReadiness(data);
   renderOperatorExecutionPacket(data);
   $('dashboard').classList.remove('hidden');
   fetchOperationalReadiness();
@@ -2557,6 +2752,16 @@ function handleFollowUpCopyClick(event) {
     copyOperatorTokenCommand(operatorTokenCommandButton);
     return;
   }
+  const managedAccessPacketButton = event.target.closest('[data-copy-managed-access-packet]');
+  if (managedAccessPacketButton) {
+    copyManagedAccessApprovalPacket(managedAccessPacketButton);
+    return;
+  }
+  const managedAccessCommandButton = event.target.closest('[data-copy-managed-command]');
+  if (managedAccessCommandButton) {
+    copyManagedAccessCommand(managedAccessCommandButton);
+    return;
+  }
   const primaryUrlButton = event.target.closest('[data-copy-primary-followup-url]');
   if (primaryUrlButton) {
     copyPrimaryFollowUpUrl(primaryUrlButton);
@@ -2643,6 +2848,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('no-key-followups').addEventListener('click', handleFollowUpCopyClick);
   $('next-best-action-dock').addEventListener('click', handleFollowUpCopyClick);
   $('operator-execution-packet')?.addEventListener('click', handleFollowUpCopyClick);
+  $('managed-access-readiness')?.addEventListener('click', handleFollowUpCopyClick);
   $('copy-launch-brief').addEventListener('click', copyLaunchBrief);
   if ($('operator-token').value) {
     fetchFunnel();

@@ -1076,6 +1076,12 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Execution packet" /tmp/sage-router-readiness-body; then
     launch_funnel_code="200:missing-operator-execution-packet"
   fi
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "Managed-access readiness" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:missing-managed-access-readiness"
+  fi
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "managed-access-readiness" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:missing-managed-access-readiness-container"
+  fi
   if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "operator-execution-packet" /tmp/sage-router-readiness-body; then
     launch_funnel_code="200:missing-operator-execution-packet-container"
   fi
@@ -1147,6 +1153,21 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "Auth provider state unknown" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-operator-auth-posture-fallback"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderManagedAccessReadiness" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-readiness-renderer"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "managedAccessApprovalPacketText" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-approval-packet"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "operator_managed_access_packet_copied" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-packet-telemetry"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "operator_managed_access_command_copied" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-command-telemetry"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "no actual provider costs" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-cost-boundary"
   fi
   rm -f /tmp/sage-router-readiness-body
 
@@ -1480,7 +1501,9 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("setup_key_recovery_magic_link_failed") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_setup_copied") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_troubleshooting_clicked") != null) and
-    ((.allowedEvents // []) | index("setup_key_recovery_support_clicked") != null)
+    ((.allowedEvents // []) | index("setup_key_recovery_support_clicked") != null) and
+    ((.allowedEvents // []) | index("operator_managed_access_packet_copied") != null) and
+    ((.allowedEvents // []) | index("operator_managed_access_command_copied") != null)
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   write_guard="$(jq -r '.writeGuard.browserOriginRequired == true' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   referer_fallback="$(jq -r '.writeGuard.refererFallbackAccepted == false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
