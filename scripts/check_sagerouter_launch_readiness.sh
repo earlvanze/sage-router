@@ -3789,6 +3789,12 @@ check_marketing_api_troubleshooting_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=api-troubleshooting&utm_medium=recovery&utm_campaign=signup_to_key_recovery" /tmp/sage-router-readiness-body; then
     page_code="200:missing-api-troubleshooting-key-recovery-url"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/managed-access?intent=one-subscription&utm_source=api-troubleshooting" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-troubleshooting-managed-access-cta"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "api_troubleshooting_managed_access_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-troubleshooting-managed-access-funnel"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
@@ -3851,6 +3857,12 @@ check_marketing_setup_key_recovery_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "/support" /tmp/sage-router-readiness-body; then
     page_code="200:missing-support-link"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/managed-access?intent=one-subscription&utm_source=setup-key-recovery" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-managed-access-cta"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_managed_access_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-managed-access-funnel"
   fi
   rm -f /tmp/sage-router-readiness-body
 

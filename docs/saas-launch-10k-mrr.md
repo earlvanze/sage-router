@@ -122,13 +122,17 @@ provider resale claim, or runtime feature flag.
 - Keep `/api-troubleshooting` as the no-secret customer diagnostic path for
   hosted 401/402/429/503 responses, generated key prefix checks,
   `WWW-Authenticate`, `Retry-After`, rate-limit headers, quota headers,
-  account/pricing/status onboarding links, placeholder 401 `setupSnippet`, and
-  safe support context.
+  account/pricing/status onboarding links, placeholder 401 `setupSnippet`, safe
+  support context, and one-subscription managed-access beta review demand when
+  BYOK/provider access is the blocker.
 - Keep `/setup-key-recovery` as the public no-key signup recovery destination
   for API 401 `keyRecoveryUrl` handoffs and public marketing/docs/status/support
   recovery CTAs, with direct same-email setup-link requests, same-email or
   same-OAuth account return, generated-key-before-checkout setup, and
-  placeholder setup-copy telemetry.
+  placeholder setup-copy telemetry. It may route one-subscription interest to
+  managed-access beta review, but public managed provider access stays disabled
+  until provider terms, authorization evidence, allowlist, cost model, and
+  margin controls pass.
 - Keep `/docs/api-reference` as the hosted OpenAI-compatible API reference for
   `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public
   `/model-catalog`, generated `sk_sage_*` keys, quota headers, rate-limit

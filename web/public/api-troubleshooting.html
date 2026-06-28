@@ -46,6 +46,7 @@
           <a class="button secondary" href="/docs/api-reference">API reference</a>
           <a class="button secondary" href="/status">Check status</a>
           <a class="button secondary" href="/quickstart">Read quickstart</a>
+          <a class="button secondary" href="/managed-access?intent=one-subscription&utm_source=api-troubleshooting&utm_medium=recovery&utm_campaign=signup_to_key_recovery" data-api-troubleshooting-event="api_troubleshooting_managed_access_clicked" data-api-troubleshooting-state="hero-managed-access">Request one-subscription beta</a>
           <a class="button secondary" href="/support">Support paths</a>
         </div>
         <form class="emailStart" id="api-troubleshooting-email-form" data-email-activation-form data-oauth-activation="github" data-event-prefix="api_troubleshooting" data-sent-event="api_troubleshooting_magic_link_sent" data-source="api-troubleshooting" data-status-id="api-troubleshooting-email-status">
@@ -105,7 +106,7 @@
               <td>402</td>
               <td>The account, plan, billing, quota, or activation state blocks routing.</td>
               <td><code>X-Quota-Limit</code>, <code>X-Quota-Used</code>, <code>X-Quota-Remaining</code>, <code>X-Quota-Period</code>, and account or pricing links in the JSON body.</td>
-              <td>Finish checkout or manual activation, review current usage, upgrade the plan, or wait for the quota period to reset.</td>
+              <td>Finish checkout or manual activation, review current usage, upgrade the plan, wait for the quota period to reset, or request one-subscription beta review if BYOK/provider access is the blocker.</td>
             </tr>
             <tr>
               <td>429</td>
@@ -170,7 +171,10 @@ curl -i https://api.sagerouter.dev/v1/chat/completions \
           <h2>Troubleshooting does not change provider authorization.</h2>
         </div>
         <div class="panel">
-          <p class="muted">Sage Router hosted plans sell routing infrastructure, account management, generated keys, quotas, analytics, and reliability checks. They do not bypass provider authorization, pool personal accounts, or grant unauthorized model access.</p>
+          <p class="muted">Sage Router hosted plans sell routing infrastructure, account management, generated keys, quotas, analytics, and reliability checks. They do not bypass provider authorization, pool personal accounts, or grant unauthorized model access. The one-subscription managed-access beta is review-only until provider terms, authorization evidence, allowlist, private cost model, and margin controls are ready.</p>
+          <div class="actions">
+            <a class="button secondary" href="/managed-access?intent=one-subscription&utm_source=api-troubleshooting&utm_medium=boundary&utm_campaign=signup_to_key_recovery" data-api-troubleshooting-event="api_troubleshooting_managed_access_clicked" data-api-troubleshooting-state="boundary-managed-access">Request one-subscription beta</a>
+          </div>
         </div>
       </section>
     </main>
