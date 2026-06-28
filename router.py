@@ -7255,6 +7255,20 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
             'workedKind': f'{segment}_marked_worked' if segment in {'verified', 'unverified'} else 'marked_worked',
             'sendOrder': len(segment_actions) + 1,
         })
+    send_telemetry = {
+        'dryRunActions': int(activation_follow_ups.get('operatorFollowUpSendDryRuns') or 0),
+        'dryRunRecipients': int(activation_follow_ups.get('operatorFollowUpSendDryRunRecipients') or 0),
+        'sendActions': int(activation_follow_ups.get('operatorFollowUpSends') or 0),
+        'sentRecipients': int(activation_follow_ups.get('operatorFollowUpSentRecipients') or 0),
+        'failedActions': int(activation_follow_ups.get('operatorFollowUpSendFailures') or 0),
+        'failedRecipients': int(activation_follow_ups.get('operatorFollowUpSendFailureRecipients') or 0),
+        'dryRunByKind': activation_follow_ups.get('operatorFollowUpSendDryRunsByKind') or {},
+        'sentByKind': activation_follow_ups.get('operatorFollowUpSendsByKind') or {},
+        'failedByKind': activation_follow_ups.get('operatorFollowUpSendFailuresByKind') or {},
+    }
+    send_telemetry['dryRunVerified'] = send_telemetry['dryRunRecipients'] >= max(1, sendable_queued) if sendable_queued > 0 else False
+    send_telemetry['sendApprovalRequired'] = sendable_queued > 0 and send_telemetry['sentRecipients'] < sendable_queued
+    send_telemetry['nextSendSegment'] = next((row.get('segment') for row in segment_actions if row.get('sendable')), 'all' if sendable_queued > 0 else '')
 
     draft_subject = 'Finish your Sage Router setup key'
     draft_body = (
@@ -7290,6 +7304,7 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
         'sendableQueued': sendable_queued,
         'reviewOnlyQueued': review_only_queued,
         'windowedNewSignups': int(activation_follow_ups.get('windowedNewSignups') or 0),
+        'sendTelemetry': send_telemetry,
         'segmentCounts': counts or {},
         'segmentActions': segment_actions,
         'primaryCtaKind': activation_follow_ups.get('primaryCtaKind') or 'same_email_password',
@@ -7312,9 +7327,14 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
         },
         'emailReadiness': email_readiness,
         'instructions': [
-            'Send or copy the draft to sendable signup segments.',
+            (
+                'Dry-run verified; wait for explicit operator approval before real send.'
+                if send_telemetry.get('dryRunVerified') and send_telemetry.get('sendApprovalRequired')
+                else 'Dry-run the activation sender before real outreach.'
+            ),
+            'Send or copy the draft to sendable signup segments only after approval.',
             'Review auth-repair segments separately before expecting recovery email delivery.',
-            email_readiness.get('operatorAction') or 'Dry-run the activation sender before real outreach.',
+            email_readiness.get('operatorAction') or 'Use the dashboard send controls after dry-run verification.',
             'Mark the segment worked only after real outreach is sent or copied into the outbound channel.',
             'Refresh the funnel and watch keyRecoveryViews, keyCreateAttempts, and customersWithGeneratedApiKeys.',
         ],
