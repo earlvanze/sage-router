@@ -31,10 +31,14 @@ class HostedOnboardingTests(unittest.TestCase):
         readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")
         readme = self.read_text("README.md")
         self.assertIn("SAGEROUTER_MIN_HEALTHY_UPSTREAMS", readiness)
+        self.assertIn("SAGEROUTER_EDGE_HEALTH_RETRY_ATTEMPTS", readiness)
+        self.assertIn("SAGEROUTER_EDGE_HEALTH_RETRY_DELAY_SECONDS", readiness)
         self.assertIn("healthyUpstreams=${healthy_upstream_count}", readiness)
         self.assertIn("edge healthy upstream count", readiness)
+        self.assertIn("after ${attempt} attempts", readiness)
         self.assertIn("unhealthy=${unhealthy_summary:-none}", readiness)
         self.assertIn("SAGEROUTER_MIN_HEALTHY_UPSTREAMS", readme)
+        self.assertIn("SAGEROUTER_EDGE_HEALTH_RETRY_ATTEMPTS", readme)
         self.assertIn("expected healthy Tailnet/cloud origin count", readme)
 
     def test_dashboard_new_provider_credentials_require_endpoint_defaults(self):
