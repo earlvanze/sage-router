@@ -194,6 +194,7 @@ const ALLOWED_EVENTS = new Set([
   'operator_no_key_followup_send_dry_run',
   'operator_no_key_followup_sent',
   'operator_no_key_followup_send_failed',
+  'operator_execution_packet_copied',
   'account_email_verification_resend_clicked',
   'account_email_verification_resent',
   'account_preauth_setup_next_clicked',

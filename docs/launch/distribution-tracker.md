@@ -40,6 +40,9 @@ Live funnel snapshot from 2026-06-28:
 - Current bottleneck: signup-to-generated-key recovery. The live funnel reports
   `3` no-key follow-ups queued: `2` sendable segments (`verified`,
   `unverified`) and `1` review-only auth-repair segment (`missing_auth_user`).
+- Operator dashboard: the no-key queue now includes a copyable no-secret
+  activation approval packet that separates sendable follow-up segments from
+  review-only auth-repair work before any real send command is copied.
 - Email boundary: activation sender dry-run has covered the `2` sendable
   recipients, but real sending still requires explicit operator approval.
 - Acquisition signals: internal Sage Router navigation remains the largest

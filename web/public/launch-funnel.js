@@ -703,6 +703,46 @@ function activationSendCommand(emailReadiness = {}, activationSend = {}) {
   return template.replace(/"segment"\s*:\s*"[^"]*"/, `"segment":"${segment}"`);
 }
 
+function segmentActionGroups(packet = {}) {
+  const segmentActions = Array.isArray(packet.segmentActions) ? packet.segmentActions : [];
+  return {
+    sendable: segmentActions.filter(row => row.sendable !== false),
+    reviewOnly: segmentActions.filter(row => row.sendable === false),
+  };
+}
+
+function activationApprovalPacketText(data = {}) {
+  const packet = data.operatorExecutionPacket || {};
+  const followUps = data.activationFollowUps || {};
+  const delivery = activationDeliveryCounts(data);
+  const activationSend = activationSendTelemetry(data);
+  const { sendable, reviewOnly } = segmentActionGroups(packet);
+  const sendableLines = sendable.length
+    ? sendable.map(row => `- ${row.segment || 'all'}: ${integer(row.count)} queued; order=${integer(row.sendOrder)}; dryRun=${activationSend.dryRunVerified ? 'verified' : 'pending'}; worked=${row.workedKind || ''}`)
+    : ['- none'];
+  const reviewLines = reviewOnly.length
+    ? reviewOnly.map(row => `- ${row.segment || 'review'}: ${integer(row.count)} queued; reason=${row.reviewReason || 'Review before sending.'}`)
+    : ['- none'];
+  return [
+    'Sage Router activation approval packet',
+    'Boundary: no emails, customer IDs, API keys, prompts, OAuth tokens, provider credentials, or raw provider responses.',
+    '',
+    `Decision needed: approve or hold the next real activation send for segment "${activationSend.nextSendSegment || 'all'}".`,
+    `Queued: ${integer(delivery.totalQueued || followUps.total)} total; ${integer(delivery.sendableQueued)} sendable; ${integer(delivery.reviewOnlyQueued)} review-only; ${integer(delivery.unknownQueued)} unknown.`,
+    `Dry-run: ${activationSend.dryRunVerified ? 'verified' : 'not complete'} for ${integer(activationSend.dryRunRecipients)} recipient(s). Sent: ${integer(activationSend.sentRecipients)}; failed: ${integer(activationSend.failedRecipients)}.`,
+    `Approval required: ${activationSend.sendApprovalRequired ? 'yes, do not send until explicit operator approval' : 'no pending send'}.`,
+    '',
+    'Sendable segments:',
+    ...sendableLines,
+    '',
+    'Review-only segments:',
+    ...reviewLines,
+    '',
+    `Primary recovery CTA: ${followUps.primaryCtaUrl || packet.recoveryUrls?.passwordFallback || activationFollowUpUrl({}, { auth: false })}`,
+    `Success metric: ${followUps.successMetric || packet.telemetry?.successMetric || 'Move no-key signups into generated-key accounts, then first routed request.'}`,
+  ].join('\n') + '\n';
+}
+
 function buildLaunchBrief(data = {}) {
   const stages = data.stages || {};
   const rates = data.rates || {};
@@ -927,6 +967,7 @@ function renderOperatorExecutionPacket(data = {}) {
       }).join('')
     : '<tr><td colspan="6">No segment actions returned.</td></tr>';
   const packetText = operatorExecutionPacketText(packet, data);
+  const approvalPacketText = activationApprovalPacketText(data);
   const draftText = [`Subject: ${draft.subject || 'Finish your Sage Router setup key'}`, '', draft.body || ''].join('\n');
   target.innerHTML = `<div class="metricList">
     <div class="metric"><span>Kind</span><strong>${esc(packet.kind)}</strong></div>
@@ -945,6 +986,7 @@ function renderOperatorExecutionPacket(data = {}) {
   <p class="muted">${esc(authPosture.action)} ${activationSend.sendApprovalRequired ? `Dry-run is ${activationSend.dryRunVerified ? 'verified' : 'not complete'} for ${integer(activationSend.dryRunRecipients)} recipient(s); wait for explicit operator approval before real send.` : esc(emailReadiness.operatorAction || 'Dry-run activation follow-up sending before real outreach.')} ${esc(managedSetup.operatorAction || 'Keep managed provider access disabled until resale controls pass.')}</p>
   <div class="actions">
     <button class="btn secondary" type="button" data-copy-operator-packet="${esc(packetText)}">Copy execution packet</button>
+    <button class="btn secondary" type="button" data-copy-activation-approval-packet="${esc(approvalPacketText)}" data-followup-count="${integer(activationDelivery.sendableQueued)}">Copy approval packet</button>
     ${sendCommand ? `<button class="btn secondary" type="button" data-copy-activation-send-command="${esc(sendCommand)}" data-followup-segment="${esc(activationSend.nextSendSegment || 'all')}" data-followup-count="${integer(activationSend.sendableQueued)}" ${activationSend.dryRunVerified && activationSend.sendApprovalRequired ? '' : 'disabled'}>Copy approved send command</button>` : ''}
     <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(draftText)}" data-followup-copy-kind="operator_packet_draft_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(packet.totalQueued)}">Copy packet draft</button>
     <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(primaryFollowUpLinkSet(plan, urls))}" data-followup-copy-kind="operator_packet_links_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(packet.totalQueued)}">Copy packet links</button>
@@ -1008,6 +1050,10 @@ function renderNextBestActionDock(data = {}) {
     : aggregateSegmentDraftControls
     ? `<div class="actions">${aggregateSegmentDraftControls}<span class="status">Aggregate segment controls use counts only; paste admin token for per-recipient drafts.</span></div>`
     : '';
+  const approvalPacketText = activationApprovalPacketText(data);
+  const approvalButton = noKeyCount > 0
+    ? `<button class="btn secondary" type="button" data-copy-activation-approval-packet="${esc(approvalPacketText)}" data-followup-count="${integer(activationDelivery.sendableQueued)}">Copy approval packet</button>`
+    : '';
   const checklist = Array.isArray(action.executionChecklist) && action.executionChecklist.length
     ? `<ol class="muted" style="margin:10px 0 0 20px">${action.executionChecklist.slice(0, 5).map(item => `<li><strong>${esc(item.action || '')}</strong><br><span>${esc(item.successMetric || '')}</span></li>`).join('')}</ol>`
     : '';
@@ -1025,7 +1071,7 @@ function renderNextBestActionDock(data = {}) {
   </div>
   <p><strong>${esc(action.action || followUps.recommendedOperatorAction || 'Review the current launch funnel bottleneck.')}</strong></p>
   <p class="muted">Success metric: ${esc(action.successMetric || followUps.successMetric || 'Improve the next funnel stage.')} ${activationSend.sendApprovalRequired ? `Dry-run verified=${activationSend.dryRunVerified ? 'yes' : 'no'}; real send still needs explicit operator approval.` : ''}</p>${checklist}
-  <div class="actions">${queueButton}<a class="btn secondary" href="${esc(actionHref)}">Open recommended surface</a>${mailtoButton}${copyButton}<span class="status">Use the queue buttons to record only segment/count telemetry after real outreach.</span></div>${segmentDraftDock}`;
+  <div class="actions">${queueButton}<a class="btn secondary" href="${esc(actionHref)}">Open recommended surface</a>${approvalButton}${mailtoButton}${copyButton}<span class="status">Use the queue buttons to record only segment/count telemetry after real outreach.</span></div>${segmentDraftDock}`;
 }
 
 async function writeClipboard(value) {
@@ -1253,6 +1299,29 @@ async function copyOperatorExecutionPacket(button) {
   } catch (error) {
     button.textContent = 'Copy failed';
     setStatus(`Execution packet copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyActivationApprovalPacket(button) {
+  const text = button.getAttribute('data-copy-activation-approval-packet') || '';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    trackOperatorFunnelEvent('operator_execution_packet_copied', {
+      state: 'activation_approval_packet_copied',
+      resultCount: Number(button.getAttribute('data-followup-count') || 0),
+      snippet: 'activation-approval-packet',
+    });
+    setStatus('Copied no-secret activation approval packet. Review it before approving any real send.', 'warn');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Activation approval packet copy failed: ${error.message}`, 'bad');
   } finally {
     setTimeout(() => {
       button.textContent = original;
@@ -2267,6 +2336,11 @@ function handleFollowUpCopyClick(event) {
   const activationSendCommandButton = event.target.closest('[data-copy-activation-send-command]');
   if (activationSendCommandButton) {
     copyActivationSendCommand(activationSendCommandButton);
+    return;
+  }
+  const activationApprovalPacketButton = event.target.closest('[data-copy-activation-approval-packet]');
+  if (activationApprovalPacketButton) {
+    copyActivationApprovalPacket(activationApprovalPacketButton);
     return;
   }
   const operatorTokenCommandButton = event.target.closest('[data-copy-operator-token-command]');

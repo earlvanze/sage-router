@@ -516,6 +516,10 @@ provider resale claim, or runtime feature flag.
   copied command must still require the private operator token and
   `SEND_ACTIVATION_FOLLOWUPS` confirmation token, and copying it records only
   aggregate `operator_execution_packet_copied` telemetry.
+- Also render a no-secret activation approval packet before the send command so
+  the operator can review sendable segments, review-only auth-repair segments,
+  dry-run coverage, and the success metric without exposing customer
+  identifiers or secrets.
 - Keep the operator-only launch funnel no-key queue executable: it should read
   bounded `/admin/customers` rows, render generated-key-first mailto/link
   actions, and provide per-customer plus batch snippet copy for outreach without
