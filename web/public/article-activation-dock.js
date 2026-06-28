@@ -7,7 +7,7 @@
   const articleSlug = attributionValue(path)?.replace(/^\/+/, '').replace(/\/+/g, '-') || 'article';
   const accountUrl = `https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&source_surface=article&utm_content=${encodeURIComponent(`${articleSlug}-pro-key`)}`;
   const accountEmailUrl = `https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&source_surface=article&utm_content=${encodeURIComponent(`${articleSlug}-email`)}`;
-  const recoveryUrl = `https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=article-dock&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&source_surface=article&utm_content=${encodeURIComponent(`${articleSlug}-returning-user`)}`;
+  const recoveryUrl = `/setup-key-recovery?utm_source=article-dock&utm_medium=recovery&utm_campaign=signup_to_key_recovery&source_surface=article&utm_content=${encodeURIComponent(`${articleSlug}-returning-user`)}`;
   const quickstartUrl = `/quickstart?utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-quickstart`)}`;
   const calculatorUrl = `/model-routing-calculator?utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-calculator`)}`;
   const managedAccessUrl = `/managed-access?intent=max-implementation&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-max-review`)}`;

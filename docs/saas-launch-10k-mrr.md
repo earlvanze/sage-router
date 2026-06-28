@@ -124,9 +124,9 @@ provider resale claim, or runtime feature flag.
   `WWW-Authenticate`, `Retry-After`, rate-limit headers, quota headers,
   account/pricing/status onboarding links, and safe support context.
 - Keep `/setup-key-recovery` as the public no-key signup recovery destination
-  for API 401 `keyRecoveryUrl` handoffs, same-email or same-OAuth account
-  return, generated-key-before-checkout setup, and placeholder setup-copy
-  telemetry.
+  for API 401 `keyRecoveryUrl` handoffs and public marketing/docs/status/support
+  recovery CTAs, with same-email or same-OAuth account return,
+  generated-key-before-checkout setup, and placeholder setup-copy telemetry.
 - Keep `/docs/api-reference` as the hosted OpenAI-compatible API reference for
   `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public
   `/model-catalog`, generated `sk_sage_*` keys, quota headers, rate-limit
