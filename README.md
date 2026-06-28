@@ -519,11 +519,20 @@ scripts/configure_activation_email_sender.sh --check
 
 The activation email preflight reports public `/pricing` readiness, Cloud Run
 binding presence, and local apply-input presence only as booleans or binding
-names. When sender inputs are present, it also verifies Resend API access and
-that the sender domain is verified/sending-enabled before binding Cloud Run
-secrets. It does not print sender values or Resend API-key values. Activation
-follow-up sends use a Resend idempotency key so an operator retry does not
-double-send the same generated-key recovery draft.
+names. For the fastest hosted recovery path on the live Cloud Run deployment,
+reuse the existing Supabase auth email sender:
+
+```bash
+SAGE_ROUTER_ACTIVATION_EMAIL_PROVIDER=supabase-recovery \
+scripts/configure_activation_email_sender.sh
+```
+
+The Supabase recovery provider sends operator-confirmed password-recovery
+emails through the existing Cloud Run Supabase URL/anon-key bindings and
+redirects users back to the Sage Router account/key setup flow. For custom
+generated-key recovery copy, use the Resend provider instead; when sender inputs
+are present, the script verifies Resend API access and that the sender domain is
+verified/sending-enabled before binding Cloud Run secrets. The setup path does not print sender values or Resend API-key values. Resend follow-up sends use an idempotency key so an operator retry does not double-send the same generated-key recovery draft.
 
 If the readiness check reports Cloudflare `403` / `1010` before the Sage Router
 auth gate, use [docs/cloudflare-api-bic-skip.md](docs/cloudflare-api-bic-skip.md)

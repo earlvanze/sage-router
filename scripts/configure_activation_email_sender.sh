@@ -11,6 +11,7 @@ load_local_env_file() {
       SAGE_ROUTER_ACTIVATION_EMAIL_PROVIDER|SAGE_ROUTER_ACTIVATION_EMAIL_FROM|\
       SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO|SAGE_ROUTER_ACTIVATION_EMAIL_API_KEY|\
       SAGE_ROUTER_RESEND_API_KEY|RESEND_API_KEY|SAGE_ROUTER_ACTIVATION_EMAIL_MAX_BATCH|\
+      SAGE_ROUTER_ACTIVATION_EMAIL_REDIRECT_TO|SAGE_ROUTER_SUPABASE_URL|\
       PROJECT_ID|SAGE_ROUTER_GCP_PROJECT_ID|REGION|SERVICE_NAME|SAGEROUTER_API_BASE)
         ;;
       *)
@@ -32,11 +33,17 @@ Usage: scripts/configure_activation_email_sender.sh [--check]
 Configure Sage Router activation follow-up email sending on Cloud Run.
 
 Required environment:
-  SAGE_ROUTER_ACTIVATION_EMAIL_FROM="Sage Router <activation@sagerouter.dev>"
-  SAGE_ROUTER_RESEND_API_KEY="re_..."
+  For custom Resend follow-ups:
+    SAGE_ROUTER_ACTIVATION_EMAIL_PROVIDER=resend
+    SAGE_ROUTER_ACTIVATION_EMAIL_FROM="Sage Router <activation@sagerouter.dev>"
+    SAGE_ROUTER_RESEND_API_KEY="re_..."
+
+  For hosted Supabase recovery follow-ups using existing Cloud Run Supabase auth:
+    SAGE_ROUTER_ACTIVATION_EMAIL_PROVIDER=supabase-recovery
 
 Optional:
   SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO="support@sagerouter.dev"
+  SAGE_ROUTER_ACTIVATION_EMAIL_REDIRECT_TO="https://app.sagerouter.dev/account?activation=recovery"
   SAGE_ROUTER_ACTIVATION_EMAIL_MAX_BATCH=25
   SAGEROUTER_SKIP_RESEND_VALIDATION=0
   PROJECT_ID=sage-router-demo-20260428
@@ -49,9 +56,11 @@ Options:
   --check  Report public readiness, Cloud Run bindings, and local input
            presence without writing secrets or printing values.
 
-The script stores values in Secret Manager, updates Cloud Run secret bindings,
-and never prints secret values. When env vars are unset, it silently loads the
-known activation-email variable names from SAGEROUTER_SECRET_ENV_FILE or
+The Resend path stores values in Secret Manager, updates Cloud Run secret
+bindings, and never prints secret values. The Supabase recovery path reuses the
+existing Cloud Run Supabase URL/anon-key bindings and updates only activation
+provider env vars. When env vars are unset, this script silently loads the known
+activation-email variable names from SAGEROUTER_SECRET_ENV_FILE or
 /home/digit/.openclaw/.env.
 EOF
 }
@@ -84,6 +93,7 @@ FROM_VALUE="${SAGE_ROUTER_ACTIVATION_EMAIL_FROM:-}"
 REPLY_TO_VALUE="${SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO:-}"
 API_KEY_VALUE="${SAGE_ROUTER_ACTIVATION_EMAIL_API_KEY:-${SAGE_ROUTER_RESEND_API_KEY:-${RESEND_API_KEY:-}}}"
 MAX_BATCH="${SAGE_ROUTER_ACTIVATION_EMAIL_MAX_BATCH:-25}"
+REDIRECT_TO="${SAGE_ROUTER_ACTIVATION_EMAIL_REDIRECT_TO:-https://app.sagerouter.dev/account?activation=recovery}"
 RUN_READINESS="${SAGEROUTER_RUN_READINESS:-1}"
 API_BASE="${SAGEROUTER_API_BASE:-${SAGE_ROUTER_API_BASE:-https://api.sagerouter.dev}}"
 
@@ -194,7 +204,7 @@ check_activation_email_sender() {
   require_cmd curl
   require_cmd jq
 
-  local failures=0 body code configured provider from_configured api_key_configured reply_to_configured
+  local failures=0 body code configured provider from_configured api_key_configured reply_to_configured supabase_configured recovery_redirect_configured
   body="$(mktemp)"
   code="$(curl -sS -o "$body" -w '%{http_code}' "${API_BASE%/}/pricing" || printf '000')"
   if [[ "$code" == "200" ]]; then
@@ -203,8 +213,10 @@ check_activation_email_sender() {
     from_configured="$(jq -r '.activationEmailReadiness.fromConfigured // false' "$body")"
     api_key_configured="$(jq -r '.activationEmailReadiness.apiKeyConfigured // false' "$body")"
     reply_to_configured="$(jq -r '.activationEmailReadiness.replyToConfigured // false' "$body")"
-    printf 'Public activation email readiness: configured=%s provider=%s from=%s apiKey=%s replyTo=%s\n' \
-      "$configured" "$provider" "$from_configured" "$api_key_configured" "$reply_to_configured"
+    supabase_configured="$(jq -r '.activationEmailReadiness.supabaseConfigured // false' "$body")"
+    recovery_redirect_configured="$(jq -r '.activationEmailReadiness.recoveryRedirectConfigured // false' "$body")"
+    printf 'Public activation email readiness: configured=%s provider=%s from=%s apiKey=%s replyTo=%s supabase=%s recoveryRedirect=%s\n' \
+      "$configured" "$provider" "$from_configured" "$api_key_configured" "$reply_to_configured" "$supabase_configured" "$recovery_redirect_configured"
     if [[ "$configured" != "true" ]]; then
       failures=1
     fi
@@ -214,16 +226,16 @@ check_activation_email_sender() {
   fi
   rm -f "$body"
 
-  printf 'Local apply inputs: provider=%s from=%s apiKey=%s replyTo=%s maxBatch=%s\n' \
-    "$PROVIDER" "$(presence "$FROM_VALUE")" "$(presence "$API_KEY_VALUE")" "$(presence "$REPLY_TO_VALUE")" "$MAX_BATCH"
-  if [[ -n "$FROM_VALUE" || -n "$API_KEY_VALUE" ]]; then
+  printf 'Local apply inputs: provider=%s from=%s apiKey=%s replyTo=%s recoveryRedirect=%s maxBatch=%s\n' \
+    "$PROVIDER" "$(presence "$FROM_VALUE")" "$(presence "$API_KEY_VALUE")" "$(presence "$REPLY_TO_VALUE")" "$(presence "$REDIRECT_TO")" "$MAX_BATCH"
+  if [[ "$PROVIDER" == "resend" && ( -n "$FROM_VALUE" || -n "$API_KEY_VALUE" ) ]]; then
     if ! resend_sender_preflight; then
       failures=1
     fi
   fi
 
   if command -v gcloud >/dev/null 2>&1; then
-    local service_json service_status provider_env max_batch_env from_secret key_secret reply_to_secret
+    local service_json service_status provider_env max_batch_env redirect_env from_secret key_secret reply_to_secret supabase_url_env supabase_anon_secret
     service_json="$(mktemp)"
     if gcloud run services describe "$SERVICE_NAME" \
       --project "$PROJECT_ID" \
@@ -233,12 +245,19 @@ check_activation_email_sender() {
       service_status="present"
       provider_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGE_ROUTER_ACTIVATION_EMAIL_PROVIDER") | (.value // empty)' "$service_json" | tail -n1)"
       max_batch_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGE_ROUTER_ACTIVATION_EMAIL_MAX_BATCH") | (.value // empty)' "$service_json" | tail -n1)"
+      redirect_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGE_ROUTER_ACTIVATION_EMAIL_REDIRECT_TO") | (.value // empty)' "$service_json" | tail -n1)"
       from_secret="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGE_ROUTER_ACTIVATION_EMAIL_FROM") | (.valueFrom.secretKeyRef.name // empty)' "$service_json" | tail -n1)"
       key_secret="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGE_ROUTER_RESEND_API_KEY") | (.valueFrom.secretKeyRef.name // empty)' "$service_json" | tail -n1)"
       reply_to_secret="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO") | (.valueFrom.secretKeyRef.name // empty)' "$service_json" | tail -n1)"
-      printf 'Cloud Run bindings: service=%s providerEnv=%s maxBatchEnv=%s fromSecret=%s apiKeySecret=%s replyToSecret=%s\n' \
-        "$service_status" "$(presence "$provider_env")" "$(presence "$max_batch_env")" "$(presence "$from_secret")" "$(presence "$key_secret")" "$(presence "$reply_to_secret")"
-      if [[ -z "$from_secret" || -z "$key_secret" ]]; then
+      supabase_url_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGE_ROUTER_SUPABASE_URL") | (.value // empty)' "$service_json" | tail -n1)"
+      supabase_anon_secret="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGE_ROUTER_SUPABASE_ANON_KEY") | (.valueFrom.secretKeyRef.name // empty)' "$service_json" | tail -n1)"
+      printf 'Cloud Run bindings: service=%s providerEnv=%s maxBatchEnv=%s redirectEnv=%s fromSecret=%s apiKeySecret=%s replyToSecret=%s supabaseUrl=%s supabaseAnonSecret=%s\n' \
+        "$service_status" "$(presence "$provider_env")" "$(presence "$max_batch_env")" "$(presence "$redirect_env")" "$(presence "$from_secret")" "$(presence "$key_secret")" "$(presence "$reply_to_secret")" "$(presence "$supabase_url_env")" "$(presence "$supabase_anon_secret")"
+      if [[ "$provider_env" == "supabase-recovery" ]]; then
+        if [[ -z "$supabase_url_env" || -z "$supabase_anon_secret" || -z "$redirect_env" ]]; then
+          failures=1
+        fi
+      elif [[ -z "$from_secret" || -z "$key_secret" ]]; then
         failures=1
       fi
     else
@@ -253,7 +272,9 @@ check_activation_email_sender() {
   if [[ "$failures" != "0" ]]; then
     cat >&2 <<'EOF'
 Activation email sender is not launch-ready yet.
-Set SAGE_ROUTER_ACTIVATION_EMAIL_FROM and SAGE_ROUTER_RESEND_API_KEY, then run:
+Set SAGE_ROUTER_ACTIVATION_EMAIL_PROVIDER=supabase-recovery to reuse hosted
+Supabase auth emails, or set SAGE_ROUTER_ACTIVATION_EMAIL_FROM and
+SAGE_ROUTER_RESEND_API_KEY for custom Resend follow-ups, then run:
   scripts/configure_activation_email_sender.sh
 
 The check prints presence and binding names only; it never prints sender values
@@ -273,13 +294,46 @@ fi
 require_cmd gcloud
 require_cmd curl
 require_cmd jq
-require_value SAGE_ROUTER_ACTIVATION_EMAIL_FROM "$FROM_VALUE"
-require_value "SAGE_ROUTER_RESEND_API_KEY or SAGE_ROUTER_ACTIVATION_EMAIL_API_KEY" "$API_KEY_VALUE"
 
-if [[ "$PROVIDER" != "resend" ]]; then
-  printf 'Unsupported SAGE_ROUTER_ACTIVATION_EMAIL_PROVIDER=%s; only resend is currently supported.\n' "$PROVIDER" >&2
+if [[ "$PROVIDER" != "resend" && "$PROVIDER" != "supabase-recovery" ]]; then
+  printf 'Unsupported SAGE_ROUTER_ACTIVATION_EMAIL_PROVIDER=%s; supported providers: resend, supabase-recovery.\n' "$PROVIDER" >&2
   exit 2
 fi
+
+if [[ "$PROVIDER" == "supabase-recovery" ]]; then
+  service_json="$(mktemp)"
+  if ! gcloud run services describe "$SERVICE_NAME" \
+    --project "$PROJECT_ID" \
+    --region "$REGION" \
+    --platform managed \
+    --format=json >"$service_json"; then
+    rm -f "$service_json"
+    printf 'Cloud Run service is unavailable: project=%s region=%s service=%s\n' "$PROJECT_ID" "$REGION" "$SERVICE_NAME" >&2
+    exit 1
+  fi
+  supabase_url_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGE_ROUTER_SUPABASE_URL") | (.value // empty)' "$service_json" | tail -n1)"
+  supabase_anon_secret="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGE_ROUTER_SUPABASE_ANON_KEY") | (.valueFrom.secretKeyRef.name // empty)' "$service_json" | tail -n1)"
+  rm -f "$service_json"
+  if [[ -z "$supabase_url_env" || -z "$supabase_anon_secret" ]]; then
+    printf 'Supabase recovery provider requires existing Cloud Run SAGE_ROUTER_SUPABASE_URL and SAGE_ROUTER_SUPABASE_ANON_KEY bindings.\n' >&2
+    exit 1
+  fi
+  printf 'Updating Cloud Run service=%s region=%s activation provider to supabase-recovery\n' "$SERVICE_NAME" "$REGION" >&2
+  gcloud run services update "$SERVICE_NAME" \
+    --project "$PROJECT_ID" \
+    --region "$REGION" \
+    --platform managed \
+    --update-env-vars "SAGE_ROUTER_ACTIVATION_EMAIL_PROVIDER=supabase-recovery,SAGE_ROUTER_ACTIVATION_EMAIL_REDIRECT_TO=${REDIRECT_TO},SAGE_ROUTER_ACTIVATION_EMAIL_MAX_BATCH=${MAX_BATCH}"
+
+  printf 'Activation email sender configured to Supabase recovery. Verify before sending a real batch.\n' >&2
+  if [[ "$RUN_READINESS" != "0" ]]; then
+    "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/check_sagerouter_launch_readiness.sh"
+  fi
+  exit 0
+fi
+
+require_value SAGE_ROUTER_ACTIVATION_EMAIL_FROM "$FROM_VALUE"
+require_value "SAGE_ROUTER_RESEND_API_KEY or SAGE_ROUTER_ACTIVATION_EMAIL_API_KEY" "$API_KEY_VALUE"
 
 if [[ "${SAGEROUTER_SKIP_RESEND_VALIDATION:-0}" == "1" ]]; then
   printf 'Skipping Resend sender preflight because SAGEROUTER_SKIP_RESEND_VALIDATION=1.\n' >&2

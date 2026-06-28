@@ -63,6 +63,9 @@ class SaaSAuthTests(unittest.TestCase):
             'ACTIVATION_EMAIL_FROM': router.ACTIVATION_EMAIL_FROM,
             'ACTIVATION_EMAIL_REPLY_TO': router.ACTIVATION_EMAIL_REPLY_TO,
             'ACTIVATION_EMAIL_MAX_BATCH': router.ACTIVATION_EMAIL_MAX_BATCH,
+            'ACTIVATION_EMAIL_REDIRECT_TO': router.ACTIVATION_EMAIL_REDIRECT_TO,
+            'SUPABASE_URL': router.SUPABASE_URL,
+            'SUPABASE_ANON_KEY': router.SUPABASE_ANON_KEY,
             'send_activation_email': router.send_activation_email,
         }
         router.CUSTOMER_STORE_PATH = os.path.join(self.tmp.name, 'customers.json')
@@ -95,6 +98,7 @@ class SaaSAuthTests(unittest.TestCase):
         router.ACTIVATION_EMAIL_FROM = ''
         router.ACTIVATION_EMAIL_REPLY_TO = ''
         router.ACTIVATION_EMAIL_MAX_BATCH = 25
+        router.ACTIVATION_EMAIL_REDIRECT_TO = 'https://app.sagerouter.dev/account?activation=recovery'
 
     def tearDown(self):
         router.CUSTOMER_STORE_PATH = self.old['CUSTOMER_STORE_PATH']
@@ -133,6 +137,9 @@ class SaaSAuthTests(unittest.TestCase):
         router.ACTIVATION_EMAIL_FROM = self.old['ACTIVATION_EMAIL_FROM']
         router.ACTIVATION_EMAIL_REPLY_TO = self.old['ACTIVATION_EMAIL_REPLY_TO']
         router.ACTIVATION_EMAIL_MAX_BATCH = self.old['ACTIVATION_EMAIL_MAX_BATCH']
+        router.ACTIVATION_EMAIL_REDIRECT_TO = self.old['ACTIVATION_EMAIL_REDIRECT_TO']
+        router.SUPABASE_URL = self.old['SUPABASE_URL']
+        router.SUPABASE_ANON_KEY = self.old['SUPABASE_ANON_KEY']
         router.send_activation_email = self.old['send_activation_email']
         if self._billing_env is None:
             os.environ.pop('SAGE_ROUTER_BILLING_ENABLED', None)
@@ -868,6 +875,64 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(headers['Idempotency-key'].startswith('sage-router-activation-'))
         self.assertLessEqual(len(headers['Idempotency-key']), 256)
 
+    def test_activation_email_sender_can_use_supabase_recovery(self):
+        router.ACTIVATION_EMAIL_PROVIDER = 'supabase-recovery'
+        router.SUPABASE_URL = 'https://example.supabase.co'
+        router.SUPABASE_ANON_KEY = 'anon-key'
+        router.ACTIVATION_EMAIL_REDIRECT_TO = 'https://app.sagerouter.dev/account?activation=recovery'
+        captured = []
+
+        class FakeResponse:
+            status = 200
+
+            def read(self):
+                return b'{}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        def fake_urlopen(req, timeout=12):
+            captured.append(req)
+            return FakeResponse()
+
+        original_urlopen = router.urllib.request.urlopen
+        try:
+            router.urllib.request.urlopen = fake_urlopen
+            sent = router.send_activation_email({
+                'email': 'buyer@example.com',
+                'subject': 'ignored by Supabase recovery',
+                'body': 'ignored by Supabase recovery',
+            })
+        finally:
+            router.urllib.request.urlopen = original_urlopen
+
+        self.assertEqual('supabase-recovery', sent['provider'])
+        self.assertEqual(1, len(captured))
+        self.assertIn('/auth/v1/recover?redirect_to=', captured[0].full_url)
+        self.assertEqual({'email': 'buyer@example.com'}, json.loads(captured[0].data.decode()))
+        headers = dict(captured[0].header_items())
+        self.assertEqual('anon-key', headers['Apikey'])
+        self.assertEqual('Bearer anon-key', headers['Authorization'])
+
+    def test_public_activation_readiness_supports_supabase_recovery(self):
+        router.ACTIVATION_EMAIL_PROVIDER = 'supabase-recovery'
+        router.SUPABASE_URL = 'https://example.supabase.co'
+        router.SUPABASE_ANON_KEY = 'anon-key'
+        router.ACTIVATION_EMAIL_REDIRECT_TO = 'https://app.sagerouter.dev/account?activation=recovery'
+
+        readiness = router.public_activation_email_readiness()
+
+        self.assertEqual('supabase-recovery', readiness['provider'])
+        self.assertTrue(readiness['configured'])
+        self.assertTrue(readiness['sendsEmailWhenConfigured'])
+        self.assertTrue(readiness['supabaseConfigured'])
+        self.assertTrue(readiness['recoveryRedirectConfigured'])
+        self.assertEqual([], readiness['requiredEnv'])
+        self.assertFalse(readiness['privacy']['containsSecrets'])
+
     def test_operator_can_hydrate_auth_signups_to_inactive_customers(self):
         router.CLIENT_API_KEYS = ['operator-token']
         router.read_launch_auth_user_rows = lambda limit=1000: [
@@ -1172,6 +1237,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('scripts/configure_activation_email_sender.sh --check', activation_email['setupCheckCommand'])
         self.assertTrue(activation_email['sendConfirmationRequired'])
         self.assertEqual('SEND_ACTIVATION_FOLLOWUPS', activation_email['sendConfirmation'])
+        self.assertFalse(activation_email['supabaseConfigured'])
+        self.assertTrue(activation_email['recoveryRedirectConfigured'])
         self.assertFalse(activation_email['privacy']['containsSecrets'])
         self.assertFalse(activation_email['privacy']['containsEmails'])
         self.assertFalse(activation_email['privacy']['containsAdminCommands'])

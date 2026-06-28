@@ -250,6 +250,10 @@ ACTIVATION_EMAIL_API_KEY = (
 ACTIVATION_EMAIL_FROM = os.environ.get('SAGE_ROUTER_ACTIVATION_EMAIL_FROM', '').strip()
 ACTIVATION_EMAIL_REPLY_TO = os.environ.get('SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO', '').strip()
 ACTIVATION_EMAIL_MAX_BATCH = max(1, min(int(os.environ.get('SAGE_ROUTER_ACTIVATION_EMAIL_MAX_BATCH', '25') or '25'), 100))
+ACTIVATION_EMAIL_REDIRECT_TO = os.environ.get(
+    'SAGE_ROUTER_ACTIVATION_EMAIL_REDIRECT_TO',
+    'https://app.sagerouter.dev/account?activation=recovery',
+).strip()
 ACTIVATION_FOLLOWUP_SEND_CONFIRMATION = 'SEND_ACTIVATION_FOLLOWUPS'
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY') or os.environ.get('SAGE_ROUTER_STRIPE_SECRET_KEY') or ''
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET') or os.environ.get('SAGE_ROUTER_STRIPE_WEBHOOK_SECRET') or ''
@@ -9107,23 +9111,37 @@ def operator_activation_contact_export(customers):
 
 
 def activation_email_configured():
-    return bool(
-        ACTIVATION_EMAIL_PROVIDER == 'resend'
-        and ACTIVATION_EMAIL_API_KEY
-        and ACTIVATION_EMAIL_FROM
-    )
+    if ACTIVATION_EMAIL_PROVIDER == 'resend':
+        return bool(ACTIVATION_EMAIL_API_KEY and ACTIVATION_EMAIL_FROM)
+    if ACTIVATION_EMAIL_PROVIDER == 'supabase-recovery':
+        return bool(SUPABASE_URL and SUPABASE_ANON_KEY and ACTIVATION_EMAIL_REDIRECT_TO)
+    return False
+
+
+def activation_email_provider_label():
+    if ACTIVATION_EMAIL_PROVIDER == 'supabase-recovery':
+        return 'supabase-recovery'
+    return ACTIVATION_EMAIL_PROVIDER or 'resend'
 
 
 def activation_email_readiness():
     configured = activation_email_configured()
+    provider = activation_email_provider_label()
     setup_command = ''
     if not configured:
-        setup_command = (
-            "SAGE_ROUTER_ACTIVATION_EMAIL_FROM='Sage Router <activation@sagerouter.dev>' \\\n"
-            "SAGE_ROUTER_RESEND_API_KEY='re_...' \\\n"
-            "SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO='support@sagerouter.dev' \\\n"
-            "scripts/configure_activation_email_sender.sh"
-        )
+        if provider == 'supabase-recovery':
+            setup_command = (
+                "SAGE_ROUTER_ACTIVATION_EMAIL_PROVIDER='supabase-recovery' \\\n"
+                "SAGE_ROUTER_ACTIVATION_EMAIL_REDIRECT_TO='https://app.sagerouter.dev/account?activation=recovery' \\\n"
+                "scripts/configure_activation_email_sender.sh"
+            )
+        else:
+            setup_command = (
+                "SAGE_ROUTER_ACTIVATION_EMAIL_FROM='Sage Router <activation@sagerouter.dev>' \\\n"
+                "SAGE_ROUTER_RESEND_API_KEY='re_...' \\\n"
+                "SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO='support@sagerouter.dev' \\\n"
+                "scripts/configure_activation_email_sender.sh"
+            )
     dry_run_command = (
         'curl -fsS -X POST https://api.sagerouter.dev/admin/customers/send-activation-followups \\\n'
         '  -H "Authorization: Bearer ${SAGE_ROUTER_API_KEY}" \\\n'
@@ -9140,7 +9158,7 @@ def activation_email_readiness():
         f'  --data \'{{"status":"inactive","segment":"all","limit":25,"dryRun":false,"sendConfirmation":"{ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}"}}\''
     )
     return {
-        'provider': ACTIVATION_EMAIL_PROVIDER or 'resend',
+        'provider': provider,
         'configured': configured,
         'sendEndpoint': '/admin/customers/send-activation-followups',
         'dryRunSupported': True,
@@ -9149,18 +9167,30 @@ def activation_email_readiness():
         'sendCommandTemplate': send_command_template,
         'sendsEmailWhenConfigured': configured,
         'fromConfigured': bool(ACTIVATION_EMAIL_FROM),
-        'apiKeyConfigured': bool(ACTIVATION_EMAIL_API_KEY),
+        'apiKeyConfigured': bool(ACTIVATION_EMAIL_API_KEY) if provider == 'resend' else bool(SUPABASE_ANON_KEY),
         'replyToConfigured': bool(ACTIVATION_EMAIL_REPLY_TO),
+        'supabaseConfigured': bool(SUPABASE_URL and SUPABASE_ANON_KEY),
+        'recoveryRedirectConfigured': bool(ACTIVATION_EMAIL_REDIRECT_TO),
         'maxBatch': ACTIVATION_EMAIL_MAX_BATCH,
-        'requiredEnv': [] if configured else [
-            'SAGE_ROUTER_ACTIVATION_EMAIL_FROM',
-            'SAGE_ROUTER_RESEND_API_KEY or SAGE_ROUTER_ACTIVATION_EMAIL_API_KEY',
-        ],
-        'secretManagerNames': [] if configured else [
-            'SAGE_ROUTER_ACTIVATION_EMAIL_FROM',
-            'SAGE_ROUTER_RESEND_API_KEY',
-            'SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO',
-        ],
+        'requiredEnv': [] if configured else (
+            [
+                'SAGE_ROUTER_SUPABASE_URL',
+                'SAGE_ROUTER_SUPABASE_ANON_KEY',
+                'SAGE_ROUTER_ACTIVATION_EMAIL_PROVIDER=supabase-recovery',
+            ]
+            if provider == 'supabase-recovery' else [
+                'SAGE_ROUTER_ACTIVATION_EMAIL_FROM',
+                'SAGE_ROUTER_RESEND_API_KEY or SAGE_ROUTER_ACTIVATION_EMAIL_API_KEY',
+            ]
+        ),
+        'secretManagerNames': [] if configured else (
+            ['SAGE_ROUTER_SUPABASE_ANON_KEY']
+            if provider == 'supabase-recovery' else [
+                'SAGE_ROUTER_ACTIVATION_EMAIL_FROM',
+                'SAGE_ROUTER_RESEND_API_KEY',
+                'SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO',
+            ]
+        ),
         'setupCommand': setup_command,
         'setupScript': 'scripts/configure_activation_email_sender.sh',
         'operatorAction': (
@@ -9188,6 +9218,8 @@ def public_activation_email_readiness():
         'fromConfigured': bool(readiness.get('fromConfigured')),
         'apiKeyConfigured': bool(readiness.get('apiKeyConfigured')),
         'replyToConfigured': bool(readiness.get('replyToConfigured')),
+        'supabaseConfigured': bool(readiness.get('supabaseConfigured')),
+        'recoveryRedirectConfigured': bool(readiness.get('recoveryRedirectConfigured')),
         'maxBatch': readiness.get('maxBatch'),
         'sendConfirmationRequired': True,
         'sendConfirmation': readiness.get('sendConfirmation') or ACTIVATION_FOLLOWUP_SEND_CONFIRMATION,
@@ -9208,6 +9240,38 @@ def public_activation_email_readiness():
 
 
 def send_activation_email(contact):
+    if ACTIVATION_EMAIL_PROVIDER == 'supabase-recovery':
+        if not activation_email_configured():
+            raise RuntimeError('activation_email_not_configured')
+        email = str(contact.get('email') or '').strip()
+        if not email:
+            raise RuntimeError('activation_email_missing_recipient')
+        query = ''
+        if ACTIVATION_EMAIL_REDIRECT_TO:
+            query = '?redirect_to=' + urllib.parse.quote(ACTIVATION_EMAIL_REDIRECT_TO, safe='')
+        req = urllib.request.Request(
+            SUPABASE_URL.rstrip('/') + '/auth/v1/recover' + query,
+            data=json.dumps({'email': email}).encode('utf-8'),
+            headers={
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'User-Agent': 'sage-router-activation-followup/1.0',
+            },
+            method='POST',
+        )
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            raw = resp.read().decode('utf-8')
+            try:
+                body = json.loads(raw) if raw else {}
+            except Exception:
+                body = {}
+            return {
+                'status': resp.status,
+                'provider': 'supabase-recovery',
+                'id': body.get('id') or body.get('message_id'),
+            }
     if ACTIVATION_EMAIL_PROVIDER != 'resend':
         raise RuntimeError('activation_email_provider_unsupported')
     if not activation_email_configured():
