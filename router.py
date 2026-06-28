@@ -7310,7 +7310,7 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
             segment_actions[-1]['sendCommand'] = segment_commands.get('sendCommand') or activation_followup_send_command(segment=segment, dry_run=False)
     send_telemetry = {
         'dryRunActions': int(activation_follow_ups.get('operatorFollowUpSendDryRuns') or 0),
-        'dryRunRecipients': int(activation_follow_ups.get('operatorFollowUpSendDryRunRecipients') or 0),
+        'dryRunRecordedRecipients': int(activation_follow_ups.get('operatorFollowUpSendDryRunRecipients') or 0),
         'sendActions': int(activation_follow_ups.get('operatorFollowUpSends') or 0),
         'sentRecipients': int(activation_follow_ups.get('operatorFollowUpSentRecipients') or 0),
         'failedActions': int(activation_follow_ups.get('operatorFollowUpSendFailures') or 0),
@@ -7319,7 +7319,33 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
         'sentByKind': activation_follow_ups.get('operatorFollowUpSendsByKind') or {},
         'failedByKind': activation_follow_ups.get('operatorFollowUpSendFailuresByKind') or {},
     }
-    send_telemetry['dryRunVerified'] = send_telemetry['dryRunRecipients'] >= max(1, sendable_queued) if sendable_queued > 0 else False
+    dry_run_by_kind = send_telemetry.get('dryRunByKind') if isinstance(send_telemetry.get('dryRunByKind'), dict) else {}
+    sendable_segments = [row for row in segment_actions if row.get('sendable')]
+    all_dry_run_recorded = int(dry_run_by_kind.get('all_send_dry_run') or 0) > 0
+    covered_segments = []
+    pending_segments = []
+    unique_dry_run_recipients = 0
+    for row in sendable_segments:
+        segment = str(row.get('segment') or 'all').strip().lower() or 'all'
+        covered = all_dry_run_recorded or int(dry_run_by_kind.get(f'{segment}_send_dry_run') or 0) > 0
+        if covered:
+            covered_segments.append(segment)
+            unique_dry_run_recipients += int(row.get('count') or 0)
+        else:
+            pending_segments.append(segment)
+    legacy_count_verified = sendable_queued > 0 and send_telemetry['dryRunRecordedRecipients'] >= sendable_queued
+    if not covered_segments and legacy_count_verified:
+        covered_segments = [str(row.get('segment') or 'all') for row in sendable_segments]
+        pending_segments = []
+        unique_dry_run_recipients = sendable_queued
+    unique_dry_run_recipients = min(unique_dry_run_recipients, sendable_queued) if sendable_queued > 0 else 0
+    send_telemetry['dryRunRecipients'] = unique_dry_run_recipients
+    send_telemetry['dryRunDuplicateRecipients'] = max(0, send_telemetry['dryRunRecordedRecipients'] - unique_dry_run_recipients)
+    send_telemetry['dryRunCoveredSegments'] = covered_segments
+    send_telemetry['dryRunPendingSegments'] = pending_segments
+    send_telemetry['dryRunVerified'] = sendable_queued > 0 and not pending_segments and (
+        bool(covered_segments) or legacy_count_verified
+    )
     send_telemetry['sendApprovalRequired'] = sendable_queued > 0 and send_telemetry['sentRecipients'] < sendable_queued
     send_telemetry['nextSendSegment'] = next((row.get('segment') for row in segment_actions if row.get('sendable')), 'all' if sendable_queued > 0 else '')
 

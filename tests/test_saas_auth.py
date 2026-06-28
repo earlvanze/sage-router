@@ -2169,7 +2169,11 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, packet['totalQueued'])
         self.assertIn('sendTelemetry', packet)
         self.assertEqual(1, packet['sendTelemetry']['dryRunActions'])
-        self.assertEqual(2, packet['sendTelemetry']['dryRunRecipients'])
+        self.assertEqual(1, packet['sendTelemetry']['dryRunRecipients'])
+        self.assertEqual(2, packet['sendTelemetry']['dryRunRecordedRecipients'])
+        self.assertEqual(1, packet['sendTelemetry']['dryRunDuplicateRecipients'])
+        self.assertEqual(['not_required'], packet['sendTelemetry']['dryRunCoveredSegments'])
+        self.assertEqual([], packet['sendTelemetry']['dryRunPendingSegments'])
         self.assertEqual(1, packet['sendTelemetry']['sendActions'])
         self.assertEqual(2, packet['sendTelemetry']['sentRecipients'])
         self.assertEqual(0, packet['sendTelemetry']['failedRecipients'])
@@ -2383,6 +2387,10 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS"', packet['segmentActions'][0]['sendCommand'])
         self.assertIn('"segment":"unverified"', packet['segmentActions'][1]['sendCommand'])
         self.assertEqual(0, packet['sendTelemetry']['dryRunRecipients'])
+        self.assertEqual(0, packet['sendTelemetry']['dryRunRecordedRecipients'])
+        self.assertEqual(0, packet['sendTelemetry']['dryRunDuplicateRecipients'])
+        self.assertEqual([], packet['sendTelemetry']['dryRunCoveredSegments'])
+        self.assertEqual(['verified', 'unverified'], packet['sendTelemetry']['dryRunPendingSegments'])
         self.assertEqual(0, packet['sendTelemetry']['sentRecipients'])
         self.assertFalse(packet['sendTelemetry']['dryRunVerified'])
         self.assertTrue(packet['sendTelemetry']['sendApprovalRequired'])
@@ -2424,6 +2432,23 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('sendCommand', rows['verified'])
         self.assertIn('"segment":"verified"', rows['verified']['sendCommand'])
         self.assertNotIn('sendCommand', rows['missing_auth_user'])
+
+        activation_follow_ups.update({
+            'operatorFollowUpSendDryRuns': 3,
+            'operatorFollowUpSendDryRunRecipients': 4,
+            'operatorFollowUpSendDryRunsByKind': {
+                'all_send_dry_run': 1,
+                'verified_send_dry_run': 1,
+                'unverified_send_dry_run': 1,
+            },
+        })
+        verified_packet = router.launch_operator_execution_packet(action, activation_follow_ups)
+        self.assertEqual(2, verified_packet['sendTelemetry']['dryRunRecipients'])
+        self.assertEqual(4, verified_packet['sendTelemetry']['dryRunRecordedRecipients'])
+        self.assertEqual(2, verified_packet['sendTelemetry']['dryRunDuplicateRecipients'])
+        self.assertEqual(['verified', 'unverified'], verified_packet['sendTelemetry']['dryRunCoveredSegments'])
+        self.assertEqual([], verified_packet['sendTelemetry']['dryRunPendingSegments'])
+        self.assertTrue(verified_packet['sendTelemetry']['dryRunVerified'])
 
     def test_launch_funnel_counts_supabase_auth_signups_without_customer_rows(self):
         now = router.now_epoch()

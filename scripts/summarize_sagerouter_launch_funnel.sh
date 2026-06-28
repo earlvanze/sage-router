@@ -163,6 +163,10 @@ if [[ "$RAW_JSON" == "1" ]]; then
         // []
       ),
       dryRunRecipients: (.operatorExecutionPacket.sendTelemetry.dryRunRecipients // 0),
+      dryRunRecordedRecipients: (.operatorExecutionPacket.sendTelemetry.dryRunRecordedRecipients // .operatorExecutionPacket.sendTelemetry.dryRunRecipients // 0),
+      dryRunDuplicateRecipients: (.operatorExecutionPacket.sendTelemetry.dryRunDuplicateRecipients // 0),
+      dryRunCoveredSegments: (.operatorExecutionPacket.sendTelemetry.dryRunCoveredSegments // []),
+      dryRunPendingSegments: (.operatorExecutionPacket.sendTelemetry.dryRunPendingSegments // []),
       sentRecipients: (.operatorExecutionPacket.sendTelemetry.sentRecipients // 0),
       sendApprovalRequired: (.operatorExecutionPacket.sendTelemetry.sendApprovalRequired // false),
       nextSendSegment: (.operatorExecutionPacket.sendTelemetry.nextSendSegment // "")
@@ -213,7 +217,11 @@ jq -r --arg days "$DAYS" '
       "- Sendable queued: \(n($packet.sendableQueued // $action.evidence.sendableQueued))",
       "- Review-only queued: \(n($packet.reviewOnlyQueued // $action.evidence.reviewOnlyQueued))",
       "- Unknown queued: \(n($action.evidence.unknownQueued))",
-      "- Dry-run recipients: \(n($packet.sendTelemetry.dryRunRecipients))",
+      "- Dry-run unique sendable recipients: \(n($packet.sendTelemetry.dryRunRecipients))",
+      "- Dry-run raw recorded recipients: \(n($packet.sendTelemetry.dryRunRecordedRecipients // $packet.sendTelemetry.dryRunRecipients))",
+      "- Dry-run duplicate recipient records: \(n($packet.sendTelemetry.dryRunDuplicateRecipients))",
+      "- Dry-run covered segments: \(list($packet.sendTelemetry.dryRunCoveredSegments))",
+      "- Dry-run pending segments: \(list($packet.sendTelemetry.dryRunPendingSegments))",
       "- Real sends recorded: \(n($packet.sendTelemetry.sentRecipients))",
       "- Send approval required: \($packet.sendTelemetry.sendApprovalRequired // false)",
       "- Recommended send segments: \(list($action.evidence.sendableSegments))",
