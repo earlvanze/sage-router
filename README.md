@@ -550,6 +550,21 @@ private cost model / positive unit-economics review. The authorization reference
 is never printed in public metadata; `/pricing` exposes only whether it is
 configured.
 
+Before writing the private provider-cost model to Secret Manager, run the
+secret-safe unit-economics preflight with the candidate cost in the environment:
+
+```bash
+SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' \
+scripts/configure_managed_provider_resale_readiness.sh --unit-economics
+```
+
+The preflight reuses the same plan math as `/pricing`, returns nonzero when any
+fixed API plan fails the minimum gross-margin threshold, and prints only
+candidate presence, public plan revenue, derived max-safe provider-cost
+thresholds, and pass/fail status. It does not print the candidate cost, exact
+gross-margin percentages, provider credentials, prompts, raw provider
+responses, or customer data.
+
 If the readiness check reports Cloudflare `403` / `1010` before the Sage Router
 auth gate, use [docs/cloudflare-api-bic-skip.md](docs/cloudflare-api-bic-skip.md)
 to verify or apply the host-scoped Browser Integrity Check skip for

@@ -1225,11 +1225,17 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS', setup['setupCommand'])
         self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC', setup['setupCommand'])
         self.assertEqual('scripts/configure_managed_provider_resale_readiness.sh --check', setup['dryRunCommand'])
+        self.assertEqual(
+            "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' "
+            "scripts/configure_managed_provider_resale_readiness.sh --unit-economics",
+            setup['unitEconomicsCommand'],
+        )
         self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC', setup['enableCommandTemplate'])
         self.assertFalse(setup['defaultPublicEnable'])
         self.assertIn('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS', setup['secretManagerNames'])
         self.assertFalse(setup['privacy']['containsSecrets'])
         self.assertFalse(setup['privacy']['containsActualProviderCosts'])
+        self.assertFalse(setup['privacy']['containsGrossMarginPercent'])
         self.assertFalse(managed['providerAuthorizationEvidenceConfigured'])
         self.assertEqual(
             'SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF',
@@ -1264,6 +1270,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(39.0, plan_margins['lite']['maximumProviderCostCentsPerThousandRequests'])
         self.assertEqual(36.0, plan_margins['max']['revenueCentsPerThousandRequests'])
         self.assertEqual(23.4, plan_margins['max']['maximumProviderCostCentsPerThousandRequests'])
+        for row in plan_margins.values():
+            self.assertNotIn('grossMarginPercent', row)
         self.assertIn('per_plan_monthly_quotas', managed['costControls'])
         self.assertIn('request_per_minute_limits', managed['costControls'])
         self.assertIn('durable_usage_accounting', managed['costControls'])
@@ -1431,6 +1439,8 @@ class SaaSAuthTests(unittest.TestCase):
             self.assertTrue(managed['requiresPositiveUnitEconomics'])
             self.assertTrue(managed['unitEconomics']['costModelConfigured'])
             self.assertTrue(managed['unitEconomics']['satisfied'])
+            for row in managed['unitEconomics']['evaluatedPlans']:
+                self.assertNotIn('grossMarginPercent', row)
             family_rows = {row['family']: row for row in managed['providerFamilyReadiness']}
             self.assertTrue(family_rows['ollama']['ready'])
             self.assertTrue(family_rows['openai']['ready'])

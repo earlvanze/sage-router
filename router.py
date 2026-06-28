@@ -2568,10 +2568,8 @@ def managed_provider_unit_economics(cost_cents_per_thousand, minimum_gross_margi
         }
         if cost_configured and revenue_cents_per_thousand > 0:
             gross_margin = ((revenue_cents_per_thousand - cost_cents_per_thousand) / revenue_cents_per_thousand) * 100.0
-            row['grossMarginPercent'] = round(gross_margin, 2)
             row['meetsMinimumGrossMargin'] = gross_margin >= minimum_gross_margin_percent
         else:
-            row['grossMarginPercent'] = None
             row['meetsMinimumGrossMargin'] = False
         evaluated.append(row)
     return {
@@ -2600,6 +2598,10 @@ def managed_provider_resale_readiness_setup(enabled=False):
     dry_run_command = (
         "scripts/configure_managed_provider_resale_readiness.sh --check"
     )
+    unit_economics_command = (
+        "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' "
+        "scripts/configure_managed_provider_resale_readiness.sh --unit-economics"
+    )
     enable_command_template = (
         "SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' \\\n"
         "SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' \\\n"
@@ -2610,6 +2612,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
         'setupScript': 'scripts/configure_managed_provider_resale_readiness.sh',
         'setupCommand': '' if enabled else setup_command,
         'dryRunCommand': dry_run_command,
+        'unitEconomicsCommand': unit_economics_command,
         'enableCommandTemplate': enable_command_template,
         'requiredEnv': [] if enabled else [
             'SAGEROUTER_PROVIDER_RESALE_TERMS_URL',
@@ -2633,6 +2636,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
             'containsSecrets': False,
             'containsProviderCredentials': False,
             'containsActualProviderCosts': False,
+            'containsGrossMarginPercent': False,
             'containsPrompts': False,
             'containsRawProviderResponses': False,
         },

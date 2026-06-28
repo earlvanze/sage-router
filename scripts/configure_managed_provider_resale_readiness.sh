@@ -19,7 +19,7 @@ BYOK_ONLY_PROVIDER_FAMILIES="openrouter"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--stage-public-controls]
+Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--stage-public-controls|--unit-economics]
 
 Stage Sage Router managed provider-access readiness on Cloud Run.
 
@@ -46,6 +46,9 @@ Options:
   --stage-public-controls  Bind non-secret terms, margin-policy, allowlist, and
                            disabled public-enable env without requiring or
                            writing the private cost model.
+  --unit-economics         Validate the private provider-cost candidate against
+                           public plan revenue and minimum-margin thresholds
+                           without printing the private cost value.
 
 The provider cost model is stored in Secret Manager and is not printed.
 Managed public resale remains disabled unless
@@ -66,6 +69,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --stage-public-controls)
       MODE="stage-public-controls"
+      shift
+      ;;
+    --unit-economics)
+      MODE="unit-economics"
       shift
       ;;
     -h|--help)
@@ -286,6 +293,12 @@ put_secret() {
 
 if [[ "$MODE" == "check" ]]; then
   check_managed_provider_resale
+  exit $?
+fi
+
+if [[ "$MODE" == "unit-economics" ]]; then
+  require_cmd python3
+  "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/managed_provider_unit_economics.py"
   exit $?
 fi
 
