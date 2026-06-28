@@ -511,6 +511,11 @@ provider resale claim, or runtime feature flag.
   telemetry event names, and privacy flags without returning emails, customer
   IDs, generated keys, prompts, OAuth tokens, provider credentials, or raw
   support content.
+- In the private operator dashboard, render the next send segment and a
+  copyable activation send command only as an explicit-approval handoff. The
+  copied command must still require the private operator token and
+  `SEND_ACTIVATION_FOLLOWUPS` confirmation token, and copying it records only
+  aggregate `operator_execution_packet_copied` telemetry.
 - Keep the operator-only launch funnel no-key queue executable: it should read
   bounded `/admin/customers` rows, render generated-key-first mailto/link
   actions, and provide per-customer plus batch snippet copy for outreach without
