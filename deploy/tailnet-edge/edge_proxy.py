@@ -69,7 +69,7 @@ ACCOUNT_URL = os.environ.get("SAGE_ROUTER_ACCOUNT_URL", "https://app.sagerouter.
 LOGIN_URL = os.environ.get("SAGE_ROUTER_LOGIN_URL", "https://app.sagerouter.dev/login.html")
 KEY_RECOVERY_URL = os.environ.get(
     "SAGE_ROUTER_KEY_RECOVERY_URL",
-    "https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email",
+    "https://sagerouter.dev/setup-key-recovery?utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery",
 )
 PRICING_URL = os.environ.get("SAGE_ROUTER_PRICING_URL", "https://sagerouter.dev/pricing")
 BILLING_URL = os.environ.get("SAGE_ROUTER_BILLING_URL", "https://sagerouter.dev/billing")
