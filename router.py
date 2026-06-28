@@ -13155,7 +13155,7 @@ def ensure_reliable_public_chat_fallback(chain, requirements, estimated_tokens, 
         provider = PROVIDERS.get(provider_name)
         if not provider or provider_name in DISABLED_PROVIDERS:
             continue
-        if model not in (provider.models or []):
+        if model not in (provider.models or []) and provider_name != 'openrouter':
             continue
         if not is_chat_capable_model(provider, model):
             continue

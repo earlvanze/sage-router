@@ -347,6 +347,24 @@ class ProviderSwitchingTests(unittest.TestCase):
             rejections,
         )
 
+    def test_balanced_route_reserves_openrouter_passthrough_fallback_when_catalog_is_sparse(self):
+        router.PROVIDERS = {
+            'ollama': router.Provider('ollama', 'ollama', 'https://ollama.invalid', 'key', ['kimi-k2.5:cloud']),
+            'openai': router.Provider('openai', 'openai-completions', 'https://openai.invalid/v1', 'key', ['gpt-5.4']),
+            'openrouter': router.Provider('openrouter', 'openai-completions', 'https://openrouter.invalid/api/v1', 'key', ['anthropic/claude-sonnet-4.5']),
+        }
+
+        chain, _scores, _rejections = router.select_model(
+            router.Intent.GENERAL,
+            router.Complexity.SIMPLE,
+            router.ThinkingLevel.MEDIUM,
+            'balanced',
+            {},
+            100,
+        )
+
+        self.assertIn(('openrouter', 'gemini-2.5-flash'), chain)
+
     def test_temp_model_blocks_are_honored_without_static_disabled_models(self):
         old_disabled_models = set(router.DISABLED_MODELS)
         try:
