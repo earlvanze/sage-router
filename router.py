@@ -2890,6 +2890,70 @@ def public_launch_metadata():
     }
 
 
+def compact_managed_provider_readiness(pricing_metadata):
+    public_launch = (pricing_metadata or {}).get('publicLaunch') if isinstance(pricing_metadata, dict) else {}
+    managed = public_launch.get('managedProviderAccess') if isinstance(public_launch, dict) else {}
+    if not isinstance(managed, dict):
+        managed = {}
+    setup = managed.get('readinessSetup') if isinstance(managed.get('readinessSetup'), dict) else {}
+    unit = managed.get('unitEconomics') if isinstance(managed.get('unitEconomics'), dict) else {}
+    one_subscription = managed.get('oneSubscriptionReadiness') if isinstance(managed.get('oneSubscriptionReadiness'), dict) else {}
+    return {
+        'enabled': bool(managed.get('enabled')),
+        'requested': bool(managed.get('requested')),
+        'readinessSatisfied': bool(managed.get('readinessSatisfied')),
+        'status': managed.get('status') or 'unknown',
+        'missingControls': managed.get('missingControls') if isinstance(managed.get('missingControls'), list) else [],
+        'providerTermsAcknowledged': bool(managed.get('providerTermsAcknowledged')),
+        'providerAuthorizationEvidenceConfigured': bool(managed.get('providerAuthorizationEvidenceConfigured')),
+        'configuredProviderFamilies': managed.get('configuredProviderFamilies') if isinstance(managed.get('configuredProviderFamilies'), list) else [],
+        'allowedProviderFamilies': managed.get('allowedProviderFamilies') if isinstance(managed.get('allowedProviderFamilies'), list) else [],
+        'resaleEligibleProviderFamilies': managed.get('resaleEligibleProviderFamilies') if isinstance(managed.get('resaleEligibleProviderFamilies'), list) else [],
+        'byokOnlyProviderFamilies': managed.get('byokOnlyProviderFamilies') if isinstance(managed.get('byokOnlyProviderFamilies'), list) else [],
+        'providerTermsUrl': managed.get('providerTermsUrl') or '',
+        'marginPolicyUrl': managed.get('marginPolicyUrl') or '',
+        'acceptableUseUrl': managed.get('acceptableUseUrl') or '',
+        'providerBoundary': managed.get('providerBoundary') or '',
+        'oneSubscriptionReadiness': {
+            'enabled': bool(one_subscription.get('enabled')),
+            'requested': bool(one_subscription.get('requested')),
+            'readyProviderFamilies': one_subscription.get('readyProviderFamilies') if isinstance(one_subscription.get('readyProviderFamilies'), list) else [],
+            'blockedProviderFamilies': one_subscription.get('blockedProviderFamilies') if isinstance(one_subscription.get('blockedProviderFamilies'), list) else [],
+            'managedAccessUrl': one_subscription.get('managedAccessUrl') or f"{MARKETING_BASE_URL}/managed-access",
+            'safeForPublicDisplay': bool(one_subscription.get('safeForPublicDisplay', True)),
+        },
+        'unitEconomics': {
+            'costModelConfigured': bool(unit.get('costModelConfigured')),
+            'satisfied': bool(unit.get('satisfied')),
+            'minimumGrossMarginPercent': unit.get('minimumGrossMarginPercent'),
+            'evaluatedPlans': unit.get('evaluatedPlans') if isinstance(unit.get('evaluatedPlans'), list) else [],
+        },
+        'readinessSetup': {
+            'setupScript': setup.get('setupScript') or 'scripts/configure_managed_provider_resale_readiness.sh',
+            'setupCommand': '',
+            'dryRunCommand': setup.get('dryRunCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --check',
+            'unitEconomicsCommand': '',
+            'enableCommandTemplate': '',
+            'requiredEnv': setup.get('requiredEnv') if isinstance(setup.get('requiredEnv'), list) else [],
+            'secretManagerNames': setup.get('secretManagerNames') if isinstance(setup.get('secretManagerNames'), list) else [],
+            'requiresExplicitPublicEnableEnv': setup.get('requiresExplicitPublicEnableEnv') or 'SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC',
+            'operatorAction': setup.get('operatorAction') or 'Keep managed provider access disabled until provider authorization, allowlist, and unit economics pass.',
+            'privacy': setup.get('privacy') if isinstance(setup.get('privacy'), dict) else {
+                'containsSecrets': False,
+                'containsProviderCredentials': False,
+                'containsActualProviderCosts': False,
+            },
+        },
+        'privacy': {
+            'containsSecrets': False,
+            'containsProviderCredentials': False,
+            'containsActualProviderCosts': False,
+            'containsPrompts': False,
+            'containsRawProviderResponses': False,
+        },
+    }
+
+
 def is_truthy(value):
     if isinstance(value, bool):
         return value
@@ -8660,6 +8724,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'plans': public_plan_catalog(),
         'agentNativeFeatures': PUBLIC_AGENT_NATIVE_FEATURES,
     }
+    managed_provider_readiness = compact_managed_provider_readiness(pricing_metadata)
 
     return {
         'version': 1,
@@ -8687,6 +8752,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'nextBestAction': next_best_action,
         'operatorExecutionPacket': operator_execution_packet,
         'pricing': pricing_metadata,
+        'managedProviderReadiness': managed_provider_readiness,
         'stages': stages,
         'signupHydration': signup_hydration,
         'waitlistInterest': waitlist_interest,

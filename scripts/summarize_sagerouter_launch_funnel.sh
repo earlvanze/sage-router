@@ -128,6 +128,48 @@ if [[ "$RAW_JSON" == "1" ]]; then
           )
         else . end
     ),
+    managedAccessDemand: (.managedAccessDemand // {}),
+    managedProviderReadiness: (
+      .managedProviderReadiness
+      // {
+        enabled: (.pricing.publicLaunch.managedProviderAccess.enabled // false),
+        requested: (.pricing.publicLaunch.managedProviderAccess.requested // false),
+        readinessSatisfied: (.pricing.publicLaunch.managedProviderAccess.readinessSatisfied // false),
+        status: (.pricing.publicLaunch.managedProviderAccess.status // "unknown"),
+        missingControls: (.pricing.publicLaunch.managedProviderAccess.missingControls // []),
+        allowedProviderFamilies: (.pricing.publicLaunch.managedProviderAccess.allowedProviderFamilies // []),
+        resaleEligibleProviderFamilies: (.pricing.publicLaunch.managedProviderAccess.resaleEligibleProviderFamilies // []),
+        byokOnlyProviderFamilies: (.pricing.publicLaunch.managedProviderAccess.byokOnlyProviderFamilies // []),
+        providerAuthorizationEvidenceConfigured: (.pricing.publicLaunch.managedProviderAccess.providerAuthorizationEvidenceConfigured // false),
+        providerTermsAcknowledged: (.pricing.publicLaunch.managedProviderAccess.providerTermsAcknowledged // false),
+        unitEconomics: {
+          costModelConfigured: (.pricing.publicLaunch.managedProviderAccess.unitEconomics.costModelConfigured // false),
+          satisfied: (.pricing.publicLaunch.managedProviderAccess.unitEconomics.satisfied // false)
+        },
+        oneSubscriptionReadiness: (.pricing.publicLaunch.managedProviderAccess.oneSubscriptionReadiness // {}),
+        readinessSetup: {
+          setupScript: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.setupScript // "scripts/configure_managed_provider_resale_readiness.sh"),
+          setupCommand: "",
+          dryRunCommand: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.dryRunCommand // "scripts/configure_managed_provider_resale_readiness.sh --check"),
+          unitEconomicsCommand: "",
+          enableCommandTemplate: "",
+          requiredEnv: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.requiredEnv // []),
+          secretManagerNames: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.secretManagerNames // []),
+          requiresExplicitPublicEnableEnv: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.requiresExplicitPublicEnableEnv // "SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC"),
+          operatorAction: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.operatorAction // "Keep managed provider access disabled until provider authorization, allowlist, and unit economics pass."),
+          privacy: {
+            containsSecrets: false,
+            containsProviderCredentials: false,
+            containsActualProviderCosts: false
+          }
+        },
+        privacy: {
+          containsSecrets: false,
+          containsProviderCredentials: false,
+          containsActualProviderCosts: false
+        }
+      }
+    ),
     activationQueue: {
       total: (
         .operatorExecutionPacket.totalQueued
@@ -182,12 +224,15 @@ jq -r --arg days "$DAYS" '
   def pct($v): if $v == null then "n/a" else (($v * 10000 | round) / 100 | tostring) + "%" end;
   def money($v): "$" + ((n($v) | tostring));
   def list($v): (($v // []) | join(", "));
+  def buckets($v): (($v // {}) | to_entries | map(select(.value != 0) | "\(.key)=\(.value)") | join(", "));
 
   . as $root
   | ($root.stages // {}) as $stages
   | ($root.rates // {}) as $rates
   | ($root.mrr // {}) as $mrr
   | ($root.nextBestAction // {}) as $action
+  | ($root.managedProviderReadiness // $root.pricing.publicLaunch.managedProviderAccess // {}) as $managed
+  | ($root.managedAccessDemand // {}) as $managedDemand
   | ($root.activationFollowUps // {}) as $followups
   | ($root.operatorExecutionPacket // {}) as $packet
   | [
@@ -240,6 +285,19 @@ jq -r --arg days "$DAYS" '
         | map("- \(.plan): \(n(.customerGap)) customers, \(money(.remainingMrrToTargetUsd)) remaining MRR - \(.action)")
         | .[]
       ),
+      "",
+      "## Managed Access Readiness",
+      "",
+      "- Enabled/requested/ready: \($managed.enabled // false) / \($managed.requested // false) / \($managed.readinessSatisfied // false)",
+      "- Status: \($managed.status // "unknown")",
+      "- Missing controls: \(list($managed.missingControls))",
+      "- Allowed provider families: \(list($managed.allowedProviderFamilies))",
+      "- One-subscription ready families: \(list($managed.oneSubscriptionReadiness.readyProviderFamilies))",
+      "- One-subscription blocked families: \(list($managed.oneSubscriptionReadiness.blockedProviderFamilies))",
+      "- Terms acknowledged: \($managed.providerTermsAcknowledged // false)",
+      "- Authorization evidence configured: \($managed.providerAuthorizationEvidenceConfigured // false)",
+      "- Cost model configured: \($managed.unitEconomics.costModelConfigured // false); unit economics satisfied: \($managed.unitEconomics.satisfied // false)",
+      "- Managed-access beta interest: \(n($stages.managedAccessBetaInterest)); target-provider buckets: \(buckets($managedDemand.targetProviderFamily))",
       "",
       "## Privacy",
       "",

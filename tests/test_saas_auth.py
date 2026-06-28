@@ -2134,6 +2134,28 @@ class SaaSAuthTests(unittest.TestCase):
             pricing_managed['readinessSetup']['enableCommandTemplate'],
         )
         self.assertFalse(pricing_managed['readinessSetup']['privacy']['containsSecrets'])
+        managed_readiness = snapshot['managedProviderReadiness']
+        self.assertFalse(managed_readiness['enabled'])
+        self.assertFalse(managed_readiness['readinessSatisfied'])
+        self.assertEqual(pricing_managed['status'], managed_readiness['status'])
+        self.assertEqual(pricing_managed['missingControls'], managed_readiness['missingControls'])
+        self.assertEqual(
+            pricing_managed['allowedProviderFamilies'],
+            managed_readiness['allowedProviderFamilies'],
+        )
+        self.assertEqual(
+            pricing_managed['oneSubscriptionReadiness']['blockedProviderFamilies'],
+            managed_readiness['oneSubscriptionReadiness']['blockedProviderFamilies'],
+        )
+        self.assertFalse(managed_readiness['providerAuthorizationEvidenceConfigured'])
+        self.assertFalse(managed_readiness['unitEconomics']['costModelConfigured'])
+        self.assertEqual(
+            'scripts/configure_managed_provider_resale_readiness.sh',
+            managed_readiness['readinessSetup']['setupScript'],
+        )
+        self.assertFalse(managed_readiness['readinessSetup']['privacy']['containsSecrets'])
+        self.assertFalse(managed_readiness['privacy']['containsActualProviderCosts'])
+        self.assertNotIn('REVIEWED_PRIVATE_COST', json.dumps(managed_readiness))
         self.assertEqual('signupToGeneratedKey', snapshot['nextBestAction']['metric'])
         self.assertEqual('fix_now', snapshot['nextBestAction']['priority'])
         self.assertIn('start=create_key', snapshot['nextBestAction']['ctaPath'])
