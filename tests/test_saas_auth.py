@@ -1880,6 +1880,19 @@ class SaaSAuthTests(unittest.TestCase):
             'operatorFollowUpWorkedByKind': {
                 'verified_marked_worked': 1,
             },
+            'operatorFollowUpSendDryRuns': 1,
+            'operatorFollowUpSendDryRunsByKind': {
+                'verified_send_dry_run': 1,
+            },
+            'operatorFollowUpSendDryRunRecipients': 2,
+            'operatorFollowUpSends': 1,
+            'operatorFollowUpSendsByKind': {
+                'verified_sent': 1,
+            },
+            'operatorFollowUpSentRecipients': 2,
+            'operatorFollowUpSendFailures': 0,
+            'operatorFollowUpSendFailuresByKind': {},
+            'operatorFollowUpSendFailureRecipients': 0,
         }, None)
         customer = self.active_customer()
         raw, _row = router.create_api_key_for_customer(customer, 'prod')
@@ -2030,6 +2043,12 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual([], snapshot['activationFollowUps']['reviewOnlySegments'])
         self.assertEqual(2, snapshot['activationFollowUps']['operatorFollowUpCopies'])
         self.assertEqual(1, snapshot['activationFollowUps']['operatorFollowUpWorked'])
+        self.assertEqual(1, snapshot['activationFollowUps']['operatorFollowUpSendDryRuns'])
+        self.assertEqual(2, snapshot['activationFollowUps']['operatorFollowUpSendDryRunRecipients'])
+        self.assertEqual(1, snapshot['activationFollowUps']['operatorFollowUpSends'])
+        self.assertEqual(2, snapshot['activationFollowUps']['operatorFollowUpSentRecipients'])
+        self.assertEqual(0, snapshot['activationFollowUps']['operatorFollowUpSendFailures'])
+        self.assertEqual(0, snapshot['activationFollowUps']['operatorFollowUpSendFailureRecipients'])
         self.assertEqual(1, snapshot['activationFollowUps']['keyRecoveryViews'])
         self.assertEqual(1, snapshot['activationFollowUps']['keyRecoveryViewsByState']['github'])
         self.assertEqual(1, snapshot['activationFollowUps']['keyCreateAttempts'])
@@ -2038,6 +2057,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, snapshot['activationFollowUps']['operatorFollowUpCopiesByKind']['single_copied'])
         self.assertEqual(1, snapshot['activationFollowUps']['operatorFollowUpCopiesByKind']['batch_copied'])
         self.assertEqual(1, snapshot['activationFollowUps']['operatorFollowUpWorkedByKind']['verified_marked_worked'])
+        self.assertEqual(1, snapshot['activationFollowUps']['operatorFollowUpSendDryRunsByKind']['verified_send_dry_run'])
+        self.assertEqual(1, snapshot['activationFollowUps']['operatorFollowUpSendsByKind']['verified_sent'])
         self.assertFalse(snapshot['activationFollowUps']['emailReadiness']['configured'])
         self.assertEqual('resend', snapshot['activationFollowUps']['emailReadiness']['provider'])
         self.assertTrue(snapshot['activationFollowUps']['emailReadiness']['dryRunSupported'])
@@ -2078,6 +2099,12 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual([], snapshot['nextBestAction']['evidence']['reviewOnlySegments'])
         self.assertEqual(2, snapshot['nextBestAction']['evidence']['operatorFollowUpCopies'])
         self.assertEqual(1, snapshot['nextBestAction']['evidence']['operatorFollowUpWorked'])
+        self.assertEqual(1, snapshot['nextBestAction']['evidence']['operatorFollowUpSendDryRuns'])
+        self.assertEqual(2, snapshot['nextBestAction']['evidence']['operatorFollowUpSendDryRunRecipients'])
+        self.assertEqual(1, snapshot['nextBestAction']['evidence']['operatorFollowUpSends'])
+        self.assertEqual(2, snapshot['nextBestAction']['evidence']['operatorFollowUpSentRecipients'])
+        self.assertEqual(0, snapshot['nextBestAction']['evidence']['operatorFollowUpSendFailures'])
+        self.assertEqual(0, snapshot['nextBestAction']['evidence']['operatorFollowUpSendFailureRecipients'])
         self.assertEqual(1, snapshot['nextBestAction']['evidence']['keyRecoveryViews'])
         self.assertEqual(1, snapshot['nextBestAction']['evidence']['keyCreateAttempts'])
         self.assertEqual(1, snapshot['nextBestAction']['evidence']['keyCreateSuccesses'])
@@ -2198,6 +2225,12 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual([], action['evidence']['reviewOnlySegments'])
         self.assertEqual(0, action['evidence']['operatorFollowUpCopies'])
         self.assertEqual(0, action['evidence']['operatorFollowUpWorked'])
+        self.assertEqual(0, action['evidence']['operatorFollowUpSendDryRuns'])
+        self.assertEqual(0, action['evidence']['operatorFollowUpSendDryRunRecipients'])
+        self.assertEqual(0, action['evidence']['operatorFollowUpSends'])
+        self.assertEqual(0, action['evidence']['operatorFollowUpSentRecipients'])
+        self.assertEqual(0, action['evidence']['operatorFollowUpSendFailures'])
+        self.assertEqual(0, action['evidence']['operatorFollowUpSendFailureRecipients'])
         self.assertEqual(1, action['evidence']['keyFirstRedirects'])
         self.assertEqual(1, action['evidence']['keyFirstRedirectsByState']['checkout_key_first'])
         self.assertEqual(['verified', 'unverified'], action['evidence']['recommendedSegments'])
@@ -2715,6 +2748,39 @@ class SaaSAuthTests(unittest.TestCase):
                     },
                 },
                 {
+                    'event': 'operator_no_key_followup_send_dry_run',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'launch-plan',
+                        'state': 'verified_send_dry_run',
+                        'snippet': 'no-key-followup',
+                        'resultCount': 2,
+                    },
+                },
+                {
+                    'event': 'operator_no_key_followup_sent',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'launch-plan',
+                        'state': 'verified_sent',
+                        'snippet': 'no-key-followup',
+                        'resultCount': 2,
+                    },
+                },
+                {
+                    'event': 'operator_no_key_followup_send_failed',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'launch-plan',
+                        'state': 'unverified_send_failed',
+                        'snippet': 'no-key-followup',
+                        'resultCount': 1,
+                    },
+                },
+                {
                     'event': 'operator_no_key_followup_batch_copied',
                     'plan': 'pro',
                     'created_at': '2026-06-19T00:00:00Z',
@@ -2947,7 +3013,7 @@ class SaaSAuthTests(unittest.TestCase):
         metrics, error = router.read_launch_marketing_funnel_counts(0)
 
         self.assertIsNone(error)
-        self.assertEqual(51, metrics['total'])
+        self.assertEqual(54, metrics['total'])
         self.assertEqual(1, metrics['events']['landing_account_clicked'])
         self.assertEqual(1, metrics['events']['landing_key_first_direct_clicked'])
         self.assertEqual(1, metrics['events']['landing_key_recovery_clicked'])
@@ -2981,11 +3047,20 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(3, metrics['events']['operator_no_key_followup_batch_copied'])
         self.assertEqual(1, metrics['events']['operator_no_key_followup_mailto_opened'])
         self.assertEqual(1, metrics['events']['operator_no_key_followup_csv_copied'])
+        self.assertEqual(1, metrics['events']['operator_no_key_followup_send_dry_run'])
+        self.assertEqual(1, metrics['events']['operator_no_key_followup_sent'])
+        self.assertEqual(1, metrics['events']['operator_no_key_followup_send_failed'])
         self.assertEqual(2, metrics['setupSnippetCopies'])
         self.assertEqual(1, metrics['setupSnippetCopiesBySnippet']['codex-cli'])
         self.assertEqual(1, metrics['setupSnippetCopiesBySnippet']['quickstart-curl'])
         self.assertEqual(6, metrics['operatorFollowUpCopies'])
         self.assertEqual(1, metrics['operatorFollowUpWorked'])
+        self.assertEqual(1, metrics['operatorFollowUpSendDryRuns'])
+        self.assertEqual(2, metrics['operatorFollowUpSendDryRunRecipients'])
+        self.assertEqual(1, metrics['operatorFollowUpSends'])
+        self.assertEqual(2, metrics['operatorFollowUpSentRecipients'])
+        self.assertEqual(1, metrics['operatorFollowUpSendFailures'])
+        self.assertEqual(1, metrics['operatorFollowUpSendFailureRecipients'])
         self.assertEqual(10, metrics['keyFirstRedirects'])
         self.assertEqual(1, metrics['keyFirstRedirectsByState']['checkout_key_first'])
         self.assertEqual(1, metrics['keyFirstRedirectsByState']['codex-docs-main'])
@@ -3022,6 +3097,9 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['operatorFollowUpCopiesByKind']['verified_mailto_opened'])
         self.assertEqual(1, metrics['operatorFollowUpCopiesByKind']['verified_marked_worked'])
         self.assertEqual(1, metrics['operatorFollowUpWorkedByKind']['verified_marked_worked'])
+        self.assertEqual(1, metrics['operatorFollowUpSendDryRunsByKind']['verified_send_dry_run'])
+        self.assertEqual(1, metrics['operatorFollowUpSendsByKind']['verified_sent'])
+        self.assertEqual(1, metrics['operatorFollowUpSendFailuresByKind']['unverified_send_failed'])
         self.assertEqual(1, metrics['events']['account_login_submitted'])
         self.assertEqual(2, metrics['events']['auth_provider_state_checked'])
         self.assertEqual(2, metrics['events']['calculator_checkout_clicked'])
@@ -3033,11 +3111,11 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['events']['pricing_viewed'])
         self.assertEqual(1, metrics['events']['billing_payment_recovery_clicked'])
         self.assertEqual(1, metrics['events']['unknown'])
-        self.assertEqual(36, metrics['plans']['pro'])
+        self.assertEqual(39, metrics['plans']['pro'])
         self.assertEqual(1, metrics['plans']['lite'])
         self.assertEqual(1, metrics['plans']['manual'])
         self.assertEqual(4, metrics['sourceSurfaces']['landing'])
-        self.assertEqual(9, metrics['sourceSurfaces']['launch-plan'])
+        self.assertEqual(12, metrics['sourceSurfaces']['launch-plan'])
         self.assertEqual(2, metrics['sourceSurfaces']['model-routing-calculator'])
         self.assertEqual(5, metrics['sourceSurfaces']['model-catalog'])
         self.assertEqual(3, metrics['sourceSurfaces']['compare-gateways'])
@@ -3056,7 +3134,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, metrics['attributionChannels']['newsletter'])
         self.assertEqual(2, metrics['attributionChannels']['google'])
         self.assertEqual(1, metrics['attributionChannels']['discord'])
-        self.assertEqual(40, metrics['attributionChannels']['direct'])
+        self.assertEqual(43, metrics['attributionChannels']['direct'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['all'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['ollama'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['openai-codex'])

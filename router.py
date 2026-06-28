@@ -6814,6 +6814,15 @@ OPERATOR_FOLLOWUP_COPY_EVENTS = {
     'operator_no_key_followup_csv_copied',
     'operator_no_key_followup_mailto_opened',
 }
+OPERATOR_FOLLOWUP_SEND_DRY_RUN_EVENTS = {
+    'operator_no_key_followup_send_dry_run',
+}
+OPERATOR_FOLLOWUP_SEND_EVENTS = {
+    'operator_no_key_followup_sent',
+}
+OPERATOR_FOLLOWUP_SEND_FAILURE_EVENTS = {
+    'operator_no_key_followup_send_failed',
+}
 KEY_FIRST_REDIRECT_EVENTS = {
     'account_checkout_key_first_redirected',
     'account_intent_create_key_clicked',
@@ -7044,6 +7053,14 @@ def launch_activation_delivery_counts(activation_follow_ups=None, counts=None, t
     }
 
 
+def marketing_event_result_count(metadata):
+    try:
+        value = int(float((metadata or {}).get('resultCount') or 1))
+    except (TypeError, ValueError):
+        value = 1
+    return max(1, min(value, 10000))
+
+
 def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversion_actions=None):
     """Return one privacy-safe operator action tied to the current launch bottleneck."""
     stages = stages or {}
@@ -7054,6 +7071,12 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
     no_key_new = int(activation_follow_ups.get('windowedNewSignups') or 0)
     operator_follow_up_copies = int(activation_follow_ups.get('operatorFollowUpCopies') or 0)
     operator_follow_up_worked = int(activation_follow_ups.get('operatorFollowUpWorked') or 0)
+    operator_follow_up_send_dry_runs = int(activation_follow_ups.get('operatorFollowUpSendDryRuns') or 0)
+    operator_follow_up_sends = int(activation_follow_ups.get('operatorFollowUpSends') or 0)
+    operator_follow_up_send_failures = int(activation_follow_ups.get('operatorFollowUpSendFailures') or 0)
+    operator_follow_up_send_dry_run_recipients = int(activation_follow_ups.get('operatorFollowUpSendDryRunRecipients') or 0)
+    operator_follow_up_sent_recipients = int(activation_follow_ups.get('operatorFollowUpSentRecipients') or 0)
+    operator_follow_up_send_failure_recipients = int(activation_follow_ups.get('operatorFollowUpSendFailureRecipients') or 0)
     key_first_redirects = int(activation_follow_ups.get('keyFirstRedirects') or 0)
     key_recovery_views = int(activation_follow_ups.get('keyRecoveryViews') or 0)
     signups = int(stages.get('signups') or 0)
@@ -7102,6 +7125,15 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 'operatorFollowUpCopies': operator_follow_up_copies,
                 'operatorFollowUpWorked': operator_follow_up_worked,
                 'operatorFollowUpWorkedByKind': activation_follow_ups.get('operatorFollowUpWorkedByKind') or {},
+                'operatorFollowUpSendDryRuns': operator_follow_up_send_dry_runs,
+                'operatorFollowUpSendDryRunsByKind': activation_follow_ups.get('operatorFollowUpSendDryRunsByKind') or {},
+                'operatorFollowUpSendDryRunRecipients': operator_follow_up_send_dry_run_recipients,
+                'operatorFollowUpSends': operator_follow_up_sends,
+                'operatorFollowUpSendsByKind': activation_follow_ups.get('operatorFollowUpSendsByKind') or {},
+                'operatorFollowUpSentRecipients': operator_follow_up_sent_recipients,
+                'operatorFollowUpSendFailures': operator_follow_up_send_failures,
+                'operatorFollowUpSendFailuresByKind': activation_follow_ups.get('operatorFollowUpSendFailuresByKind') or {},
+                'operatorFollowUpSendFailureRecipients': operator_follow_up_send_failure_recipients,
                 'keyFirstRedirects': key_first_redirects,
                 'keyFirstRedirectsByState': activation_follow_ups.get('keyFirstRedirectsByState') or {},
                 'keyRecoveryViews': key_recovery_views,
@@ -8184,6 +8216,15 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'operatorFollowUpCopiesByKind': {},
         'operatorFollowUpWorked': 0,
         'operatorFollowUpWorkedByKind': {},
+        'operatorFollowUpSendDryRuns': 0,
+        'operatorFollowUpSendDryRunsByKind': {},
+        'operatorFollowUpSendDryRunRecipients': 0,
+        'operatorFollowUpSends': 0,
+        'operatorFollowUpSendsByKind': {},
+        'operatorFollowUpSentRecipients': 0,
+        'operatorFollowUpSendFailures': 0,
+        'operatorFollowUpSendFailuresByKind': {},
+        'operatorFollowUpSendFailureRecipients': 0,
         'keyFirstRedirects': 0,
         'keyFirstRedirectsByState': {},
         'keyRecoveryViews': 0,
@@ -8268,6 +8309,21 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             if kind == 'marked_worked' or kind.endswith('_marked_worked'):
                 metrics['operatorFollowUpWorked'] += 1
                 metrics['operatorFollowUpWorkedByKind'][kind] = metrics['operatorFollowUpWorkedByKind'].get(kind, 0) + 1
+        if event in OPERATOR_FOLLOWUP_SEND_DRY_RUN_EVENTS:
+            metrics['operatorFollowUpSendDryRuns'] += 1
+            metrics['operatorFollowUpSendDryRunRecipients'] += marketing_event_result_count(metadata)
+            kind = str(metadata.get('state') or event).strip().lower()[:80] or event
+            metrics['operatorFollowUpSendDryRunsByKind'][kind] = metrics['operatorFollowUpSendDryRunsByKind'].get(kind, 0) + 1
+        if event in OPERATOR_FOLLOWUP_SEND_EVENTS:
+            metrics['operatorFollowUpSends'] += 1
+            metrics['operatorFollowUpSentRecipients'] += marketing_event_result_count(metadata)
+            kind = str(metadata.get('state') or event).strip().lower()[:80] or event
+            metrics['operatorFollowUpSendsByKind'][kind] = metrics['operatorFollowUpSendsByKind'].get(kind, 0) + 1
+        if event in OPERATOR_FOLLOWUP_SEND_FAILURE_EVENTS:
+            metrics['operatorFollowUpSendFailures'] += 1
+            metrics['operatorFollowUpSendFailureRecipients'] += marketing_event_result_count(metadata)
+            kind = str(metadata.get('state') or event).strip().lower()[:80] or event
+            metrics['operatorFollowUpSendFailuresByKind'][kind] = metrics['operatorFollowUpSendFailuresByKind'].get(kind, 0) + 1
         if event in KEY_FIRST_REDIRECT_EVENTS:
             metrics['keyFirstRedirects'] += 1
             state = str(metadata.get('state') or event).strip().lower()[:80] or event
@@ -8456,6 +8512,15 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'operatorFollowUpCopiesByKind': marketing_metrics.get('operatorFollowUpCopiesByKind') or {},
             'operatorFollowUpWorked': int(marketing_metrics.get('operatorFollowUpWorked') or 0),
             'operatorFollowUpWorkedByKind': marketing_metrics.get('operatorFollowUpWorkedByKind') or {},
+            'operatorFollowUpSendDryRuns': int(marketing_metrics.get('operatorFollowUpSendDryRuns') or 0),
+            'operatorFollowUpSendDryRunsByKind': marketing_metrics.get('operatorFollowUpSendDryRunsByKind') or {},
+            'operatorFollowUpSendDryRunRecipients': int(marketing_metrics.get('operatorFollowUpSendDryRunRecipients') or 0),
+            'operatorFollowUpSends': int(marketing_metrics.get('operatorFollowUpSends') or 0),
+            'operatorFollowUpSendsByKind': marketing_metrics.get('operatorFollowUpSendsByKind') or {},
+            'operatorFollowUpSentRecipients': int(marketing_metrics.get('operatorFollowUpSentRecipients') or 0),
+            'operatorFollowUpSendFailures': int(marketing_metrics.get('operatorFollowUpSendFailures') or 0),
+            'operatorFollowUpSendFailuresByKind': marketing_metrics.get('operatorFollowUpSendFailuresByKind') or {},
+            'operatorFollowUpSendFailureRecipients': int(marketing_metrics.get('operatorFollowUpSendFailureRecipients') or 0),
             'keyFirstRedirects': int(marketing_metrics.get('keyFirstRedirects') or 0),
             'keyFirstRedirectsByState': marketing_metrics.get('keyFirstRedirectsByState') or {},
             'keyRecoveryViews': int(marketing_metrics.get('keyRecoveryViews') or 0),

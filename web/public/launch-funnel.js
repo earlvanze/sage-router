@@ -2019,6 +2019,11 @@ async function sendActivationFollowUps(button) {
       ? `Activation follow-up dry run queued ${integer(data.queued)} ${segment} recipient(s).`
       : `Sent ${integer(data.sent)} activation follow-up email(s); ${integer(data.failed)} failed.`, data.failed ? 'warn' : 'good');
   } catch (error) {
+    trackOperatorFunnelEvent('operator_no_key_followup_send_failed', {
+      plan: button.getAttribute('data-followup-plan') || 'pro',
+      state: `${segment}_send_failed`,
+      resultCount: count || 1,
+    });
     setStatus(`Activation follow-up send failed: ${error.message}`, 'bad');
   } finally {
     button.disabled = false;
