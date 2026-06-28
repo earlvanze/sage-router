@@ -3567,6 +3567,15 @@ check_marketing_quickstart_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_account_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-account-funnel-event"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Finish setup key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-key-recovery-cta"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_key_recovery_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-key-recovery-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=quickstart&utm_medium=recovery&utm_campaign=signup_to_key_recovery" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-key-recovery-url"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "data-quickstart-plan=\"pro\"" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pro-plan-telemetry"
   fi

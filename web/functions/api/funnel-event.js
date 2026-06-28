@@ -60,6 +60,7 @@ const ALLOWED_EVENTS = new Set([
   'quickstart_viewed',
   'quickstart_account_clicked',
   'quickstart_setup_next_clicked',
+  'quickstart_key_recovery_clicked',
   'quickstart_api_reference_clicked',
   'quickstart_gateway_migration_clicked',
   'quickstart_managed_access_clicked',
