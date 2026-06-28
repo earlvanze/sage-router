@@ -922,6 +922,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
     `- Recovery views: ${(telemetry.recoveryViewEvents || []).join(', ')}`,
     `- Key attempts: ${(telemetry.keyCreateAttemptEvents || []).join(', ')}`,
     `- Key successes: ${(telemetry.keyCreateSuccessEvents || []).join(', ')}`,
+    `- Key failures: ${(telemetry.keyCreateFailureEvents || []).join(', ')}`,
     `- Success: ${telemetry.successMetric || ''}`,
     '',
     'Instructions:',

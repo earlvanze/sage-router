@@ -1258,20 +1258,35 @@ async function maybeCreateKeyFromIntent({ emailVerified, keyCount } = {}) {
   if (hasAutoKeyAttempted(selectedPlan)) return false;
   const fromSavedIntent = ['checkout', 'create_key'].includes(pendingStartAction);
   const fromKeyRecoveryIntent = pendingStartAction === 'create_key';
+  const autoButton = fromKeyRecoveryIntent ? 'auto_key_recovery_create' : (fromSavedIntent ? 'auto_activation_create' : 'first_signed_in_auto_setup');
+  const autoState = fromKeyRecoveryIntent ? 'saved_key_recovery_auto_key' : (fromSavedIntent ? 'saved_intent_auto_key' : 'first_signed_in_auto_key');
+  markAutoKeyAttempted(selectedPlan);
   set('key-once', fromKeyRecoveryIntent
     ? 'Creating your sk_sage key from the saved key-recovery link...'
     : fromSavedIntent
     ? 'Creating your sk_sage key from the saved activation intent...'
     : 'Creating your first sk_sage setup key...');
+  set('no-key-setup-status', fromKeyRecoveryIntent
+    ? 'Recovery sign-in complete. Creating the setup key automatically now...'
+    : 'Creating the setup key automatically from your saved activation path...');
   $('create-key')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  trackAccountFunnelEvent('account_intent_create_key_clicked', {
-    button: fromKeyRecoveryIntent ? 'saved_key_recovery_intent' : (fromSavedIntent ? 'saved_activation_intent' : 'first_signed_in_auto_setup'),
+  trackAccountFunnelEvent(fromKeyRecoveryIntent ? 'account_key_recovery_auto_create_started' : 'account_auto_key_create_started', {
+    button: autoButton,
     target: '/account/api-keys',
-    state: fromKeyRecoveryIntent ? 'saved_key_recovery_auto_key' : (fromSavedIntent ? 'saved_intent_auto_key' : 'first_signed_in_auto_key')
+    state: autoState
   });
-  const created = await createKey();
-  if (!created) return false;
-  markAutoKeyAttempted(selectedPlan);
+  const created = await createKey({
+    attemptEvent: '',
+    failureEvent: fromKeyRecoveryIntent ? 'account_key_recovery_auto_create_failed' : 'account_auto_key_create_failed',
+    successEvent: fromKeyRecoveryIntent ? 'account_key_recovery_auto_create_succeeded' : 'account_auto_key_create_succeeded',
+    button: autoButton,
+    state: autoState,
+    failureState: fromKeyRecoveryIntent ? 'auto_key_recovery_failed' : 'auto_key_create_failed',
+  });
+  if (!created) {
+    set('no-key-setup-status', 'Automatic setup-key creation could not complete. Use Create setup key now, or refresh after checking account status.');
+    return false;
+  }
   $('key-once')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   return true;
 }
@@ -1648,21 +1663,29 @@ async function resendVerificationEmail() {
   }
 }
 
-async function createKey() {
+async function createKey(options = {}) {
   set('key-once', '');
   set('test-api-key-status', '');
   set('test-chat-status', '');
   setBusy('create-key', true, 'Creating...');
   const recoveryIntent = isKeyRecoveryIntent();
+  const button = options.button || 'create_key';
+  const state = options.state || 'create';
+  const attemptEvent = options.attemptEvent === undefined ? 'account_api_key_create_clicked' : options.attemptEvent;
   try {
     const name = $('key-name')?.value || 'Default';
-    trackAccountFunnelEvent('account_api_key_create_clicked', { button: 'create_key', target: '/account/api-keys', state: 'create' });
+    if (attemptEvent) {
+      trackAccountFunnelEvent(attemptEvent, { button, target: '/account/api-keys', state });
+    }
     const data = await api('/account/api-keys', { method: 'POST', body: JSON.stringify({ name }) });
     const key = data.key || '';
     renderQuickstart(key);
     trackAccountFunnelEvent('account_api_key_created', { button: 'create_key', target: '/account/api-keys', state: 'created' });
     if (recoveryIntent) {
       trackAccountFunnelEvent('account_key_recovery_key_created', { button: 'key_recovery_link', target: '/account/api-keys', state: 'created' });
+    }
+    if (options.successEvent) {
+      trackAccountFunnelEvent(options.successEvent, { button, target: '/account/api-keys', state });
     }
     const keyOnceCopy = recoveryIntent
       ? 'Key recovered. Copy this sk_sage setup key now; it is only shown once. Verify email and checkout can follow after the key exists.'
@@ -1676,10 +1699,10 @@ async function createKey() {
     refresh();
     return true;
   } catch (error) {
-    trackAccountFunnelEvent('account_api_key_create_failed', {
-      button: 'create_key',
+    trackAccountFunnelEvent(options.failureEvent || 'account_api_key_create_failed', {
+      button,
       target: '/account/api-keys',
-      state: billingFailureState(error, 'key_create_failed'),
+      state: options.failureState || billingFailureState(error, 'key_create_failed'),
     });
     set('key-once', error.message);
     return false;

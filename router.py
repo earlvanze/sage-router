@@ -7103,7 +7103,9 @@ KEY_RECOVERY_VIEW_EVENTS = {
 }
 KEY_CREATE_ATTEMPT_EVENTS = {
     'account_api_key_create_clicked',
+    'account_auto_key_create_started',
     'account_intent_create_key_clicked',
+    'account_key_recovery_auto_create_started',
 }
 KEY_CREATE_SUCCESS_EVENTS = {
     'account_api_key_created',
@@ -7111,6 +7113,8 @@ KEY_CREATE_SUCCESS_EVENTS = {
 }
 KEY_CREATE_FAILURE_EVENTS = {
     'account_api_key_create_failed',
+    'account_auto_key_create_failed',
+    'account_key_recovery_auto_create_failed',
 }
 
 
@@ -7600,6 +7604,7 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
             'recoveryViewEvents': sorted(KEY_RECOVERY_VIEW_EVENTS),
             'keyCreateAttemptEvents': sorted(KEY_CREATE_ATTEMPT_EVENTS),
             'keyCreateSuccessEvents': sorted(KEY_CREATE_SUCCESS_EVENTS),
+            'keyCreateFailureEvents': sorted(KEY_CREATE_FAILURE_EVENTS),
             'successMetric': next_best_action.get('successMetric') or activation_follow_ups.get('successMetric') or 'Move no-key signups into generated-key accounts, then first routed request.',
         },
         'emailReadiness': email_readiness,
