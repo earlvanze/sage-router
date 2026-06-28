@@ -6781,6 +6781,8 @@ KEY_FIRST_REDIRECT_EVENTS = {
     'pricing_key_activation_clicked',
 }
 KEY_RECOVERY_VIEW_EVENTS = {
+    'account_key_recovery_email_field_auto',
+    'account_key_recovery_signed_in_prompt_shown',
     'account_key_recovery_viewed',
     'content_article_key_recovery_clicked',
     'pricing_key_recovery_clicked',

@@ -9,6 +9,8 @@ const START_ACTION_STORAGE_KEY = 'sage_router_start_action';
 const AUTO_CHECKOUT_ATTEMPT_STORAGE_KEY = 'sage_router_auto_checkout_attempt';
 const AUTO_KEY_ATTEMPT_STORAGE_KEY = 'sage_router_auto_key_attempt';
 const AUTO_OAUTH_ATTEMPT_STORAGE_KEY = 'sage_router_auto_oauth_attempt';
+const KEY_RECOVERY_EMAIL_FOCUS_STORAGE_KEY = 'sage_router_key_recovery_email_focus';
+const KEY_RECOVERY_SIGNED_IN_PROMPT_STORAGE_KEY = 'sage_router_key_recovery_signed_in_prompt';
 const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
 const ACCOUNT_AUTH_NUDGE_STORAGE_KEY = 'sage_router_account_auth_nudge_dismissed_until';
 const FALLBACK_PLANS = {
@@ -262,6 +264,25 @@ function markAutoOauthAttempted(provider = 'github', plan = selectedPlan) {
   }
 }
 
+function keyRecoverySessionKey(prefix) {
+  return `${prefix}:${normalizePlan(selectedPlan) || 'unknown'}:${requestedKeyRecoveryStateFromUrl()}`;
+}
+
+function hasKeyRecoveryMarker(prefix) {
+  try {
+    return window.sessionStorage?.getItem(keyRecoverySessionKey(prefix)) === '1';
+  } catch (_error) {
+    return false;
+  }
+}
+
+function markKeyRecoveryMarker(prefix) {
+  try {
+    window.sessionStorage?.setItem(keyRecoverySessionKey(prefix), '1');
+  } catch (_error) {
+  }
+}
+
 function planDisplay(plan) {
   return plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : 'Pro';
 }
@@ -352,6 +373,23 @@ function renderKeyRecoveryDock() {
   set('key-recovery-dock-status', sameEmailRecovery
     ? 'Recommended: send the same-email magic link, then create the key before checkout.'
     : 'Recommended: use GitHub only if it is the same signup account; otherwise use email.');
+  maybeFocusSameEmailRecovery();
+}
+
+function maybeFocusSameEmailRecovery() {
+  if (!isKeyRecoveryIntent() || activationState.signedIn || !requestedEmailAuthFromUrl()) return;
+  if (hasKeyRecoveryMarker(KEY_RECOVERY_EMAIL_FOCUS_STORAGE_KEY)) return;
+  markKeyRecoveryMarker(KEY_RECOVERY_EMAIL_FOCUS_STORAGE_KEY);
+  window.setTimeout(() => {
+    focusEmailInput(true);
+    set('intent-email-status', 'Enter the same signup email, then send the magic link to finish the setup key.');
+    set('key-recovery-dock-status', 'Same-email setup is focused. Send the magic link, open it, then create the sk_sage key before checkout.');
+    trackAccountFunnelEvent('account_key_recovery_email_field_auto', {
+      button: 'same_email_recovery_focus',
+      target: '#intent-email',
+      state: 'same_email_recovery',
+    });
+  }, 300);
 }
 
 function renderAccountIntent() {
@@ -785,6 +823,18 @@ function renderSignedInNextAction() {
         target: '/account/api-keys',
         state: 'in_app_no_key_prompt',
       });
+    }
+    if (action.state === 'create_key' && activationState.signedIn && !activationState.keyCount && isKeyRecoveryIntent() && !hasKeyRecoveryMarker(KEY_RECOVERY_SIGNED_IN_PROMPT_STORAGE_KEY)) {
+      markKeyRecoveryMarker(KEY_RECOVERY_SIGNED_IN_PROMPT_STORAGE_KEY);
+      window.setTimeout(() => {
+        $('signed-in-next-action')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+        set('launch-next-action', 'Recovery sign-in complete. Create the sk_sage setup key now; checkout and routing unlock after the key exists.');
+        trackAccountFunnelEvent('account_key_recovery_signed_in_prompt_shown', {
+          button: 'signed_in_key_recovery_prompt',
+          target: '/account/api-keys',
+          state: requestedKeyRecoveryStateFromUrl(),
+        });
+      }, 250);
     }
   }
 }
