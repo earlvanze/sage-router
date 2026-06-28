@@ -118,6 +118,12 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
   jq -r '
     def n($v): ($v // 0);
     def list($v): (($v // []) | join(", "));
+    def command_for($rows; $segment; $field):
+      (
+        ($rows // [])
+        | map(select((.segment // "all") == ($segment // "all")))
+        | .[0][$field]
+      ) // "";
     def segment_lines($rows; $sendable; $dry):
       ($rows // [])
       | map(select((.sendable != false) == $sendable))
@@ -156,13 +162,16 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
       }) as $approval
     | ($packet.segmentActions // []) as $segments
     | ($telemetry.dryRunVerified // false) as $dry
+    | ($approval.nextSendSegment // $telemetry.nextSendSegment // "all") as $next_segment
+    | (command_for($segments; $next_segment; "dryRunCommand")) as $next_dry_run_command
+    | (command_for($segments; $next_segment; "sendCommand")) as $next_send_command
     | [
         "Sage Router activation approval packet",
         "Boundary: no emails, customer IDs, API keys, prompts, OAuth tokens, provider credentials, raw campaign URLs, or raw provider responses.",
         "Effect: read-only review packet; this command does not approve, copy a send command, or send activation emails.",
         "",
         "Approval readiness: \($approval.status // "unknown"); blocker=\($approval.blockedReason // "none").",
-        "Decision needed: approve or hold the next real activation send for segment \"\($approval.nextSendSegment // $telemetry.nextSendSegment // "all")\".",
+        "Decision needed: approve or hold the next real activation send for segment \"\($next_segment)\".",
         "Queued: \(n($packet.totalQueued // $followups.total)) total; \(n($packet.sendableQueued // $followups.sendableQueued)) sendable; \(n($packet.reviewOnlyQueued // $followups.reviewOnlyQueued)) review-only; \(n($followups.unknownQueued)) unknown.",
         "Dry-run: \(if $dry then "verified" else "not complete" end) for \(n($telemetry.dryRunRecipients)) unique sendable recipient(s). Sent: \(n($telemetry.sentRecipients)); failed: \(n($telemetry.failedRecipients)).",
         "Dry-run segments: covered=\(list($telemetry.dryRunCoveredSegments)); pending=\(list($telemetry.dryRunPendingSegments)); duplicate raw recipient records=\(n($telemetry.dryRunDuplicateRecipients)).",
@@ -177,6 +186,13 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         "",
         "Primary recovery CTA: \($followups.primaryCtaUrl // $packet.recoveryUrls.passwordFallback // "https://app.sagerouter.dev/login.html?plan=pro&start=create_key").",
         "Success metric: \($followups.successMetric // $packet.telemetry.successMetric // "Move no-key signups into generated-key accounts, then first routed request.").",
+        "",
+        "Safe command handoff:",
+        "- Re-run the segment dry-run before approval:",
+        (if $next_dry_run_command != "" then $next_dry_run_command else "  unavailable: no segment dry-run command returned by /analytics/funnel" end),
+        "- After explicit approval, run the typed-confirmation send command for this segment:",
+        (if $next_send_command != "" then $next_send_command else "  unavailable: no segment send command returned by /analytics/funnel" end),
+        "- This printed command still requires SAGE_ROUTER_API_KEY in the shell and sendConfirmation=SEND_ACTIVATION_FOLLOWUPS in the request body.",
         "",
         "Privacy flags: containsEmails=\($root.privacy.containsEmails // false); containsApiKeys=\($root.privacy.containsApiKeys // false); containsProviderCredentials=\($root.privacy.containsProviderCredentials // false); promptsStored=\($root.privacy.promptsStored // false)."
       ]
