@@ -768,6 +768,8 @@ function buildLaunchBrief(data = {}) {
   const activationSend = activationSendTelemetry(data);
   const managedReadiness = data.pricing?.publicLaunch?.managedProviderAccess || {};
   const managedSetup = managedReadiness.readinessSetup || {};
+  const managedActions = Array.isArray(managedReadiness.nextActions) ? managedReadiness.nextActions : [];
+  const topManagedAction = managedActions[0] || {};
   const noKeyVerification = activationFollowUps.countsByEmailVerification || {};
   const acquisitionActions = data.acquisitionActions || marketingIntent.acquisitionActions || [];
   const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
@@ -799,7 +801,7 @@ function buildLaunchBrief(data = {}) {
     `- No-key email verification: verified ${integer(noKeyVerification.verified)}, unverified ${integer(noKeyVerification.unverified)}, missing ${integer(noKeyVerification.missing_auth_user || noKeyVerification.missing_user_id)}, unavailable ${integer(noKeyVerification.unavailable)}`,
     `- Follow-up CTA: ${activationFollowUps.primaryCtaUrl || activationFollowUpUrl({}, { auth: false })}`,
     `- Checkout unavailable: ${integer(checkoutFriction.unavailableEvents)} / ${integer(checkoutFriction.totalCheckoutIntent)} intent events (${percent(checkoutFriction.unavailableRate)})`,
-    `- Managed access readiness: ${managedReadiness.enabled ? 'enabled' : 'disabled'} (${managedReadiness.status || 'unknown'}); setup=${managedSetup.setupScript || 'scripts/configure_managed_provider_resale_readiness.sh'}; action: ${managedSetup.operatorAction || 'Keep managed resale disabled until provider authorization, allowlist, and unit economics pass.'}`,
+    `- Managed access readiness: ${managedReadiness.enabled ? 'enabled' : 'disabled'} (${managedReadiness.status || 'unknown'}); setup=${managedSetup.setupScript || 'scripts/configure_managed_provider_resale_readiness.sh'}; next=${topManagedAction.title || 'Review managed-access controls'}; action: ${topManagedAction.action || managedSetup.operatorAction || 'Keep managed resale disabled until provider authorization, allowlist, and unit economics pass.'}`,
     '',
     'Next conversion move',
     `- Bottleneck: ${actionLine(bottleneck)}`,
@@ -874,6 +876,8 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
   const emailReadiness = packet.emailReadiness || data.activationFollowUps?.emailReadiness || {};
   const managedReadiness = data.pricing?.publicLaunch?.managedProviderAccess || {};
   const managedSetup = managedReadiness.readinessSetup || {};
+  const managedActions = Array.isArray(managedReadiness.nextActions) ? managedReadiness.nextActions : [];
+  const topManagedAction = managedActions[0] || {};
   const authPosture = operatorAuthPosture(data);
   const activationDelivery = activationDeliveryCounts(data);
   const activationSend = activationSendTelemetry(data);
@@ -893,6 +897,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
     ...(sendCommand ? ['', 'Approval send command for next segment:', sendCommand] : []),
     '',
     `Managed provider access: ${managedReadiness.enabled ? 'enabled' : 'disabled'}; requested=${managedReadiness.requested === true}; status=${managedReadiness.status || 'unknown'}; missingControls=${(managedReadiness.missingControls || []).join(', ') || 'none'}`,
+    `Managed access next action: ${topManagedAction.title || 'Review managed-access controls'}; priority=${topManagedAction.priority || 'next'}; success=${topManagedAction.successMetric || 'Remove the top managed-access blocker.'}`,
     `Managed access setup: ${managedSetup.setupScript || 'scripts/configure_managed_provider_resale_readiness.sh'}; requiredEnv=${(managedSetup.requiredEnv || []).join(', ') || 'none'}; explicitPublicEnable=${managedSetup.requiresExplicitPublicEnableEnv || 'SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC'}`,
     ...(managedSetup.setupCommand ? ['', 'Managed access setup command:', managedSetup.setupCommand] : []),
     ...(managedSetup.dryRunCommand ? ['', 'Managed access dry-run command:', managedSetup.dryRunCommand] : []),

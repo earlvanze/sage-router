@@ -513,6 +513,64 @@ PUBLIC_LAUNCH_POSITIONING = {
         ],
     },
 }
+MANAGED_PROVIDER_CONTROL_NEXT_ACTIONS = {
+    'provider_resale_terms': {
+        'title': 'Publish provider resale terms',
+        'owner': 'Operator',
+        'action': 'Keep the provider-resale terms page published and bind its URL before any managed-access enablement.',
+        'successMetric': 'publicLaunch.managedProviderAccess.providerTermsUrl is configured.',
+        'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_TERMS_URL'],
+    },
+    'provider_terms_acknowledgment': {
+        'title': 'Acknowledge reviewed provider terms',
+        'owner': 'Operator',
+        'action': 'Acknowledge only after provider resale terms and authorization evidence have been reviewed out of band.',
+        'successMetric': 'providerTermsAcknowledged is true without exposing the reviewed terms artifact.',
+        'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED'],
+    },
+    'provider_authorization_evidence': {
+        'title': 'Record provider authorization evidence',
+        'owner': 'Operator',
+        'action': 'Store a private evidence reference proving Sage Router is authorized to offer managed access for the allowlisted families.',
+        'successMetric': 'providerAuthorizationEvidenceConfigured is true; the reference value remains private.',
+        'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF'],
+    },
+    'authorized_provider_allowlist': {
+        'title': 'Bind the managed provider allowlist',
+        'owner': 'Operator',
+        'action': 'Allowlist only resale-eligible provider families for bundled managed access; keep OpenRouter as BYOK-only unless separately authorized.',
+        'successMetric': 'allowedProviderFamilies contains at least one resale-eligible family and no BYOK-only family.',
+        'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS'],
+    },
+    'margin_policy': {
+        'title': 'Publish margin policy',
+        'owner': 'Operator',
+        'action': 'Keep the margin-policy page published and bind its URL so plan-margin checks have an operator-reviewed launch floor.',
+        'successMetric': 'marginPolicyUrl is configured and minimumGrossMarginPercent is at least 30.',
+        'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL'],
+    },
+    'provider_cost_model': {
+        'title': 'Configure private provider cost model',
+        'owner': 'Operator',
+        'action': 'Run the unit-economics preflight with the reviewed private cost candidate, then store the cost model in Secret Manager only after it passes.',
+        'successMetric': 'unitEconomics.costModelConfigured is true without public provider-cost disclosure.',
+        'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS'],
+    },
+    'positive_unit_economics': {
+        'title': 'Pass positive unit economics',
+        'owner': 'Operator',
+        'action': 'Verify Lite, Pro, and Max revenue per 1k requests exceed the reviewed provider cost by the required gross-margin floor.',
+        'successMetric': 'unitEconomics.satisfied is true for every fixed public API plan.',
+        'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS'],
+    },
+    'minimum_gross_margin': {
+        'title': 'Set launch gross-margin floor',
+        'owner': 'Operator',
+        'action': 'Keep the minimum gross-margin threshold at or above the launch floor before enabling managed access.',
+        'successMetric': 'minimumGrossMarginPercent is at least 30.',
+        'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT'],
+    },
+}
 PUBLIC_BASE_URL = (os.environ.get('SAGE_ROUTER_PUBLIC_BASE_URL') or 'https://sagerouter.dev').rstrip('/')
 MARKETING_BASE_URL = (os.environ.get('SAGE_ROUTER_MARKETING_BASE_URL') or 'https://sagerouter.dev').rstrip('/')
 APP_BASE_URL = (os.environ.get('SAGE_ROUTER_APP_BASE_URL') or os.environ.get('SAGE_ROUTER_PUBLIC_BASE_URL') or 'https://app.sagerouter.dev').rstrip('/')
@@ -2643,6 +2701,74 @@ def managed_provider_resale_readiness_setup(enabled=False):
     }
 
 
+def managed_provider_resale_next_actions(missing_controls, managed_access, unit_economics, setup):
+    missing = [
+        str(item or '').strip()
+        for item in (missing_controls or [])
+        if str(item or '').strip()
+    ]
+    if not missing and managed_access.get('enabled'):
+        return [{
+            'id': 'managed_access_private_beta_ready',
+            'title': 'Keep managed access evidence current',
+            'owner': 'Operator',
+            'priority': 'monitor',
+            'blocked': False,
+            'action': 'Managed provider access is ready for private beta; keep authorization evidence, cost model, and margin review current.',
+            'successMetric': 'readinessSatisfied remains true and no provider-family readiness row regresses.',
+            'requiredEnv': [],
+            'setupScript': setup.get('setupScript') or 'scripts/configure_managed_provider_resale_readiness.sh',
+            'checkCommand': setup.get('dryRunCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --check',
+            'secretFree': True,
+            'publicSafe': True,
+            'privacy': {
+                'containsSecrets': False,
+                'containsProviderCredentials': False,
+                'containsActualProviderCosts': False,
+                'containsAuthorizationReference': False,
+            },
+        }]
+
+    actions = []
+    for index, control in enumerate(missing, start=1):
+        template = MANAGED_PROVIDER_CONTROL_NEXT_ACTIONS.get(control, {
+            'title': control.replace('_', ' ').strip().title() or 'Review managed access control',
+            'owner': 'Operator',
+            'action': 'Review this managed-access readiness control before enabling bundled provider access.',
+            'successMetric': f'{control} is no longer reported in missingControls.',
+            'requiredEnv': [],
+        })
+        action = {
+            'id': control,
+            'title': template['title'],
+            'owner': template.get('owner') or 'Operator',
+            'priority': 'fix_now' if index == 1 else 'next',
+            'blocked': True,
+            'action': template['action'],
+            'successMetric': template['successMetric'],
+            'requiredEnv': list(template.get('requiredEnv') or []),
+            'setupScript': setup.get('setupScript') or 'scripts/configure_managed_provider_resale_readiness.sh',
+            'checkCommand': setup.get('dryRunCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --check',
+            'secretManagerNames': setup.get('secretManagerNames') if isinstance(setup.get('secretManagerNames'), list) else [],
+            'secretFree': True,
+            'publicSafe': True,
+            'privacy': {
+                'containsSecrets': False,
+                'containsProviderCredentials': False,
+                'containsActualProviderCosts': False,
+                'containsAuthorizationReference': False,
+            },
+        }
+        if control in {'provider_cost_model', 'positive_unit_economics'}:
+            action['unitEconomics'] = {
+                'costModelConfigured': bool(unit_economics.get('costModelConfigured')),
+                'satisfied': bool(unit_economics.get('satisfied')),
+                'minimumGrossMarginPercent': unit_economics.get('minimumGrossMarginPercent'),
+            }
+        actions.append(action)
+    return actions
+
+
 def current_usage_period(now=None):
     return time.strftime('%Y-%m', time.gmtime(now or time.time()))
 
@@ -2852,8 +2978,15 @@ def public_launch_metadata():
     managed_provider_access['marginPolicyUrl'] = margin_policy_url
     managed_provider_access['unitEconomics'] = unit_economics
     managed_provider_access['acceptableUseUrl'] = f"{MARKETING_BASE_URL}/acceptable-use"
-    managed_provider_access['readinessSetup'] = managed_provider_resale_readiness_setup(
+    readiness_setup = managed_provider_resale_readiness_setup(
         enabled=bool(managed_provider_access.get('enabled'))
+    )
+    managed_provider_access['readinessSetup'] = readiness_setup
+    managed_provider_access['nextActions'] = managed_provider_resale_next_actions(
+        missing_controls,
+        managed_provider_access,
+        unit_economics,
+        readiness_setup,
     )
     launch['managedProviderAccess'] = managed_provider_access
     launch['pricingPage'] = f"{MARKETING_BASE_URL}/pricing"
@@ -2904,6 +3037,7 @@ def compact_managed_provider_readiness(pricing_metadata):
         'readinessSatisfied': bool(managed.get('readinessSatisfied')),
         'status': managed.get('status') or 'unknown',
         'missingControls': managed.get('missingControls') if isinstance(managed.get('missingControls'), list) else [],
+        'nextActions': managed.get('nextActions') if isinstance(managed.get('nextActions'), list) else [],
         'providerTermsAcknowledged': bool(managed.get('providerTermsAcknowledged')),
         'providerAuthorizationEvidenceConfigured': bool(managed.get('providerAuthorizationEvidenceConfigured')),
         'configuredProviderFamilies': managed.get('configuredProviderFamilies') if isinstance(managed.get('configuredProviderFamilies'), list) else [],

@@ -293,6 +293,8 @@ function renderLaunchReadiness(pricing = {}, health = {}) {
   const activation = pricing.activationEmailReadiness || {};
   const managed = pricing.publicLaunch?.managedProviderAccess || {};
   const managedSetup = managed.readinessSetup || {};
+  const managedActions = Array.isArray(managed.nextActions) ? managed.nextActions : [];
+  const topManagedAction = managedActions[0] || {};
   const configuredPlans = Array.isArray(stripe.configuredPlans) ? stripe.configuredPlans : [];
   const missingManagedControls = Array.isArray(managed.missingControls) ? managed.missingControls : [];
   const requiredActivationEnv = Array.isArray(activation.requiredEnv) ? activation.requiredEnv : [];
@@ -323,7 +325,7 @@ function renderLaunchReadiness(pricing = {}, health = {}) {
       state: managed.enabled ? 'good' : 'warn',
       meta: managed.enabled
         ? 'Managed provider access readiness is satisfied for private beta; keep provider authorization evidence current.'
-        : `One-subscription managed provider access remains disabled; missing ${missingManagedControls.slice(0, 5).join(', ') || 'provider readiness controls'}. Setup guard: ${managedSetup.setupScript || 'scripts/configure_managed_provider_resale_readiness.sh'}.`,
+        : `One-subscription managed provider access remains disabled; next action: ${topManagedAction.title || missingManagedControls[0] || 'review provider readiness controls'}. Setup guard: ${managedSetup.setupScript || 'scripts/configure_managed_provider_resale_readiness.sh'}.`,
     },
     {
       title: 'API client compatibility',
@@ -351,6 +353,8 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
   const activation = pricing.activationEmailReadiness || {};
   const managed = pricing.publicLaunch?.managedProviderAccess || {};
   const managedSetup = managed.readinessSetup || {};
+  const managedActions = Array.isArray(managed.nextActions) ? managed.nextActions : [];
+  const topManagedAction = managedActions[0] || {};
   const billing = pricing.billing || {};
   const stripe = billing.stripe || {};
   const openaiBase = pricing.openaiBaseUrl || `${sageRouterUrl}/v1`;
@@ -389,12 +393,12 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
     {
       id: 'managed-resale-dry-run',
       title: 'One-subscription managed access',
-      value: managed.enabled ? 'Private beta ready' : 'Keep disabled; stage provider terms first',
+      value: managed.enabled ? 'Private beta ready' : (topManagedAction.title || 'Keep disabled; stage provider terms first'),
       badge: managed.enabled ? 'ready' : 'guarded',
       state: managed.enabled ? 'good' : 'warn',
       meta: managed.enabled
         ? 'Provider resale guardrails report readiness satisfied; keep authorization evidence current.'
-        : 'Run the dry-run before staging provider terms, allowlist, private cost model, and margin controls. OpenRouter remains BYOK-only unless separate authorization is added.',
+        : `${topManagedAction.action || 'Run the dry-run before staging provider terms, allowlist, private cost model, and margin controls.'} OpenRouter remains BYOK-only unless separate authorization is added.`,
       command: managed.enabled ? (managedSetup.enableCommandTemplate || managedDryRun) : managedDryRun,
       copyEvent: 'status_managed_resale_dry_run_copied',
     },

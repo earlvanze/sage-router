@@ -304,6 +304,11 @@
             <span>provider_cost_model</span>
             <span>positive_unit_economics</span>
           </div>
+          <div class="missingControls" id="managed-next-actions" aria-label="Managed access next actions">
+            <span>Next action: acknowledge reviewed provider terms</span>
+            <span>Next action: record provider authorization evidence</span>
+            <span>Next action: configure private provider cost model</span>
+          </div>
           <p class="note">This checkpoint is public metadata only. It does not expose provider credentials, costs, OAuth tokens, customer prompts, raw responses, or generated API keys.</p>
           <p class="note" id="managed-provider-boundary">OpenRouter and other BYOK-compatible gateways can be routed with authorized customer keys, but they do not satisfy the managed resale allowlist.</p>
         </div>
@@ -375,8 +380,10 @@
       const managed = metadata?.publicLaunch?.managedProviderAccess || {};
       const unitEconomics = managed.unitEconomics || {};
       const missing = Array.isArray(managed.missingControls) ? managed.missingControls : [];
+      const nextActions = Array.isArray(managed.nextActions) ? managed.nextActions : [];
       const status = document.getElementById('managed-readiness-status');
       const missingControls = document.getElementById('readiness-missing-controls');
+      const nextActionsEl = document.getElementById('managed-next-actions');
       const tbody = document.querySelector('#readiness-plan-table tbody');
       const familyTbody = document.querySelector('#provider-family-readiness-table tbody');
 
@@ -398,6 +405,17 @@
         missingControls.replaceChildren(...controls.map((item) => {
           const span = document.createElement('span');
           span.textContent = formatControlName(item);
+          return span;
+        }));
+      }
+
+      if (nextActionsEl) {
+        const actions = nextActions.length
+          ? nextActions.slice(0, 4).map((item) => `${item.priority || 'next'}: ${item.title || item.id || 'Review managed access readiness'}`)
+          : ['monitor: all managed-access controls currently satisfied'];
+        nextActionsEl.replaceChildren(...actions.map((item) => {
+          const span = document.createElement('span');
+          span.textContent = item;
           return span;
         }));
       }

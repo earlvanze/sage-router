@@ -2134,11 +2134,26 @@ class SaaSAuthTests(unittest.TestCase):
             pricing_managed['readinessSetup']['enableCommandTemplate'],
         )
         self.assertFalse(pricing_managed['readinessSetup']['privacy']['containsSecrets'])
+        self.assertEqual(
+            pricing_managed['missingControls'],
+            [row['id'] for row in pricing_managed['nextActions']],
+        )
+        self.assertTrue(all(row['secretFree'] for row in pricing_managed['nextActions']))
+        self.assertTrue(all(row['publicSafe'] for row in pricing_managed['nextActions']))
+        self.assertIn(
+            'providerAuthorizationEvidenceConfigured is true',
+            json.dumps(pricing_managed['nextActions']),
+        )
         managed_readiness = snapshot['managedProviderReadiness']
         self.assertFalse(managed_readiness['enabled'])
         self.assertFalse(managed_readiness['readinessSatisfied'])
         self.assertEqual(pricing_managed['status'], managed_readiness['status'])
         self.assertEqual(pricing_managed['missingControls'], managed_readiness['missingControls'])
+        self.assertEqual(
+            [row['id'] for row in pricing_managed['nextActions']],
+            [row['id'] for row in managed_readiness['nextActions']],
+        )
+        self.assertTrue(all(not row['privacy']['containsSecrets'] for row in managed_readiness['nextActions']))
         self.assertEqual(
             pricing_managed['allowedProviderFamilies'],
             managed_readiness['allowedProviderFamilies'],
