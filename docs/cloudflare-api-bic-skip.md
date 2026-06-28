@@ -27,6 +27,17 @@ If the token can read the zone but cannot read rulesets, the script reports the
 Rulesets permission failure explicitly. Rotate the token instead of weakening
 Cloudflare security globally.
 
+If several local env backups may contain stale Cloudflare tokens, audit them
+without printing token values:
+
+```bash
+bash scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens
+```
+
+The audit prints candidate numbers, source variable names, zone-read status, and
+ruleset-read status only. A launch-ready token must show the zone as readable
+and the `http_config_settings` ruleset as readable or creatable.
+
 ## Apply
 
 ```bash

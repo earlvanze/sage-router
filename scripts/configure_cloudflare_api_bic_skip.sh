@@ -24,13 +24,15 @@ load_local_env_file() {
 
 usage() {
   cat <<'EOF'
-Usage: scripts/configure_cloudflare_api_bic_skip.sh [--check]
+Usage: scripts/configure_cloudflare_api_bic_skip.sh [--check|--audit-local-tokens]
 
 Creates or verifies a host-scoped Cloudflare configuration rule that disables
 Browser Integrity Check for api.sagerouter.dev only.
 
 Options:
-  --check   Verify token permissions and the existing rule without modifying Cloudflare.
+  --check               Verify token permissions and the existing rule without modifying Cloudflare.
+  --audit-local-tokens  Test local Cloudflare token candidates by API status
+                        without printing token values.
 EOF
 }
 
@@ -119,6 +121,10 @@ while [[ $# -gt 0 ]]; do
       MODE="check"
       shift
       ;;
+    --audit-local-tokens)
+      MODE="audit-local-tokens"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -132,6 +138,126 @@ done
 
 require_cmd curl
 require_cmd jq
+
+if [[ "$MODE" == "audit-local-tokens" ]]; then
+  require_cmd python3
+  python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+import urllib.request
+import urllib.error
+import urllib.parse
+
+zone_name = os.environ.get('SAGEROUTER_CLOUDFLARE_ZONE_NAME') or 'sagerouter.dev'
+audit_dir = Path(os.environ.get('SAGEROUTER_CLOUDFLARE_TOKEN_AUDIT_DIR') or '/home/digit/.openclaw')
+audit_globs = [
+    item.strip()
+    for item in (os.environ.get('SAGEROUTER_CLOUDFLARE_TOKEN_AUDIT_GLOBS') or '.env*,gateway.systemd.env*').split(',')
+    if item.strip()
+]
+token_keys = {
+    'CLOUDFLARE_API_TOKEN',
+    'CLOUDFLARE_SAGEROUTER_PAGES_KEY',
+    'SAGEROUTER_CLOUDFLARE_API_TOKEN',
+    'CF_API_TOKEN',
+}
+
+
+def parse_env_value(line):
+    if '=' not in line:
+        return None, None
+    key, value = line.split('=', 1)
+    key = key.strip()
+    value = value.strip().strip('"').strip("'")
+    return key, value
+
+
+def cf_get(token, url):
+    req = urllib.request.Request(url, headers={
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/json',
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = json.loads(resp.read().decode('utf-8') or '{}')
+            return resp.status, body
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode('utf-8', errors='replace')
+        try:
+            body = json.loads(raw or '{}')
+        except Exception:
+            body = {}
+        return exc.code, body
+    except Exception as exc:
+        return 0, {'errors': [{'message': type(exc).__name__}]}
+
+
+candidates = {}
+if audit_dir.exists():
+    for pattern in audit_globs:
+        for path in sorted(audit_dir.glob(pattern)):
+            if not path.is_file():
+                continue
+            try:
+                text = path.read_text(encoding='utf-8', errors='ignore')
+            except Exception:
+                continue
+            for line in text.splitlines():
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                key, value = parse_env_value(line)
+                if key in token_keys and value:
+                    candidates.setdefault(value, []).append(f'{path.name}:{key}')
+
+print(json.dumps({
+    'kind': 'cloudflare_token_candidate_audit',
+    'zone': zone_name,
+    'auditDir': str(audit_dir),
+    'uniqueTokenCandidates': len(candidates),
+    'printsTokenValues': False,
+}))
+
+for idx, (token, sources) in enumerate(candidates.items(), start=1):
+    zone_status, zone_body = cf_get(
+        token,
+        'https://api.cloudflare.com/client/v4/zones?name=' + urllib.parse.quote(zone_name),
+    )
+    zone_id = ''
+    if 200 <= int(zone_status or 0) < 300:
+        rows = zone_body.get('result') or []
+        if rows:
+            zone_id = rows[0].get('id') or ''
+    ruleset_status = 'skipped'
+    ruleset_error = ''
+    if zone_id:
+        ruleset_status, ruleset_body = cf_get(
+            token,
+            f'https://api.cloudflare.com/client/v4/zones/{zone_id}/rulesets/phases/http_config_settings/entrypoint',
+        )
+        ruleset_error = ','.join(
+            str(err.get('code') or err.get('message') or '')
+            for err in (ruleset_body.get('errors') or [])[:3]
+        )
+    zone_error = ','.join(
+        str(err.get('code') or err.get('message') or '')
+        for err in (zone_body.get('errors') or [])[:3]
+    )
+    print(json.dumps({
+        'candidate': idx,
+        'sourceCount': len(sources),
+        'sourceKinds': sorted({source.split(':', 1)[1] for source in sources}),
+        'zoneStatus': zone_status,
+        'zoneReadable': bool(zone_id),
+        'zoneError': zone_error,
+        'rulesetStatus': ruleset_status,
+        'rulesetReadableOrExists': isinstance(ruleset_status, int) and 200 <= ruleset_status < 300,
+        'rulesetError': ruleset_error,
+    }))
+PY
+  exit 0
+fi
 
 CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:?Set CLOUDFLARE_API_TOKEN with Zone Rulesets read/edit permissions.}"
 ZONE_NAME="${SAGEROUTER_CLOUDFLARE_ZONE_NAME:-sagerouter.dev}"
