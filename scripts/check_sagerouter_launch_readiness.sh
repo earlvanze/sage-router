@@ -3885,6 +3885,12 @@ check_marketing_setup_key_recovery_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_magic_link_requested" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-magic-link-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Continue with GitHub for Pro" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-github-oauth"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_oauth_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-oauth-funnel"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_account_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-account-funnel"
   fi

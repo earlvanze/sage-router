@@ -129,7 +129,7 @@ provider resale claim, or runtime feature flag.
 - Keep `/setup-key-recovery` as the public no-key signup recovery destination
   for API 401 `keyRecoveryUrl` handoffs and public marketing/docs/status/support
   recovery CTAs, with direct same-email setup-link requests, same-email or
-  same-OAuth account return, generated-key-before-checkout setup, and
+  direct GitHub same-OAuth account return, generated-key-before-checkout setup, and
   placeholder setup-copy telemetry. It may route one-subscription interest to
   managed-access beta review, but public managed provider access stays disabled
   until provider terms, authorization evidence, allowlist, cost model, and

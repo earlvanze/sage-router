@@ -264,6 +264,8 @@ const ALLOWED_EVENTS = new Set([
   'setup_key_recovery_magic_link_requested',
   'setup_key_recovery_magic_link_sent',
   'setup_key_recovery_magic_link_failed',
+  'setup_key_recovery_oauth_clicked',
+  'setup_key_recovery_oauth_failed',
   'setup_key_recovery_setup_copied',
   'setup_key_recovery_quickstart_clicked',
   'setup_key_recovery_troubleshooting_clicked',

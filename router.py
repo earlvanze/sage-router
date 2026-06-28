@@ -7088,6 +7088,8 @@ KEY_FIRST_REDIRECT_EVENTS = {
     'login_key_recovery_account_setup_clicked',
     'model_catalog_key_activation_clicked',
     'pricing_key_activation_clicked',
+    'setup_key_recovery_account_clicked',
+    'setup_key_recovery_oauth_clicked',
 }
 KEY_RECOVERY_VIEW_EVENTS = {
     'account_key_recovery_email_field_auto',
@@ -7110,6 +7112,8 @@ KEY_RECOVERY_VIEW_EVENTS = {
     'setup_key_recovery_magic_link_failed',
     'setup_key_recovery_magic_link_requested',
     'setup_key_recovery_magic_link_sent',
+    'setup_key_recovery_oauth_clicked',
+    'setup_key_recovery_oauth_failed',
     'setup_key_recovery_quickstart_clicked',
     'setup_key_recovery_same_email_clicked',
     'setup_key_recovery_support_clicked',
