@@ -7165,6 +7165,22 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
         'owner': next_best_action.get('owner') or 'Activation',
         'surface': next_best_action.get('surface') or 'launch funnel',
         'metric': next_best_action.get('metric') or 'signupToGeneratedKey',
+        'recommendedAction': (
+            next_best_action.get('action')
+            or activation_follow_ups.get('recommendedOperatorAction')
+            or 'Send the generated-key-first recovery link to no-key signups.'
+        ),
+        'ctaPath': (
+            next_best_action.get('ctaPath')
+            or activation_follow_ups.get('primaryCtaUrl')
+            or password_url
+        ),
+        'successMetric': (
+            next_best_action.get('successMetric')
+            or activation_follow_ups.get('successMetric')
+            or 'Move no-key signups into generated-key accounts, then first routed request.'
+        ),
+        'executionChecklist': next_best_action.get('executionChecklist') or launch_no_key_execution_checklist(recommended_segments, True),
         'totalQueued': total,
         'windowedNewSignups': int(activation_follow_ups.get('windowedNewSignups') or 0),
         'segmentCounts': counts or {},
