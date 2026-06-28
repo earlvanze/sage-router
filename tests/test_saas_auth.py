@@ -32,7 +32,9 @@ class SaaSAuthTests(unittest.TestCase):
             'SUPABASE_SERVICE_ROLE_KEY': router.SUPABASE_SERVICE_ROLE_KEY,
             'SUPABASE_USAGE_COUNTERS_TABLE': router.SUPABASE_USAGE_COUNTERS_TABLE,
             'SUPABASE_FUNNEL_EVENTS_TABLE': router.SUPABASE_FUNNEL_EVENTS_TABLE,
+            'customer_store_uses_supabase': router.customer_store_uses_supabase,
             'supabase_select': router.supabase_select,
+            'supabase_insert': router.supabase_insert,
             'CLIENT_API_KEYS': list(router.CLIENT_API_KEYS),
             'CLIENT_AUTH_REQUIRED': router.CLIENT_AUTH_REQUIRED,
             'ANALYTICS_TOKEN': router.ANALYTICS_TOKEN,
@@ -106,7 +108,9 @@ class SaaSAuthTests(unittest.TestCase):
         router.SUPABASE_SERVICE_ROLE_KEY = self.old['SUPABASE_SERVICE_ROLE_KEY']
         router.SUPABASE_USAGE_COUNTERS_TABLE = self.old['SUPABASE_USAGE_COUNTERS_TABLE']
         router.SUPABASE_FUNNEL_EVENTS_TABLE = self.old['SUPABASE_FUNNEL_EVENTS_TABLE']
+        router.customer_store_uses_supabase = self.old['customer_store_uses_supabase']
         router.supabase_select = self.old['supabase_select']
+        router.supabase_insert = self.old['supabase_insert']
         router.CLIENT_API_KEYS = self.old['CLIENT_API_KEYS']
         router.CLIENT_AUTH_REQUIRED = self.old['CLIENT_AUTH_REQUIRED']
         router.ANALYTICS_TOKEN = self.old['ANALYTICS_TOKEN']
@@ -740,6 +744,11 @@ class SaaSAuthTests(unittest.TestCase):
             {'id': 'send-verified', 'email': 'verified-send@example.com', 'email_confirmed': True},
             {'id': 'send-unverified', 'email': 'unverified-send@example.com', 'email_confirmed': False},
         ]
+        router.SUPABASE_URL = 'https://example.supabase.co'
+        router.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
+        router.customer_store_uses_supabase = lambda: False
+        inserted_events = []
+        router.supabase_insert = lambda table, row, timeout=8: inserted_events.append((table, row, timeout)) or [row]
 
         class Dummy:
             def __init__(self, body):
@@ -769,6 +778,18 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('verified', dry_run.payload['results'][0]['segment'])
         self.assertEqual('verified', dry_run.payload['results'][0]['emailVerificationSegment'])
         self.assertEqual('dry_run', dry_run.payload['results'][0]['status'])
+        self.assertEqual(1, len(inserted_events))
+        table, row, timeout = inserted_events[0]
+        self.assertEqual('sage_router_funnel_events', table)
+        self.assertEqual(4, timeout)
+        self.assertEqual('operator_no_key_followup_send_dry_run', row['event'])
+        self.assertEqual('pro', row['plan'])
+        self.assertEqual('verified_send_dry_run', row['metadata']['state'])
+        self.assertEqual('verified', row['metadata']['segment'])
+        self.assertEqual(1, row['metadata']['resultCount'])
+        self.assertTrue(row['metadata']['dryRun'])
+        self.assertNotIn('verified-send@example.com', json.dumps(row))
+        self.assertNotIn('sk_sage_', json.dumps(row))
 
         missing_confirmation = Dummy(b'{"status":"inactive","segment":"verified","limit":10}')
         router.Handler.do_POST(missing_confirmation)
@@ -776,6 +797,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('activation_followup_send_confirmation_required', missing_confirmation.payload['error'])
         self.assertEqual('SEND_ACTIVATION_FOLLOWUPS', missing_confirmation.payload['requiredConfirmation'])
         self.assertTrue(missing_confirmation.payload['dryRunSupported'])
+        self.assertEqual(1, len(inserted_events))
 
         not_configured = Dummy(
             b'{"status":"inactive","segment":"verified","limit":10,'
@@ -791,6 +813,14 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertFalse(not_configured.payload['privacy']['containsRawApiKeys'])
         self.assertNotIn('api_key_hash', json.dumps(not_configured.payload))
         self.assertNotIn('sk_sage_', json.dumps(not_configured.payload))
+        self.assertEqual(2, len(inserted_events))
+        failed_row = inserted_events[1][1]
+        self.assertEqual('operator_no_key_followup_send_failed', failed_row['event'])
+        self.assertEqual('verified_send_failed', failed_row['metadata']['state'])
+        self.assertEqual('verified', failed_row['metadata']['segment'])
+        self.assertEqual(1, failed_row['metadata']['resultCount'])
+        self.assertFalse(failed_row['metadata']['dryRun'])
+        self.assertNotIn('verified-send@example.com', json.dumps(failed_row))
 
     def test_operator_activation_followup_sender_uses_configured_provider(self):
         router.CLIENT_API_KEYS = ['operator-token']
@@ -803,6 +833,11 @@ class SaaSAuthTests(unittest.TestCase):
         router.read_launch_auth_user_rows = lambda limit=1000: [
             {'id': 'send-configured', 'email': 'buyer@example.com', 'email_confirmed': True},
         ]
+        router.SUPABASE_URL = 'https://example.supabase.co'
+        router.SUPABASE_SERVICE_ROLE_KEY = 'service-key'
+        router.customer_store_uses_supabase = lambda: False
+        inserted_events = []
+        router.supabase_insert = lambda table, row, timeout=8: inserted_events.append((table, row, timeout)) or [row]
         sent = []
         router.send_activation_email = lambda contact: sent.append(contact) or {'id': 'email_123', 'status': 200}
         body = b'{"status":"inactive","limit":10,"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS"}'
@@ -835,6 +870,15 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, len(sent))
         self.assertEqual('buyer@example.com', sent[0]['email'])
         self.assertIn('generated sk_sage setup key', sent[0]['body'])
+        self.assertEqual(1, len(inserted_events))
+        sent_row = inserted_events[0][1]
+        self.assertEqual('operator_no_key_followup_sent', sent_row['event'])
+        self.assertEqual('all_sent', sent_row['metadata']['state'])
+        self.assertEqual('all', sent_row['metadata']['segment'])
+        self.assertEqual(1, sent_row['metadata']['resultCount'])
+        self.assertFalse(sent_row['metadata']['dryRun'])
+        self.assertNotIn('buyer@example.com', json.dumps(sent_row))
+        self.assertNotIn('sk_sage_', json.dumps(sent_row))
 
     def test_activation_email_sender_uses_resend_idempotency_key(self):
         router.ACTIVATION_EMAIL_API_KEY = 'resend-key'

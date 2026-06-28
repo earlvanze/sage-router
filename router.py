@@ -9606,6 +9606,73 @@ def send_activation_email(contact):
         }
 
 
+def operator_followup_event_segment(segment):
+    segment = re.sub(r'[^a-z0-9_.-]+', '_', str(segment or 'all').strip().lower())
+    return segment or 'all'
+
+
+def record_operator_activation_followup_send_events(result):
+    """Record aggregate-only operator send telemetry for API/CLI invocations."""
+    if not isinstance(result, dict):
+        return []
+    if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY):
+        return []
+    segment = operator_followup_event_segment(result.get('requestedSegment') or 'all')
+    plans = result.get('plans') if isinstance(result.get('plans'), dict) else {}
+    plan = 'pro'
+    if plans:
+        plan_candidate = sorted(plans.items(), key=lambda item: (-int(item[1] or 0), str(item[0])))[0][0]
+        plan = normalize_stripe_plan(plan_candidate) or 'pro'
+    provider = str(result.get('provider') or activation_email_provider_label() or 'resend').strip().lower()[:80] or 'resend'
+    base_metadata = {
+        'sourceSurface': 'launch-plan',
+        'source': 'operator-activation-followup-api',
+        'snippet': 'no-key-followup',
+        'segment': segment,
+        'provider': provider,
+        'configured': bool(result.get('configured')),
+        'dryRun': bool(result.get('dryRun')),
+        'utmSource': 'operator',
+        'utmMedium': 'launch_funnel',
+        'utmCampaign': 'signup_to_key_recovery',
+    }
+    source_page = (MARKETING_BASE_URL or APP_BASE_URL or 'https://app.sagerouter.dev').rstrip('/') + '/launch-funnel.html'
+    target = (APP_BASE_URL or 'https://app.sagerouter.dev').rstrip('/') + '/account.html'
+    event_specs = []
+    if result.get('dryRun'):
+        event_specs.append((
+            'operator_no_key_followup_send_dry_run',
+            f'{segment}_send_dry_run',
+            int(result.get('queued') or 0),
+        ))
+    else:
+        sent = int(result.get('sent') or 0)
+        failed = int(result.get('failed') or 0)
+        if sent:
+            event_specs.append(('operator_no_key_followup_sent', f'{segment}_sent', sent))
+        if failed:
+            event_specs.append(('operator_no_key_followup_send_failed', f'{segment}_send_failed', failed))
+    inserted = []
+    for event, state, count in event_specs:
+        row = {
+            'event': event,
+            'plan': plan,
+            'source_page': source_page,
+            'target': target,
+            'metadata': {
+                **base_metadata,
+                'state': state,
+                'resultCount': count,
+            },
+        }
+        try:
+            supabase_insert(SUPABASE_FUNNEL_EVENTS_TABLE, row, timeout=4)
+            inserted.append(row)
+        except Exception as e:
+            logger.warning(f'Operator activation follow-up telemetry insert failed: {extract_http_error(e)}')
+    return inserted
+
+
 def operator_activation_followup_send(customers, segment='', limit=25, dry_run=False):
     export = operator_activation_contact_export(customers)
     requested_segment = str(segment or '').strip().lower()
@@ -16207,6 +16274,7 @@ class Handler(BaseHTTPRequestHandler):
                     limit=limit,
                     dry_run=dry_run,
                 )
+                record_operator_activation_followup_send_events(result)
                 self.write_json(200 if result.get('configured') or result.get('dryRun') else 503, result)
             except Exception as e:
                 logger.exception('Activation follow-up send failed')
