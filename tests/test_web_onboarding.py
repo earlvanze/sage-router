@@ -901,6 +901,9 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("Do not paste prompts", codex)
         self.assertIn("codex --profile sage-router-frontier", codex)
         self.assertIn("codex --profile sage-router-local-frontier", codex)
+        self.assertIn("Finish setup key", codex)
+        self.assertIn("codex_docs_key_recovery_clicked", codex)
+        self.assertIn("signup_to_key_recovery", codex)
 
         self.assertIn("/docs/codex", quickstart)
         self.assertIn("Read the dedicated Codex setup page", quickstart)
@@ -915,6 +918,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("http://127.0.0.1:8790/v1/", llms_full)
 
         self.assertIn("check_marketing_codex_docs_page", readiness)
+        self.assertIn('index("codex_docs_key_recovery_clicked")', readiness)
         self.assertIn("marketing Codex setup page is live in sitemap and LLM discovery", readiness)
         self.assertIn("/docs/codex", readme)
         self.assertIn("https://sagerouter.dev/docs/codex", readme)

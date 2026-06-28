@@ -1384,6 +1384,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("content_article_launch_plan_clicked") != null) and
     ((.allowedEvents // []) | index("codex_docs_viewed") != null) and
     ((.allowedEvents // []) | index("codex_docs_key_activation_clicked") != null) and
+    ((.allowedEvents // []) | index("codex_docs_key_recovery_clicked") != null) and
     ((.allowedEvents // []) | index("quickstart_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("quickstart_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("quickstart_setup_next_clicked") != null) and
@@ -3795,6 +3796,12 @@ check_marketing_codex_docs_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "codex_docs_key_activation_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-codex-key-activation-funnel-event"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Finish setup key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-codex-key-recovery-link"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "codex_docs_key_recovery_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-codex-key-recovery-funnel-event"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "codex-docs-email-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-codex-email-form"

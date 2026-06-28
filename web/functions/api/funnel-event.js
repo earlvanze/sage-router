@@ -78,6 +78,7 @@ const ALLOWED_EVENTS = new Set([
   'quickstart_snippet_copied',
   'codex_docs_viewed',
   'codex_docs_key_activation_clicked',
+  'codex_docs_key_recovery_clicked',
   'codex_docs_account_clicked',
   'codex_docs_api_reference_clicked',
   'codex_docs_quickstart_clicked',
