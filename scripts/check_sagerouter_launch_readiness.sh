@@ -987,6 +987,12 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "Copy setup before signup" /tmp/sage-router-readiness-body; then
     account_code="200:missing-preauth-setup-copy"
   fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "no-key-setup-copy" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-no-key-setup-copy"
+  fi
+  if [[ "$account_code" == "200" ]] && ! grep -q "Copy setup first" /tmp/sage-router-readiness-body; then
+    account_code="200:missing-no-key-setup-copy-label"
+  fi
   if [[ "$account_code" == "200" ]] && ! grep -q "Email setup link next" /tmp/sage-router-readiness-body; then
     account_code="200:missing-preauth-setup-next"
   fi

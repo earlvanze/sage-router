@@ -2208,6 +2208,8 @@ document.addEventListener('click', async (event) => {
     trackAccountSnippetCopy(copyTarget, button, 'copied', original);
     if (button.id === 'post-key-copy-codex-button') {
       set('post-key-activation-status', 'Codex setup copied. Export the shown API key in your shell before running Codex.');
+    } else if (button.id === 'no-key-setup-copy') {
+      set('no-key-setup-status', 'Setup copied with a placeholder key. Create the sk_sage setup key next, then replace the placeholder.');
     }
   } catch (_error) {
     const selection = window.getSelection();
@@ -2220,6 +2222,8 @@ document.addEventListener('click', async (event) => {
     trackAccountSnippetCopy(copyTarget, button, 'selected', original);
     if (button.id === 'post-key-copy-codex-button') {
       set('post-key-activation-status', 'Codex setup selected. Copy the selected text, then export the shown API key in your shell before running Codex.');
+    } else if (button.id === 'no-key-setup-copy') {
+      set('no-key-setup-status', 'Setup selected with a placeholder key. Copy it, then create the sk_sage setup key next.');
     }
   }
   setTimeout(() => { button.textContent = button.dataset.copyLabel || original || 'Copy'; }, 1200);

@@ -247,6 +247,10 @@ provider resale claim, or runtime feature flag.
   before email verification. Saved `start=checkout` should preserve checkout
   intent and proceed toward checkout only after the setup artifact exists, so
   signup-to-generated-key conversion is not blocked by an extra button click.
+  The signed-in no-key panel should also expose a copyable placeholder setup
+  bundle so returning users can prepare their agent config before pressing the
+  create-key button; the copy event must stay privacy-safe and store only the
+  snippet ID.
 - Use the calculator as the lightweight qualification path before signup:
   prospects estimate savings, review points, and fallback gaps, then create a
   hosted API key or request implementation support. The calculator should
