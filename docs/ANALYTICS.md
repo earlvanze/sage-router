@@ -117,6 +117,19 @@ customer API-key enforcement, Stripe checkout/portal readiness, and
 managed-provider gating visible next to MRR actions without sending the private
 operator token to those public metadata routes.
 
+For terminal refreshes, use the secret-safe snapshot helper:
+
+```bash
+scripts/summarize_sagerouter_launch_funnel.sh --days 30
+```
+
+It reads the same operator-only endpoint with `SAGE_ROUTER_ANALYTICS_TOKEN`,
+`SAGE_ROUTER_OPERATOR_TOKEN`, or `SAGE_ROUTER_API_KEY`, then prints aggregate
+activation queue, acquisition, revenue-gap, bottleneck, and privacy fields. It
+does not print tokens, emails, generated keys, prompts, provider credentials,
+OAuth tokens, raw campaign URLs, or raw provider responses. Pass `--json` for a
+bounded JSON subset suitable for automation.
+
 The same hosted operator dashboard includes a customer review panel backed by
 `/admin/customers`. It uses the same private token boundary as the global
 funnel, and the public edge pins `/admin` traffic to the control-plane origin
