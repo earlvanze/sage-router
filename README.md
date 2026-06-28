@@ -588,7 +588,10 @@ or `SAGE_ROUTER_API_KEY` from the environment or
 `/analytics/funnel`, and prints only aggregate activation, acquisition, revenue,
 and privacy fields. Use its output to update
 `docs/launch/distribution-tracker.md` before broad community posting or
-activation outreach.
+activation outreach. Pass `--json` when another script needs the same bounded
+data; consume `activationQueue` for no-key follow-up counts, sendable and
+review-only segments, dry-run coverage, sent-recipient counts, and
+approval-required state.
 
 Use the public deploy helper to avoid branch/digest drift between the static
 site and hosted API:

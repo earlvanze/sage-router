@@ -107,12 +107,66 @@ if [[ "$RAW_JSON" == "1" ]]; then
     rates,
     mrr,
     nextBestAction,
+    activationFollowUps: (
+      .activationFollowUps
+      | if type == "object" then
+          del(
+            .emailReadiness.dryRunCommand,
+            .emailReadiness.sendCommandTemplate,
+            .emailReadiness.setupCommand
+          )
+        else . end
+    ),
     operatorExecutionPacket: (
       .operatorExecutionPacket
       | if type == "object" then
-          del(.draft.body, .emailReadiness.dryRunCommand, .emailReadiness.sendCommandTemplate)
+          del(
+            .draft.body,
+            .emailReadiness.dryRunCommand,
+            .emailReadiness.sendCommandTemplate,
+            .emailReadiness.setupCommand
+          )
         else . end
     ),
+    activationQueue: {
+      total: (
+        .operatorExecutionPacket.totalQueued
+        // .activationFollowUps.total
+        // .nextBestAction.evidence.noKeyFollowUpsQueued
+        // 0
+      ),
+      sendableQueued: (
+        .operatorExecutionPacket.sendableQueued
+        // .activationFollowUps.sendableQueued
+        // .nextBestAction.evidence.sendableQueued
+        // 0
+      ),
+      reviewOnlyQueued: (
+        .operatorExecutionPacket.reviewOnlyQueued
+        // .activationFollowUps.reviewOnlyQueued
+        // .nextBestAction.evidence.reviewOnlyQueued
+        // 0
+      ),
+      unknownQueued: (
+        .activationFollowUps.unknownQueued
+        // .nextBestAction.evidence.unknownQueued
+        // 0
+      ),
+      sendableSegments: (
+        .activationFollowUps.sendableSegments
+        // .nextBestAction.evidence.sendableSegments
+        // []
+      ),
+      reviewOnlySegments: (
+        .activationFollowUps.reviewOnlySegments
+        // .nextBestAction.evidence.reviewOnlySegments
+        // []
+      ),
+      dryRunRecipients: (.operatorExecutionPacket.sendTelemetry.dryRunRecipients // 0),
+      sentRecipients: (.operatorExecutionPacket.sendTelemetry.sentRecipients // 0),
+      sendApprovalRequired: (.operatorExecutionPacket.sendTelemetry.sendApprovalRequired // false),
+      nextSendSegment: (.operatorExecutionPacket.sendTelemetry.nextSendSegment // "")
+    },
     acquisitionActions: (.acquisitionActions // [])[0:8],
     privacy
   }' "$tmp"

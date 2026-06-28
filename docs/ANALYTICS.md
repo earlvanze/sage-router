@@ -128,7 +128,9 @@ It reads the same operator-only endpoint with `SAGE_ROUTER_ANALYTICS_TOKEN`,
 activation queue, acquisition, revenue-gap, bottleneck, and privacy fields. It
 does not print tokens, emails, generated keys, prompts, provider credentials,
 OAuth tokens, raw campaign URLs, or raw provider responses. Pass `--json` for a
-bounded JSON subset suitable for automation.
+bounded JSON subset suitable for automation; the `activationQueue` object is
+the stable field for no-key follow-up counts, sendable/review-only segments,
+dry-run coverage, sent-recipient counts, and approval-required state.
 
 The same hosted operator dashboard includes a customer review panel backed by
 `/admin/customers`. It uses the same private token boundary as the global
