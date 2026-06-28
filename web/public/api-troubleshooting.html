@@ -98,8 +98,8 @@
             <tr>
               <td>401</td>
               <td>The key is missing, revoked, inactive, malformed, or not a Sage Router generated key.</td>
-              <td><code>WWW-Authenticate</code>, JSON <code>accountUrl</code>, <code>pricingUrl</code>, <code>statusUrl</code>, <code>openaiBaseUrl</code>, <code>apiKeyPrefix</code>.</td>
-              <td>Confirm the client sends <code>Authorization: Bearer sk_sage_...</code>, regenerate the key if needed, then test <code>/v1/models</code> from the account page or curl.</td>
+              <td><code>WWW-Authenticate</code>, JSON <code>accountUrl</code>, <code>keyRecoveryUrl</code>, <code>pricingUrl</code>, <code>statusUrl</code>, <code>openaiBaseUrl</code>, <code>apiKeyPrefix</code>.</td>
+              <td>Confirm the client sends <code>Authorization: Bearer sk_sage_...</code>, use <code>keyRecoveryUrl</code> if the signup has no generated setup key yet, regenerate the key if needed, then test <code>/v1/models</code> from the account page or curl.</td>
             </tr>
             <tr>
               <td>402</td>
@@ -159,7 +159,7 @@ curl -i https://api.sagerouter.dev/v1/chat/completions \
           <ul>
             <li>Keep HTTP status, timestamp with timezone, route profile, plan, and whether the same key passes the account-page API key test.</li>
             <li>Keep non-secret headers such as <code>WWW-Authenticate</code>, <code>Retry-After</code>, <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code>, <code>X-Quota-Limit</code>, <code>X-Quota-Used</code>, <code>X-Quota-Remaining</code>, and <code>X-Quota-Period</code>.</li>
-            <li>Keep JSON onboarding links such as <code>accountUrl</code>, <code>pricingUrl</code>, <code>statusUrl</code>, <code>openaiBaseUrl</code>, and the non-secret <code>apiKeyPrefix</code>. Remove full bearer tokens and prompt bodies.</li>
+            <li>Keep JSON onboarding links such as <code>accountUrl</code>, <code>keyRecoveryUrl</code>, <code>pricingUrl</code>, <code>statusUrl</code>, <code>openaiBaseUrl</code>, and the non-secret <code>apiKeyPrefix</code>. Remove full bearer tokens and prompt bodies.</li>
           </ul>
         </div>
       </section>
