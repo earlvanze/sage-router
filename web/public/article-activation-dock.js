@@ -11,6 +11,8 @@
   const quickstartUrl = `/quickstart?utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-quickstart`)}`;
   const calculatorUrl = `/model-routing-calculator?utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-calculator`)}`;
   const managedAccessUrl = `/managed-access?intent=max-implementation&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-max-review`)}`;
+  const openRouterCompareUrl = `/compare/openrouter?utm_source=article-dock&utm_medium=evaluation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-openrouter`)}`;
+  const codexSetupUrl = `/docs/codex?utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-codex`)}`;
   const hostedSetupBundle = `# Sage Router hosted setup
 export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
 export OPENAI_API_KEY=sk_sage_REPLACE_WITH_GENERATED_KEY
@@ -24,7 +26,9 @@ curl https://api.sagerouter.dev/v1/models \\
 
 # Agent profile:
 # model: sage-router/frontier
-# Docs: https://sagerouter.dev/quickstart`;
+# Quickstart: https://sagerouter.dev/quickstart
+# Codex setup: https://sagerouter.dev/docs/codex
+# OpenRouter comparison: https://sagerouter.dev/compare/openrouter`;
 
   function attributionValue(value) {
     const sanitized = String(value || '')
@@ -373,6 +377,7 @@ curl https://api.sagerouter.dev/v1/models \\
     offer.appendChild(makeOauthButton('inline-github-pro'));
     offer.appendChild(makeEmailForm('article-activation-email-form', 'Email API key setup link'));
     offer.appendChild(makeLink('Already signed up? Finish key', recoveryUrl, 'articleDockSecondary', 'content_article_key_recovery_clicked', 'inline-returning-user'));
+    offer.appendChild(makeLink('Compare OpenRouter', openRouterCompareUrl, 'articleDockSecondary', 'content_article_compare_clicked', 'inline-compare-openrouter'));
     offer.appendChild(makeLink('Request Max review', managedAccessUrl, 'articleDockSecondary', 'content_article_managed_access_clicked', 'inline-max-review'));
     firstSection.insertAdjacentElement('afterend', offer);
     track('content_article_inline_offer_viewed', { state: 'mounted' });
@@ -406,6 +411,7 @@ curl https://api.sagerouter.dev/v1/models \\
     dock.appendChild(makeOauthButton('sticky-github-pro'));
     dock.appendChild(makeEmailForm('article-activation-sticky-email-form', 'Email API key setup'));
     dock.appendChild(makeLink('Finish setup key', recoveryUrl, 'articleDockSecondary', 'content_article_key_recovery_clicked', 'sticky-returning-user'));
+    dock.appendChild(makeLink('Codex setup', codexSetupUrl, 'articleDockSecondary', 'content_article_codex_clicked', 'sticky-codex-setup'));
     dock.appendChild(makeLink('Estimate fit', calculatorUrl, 'articleDockSecondary', 'content_article_calculator_clicked', 'sticky-estimate-fit'));
     document.body.appendChild(dock);
     track('content_article_activation_dock_viewed', { state: 'mounted' });

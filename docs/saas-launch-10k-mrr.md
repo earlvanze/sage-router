@@ -270,7 +270,8 @@ provider resale claim, or runtime feature flag.
   `article-activation-dock.js` inline offer plus bottom dock on pages that
   already emit `content_article_viewed`. The CTAs must keep the next actions
   concrete: email an API key setup link, request Max implementation review, copy
-  the hosted quickstart, or estimate plan fit. Its events must use the same
+  the hosted quickstart, compare OpenRouter/gateway positioning, open Codex
+  setup, or estimate plan fit. Its events must use the same
   privacy-safe funnel path and store only page path, normalized title, button,
   target, source surface, UTM buckets, and referrer host; raw email addresses
   stay inside Supabase Auth and are not written to funnel events.
