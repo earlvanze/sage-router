@@ -1407,6 +1407,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("landing_setup_next_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_migration_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_key_activation_clicked") != null) and
+    ((.allowedEvents // []) | index("gateway_compare_key_recovery_clicked") != null) and
     ((.allowedEvents // []) | index("gateway_compare_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("gateway_compare_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("model_catalog_magic_link_sent") != null) and

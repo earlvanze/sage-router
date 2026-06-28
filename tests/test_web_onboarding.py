@@ -1940,6 +1940,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("pricing_setup_next_clicked", function_js)
         self.assertIn("shared_email_key_recovery_clicked", function_js)
         self.assertIn("gateway_compare_key_recovery_clicked", function_js)
+        self.assertIn('index("gateway_compare_key_recovery_clicked")', readiness)
         self.assertIn("sourceSurface", function_js)
         self.assertIn("articlePath", function_js)
         self.assertIn("articleTitle", function_js)
