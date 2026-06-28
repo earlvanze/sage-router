@@ -2243,6 +2243,16 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertFalse(packet['privacy']['containsCustomerIds'])
         self.assertNotIn('buyer@example.com', json.dumps(packet))
         self.assertNotIn(raw, json.dumps(packet))
+        approval = snapshot['activationApprovalReadiness']
+        self.assertEqual('no_pending_send', approval['status'])
+        self.assertFalse(approval['approvalRequired'])
+        self.assertTrue(approval['dryRunVerified'])
+        self.assertEqual(2, approval['sentRecipients'])
+        self.assertEqual(0, approval['failedRecipients'])
+        self.assertEqual('mark_worked_and_measure_key_creation', approval['nextActions'][0]['id'])
+        self.assertTrue(approval['privacy']['aggregateOnly'])
+        self.assertFalse(approval['privacy']['containsEmails'])
+        self.assertNotIn('buyer@example.com', json.dumps(approval))
         self.assertEqual(2, snapshot['stages']['setupSnippetCopies'])
         self.assertEqual(1, snapshot['stages']['customersWithFirstRoutedRequest'])
         self.assertEqual(1, snapshot['stages']['paidConversions'])
@@ -2441,6 +2451,14 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(packet['privacy']['aggregateOnly'])
         self.assertNotIn('buyer@example.com', json.dumps(packet))
         self.assertNotIn('cus_', json.dumps(packet))
+        readiness = router.launch_activation_approval_readiness(packet, activation_follow_ups)
+        self.assertEqual('dry_run_required', readiness['status'])
+        self.assertTrue(readiness['approvalRequired'])
+        self.assertFalse(readiness['dryRunVerified'])
+        self.assertEqual('dry_run_not_verified', readiness['blockedReason'])
+        self.assertEqual('dry_run_activation_followups', readiness['nextActions'][0]['id'])
+        self.assertFalse(readiness['privacy']['containsEmails'])
+        self.assertTrue(readiness['privacy']['aggregateOnly'])
 
     def test_operator_execution_packet_marks_auth_repair_segments_review_only(self):
         action = {
@@ -2488,6 +2506,12 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(['verified', 'unverified'], verified_packet['sendTelemetry']['dryRunCoveredSegments'])
         self.assertEqual([], verified_packet['sendTelemetry']['dryRunPendingSegments'])
         self.assertTrue(verified_packet['sendTelemetry']['dryRunVerified'])
+        readiness = router.launch_activation_approval_readiness(verified_packet, activation_follow_ups)
+        self.assertEqual('approval_required', readiness['status'])
+        self.assertEqual('explicit_operator_approval_required', readiness['blockedReason'])
+        self.assertEqual('verified', readiness['nextSendSegment'])
+        self.assertEqual('approve_activation_followups', readiness['nextActions'][0]['id'])
+        self.assertEqual('review_auth_repair_segments', readiness['nextActions'][1]['id'])
 
     def test_launch_funnel_counts_supabase_auth_signups_without_customer_rows(self):
         now = router.now_epoch()

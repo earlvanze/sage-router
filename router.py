@@ -7632,6 +7632,108 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
     }
 
 
+def launch_activation_approval_readiness(operator_execution_packet, activation_follow_ups=None):
+    """Return a no-secret decision summary for activation follow-up approval."""
+    packet = operator_execution_packet if isinstance(operator_execution_packet, dict) else {}
+    activation_follow_ups = activation_follow_ups if isinstance(activation_follow_ups, dict) else {}
+    telemetry = packet.get('sendTelemetry') if isinstance(packet.get('sendTelemetry'), dict) else {}
+    sendable_queued = int(packet.get('sendableQueued') or activation_follow_ups.get('sendableQueued') or 0)
+    review_only_queued = int(packet.get('reviewOnlyQueued') or activation_follow_ups.get('reviewOnlyQueued') or 0)
+    total_queued = int(packet.get('totalQueued') or activation_follow_ups.get('total') or 0)
+    unknown_queued = max(0, total_queued - sendable_queued - review_only_queued)
+    dry_run_verified = bool(telemetry.get('dryRunVerified'))
+    approval_required = bool(telemetry.get('sendApprovalRequired'))
+    sent_recipients = int(telemetry.get('sentRecipients') or 0)
+    failed_recipients = int(telemetry.get('failedRecipients') or 0)
+    next_send_segment = str(telemetry.get('nextSendSegment') or ('all' if sendable_queued else '')).strip()
+    if sendable_queued <= 0:
+        status = 'no_sendable_activation_followups'
+        blocked_reason = 'no_sendable_segments'
+    elif not dry_run_verified:
+        status = 'dry_run_required'
+        blocked_reason = 'dry_run_not_verified'
+    elif approval_required:
+        status = 'approval_required'
+        blocked_reason = 'explicit_operator_approval_required'
+    elif failed_recipients > 0:
+        status = 'send_failures_need_review'
+        blocked_reason = 'activation_send_failures'
+    else:
+        status = 'no_pending_send'
+        blocked_reason = ''
+
+    next_actions = []
+    if sendable_queued > 0 and not dry_run_verified:
+        next_actions.append({
+            'id': 'dry_run_activation_followups',
+            'priority': 'fix_now',
+            'owner': 'Activation',
+            'action': 'Run the activation follow-up dry-run for each sendable segment before approving real sends.',
+            'successMetric': 'dryRunVerified becomes true with all sendable segments covered.',
+        })
+    if sendable_queued > 0 and dry_run_verified and approval_required:
+        next_actions.append({
+            'id': 'approve_activation_followups',
+            'priority': 'fix_now',
+            'owner': 'Operator',
+            'action': f'Approve the next real activation send for segment "{next_send_segment or "all"}" only after reviewing the no-secret approval packet.',
+            'successMetric': 'operatorFollowUpSends and operatorFollowUpSentRecipients increase without send failures.',
+        })
+    if review_only_queued > 0:
+        next_actions.append({
+            'id': 'review_auth_repair_segments',
+            'priority': 'next' if next_actions else 'fix_now',
+            'owner': 'Activation',
+            'action': 'Review auth-repair segments separately before sending recovery emails.',
+            'successMetric': 'review-only queued signups are repaired or excluded from sendable outreach.',
+        })
+    if sent_recipients > 0:
+        next_actions.append({
+            'id': 'mark_worked_and_measure_key_creation',
+            'priority': 'next',
+            'owner': 'Activation',
+            'action': 'Mark worked segments after real outreach and watch keyRecoveryViews, keyCreateAttempts, and generated-key customers.',
+            'successMetric': 'signupToGeneratedKey moves toward the launch target.',
+        })
+    if not next_actions:
+        next_actions.append({
+            'id': 'monitor_activation_queue',
+            'priority': 'monitor',
+            'owner': 'Activation',
+            'action': 'Monitor signup-to-key recovery and refresh the launch funnel after new signups arrive.',
+            'successMetric': 'No pending sendable activation follow-ups remain unworked.',
+        })
+
+    return {
+        'status': status,
+        'approvalRequired': approval_required,
+        'dryRunVerified': dry_run_verified,
+        'blockedReason': blocked_reason,
+        'nextSendSegment': next_send_segment,
+        'totalQueued': total_queued,
+        'sendableQueued': sendable_queued,
+        'reviewOnlyQueued': review_only_queued,
+        'unknownQueued': unknown_queued,
+        'dryRunRecipients': int(telemetry.get('dryRunRecipients') or 0),
+        'dryRunRecordedRecipients': int(telemetry.get('dryRunRecordedRecipients') or 0),
+        'dryRunDuplicateRecipients': int(telemetry.get('dryRunDuplicateRecipients') or 0),
+        'dryRunCoveredSegments': telemetry.get('dryRunCoveredSegments') if isinstance(telemetry.get('dryRunCoveredSegments'), list) else [],
+        'dryRunPendingSegments': telemetry.get('dryRunPendingSegments') if isinstance(telemetry.get('dryRunPendingSegments'), list) else [],
+        'sentRecipients': sent_recipients,
+        'failedRecipients': failed_recipients,
+        'nextActions': next_actions,
+        'privacy': {
+            'containsEmails': False,
+            'containsCustomerIds': False,
+            'containsApiKeys': False,
+            'containsProviderCredentials': False,
+            'containsPrompts': False,
+            'containsOAuthTokens': False,
+            'aggregateOnly': True,
+        },
+    }
+
+
 def public_plan_monthly_price_usd(plan_name):
     plan = PUBLIC_PLAN_CATALOG.get(str(plan_name or '').strip().lower()) or {}
     price = str(plan.get('price') or '')
@@ -8858,6 +8960,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         conversion.get('conversionActions') if isinstance(conversion, dict) else [],
     )
     operator_execution_packet = launch_operator_execution_packet(next_best_action, activation_follow_ups)
+    activation_approval_readiness = launch_activation_approval_readiness(operator_execution_packet, activation_follow_ups)
     pricing_metadata = {
         **public_launch_metadata(),
         'plans': public_plan_catalog(),
@@ -8890,6 +8993,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'activationFollowUps': activation_follow_ups,
         'nextBestAction': next_best_action,
         'operatorExecutionPacket': operator_execution_packet,
+        'activationApprovalReadiness': activation_approval_readiness,
         'pricing': pricing_metadata,
         'managedProviderReadiness': managed_provider_readiness,
         'stages': stages,

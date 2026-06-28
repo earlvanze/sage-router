@@ -712,6 +712,63 @@ function activationSendCommand(emailReadiness = {}, activationSend = {}) {
   return template.replace(/"segment"\s*:\s*"[^"]*"/, `"segment":"${segment}"`);
 }
 
+function activationApprovalReadiness(data = {}) {
+  const readiness = data.activationApprovalReadiness || {};
+  if (readiness && readiness.status) return readiness;
+  const delivery = activationDeliveryCounts(data);
+  const activationSend = activationSendTelemetry(data);
+  const sendableQueued = Number(delivery.sendableQueued || activationSend.sendableQueued || 0);
+  let status = 'no_sendable_activation_followups';
+  let blockedReason = 'no_sendable_segments';
+  if (sendableQueued > 0 && !activationSend.dryRunVerified) {
+    status = 'dry_run_required';
+    blockedReason = 'dry_run_not_verified';
+  } else if (sendableQueued > 0 && activationSend.sendApprovalRequired) {
+    status = 'approval_required';
+    blockedReason = 'explicit_operator_approval_required';
+  } else if (Number(activationSend.failedRecipients || 0) > 0) {
+    status = 'send_failures_need_review';
+    blockedReason = 'activation_send_failures';
+  } else if (sendableQueued > 0) {
+    status = 'no_pending_send';
+    blockedReason = '';
+  }
+  const nextActions = [];
+  if (sendableQueued > 0 && !activationSend.dryRunVerified) {
+    nextActions.push({ id: 'dry_run_activation_followups', priority: 'fix_now' });
+  }
+  if (sendableQueued > 0 && activationSend.dryRunVerified && activationSend.sendApprovalRequired) {
+    nextActions.push({ id: 'approve_activation_followups', priority: 'fix_now' });
+  }
+  if (delivery.reviewOnlyQueued > 0) {
+    nextActions.push({ id: 'review_auth_repair_segments', priority: nextActions.length ? 'next' : 'fix_now' });
+  }
+  return {
+    status,
+    blockedReason,
+    approvalRequired: activationSend.sendApprovalRequired,
+    dryRunVerified: activationSend.dryRunVerified,
+    nextSendSegment: activationSend.nextSendSegment,
+    totalQueued: delivery.totalQueued,
+    sendableQueued,
+    reviewOnlyQueued: delivery.reviewOnlyQueued,
+    unknownQueued: delivery.unknownQueued,
+    dryRunRecipients: activationSend.dryRunRecipients,
+    dryRunCoveredSegments: activationSend.dryRunCoveredSegments,
+    dryRunPendingSegments: activationSend.dryRunPendingSegments,
+    sentRecipients: activationSend.sentRecipients,
+    failedRecipients: activationSend.failedRecipients,
+    nextActions,
+    privacy: {
+      containsEmails: false,
+      containsCustomerIds: false,
+      containsApiKeys: false,
+      containsProviderCredentials: false,
+      aggregateOnly: true,
+    },
+  };
+}
+
 function segmentActionGroups(packet = {}) {
   const segmentActions = Array.isArray(packet.segmentActions) ? packet.segmentActions : [];
   return {
@@ -725,6 +782,7 @@ function activationApprovalPacketText(data = {}) {
   const followUps = data.activationFollowUps || {};
   const delivery = activationDeliveryCounts(data);
   const activationSend = activationSendTelemetry(data);
+  const approvalReadiness = activationApprovalReadiness(data);
   const { sendable, reviewOnly } = segmentActionGroups(packet);
   const sendableLines = sendable.length
     ? sendable.map(row => `- ${row.segment || 'all'}: ${integer(row.count)} queued; order=${integer(row.sendOrder)}; dryRun=${activationSend.dryRunVerified ? 'verified' : 'pending'}; worked=${row.workedKind || ''}`)
@@ -736,11 +794,13 @@ function activationApprovalPacketText(data = {}) {
     'Sage Router activation approval packet',
     'Boundary: no emails, customer IDs, API keys, prompts, OAuth tokens, provider credentials, or raw provider responses.',
     '',
-    `Decision needed: approve or hold the next real activation send for segment "${activationSend.nextSendSegment || 'all'}".`,
+    `Approval readiness: ${approvalReadiness.status || 'unknown'}; blocker=${approvalReadiness.blockedReason || 'none'}.`,
+    `Decision needed: approve or hold the next real activation send for segment "${approvalReadiness.nextSendSegment || activationSend.nextSendSegment || 'all'}".`,
     `Queued: ${integer(delivery.totalQueued || followUps.total)} total; ${integer(delivery.sendableQueued)} sendable; ${integer(delivery.reviewOnlyQueued)} review-only; ${integer(delivery.unknownQueued)} unknown.`,
     `Dry-run: ${activationSend.dryRunVerified ? 'verified' : 'not complete'} for ${integer(activationSend.dryRunRecipients)} unique sendable recipient(s). Sent: ${integer(activationSend.sentRecipients)}; failed: ${integer(activationSend.failedRecipients)}.`,
     `Dry-run segments: covered=${activationSend.dryRunCoveredSegments.join(', ') || 'none'}; pending=${activationSend.dryRunPendingSegments.join(', ') || 'none'}; duplicate raw recipient records=${integer(activationSend.dryRunDuplicateRecipients)}.`,
-    `Approval required: ${activationSend.sendApprovalRequired ? 'yes, do not send until explicit operator approval' : 'no pending send'}.`,
+    `Approval required: ${approvalReadiness.approvalRequired ? 'yes, do not send until explicit operator approval' : 'no pending send'}.`,
+    `Next actions: ${(approvalReadiness.nextActions || []).map(row => `${row.priority || 'next'}:${row.id || 'review'}`).join(', ') || 'monitor_activation_queue'}.`,
     '',
     'Sendable segments:',
     ...sendableLines,
@@ -881,6 +941,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
   const authPosture = operatorAuthPosture(data);
   const activationDelivery = activationDeliveryCounts(data);
   const activationSend = activationSendTelemetry(data);
+  const approvalReadiness = activationApprovalReadiness(data);
   const sendCommand = activationSendCommand(emailReadiness, activationSend);
   return [
     `${packet.title || 'Operator execution packet'} (${packet.kind || 'none'})`,
@@ -888,6 +949,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
     `Queued: ${integer(activationDelivery.totalQueued || packet.totalQueued)} total, ${integer(activationDelivery.sendableQueued)} sendable, ${integer(activationDelivery.reviewOnlyQueued)} review-only, ${integer(packet.windowedNewSignups)} new in-window`,
     `Send telemetry: dry-run actions=${integer(activationSend.dryRunActions)} uniqueRecipients=${integer(activationSend.dryRunRecipients)} rawRecordedRecipients=${integer(activationSend.dryRunRecordedRecipients)} duplicateRecords=${integer(activationSend.dryRunDuplicateRecipients)}; sent actions=${integer(activationSend.sendActions)} recipients=${integer(activationSend.sentRecipients)}; failures=${integer(activationSend.failedActions)} recipients=${integer(activationSend.failedRecipients)}; approvalRequired=${activationSend.sendApprovalRequired === true}`,
     `Next send segment: ${activationSend.nextSendSegment || 'all'}; dryRunVerified=${activationSend.dryRunVerified === true}; approvalRequired=${activationSend.sendApprovalRequired === true}`,
+    `Approval readiness: ${approvalReadiness.status || 'unknown'}; blockedReason=${approvalReadiness.blockedReason || 'none'}; nextActions=${(approvalReadiness.nextActions || []).map(row => `${row.priority || 'next'}:${row.id || 'review'}`).join(', ') || 'monitor_activation_queue'}`,
     `Auth posture: ${authPosture.label}. ${authPosture.action}`,
     `Activation email sender: ${emailReadiness.configured ? 'configured' : 'fallback only'} via ${emailReadiness.provider || 'resend'}; endpoint=${emailReadiness.sendEndpoint || '/admin/customers/send-activation-followups'}; requiredEnv=${(emailReadiness.requiredEnv || []).join(', ') || 'none'}`,
     `Activation sender setup: ${emailReadiness.setupScript || 'scripts/configure_activation_email_sender.sh'}`,
@@ -990,6 +1052,7 @@ function renderOperatorExecutionPacket(data = {}) {
     <div class="metric"><span>Priority</span><strong><span class="pill ${packet.priority === 'fix_now' ? 'bad' : 'warn'}">${esc(packet.priority || 'monitor')}</span></strong></div>
     <div class="metric"><span>Queued</span><strong>${integer(activationDelivery.totalQueued || packet.totalQueued)} total · ${integer(activationDelivery.sendableQueued)} sendable · ${integer(activationDelivery.reviewOnlyQueued)} review-only</strong></div>
     <div class="metric"><span>Send approval</span><strong><span class="pill ${activationSend.sendApprovalRequired ? 'warn' : 'good'}">${activationSend.sendApprovalRequired ? 'Approval pending' : 'No pending send'}</span></strong></div>
+    <div class="metric"><span>Approval readiness</span><strong><span class="pill ${approvalReadiness.status === 'approval_required' ? 'warn' : approvalReadiness.status === 'dry_run_required' ? 'bad' : 'good'}">${esc(approvalReadiness.status || 'unknown')}</span></strong></div>
     <div class="metric"><span>Dry-run / sent</span><strong>${integer(activationSend.dryRunRecipients)} unique dry-run · ${integer(activationSend.sentRecipients)} sent · ${integer(activationSend.failedRecipients)} failed</strong></div>
     <div class="metric"><span>Next send segment</span><strong>${esc(activationSend.nextSendSegment || 'all')}</strong></div>
     <div class="metric"><span>Primary CTA</span><strong>${esc(packet.primaryCtaKind || 'same_email_password')}</strong></div>
@@ -999,7 +1062,7 @@ function renderOperatorExecutionPacket(data = {}) {
     <div class="metric"><span>Privacy</span><strong><span class="pill ${clean ? 'good' : 'bad'}">${clean ? 'Aggregate only' : 'Review payload'}</span></strong></div>
     <div class="metric"><span>Success</span><strong>${esc(telemetry.successMetric || packet.metric || 'activation')}</strong></div>
   </div>
-  <p class="muted">${esc(authPosture.action)} ${activationSend.sendApprovalRequired ? `Dry-run is ${activationSend.dryRunVerified ? 'verified' : 'not complete'} for ${integer(activationSend.dryRunRecipients)} unique sendable recipient(s); covered segments: ${activationSend.dryRunCoveredSegments.join(', ') || 'none'}; wait for explicit operator approval before real send.` : esc(emailReadiness.operatorAction || 'Dry-run activation follow-up sending before real outreach.')} ${esc(managedSetup.operatorAction || 'Keep managed provider access disabled until resale controls pass.')}</p>
+  <p class="muted">${esc(authPosture.action)} Approval readiness is ${esc(approvalReadiness.status || 'unknown')}${approvalReadiness.blockedReason ? ` (${esc(approvalReadiness.blockedReason)})` : ''}. ${activationSend.sendApprovalRequired ? `Dry-run is ${activationSend.dryRunVerified ? 'verified' : 'not complete'} for ${integer(activationSend.dryRunRecipients)} unique sendable recipient(s); covered segments: ${activationSend.dryRunCoveredSegments.join(', ') || 'none'}; wait for explicit operator approval before real send.` : esc(emailReadiness.operatorAction || 'Dry-run activation follow-up sending before real outreach.')} ${esc(managedSetup.operatorAction || 'Keep managed provider access disabled until resale controls pass.')}</p>
   <div class="actions">
     <button class="btn secondary" type="button" data-copy-operator-packet="${esc(packetText)}">Copy execution packet</button>
     <button class="btn secondary" type="button" data-copy-activation-approval-packet="${esc(approvalPacketText)}" data-followup-count="${integer(activationDelivery.sendableQueued)}">Copy approval packet</button>
