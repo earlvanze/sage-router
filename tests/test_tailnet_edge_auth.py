@@ -512,7 +512,7 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertTrue(self.edge.should_use_control_plane("/admin/customers/customer_1/suspend"))
         self.assertTrue(self.edge.should_use_control_plane("/admin/payment-intents/pi_1/approve"))
         self.assertTrue(self.edge.should_use_control_plane("/billing/stripe/webhook"))
-        self.assertFalse(self.edge.should_use_control_plane("/v1/models"))
+        self.assertTrue(self.edge.should_use_control_plane("/v1/models"))
         self.assertFalse(self.edge.should_use_control_plane("/health"))
 
     def test_launch_funnel_edge_transform_promotes_auth_provider_state(self):
@@ -615,8 +615,12 @@ class TailnetEdgeAuthTests(unittest.TestCase):
             self.edge.outbound_bearer_token("/admin/customers", {"type": "edge_token", "preserve_authorization": False}),
         )
         self.assertEqual(
-            "tailnet-backend",
+            None,
             self.edge.outbound_bearer_token("/v1/models", {"type": "generated_key", "preserve_authorization": False}),
+        )
+        self.assertEqual(
+            "tailnet-backend",
+            self.edge.outbound_bearer_token("/v1/chat/completions", {"type": "generated_key", "preserve_authorization": False}),
         )
         control_plane = self.edge.Upstream("https://control.example.test")
         old_control_plane = self.edge.CONTROL_PLANE_UPSTREAM
@@ -924,7 +928,7 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertTrue(self.edge.should_use_control_plane("/"))
         self.assertTrue(self.edge.should_use_control_plane("/dashboard"))
         self.assertTrue(self.edge.should_use_control_plane("/dashboard/"))
-        self.assertFalse(self.edge.should_use_control_plane("/v1/models"))
+        self.assertTrue(self.edge.should_use_control_plane("/v1/models"))
 
 
 if __name__ == "__main__":

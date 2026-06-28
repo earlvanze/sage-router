@@ -838,6 +838,11 @@ def is_public_control_plane_path(path):
     return urlsplit(path).path in PUBLIC_CONTROL_PLANE_PATHS
 
 
+def is_model_catalog_control_plane_path(path):
+    clean_path = urlsplit(path).path
+    return clean_path == "/v1/models" or clean_path.startswith("/v1/models/")
+
+
 def is_operator_control_plane_path(path):
     clean_path = urlsplit(path).path
     return any(clean_path == prefix or clean_path.startswith(prefix + "/") for prefix in OPERATOR_CONTROL_PLANE_PREFIXES)
@@ -958,6 +963,7 @@ def should_use_control_plane(path):
     return (
         is_user_jwt_path(path)
         or is_public_control_plane_path(path)
+        or is_model_catalog_control_plane_path(path)
         or is_operator_control_plane_path(path)
         or is_public_signed_backend_path(path)
         or is_public_api_browser_path(path)
@@ -966,6 +972,8 @@ def should_use_control_plane(path):
 
 def outbound_bearer_token(path, auth_context, upstream=None):
     if auth_context.get("preserve_authorization"):
+        return None
+    if is_model_catalog_control_plane_path(path) and auth_context.get("type") == "generated_key":
         return None
     if (should_use_control_plane(path) or (upstream is not None and upstream is CONTROL_PLANE_UPSTREAM)) and CONTROL_PLANE_TOKEN:
         return CONTROL_PLANE_TOKEN
