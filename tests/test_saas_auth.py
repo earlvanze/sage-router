@@ -3174,7 +3174,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(0, metrics['sourceSurfaces']['agent-native'])
         self.assertEqual(0, metrics['sourceSurfaces']['integrations'])
         self.assertEqual(2, metrics['sourceSurfaces']['billing'])
-        self.assertEqual(3, metrics['sourceSurfaces']['other'])
+        self.assertEqual(2, metrics['sourceSurfaces']['docs'])
+        self.assertEqual(1, metrics['sourceSurfaces']['other'])
         self.assertEqual(1, metrics['sourceSurfaces']['status'])
         self.assertEqual(1, metrics['sourceSurfaces']['support'])
         self.assertEqual(1, metrics['sourceSurfaces']['unknown'])
@@ -3213,6 +3214,9 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('integrations', router.marketing_source_surface_bucket({'source': 'integrations'}))
         self.assertIn('first agent request proof', router.launch_acquisition_action('sourceSurface', 'agent-native'))
         self.assertIn('first routed requests', router.launch_acquisition_action('sourceSurface', 'integrations'))
+        self.assertEqual('docs', router.marketing_source_surface_bucket({'source': 'api-reference'}))
+        self.assertEqual('docs', router.marketing_source_surface_bucket({'source': 'api-troubleshooting'}))
+        self.assertIn('generated-key recovery', router.launch_acquisition_action('sourceSurface', 'docs'))
         # Ensure no raw email values leak into aggregate marketing funnel metrics.
         # State names like 'email_auth_requested' are intentional and allowed.
         metrics_json = json.dumps(metrics)

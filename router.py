@@ -7660,6 +7660,7 @@ MARKETING_SOURCE_SURFACE_BUCKETS = (
     'pricing',
     'model-routing-calculator',
     'quickstart',
+    'docs',
     'codex-docs',
     'fusion',
     'compare-gateways',
@@ -7675,6 +7676,12 @@ MARKETING_SOURCE_SURFACE_BUCKETS = (
     'support',
     'landing',
 )
+MARKETING_SOURCE_SURFACE_ALIASES = {
+    'api-reference': 'docs',
+    'api-troubleshooting': 'docs',
+    'gateway-migration': 'docs',
+    'api-docs': 'docs',
+}
 MARKETING_ATTRIBUTION_CHANNEL_BUCKETS = (
     'direct',
     'github',
@@ -7882,6 +7889,7 @@ def marketing_event_is_synthetic(row, metadata=None, sweep_keys=None):
 
 def marketing_source_surface_bucket(metadata):
     source = str(metadata.get('sourceSurface') or metadata.get('source') or '').strip().lower()
+    source = MARKETING_SOURCE_SURFACE_ALIASES.get(source, source)
     if source in MARKETING_SOURCE_SURFACE_BUCKETS:
         return source
     if source:
@@ -7946,6 +7954,7 @@ def launch_acquisition_action(kind, bucket):
             'article': 'Turn long-form local-first routing readers into quickstart, Codex setup, and gateway comparison CTAs.',
             'self-hosted': 'Turn self-hosted router evaluators into local quickstart, GitHub install, and hosted key activation CTAs.',
             'model-routing-calculator': 'Turn calculator interest into generated-key-first Pro/Max activation and implementation calls.',
+            'docs': 'Turn API docs and troubleshooting readers into generated-key recovery, quickstart setup, and first-request verification.',
             'model-catalog': 'Turn catalog demand into hosted key activation, route-profile proof, and model availability copy.',
             'quickstart': 'Use copyable quickstart snippets to convert generated-key users into first routed requests.',
             'fusion': 'Convert Fusion page demand into Pro/Max checkout, gateway migration proof, and first high-stakes synthesis requests.',
@@ -8004,6 +8013,11 @@ DEFAULT_LAUNCH_ACQUISITION_ACTIONS = (
         'kind': 'sourceSurface',
         'bucket': 'quickstart',
         'action': 'Use copyable quickstart snippets to convert generated-key users into first routed requests.',
+    },
+    {
+        'kind': 'sourceSurface',
+        'bucket': 'docs',
+        'action': 'Turn API docs and troubleshooting readers into generated-key recovery, quickstart setup, and first-request verification.',
     },
     {
         'kind': 'sourceSurface',
