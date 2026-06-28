@@ -658,6 +658,7 @@ check_managed_provider_access_guard() {
   status="$(jq -r '.publicLaunch.managedProviderAccess.status // empty' /tmp/sage-router-readiness-body)"
   terms_url="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsUrl // empty' /tmp/sage-router-readiness-body)"
   terms_ack="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsAcknowledged // false' /tmp/sage-router-readiness-body)"
+  auth_evidence="$(jq -r '.publicLaunch.managedProviderAccess.providerAuthorizationEvidenceConfigured // false' /tmp/sage-router-readiness-body)"
   allowlist_count="$(jq -r '(.publicLaunch.managedProviderAccess.allowedProviderFamilies // []) | length' /tmp/sage-router-readiness-body)"
   margin_url="$(jq -r '.publicLaunch.managedProviderAccess.marginPolicyUrl // empty' /tmp/sage-router-readiness-body)"
   acceptable_url="$(jq -r '.publicLaunch.managedProviderAccess.acceptableUseUrl // empty' /tmp/sage-router-readiness-body)"
@@ -681,6 +682,7 @@ check_managed_provider_access_guard() {
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("margin_policy")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("positive_unit_economics")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("provider_terms_acknowledgment")) and
+    ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("provider_authorization_evidence")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("authorized_provider_allowlist")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("provider_cost_metering")) and
     ((.publicLaunch.managedProviderAccess.requiredControls // []) | index("per_plan_usage_caps")) and
@@ -752,6 +754,7 @@ check_managed_provider_access_guard() {
             -n "$PROVIDER_RESALE_ALLOWED_PROVIDERS" &&
             "$terms_url" == "$PROVIDER_RESALE_TERMS_URL" &&
             "$terms_ack" == "true" &&
+            "$auth_evidence" == "true" &&
             "$terms_ack_env_ok" == "true" &&
             "$margin_url" == "$PROVIDER_RESALE_MARGIN_POLICY_URL" &&
             "$acceptable_url" == "${MARKETING_BASE%/}/acceptable-use" &&
@@ -769,16 +772,16 @@ check_managed_provider_access_guard() {
             "$margin_percent" =~ ^[0-9]+$ &&
             "$margin_percent" -ge 30 &&
             "$missing_count" == "0" ]]; then
-        pass "managed provider access is explicitly enabled with acknowledged resale terms, a provider allowlist, positive unit economics, provider-family BYOK boundary, margin policy, quotas, operator audit events, and acceptable-use controls"
+        pass "managed provider access is explicitly enabled with acknowledged resale terms, provider authorization evidence, a provider allowlist, positive unit economics, provider-family BYOK boundary, margin policy, quotas, operator audit events, and acceptable-use controls"
       else
-        fail "managed provider access enabled without complete controls, including acknowledged resale terms, provider allowlist, positive unit economics, provider-family BYOK boundary, operator audit events, managed-access setup guard, and managed-access acceptable-use boundary: enabled=${enabled} requested=${requested:-missing} readinessSatisfied=${readiness_satisfied:-missing} status=${status:-missing} terms=${terms_url:+present} termsAcknowledged=${terms_ack:-missing} allowedProviderFamilies=${allowlist_count:-missing} margin=${margin_url:+present} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} costModelConfigured=${cost_model_configured:-missing} unitEconomicsSatisfied=${unit_economics_satisfied:-missing} unitEconomicsPlans=${unit_economics_plans_ok:-missing} unitEconomicsSafeThresholds=${unit_economics_safe_thresholds_ok:-missing} providerFamilyBoundary=${provider_family_boundary_ok:-missing} readinessSetup=${readiness_setup_ok:-missing} acceptableUse=${acceptable_url:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing} missingControls=${missing_count:-missing}"
+        fail "managed provider access enabled without complete controls, including acknowledged resale terms, provider authorization evidence, provider allowlist, positive unit economics, provider-family BYOK boundary, operator audit events, managed-access setup guard, and managed-access acceptable-use boundary: enabled=${enabled} requested=${requested:-missing} readinessSatisfied=${readiness_satisfied:-missing} status=${status:-missing} terms=${terms_url:+present} termsAcknowledged=${terms_ack:-missing} authorizationEvidence=${auth_evidence:-missing} allowedProviderFamilies=${allowlist_count:-missing} margin=${margin_url:+present} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} costModelConfigured=${cost_model_configured:-missing} unitEconomicsSatisfied=${unit_economics_satisfied:-missing} unitEconomicsPlans=${unit_economics_plans_ok:-missing} unitEconomicsSafeThresholds=${unit_economics_safe_thresholds_ok:-missing} providerFamilyBoundary=${provider_family_boundary_ok:-missing} readinessSetup=${readiness_setup_ok:-missing} acceptableUse=${acceptable_url:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing} missingControls=${missing_count:-missing}"
       fi
       ;;
     *)
       if [[ "$enabled" == "false" && "$requested" == "false" && "$readiness_satisfied" == "false" && "$status" == "disabled_pending_provider_terms" && "$terms_ack" == "false" && "$controls_ok" == "true" && "$cost_controls_ok" == "true" && "$unit_economics_ok" == "true" && "$unit_economics_safe_thresholds_ok" == "true" && "$provider_family_boundary_ok" == "true" && "$readiness_setup_ok" == "true" && "$margin_percent" =~ ^[0-9]+$ && "$margin_percent" -ge 30 && "$missing_count" =~ ^[0-9]+$ && "$missing_count" -gt 0 ]]; then
-        pass "managed provider access remains disabled until provider resale terms are acknowledged, provider allowlist, positive unit economics, provider-family BYOK boundary, margin policy, quotas, operator audit events, setup guard, and acceptable-use controls are ready"
+        pass "managed provider access remains disabled until provider resale terms are acknowledged, provider authorization evidence, provider allowlist, positive unit economics, provider-family BYOK boundary, margin policy, quotas, operator audit events, setup guard, and acceptable-use controls are ready"
       else
-        fail "managed provider access guard unexpected: enabled=${enabled} requested=${requested:-missing} readinessSatisfied=${readiness_satisfied:-missing} status=${status:-missing} termsAcknowledged=${terms_ack:-missing} allowedProviderFamilies=${allowlist_count:-missing} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} unitEconomicsSafeThresholds=${unit_economics_safe_thresholds_ok:-missing} providerFamilyBoundary=${provider_family_boundary_ok:-missing} readinessSetup=${readiness_setup_ok:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing} missingControls=${missing_count:-missing}, expected disabled_pending_provider_terms"
+        fail "managed provider access guard unexpected: enabled=${enabled} requested=${requested:-missing} readinessSatisfied=${readiness_satisfied:-missing} status=${status:-missing} termsAcknowledged=${terms_ack:-missing} authorizationEvidence=${auth_evidence:-missing} allowedProviderFamilies=${allowlist_count:-missing} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} unitEconomicsSafeThresholds=${unit_economics_safe_thresholds_ok:-missing} providerFamilyBoundary=${provider_family_boundary_ok:-missing} readinessSetup=${readiness_setup_ok:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing} missingControls=${missing_count:-missing}, expected disabled_pending_provider_terms"
       fi
       ;;
   esac

@@ -545,7 +545,10 @@ scripts/configure_managed_provider_resale_readiness.sh --check
 That binds the provider-resale terms URL, margin-policy URL, resale-eligible
 allowlist (`ollama,openai,anthropic`), disabled public-enable flag, and minimum
 gross-margin floor. The remaining launch blockers should be the explicit terms
-acknowledgment plus private cost model / positive unit-economics review.
+acknowledgment, an operator-held provider authorization evidence reference, and
+private cost model / positive unit-economics review. The authorization reference
+is never printed in public metadata; `/pricing` exposes only whether it is
+configured.
 
 If the readiness check reports Cloudflare `403` / `1010` before the Sage Router
 auth gate, use [docs/cloudflare-api-bic-skip.md](docs/cloudflare-api-bic-skip.md)

@@ -475,6 +475,7 @@ PUBLIC_LAUNCH_POSITIONING = {
             'margin_policy',
             'positive_unit_economics',
             'provider_terms_acknowledgment',
+            'provider_authorization_evidence',
             'authorized_provider_allowlist',
             'provider_cost_metering',
             'per_plan_usage_caps',
@@ -2589,6 +2590,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
         "SAGEROUTER_PROVIDER_RESALE_TERMS_URL='https://sagerouter.dev/provider-resale-terms' \\\n"
         "SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL='https://sagerouter.dev/margin-policy' \\\n"
         "SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='0' \\\n"
+        "SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' \\\n"
         "SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS='ollama,openai,anthropic' \\\n"
         "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' \\\n"
         "SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT='35' \\\n"
@@ -2600,6 +2602,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
     )
     enable_command_template = (
         "SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' \\\n"
+        "SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' \\\n"
         "SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='1' \\\n"
         "scripts/configure_managed_provider_resale_readiness.sh"
     )
@@ -2612,6 +2615,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
             'SAGEROUTER_PROVIDER_RESALE_TERMS_URL',
             'SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL',
             'SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED',
+            'SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF',
             'SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS',
             'SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS',
         ],
@@ -2711,6 +2715,8 @@ def public_launch_metadata():
     provider_terms_url = os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_URL', '').strip()
     margin_policy_url = os.environ.get('SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL', '').strip()
     provider_terms_acknowledged = str(os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED', '')).strip().lower() in {'1', 'true', 'yes', 'on'}
+    provider_authorization_ref = os.environ.get('SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF', '').strip()
+    provider_authorization_evidence_ready = bool(provider_authorization_ref)
     configured_provider_families = []
     for item in os.environ.get('SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS', '').split(','):
         normalized = item.strip().lower()
@@ -2740,6 +2746,7 @@ def public_launch_metadata():
     provider_allowlist_ready = bool(allowed_provider_families)
     managed_provider_ready = bool(
         provider_terms_ready
+        and provider_authorization_evidence_ready
         and provider_allowlist_ready
         and margin_policy_url
         and requires_positive_unit_economics
@@ -2751,6 +2758,8 @@ def public_launch_metadata():
         missing_controls.append('provider_resale_terms')
     if not provider_terms_acknowledged:
         missing_controls.append('provider_terms_acknowledgment')
+    if not provider_authorization_evidence_ready:
+        missing_controls.append('provider_authorization_evidence')
     if not provider_allowlist_ready:
         missing_controls.append('authorized_provider_allowlist')
     if not margin_policy_url:
@@ -2806,6 +2815,8 @@ def public_launch_metadata():
     managed_provider_access['missingControls'] = missing_controls
     managed_provider_access['providerTermsUrl'] = provider_terms_url
     managed_provider_access['providerTermsAcknowledged'] = provider_terms_acknowledged
+    managed_provider_access['providerAuthorizationEvidenceConfigured'] = provider_authorization_evidence_ready
+    managed_provider_access['providerAuthorizationEvidenceEnv'] = 'SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF'
     managed_provider_access['configuredProviderFamilies'] = configured_provider_families
     managed_provider_access['allowedProviderFamilies'] = allowed_provider_families
     managed_provider_access['resaleEligibleProviderFamilies'] = list(MANAGED_PROVIDER_RESALE_ELIGIBLE_PROVIDER_FAMILIES)
