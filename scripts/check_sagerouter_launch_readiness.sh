@@ -3741,6 +3741,15 @@ check_marketing_api_troubleshooting_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "api_troubleshooting_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-api-troubleshooting-magic-link-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Finish setup key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-troubleshooting-key-recovery-cta"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "api_troubleshooting_key_recovery_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-troubleshooting-key-recovery-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=api-troubleshooting&utm_medium=recovery&utm_campaign=signup_to_key_recovery" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-troubleshooting-key-recovery-url"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
@@ -3797,6 +3806,15 @@ check_marketing_api_reference_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "api_reference_magic_link_sent" /tmp/sage-router-readiness-body; then
     page_code="200:missing-api-reference-magic-link-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Finish setup key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-reference-key-recovery-cta"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "api_reference_key_recovery_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-reference-key-recovery-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=api-reference&utm_medium=recovery&utm_campaign=signup_to_key_recovery" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-reference-key-recovery-url"
   fi
   rm -f /tmp/sage-router-readiness-body
 

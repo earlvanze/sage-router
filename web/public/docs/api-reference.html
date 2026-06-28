@@ -42,6 +42,7 @@
         <p class="lead">Use one hosted base URL, generated <code>sk_sage_*</code> keys, route profiles such as <code>sage-router/frontier</code>, and public model discovery without opening anonymous model traffic.</p>
         <div class="actions">
           <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key">Create API key</a>
+          <a class="button secondary" href="https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=api-reference&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email" data-api-reference-event="api_reference_key_recovery_clicked" data-api-reference-state="hero-recovery">Finish setup key</a>
           <a class="button secondary" href="/quickstart">Quickstart</a>
           <a class="button secondary" href="/docs/gateway-migration">Gateway migration</a>
           <a class="button secondary" href="/api-troubleshooting">Troubleshooting</a>
@@ -198,6 +199,48 @@ curl "$OPENAI_BASE_URL/chat/completions" \
       <a href="https://github.com/earlvanze/sage-router">GitHub</a>
     </footer>
   </div>
+  <script>
+    function trackApiReferenceEvent(event, data = {}) {
+      const params = new URLSearchParams(window.location.search);
+      const payload = JSON.stringify({
+        event,
+        sourcePage: window.location.href,
+        target: data.target || null,
+        metadata: {
+          source: 'api-reference',
+          button: data.button || null,
+          state: data.state || null,
+          utmSource: params.get('utm_source') || params.get('utmSource') || null,
+          utmMedium: params.get('utm_medium') || params.get('utmMedium') || null,
+          utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
+          landingPath: window.location.pathname
+        }
+      });
+      try {
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          if (navigator.sendBeacon('/api/funnel-event', blob)) return;
+        }
+      } catch {}
+      fetch('/api/funnel-event', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: payload,
+        keepalive: true,
+        credentials: 'omit'
+      }).catch(() => {});
+    }
+
+    document.querySelectorAll('[data-api-reference-event]').forEach((link) => {
+      link.addEventListener('click', () => {
+        trackApiReferenceEvent(link.dataset.apiReferenceEvent, {
+          target: link.getAttribute('href') || null,
+          button: link.textContent.trim().slice(0, 60),
+          state: link.dataset.apiReferenceState || null
+        });
+      });
+    });
+  </script>
   <script src="/marketing-email-activation.js" defer></script>
 </body>
 </html>
