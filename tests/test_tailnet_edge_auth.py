@@ -984,6 +984,40 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertEqual("prefix probe ok", payload["output_text"])
         self.assertEqual("prefix probe ok", payload["output"][0]["content"][0]["text"])
 
+    def test_router_profile_sse_strips_prefix_from_responses_events(self):
+        line = (
+            b'data: {"type":"response.output_text.delta",'
+            b'"delta":"[ollama/glm-5.1] [ollama/glm-5.1] streaming prefix probe ok"}\n'
+        )
+
+        sanitized = self.edge.sanitize_router_profile_sse_line(line)
+        payload = json.loads(sanitized.decode("utf-8")[len("data: "):])
+
+        self.assertEqual("streaming prefix probe ok", payload["delta"])
+
+    def test_router_profile_sse_rewrites_profile_headers(self):
+        request_body = b'{"model":"sage-router/frontier","input":[{"role":"user","content":"hi"}],"stream":true}'
+        headers = [
+            ("Content-Type", "text/event-stream"),
+            ("X-Sage-Router-Model", "ollama/glm-5.1"),
+            ("X-Sage-Router-Provider", "ollama"),
+            ("X-Sage-Router-Model-Name", "glm-5.1"),
+        ]
+
+        rewritten_headers = self.edge.rewrite_router_profile_stream_headers(
+            "/v1/responses",
+            request_body,
+            headers,
+        )
+        header_map = {key.lower(): value for key, value in rewritten_headers}
+
+        self.assertEqual("sage-router/frontier", header_map["x-sage-router-model"])
+        self.assertEqual("sage-router", header_map["x-sage-router-provider"])
+        self.assertEqual("frontier", header_map["x-sage-router-model-name"])
+        self.assertEqual("ollama/glm-5.1", header_map["x-sage-router-upstream-model"])
+        self.assertEqual("ollama", header_map["x-sage-router-upstream-provider"])
+        self.assertEqual("glm-5.1", header_map["x-sage-router-upstream-model-name"])
+
     def test_model_modality_record_prefers_upstream_headers(self):
         response_body = b'{"id":"chatcmpl_1","model":"sage-router/frontier","upstream_model":"ollama/kimi-k2.5","choices":[]}'
 

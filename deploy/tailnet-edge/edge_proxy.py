@@ -673,6 +673,15 @@ def response_is_uncompressed_json(response_headers, status):
     return "content-encoding" not in headers
 
 
+def response_is_uncompressed_event_stream(response_headers, status):
+    if not (200 <= int(status or 0) < 300):
+        return False
+    headers = {str(key).lower(): str(value) for key, value in (response_headers or [])}
+    if "text/event-stream" not in headers.get("content-type", "").lower():
+        return False
+    return "content-encoding" not in headers
+
+
 def router_profile_alias_from_body(path, body):
     if not (body and is_generated_api_key_path(path)):
         return ""
@@ -735,6 +744,85 @@ def sanitize_visible_response_payload(payload):
         if isinstance(part, dict) and isinstance(part.get("text"), str):
             part["text"] = strip_leading_model_prefix_labels(part.get("text"))
     return payload
+
+
+def sanitize_visible_sse_payload(payload):
+    if not isinstance(payload, dict):
+        return payload
+    sanitize_visible_response_payload(payload)
+    for key in ("delta", "text"):
+        if isinstance(payload.get(key), str):
+            payload[key] = strip_leading_model_prefix_labels(payload.get(key))
+    for key in ("part", "item", "response"):
+        nested = payload.get(key)
+        if isinstance(nested, dict):
+            sanitize_visible_sse_payload(nested)
+    return payload
+
+
+def sanitize_router_profile_sse_line(raw_line):
+    line = raw_line.decode("utf-8", errors="replace") if isinstance(raw_line, (bytes, bytearray)) else str(raw_line)
+    if not line.startswith("data: "):
+        return raw_line
+    suffix = "\n" if line.endswith("\n") else ""
+    data = line[len("data: "):].strip()
+    if not data or data == "[DONE]":
+        return raw_line
+    try:
+        payload = json.loads(data)
+    except Exception:
+        return raw_line
+    if not isinstance(payload, dict):
+        return raw_line
+    payload = sanitize_visible_sse_payload(payload)
+    return f"data: {json.dumps(payload, separators=(',', ':'))}{suffix}".encode("utf-8")
+
+
+def rewrite_router_profile_stream_headers(path, request_body, response_headers):
+    alias = router_profile_alias_from_body(path, request_body)
+    if not alias:
+        return response_headers
+    headers = {str(key).lower(): str(value) for key, value in (response_headers or [])}
+    upstream_model = (
+        headers.get("x-sage-router-upstream-model", "").strip()
+        or headers.get("x-sage-router-model", "").strip()
+    )
+    upstream_provider = headers.get("x-sage-router-upstream-provider", "").strip()
+    upstream_model_name = headers.get("x-sage-router-upstream-model-name", "").strip()
+    if upstream_model and (not upstream_provider or not upstream_model_name):
+        parsed_provider, parsed_model_name = model_provider_and_name(upstream_model)
+        upstream_provider = upstream_provider or parsed_provider
+        upstream_model_name = upstream_model_name or parsed_model_name
+    upstream_provider = upstream_provider or headers.get("x-sage-router-provider", "").strip()
+    upstream_model_name = upstream_model_name or headers.get("x-sage-router-model-name", "").strip()
+
+    alias_provider, alias_model_name = model_provider_and_name(alias)
+    rewrite_header_names = {
+        "content-length",
+        "x-sage-router-model",
+        "x-sage-router-provider",
+        "x-sage-router-model-name",
+        "x-sage-router-upstream-model",
+        "x-sage-router-upstream-provider",
+        "x-sage-router-upstream-model-name",
+    }
+    replaced_headers = [
+        (key, value)
+        for key, value in (response_headers or [])
+        if str(key).lower() not in rewrite_header_names
+    ]
+    replaced_headers.extend([
+        ("X-Sage-Router-Model", alias),
+        ("X-Sage-Router-Provider", alias_provider),
+        ("X-Sage-Router-Model-Name", alias_model_name),
+    ])
+    if upstream_model:
+        replaced_headers.append(("X-Sage-Router-Upstream-Model", upstream_model))
+    if upstream_provider:
+        replaced_headers.append(("X-Sage-Router-Upstream-Provider", upstream_provider))
+    if upstream_model_name:
+        replaced_headers.append(("X-Sage-Router-Upstream-Model-Name", upstream_model_name))
+    return replaced_headers
 
 
 def rewrite_router_profile_response(path, request_body, response_headers, status, response_body):
@@ -1644,6 +1732,13 @@ class EdgeHandler(BaseHTTPRequestHandler):
                         resp.status,
                         buffered_response_body,
                     )
+                should_sanitize_router_profile_sse = bool(
+                    buffered_response_body is None
+                    and router_profile_alias_from_body(self.path, body)
+                    and response_is_uncompressed_event_stream(response_headers, resp.status)
+                )
+                if should_sanitize_router_profile_sse:
+                    response_headers = rewrite_router_profile_stream_headers(self.path, body, response_headers)
                 modality_record = modality_record_from_response(response_headers, resp.status, body, buffered_response_body)
 
                 self.close_connection = True
@@ -1691,6 +1786,14 @@ class EdgeHandler(BaseHTTPRequestHandler):
                 if buffered_response_body is not None:
                     self.wfile.write(buffered_response_body)
                     self.wfile.flush()
+                    return
+                if should_sanitize_router_profile_sse:
+                    while True:
+                        line = resp.readline()
+                        if not line:
+                            break
+                        self.wfile.write(sanitize_router_profile_sse_line(line))
+                        self.wfile.flush()
                     return
                 while True:
                     chunk = resp.read(READ_CHUNK_SIZE)
