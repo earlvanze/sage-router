@@ -733,6 +733,30 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         self.assertEqual('tool', messages[3]['role'])
         self.assertEqual('call_1', messages[3]['tool_call_id'])
 
+    def test_responses_input_to_chat_messages_drops_orphan_tool_outputs(self):
+        messages = router.responses_input_to_chat_messages([
+            {'type': 'function_call_output', 'call_id': '', 'output': 'orphan'},
+            {'type': 'function_call_output', 'output': 'orphan'},
+            {'type': 'message', 'role': 'user', 'content': [{'type': 'input_text', 'text': 'continue'}]},
+        ])
+
+        self.assertEqual([{'role': 'user', 'content': 'continue'}], messages)
+
+    def test_chat_messages_to_responses_input_never_emits_empty_call_ids(self):
+        items = router.chat_messages_to_responses_input([
+            {
+                'role': 'assistant',
+                'content': '',
+                'tool_calls': [{'id': '', 'function': {'name': 'lookup_record', 'arguments': '{"id":"abc"}'}}],
+            },
+            {'role': 'tool', 'tool_call_id': '', 'content': 'orphan result'},
+        ])
+
+        self.assertEqual(1, len(items))
+        self.assertEqual('function_call', items[0]['type'])
+        self.assertTrue(items[0]['call_id'])
+        self.assertNotEqual('', items[0]['call_id'])
+
     def test_responses_tool_schema_converts_to_chat_schema(self):
         converted = router.responses_tools_to_chat_tools([{
             'type': 'function',

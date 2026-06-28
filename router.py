@@ -3841,9 +3841,12 @@ def responses_input_to_chat_messages(input_value, instructions=None):
             continue
         item_type = item.get('type')
         if item_type == 'function_call_output':
+            call_id = item.get('call_id') or item.get('id') or ''
+            if not call_id:
+                continue
             messages.append({
                 'role': 'tool',
-                'tool_call_id': item.get('call_id') or item.get('id') or '',
+                'tool_call_id': call_id,
                 'content': normalize_content(item.get('output') or ''),
             })
             continue
@@ -13551,18 +13554,22 @@ def chat_messages_to_responses_input(messages):
                     continue
                 fn = tc.get('function') or {}
                 args = fn.get('arguments') or ''
+                call_id = tc.get('id') or f'call_{uuid.uuid4().hex[:24]}'
                 items.append({
                     'type': 'function_call',
-                    'call_id': tc.get('id') or '',
+                    'call_id': call_id,
                     'name': fn.get('name') or '',
                     'arguments': args if isinstance(args, str) else json.dumps(args, separators=(',', ':')),
                 })
             continue
         if role == 'tool':
+            call_id = msg.get('tool_call_id') or ''
+            if not call_id:
+                continue
             # Tool result -> function_call_output item
             items.append({
                 'type': 'function_call_output',
-                'call_id': msg.get('tool_call_id') or '',
+                'call_id': call_id,
                 'output': content if isinstance(content, str) else json.dumps(content, separators=(',', ':')),
             })
             continue

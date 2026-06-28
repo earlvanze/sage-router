@@ -772,6 +772,14 @@ debug responses without adding labels to assistant text. Sage Router also strips
 known assistant replay artifacts such as duplicated `[provider/model]` labels and
 `[tool calls omitted]` placeholders before forwarding history or Responses output
 to Codex/OpenClaw clients, while preserving structured tool calls.
+
+For Docker Desktop Codex setups that need a local Responses-to-Chat shim, use
+[`scripts/codex_sage_router_proxy.py`](scripts/codex_sage_router_proxy.py) as
+the canonical source for the mounted proxy file. The shim preserves
+`function_call` / `function_call_output` pairs, drops orphan tool outputs without
+usable call ids, and applies the same visible replay sanitization before history
+is sent back through Sage Router.
+
 ## Supported API Formats
 
 | Endpoint | Format | Used By |
