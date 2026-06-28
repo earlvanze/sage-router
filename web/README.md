@@ -87,9 +87,9 @@ before GitHub, email magic-link, or setup-copy fallbacks. The hero also exposes 
 no-secret `Copy 60-second setup bundle` action that records `quickstart_snippet_copied`
 with `landing-hero-setup-bundle` metadata, so setup-copy intent is measurable
 before signup. A persistent bottom activation bar keeps `Create API key`,
-`60-second setup`, and `Finish setup key` visible after scroll while reusing
-`landing_account_clicked`, `landing_quickstart_clicked`, and
-`landing_key_recovery_clicked` telemetry. The hero keeps pricing, quickstart, public status,
+`Copy 60-second setup`, and `Finish setup key` visible after scroll; the setup
+button records `quickstart_snippet_copied` with `landing-sticky-setup-bundle`
+metadata, then becomes a `landing_setup_next_clicked` account handoff. The hero keeps pricing, quickstart, public status,
 model-gateway comparison, model catalog, calculator, security, analytics, login,
 managed-access private beta review, support, and local GitHub install paths
 visible so a prospect can move from discovery to generated `sk_sage_*` key setup

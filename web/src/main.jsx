@@ -387,11 +387,48 @@ function HeroSetupCopy() {
 }
 
 function StickyActivationBar() {
+  const [setupStatus, setSetupStatus] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const copyStickySetup = async () => {
+    if (copied) {
+      trackLandingFunnelEvent('landing_setup_next_clicked', {
+        plan: 'pro',
+        target: ACCOUNT_PAGE_HREF,
+        button: 'Sticky create API key after copy',
+        state: 'sticky-post-copy',
+        snippet: 'landing-sticky-setup-bundle',
+      });
+      window.location.href = ACCOUNT_PAGE_HREF;
+      return;
+    }
+    try {
+      await writeClipboardText(landingSetupBundleText());
+      trackLandingFunnelEvent('quickstart_snippet_copied', {
+        button: 'Sticky copy 60-second setup',
+        state: 'sticky-activation',
+        snippet: 'landing-sticky-setup-bundle',
+      });
+      setCopied(true);
+      setSetupStatus('Setup copied. Create API key next.');
+    } catch {
+      trackLandingFunnelEvent('landing_quickstart_clicked', {
+        target: '/quickstart',
+        button: 'Sticky copy fallback quickstart',
+        state: 'sticky-copy-failed',
+      });
+      setSetupStatus('Copy failed. Opening quickstart...');
+      window.setTimeout(() => {
+        window.location.href = '/quickstart';
+      }, 900);
+    }
+  };
+
   return (
     <aside className="stickyActivationBar" aria-label="Hosted API activation">
       <div>
         <strong>Hosted API is live.</strong>
-        <span>Create an API key first; no provider key or credit card required yet.</span>
+        <span>{setupStatus || 'Copy setup, then create an API key; no provider key or credit card required yet.'}</span>
       </div>
       <a className="button primary" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
         plan: 'pro',
@@ -401,13 +438,9 @@ function StickyActivationBar() {
       })}>
         Create API key
       </a>
-      <a className="button secondary" href="/quickstart" onClick={() => trackLandingFunnelEvent('landing_quickstart_clicked', {
-        target: '/quickstart',
-        button: 'Sticky quickstart',
-        state: 'sticky-activation',
-      })}>
-        60-second setup
-      </a>
+      <button className="button secondary stickySetupButton" type="button" onClick={copyStickySetup}>
+        {copied ? 'Create API key next' : 'Copy 60-second setup'}
+      </button>
       <a className="button secondary stickyRecoveryButton" href={LANDING_KEY_RECOVERY_URL} onClick={() => trackLandingFunnelEvent('landing_key_recovery_clicked', {
         plan: 'pro',
         target: LANDING_KEY_RECOVERY_URL,
