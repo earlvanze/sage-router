@@ -321,6 +321,32 @@ class ProviderSwitchingTests(unittest.TestCase):
             [name for name, _value in codex_score['contributions']],
         )
 
+    def test_balanced_route_reserves_public_chat_fallback_and_skips_nim_audio_models(self):
+        router.PROVIDERS = {
+            'ollama': router.Provider('ollama', 'ollama', 'https://ollama.invalid', 'key', ['kimi-k2.5:cloud']),
+            'openai': router.Provider('openai', 'openai-completions', 'https://openai.invalid/v1', 'key', ['gpt-5.4']),
+            'openrouter': router.Provider('openrouter', 'openai-completions', 'https://openrouter.invalid/api/v1', 'key', ['gemini-2.5-flash']),
+            'nvidia-nim': router.Provider('nvidia-nim', 'openai-completions', 'https://integrate.api.nvidia.com/v1', 'key', ['canary-asr', 'meta/llama-3.1-8b-instruct']),
+        }
+
+        self.assertFalse(router.is_chat_capable_model(router.PROVIDERS['nvidia-nim'], 'canary-asr'))
+
+        chain, _scores, rejections = router.select_model(
+            router.Intent.GENERAL,
+            router.Complexity.SIMPLE,
+            router.ThinkingLevel.MEDIUM,
+            'balanced',
+            {},
+            100,
+        )
+
+        self.assertIn(('openrouter', 'gemini-2.5-flash'), chain)
+        self.assertNotIn(('nvidia-nim', 'canary-asr'), chain)
+        self.assertIn(
+            {'provider': 'nvidia-nim', 'model': 'canary-asr', 'reason': 'not chat-capable'},
+            rejections,
+        )
+
     def test_temp_model_blocks_are_honored_without_static_disabled_models(self):
         old_disabled_models = set(router.DISABLED_MODELS)
         try:

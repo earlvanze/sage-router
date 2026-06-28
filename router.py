@@ -3240,6 +3240,10 @@ def model_is_servable(provider, model):
 
 def is_chat_capable_model(provider, model):
     model_l = (model or '').lower()
+    if any(hint in model_l for hint in ('embed', 'embedding', 'rerank', 'bge-', 'nomic-embed')):
+        return False
+    if is_nvidia_provider(provider) and any(hint in model_l for hint in NVIDIA_NON_TOOL_MODEL_HINTS):
+        return False
     if provider.api_type == 'ollama':
         # 1) Static name-pattern check (fast, catches most cases)
         if any(hint in model_l for hint in NON_CHAT_MODEL_HINTS):
@@ -13099,6 +13103,8 @@ def select_model(intent, complexity, thinking=DEFAULT_THINKING_LEVEL, route_mode
     all_candidates.sort(key=lambda item: (-item[0], item[1], item[2]))
     ranked_pairs = [(pn, model) for _, pn, model in all_candidates]
     chain = diversify_ranked_chain(ranked_pairs, MAX_PROVIDER_ATTEMPTS)
+    if route_mode in {'balanced', 'best'}:
+        chain = ensure_reliable_public_chat_fallback(chain, requirements, estimated_tokens, MAX_PROVIDER_ATTEMPTS)
     return chain, sorted(debug_scores, key=lambda item: item['score'], reverse=True), rejections
 
 
@@ -13126,6 +13132,42 @@ def diversify_ranked_chain(ranked_pairs, limit=MAX_PROVIDER_ATTEMPTS):
         if len(diversified) >= limit:
             break
     return diversified
+
+
+RELIABLE_PUBLIC_CHAT_FALLBACKS = (
+    ('openrouter', 'gemini-2.5-flash'),
+    ('openrouter', 'google/gemini-2.5-flash'),
+    ('nvidia-nim', 'meta/llama-3.1-8b-instruct'),
+)
+
+
+def ensure_reliable_public_chat_fallback(chain, requirements, estimated_tokens, limit=MAX_PROVIDER_ATTEMPTS):
+    """Keep a known text-chat escape hatch inside hosted balanced/best chains."""
+    chain = dedupe_keep_order(chain or [])
+    requirements = requirements or {}
+    if not chain or has_modality_requirement(requirements):
+        return chain
+    if requirements.get('tools') or requirements.get('preferTools') or requirements.get('agentic'):
+        return chain
+    if any((provider, model) in chain for provider, model in RELIABLE_PUBLIC_CHAT_FALLBACKS):
+        return chain
+    for provider_name, model in RELIABLE_PUBLIC_CHAT_FALLBACKS:
+        provider = PROVIDERS.get(provider_name)
+        if not provider or provider_name in DISABLED_PROVIDERS:
+            continue
+        if model not in (provider.models or []):
+            continue
+        if not is_chat_capable_model(provider, model):
+            continue
+        ok_req, _reason = model_meets_requirements(provider, model, requirements, estimated_tokens)
+        if not ok_req:
+            continue
+        fallback = (provider_name, model)
+        if len(chain) < limit:
+            return chain + [fallback]
+        insert_at = min(2, len(chain))
+        return dedupe_keep_order(chain[:insert_at] + [fallback] + chain[insert_at:])[:limit]
+    return chain
 
 def call_ollama(base_url, model, messages, api_key='', thinking=DEFAULT_THINKING_LEVEL):
     url = base_url.rstrip('/') + '/api/chat'
