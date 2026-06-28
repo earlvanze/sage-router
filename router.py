@@ -9219,6 +9219,16 @@ def send_activation_email(contact):
     }
     if ACTIVATION_EMAIL_REPLY_TO:
         payload['reply_to'] = [ACTIVATION_EMAIL_REPLY_TO]
+    idempotency_source = json.dumps(
+        {
+            'to': contact.get('email') or '',
+            'subject': payload.get('subject') or '',
+            'text': payload.get('text') or '',
+        },
+        sort_keys=True,
+        separators=(',', ':'),
+    )
+    idempotency_key = 'sage-router-activation-' + hashlib.sha256(idempotency_source.encode('utf-8')).hexdigest()
     req = urllib.request.Request(
         'https://api.resend.com/emails',
         data=json.dumps(payload).encode('utf-8'),
@@ -9226,6 +9236,7 @@ def send_activation_email(contact):
             'Authorization': f'Bearer {ACTIVATION_EMAIL_API_KEY}',
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'Idempotency-Key': idempotency_key,
             'User-Agent': 'sage-router-activation-followup/1.0',
         },
         method='POST',

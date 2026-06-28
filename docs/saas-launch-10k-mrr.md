@@ -511,7 +511,10 @@ provider resale claim, or runtime feature flag.
   `POST /admin/customers/send-activation-followups` may send the same
   generated-key-first recovery drafts through the configured Resend sender,
   must support dry runs, and must fail closed with required env names when no
-  activation email provider is configured.
+  activation email provider is configured. The setup script should preflight
+  Resend API access plus sender-domain verified/sending state before binding
+  Cloud Run secrets, and runtime sends should use provider idempotency keys so
+  retries do not duplicate the same generated-key recovery draft.
 - Track operator follow-up work separately from queued follow-ups:
   per-customer and batch copy actions emit privacy-safe
   `operator_no_key_followup_*` events, and `/analytics/funnel` exposes

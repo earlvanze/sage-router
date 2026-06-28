@@ -38,6 +38,7 @@ Required environment:
 Optional:
   SAGE_ROUTER_ACTIVATION_EMAIL_REPLY_TO="support@sagerouter.dev"
   SAGE_ROUTER_ACTIVATION_EMAIL_MAX_BATCH=25
+  SAGEROUTER_SKIP_RESEND_VALIDATION=0
   PROJECT_ID=sage-router-demo-20260428
   REGION=us-central1
   SERVICE_NAME=sage-router
@@ -128,6 +129,67 @@ presence() {
   fi
 }
 
+sender_domain() {
+  local value="$1"
+  local email
+  email="$(printf '%s' "$value" | sed -n 's/.*<\([^>]*\)>.*/\1/p')"
+  if [[ -z "$email" ]]; then
+    email="$value"
+  fi
+  email="$(printf '%s' "$email" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  if [[ "$email" != *@* ]]; then
+    return 1
+  fi
+  printf '%s' "${email##*@}"
+}
+
+resend_sender_preflight() {
+  require_cmd curl
+  require_cmd jq
+
+  local from_domain body status domain_match verified sending
+  from_domain="$(sender_domain "$FROM_VALUE" || true)"
+  if [[ -z "$API_KEY_VALUE" || -z "$from_domain" ]]; then
+    printf 'Resend preflight: skipped apiKey=%s senderDomain=%s\n' \
+      "$(presence "$API_KEY_VALUE")" "$(presence "$from_domain")" >&2
+    return 1
+  fi
+
+  body="$(mktemp)"
+  status="$(
+    curl -sS -o "$body" -w '%{http_code}' \
+      https://api.resend.com/domains \
+      -H "Authorization: Bearer ${API_KEY_VALUE}" \
+      -H "Accept: application/json" \
+      -H "User-Agent: sage-router-activation-email-preflight/1.0" \
+      || printf '000'
+  )"
+  if [[ ! "$status" =~ ^2[0-9][0-9]$ ]]; then
+    printf 'Resend preflight: auth=failed HTTP %s; not binding activation sender secrets.\n' "$status" >&2
+    rm -f "$body"
+    return 1
+  fi
+
+  domain_match="$(jq -r --arg domain "$from_domain" '((.data // []) | any((.name // "") == $domain))' "$body")"
+  verified="$(jq -r --arg domain "$from_domain" '((.data // []) | any((.name // "") == $domain and (.status // "") == "verified"))' "$body")"
+  sending="$(jq -r --arg domain "$from_domain" '
+    ((.data // []) | any(
+      (.name // "") == $domain and (
+        (.capabilities.sending // "") == "enabled" or
+        (((.capabilities.sending // "") == "") and ((.status // "") == "verified"))
+      )
+    ))
+  ' "$body")"
+  rm -f "$body"
+
+  printf 'Resend preflight: auth=ok senderDomainMatched=%s verified=%s sending=%s\n' \
+    "$domain_match" "$verified" "$sending" >&2
+  if [[ "$domain_match" != "true" || "$verified" != "true" || "$sending" != "true" ]]; then
+    printf 'Resend preflight failed. Verify the sender domain in Resend before applying Cloud Run bindings.\n' >&2
+    return 1
+  fi
+}
+
 check_activation_email_sender() {
   require_cmd curl
   require_cmd jq
@@ -154,6 +216,11 @@ check_activation_email_sender() {
 
   printf 'Local apply inputs: provider=%s from=%s apiKey=%s replyTo=%s maxBatch=%s\n' \
     "$PROVIDER" "$(presence "$FROM_VALUE")" "$(presence "$API_KEY_VALUE")" "$(presence "$REPLY_TO_VALUE")" "$MAX_BATCH"
+  if [[ -n "$FROM_VALUE" || -n "$API_KEY_VALUE" ]]; then
+    if ! resend_sender_preflight; then
+      failures=1
+    fi
+  fi
 
   if command -v gcloud >/dev/null 2>&1; then
     local service_json service_status provider_env max_batch_env from_secret key_secret reply_to_secret
@@ -204,12 +271,20 @@ if [[ "$MODE" == "check" ]]; then
 fi
 
 require_cmd gcloud
+require_cmd curl
+require_cmd jq
 require_value SAGE_ROUTER_ACTIVATION_EMAIL_FROM "$FROM_VALUE"
 require_value "SAGE_ROUTER_RESEND_API_KEY or SAGE_ROUTER_ACTIVATION_EMAIL_API_KEY" "$API_KEY_VALUE"
 
 if [[ "$PROVIDER" != "resend" ]]; then
   printf 'Unsupported SAGE_ROUTER_ACTIVATION_EMAIL_PROVIDER=%s; only resend is currently supported.\n' "$PROVIDER" >&2
   exit 2
+fi
+
+if [[ "${SAGEROUTER_SKIP_RESEND_VALIDATION:-0}" == "1" ]]; then
+  printf 'Skipping Resend sender preflight because SAGEROUTER_SKIP_RESEND_VALIDATION=1.\n' >&2
+else
+  resend_sender_preflight
 fi
 
 gcloud services enable secretmanager.googleapis.com run.googleapis.com \

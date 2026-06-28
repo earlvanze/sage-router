@@ -516,7 +516,11 @@ scripts/configure_activation_email_sender.sh --check
 
 The activation email preflight reports public `/pricing` readiness, Cloud Run
 binding presence, and local apply-input presence only as booleans or binding
-names. It does not print sender values or Resend API-key values.
+names. When sender inputs are present, it also verifies Resend API access and
+that the sender domain is verified/sending-enabled before binding Cloud Run
+secrets. It does not print sender values or Resend API-key values. Activation
+follow-up sends use a Resend idempotency key so an operator retry does not
+double-send the same generated-key recovery draft.
 
 If the readiness check reports Cloudflare `403` / `1010` before the Sage Router
 auth gate, use [docs/cloudflare-api-bic-skip.md](docs/cloudflare-api-bic-skip.md)

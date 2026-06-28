@@ -827,6 +827,47 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('buyer@example.com', sent[0]['email'])
         self.assertIn('generated sk_sage setup key', sent[0]['body'])
 
+    def test_activation_email_sender_uses_resend_idempotency_key(self):
+        router.ACTIVATION_EMAIL_API_KEY = 'resend-key'
+        router.ACTIVATION_EMAIL_FROM = 'Sage Router <activation@sagerouter.dev>'
+        router.ACTIVATION_EMAIL_REPLY_TO = 'support@sagerouter.dev'
+        captured = []
+
+        class FakeResponse:
+            status = 200
+
+            def read(self):
+                return b'{"id":"email_123"}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        def fake_urlopen(req, timeout=12):
+            captured.append(req)
+            return FakeResponse()
+
+        original_urlopen = router.urllib.request.urlopen
+        try:
+            router.urllib.request.urlopen = fake_urlopen
+            sent = router.send_activation_email({
+                'email': 'buyer@example.com',
+                'subject': 'Create your Sage Router setup key',
+                'body': 'Use the generated-key-first recovery link.',
+            })
+        finally:
+            router.urllib.request.urlopen = original_urlopen
+
+        self.assertEqual('email_123', sent['id'])
+        self.assertEqual(1, len(captured))
+        headers = dict(captured[0].header_items())
+        self.assertEqual('sage-router-activation-followup/1.0', headers['User-agent'])
+        self.assertIn('Idempotency-key', headers)
+        self.assertTrue(headers['Idempotency-key'].startswith('sage-router-activation-'))
+        self.assertLessEqual(len(headers['Idempotency-key']), 256)
+
     def test_operator_can_hydrate_auth_signups_to_inactive_customers(self):
         router.CLIENT_API_KEYS = ['operator-token']
         router.read_launch_auth_user_rows = lambda limit=1000: [
