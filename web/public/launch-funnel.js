@@ -640,6 +640,36 @@ function actionLine(row = {}) {
   return `${label}: ${action}`;
 }
 
+function activationDeliveryCounts(data = {}) {
+  const followUps = data.activationFollowUps || {};
+  const packet = data.operatorExecutionPacket || {};
+  const evidence = data.nextBestAction?.evidence || {};
+  const sendableQueued = Number(
+    packet.sendableQueued ??
+    followUps.sendableQueued ??
+    evidence.sendableQueued ??
+    0
+  );
+  const reviewOnlyQueued = Number(
+    packet.reviewOnlyQueued ??
+    followUps.reviewOnlyQueued ??
+    evidence.reviewOnlyQueued ??
+    0
+  );
+  const totalQueued = Number(
+    packet.totalQueued ??
+    evidence.noKeyFollowUpsQueued ??
+    followUps.total ??
+    0
+  );
+  return {
+    totalQueued,
+    sendableQueued,
+    reviewOnlyQueued,
+    unknownQueued: Math.max(0, totalQueued - sendableQueued - reviewOnlyQueued),
+  };
+}
+
 function buildLaunchBrief(data = {}) {
   const stages = data.stages || {};
   const rates = data.rates || {};
@@ -651,6 +681,7 @@ function buildLaunchBrief(data = {}) {
   const managedAccessDemand = data.managedAccessDemand || {};
   const activationFollowUps = data.activationFollowUps || {};
   const activationEmailReadiness = activationFollowUps.emailReadiness || {};
+  const activationDelivery = activationDeliveryCounts(data);
   const managedReadiness = data.pricing?.publicLaunch?.managedProviderAccess || {};
   const managedSetup = managedReadiness.readinessSetup || {};
   const noKeyVerification = activationFollowUps.countsByEmailVerification || {};
@@ -678,7 +709,7 @@ function buildLaunchBrief(data = {}) {
     'Activation snapshot',
     `- Signups: ${integer(stages.signups)}; generated-key accounts: ${integer(stages.customersWithGeneratedApiKeys ?? stages.generatedApiKeys)}; first routed request: ${integer(stages.customersWithFirstRoutedRequest ?? stages.firstRoutedRequest)}`,
     `- Generated-key to first request: ${percent(rates.generatedKeyToFirstRequest)}; setup-copy to first request: ${percent(rates.setupCopyToFirstRequest)}`,
-    `- No-key follow-ups queued: ${integer(activationFollowUps.total)} total, ${integer(activationFollowUps.windowedNewSignups)} new in-window; worked: ${integer(activationFollowUps.operatorFollowUpWorked)}; copied/opened: ${integer(activationFollowUps.operatorFollowUpCopies)}; key-first redirects: ${integer(activationFollowUps.keyFirstRedirects)}. Action: ${activationFollowUps.recommendedOperatorAction || 'Send the generated-key-first follow-up.'}`,
+    `- No-key follow-ups queued: ${integer(activationDelivery.totalQueued || activationFollowUps.total)} total, ${integer(activationDelivery.sendableQueued)} sendable, ${integer(activationDelivery.reviewOnlyQueued)} review-only, ${integer(activationFollowUps.windowedNewSignups)} new in-window; worked: ${integer(activationFollowUps.operatorFollowUpWorked)}; copied/opened: ${integer(activationFollowUps.operatorFollowUpCopies)}; key-first redirects: ${integer(activationFollowUps.keyFirstRedirects)}. Action: ${activationFollowUps.recommendedOperatorAction || 'Send the generated-key-first follow-up.'}`,
     `- Activation email sender: ${activationEmailReadiness.configured ? 'configured' : 'fallback only'} via ${activationEmailReadiness.provider || 'resend'}; dry run ${activationEmailReadiness.dryRunSupported ? 'supported' : 'not reported'}; action: ${activationEmailReadiness.operatorAction || 'Use copy/mailto fallback until sender config is ready.'}`,
     `- No-key email verification: verified ${integer(noKeyVerification.verified)}, unverified ${integer(noKeyVerification.unverified)}, missing ${integer(noKeyVerification.missing_auth_user || noKeyVerification.missing_user_id)}, unavailable ${integer(noKeyVerification.unavailable)}`,
     `- Follow-up CTA: ${activationFollowUps.primaryCtaUrl || activationFollowUpUrl({}, { auth: false })}`,
@@ -759,10 +790,11 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
   const managedReadiness = data.pricing?.publicLaunch?.managedProviderAccess || {};
   const managedSetup = managedReadiness.readinessSetup || {};
   const authPosture = operatorAuthPosture(data);
+  const activationDelivery = activationDeliveryCounts(data);
   return [
     `${packet.title || 'Operator execution packet'} (${packet.kind || 'none'})`,
     `Priority: ${packet.priority || 'monitor'} | Owner: ${packet.owner || 'Operator'} | Metric: ${packet.metric || 'launch'}`,
-    `Queued: ${integer(packet.totalQueued)} total, ${integer(packet.windowedNewSignups)} new in-window`,
+    `Queued: ${integer(activationDelivery.totalQueued || packet.totalQueued)} total, ${integer(activationDelivery.sendableQueued)} sendable, ${integer(activationDelivery.reviewOnlyQueued)} review-only, ${integer(packet.windowedNewSignups)} new in-window`,
     `Auth posture: ${authPosture.label}. ${authPosture.action}`,
     `Activation email sender: ${emailReadiness.configured ? 'configured' : 'fallback only'} via ${emailReadiness.provider || 'resend'}; endpoint=${emailReadiness.sendEndpoint || '/admin/customers/send-activation-followups'}; requiredEnv=${(emailReadiness.requiredEnv || []).join(', ') || 'none'}`,
     `Activation sender setup: ${emailReadiness.setupScript || 'scripts/configure_activation_email_sender.sh'}`,
@@ -779,7 +811,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
     '',
     'Segments:',
     ...(segmentActions.length
-      ? segmentActions.map(row => `- ${row.sendOrder || ''}. ${row.label || row.segment}: ${integer(row.count)} queued; copy=${row.copyKind || ''}; worked=${row.workedKind || ''}`)
+      ? segmentActions.map(row => `- ${row.sendOrder || ''}. ${row.label || row.segment}: ${integer(row.count)} queued; mode=${row.deliveryMode || (row.sendable === false ? 'review' : 'send')}; copy=${row.copyKind || ''}; worked=${row.workedKind || ''}${row.reviewReason ? `; review=${row.reviewReason}` : ''}`)
       : ['- none']),
     '',
     'Recovery URLs:',
@@ -814,6 +846,7 @@ function renderOperatorExecutionPacket(data = {}) {
   const telemetry = packet.telemetry || {};
   const segmentActions = Array.isArray(packet.segmentActions) ? packet.segmentActions : [];
   const emailReadiness = packet.emailReadiness || data.activationFollowUps?.emailReadiness || {};
+  const activationDelivery = activationDeliveryCounts(data);
   const managedReadiness = data.pricing?.publicLaunch?.managedProviderAccess || {};
   const managedSetup = managedReadiness.readinessSetup || {};
   const authPosture = operatorAuthPosture(data);
@@ -854,7 +887,7 @@ function renderOperatorExecutionPacket(data = {}) {
   target.innerHTML = `<div class="metricList">
     <div class="metric"><span>Kind</span><strong>${esc(packet.kind)}</strong></div>
     <div class="metric"><span>Priority</span><strong><span class="pill ${packet.priority === 'fix_now' ? 'bad' : 'warn'}">${esc(packet.priority || 'monitor')}</span></strong></div>
-    <div class="metric"><span>Queued</span><strong>${integer(packet.totalQueued)} total · ${integer(packet.windowedNewSignups)} new</strong></div>
+    <div class="metric"><span>Queued</span><strong>${integer(activationDelivery.totalQueued || packet.totalQueued)} total · ${integer(activationDelivery.sendableQueued)} sendable · ${integer(activationDelivery.reviewOnlyQueued)} review-only</strong></div>
     <div class="metric"><span>Primary CTA</span><strong>${esc(packet.primaryCtaKind || 'same_email_password')}</strong></div>
     <div class="metric"><span>Email sender</span><strong><span class="pill ${emailReadiness.configured ? 'good' : 'warn'}">${emailReadiness.configured ? 'Configured' : 'Fallback only'}</span></strong></div>
     <div class="metric"><span>Managed access</span><strong><span class="pill ${managedReadiness.enabled ? 'good' : 'warn'}">${esc(managedReadiness.status || 'disabled')}</span></strong></div>
@@ -890,6 +923,7 @@ function renderNextBestActionDock(data = {}) {
   const priority = action.priority || 'review';
   const metric = action.metric || 'activation';
   const noKeyCount = Number(evidence.noKeyFollowUpsQueued ?? followUps.total ?? 0);
+  const activationDelivery = activationDeliveryCounts(data);
   const keyRecoveryViews = Number(evidence.keyRecoveryViews ?? followUps.keyRecoveryViews ?? 0);
   const keyFirstRedirects = Number(evidence.keyFirstRedirects ?? followUps.keyFirstRedirects ?? 0);
   const copied = Number(evidence.operatorFollowUpCopies ?? followUps.operatorFollowUpCopies ?? 0);
@@ -932,6 +966,7 @@ function renderNextBestActionDock(data = {}) {
     <div class="metric"><span>Priority</span><strong><span class="pill ${priority === 'fix_now' ? 'bad' : 'warn'}">${esc(priority)}</span></strong></div>
     <div class="metric"><span>Metric</span><strong>${esc(metric)}</strong></div>
     <div class="metric"><span>Queued no-key signups</span><strong>${integer(noKeyCount)}</strong></div>
+    <div class="metric"><span>Sendable / review-only</span><strong>${integer(activationDelivery.sendableQueued)} send · ${integer(activationDelivery.reviewOnlyQueued)} review</strong></div>
     <div class="metric"><span>Worked / copied</span><strong>${integer(worked)} worked · ${integer(copied)} copied/opened</strong></div>
     <div class="metric"><span>Key-first recovery</span><strong>${integer(keyFirstRedirects)} redirects · ${integer(keyRecoveryViews)} viewed</strong></div>
     <div class="metric"><span>Key creation</span><strong>${integer(keyCreateAttempts)} attempts · ${integer(keyCreateSuccesses)} created · ${integer(keyCreateFailures)} failed</strong></div>
