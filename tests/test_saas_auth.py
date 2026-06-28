@@ -3342,6 +3342,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(401, anonymous.status)
         self.assertEqual('unauthorized', anonymous.payload['error'])
         self.assertEqual('https://app.sagerouter.dev/account.html', anonymous.payload['accountUrl'])
+        self.assertEqual('https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email', anonymous.payload['keyRecoveryUrl'])
         self.assertEqual('https://sagerouter.dev/pricing', anonymous.payload['pricingUrl'])
         self.assertEqual('https://app.sagerouter.dev/status', anonymous.payload['statusUrl'])
         self.assertEqual('https://api.sagerouter.dev/v1', anonymous.payload['openaiBaseUrl'])
@@ -3349,6 +3350,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('WWW-Authenticate', anonymous.extra_headers)
         self.assertIn('Sage Router', anonymous.extra_headers['WWW-Authenticate'])
         self.assertIn('rel="account"', anonymous.extra_headers['Link'])
+        self.assertIn('rel="key-recovery"', anonymous.extra_headers['Link'])
 
         customer = self.active_customer()
         raw, _row = router.create_api_key_for_customer(customer, 'prod')
@@ -3417,10 +3419,12 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(401, handler.status)
         self.assertEqual('unauthorized', handler.payload['error'])
         self.assertEqual('https://app.sagerouter.dev/account.html', handler.payload['accountUrl'])
+        self.assertEqual('https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email', handler.payload['keyRecoveryUrl'])
         self.assertEqual('https://sagerouter.dev/pricing', handler.payload['pricingUrl'])
         self.assertEqual('https://api.sagerouter.dev/v1', handler.payload['openaiBaseUrl'])
         self.assertEqual('sk_sage_', handler.payload['apiKeyPrefix'])
         self.assertIn('WWW-Authenticate', handler.extra_headers)
+        self.assertIn('rel="key-recovery"', handler.extra_headers['Link'])
         self.assertIn('rel="pricing"', handler.extra_headers['Link'])
 
     def test_operator_origin_routes_reject_generated_customer_keys(self):

@@ -337,6 +337,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("lowest-latency retry failover metadata", readme)
         self.assertIn("anonymous model and analytics APIs are blocked with hosted onboarding guidance", readiness)
         self.assertIn("accountUrl", readiness)
+        self.assertIn("keyRecoveryUrl", readiness)
+        self.assertIn("utm_source=api-auth", readiness)
         self.assertIn("apiKeyPrefix", readiness)
         self.assertIn("check_public_api_browser_boundary", readiness)
         self.assertIn("public API root and dashboard paths stay JSON-auth gated", readiness)

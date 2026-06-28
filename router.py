@@ -10360,10 +10360,15 @@ def client_request_authorized(handler):
 
 def model_api_auth_error_payload():
     api_base_url = API_BASE_URL or 'https://api.sagerouter.dev'
+    key_recovery_url = (
+        f"{APP_BASE_URL}/login.html?plan=pro&start=create_key"
+        "&utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email"
+    )
     return {
         'error': 'unauthorized',
         'message': 'Use an active Sage Router API key from the hosted account page.',
         'accountUrl': f"{APP_BASE_URL}/account.html",
+        'keyRecoveryUrl': key_recovery_url,
         'pricingUrl': f"{MARKETING_BASE_URL}/pricing",
         'statusUrl': f"{APP_BASE_URL}/status",
         'openaiBaseUrl': f"{api_base_url.rstrip('/')}/v1",
@@ -10373,6 +10378,10 @@ def model_api_auth_error_payload():
 
 def model_api_auth_error_headers():
     account_url = f"{APP_BASE_URL}/account.html"
+    key_recovery_url = (
+        f"{APP_BASE_URL}/login.html?plan=pro&start=create_key"
+        "&utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email"
+    )
     pricing_url = f"{MARKETING_BASE_URL}/pricing"
     status_url = f"{APP_BASE_URL}/status"
     return {
@@ -10380,7 +10389,7 @@ def model_api_auth_error_headers():
             'Bearer realm="Sage Router", error="invalid_token", '
             'error_description="Use an active Sage Router API key from app.sagerouter.dev/account.html"'
         ),
-        'Link': f'<{account_url}>; rel="account", <{pricing_url}>; rel="pricing", <{status_url}>; rel="status"',
+        'Link': f'<{account_url}>; rel="account", <{key_recovery_url}>; rel="key-recovery", <{pricing_url}>; rel="pricing", <{status_url}>; rel="status"',
     }
 
 
