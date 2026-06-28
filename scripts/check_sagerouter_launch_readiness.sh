@@ -1098,6 +1098,12 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "operator_no_key_followup_sent" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-activation-followup-send-telemetry"
   fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "ACTIVATION_FOLLOWUP_TYPED_APPROVAL_PROMPT" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-activation-followup-send-typed-approval"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "window.prompt" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-activation-followup-send-typed-prompt"
+  fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderReviewFlags" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-customer-review-flags"
   fi

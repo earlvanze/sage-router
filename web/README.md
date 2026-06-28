@@ -104,6 +104,11 @@ it copies activation-email preflight, managed-provider resale dry-run/staging,
 first-request setup, and Cloudflare BIC verification commands from safe public
 metadata without exposing provider credentials, private costs, customer data, or
 tokens.
+Real activation follow-up sends from the operator launch funnel require the
+private token, trusted origin, server-side `sendConfirmation:
+SEND_ACTIVATION_FOLLOWUPS`, browser confirmation, and the typed dashboard
+approval phrase `SEND_ACTIVATION_FOLLOWUPS`; dry runs stay available without
+that phrase so operators can verify counts and segments first.
 The same hero CTAs and successful waitlist submissions emit privacy-safe homepage funnel events with the `landing` source surface, so the private launch funnel can measure visitor-to-signup movement without storing form emails, company names, prompts, API keys, provider credentials, or raw query strings.
 
 ## Hot-swappable copy

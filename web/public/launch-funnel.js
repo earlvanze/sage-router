@@ -4,6 +4,7 @@ const APP_BASE = window.SAGE_ROUTER_APP_URL || window.location.origin;
 const SESSION_TOKEN_KEY = 'sage_router_operator_launch_funnel_token';
 const FOLLOWUP_DRAFT_ACTION_PREFIX = 'sage_router_operator_no_key_followup_draft';
 const ACTIVATION_FOLLOWUP_SEND_CONFIRMATION = 'SEND_ACTIVATION_FOLLOWUPS';
+const ACTIVATION_FOLLOWUP_TYPED_APPROVAL_PROMPT = `Type ${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION} to send real activation follow-up emails.`;
 const OPERATOR_TOKEN_COMMAND = [
   "python3 - <<'PY'",
   "import os, subprocess",
@@ -1948,7 +1949,7 @@ function renderNoKeySegmentControls({ segment, label, customers, batchText, urls
   const count = customers.length;
   const draftReady = followUpSegmentDraftReady(plan, segment);
   const draftFirst = draftReady ? '' : ' disabled';
-  return `${mailtoUrl ? `<a class="btn small" href="${esc(mailtoUrl)}" data-email-followup-batch="${esc(segment)}" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Email ${esc(label)}</a>` : ''}<button class="btn secondary small" type="button" data-copy-followup-batch="${esc(batchText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(label)} only</button><button class="btn secondary small" type="button" data-copy-followup-urls="${esc(urlsText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(label)} URLs</button><button class="btn secondary small" type="button" data-copy-followup-csv="${esc(csvText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(label)} CSV</button><button class="btn secondary small" type="button" data-send-followups="${esc(segment)}" data-send-followups-dry-run="true" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Dry-run send ${esc(label)}</button><button class="btn small" type="button" data-send-followups="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Send ${esc(label)}</button><button class="btn small" type="button" data-mark-followup-worked="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}" data-followup-draft-ready="${draftReady ? '1' : '0'}" title="${draftReady ? 'Mark worked only after real outreach was sent.' : `Copy or open the ${esc(label)} draft first.`}"${draftFirst}>Mark ${esc(label)} worked</button>`;
+  return `${mailtoUrl ? `<a class="btn small" href="${esc(mailtoUrl)}" data-email-followup-batch="${esc(segment)}" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Email ${esc(label)}</a>` : ''}<button class="btn secondary small" type="button" data-copy-followup-batch="${esc(batchText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(label)} only</button><button class="btn secondary small" type="button" data-copy-followup-urls="${esc(urlsText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(label)} URLs</button><button class="btn secondary small" type="button" data-copy-followup-csv="${esc(csvText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(label)} CSV</button><button class="btn secondary small" type="button" data-send-followups="${esc(segment)}" data-send-followups-dry-run="true" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Dry-run send ${esc(label)}</button><button class="btn small" type="button" data-send-followups="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Send ${esc(label)} with typed approval</button><button class="btn small" type="button" data-mark-followup-worked="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}" data-followup-draft-ready="${draftReady ? '1' : '0'}" title="${draftReady ? 'Mark worked only after real outreach was sent.' : `Copy or open the ${esc(label)} draft first.`}"${draftFirst}>Mark ${esc(label)} worked</button>`;
 }
 
 function renderNoKeyDockSegmentControls({ plan = 'pro' } = {}) {
@@ -1975,7 +1976,7 @@ function renderNoKeyDockSegmentControls({ plan = 'pro' } = {}) {
     const mailtoButton = mailtoUrl
       ? `<a class="btn small" href="${esc(mailtoUrl)}" data-email-followup-batch="${esc(segment)}" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Email ${esc(actionLabel)}</a>`
       : '';
-    return `${mailtoButton}<button class="btn secondary small" type="button" data-copy-followup-batch="${esc(batchText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(actionLabel)}</button><button class="btn secondary small" type="button" data-copy-followup-urls="${esc(urlsText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(segment)} URLs (${integer(count)})</button><button class="btn secondary small" type="button" data-copy-followup-csv="${esc(csvText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(segment)} CSV (${integer(count)})</button><button class="btn secondary small" type="button" data-send-followups="${esc(segment)}" data-send-followups-dry-run="true" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Dry-run send ${esc(segment)} (${integer(count)})</button><button class="btn small" type="button" data-send-followups="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Send ${esc(segment)} (${integer(count)})</button><button class="btn small" type="button" data-mark-followup-worked="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}" data-followup-draft-ready="${draftReady ? '1' : '0'}" title="${draftReady ? 'Mark worked only after real outreach was sent.' : `Copy or open the ${esc(segment)} draft first.`}"${draftFirst}>3. Mark ${esc(segment)} worked</button>`;
+    return `${mailtoButton}<button class="btn secondary small" type="button" data-copy-followup-batch="${esc(batchText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(actionLabel)}</button><button class="btn secondary small" type="button" data-copy-followup-urls="${esc(urlsText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(segment)} URLs (${integer(count)})</button><button class="btn secondary small" type="button" data-copy-followup-csv="${esc(csvText)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}">Copy ${esc(segment)} CSV (${integer(count)})</button><button class="btn secondary small" type="button" data-send-followups="${esc(segment)}" data-send-followups-dry-run="true" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Dry-run send ${esc(segment)} (${integer(count)})</button><button class="btn small" type="button" data-send-followups="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Send ${esc(segment)} with typed approval (${integer(count)})</button><button class="btn small" type="button" data-mark-followup-worked="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}" data-followup-draft-ready="${draftReady ? '1' : '0'}" title="${draftReady ? 'Mark worked only after real outreach was sent.' : `Copy or open the ${esc(segment)} draft first.`}"${draftFirst}>3. Mark ${esc(segment)} worked</button>`;
   }).join('');
 }
 
@@ -2017,6 +2018,7 @@ function renderNoKeyFollowUps(data = {}) {
   const segmentPrompt = mode === 'segments'
     ? '<div class="empty good">Start here: open <strong>Email verified</strong>, review/send that draft, then click <strong>Mark verified worked</strong>. Repeat for unverified. Worked buttons stay disabled until a draft is copied or opened, and record only segment/count telemetry.</div>'
     : '';
+  const sendGuard = `<div class="empty warn">Real sends require the private operator token, server-side <code>sendConfirmation: ${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code>, browser confirmation, and typed approval phrase <code>${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code>. Dry runs are safe before approval.</div>`;
   const verifiedControls = renderNoKeySegmentControls({
     segment: 'verified',
     label: 'verified',
@@ -2037,7 +2039,7 @@ function renderNoKeyFollowUps(data = {}) {
     mailtoUrl: unverifiedMailto,
     plan: batchPlan,
   });
-  target.innerHTML = `${segmentPrompt}${queueSummary}<div class="actions"><button class="btn secondary small" type="button" data-copy-followup-batch="${esc(batch)}" data-followup-plan="${esc(batchPlan)}" data-followup-segment="all" data-followup-count="${integer(customers.length)}">Copy all follow-ups</button><button class="btn secondary small" type="button" data-copy-followup-csv="${esc(allCsv)}" data-followup-plan="${esc(batchPlan)}" data-followup-segment="all" data-followup-count="${integer(customers.length)}">Copy all CSV</button>${verifiedControls}${unverifiedControls}<span class="status">Operator-only batch: ${integer(customers.length)} generated-key-first snippet(s); ${integer(verified.length)} verified, ${integer(unverified.length)} unverified.</span></div><div class="tableWrap"><table>
+  target.innerHTML = `${segmentPrompt}${sendGuard}${queueSummary}<div class="actions"><button class="btn secondary small" type="button" data-copy-followup-batch="${esc(batch)}" data-followup-plan="${esc(batchPlan)}" data-followup-segment="all" data-followup-count="${integer(customers.length)}">Copy all follow-ups</button><button class="btn secondary small" type="button" data-copy-followup-csv="${esc(allCsv)}" data-followup-plan="${esc(batchPlan)}" data-followup-segment="all" data-followup-count="${integer(customers.length)}">Copy all CSV</button>${verifiedControls}${unverifiedControls}<span class="status">Operator-only batch: ${integer(customers.length)} generated-key-first snippet(s); ${integer(verified.length)} verified, ${integer(unverified.length)} unverified.</span></div><div class="tableWrap"><table>
     <thead><tr><th>Customer</th><th>Activation</th><th>Review</th><th>Follow-up</th></tr></thead>
     <tbody>${customers.map(summary => {
       const customer = summary.customer || {};
@@ -2131,8 +2133,16 @@ async function sendActivationFollowUps(button) {
   const segment = button.getAttribute('data-send-followups') || 'all';
   const dryRun = button.getAttribute('data-send-followups-dry-run') === 'true';
   const count = Number(button.getAttribute('data-followup-count') || 0);
-  if (!dryRun && !window.confirm(`Send generated-key setup follow-ups to ${integer(count)} ${segment} recipient(s)?`)) {
-    return;
+  if (!dryRun) {
+    const typedApproval = window.prompt(ACTIVATION_FOLLOWUP_TYPED_APPROVAL_PROMPT, '');
+    if (typedApproval !== ACTIVATION_FOLLOWUP_SEND_CONFIRMATION) {
+      setStatus(`Real activation send canceled. Type ${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION} exactly after explicit approval.`, 'warn');
+      return;
+    }
+    if (!window.confirm(`Send generated-key setup follow-ups to ${integer(count)} ${segment} recipient(s)?`)) {
+      setStatus('Real activation send canceled before delivery.', 'warn');
+      return;
+    }
   }
   button.disabled = true;
   const previous = button.textContent;
