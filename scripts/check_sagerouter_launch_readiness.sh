@@ -3333,6 +3333,15 @@ check_marketing_pricing_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-setup-copy-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "pricing-managed-access-quick-form" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-managed-access-quick-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Fast one-subscription review from pricing" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-managed-access-review-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_request_submitted" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-managed-access-funnel"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"

@@ -44,8 +44,13 @@
     .pricingSetupCopy span{min-height:22px;color:var(--brand);font-size:14px}
     .recoveryCallout{margin-top:16px;max-width:920px;border:1px solid rgba(247,213,122,.32);border-radius:8px;background:rgba(247,213,122,.08);padding:16px}
     .recoveryCallout .actions{margin-top:12px}
+    .managedQuickForm{display:grid;grid-template-columns:minmax(220px,1fr) minmax(190px,.7fr) auto;gap:10px;margin:18px 0 0;padding:14px;border:1px solid rgba(141,240,178,.28);border-radius:8px;background:linear-gradient(135deg,rgba(141,240,178,.1),rgba(138,180,255,.07))}
+    .managedQuickForm label{grid-column:1/-1;color:var(--brand);font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+    .managedQuickForm input,.managedQuickForm select{min-height:44px;border:1px solid var(--border);border-radius:999px;background:rgba(0,0,0,.18);color:var(--text);font:inherit;padding:0 14px}
+    .managedQuickForm button{border:0;cursor:pointer}
+    .managedQuickStatus{grid-column:1/-1;min-height:22px;margin:0;color:var(--brand);font-size:14px}
     .hidden{display:none!important}
-    @media(max-width:720px){.emailStart form,.pricingOauthActions{grid-template-columns:1fr}}
+    @media(max-width:720px){.emailStart form,.pricingOauthActions,.managedQuickForm{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -244,6 +249,16 @@
             <a class="button primary" href="/managed-access?intent=one-subscription&utm_source=pricing&utm_medium=private-beta&utm_campaign=sage-router-launch">Request one-subscription review</a>
             <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max&start=checkout&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch">Start Max with BYOK</a>
           </div>
+          <form id="pricing-managed-access-quick-form" class="managedQuickForm">
+            <label for="pricing-managed-access-email">Fast one-subscription review from pricing</label>
+            <input id="pricing-managed-access-email" name="email" type="email" autocomplete="email" placeholder="you@company.com" required>
+            <select id="pricing-managed-access-kind" name="reviewType" aria-label="Managed access review type">
+              <option value="one-subscription">One subscription</option>
+              <option value="max-implementation">Max with BYOK</option>
+            </select>
+            <button id="pricing-managed-access-submit" class="button primary" type="submit">Request review</button>
+            <p id="pricing-managed-access-status" class="managedQuickStatus" role="status" aria-live="polite">One field now. This records demand only; managed resale stays disabled until provider authorization, terms, cost, and margin controls pass.</p>
+          </form>
           <p class="note">Beta interest and implementation review are demand capture only. Public checkout still buys Sage Router routing, account, quota, analytics, and reliability infrastructure.</p>
         </div>
       </section>
@@ -520,7 +535,14 @@
           snippet: data.snippet || null,
           enabledProviders: data.enabledProviders || null,
           githubEnabled: data.githubEnabled ?? null,
-          oauthProviderCount: data.oauthProviderCount ?? null
+          oauthProviderCount: data.oauthProviderCount ?? null,
+          interest: data.interest || null,
+          intent: data.intent || null,
+          providerAccess: data.providerAccess || null,
+          targetProviderFamily: data.targetProviderFamily || null,
+          commercialPreference: data.commercialPreference || null,
+          supportNeed: data.supportNeed || null,
+          targetLaunchWindow: data.targetLaunchWindow || null
         }
       });
       try {
@@ -626,9 +648,85 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
       }
     }
 
+    function pricingManagedAccessPayload(email) {
+      const reviewType = document.getElementById('pricing-managed-access-kind')?.value === 'max-implementation'
+        ? 'max-implementation'
+        : 'one-subscription';
+      const oneSubscription = reviewType === 'one-subscription';
+      return {
+        email,
+        company: '',
+        interest: 'managed-access',
+        intent: reviewType,
+        deployment: 'hybrid',
+        monthlyVolume: '200k-1m',
+        providerAccess: oneSubscription ? 'needs-managed-access' : 'byok',
+        targetProviderFamily: 'mixed-frontier',
+        commercialPreference: oneSubscription ? 'one-subscription' : 'private-contract',
+        supportNeed: oneSubscription ? 'managed-provider-review' : 'implementation-support',
+        targetLaunchWindow: 'this-month',
+        sourcePage: `${window.location.origin}${window.location.pathname}`,
+        turnstileToken: ''
+      };
+    }
+
+    async function submitPricingManagedAccessReview(event) {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const email = document.getElementById('pricing-managed-access-email')?.value?.trim();
+      const status = document.getElementById('pricing-managed-access-status');
+      const button = document.getElementById('pricing-managed-access-submit');
+      const buttonLabel = button?.textContent || 'Request review';
+      if (!email) {
+        if (status) status.textContent = 'Enter your email to request review.';
+        return;
+      }
+      const payload = pricingManagedAccessPayload(email);
+      const telemetry = {
+        plan: payload.intent === 'one-subscription' ? 'max' : 'max-byok',
+        button: 'Fast one-subscription review from pricing',
+        state: 'pricing-managed-access-quick-form',
+        interest: payload.interest,
+        intent: payload.intent,
+        providerAccess: payload.providerAccess,
+        targetProviderFamily: payload.targetProviderFamily,
+        commercialPreference: payload.commercialPreference,
+        supportNeed: payload.supportNeed,
+        targetLaunchWindow: payload.targetLaunchWindow
+      };
+      try {
+        if (button) {
+          button.disabled = true;
+          button.textContent = 'Requesting...';
+        }
+        if (status) status.textContent = 'Recording demand and review context...';
+        trackPricingFunnelEvent('managed_access_quick_request_submitted', telemetry);
+        const response = await fetch('/api/waitlist', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+          credentials: 'omit'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        trackPricingFunnelEvent('managed_access_quick_request_received', telemetry);
+        trackPricingFunnelEvent('managed_access_request_received', telemetry);
+        if (status) status.textContent = 'Request received. This does not enable managed resale until provider authorization, terms, cost, and margin controls pass.';
+        form.reset();
+      } catch {
+        trackPricingFunnelEvent('managed_access_quick_request_failed', telemetry);
+        if (status) status.textContent = 'Quick request failed. Open the full managed-access form; do not send secrets.';
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = buttonLabel;
+        }
+      }
+    }
+
     trackPricingFunnelEvent('pricing_viewed', { state: 'page-view' });
     loadPricingAuthSettings();
     document.getElementById('pricing-copy-setup')?.addEventListener('click', copyPricingSetupBundle);
+    document.getElementById('pricing-managed-access-quick-form')?.addEventListener('submit', submitPricingManagedAccessReview);
 
     async function pricingOauthLogin(event) {
       const button = event.currentTarget;

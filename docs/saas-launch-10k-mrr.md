@@ -385,12 +385,15 @@ provider resale claim, or runtime feature flag.
   create/status responses must use the bounded public intent shape and avoid
   echoing arbitrary customer notes or support text.
 - Capture managed-access beta and Max implementation demand through the
-  waitlist `interest` metadata path from `/managed-access` and watch
+  waitlist `interest` metadata path from `/managed-access` and the one-field
+  pricing-page review request, then watch
   `managedAccessBetaInterest` plus `managedAccessShareOfWaitlist` in
   `/analytics/funnel`; the page also emits anonymous managed-access page-view,
   form-start, submit, and received events with only allowlisted qualification
-  buckets so one-subscription and implementation demand is visible before full
-  contact submission. Use `managedAccessDemand.targetProviderFamily`,
+  buckets, while pricing emits `managed_access_quick_request_*` events for
+  buyer-intent traffic, so one-subscription and implementation demand is
+  visible before full contact submission. Use
+  `managedAccessDemand.targetProviderFamily`,
   `managedAccessDemand.commercialPreference`, `managedAccessDemand.supportNeed`,
   `managedAccessDemand.targetLaunchWindow`, and `managedAccessDemand.intent` to
   rank private-beta provider resale and implementation conversations instead of
