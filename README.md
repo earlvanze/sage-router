@@ -534,6 +534,19 @@ generated-key recovery copy, use the Resend provider instead; when sender inputs
 are present, the script verifies Resend API access and that the sender domain is
 verified/sending-enabled before binding Cloud Run secrets. The setup path does not print sender values or Resend API-key values. Resend follow-up sends use an idempotency key so an operator retry does not double-send the same generated-key recovery draft.
 
+Stage the non-secret one-subscription managed-access controls without enabling
+public resale or writing the private provider-cost model:
+
+```bash
+scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
+scripts/configure_managed_provider_resale_readiness.sh --check
+```
+
+That binds the provider-resale terms URL, margin-policy URL, resale-eligible
+allowlist (`ollama,openai,anthropic`), disabled public-enable flag, and minimum
+gross-margin floor. The remaining launch blockers should be the explicit terms
+acknowledgment plus private cost model / positive unit-economics review.
+
 If the readiness check reports Cloudflare `403` / `1010` before the Sage Router
 auth gate, use [docs/cloudflare-api-bic-skip.md](docs/cloudflare-api-bic-skip.md)
 to verify or apply the host-scoped Browser Integrity Check skip for

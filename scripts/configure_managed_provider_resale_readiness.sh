@@ -18,7 +18,7 @@ BYOK_ONLY_PROVIDER_FAMILIES="openrouter"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/configure_managed_provider_resale_readiness.sh [--check]
+Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--stage-public-controls]
 
 Stage Sage Router managed provider-access readiness on Cloud Run.
 
@@ -38,8 +38,12 @@ Optional:
   SAGEROUTER_RUN_READINESS=0
 
 Options:
-  --check  Report public readiness, Cloud Run bindings, and local input
-           presence without writing secrets or printing the cost model.
+  --check                  Report public readiness, Cloud Run bindings, and local
+                           input presence without writing secrets or printing
+                           the cost model.
+  --stage-public-controls  Bind non-secret terms, margin-policy, allowlist, and
+                           disabled public-enable env without requiring or
+                           writing the private cost model.
 
 The provider cost model is stored in Secret Manager and is not printed.
 Managed public resale remains disabled unless
@@ -53,6 +57,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --check)
       MODE="check"
+      shift
+      ;;
+    --stage-public-controls)
+      MODE="stage-public-controls"
       shift
       ;;
     -h|--help)
@@ -263,6 +271,26 @@ fi
 
 require_cmd gcloud
 require_cmd awk
+
+if [[ "$MODE" == "stage-public-controls" ]]; then
+  if [[ -z "$ALLOWED_PROVIDERS" ]]; then
+    ALLOWED_PROVIDERS="ollama,openai,anthropic"
+  fi
+  validate_allowed_providers "$ALLOWED_PROVIDERS"
+  validate_margin_threshold
+  printf 'Updating Cloud Run service=%s region=%s managed-access non-secret readiness controls\n' "$SERVICE_NAME" "$REGION" >&2
+  gcloud run services update "$SERVICE_NAME" \
+    --project "$PROJECT_ID" \
+    --region "$REGION" \
+    --platform managed \
+    --update-env-vars "^|^SAGEROUTER_PROVIDER_RESALE_TERMS_URL=${TERMS_URL}|SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL=${MARGIN_POLICY_URL}|SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=${TERMS_ACKNOWLEDGED}|SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS=${ALLOWED_PROVIDERS}|SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT=${MIN_MARGIN}|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=0"
+  printf 'Managed provider-access public controls staged without writing the private cost model. Review terms acknowledgment and unit economics before enabling managed access.\n' >&2
+  if [[ "$RUN_READINESS" != "0" ]]; then
+    "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/check_sagerouter_launch_readiness.sh"
+  fi
+  exit 0
+fi
+
 require_value SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS "$ALLOWED_PROVIDERS"
 require_value SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS "$COST_CENTS_PER_1K"
 
