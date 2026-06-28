@@ -13674,7 +13674,7 @@ def chat_messages_to_responses_input(messages):
             continue
         if role == 'assistant':
             # Emit text content as a message item
-            assistant_text = normalize_content(content)
+            assistant_text = strip_assistant_replay_noise(normalize_content(content))
             if assistant_text:
                 items.append({'role': 'assistant', 'content': assistant_text})
             # Emit each tool_call as a function_call item

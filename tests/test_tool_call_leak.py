@@ -834,6 +834,15 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
 
         self.assertEqual([{'role': 'user', 'content': 'continue'}], messages)
 
+    def test_chat_messages_to_responses_input_drops_assistant_prefix_storms(self):
+        storm = ' '.join('[ollama-2/kimi-k2.5] [tool calls omitted]' for _ in range(1000))
+        items = router.chat_messages_to_responses_input([
+            {'role': 'assistant', 'content': storm},
+            {'role': 'user', 'content': 'continue'},
+        ])
+
+        self.assertEqual([{'role': 'user', 'content': 'continue'}], items)
+
     def test_chat_messages_to_responses_input_never_emits_empty_call_ids(self):
         items = router.chat_messages_to_responses_input([
             {
