@@ -3877,7 +3877,9 @@ def responses_input_to_chat_messages(input_value, instructions=None):
         if role == 'developer':
             role = 'system'
         content = responses_content_to_chat_content(item.get('content', ''))
-        if content or role in {'assistant', 'tool'}:
+        if role == 'assistant' and isinstance(content, str):
+            content = strip_assistant_replay_noise(content)
+        if content or role == 'tool':
             messages.append({'role': role, 'content': content})
 
     return messages or [{'role': 'user', 'content': ''}]
@@ -4025,6 +4027,37 @@ def openai_chat_completion_to_responses(result, request_payload, request_id):
     }
 
 
+def sanitize_responses_payload(response):
+    if not isinstance(response, dict):
+        return response
+    sanitized = dict(response)
+    if isinstance(sanitized.get('output_text'), str):
+        sanitized['output_text'] = sanitize_visible_output(sanitized.get('output_text') or '')
+    output = []
+    for item in sanitized.get('output') or []:
+        if not isinstance(item, dict):
+            continue
+        updated_item = dict(item)
+        if updated_item.get('type') == 'message':
+            updated_content = []
+            for part in updated_item.get('content') or []:
+                if not isinstance(part, dict):
+                    updated_content.append(part)
+                    continue
+                updated_part = dict(part)
+                if updated_part.get('type') in {'output_text', 'input_text', 'text'} and isinstance(updated_part.get('text'), str):
+                    updated_part['text'] = sanitize_visible_output(updated_part.get('text') or '')
+                if updated_part.get('type') in {'output_text', 'input_text', 'text'} and not str(updated_part.get('text') or '').strip():
+                    continue
+                updated_content.append(updated_part)
+            updated_item['content'] = updated_content
+            if not updated_content:
+                continue
+        output.append(updated_item)
+    sanitized['output'] = output
+    return sanitized
+
+
 def openai_model_row(model_id, owned_by='sage-router', **metadata):
     row = {
         'id': str(model_id or ''),
@@ -4100,6 +4133,8 @@ def google_models_payload():
 
 
 def write_responses_as_sse(self, response, request_id, extra_headers=None):
+    response = sanitize_responses_payload(response)
+
     def write_event(event_name, data):
         payload = dict(data)
         payload.setdefault('type', event_name)

@@ -825,6 +825,15 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
 
         self.assertEqual([{'role': 'user', 'content': 'continue'}], messages)
 
+    def test_responses_input_to_chat_messages_drops_assistant_prefix_storms(self):
+        storm = ' '.join('[ollama-2/kimi-k2.5] [tool calls omitted]' for _ in range(1000))
+        messages = router.responses_input_to_chat_messages([
+            {'type': 'message', 'role': 'assistant', 'content': [{'type': 'output_text', 'text': storm}]},
+            {'type': 'message', 'role': 'user', 'content': [{'type': 'input_text', 'text': 'continue'}]},
+        ])
+
+        self.assertEqual([{'role': 'user', 'content': 'continue'}], messages)
+
     def test_chat_messages_to_responses_input_never_emits_empty_call_ids(self):
         items = router.chat_messages_to_responses_input([
             {
@@ -886,6 +895,59 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         self.assertEqual('sage-router/frontier', response['model'])
         self.assertEqual('The goal is already complete. No further action needed.', response['output_text'])
         self.assertEqual(response['output_text'], response['output'][0]['content'][0]['text'])
+
+    def test_responses_sse_sanitizes_raw_prefix_storm_payload(self):
+        class FakeHandler:
+            def __init__(self):
+                self.writes = []
+
+            def send_response(self, _code):
+                pass
+
+            def send_header(self, _key, _value):
+                pass
+
+            def send_cors_headers(self):
+                pass
+
+            def end_headers(self):
+                pass
+
+            @property
+            def wfile(self):
+                outer = self
+
+                class W:
+                    def write(self, data):
+                        outer.writes.append(data)
+
+                    def flush(self):
+                        pass
+
+                return W()
+
+        storm = ' '.join('[ollama-2/kimi-k2.5] [tool calls omitted]' for _ in range(1000))
+        response = {
+            'id': 'resp-prefix-storm',
+            'object': 'response',
+            'created_at': 1,
+            'model': 'sage-router/frontier',
+            'output_text': storm,
+            'output': [{
+                'id': 'msg-prefix-storm',
+                'type': 'message',
+                'status': 'completed',
+                'role': 'assistant',
+                'content': [{'type': 'output_text', 'text': storm, 'annotations': []}],
+            }],
+        }
+
+        handler = FakeHandler()
+        router.write_responses_as_sse(handler, response, 'req-prefix-storm')
+        body = b''.join(handler.writes).decode()
+
+        self.assertNotIn('[ollama-2/kimi-k2.5]', body)
+        self.assertNotIn('[tool calls omitted]', body)
 
     def test_direct_codex_scoring_is_not_capped_as_recursive_gateway(self):
         debug_scores = []
