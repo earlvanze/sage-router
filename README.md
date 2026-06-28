@@ -598,7 +598,9 @@ and privacy fields. Use its output to update
 activation outreach. Pass `--json` when another script needs the same bounded
 data; consume `activationQueue` for no-key follow-up counts, sendable and
 review-only segments, dry-run coverage, sent-recipient counts, and
-approval-required state.
+approval-required state. Pass `--approval-packet` to print only the
+no-secret activation approval packet from the same live funnel snapshot before
+any operator approves a real send.
 
 Use the public deploy helper to avoid branch/digest drift between the static
 site and hosted API:

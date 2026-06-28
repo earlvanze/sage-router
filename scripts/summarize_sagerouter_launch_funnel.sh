@@ -3,12 +3,16 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json]
+Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet]
 
 Fetch the operator-only /analytics/funnel endpoint and print a privacy-safe
 launch snapshot. The script never prints operator tokens, emails, generated API
 keys, prompts, provider credentials, OAuth tokens, raw campaign URLs, or raw
 provider responses.
+
+Options:
+  --json              Print the bounded machine-readable snapshot.
+  --approval-packet   Print the no-secret activation send approval packet only.
 
 Environment:
   SAGEROUTER_SECRET_ENV_FILE       Optional env file to source first
@@ -50,6 +54,7 @@ require_tool() {
 
 DAYS=30
 RAW_JSON=0
+APPROVAL_PACKET=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --days)
@@ -64,6 +69,10 @@ while [[ $# -gt 0 ]]; do
       RAW_JSON=1
       shift
       ;;
+    --approval-packet)
+      APPROVAL_PACKET=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -75,6 +84,11 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$RAW_JSON" == "1" && "$APPROVAL_PACKET" == "1" ]]; then
+  printf '%s\n' '--json and --approval-packet cannot be combined' >&2
+  exit 2
+fi
 
 if ! [[ "$DAYS" =~ ^[0-9]+$ ]] || [[ "$DAYS" -lt 1 ]]; then
   printf '%s\n' '--days must be a positive integer' >&2
@@ -99,6 +113,77 @@ trap 'rm -f "$tmp"' EXIT
 curl -fsS "${API_BASE%/}/analytics/funnel?days=${DAYS}&limit=10000" \
   -H "Authorization: Bearer ${TOKEN}" \
   -o "$tmp"
+
+if [[ "$APPROVAL_PACKET" == "1" ]]; then
+  jq -r '
+    def n($v): ($v // 0);
+    def list($v): (($v // []) | join(", "));
+    def segment_lines($rows; $sendable; $dry):
+      ($rows // [])
+      | map(select((.sendable != false) == $sendable))
+      | if length > 0 then
+          map(
+            if $sendable then
+              "- \(.segment // "all"): \(n(.count)) queued; order=\(n(.sendOrder)); dryRun=\(if $dry then "verified" else "pending" end); worked=\(.workedKind // "")"
+            else
+              "- \(.segment // "review"): \(n(.count)) queued; reason=\(.reviewReason // "Review before sending.")"
+            end
+          )
+        else ["- none"] end;
+
+    . as $root
+    | ($root.activationFollowUps // {}) as $followups
+    | ($root.operatorExecutionPacket // {}) as $packet
+    | ($packet.sendTelemetry // {}) as $telemetry
+    | ($root.activationApprovalReadiness // {
+        status: (
+          if (($telemetry.sendApprovalRequired // false) == true) then "approval_required"
+          elif (($telemetry.dryRunVerified // false) == false and ($packet.sendableQueued // 0) > 0) then "dry_run_required"
+          else "unknown"
+          end
+        ),
+        approvalRequired: ($telemetry.sendApprovalRequired // false),
+        dryRunVerified: ($telemetry.dryRunVerified // false),
+        blockedReason: (
+          if (($packet.sendableQueued // 0) <= 0) then "no_sendable_segments"
+          elif (($telemetry.dryRunVerified // false) == false) then "dry_run_not_verified"
+          elif (($telemetry.sendApprovalRequired // false) == true) then "explicit_operator_approval_required"
+          else ""
+          end
+        ),
+        nextSendSegment: ($telemetry.nextSendSegment // ""),
+        nextActions: []
+      }) as $approval
+    | ($packet.segmentActions // []) as $segments
+    | ($telemetry.dryRunVerified // false) as $dry
+    | [
+        "Sage Router activation approval packet",
+        "Boundary: no emails, customer IDs, API keys, prompts, OAuth tokens, provider credentials, raw campaign URLs, or raw provider responses.",
+        "Effect: read-only review packet; this command does not approve, copy a send command, or send activation emails.",
+        "",
+        "Approval readiness: \($approval.status // "unknown"); blocker=\($approval.blockedReason // "none").",
+        "Decision needed: approve or hold the next real activation send for segment \"\($approval.nextSendSegment // $telemetry.nextSendSegment // "all")\".",
+        "Queued: \(n($packet.totalQueued // $followups.total)) total; \(n($packet.sendableQueued // $followups.sendableQueued)) sendable; \(n($packet.reviewOnlyQueued // $followups.reviewOnlyQueued)) review-only; \(n($followups.unknownQueued)) unknown.",
+        "Dry-run: \(if $dry then "verified" else "not complete" end) for \(n($telemetry.dryRunRecipients)) unique sendable recipient(s). Sent: \(n($telemetry.sentRecipients)); failed: \(n($telemetry.failedRecipients)).",
+        "Dry-run segments: covered=\(list($telemetry.dryRunCoveredSegments)); pending=\(list($telemetry.dryRunPendingSegments)); duplicate raw recipient records=\(n($telemetry.dryRunDuplicateRecipients)).",
+        "Approval required: \(if ($approval.approvalRequired // $telemetry.sendApprovalRequired // false) then "yes, do not send until explicit operator approval" else "no pending send" end).",
+        "Next actions: \((($approval.nextActions // []) | map((.priority // "next") + ":" + (.id // "review")) | join(", ")) // "monitor_activation_queue").",
+        "",
+        "Sendable segments:",
+        (segment_lines($segments; true; $dry)[]),
+        "",
+        "Review-only segments:",
+        (segment_lines($segments; false; $dry)[]),
+        "",
+        "Primary recovery CTA: \($followups.primaryCtaUrl // $packet.recoveryUrls.passwordFallback // "https://app.sagerouter.dev/login.html?plan=pro&start=create_key").",
+        "Success metric: \($followups.successMetric // $packet.telemetry.successMetric // "Move no-key signups into generated-key accounts, then first routed request.").",
+        "",
+        "Privacy flags: containsEmails=\($root.privacy.containsEmails // false); containsApiKeys=\($root.privacy.containsApiKeys // false); containsProviderCredentials=\($root.privacy.containsProviderCredentials // false); promptsStored=\($root.privacy.promptsStored // false)."
+      ]
+      | .[]
+  ' "$tmp"
+  exit 0
+fi
 
 if [[ "$RAW_JSON" == "1" ]]; then
   jq '{
