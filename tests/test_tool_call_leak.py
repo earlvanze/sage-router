@@ -670,6 +670,9 @@ to=exec {"cmd":"cd /data/.openclaw/workspace-discord-public && pwd"}
         )
         self.assertEqual('', router.sanitize_visible_output(raw))
 
+    def test_visible_output_strips_prefix_only_partial_tail(self):
+        self.assertEqual('', router.sanitize_visible_output('[ollama-2/glm'))
+
     def test_visible_output_strips_same_line_model_prefix_tool_placeholders(self):
         raw = ' '.join(
             '[ollama-2/kimi-k2.5] [tool calls omitted]'

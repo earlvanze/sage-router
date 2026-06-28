@@ -38,6 +38,9 @@ class CodexSageRouterProxyTests(unittest.TestCase):
 
         self.assertEqual("", codex_proxy.sanitize_visible_output(raw))
 
+    def test_sanitizes_prefix_only_partial_tail(self):
+        self.assertEqual("", codex_proxy.sanitize_visible_output("[ollama-2/glm"))
+
     def test_sanitizes_newline_split_prefix_placeholder_noise(self):
         raw = (
             "[ollama-2/kimi-k2.5]\n"

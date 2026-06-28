@@ -798,6 +798,13 @@ the canonical source for the mounted proxy file. The shim preserves
 usable call ids, and applies the same visible replay sanitization before history
 is sent back through Sage Router.
 
+If a Codex JSONL session was already polluted before this sanitizer ran, repair
+only assistant-visible replay fields with:
+
+```bash
+python3 scripts/sanitize_codex_session_prefix_replay.py --in-place ~/.codex/sessions/YYYY/MM/DD/rollout-...jsonl
+```
+
 ## Supported API Formats
 
 | Endpoint | Format | Used By |

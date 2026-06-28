@@ -3503,6 +3503,9 @@ def strip_model_prefix_tool_placeholder_noise(text: str):
         without_noise = re.sub(TOOL_CALLS_OMITTED_RE, '', without_noise, flags=re.IGNORECASE).strip()
         if labels:
             without_noise = re.sub(PARTIAL_MODEL_PREFIX_LABEL_RE, '', without_noise).strip()
+        if not labels and '/' in stripped and stripped.rsplit('/', 1)[1] and re.fullmatch(PARTIAL_MODEL_PREFIX_LABEL_RE, stripped):
+            changed = True
+            continue
         if labels and not without_noise:
             changed = True
             continue
