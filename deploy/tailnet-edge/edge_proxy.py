@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import ssl
 import threading
 import time
@@ -695,6 +696,47 @@ def model_provider_and_name(model):
     return "", value
 
 
+MODEL_PREFIX_LABEL_RE = re.compile(r"^\[([A-Za-z0-9_.-]+/[^\]\s]+)\](?=\s|$)\s*")
+
+
+def strip_leading_model_prefix_labels(text):
+    remaining = str(text or "")
+    changed = False
+    while True:
+        match = MODEL_PREFIX_LABEL_RE.match(remaining.lstrip())
+        if not match:
+            break
+        stripped = remaining.lstrip()
+        leading_ws = remaining[:len(remaining) - len(stripped)]
+        remaining = leading_ws + stripped[match.end():].lstrip()
+        changed = True
+    return remaining.strip() if changed else remaining
+
+
+def sanitize_visible_response_payload(payload):
+    if not isinstance(payload, dict):
+        return payload
+    if isinstance(payload.get("output_text"), str):
+        payload["output_text"] = strip_leading_model_prefix_labels(payload.get("output_text"))
+    for choice in payload.get("choices") or []:
+        if not isinstance(choice, dict):
+            continue
+        for container_key in ("message", "delta"):
+            container = choice.get(container_key)
+            if isinstance(container, dict) and isinstance(container.get("content"), str):
+                container["content"] = strip_leading_model_prefix_labels(container.get("content"))
+    for output_item in payload.get("output") or []:
+        if not isinstance(output_item, dict):
+            continue
+        for part in output_item.get("content") or []:
+            if isinstance(part, dict) and isinstance(part.get("text"), str):
+                part["text"] = strip_leading_model_prefix_labels(part.get("text"))
+    for part in payload.get("content") or []:
+        if isinstance(part, dict) and isinstance(part.get("text"), str):
+            part["text"] = strip_leading_model_prefix_labels(part.get("text"))
+    return payload
+
+
 def rewrite_router_profile_response(path, request_body, response_headers, status, response_body):
     alias = router_profile_alias_from_body(path, request_body)
     if not (alias and response_is_uncompressed_json(response_headers, status) and response_body):
@@ -705,6 +747,7 @@ def rewrite_router_profile_response(path, request_body, response_headers, status
         return response_headers, response_body
     if not isinstance(payload, dict):
         return response_headers, response_body
+    payload = sanitize_visible_response_payload(payload)
 
     headers = {str(key).lower(): str(value) for key, value in (response_headers or [])}
     body_model = str(payload.get("model") or "").strip()

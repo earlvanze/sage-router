@@ -922,7 +922,10 @@ class TailnetEdgeAuthTests(unittest.TestCase):
 
     def test_router_profile_response_keeps_client_visible_profile_model(self):
         request_body = b'{"model":"sage-router/frontier","messages":[{"role":"user","content":"hi"}]}'
-        response_body = b'{"id":"chatcmpl_1","model":"ollama/kimi-k2.5","choices":[]}'
+        response_body = (
+            b'{"id":"chatcmpl_1","model":"ollama/kimi-k2.5",'
+            b'"choices":[{"message":{"role":"assistant","content":"[ollama/kimi-k2.5] [ollama/kimi-k2.5] done"}}]}'
+        )
         headers = [
             ("Content-Type", "application/json"),
             ("Content-Length", str(len(response_body))),
@@ -944,6 +947,7 @@ class TailnetEdgeAuthTests(unittest.TestCase):
 
         self.assertEqual("sage-router/frontier", payload["model"])
         self.assertEqual("ollama/kimi-k2.5", payload["upstream_model"])
+        self.assertEqual("done", payload["choices"][0]["message"]["content"])
         self.assertEqual("sage-router/frontier", header_map["x-sage-router-model"])
         self.assertEqual("sage-router", header_map["x-sage-router-provider"])
         self.assertEqual("frontier", header_map["x-sage-router-model-name"])
@@ -951,6 +955,34 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertEqual("ollama", header_map["x-sage-router-upstream-provider"])
         self.assertEqual("kimi-k2.5", header_map["x-sage-router-upstream-model-name"])
         self.assertNotIn("content-length", header_map)
+
+    def test_router_profile_response_strips_prefix_from_responses_payload(self):
+        request_body = b'{"model":"sage-router/frontier","input":[{"role":"user","content":"hi"}]}'
+        response_body = (
+            b'{"id":"resp_1","model":"ollama/glm-5.1",'
+            b'"output_text":"[ollama/glm-5.1] prefix probe ok",'
+            b'"output":[{"type":"message","content":[{"type":"output_text","text":"[ollama/glm-5.1] prefix probe ok"}]}]}'
+        )
+        headers = [
+            ("Content-Type", "application/json"),
+            ("Content-Length", str(len(response_body))),
+            ("X-Sage-Router-Model", "ollama/glm-5.1"),
+            ("X-Sage-Router-Provider", "ollama"),
+            ("X-Sage-Router-Model-Name", "glm-5.1"),
+        ]
+
+        _headers, rewritten_body = self.edge.rewrite_router_profile_response(
+            "/v1/responses",
+            request_body,
+            headers,
+            200,
+            response_body,
+        )
+        payload = json.loads(rewritten_body.decode("utf-8"))
+
+        self.assertEqual("sage-router/frontier", payload["model"])
+        self.assertEqual("prefix probe ok", payload["output_text"])
+        self.assertEqual("prefix probe ok", payload["output"][0]["content"][0]["text"])
 
     def test_model_modality_record_prefers_upstream_headers(self):
         response_body = b'{"id":"chatcmpl_1","model":"sage-router/frontier","upstream_model":"ollama/kimi-k2.5","choices":[]}'
