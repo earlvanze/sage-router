@@ -2584,6 +2584,24 @@ class SaaSAuthTests(unittest.TestCase):
                     },
                 },
                 {
+                    'event': 'api_reference_key_recovery_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'api-reference',
+                        'state': 'api-reference-hero-recovery',
+                    },
+                },
+                {
+                    'event': 'api_troubleshooting_key_recovery_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'api-troubleshooting',
+                        'state': 'api-troubleshooting-hero-recovery',
+                    },
+                },
+                {
                     'event': 'account_api_key_created',
                     'plan': 'pro',
                     'created_at': '2026-06-19T00:00:00Z',
@@ -3039,12 +3057,14 @@ class SaaSAuthTests(unittest.TestCase):
         metrics, error = router.read_launch_marketing_funnel_counts(0)
 
         self.assertIsNone(error)
-        self.assertEqual(54, metrics['total'])
+        self.assertEqual(56, metrics['total'])
         self.assertEqual(1, metrics['events']['landing_account_clicked'])
         self.assertEqual(1, metrics['events']['landing_key_first_direct_clicked'])
         self.assertEqual(1, metrics['events']['landing_key_recovery_clicked'])
         self.assertEqual(1, metrics['events']['content_article_key_recovery_clicked'])
         self.assertEqual(1, metrics['events']['pricing_key_recovery_clicked'])
+        self.assertEqual(1, metrics['events']['api_reference_key_recovery_clicked'])
+        self.assertEqual(1, metrics['events']['api_troubleshooting_key_recovery_clicked'])
         self.assertEqual(1, metrics['events']['landing_viewed'])
         self.assertEqual(1, metrics['events']['account_api_key_created'])
         self.assertEqual(1, metrics['events']['account_key_recovery_viewed'])
@@ -3098,7 +3118,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['keyFirstRedirectsByState']['model-catalog-hero'])
         self.assertEqual(1, metrics['keyFirstRedirectsByState']['pricing-pro'])
         self.assertEqual(1, metrics['keyFirstRedirectsByState']['saved_key_recovery_auto_key'])
-        self.assertEqual(12, metrics['keyRecoveryViews'])
+        self.assertEqual(14, metrics['keyRecoveryViews'])
         self.assertEqual(1, metrics['keyRecoveryViewsByState']['github'])
         self.assertEqual(1, metrics['keyCreateAttempts'])
         self.assertEqual(1, metrics['keyCreateAttemptsByState']['saved_key_recovery_auto_key'])
@@ -3113,6 +3133,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['keyRecoveryViewsByState']['landing-returning-user'])
         self.assertEqual(1, metrics['keyRecoveryViewsByState']['article-returning-user'])
         self.assertEqual(1, metrics['keyRecoveryViewsByState']['pricing_returning_no_key'])
+        self.assertEqual(1, metrics['keyRecoveryViewsByState']['api-reference-hero-recovery'])
+        self.assertEqual(1, metrics['keyRecoveryViewsByState']['api-troubleshooting-hero-recovery'])
         self.assertEqual(1, metrics['keyRecoveryViewsByState']['status-hero'])
         self.assertEqual(1, metrics['keyRecoveryViewsByState']['support-quota-api-keys'])
         self.assertEqual(1, metrics['keyRecoveryViewsByState']['signed_in_recovery_redirect'])
@@ -3137,7 +3159,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['events']['pricing_viewed'])
         self.assertEqual(1, metrics['events']['billing_payment_recovery_clicked'])
         self.assertEqual(1, metrics['events']['unknown'])
-        self.assertEqual(39, metrics['plans']['pro'])
+        self.assertEqual(41, metrics['plans']['pro'])
         self.assertEqual(1, metrics['plans']['lite'])
         self.assertEqual(1, metrics['plans']['manual'])
         self.assertEqual(4, metrics['sourceSurfaces']['landing'])
@@ -3152,6 +3174,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(0, metrics['sourceSurfaces']['agent-native'])
         self.assertEqual(0, metrics['sourceSurfaces']['integrations'])
         self.assertEqual(2, metrics['sourceSurfaces']['billing'])
+        self.assertEqual(3, metrics['sourceSurfaces']['other'])
         self.assertEqual(1, metrics['sourceSurfaces']['status'])
         self.assertEqual(1, metrics['sourceSurfaces']['support'])
         self.assertEqual(1, metrics['sourceSurfaces']['unknown'])
@@ -3160,7 +3183,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, metrics['attributionChannels']['newsletter'])
         self.assertEqual(2, metrics['attributionChannels']['google'])
         self.assertEqual(1, metrics['attributionChannels']['discord'])
-        self.assertEqual(43, metrics['attributionChannels']['direct'])
+        self.assertEqual(45, metrics['attributionChannels']['direct'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['all'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['ollama'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['openai-codex'])
