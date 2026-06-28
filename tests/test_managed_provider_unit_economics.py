@@ -81,6 +81,17 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertIn('candidateCostPrinted=false', combined)
         self.assertIn('satisfied=true', combined)
 
+    def test_configure_helper_documents_no_secret_operator_packet(self):
+        script = CONFIGURE_SCRIPT.read_text(encoding='utf-8')
+        self.assertIn('--operator-packet', script)
+        self.assertIn('Sage Router managed resale operator packet', script)
+        self.assertIn('read-only review packet', script)
+        self.assertIn('does not acknowledge terms, write secrets, enable managed resale, deploy Cloud Run, or send customer email', script)
+        self.assertIn('containsActualProviderCosts=false', script)
+        self.assertIn('containsAuthorizationReference=false', script)
+        self.assertIn('maxSafeProviderCostCentsPer1k', script)
+        self.assertIn('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS=REVIEWED_PRIVATE_COST', script)
+
 
 if __name__ == '__main__':
     unittest.main()

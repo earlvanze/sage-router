@@ -310,9 +310,13 @@ provider resale. The intake asks which target provider family and commercial
 preference a prospect would buy first, plus support need and target launch
 window, including Ollama, OpenAI, and Anthropic private-beta interest for
 authorization review. Before staging any managed-provider readiness env, run
-`scripts/configure_managed_provider_resale_readiness.sh --check`; the helper
-rejects BYOK-only families such as OpenRouter from the managed resale allowlist
-and refuses minimum gross-margin thresholds below the launch floor.
+`scripts/configure_managed_provider_resale_readiness.sh --operator-packet` or
+`scripts/configure_managed_provider_resale_readiness.sh --check`; the operator
+packet is read-only and prints public blockers, local input presence, Cloud Run
+binding presence, safe plan thresholds, and next commands without printing
+provider costs or authorization-reference values. The helper rejects BYOK-only
+families such as OpenRouter from the managed resale allowlist and refuses
+minimum gross-margin thresholds below the launch floor.
 Browser-originating waitlist writes are guarded before Supabase inserts: Sage
 Router production hosts, Cloudflare Pages previews, local development, and exact
 origins configured with `SAGEROUTER_WAITLIST_ALLOWED_ORIGINS` are accepted, and
@@ -546,6 +550,7 @@ public resale or writing the private provider-cost model:
 
 ```bash
 scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
+scripts/configure_managed_provider_resale_readiness.sh --operator-packet
 scripts/configure_managed_provider_resale_readiness.sh --check
 ```
 

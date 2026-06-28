@@ -19,7 +19,7 @@ BYOK_ONLY_PROVIDER_FAMILIES="openrouter"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--stage-public-controls|--unit-economics]
+Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--stage-public-controls|--unit-economics]
 
 Stage Sage Router managed provider-access readiness on Cloud Run.
 
@@ -43,6 +43,11 @@ Options:
   --check                  Report public readiness, Cloud Run bindings, and local
                            input presence without writing secrets or printing
                            the cost model.
+  --operator-packet        Print a read-only, no-secret managed resale readiness
+                           packet with public blockers, local input presence,
+                           Cloud Run binding presence, safe plan thresholds, and
+                           next commands. It never prints provider costs or
+                           authorization references.
   --stage-public-controls  Bind non-secret terms, margin-policy, allowlist, and
                            disabled public-enable env without requiring or
                            writing the private cost model.
@@ -65,6 +70,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --check)
       MODE="check"
+      shift
+      ;;
+    --operator-packet)
+      MODE="operator-packet"
       shift
       ;;
     --stage-public-controls)
@@ -274,6 +283,107 @@ EOF
   printf 'Managed provider access appears launch-ready. Keep public enable disabled until provider authorization evidence is current.\n'
 }
 
+managed_provider_operator_packet() {
+  require_cmd curl
+  require_cmd jq
+
+  local body code enabled requested readiness status missing allowed eligible byok ready blocked terms_url margin_url terms_ack auth_evidence cost_configured unit_satisfied
+  body="$(mktemp)"
+  code="$(curl -sS -o "$body" -w '%{http_code}' https://api.sagerouter.dev/pricing || printf '000')"
+
+  printf 'Sage Router managed resale operator packet\n'
+  printf 'Boundary: read-only review packet; no provider credentials, authorization reference values, actual provider costs, prompts, OAuth tokens, generated API keys, or raw provider responses.\n'
+  printf 'Effect: this command does not acknowledge terms, write secrets, enable managed resale, deploy Cloud Run, or send customer email.\n\n'
+
+  if [[ "$code" == "200" ]]; then
+    enabled="$(jq -r '.publicLaunch.managedProviderAccess.enabled // false' "$body")"
+    requested="$(jq -r '.publicLaunch.managedProviderAccess.requested // false' "$body")"
+    readiness="$(jq -r '.publicLaunch.managedProviderAccess.readinessSatisfied // false' "$body")"
+    status="$(jq -r '.publicLaunch.managedProviderAccess.status // "unknown"' "$body")"
+    missing="$(jq -r '(.publicLaunch.managedProviderAccess.missingControls // []) | join(", ")' "$body")"
+    allowed="$(jq -r '(.publicLaunch.managedProviderAccess.allowedProviderFamilies // []) | join(", ")' "$body")"
+    eligible="$(jq -r '(.publicLaunch.managedProviderAccess.resaleEligibleProviderFamilies // []) | join(", ")' "$body")"
+    byok="$(jq -r '(.publicLaunch.managedProviderAccess.byokOnlyProviderFamilies // []) | join(", ")' "$body")"
+    ready="$(jq -r '(.publicLaunch.managedProviderAccess.oneSubscriptionReadiness.readyProviderFamilies // []) | join(", ")' "$body")"
+    blocked="$(jq -r '(.publicLaunch.managedProviderAccess.oneSubscriptionReadiness.blockedProviderFamilies // []) | join(", ")' "$body")"
+    terms_url="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsUrl // ""' "$body")"
+    margin_url="$(jq -r '.publicLaunch.managedProviderAccess.marginPolicyUrl // ""' "$body")"
+    terms_ack="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsAcknowledged // false' "$body")"
+    auth_evidence="$(jq -r '.publicLaunch.managedProviderAccess.providerAuthorizationEvidenceConfigured // false' "$body")"
+    cost_configured="$(jq -r '.publicLaunch.managedProviderAccess.unitEconomics.costModelConfigured // false' "$body")"
+    unit_satisfied="$(jq -r '.publicLaunch.managedProviderAccess.unitEconomics.satisfied // false' "$body")"
+
+    printf 'Public readiness:\n'
+    printf -- '- enabled/requested/ready: %s / %s / %s\n' "$enabled" "$requested" "$readiness"
+    printf -- '- status: %s\n' "$status"
+    printf -- '- missing controls: %s\n' "${missing:-none}"
+    printf -- '- terms URL: %s\n' "${terms_url:-missing}"
+    printf -- '- margin policy URL: %s\n' "${margin_url:-missing}"
+    printf -- '- terms acknowledged: %s\n' "$terms_ack"
+    printf -- '- authorization evidence configured: %s\n' "$auth_evidence"
+    printf -- '- cost model configured: %s; unit economics satisfied: %s\n' "$cost_configured" "$unit_satisfied"
+    printf -- '- allowed provider families: %s\n' "${allowed:-none}"
+    printf -- '- resale-eligible families: %s\n' "${eligible:-none}"
+    printf -- '- BYOK-only families excluded from resale: %s\n' "${byok:-none}"
+    printf -- '- one-subscription ready families: %s\n' "${ready:-none}"
+    printf -- '- one-subscription blocked families: %s\n\n' "${blocked:-none}"
+
+    printf 'Safe public plan thresholds:\n'
+    jq -r '
+      (.publicLaunch.managedProviderAccess.unitEconomics.evaluatedPlans // [])
+      | if length == 0 then ["- none"] else map(
+          "- \(.plan): revenueCentsPer1k=\(.revenueCentsPerThousandRequests); maxSafeProviderCostCentsPer1k=\(.maximumProviderCostCentsPerThousandRequests); minimumGrossMarginPercent=\(.minimumGrossMarginPercent); status=\(if .meetsMinimumGrossMargin then "pass" else "waiting_on_private_cost_model" end)"
+        ) end
+      | .[]
+    ' "$body"
+    printf '\n'
+  else
+    printf 'Public readiness: unavailable HTTP %s from https://api.sagerouter.dev/pricing\n\n' "$code"
+  fi
+  rm -f "$body"
+
+  printf 'Local apply input presence:\n'
+  printf -- '- termsUrl=%s marginPolicyUrl=%s termsAcknowledged=%s authorizationEvidence=%s allowedProviders=%s costModel=%s minimumMargin=%s enablePublic=%s\n\n' \
+    "$(presence "$TERMS_URL")" "$(presence "$MARGIN_POLICY_URL")" "$TERMS_ACKNOWLEDGED" "$(presence "$AUTHORIZATION_REF")" "$(presence "$ALLOWED_PROVIDERS")" "$(presence "$COST_CENTS_PER_1K")" "$MIN_MARGIN" "$ENABLE_PUBLIC"
+
+  if command -v gcloud >/dev/null 2>&1; then
+    local service_json enabled_env allowed_env auth_ref_env cost_secret margin_env terms_env ack_env
+    service_json="$(mktemp)"
+    if gcloud run services describe "$SERVICE_NAME" \
+      --project "$PROJECT_ID" \
+      --region "$REGION" \
+      --platform managed \
+      --format=json >"$service_json" 2>/dev/null; then
+      enabled_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED") | (.value // empty)' "$service_json" | tail -n1)"
+      allowed_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS") | (.value // empty)' "$service_json" | tail -n1)"
+      terms_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_TERMS_URL") | (.value // empty)' "$service_json" | tail -n1)"
+      margin_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL") | (.value // empty)' "$service_json" | tail -n1)"
+      ack_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED") | (.value // empty)' "$service_json" | tail -n1)"
+      auth_ref_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF") | (.value // empty)' "$service_json" | tail -n1)"
+      cost_secret="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS") | (.valueFrom.secretKeyRef.name // empty)' "$service_json" | tail -n1)"
+      printf 'Cloud Run binding presence:\n'
+      printf -- '- service=present enabledEnv=%s allowedProvidersEnv=%s termsUrlEnv=%s termsAckEnv=%s authorizationRefEnv=%s marginPolicyEnv=%s costSecret=%s\n\n' \
+        "$(presence "$enabled_env")" "$(presence "$allowed_env")" "$(presence "$terms_env")" "$(presence "$ack_env")" "$(presence "$auth_ref_env")" "$(presence "$margin_env")" "$(presence "$cost_secret")"
+    else
+      printf 'Cloud Run binding presence:\n'
+      printf -- '- service=unavailable project=%s region=%s service=%s\n\n' "$PROJECT_ID" "$REGION" "$SERVICE_NAME"
+    fi
+    rm -f "$service_json"
+  else
+    printf 'Cloud Run binding presence:\n'
+    printf -- '- skipped because gcloud is not installed\n\n'
+  fi
+
+  printf 'Next operator actions:\n'
+  printf -- '- Review provider resale terms out of band, then set SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=1 only when the terms and authorization evidence are approved.\n'
+  printf -- '- Store only a private evidence reference in SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF; do not paste the evidence body into public metadata.\n'
+  printf -- '- Run: SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS=REVIEWED_PRIVATE_COST scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n'
+  printf -- '- If the preflight passes, stage the cost model with the default helper while keeping SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0 until final approval.\n'
+  printf -- '- Re-run: scripts/configure_managed_provider_resale_readiness.sh --check\n\n'
+
+  printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false.\n'
+}
+
 secret_exists() {
   gcloud secrets describe "$1" --project "$PROJECT_ID" >/dev/null 2>&1
 }
@@ -294,6 +404,11 @@ put_secret() {
 if [[ "$MODE" == "check" ]]; then
   check_managed_provider_resale
   exit $?
+fi
+
+if [[ "$MODE" == "operator-packet" ]]; then
+  managed_provider_operator_packet
+  exit 0
 fi
 
 if [[ "$MODE" == "unit-economics" ]]; then
