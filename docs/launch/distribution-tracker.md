@@ -20,11 +20,11 @@ readiness guard enables it.
 ## Current live snapshot
 
 Live funnel snapshot from 2026-06-29 after Cloud Run revision
-`sage-router-00201-zcm` and commit `de951a6`:
+`sage-router-00209-gpw` and commit `a1af4c9`:
 
 - Reliability gate: `SAGEROUTER_MIN_HEALTHY_UPSTREAMS=6
   scripts/check_sagerouter_launch_readiness.sh` has no hard failures and the
-  public edge currently reports `7` healthy upstreams. The remaining warning is
+  public edge currently reports `6` healthy upstreams. The remaining warning is
   Cloudflare Browser Integrity Check ruleset verification; the current token
   cannot read/edit the host-scoped ruleset for `api.sagerouter.dev`. A
   no-secret local audit found `3` Cloudflare token candidates, `2` zone-readable
@@ -32,19 +32,25 @@ Live funnel snapshot from 2026-06-29 after Cloud Run revision
   infrastructure action is to rotate `CLOUDFLARE_API_TOKEN` with `Zone:Zone:Read`
   plus `Zone Rulesets:Read/Edit`.
 - Hosted app deploy: Cloudflare Pages production branch `main` was redeployed
-  after commit `de951a6`; `https://app.sagerouter.dev/launch-funnel.js` now
+  after commit `5c3c866`; `https://app.sagerouter.dev/launch-funnel.js` now
   serves the activation next-send handoff panel and reads top-level
   `managedProviderReadiness` from `/analytics/funnel` when the legacy nested
   pricing path is absent. That keeps the private operator dashboard aligned
   with the live managed-resale guardrails without exposing emails, customer
   IDs, keys, prompts, provider credentials, private provider costs, or raw
   responses.
-- Activation: `3` signups, `1` customer with a generated `sk_sage_*` key, `1`
-  customer with a first routed request, `1` paid Pro customer, and `$30`
+- Hosted API deploy: Cloud Run revision `sage-router-00209-gpw` now publishes
+  `readinessSetup.providerOutreachCommand` in both public `/pricing` metadata
+  and the operator-safe `/analytics/funnel` managed-provider snapshot, so
+  runbooks and agents can discover the no-secret provider authorization
+  outreach packet without relying on dashboard-only fallbacks.
+- Activation: `4` signups, `1` customer with a generated `sk_sage_*` key, `1`
+  customer with a first routed request, `2` paid customers, and `$60`
   estimated current MRR.
 - Current bottleneck: signup-to-generated-key recovery. The live funnel reports
-  `3` no-key follow-ups queued: `2` sendable segments (`verified`,
-  `unverified`) and `1` review-only auth-repair segment (`missing_auth_user`).
+  `4` no-key follow-ups queued: `2` sendable segments (`verified`,
+  `unverified`) and `2` review-only auth-repair rows in the
+  `missing_auth_user` segment.
 - Operator dashboard: the no-key queue now includes a copyable no-secret
   activation approval packet that separates sendable follow-up segments from
   review-only auth-repair work before any real send command is copied. The
@@ -67,8 +73,8 @@ Live funnel snapshot from 2026-06-29 after Cloud Run revision
   recipients, but real sending still requires explicit operator approval.
 - Acquisition signals: internal Sage Router navigation remains the largest
   channel (`297` privacy-safe clicks), long-form/article traffic is the largest
-  source surface (`117`), the landing page has `93` privacy-safe source-surface
-  clicks, Reddit is the strongest external community channel (`35`), and the
+  source surface (`117`), the landing page has `95` privacy-safe source-surface
+  clicks, Reddit is the strongest external community channel (`37`), and the
   account surface has `39` privacy-safe clicks. The shared article dock now
   links those readers directly to OpenRouter comparison, Codex setup, hosted
   setup copy, email setup, key recovery, one-subscription review, and Max
@@ -76,7 +82,7 @@ Live funnel snapshot from 2026-06-29 after Cloud Run revision
   buckets into `/analytics/funnel`, and the inline article offer now has a
   one-field guarded `/api/waitlist` request so private-beta demand can graduate
   from anonymous signal to managed-access lead without leaving the article.
-- Revenue gap: Pro is now the largest gap (`199` more Pro customers, `$5,970`
+- Revenue gap: Pro is now the largest gap (`198` more Pro customers, `$5,940`
   remaining MRR), followed by Max (`50` customers, `$3,600`) and Lite (`100`
   customers, `$600`).
 
