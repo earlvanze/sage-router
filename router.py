@@ -7634,8 +7634,8 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 {
                     'step': 2,
                     'segment': 'same_email',
-                    'action': 'Use the public setup-key recovery page and same-email setup link as the primary recovery path.',
-                    'successMetric': 'setup_key_recovery_magic_link_sent or login_key_recovery_magic_link_sent appears before key creation.',
+                    'action': 'Use the public setup-key recovery page primary CTA: Email same-email setup link. Keep account setup as the signed-in fallback.',
+                    'successMetric': 'setup_key_recovery_magic_link_requested then setup_key_recovery_magic_link_sent appears before key creation.',
                 },
                 {
                     'step': 3,
@@ -7674,7 +7674,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 (
                     'Recovery handoffs are reaching account setup but no key-create attempts are starting. Verify signed-in start=create_key auto-create before sending more activation traffic.'
                     if recovery_handoff_dropoff
-                    else 'Recovery pages are getting views but no account handoffs or key-create attempts. Run bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff to fold the live no-persistence handoff smoke into the diagnosis; if it reports verified_handoff_waiting_for_fresh_traffic, wait for fresh real recovery traffic or use the approval packet before any real activation send.'
+                    else 'Recovery pages are getting views but no account handoffs or key-create attempts. The public recovery page now leads with Email same-email setup link; run bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff and expect verified_handoff_waiting_for_fresh_traffic when the no-persistence smoke passes, then watch for setup_key_recovery_magic_link_requested/sent before key creation, or use the approval packet before any real activation send.'
                 )
                 if recovery_dropoff
                 else (
@@ -7684,7 +7684,11 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 )
             ),
             'executionChecklist': execution_checklist,
-            'successMetric': activation_follow_ups.get('successMetric') or 'Move no-key signups into generated-key accounts, then first routed request.',
+            'successMetric': (
+                'setup_key_recovery_magic_link_requested/sent increases, then keyCreateAttempts and generated-key customers increase.'
+                if recovery_view_dropoff
+                else activation_follow_ups.get('successMetric') or 'Move no-key signups into generated-key accounts, then first routed request.'
+            ),
             'evidence': {
                 'signups': signups,
                 'generatedKeyCustomers': generated_keys,

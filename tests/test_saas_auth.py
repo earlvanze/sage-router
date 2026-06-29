@@ -2676,9 +2676,15 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('setup-key recovery', action['surface'])
         self.assertIn('/setup-key-recovery', action['ctaPath'])
         self.assertIn('Recovery pages are getting views but no account handoffs or key-create attempts', action['action'])
+        self.assertIn('Email same-email setup link', action['action'])
+        self.assertIn('setup_key_recovery_magic_link_requested/sent', action['action'])
         self.assertIn('bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff', action['action'])
         self.assertIn('verified_handoff_waiting_for_fresh_traffic', action['action'])
         self.assertIn('approval packet', action['action'])
+        self.assertEqual(
+            'setup_key_recovery_magic_link_requested/sent increases, then keyCreateAttempts and generated-key customers increase.',
+            action['successMetric'],
+        )
         self.assertTrue(action['evidence']['recoveryDropoff'])
         self.assertTrue(action['evidence']['recoveryViewDropoff'])
         self.assertFalse(action['evidence']['recoveryHandoffDropoff'])
@@ -2699,6 +2705,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('recovery_dropoff', action['executionChecklist'][0]['segment'])
         self.assertIn('bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff', action['executionChecklist'][0]['action'])
         self.assertIn('account_setup_handoff_viewed', action['executionChecklist'][0]['successMetric'])
+        self.assertIn('Email same-email setup link', action['executionChecklist'][1]['action'])
+        self.assertIn('setup_key_recovery_magic_link_requested', action['executionChecklist'][1]['successMetric'])
         self.assertIn('account_key_recovery_auto_create_started', action['executionChecklist'][2]['action'])
         self.assertIn('approval packet', action['executionChecklist'][3]['action'])
         self.assertFalse(action['privacy']['containsEmails'])
