@@ -2349,9 +2349,31 @@ class SaaSAuthTests(unittest.TestCase):
             'scripts/configure_managed_provider_resale_readiness.sh',
             managed_readiness['readinessSetup']['setupScript'],
         )
+        self.assertIn(
+            'SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF',
+            managed_readiness['readinessSetup']['setupCommand'],
+        )
+        self.assertIn(
+            'PRIVATE_PROVIDER_AUTH_REF',
+            managed_readiness['readinessSetup']['setupCommand'],
+        )
+        self.assertEqual(
+            'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet',
+            managed_readiness['readinessSetup']['termsApprovalCommand'],
+        )
+        self.assertIn(
+            "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST'",
+            managed_readiness['readinessSetup']['unitEconomicsCommand'],
+        )
+        self.assertIn(
+            'SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC',
+            managed_readiness['readinessSetup']['enableCommandTemplate'],
+        )
         self.assertFalse(managed_readiness['readinessSetup']['privacy']['containsSecrets'])
         self.assertFalse(managed_readiness['privacy']['containsActualProviderCosts'])
-        self.assertNotIn('REVIEWED_PRIVATE_COST', json.dumps(managed_readiness))
+        self.assertNotIn('sk-', json.dumps(managed_readiness))
+        self.assertNotIn('re_secret', json.dumps(managed_readiness))
+        self.assertNotIn('whsec_', json.dumps(managed_readiness))
         self.assertEqual('signupToGeneratedKey', snapshot['nextBestAction']['metric'])
         self.assertEqual('fix_now', snapshot['nextBestAction']['priority'])
         self.assertIn('/setup-key-recovery', snapshot['nextBestAction']['ctaPath'])
