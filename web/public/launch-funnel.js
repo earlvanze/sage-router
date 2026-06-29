@@ -712,6 +712,31 @@ function activationSendCommand(emailReadiness = {}, activationSend = {}) {
   return template.replace(/"segment"\s*:\s*"[^"]*"/, `"segment":"${segment}"`);
 }
 
+function activationDeliveryMode(emailReadiness = {}) {
+  if (emailReadiness.deliveryMode) return emailReadiness.deliveryMode;
+  if (emailReadiness.provider === 'supabase-recovery' && emailReadiness.configured) return 'supabase_recovery_link';
+  if (emailReadiness.provider === 'resend' && emailReadiness.configured) return 'branded_resend_email';
+  return 'copy_mailto_operator_packet';
+}
+
+function activationDeliveryLabel(emailReadiness = {}) {
+  const mode = activationDeliveryMode(emailReadiness);
+  if (mode === 'supabase_recovery_link') return 'Supabase recovery links ready';
+  if (mode === 'branded_resend_email') return 'Branded Resend sender ready';
+  return 'Copy/mailto fallback active';
+}
+
+function activationDeliveryMeta(emailReadiness = {}) {
+  const mode = activationDeliveryMode(emailReadiness);
+  if (mode === 'supabase_recovery_link') {
+    return 'Supabase recovery links are automated; configure Resend separately for branded generated-key copy.';
+  }
+  if (mode === 'branded_resend_email') {
+    return 'Branded generated-key recovery drafts can be sent after dry-run verification and explicit approval.';
+  }
+  return 'Use copy/mailto fallback until sender config is ready.';
+}
+
 function activationApprovalReadiness(data = {}) {
   const readiness = data.activationApprovalReadiness || {};
   if (readiness && readiness.status) return readiness;
@@ -919,7 +944,7 @@ function buildLaunchBrief(data = {}) {
     `- Send approval handoff: next segment=${activationSend.nextSendSegment || 'all'}; approval required=${activationSend.sendApprovalRequired ? 'yes' : 'no'}; command copy remains operator-token gated and confirmation-token protected.`,
     `- Approval checklist: ${(activationApprovalChecklist(data)).map(row => `${row.id}=${row.status}`).join('; ')}`,
     `- Recovery auth starts: magic=${integer(asNumber(managedAccessEvents.login_key_recovery_magic_link_requested) + asNumber(managedAccessEvents.setup_key_recovery_magic_link_requested))}; password=${integer(managedAccessEvents.login_key_recovery_password_submitted)}; oauth=${integer(managedAccessEvents.login_key_recovery_oauth_clicked)}; account setup clicks=${integer(managedAccessEvents.login_key_recovery_account_setup_clicked)}`,
-    `- Activation email sender: ${activationEmailReadiness.configured ? 'configured' : 'fallback only'} via ${activationEmailReadiness.provider || 'resend'}; dry run ${activationEmailReadiness.dryRunSupported ? 'supported' : 'not reported'}; action: ${activationEmailReadiness.operatorAction || 'Use copy/mailto fallback until sender config is ready.'}`,
+    `- Activation email sender: ${activationDeliveryLabel(activationEmailReadiness)} via ${activationEmailReadiness.provider || 'resend'}; mode=${activationDeliveryMode(activationEmailReadiness)}; dry run ${activationEmailReadiness.dryRunSupported ? 'supported' : 'not reported'}; action: ${activationEmailReadiness.operatorAction || activationDeliveryMeta(activationEmailReadiness)}`,
     `- No-key email verification: verified ${integer(noKeyVerification.verified)}, unverified ${integer(noKeyVerification.unverified)}, missing ${integer(noKeyVerification.missing_auth_user || noKeyVerification.missing_user_id)}, unavailable ${integer(noKeyVerification.unavailable)}`,
     `- Follow-up CTA: ${activationFollowUps.primaryCtaUrl || activationFollowUpUrl({}, { auth: false })}`,
     `- Checkout unavailable: ${integer(checkoutFriction.unavailableEvents)} / ${integer(checkoutFriction.totalCheckoutIntent)} intent events (${percent(checkoutFriction.unavailableRate)})`,
@@ -1014,7 +1039,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
     `Next send segment: ${activationSend.nextSendSegment || 'all'}; dryRunVerified=${activationSend.dryRunVerified === true}; approvalRequired=${activationSend.sendApprovalRequired === true}`,
     `Approval readiness: ${approvalReadiness.status || 'unknown'}; blockedReason=${approvalReadiness.blockedReason || 'none'}; nextActions=${(approvalReadiness.nextActions || []).map(row => `${row.priority || 'next'}:${row.id || 'review'}`).join(', ') || 'monitor_activation_queue'}`,
     `Auth posture: ${authPosture.label}. ${authPosture.action}`,
-    `Activation email sender: ${emailReadiness.configured ? 'configured' : 'fallback only'} via ${emailReadiness.provider || 'resend'}; endpoint=${emailReadiness.sendEndpoint || '/admin/customers/send-activation-followups'}; requiredEnv=${(emailReadiness.requiredEnv || []).join(', ') || 'none'}`,
+    `Activation email sender: ${activationDeliveryLabel(emailReadiness)} via ${emailReadiness.provider || 'resend'}; mode=${activationDeliveryMode(emailReadiness)}; endpoint=${emailReadiness.sendEndpoint || '/admin/customers/send-activation-followups'}; requiredEnv=${(emailReadiness.requiredEnv || []).join(', ') || 'none'}; brandedSender=${emailReadiness.brandedSenderConfigured === true}; recoverySender=${emailReadiness.recoverySenderConfigured === true}`,
     `Activation sender setup: ${emailReadiness.setupScript || 'scripts/configure_activation_email_sender.sh'}`,
     ...(emailReadiness.setupCommand ? ['', 'Setup command template:', emailReadiness.setupCommand] : []),
     ...(emailReadiness.dryRunCommand ? ['', 'Dry-run send command:', emailReadiness.dryRunCommand] : []),
@@ -1267,13 +1292,13 @@ function renderOperatorExecutionPacket(data = {}) {
     <div class="metric"><span>Dry-run / sent</span><strong>${integer(activationSend.dryRunRecipients)} unique dry-run · ${integer(activationSend.sentRecipients)} sent · ${integer(activationSend.failedRecipients)} failed</strong></div>
     <div class="metric"><span>Next send segment</span><strong>${esc(activationSend.nextSendSegment || 'all')}</strong></div>
     <div class="metric"><span>Primary CTA</span><strong>${esc(packet.primaryCtaKind || 'same_email_password')}</strong></div>
-    <div class="metric"><span>Email sender</span><strong><span class="pill ${emailReadiness.configured ? 'good' : 'warn'}">${emailReadiness.configured ? 'Configured' : 'Fallback only'}</span></strong></div>
+    <div class="metric"><span>Email sender</span><strong><span class="pill ${emailReadiness.configured ? 'good' : 'warn'}">${esc(activationDeliveryLabel(emailReadiness))}</span></strong></div>
     <div class="metric"><span>Managed access</span><strong><span class="pill ${managedReadiness.enabled ? 'good' : 'warn'}">${esc(managedReadiness.status || 'disabled')}</span></strong></div>
     <div class="metric"><span>Auth posture</span><strong><span class="pill ${esc(authPosture.tone)}">${esc(authPosture.label)}</span></strong></div>
     <div class="metric"><span>Privacy</span><strong><span class="pill ${clean ? 'good' : 'bad'}">${clean ? 'Aggregate only' : 'Review payload'}</span></strong></div>
     <div class="metric"><span>Success</span><strong>${esc(telemetry.successMetric || packet.metric || 'activation')}</strong></div>
   </div>
-  <p class="muted">${esc(authPosture.action)} Approval readiness is ${esc(approvalReadiness.status || 'unknown')}${approvalReadiness.blockedReason ? ` (${esc(approvalReadiness.blockedReason)})` : ''}. ${activationSend.sendApprovalRequired ? `Dry-run is ${activationSend.dryRunVerified ? 'verified' : 'not complete'} for ${integer(activationSend.dryRunRecipients)} unique sendable recipient(s); covered segments: ${activationSend.dryRunCoveredSegments.join(', ') || 'none'}; wait for explicit operator approval before real send.` : esc(emailReadiness.operatorAction || 'Dry-run activation follow-up sending before real outreach.')} ${esc(managedSetup.operatorAction || 'Keep managed provider access disabled until resale controls pass.')}</p>
+  <p class="muted">${esc(authPosture.action)} Approval readiness is ${esc(approvalReadiness.status || 'unknown')}${approvalReadiness.blockedReason ? ` (${esc(approvalReadiness.blockedReason)})` : ''}. ${esc(activationDeliveryMeta(emailReadiness))} ${activationSend.sendApprovalRequired ? `Dry-run is ${activationSend.dryRunVerified ? 'verified' : 'not complete'} for ${integer(activationSend.dryRunRecipients)} unique sendable recipient(s); covered segments: ${activationSend.dryRunCoveredSegments.join(', ') || 'none'}; wait for explicit operator approval before real send.` : esc(emailReadiness.operatorAction || 'Dry-run activation follow-up sending before real outreach.')} ${esc(managedSetup.operatorAction || 'Keep managed provider access disabled until resale controls pass.')}</p>
   ${approvalChecklist}
   <div class="actions">
     <button class="btn secondary" type="button" data-copy-operator-packet="${esc(packetText)}">Copy execution packet</button>

@@ -359,6 +359,19 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
   const stripe = billing.stripe || {};
   const openaiBase = pricing.openaiBaseUrl || `${sageRouterUrl}/v1`;
   const activationCheck = activation.setupCheckCommand || `${activation.setupScript || 'scripts/configure_activation_email_sender.sh'} --check`;
+  const activationDeliveryMode = activation.deliveryMode || (activation.provider === 'supabase-recovery'
+    ? 'supabase_recovery_link'
+    : (activation.configured ? 'branded_resend_email' : 'copy_mailto_operator_packet'));
+  const activationDeliveryLabel = activationDeliveryMode === 'supabase_recovery_link'
+    ? 'Supabase recovery links ready'
+    : (activationDeliveryMode === 'branded_resend_email'
+      ? 'Branded Resend sender ready'
+      : 'Copy/mailto fallback active');
+  const activationDeliveryMeta = activationDeliveryMode === 'supabase_recovery_link'
+    ? `Dry-run ${fmtNumber(activation.maxBatch || 0)} queued signup-to-key follow-ups before triggering Supabase recovery links; configure Resend separately for branded generated-key copy.`
+    : (activation.configured
+      ? `Dry-run ${fmtNumber(activation.maxBatch || 0)} queued signup-to-key follow-ups before sending from the configured branded sender.`
+      : `Missing ${(activation.requiredEnv || []).join(', ') || 'sender inputs'}; public readiness stays failed until this check passes.`);
   const managedDryRun = managedSetup.dryRunCommand || 'scripts/configure_managed_provider_resale_readiness.sh --check';
   const managedTermsApproval = managedSetup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
   const managedUnitEconomics = managedSetup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
@@ -383,12 +396,10 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
     {
       id: 'activation-email-preflight',
       title: 'Activation email sender',
-      value: activation.configured ? 'Ready for dry-run/send' : 'Configure Resend or keep copy fallback active',
+      value: activationDeliveryLabel,
       badge: activation.configured ? 'ready' : 'blocking launch readiness',
       state: activation.configured ? 'good' : 'warn',
-      meta: activation.configured
-        ? `Dry-run ${fmtNumber(activation.maxBatch || 0)} queued signup-to-key follow-ups before sending.`
-        : `Missing ${(activation.requiredEnv || []).join(', ') || 'sender inputs'}; public readiness stays failed until this check passes.`,
+      meta: activationDeliveryMeta,
       command: activationCheck,
       copyEvent: 'status_activation_email_preflight_copied',
     },

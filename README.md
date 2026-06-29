@@ -550,7 +550,11 @@ scripts/configure_activation_email_sender.sh
 
 The Supabase recovery provider sends operator-confirmed password-recovery
 emails through the existing Cloud Run Supabase URL/anon-key bindings and
-redirects users back to the Sage Router account/key setup flow. For custom
+redirects users back to the Sage Router account/key setup flow. Public and
+operator readiness metadata reports this as `deliveryMode` set to
+`supabase_recovery_link`, with `recoverySenderConfigured: true` and
+`brandedSenderConfigured: false`, so launch surfaces do not confuse automated
+recovery-link sending with a custom branded sender identity. For custom
 generated-key recovery copy, use the Resend provider instead; when sender inputs
 are present, the script verifies Resend API access and that the sender domain is
 verified/sending-enabled before binding Cloud Run secrets. The setup path does not print sender values or Resend API-key values. Resend follow-up sends use an idempotency key so an operator retry does not double-send the same generated-key recovery draft.

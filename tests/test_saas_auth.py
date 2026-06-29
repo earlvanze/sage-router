@@ -974,6 +974,10 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('supabase-recovery', readiness['provider'])
         self.assertTrue(readiness['configured'])
         self.assertTrue(readiness['sendsEmailWhenConfigured'])
+        self.assertEqual('supabase_recovery_link', readiness['deliveryMode'])
+        self.assertTrue(readiness['recoverySenderConfigured'])
+        self.assertFalse(readiness['brandedSenderConfigured'])
+        self.assertFalse(readiness['senderIdentityConfigured'])
         self.assertTrue(readiness['supabaseConfigured'])
         self.assertTrue(readiness['recoveryRedirectConfigured'])
         self.assertEqual([], readiness['requiredEnv'])
@@ -1294,6 +1298,10 @@ class SaaSAuthTests(unittest.TestCase):
         activation_email = metadata['activationEmailReadiness']
         self.assertEqual('resend', activation_email['provider'])
         self.assertFalse(activation_email['configured'])
+        self.assertEqual('copy_mailto_operator_packet', activation_email['deliveryMode'])
+        self.assertFalse(activation_email['brandedSenderConfigured'])
+        self.assertFalse(activation_email['recoverySenderConfigured'])
+        self.assertFalse(activation_email['senderIdentityConfigured'])
         self.assertEqual('copy_mailto_operator_packet', activation_email['fallback'])
         self.assertIn('SAGE_ROUTER_ACTIVATION_EMAIL_FROM', activation_email['requiredEnv'])
         self.assertIn('SAGE_ROUTER_RESEND_API_KEY', activation_email['secretManagerNames'])
@@ -2109,6 +2117,12 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, snapshot['activationFollowUps']['operatorFollowUpSendsByKind']['verified_sent'])
         self.assertFalse(snapshot['activationFollowUps']['emailReadiness']['configured'])
         self.assertEqual('resend', snapshot['activationFollowUps']['emailReadiness']['provider'])
+        self.assertEqual(
+            'copy_mailto_operator_packet',
+            snapshot['activationFollowUps']['emailReadiness']['deliveryMode'],
+        )
+        self.assertFalse(snapshot['activationFollowUps']['emailReadiness']['brandedSenderConfigured'])
+        self.assertFalse(snapshot['activationFollowUps']['emailReadiness']['recoverySenderConfigured'])
         self.assertTrue(snapshot['activationFollowUps']['emailReadiness']['dryRunSupported'])
         self.assertEqual('/admin/customers/send-activation-followups', snapshot['activationFollowUps']['emailReadiness']['sendEndpoint'])
         self.assertIn('SAGE_ROUTER_ACTIVATION_EMAIL_FROM', snapshot['activationFollowUps']['emailReadiness']['requiredEnv'])
@@ -2235,6 +2249,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('account_key_recovery_auto_create_failed', packet['telemetry']['keyCreateFailureEvents'])
         self.assertFalse(packet['emailReadiness']['configured'])
         self.assertEqual('resend', packet['emailReadiness']['provider'])
+        self.assertEqual('copy_mailto_operator_packet', packet['emailReadiness']['deliveryMode'])
         self.assertIn('copy fallback', packet['emailReadiness']['operatorAction'])
         self.assertIn('scripts/configure_activation_email_sender.sh', packet['emailReadiness']['setupCommand'])
         self.assertIn('"dryRun":true', packet['emailReadiness']['dryRunCommand'])

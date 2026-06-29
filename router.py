@@ -9772,6 +9772,18 @@ def activation_followup_send_command(segment='all', dry_run=True, limit=None):
 def activation_email_readiness():
     configured = activation_email_configured()
     provider = activation_email_provider_label()
+    branded_sender_configured = bool(
+        provider == 'resend' and ACTIVATION_EMAIL_FROM and ACTIVATION_EMAIL_API_KEY
+    )
+    recovery_sender_configured = bool(
+        provider == 'supabase-recovery' and SUPABASE_URL and SUPABASE_ANON_KEY and ACTIVATION_EMAIL_REDIRECT_TO
+    )
+    if configured and provider == 'supabase-recovery':
+        delivery_mode = 'supabase_recovery_link'
+    elif configured and provider == 'resend':
+        delivery_mode = 'branded_resend_email'
+    else:
+        delivery_mode = 'copy_mailto_operator_packet'
     setup_command = ''
     if not configured:
         if provider == 'supabase-recovery':
@@ -9810,6 +9822,10 @@ def activation_email_readiness():
         'sendCommandTemplate': send_command_template,
         'segmentCommandTemplates': segment_command_templates,
         'sendsEmailWhenConfigured': configured,
+        'deliveryMode': delivery_mode,
+        'brandedSenderConfigured': branded_sender_configured,
+        'recoverySenderConfigured': recovery_sender_configured,
+        'senderIdentityConfigured': bool(ACTIVATION_EMAIL_FROM),
         'fromConfigured': bool(ACTIVATION_EMAIL_FROM),
         'apiKeyConfigured': bool(ACTIVATION_EMAIL_API_KEY) if provider == 'resend' else bool(SUPABASE_ANON_KEY),
         'replyToConfigured': bool(ACTIVATION_EMAIL_REPLY_TO),
@@ -9838,9 +9854,13 @@ def activation_email_readiness():
         'setupCommand': setup_command,
         'setupScript': 'scripts/configure_activation_email_sender.sh',
         'operatorAction': (
-            'Use Send from the operator dashboard after dry-run verification.'
-            if configured
-            else 'Configure the activation email sender or use the mailto/copy fallback for signup-to-key recovery.'
+            'Use Send to trigger Supabase recovery links after dry-run verification; configure Resend separately for a branded sender identity.'
+            if configured and provider == 'supabase-recovery'
+            else (
+                'Use Send from the operator dashboard after dry-run verification.'
+                if configured
+                else 'Configure the activation email sender or use the mailto/copy fallback for signup-to-key recovery.'
+            )
         ),
         'privacy': {
             'containsSecrets': False,
@@ -9858,6 +9878,10 @@ def public_activation_email_readiness():
         'provider': readiness.get('provider') or 'resend',
         'configured': bool(readiness.get('configured')),
         'sendsEmailWhenConfigured': bool(readiness.get('sendsEmailWhenConfigured')),
+        'deliveryMode': readiness.get('deliveryMode') or 'copy_mailto_operator_packet',
+        'brandedSenderConfigured': bool(readiness.get('brandedSenderConfigured')),
+        'recoverySenderConfigured': bool(readiness.get('recoverySenderConfigured')),
+        'senderIdentityConfigured': bool(readiness.get('senderIdentityConfigured')),
         'dryRunSupported': bool(readiness.get('dryRunSupported')),
         'fromConfigured': bool(readiness.get('fromConfigured')),
         'apiKeyConfigured': bool(readiness.get('apiKeyConfigured')),
