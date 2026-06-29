@@ -205,6 +205,13 @@ if [[ "$MODE" == "operator-packet" ]]; then
   printf -- '- Zone Rulesets:Read\n'
   printf -- '- Zone Rulesets:Edit\n\n'
 
+  printf 'Manual Cloudflare UI fallback:\n'
+  printf -- '- Dashboard path: Cloudflare Dashboard > sagerouter.dev > Rules > Configuration Rules > Create rule.\n'
+  printf -- '- Rule name/ref: sage-router-api-disable-bic.\n'
+  printf -- '- Expression: http.host eq "api.sagerouter.dev".\n'
+  printf -- '- Action: set configuration setting Browser Integrity Check to Off.\n'
+  printf -- '- Scope warning: do not disable Browser Integrity Check for sagerouter.dev, app.sagerouter.dev, www.sagerouter.dev, or the whole zone.\n\n'
+
   printf 'Next operator actions:\n'
   printf -- '- Rotate or create CLOUDFLARE_API_TOKEN scoped to sagerouter.dev with the three permissions above.\n'
   printf -- '- Verify without mutation: bash scripts/configure_cloudflare_api_bic_skip.sh --check\n'

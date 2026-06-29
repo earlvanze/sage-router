@@ -51,6 +51,17 @@ readable or creatable. If `canApplyExistingCandidate` is `false`, rotate or
 create a separate Cloudflare token with the three required permissions above;
 do not reuse the Pages deploy token.
 
+If no local token candidate has Rulesets permissions, the operator packet also
+prints the manual Cloudflare UI fallback:
+
+- Dashboard path: Cloudflare Dashboard > `sagerouter.dev` > Rules >
+  Configuration Rules > Create rule
+- Rule name/ref: `sage-router-api-disable-bic`
+- Expression: `http.host eq "api.sagerouter.dev"`
+- Action: set configuration setting `Browser Integrity Check` to `Off`
+- Scope warning: do not disable Browser Integrity Check for `sagerouter.dev`,
+  `app.sagerouter.dev`, `www.sagerouter.dev`, or the whole zone
+
 ## Apply
 
 ```bash

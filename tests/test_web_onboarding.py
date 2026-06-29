@@ -1972,6 +1972,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("status_managed_resale_dry_run_copied", js)
         self.assertIn("status_activation_email_preflight_copied", js)
         self.assertIn("status_first_request_setup_copied", js)
+        self.assertIn("scripts/configure_cloudflare_api_bic_skip.sh --operator-packet", js)
         self.assertIn("scripts/configure_cloudflare_api_bic_skip.sh --check", js)
         self.assertIn("scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens", js)
         self.assertIn("never token values", js)

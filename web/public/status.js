@@ -377,6 +377,7 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
   const managedUnitEconomics = managedSetup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
   const activationApprovalPacket = 'scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet';
   const cloudflareBicCheck = [
+    'scripts/configure_cloudflare_api_bic_skip.sh --operator-packet',
     'scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens',
     'scripts/configure_cloudflare_api_bic_skip.sh --check',
   ].join('\n');
