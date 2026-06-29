@@ -370,16 +370,16 @@
             </form>
             <p id="login-key-recovery-email-status" class="recoveryEmailStatus" role="status" aria-live="polite">This sends only a Supabase recovery link; no provider key or generated key is emailed.</p>
             <div class="actions recoveryActions">
+              <a
+                id="login-key-recovery"
+                class="btn"
+                href="/account?plan=pro&start=create_key&utm_source=login&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=login-key-recovery&source_surface=recovery&next=generated-key"
+                data-key-recovery="true"
+                >Create API key next</a
+              >
               <button id="login-key-recovery-email-focus" class="btn" type="button">Use same-email setup link</button>
               <button id="login-key-recovery-copy-setup" class="btn secondary" type="button">Copy setup first</button>
               <button id="login-key-recovery-github" data-oauth="github" class="btn secondary hidden" disabled type="button">Continue with GitHub for Pro</button>
-              <a
-                id="login-key-recovery"
-                class="btn secondary"
-                href="/account?plan=pro&start=create_key&utm_source=login&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email"
-                data-key-recovery="true"
-                >Open API key setup</a
-              >
             </div>
           </div>
           <div class="authGrid">

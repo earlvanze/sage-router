@@ -998,6 +998,12 @@ check_hosted_onboarding_pages() {
   if [[ "$login_code" == "200" ]] && ! grep -q "login-key-recovery-github" /tmp/sage-router-readiness-body; then
     login_code="200:missing-login-key-recovery-github-button"
   fi
+  if [[ "$login_code" == "200" ]] && ! grep -q "Create API key next" /tmp/sage-router-readiness-body; then
+    login_code="200:missing-login-key-recovery-key-next"
+  fi
+  if [[ "$login_code" == "200" ]] && ! grep -q "auth=email&setup=login-key-recovery&source_surface=recovery&next=generated-key" /tmp/sage-router-readiness-body; then
+    login_code="200:missing-login-key-recovery-attributed-handoff"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   account_code="$(http_code_follow "${APP_BASE%/}/account.html")"

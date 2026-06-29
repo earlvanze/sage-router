@@ -162,9 +162,11 @@ provider resale claim, or runtime feature flag.
   is simply waiting for fresh real recovery traffic.
 - Keep `/login.html?start=create_key` as the hosted same-email bridge for
   returning no-key signups: the recovery panel must include an inline
-  same-email setup-link form, copy-first setup, same-GitHub recovery, and
-  `login_key_recovery_magic_link_*` telemetry so recovery views can move into
-  generated-key setup without waiting for operator outreach.
+  same-email setup-link form, copy-first setup, same-GitHub recovery, a static
+  fully attributed `Create API key next` handoff with `setup=login-key-recovery`
+  plus `source_surface=recovery`, and `login_key_recovery_magic_link_*`
+  telemetry so recovery views can move into generated-key setup without waiting
+  for operator outreach or JS-only link rewriting.
 - Keep `/docs/api-reference` as the hosted OpenAI-compatible API reference for
   `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public
   `/model-catalog`, generated `sk_sage_*` keys, quota headers, rate-limit
