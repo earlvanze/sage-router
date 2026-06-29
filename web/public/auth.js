@@ -57,12 +57,14 @@ function scheduleKeyRecoveryAccountHandoff() {
     state: keyRecoveryLandingState(),
   });
   set('auth-status', 'Opening API key setup so the generated key can be created after sign-in...');
-  trackLoginFunnelEvent('login_key_recovery_account_setup_auto_redirected', {
-    button: 'auto_account_setup_handoff',
-    target,
-    state: keyRecoveryLandingState(),
-  });
-  window.setTimeout(openAccountActivation, 1200);
+  window.setTimeout(async () => {
+    await trackLoginFunnelEventBeforeNavigation('login_key_recovery_account_setup_auto_redirected', {
+      button: 'auto_account_setup_handoff',
+      target,
+      state: keyRecoveryLandingState(),
+    });
+    openAccountActivation();
+  }, 550);
 }
 
 function keyRecoveryLinkTarget() {
@@ -143,7 +145,7 @@ function rememberKeyRecoveryAccountHandoff(target, data = {}) {
   }
 }
 
-function trackLoginFunnelEvent(event, data = {}) {
+function loginFunnelEventPayload(event, data = {}) {
   const params = new URLSearchParams(window.location.search);
   let referrerHost = null;
   try {
@@ -172,6 +174,9 @@ function trackLoginFunnelEvent(event, data = {}) {
       landingPath: window.location.pathname,
     },
   });
+}
+function trackLoginFunnelEvent(event, data = {}) {
+  const payload = loginFunnelEventPayload(event, data);
   try {
     if (navigator.sendBeacon) {
       const blob = new Blob([payload], { type: 'application/json' });
@@ -187,6 +192,25 @@ function trackLoginFunnelEvent(event, data = {}) {
     keepalive: true,
     credentials: 'omit',
   }).catch(() => {});
+}
+async function trackLoginFunnelEventBeforeNavigation(event, data = {}, timeoutMs = 650) {
+  const payload = loginFunnelEventPayload(event, data);
+  try {
+    const send = fetch('/api/funnel-event', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: payload,
+      keepalive: true,
+      credentials: 'omit',
+    });
+    const timeout = new Promise((resolve) => window.setTimeout(resolve, timeoutMs));
+    await Promise.race([send.catch(() => undefined), timeout]);
+  } catch (_error) {
+    // Funnel telemetry must never block sign-in.
+    try {
+      navigator.sendBeacon?.('/api/funnel-event', new Blob([payload], { type: 'application/json' }));
+    } catch (_ignored) {}
+  }
 }
 function trackLoginKeyRecoveryAuthEvent(event, data = {}) {
   if (!isKeyRecoveryLanding()) return;
