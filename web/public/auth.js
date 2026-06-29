@@ -7,7 +7,7 @@ const OAUTH_LABELS = { discord: 'Discord', github: 'GitHub', google: 'Google' };
 const OAUTH_PROVIDER_ORDER = ['github', 'google', 'discord'];
 const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
 const KEY_RECOVERY_HANDOFF_STORAGE_KEY = 'sage_router_key_recovery_handoff';
-const ACCOUNT_ACTIVATION_PATH = '/account.html?plan=pro&start=create_key&utm_source=login&utm_medium=activation&utm_campaign=sage-router-launch';
+const ACCOUNT_ACTIVATION_PATH = '/account?plan=pro&start=create_key&utm_source=login&utm_medium=activation&utm_campaign=sage-router-launch';
 const ACTIVATION_PARAM_NAMES = ['plan', 'start', 'auth', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
 let keyRecoverySessionRedirecting = false;
 let keyRecoveryAccountHandoffScheduled = false;

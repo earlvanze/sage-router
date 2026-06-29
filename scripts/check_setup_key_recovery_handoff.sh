@@ -56,7 +56,7 @@ post_smoke_event() {
 }
 
 page_url="${MARKETING_BASE%/}/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation&smoke=1"
-account_target="${APP_BASE%/}/account.html?plan=pro&start=create_key&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=operator_activation&next=generated-key"
+account_target="${APP_BASE%/}/account?plan=pro&start=create_key&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=operator_activation&next=generated-key"
 login_target="${APP_BASE%/}/login.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email"
 
 page_code="$(http_get "$page_url")"

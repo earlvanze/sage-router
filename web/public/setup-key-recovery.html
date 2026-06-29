@@ -45,7 +45,7 @@
         <h1>Finish the generated API key for your signup.</h1>
         <p class="lead">If Sage Router returned a 401 or you signed up without an <code>sk_sage_*</code> key, use the same email or GitHub identity, create the generated setup key, then verify <code>/v1/models</code> before wiring Codex or another agent.</p>
         <div class="actions">
-          <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=recovery&next=generated-key" data-setup-recovery-event="setup_key_recovery_account_clicked" data-setup-recovery-button="open-account-setup-primary">Open API key setup</a>
+          <a class="button primary" href="https://app.sagerouter.dev/account?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=recovery&next=generated-key" data-setup-recovery-event="setup_key_recovery_account_clicked" data-setup-recovery-button="open-account-setup-primary">Open API key setup</a>
           <button id="setup-key-recovery-email-focus" class="button secondary" type="button">Email setup key link</button>
           <a class="button secondary" href="https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email" data-setup-recovery-event="setup_key_recovery_same_email_clicked" data-setup-recovery-button="same-email-login">Use app login fallback</a>
           <button id="setup-key-recovery-github" class="button secondary" type="button">Continue with GitHub for Pro</button>
@@ -66,7 +66,7 @@
           <strong>Next: open account setup after the email link</strong>
           <p>After you open the magic link from the same email, use this account setup page to create the generated <code>sk_sage_*</code> key before checkout.</p>
           <div class="nextStepActions">
-            <a id="setup-key-recovery-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=recovery&next=generated-key" data-setup-recovery-event="setup_key_recovery_next_account_clicked" data-setup-recovery-button="open-account-setup-next">Open account setup next</a>
+            <a id="setup-key-recovery-next-account" class="button primary" href="https://app.sagerouter.dev/account?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=recovery&next=generated-key" data-setup-recovery-event="setup_key_recovery_next_account_clicked" data-setup-recovery-button="open-account-setup-next">Open account setup next</a>
             <button id="setup-key-recovery-copy-account-link" class="button secondary" type="button">Copy account setup link</button>
           </div>
           <p id="setup-key-recovery-next-status" class="nextStepStatus" role="status" aria-live="polite"></p>
@@ -152,8 +152,8 @@ curl -i "$OPENAI_BASE_URL/models" \
   <script>
     const SETUP_RECOVERY_SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
     const SETUP_RECOVERY_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
-    const SETUP_RECOVERY_ACCOUNT_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=recovery&next=generated-key';
-    const SETUP_RECOVERY_GITHUB_ACCOUNT_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=github&setup=setup-key-recovery&source_surface=recovery';
+    const SETUP_RECOVERY_ACCOUNT_URL = 'https://app.sagerouter.dev/account?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=recovery&next=generated-key';
+    const SETUP_RECOVERY_GITHUB_ACCOUNT_URL = 'https://app.sagerouter.dev/account?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=github&setup=setup-key-recovery&source_surface=recovery';
     const SETUP_RECOVERY_SUPABASE_JS_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
 
     function attributionValue(value) {
