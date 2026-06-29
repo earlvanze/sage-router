@@ -1551,6 +1551,9 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("setup_key_recovery_same_email_clicked") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_email_form_clicked") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_account_clicked") != null) and
+    ((.allowedEvents // []) | index("setup_key_recovery_next_account_clicked") != null) and
+    ((.allowedEvents // []) | index("setup_key_recovery_next_panel_shown") != null) and
+    ((.allowedEvents // []) | index("setup_key_recovery_account_link_copied") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_magic_link_requested") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_magic_link_failed") != null) and
@@ -3966,6 +3969,18 @@ check_marketing_setup_key_recovery_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_account_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-account-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Open account setup next" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-next-account-cta"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_next_account_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-next-account-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_next_panel_shown" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-next-panel-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_account_link_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-account-link-copy-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_setup_copied" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-copy-funnel"

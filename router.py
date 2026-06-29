@@ -7108,6 +7108,7 @@ KEY_FIRST_REDIRECT_EVENTS = {
     'model_catalog_key_activation_clicked',
     'pricing_key_activation_clicked',
     'setup_key_recovery_account_clicked',
+    'setup_key_recovery_next_account_clicked',
     'setup_key_recovery_oauth_clicked',
 }
 KEY_RECOVERY_VIEW_EVENTS = {
@@ -7127,11 +7128,14 @@ KEY_RECOVERY_VIEW_EVENTS = {
     'landing_key_recovery_clicked',
     'model_catalog_key_recovery_clicked',
     'setup_key_recovery_account_clicked',
+    'setup_key_recovery_account_link_copied',
     'setup_key_recovery_email_form_clicked',
     'setup_key_recovery_managed_access_clicked',
     'setup_key_recovery_magic_link_failed',
     'setup_key_recovery_magic_link_requested',
     'setup_key_recovery_magic_link_sent',
+    'setup_key_recovery_next_account_clicked',
+    'setup_key_recovery_next_panel_shown',
     'setup_key_recovery_oauth_clicked',
     'setup_key_recovery_oauth_failed',
     'setup_key_recovery_quickstart_clicked',
