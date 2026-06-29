@@ -49,6 +49,28 @@ def parse_margin(raw):
         return 0
 
 
+def offer_guardrail(row, failed_plans):
+    plan = row.get('plan')
+    max_safe_cost = float(row.get('maximumProviderCostCentsPerThousandRequests') or 0)
+    guidance = 'eligible_if_private_cost_is_at_or_below_public_threshold'
+    if plan in failed_plans:
+        guidance = 'exclude_or_add_managed_access_surcharge_until_private_cost_passes'
+    elif max_safe_cost < 30:
+        guidance = 'review_quota_or_add_on_before_bundling_expensive_frontier_access'
+    return {
+        'plan': plan,
+        'monthlyRequests': row.get('monthlyRequests'),
+        'monthlyPriceUsd': row.get('monthlyPriceUsd'),
+        'maximumSafeProviderCostCentsPerThousandRequests': row.get(
+            'maximumProviderCostCentsPerThousandRequests'
+        ),
+        'constraintRank': row.get('constraintRank'),
+        'candidatePasses': bool(row.get('meetsMinimumGrossMargin')),
+        'guidance': guidance,
+        'privacy': 'public_threshold_only',
+    }
+
+
 def public_safe_preflight(minimum_margin_percent):
     economics = router.managed_provider_unit_economics(
         router.parse_provider_resale_cost_cents_per_thousand_requests(),
@@ -79,6 +101,7 @@ def public_safe_preflight(minimum_margin_percent):
             'meetsMinimumGrossMargin': bool(row.get('meetsMinimumGrossMargin')),
         })
     failed = [row['plan'] for row in rows if not row.get('meetsMinimumGrossMargin')]
+    pricing_guardrails = [offer_guardrail(row, failed) for row in rows]
     binding = min(
         rows,
         key=lambda row: float(row.get('maximumProviderCostCentsPerThousandRequests') or 0),
@@ -104,7 +127,8 @@ def public_safe_preflight(minimum_margin_percent):
                     "For failed plans, raise public price, lower included monthly "
                     "requests, require a managed-access add-on, or exclude the plan "
                     "from one-subscription access until the private cost candidate "
-                    "falls below its public safe threshold."
+                    "falls below its public safe threshold. Use pricingGuardrails "
+                    "for public threshold-only plan guidance."
                 ),
                 'privacy': 'does_not_print_private_cost_or_required_private_price',
             },
@@ -142,6 +166,7 @@ def public_safe_preflight(minimum_margin_percent):
         'evaluatedPlans': rows,
         'failedPlans': failed,
         'bindingPlan': binding.get('plan') if binding else None,
+        'pricingGuardrails': pricing_guardrails,
         'recommendedActions': recommendations,
         'satisfied': bool(economics.get('satisfied')),
         'privacy': {
@@ -177,6 +202,15 @@ def print_text(report):
         )
     if report['failedPlans']:
         print('failedPlans=' + ','.join(report['failedPlans']))
+    print('pricingGuardrails:')
+    for row in report.get('pricingGuardrails') or []:
+        print(
+            f"- {row['plan']}: "
+            f"maxSafeProviderCostCentsPer1k={row['maximumSafeProviderCostCentsPerThousandRequests']} "
+            f"constraintRank={row['constraintRank']} "
+            f"candidatePasses={'true' if row['candidatePasses'] else 'false'} "
+            f"guidance={row['guidance']}"
+        )
     print('recommendedActions:')
     for action in report.get('recommendedActions') or []:
         plans = action.get('plans')

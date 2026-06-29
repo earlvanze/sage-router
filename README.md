@@ -632,9 +632,14 @@ scripts/configure_managed_provider_resale_readiness.sh --unit-economics
 The preflight reuses the same plan math as `/pricing`, returns nonzero when any
 fixed API plan fails the minimum gross-margin threshold, and prints only
 candidate presence, public plan revenue, derived max-safe provider-cost
-thresholds, and pass/fail status. It does not print the candidate cost, exact
-gross-margin percentages, provider credentials, prompts, raw provider
-responses, or customer data.
+thresholds, pass/fail status, the binding fixed plan, and public
+`pricingGuardrails`. It does not print the candidate cost, exact gross-margin
+percentages, a derived private required price, provider credentials, prompts,
+raw provider responses, or customer data. Use the guardrails to decide which
+public plans can safely include bundled managed access and which should stay
+BYOK-only, use a managed-access add-on, lower included quota, or remain excluded
+from one-subscription access until the private cost candidate fits below the
+public threshold.
 
 If the readiness check reports Cloudflare `403` / `1010` before the Sage Router
 auth gate, use [docs/cloudflare-api-bic-skip.md](docs/cloudflare-api-bic-skip.md)
