@@ -379,7 +379,7 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
   const managedAuthorizationLedgerTemplate = managedSetup.authorizationLedgerTemplateCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template';
   const managedProviderOutreach = managedSetup.providerOutreachCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet';
   const managedUnitEconomics = managedSetup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
-  const activationApprovalPacket = 'scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet';
+  const activationApprovalPacket = 'scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet --verify-recovery';
   const founderSalesFallback = [
     'Founder sales fallback',
     'Use when activation sends are approval-gated or managed provider resale is waiting on terms, authorization evidence, a private cost model, or abuse-control review.',

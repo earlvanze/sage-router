@@ -67,7 +67,7 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 
 ### Activation Approval Handoff
 
-- Packet command: `scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet`
+- Packet command: `scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet --verify-recovery`
 - Approval decision: approval_required for next segment verified; blocker=explicit_operator_approval_required.
 - Default snapshot policy: no send command is printed in this default snapshot. Real activation sends still require explicit operator approval and typed `SEND_ACTIVATION_FOLLOWUPS` confirmation.
 - Safe review: the approval packet is no-secret and excludes emails, customer IDs, generated keys, prompts, OAuth tokens, provider credentials, and raw responses.
