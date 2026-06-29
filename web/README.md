@@ -45,10 +45,10 @@ quickstart snippet-copy, setup-next, filter, and bucketed search intent to
 The public model catalog at `/models` uses safe `/model-catalog` metadata for
 gateway-style searchable discovery and falls back to embedded public route
 families; it does not call live `/v1/models` without a generated customer API
-key. It also exposes `Copy 60-second catalog setup` and an always-visible
-`Create API key next` handoff with `model_catalog_setup_next_clicked`
-telemetry. Catalog search telemetry stores only coarse model-family and query-bucket
-labels, not raw search text.
+key. It also exposes `Copy 60-second catalog setup`, per-family setup-copy
+actions, and an always-visible `Create API key next` handoff with
+`model_catalog_setup_next_clicked` telemetry. Catalog search telemetry stores
+only coarse model-family and query-bucket labels, not raw search text.
 `GET /api/funnel-event` is a non-mutating health check. The function only
 accepts allowlisted event names, plans, sanitized URLs, and metadata buckets so
 the operator launch funnel can count demand without storing prompts, workflow

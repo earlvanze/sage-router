@@ -275,7 +275,7 @@ rate limits, and failover signals,
 base-URL, generated-key, route-profile, and provider-boundary migration path,
 `https://sagerouter.dev/docs/codex` gives Codex CLI users hosted, local port 8790, and Tailnet profile examples, while
 `https://sagerouter.dev/agent-native` explains route profiles, Responses API and Codex compatibility, health-aware fallback, BYOK custody, local/Tailnet/hosted deployment choices, and public feature metadata for agent harnesses, and
-`https://sagerouter.dev/models` gives prospects a searchable public model catalog backed by safe `/model-catalog` metadata with embedded fallback, including `sage-router/fusion` as a Pro/Max synthesis route, while keeping live `/v1/models` behind generated `sk_sage_*` customer keys and exposing a copyable setup bundle plus always-visible `Create API key next` handoff, and
+`https://sagerouter.dev/models` gives prospects a searchable public model catalog backed by safe `/model-catalog` metadata with embedded fallback, including `sage-router/fusion` as a Pro/Max synthesis route, while keeping live `/v1/models` behind generated `sk_sage_*` customer keys and exposing a copyable setup bundle, per-family setup-copy actions, plus always-visible `Create API key next` handoff, and
 `https://sagerouter.dev/integrations` gives tool-specific setup choices for
 OpenAI-compatible clients, Codex, Cursor, Aider, Continue, Claude Code,
 OpenHands, Anthropic-compatible clients, Ollama, local port `8790`, and Tailnet
@@ -404,7 +404,7 @@ page-view, CTA, and quickstart or hosted setup snippet-copy intent to
 `/api/funnel-event` so the private launch funnel can count demand before users
 create accounts.
 The public model catalog also emits page-view, filter, CTA, setup-copy,
-setup-next, and bucketed search intent so operators can measure model-family
+per-family setup-copy, setup-next, and bucketed search intent so operators can measure model-family
 demand without storing raw search text.
 The event path stores
 event name, selected plan, sanitized source/target URL, and small metadata

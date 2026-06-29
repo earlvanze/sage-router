@@ -334,8 +334,9 @@ feature flag.
   privacy-safe funnel path and store only page path, normalized title, button,
   target, source surface, UTM buckets, and referrer host; raw email addresses
   stay inside Supabase Auth and are not written to funnel events.
-- Capture model catalog page-view, filter, CTA, and bucketed search intent from
-  `/models` through the same path. Store only model-family and search-bucket
+- Capture model catalog page-view, filter, CTA, per-family setup-copy, setup-key
+  handoff, and bucketed search intent from `/models` through the same path.
+  Store only model-family and search-bucket
   intent such as `openai-codex`, `ollama`, `byok-compatible`, or `other`; do
   not store raw model search text or live `/v1/models` output.
 - Preserve coarse launch-channel attribution on those CTA events by storing
