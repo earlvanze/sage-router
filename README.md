@@ -298,7 +298,11 @@ one-subscription managed-access review, gateway migration replies, and
 calculator follow-up with measured
 `utm_source=founder-sales` links for the same `$10k MRR` campaign. Those copy
 actions roll into `/analytics/funnel.marketingIntent.founderSalesOutreachCopies`
-and `founderSalesOutreachCopiesBySnippet`.
+and `founderSalesOutreachCopiesBySnippet`. The private launch-funnel dashboard
+also renders a one-click next outreach snippet from the current aggregate MRR
+gap; copying it emits the same `outreach_snippet_copied` funnel event without
+including customer identities, private funnel rows, prompts, generated keys, or
+provider credentials.
 
 The public homepage now treats hosted signup as live: the homepage primary CTA
 is `Create hosted API key`, links directly to `https://app.sagerouter.dev/account.html?plan=pro&start=create_key`, and

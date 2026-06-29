@@ -1255,6 +1255,39 @@ function founderSalesFallbackText(data = {}) {
   return `${founderSalesFallbackLines(data).join('\n')}\n`;
 }
 
+function founderSalesNextOutreachText(data = {}) {
+  const mrr = data.mrr || {};
+  const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+  const topRevenue = revenueActions.slice().sort((left, right) =>
+    asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
+  )[0] || {};
+  const rawPlan = String(topRevenue.plan || 'pro').toLowerCase();
+  const plan = ['lite', 'pro', 'max'].includes(rawPlan) ? rawPlan : 'pro';
+  const customerGap = integer(topRevenue.customerGap || 0);
+  const mrrGap = money(topRevenue.remainingMrrToTargetUsd || 0);
+  const activationUrl = `${APP_BASE.replace(/\/$/, '')}/account.html?plan=${encodeURIComponent(plan)}&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=operator-next-${encodeURIComponent(plan)}-outreach`;
+  const reviewUrl = `${MARKETING_BASE}/managed-access?intent=max-implementation&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=operator-next-${encodeURIComponent(plan)}-outreach`;
+  const primaryUrl = plan === 'max' ? reviewUrl : activationUrl;
+  const primaryLabel = plan === 'max' ? 'Max implementation review' : `${plan.toUpperCase()} generated-key activation`;
+  return [
+    `Subject: Sage Router ${plan.toUpperCase()} routing setup`,
+    '',
+    'Saw your agent/model routing work and thought Sage Router may help.',
+    '',
+    'Sage Router gives OpenAI-compatible clients one endpoint, then routes by model capability, provider health, latency, and policy. It keeps anonymous model traffic blocked, creates a generated sk_sage setup key before checkout, and gives you /v1/models verification before wiring an agent.',
+    '',
+    `${primaryLabel}:`,
+    primaryUrl,
+    '',
+    '60-second setup:',
+    `${MARKETING_BASE}/quickstart?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=operator-next-${encodeURIComponent(plan)}-outreach`,
+    '',
+    `Why now: the current launch gap is ${customerGap || 'multiple'} ${plan.toUpperCase()} customer(s), ${mrrGap} remaining MRR, and the fastest path is direct founder-led activation while automated activation sends remain approval-gated.`,
+    '',
+    'Boundary: do not send prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, customer data, private funnel rows, raw provider responses, or private provider costs.',
+  ].join('\n');
+}
+
 function managedAccessApprovalPacketText(data = {}) {
   const managed = managedProviderReadiness(data);
   const setup = managed.readinessSetup || {};
@@ -1447,6 +1480,7 @@ function renderFounderSalesFallback(data = {}) {
     </tr>`).join('')
     : '<tr><td colspan="4">No plan revenue actions returned; use Pro founder outreach as the manual fallback.</td></tr>';
   const managedControls = safeList(managed.missingControls).slice(0, 4).join(', ') || 'none reported';
+  const nextOutreach = founderSalesNextOutreachText(data);
   target.innerHTML = `<div class="metricList">
     <div class="metric"><span>Fallback trigger</span><strong>${activationSend.sendApprovalRequired ? 'Activation approval gated' : 'Manual revenue backup'}</strong></div>
     <div class="metric"><span>Activation sends</span><strong>${integer(activationSend.sendableQueued)} sendable · ${integer(activationSend.sentRecipients)} sent</strong></div>
@@ -1457,6 +1491,12 @@ function renderFounderSalesFallback(data = {}) {
   <div class="actions">
     <a class="btn" href="${esc(FOUNDER_SALES_KIT_URL)}" target="_blank" rel="noopener noreferrer">Open founder-sales kit</a>
     <button class="btn secondary" type="button" data-copy-founder-sales-fallback="${esc(fallbackText)}">Copy fallback packet</button>
+  </div>
+  <div class="detail">
+    <h3>Next one-message outreach</h3>
+    <p class="muted">Copy this when the funnel shows zero founder-sales outreach copies. It uses only aggregate MRR gap data and measured founder-sales links.</p>
+    <pre id="founder-sales-next-snippet" class="briefBox">${esc(nextOutreach)}</pre>
+    <div class="actions"><button class="btn secondary" type="button" data-copy-founder-sales-next="1">Copy next outreach</button></div>
   </div>
   <div class="tableWrap" style="margin-top:14px"><table>
     <thead><tr><th>Plan</th><th>Customers needed</th><th>MRR gap</th><th>Action</th></tr></thead>
@@ -2002,6 +2042,38 @@ async function copyFounderSalesFallback(button) {
   } catch (error) {
     button.textContent = 'Copy failed';
     setStatus(`Founder-sales fallback copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyFounderSalesNextOutreach(button) {
+  const snippet = $('founder-sales-next-snippet');
+  const text = snippet?.textContent?.trim() || '';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    const mrr = lastFunnelData?.mrr || {};
+    const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+    const topRevenue = revenueActions.slice().sort((left, right) =>
+      asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
+    )[0] || {};
+    const plan = String(topRevenue.plan || 'pro').toLowerCase();
+    trackOperatorFunnelEvent('outreach_snippet_copied', {
+      plan: ['lite', 'pro', 'max'].includes(plan) ? plan : 'pro',
+      state: 'operator_next_outreach_copied',
+      resultCount: asNumber(topRevenue.customerGap || 1),
+      snippet: `operator-next-${['lite', 'pro', 'max'].includes(plan) ? plan : 'pro'}-outreach`,
+      target: FOUNDER_SALES_KIT_URL,
+    });
+    setStatus('Copied no-secret founder-sales next outreach. This counts toward founder-sales outreach copies.', 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Founder-sales next outreach copy failed: ${error.message}`, 'bad');
   } finally {
     setTimeout(() => {
       button.textContent = original;
@@ -3101,6 +3173,11 @@ function handleFollowUpCopyClick(event) {
   const founderSalesFallbackButton = event.target.closest('[data-copy-founder-sales-fallback]');
   if (founderSalesFallbackButton) {
     copyFounderSalesFallback(founderSalesFallbackButton);
+    return;
+  }
+  const founderSalesNextButton = event.target.closest('[data-copy-founder-sales-next]');
+  if (founderSalesNextButton) {
+    copyFounderSalesNextOutreach(founderSalesNextButton);
     return;
   }
   const primaryUrlButton = event.target.closest('[data-copy-primary-followup-url]');

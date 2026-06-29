@@ -266,7 +266,9 @@ feature flag.
   activation, Max implementation review, one-subscription managed-access
   review, gateway migration replies, and calculator follow-up, with measured
   `utm_source=founder-sales` links, `outreach_snippet_copied` telemetry, and
-  no-secret outreach boundaries. Aggregate those copy actions into
+  no-secret outreach boundaries. The private launch-funnel dashboard should
+  also render one copyable next outreach snippet from the current aggregate MRR
+  gap and emit `outreach_snippet_copied` when copied. Aggregate those copy actions into
   `marketingIntent.founderSalesOutreachCopies` and
   `marketingIntent.founderSalesOutreachCopiesBySnippet` so founder-led
   outreach is visible without exposing conversation text, customer data, or
