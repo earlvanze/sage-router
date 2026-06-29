@@ -59,6 +59,7 @@ const ALLOWED_EVENTS = new Set([
   'managed_access_quick_request_submitted',
   'managed_access_quick_request_received',
   'managed_access_quick_request_failed',
+  'managed_access_review_packet_copied',
   'quickstart_viewed',
   'quickstart_account_clicked',
   'quickstart_setup_next_clicked',

@@ -1490,6 +1490,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("managed_access_quick_request_submitted") != null) and
     ((.allowedEvents // []) | index("managed_access_quick_request_received") != null) and
     ((.allowedEvents // []) | index("managed_access_quick_request_failed") != null) and
+    ((.allowedEvents // []) | index("managed_access_review_packet_copied") != null) and
     ((.allowedEvents // []) | index("content_article_ollama_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_pricing_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_status_clicked") != null) and
@@ -3748,6 +3749,15 @@ check_marketing_managed_access_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_request_received" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quick-review-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-copy-review-packet" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-review-packet-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_review_packet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-review-packet-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router one-subscription managed-access review" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-review-packet-copy-text"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Do not submit prompts" /tmp/sage-router-readiness-body; then
     page_code="200:missing-no-secrets-boundary"

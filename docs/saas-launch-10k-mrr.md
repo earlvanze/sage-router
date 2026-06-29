@@ -114,8 +114,11 @@ handoff. That private-beta intake stores contact and allowlisted
 qualification buckets only, including target provider family and commercial
 preference demand for Ollama, OpenAI, Anthropic, and BYOK-compatible routes,
 plus support need and target launch window, and coarse inbound intent from
-known CTA URLs for founder-sales follow-up; it is not a checkout entitlement,
-provider resale claim, or runtime feature flag.
+known CTA URLs for founder-sales follow-up. It also offers a
+copyable no-secret one-subscription review packet measured by `managed_access_review_packet_copied`
+so internal buyer sharing can become demand telemetry without contact
+submission; it is not a checkout entitlement, provider resale claim, or runtime
+feature flag.
 
 ## Near-term launch checklist
 
@@ -430,8 +433,10 @@ provider resale claim, or runtime feature flag.
   form-start, submit, and received events with only allowlisted qualification
   buckets, while homepage CTAs emit `managed_access_interest_clicked` and
   pricing emits `managed_access_quick_request_*` events for buyer-intent
-  traffic, so one-subscription and implementation demand is visible before full
-  contact submission. Use
+  traffic. The `/managed-access` page also provides a copyable no-secret
+  one-subscription review packet with `managed_access_review_packet_copied`, so
+  one-subscription and implementation demand is visible before full contact
+  submission. Use
   `managedAccessDemand.targetProviderFamily`,
   `managedAccessDemand.commercialPreference`, `managedAccessDemand.supportNeed`,
   `managedAccessDemand.targetLaunchWindow`, and `managedAccessDemand.intent` to
