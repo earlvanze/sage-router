@@ -97,9 +97,9 @@ with `landing-hero-setup-bundle` metadata, so setup-copy intent is measurable
 before signup. The copied bundle and post-copy account handoffs include
 `setup=landing-*-setup-bundle` and `source_surface=landing`, which lets the
 account page focus the generated-key setup path and emit
-`account_setup_handoff_viewed`. A persistent bottom activation bar keeps `Create API key`,
-`Copy 60-second setup`, and `Finish setup key` visible after scroll; the setup
-button records `quickstart_snippet_copied` with `landing-sticky-setup-bundle`
+`account_setup_handoff_viewed`. A persistent bottom activation bar keeps `Copy 60-second setup first`,
+`Create API key`, and `Finish setup key` visible after scroll; the setup button
+records `quickstart_snippet_copied` with `landing-sticky-setup-bundle`
 metadata, then becomes a `landing_setup_next_clicked` account handoff. The signed-out
 activation nudge also exposes `Copy setup first`, records `quickstart_snippet_copied`
 with `landing-nudge-setup-bundle`, and switches its account handoff to `Create API key next`

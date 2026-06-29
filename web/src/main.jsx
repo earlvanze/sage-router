@@ -442,9 +442,12 @@ function StickyActivationBar() {
     <aside className="stickyActivationBar" aria-label="Hosted API activation">
       <div>
         <strong>Hosted API is live.</strong>
-        <span>{setupStatus || 'Copy setup, then create an API key; no provider key or credit card required yet.'}</span>
+        <span>{setupStatus || 'Copy the setup bundle first, then create an API key; no provider key or credit card required yet.'}</span>
       </div>
-      <a className="button primary" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
+      <button className="button primary stickySetupButton" type="button" onClick={copyStickySetup}>
+        {copied ? 'Create API key next' : 'Copy 60-second setup first'}
+      </button>
+      <a className="button secondary" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
         plan: 'pro',
         target: ACCOUNT_PAGE_HREF,
         button: 'Sticky create API key',
@@ -452,9 +455,6 @@ function StickyActivationBar() {
       })}>
         Create API key
       </a>
-      <button className="button secondary stickySetupButton" type="button" onClick={copyStickySetup}>
-        {copied ? 'Create API key next' : 'Copy 60-second setup'}
-      </button>
       <a className="button secondary stickyRecoveryButton" href={LANDING_KEY_RECOVERY_URL} onClick={() => trackLandingFunnelEvent('landing_key_recovery_clicked', {
         plan: 'pro',
         target: LANDING_KEY_RECOVERY_URL,
@@ -992,13 +992,13 @@ function App() {
             <p className="eyebrow">Hosted API live • open-source • local-first</p>
             <h1>Smarter model routing for serious AI agents.</h1>
             <p className="subhero">
-              Create a hosted Sage Router API key, point tools at <code>https://api.sagerouter.dev/v1</code>,
+              Copy the 60-second setup bundle, create a hosted Sage Router API key, then point tools at <code>https://api.sagerouter.dev/v1</code>
               and route OpenClaw, Hermes, Pi agents, Codex, Claude Code, Cursor, Aider, Continue,
               OpenHands, and OpenAI-compatible clients across authorized providers and local/cloud models.
             </p>
+            <HeroSetupCopy />
             <LandingEmailStart />
             <LandingKeyRecovery />
-            <HeroSetupCopy />
             <ManagedAccessReviewPrompt />
             <div className="heroActions heroPrimaryActions">
               <a className="button primary" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_account_clicked', {

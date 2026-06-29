@@ -53,7 +53,7 @@ h3 { font-size: 21px; line-height: 1.2; letter-spacing: -0.035em; margin-bottom:
 .stickyActivationBar .button { min-height: 42px; padding: 0 18px; white-space: nowrap; }
 .stickyActivationBar button.button { cursor: pointer; font: inherit; }
 .stickyActivationBar button.button:disabled { opacity: .72; cursor: wait; }
-.stickyActivationBar .stickySetupButton { min-width: 188px; }
+.stickyActivationBar .stickySetupButton { min-width: 214px; }
 .stickyActivationBar .stickyRecoveryButton { border-color: rgba(247,213,122,.38); color: #ffe6a0; background: rgba(247,213,122,.08); }
 .stickyActivationBar .stickyManagedButton { border-color: rgba(159,199,255,.38); color: #d8e8ff; background: rgba(76,132,216,.12); }
 .activationNudge { position: fixed; right: 22px; bottom: 104px; z-index: 21; width: min(390px, calc(100vw - 32px)); display: grid; gap: 12px; padding: 18px; border: 1px solid rgba(141,240,178,.3); border-radius: 24px; background: linear-gradient(180deg, rgba(13,29,24,.96), rgba(5,12,10,.96)); box-shadow: 0 24px 90px rgba(0,0,0,.44); backdrop-filter: blur(18px); }
@@ -87,8 +87,8 @@ h3 { font-size: 21px; line-height: 1.2; letter-spacing: -0.035em; margin-bottom:
 .managedAccessPrompt a:first-of-type { color: #04150d; border-color: transparent; background: #9fc7ff; }
 .heroSetupCopyWrap { display: grid; gap: 10px; margin: 0 0 16px; max-width: 720px; }
 .heroSetupCopy { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0; }
-.heroSetupCopy .setupBundleButton { border: 1px solid rgba(141,240,178,.45); background: rgba(141,240,178,.12); color: var(--brand); cursor: pointer; }
-.heroSetupCopy .postCopyAccountButton { border: 0; background: var(--brand); color: #04150d; }
+.heroSetupCopy .setupBundleButton { border: 0; background: linear-gradient(135deg, var(--brand), var(--brand-strong)); color: #04150d; cursor: pointer; box-shadow: 0 16px 48px rgba(80,216,145,.24); }
+.heroSetupCopy .postCopyAccountButton { border: 1px solid var(--border); background: rgba(255,255,255,.04); color: var(--text); }
 .heroSetupCopy span { min-height: 20px; color: var(--muted); font-size: 14px; }
 .heroPostCopyPrompt { display: grid; gap: 6px; padding: 14px 16px; border: 1px solid rgba(141,240,178,.3); border-radius: 18px; background: rgba(141,240,178,.1); box-shadow: 0 18px 54px rgba(0,0,0,.18); }
 .heroPostCopyPrompt strong { color: var(--text); font-size: 15px; }
