@@ -227,6 +227,25 @@
         color: var(--brand);
         font-weight: 900;
       }
+      .recoveryEmailForm {
+        display: grid;
+        grid-template-columns: minmax(180px, 1fr) auto;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .recoveryEmailForm input {
+        min-height: 48px;
+      }
+      .recoveryEmailForm button {
+        min-height: 48px;
+        white-space: nowrap;
+      }
+      .recoveryEmailStatus {
+        min-height: 20px;
+        color: var(--muted);
+        font-size: 13px;
+        margin: 8px 0 0;
+      }
       .actions {
         display: flex;
         gap: 12px;
@@ -292,6 +311,9 @@
           flex-wrap: wrap;
           justify-content: flex-end;
         }
+        .recoveryEmailForm {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
@@ -342,6 +364,11 @@
               <li>The magic link opens <code>start=create_key</code> and creates the setup key before checkout.</li>
               <li>Copy setup first; billing only unlocks routing after the key exists.</li>
             </ul>
+            <form id="login-key-recovery-email-form" class="recoveryEmailForm">
+              <input id="login-key-recovery-email" type="email" autocomplete="email" inputmode="email" placeholder="same email used at signup" required />
+              <button id="login-key-recovery-email-submit" class="btn" type="submit">Email setup key link</button>
+            </form>
+            <p id="login-key-recovery-email-status" class="recoveryEmailStatus" role="status" aria-live="polite">This sends only a Supabase recovery link; no provider key or generated key is emailed.</p>
             <div class="actions recoveryActions">
               <button id="login-key-recovery-email-focus" class="btn" type="button">Use same-email setup link</button>
               <button id="login-key-recovery-copy-setup" class="btn secondary" type="button">Copy setup first</button>

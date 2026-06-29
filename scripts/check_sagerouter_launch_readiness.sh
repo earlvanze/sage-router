@@ -953,6 +953,12 @@ check_hosted_onboarding_pages() {
   if [[ "$login_code" == "200" ]] && ! grep -q "login-key-recovery-copy-setup" /tmp/sage-router-readiness-body; then
     login_code="200:missing-login-key-recovery-setup-copy-button"
   fi
+  if [[ "$login_code" == "200" ]] && ! grep -q "login-key-recovery-email-form" /tmp/sage-router-readiness-body; then
+    login_code="200:missing-login-key-recovery-email-form"
+  fi
+  if [[ "$login_code" == "200" ]] && ! grep -q "Email setup key link" /tmp/sage-router-readiness-body; then
+    login_code="200:missing-login-key-recovery-email-submit"
+  fi
   if [[ "$login_code" == "200" ]] && ! grep -q "login-key-recovery-github" /tmp/sage-router-readiness-body; then
     login_code="200:missing-login-key-recovery-github-button"
   fi

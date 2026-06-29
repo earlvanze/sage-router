@@ -137,6 +137,11 @@ provider resale claim, or runtime feature flag.
   managed-access beta review, but public managed provider access stays disabled
   until provider terms, authorization evidence, allowlist, cost model, and
   margin controls pass.
+- Keep `/login.html?start=create_key` as the hosted same-email bridge for
+  returning no-key signups: the recovery panel must include an inline
+  same-email setup-link form, copy-first setup, same-GitHub recovery, and
+  `login_key_recovery_magic_link_*` telemetry so recovery views can move into
+  generated-key setup without waiting for operator outreach.
 - Keep `/docs/api-reference` as the hosted OpenAI-compatible API reference for
   `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public
   `/model-catalog`, generated `sk_sage_*` keys, quota headers, rate-limit
