@@ -95,15 +95,38 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertIn('satisfied=true', combined)
         self.assertIn('bindingPlan=max', combined)
 
+    def test_configure_helper_authorization_ledger_template_is_no_secret(self):
+        result = subprocess.run(
+            [str(CONFIGURE_SCRIPT), '--authorization-ledger-template'],
+            cwd=ROOT,
+            env=self.env(),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        combined = result.stdout + result.stderr
+        self.assertIn('Sage Router Managed Provider Authorization Ledger Template', combined)
+        self.assertIn('privateEvidenceReference: provider-review-YYYYMMDD-doc-or-ticket-id', combined)
+        self.assertIn('| ollama | pending | pending | private-ref-only', combined)
+        self.assertIn('| openai | pending | pending | private-ref-only', combined)
+        self.assertIn('| anthropic | pending | pending | private-ref-only', combined)
+        self.assertIn('OpenRouter, remain outside managed resale', combined)
+        self.assertIn('publicEnableApproved=false', combined)
+        self.assertIn('containsActualProviderCosts=false', combined)
+        self.assertNotIn('1.234567', combined)
+        self.assertNotIn('provider account ID:', combined)
+
     def test_configure_helper_documents_no_secret_operator_packet(self):
         script = CONFIGURE_SCRIPT.read_text(encoding='utf-8')
         self.assertIn('--operator-packet', script)
         self.assertIn('--authorization-packet', script)
+        self.assertIn('--authorization-ledger-template', script)
         self.assertIn('--provider-outreach-packet', script)
         self.assertIn('load_local_env_file', script)
         self.assertIn('SAGEROUTER_SECRET_ENV_FILE', script)
         self.assertIn('Sage Router managed resale operator packet', script)
         self.assertIn('Sage Router managed provider authorization packet', script)
+        self.assertIn('Sage Router Managed Provider Authorization Ledger Template', script)
         self.assertIn('Sage Router managed provider outreach packet', script)
         self.assertIn('Provider-family authorization checklist', script)
         self.assertIn('Provider-specific copy blocks', script)

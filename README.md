@@ -568,6 +568,7 @@ public resale or writing the private provider-cost model:
 scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
 scripts/configure_managed_provider_resale_readiness.sh --operator-packet
 scripts/configure_managed_provider_resale_readiness.sh --authorization-packet
+scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template
 scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet
 scripts/configure_managed_provider_resale_readiness.sh --check
 ```
@@ -608,6 +609,14 @@ IDs, credentials, actual provider costs, prompts, or raw responses. Store only a
 private reference string in `SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF`;
 keep the underlying agreement, email thread, ticket, or legal review artifact
 out of public metadata, PRs, logs, and support channels.
+
+Use `--authorization-ledger-template` after provider replies arrive to create a
+private review worksheet for the evidence reference, provider-family decision,
+terms status, allowed use case, resale/service-provider boundary, model
+exclusions, capacity limits, abuse process, renewal/expiry, and cost-review
+handoff. The template is safe to generate in logs because it contains only
+placeholders and privacy flags; fill it only in the private system of record,
+not in public metadata, PRs, or support channels.
 
 Before writing the private provider-cost model to Secret Manager, run the
 secret-safe unit-economics preflight with the candidate cost in the environment:
