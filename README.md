@@ -727,15 +727,17 @@ and include its current stage before the send handoff. Add
 `--verify-auth-repair` to run the aggregate-only account-link repair dry run
 for review-only signup rows; it reports checked, eligible, updated, skipped,
 and privacy flags without repairing rows or printing emails, customer IDs, user
-IDs, API keys, provider credentials, prompts, or raw responses. The packet
-includes the next segment dry-run command, the typed-confirmation send command
-template, and the same server-derived approval decision checklist used by the
-dashboard, but it remains read-only: it does not approve, copy, repair, or send
-activation outreach, and the printed command still requires `SAGE_ROUTER_API_KEY` plus
-`sendConfirmation=SEND_ACTIVATION_FOLLOWUPS`. The default snapshot also prints
-a compact approval handoff with the packet command, current approval decision,
-and reminder that no send command is printed until the operator explicitly asks
-for the approval packet.
+IDs, API keys, provider credentials, prompts, or raw responses. Use
+`docs/launch/execution/activation-approval-review.md` as the persistent
+no-secret review worksheet before approving a real send. The packet includes
+the next segment dry-run command, the typed-confirmation send command template,
+and the same server-derived approval decision checklist used by the dashboard,
+but it remains read-only: it does not approve, copy, repair, or send activation
+outreach, and the printed command still requires `SAGE_ROUTER_API_KEY` plus
+`sendConfirmation=SEND_ACTIVATION_FOLLOWUPS`. The default snapshot also prints a
+compact approval handoff with the packet command, current approval decision, and
+reminder that no send command is printed until the operator explicitly asks for
+the approval packet.
 
 Use the public deploy helper to avoid branch/digest drift between the static
 site and hosted API:
