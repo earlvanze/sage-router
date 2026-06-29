@@ -2848,6 +2848,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("Verified Recovery Diagnosis", distribution)
         self.assertIn("verified_handoff_waiting_for_fresh_traffic", distribution)
         self.assertIn("--one-subscription-pricing-packet", distribution)
+        self.assertIn("docs/launch/execution/one-subscription-pricing-review.md", distribution)
         self.assertIn("--distribution-tracker-section", readme)
         self.assertIn("no-secret activation approval packet", readme)
         self.assertIn("typed-confirmation send command", readme)

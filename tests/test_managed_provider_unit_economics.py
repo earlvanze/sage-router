@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / 'scripts' / 'managed_provider_unit_economics.py'
 CONFIGURE_SCRIPT = ROOT / 'scripts' / 'configure_managed_provider_resale_readiness.sh'
 OUTREACH_DOC = ROOT / 'docs' / 'launch' / 'execution' / 'provider-authorization-outreach.md'
+PRICING_REVIEW_DOC = ROOT / 'docs' / 'launch' / 'execution' / 'one-subscription-pricing-review.md'
 
 
 class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
@@ -170,6 +171,15 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertIn('Anthropic', doc)
         self.assertIn('Do not paste provider agreements, cost schedules, provider account IDs', doc)
         self.assertIn('Keep `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0`', doc)
+
+        pricing_review = PRICING_REVIEW_DOC.read_text(encoding='utf-8')
+        self.assertIn('Sage Router One-Subscription Pricing Review', pricing_review)
+        self.assertIn('scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet', pricing_review)
+        self.assertIn('Binding public plan: `max`', pricing_review)
+        self.assertIn('| Max | `$72/mo` | `200,000` | `36.0c` | `23.4c` | `1` |', pricing_review)
+        self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0', pricing_review)
+        self.assertIn('containsActualProviderCosts=false', pricing_review)
+        self.assertIn('containsRequiredPrivatePrices=false', pricing_review)
 
     def test_configure_helper_one_subscription_pricing_packet_is_public_threshold_only(self):
         script = CONFIGURE_SCRIPT.read_text(encoding='utf-8')
