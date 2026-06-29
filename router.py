@@ -7586,7 +7586,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 {
                     'step': 1,
                     'segment': 'account_handoff',
-                    'action': 'Verify recovery handoffs land on account.html with start=create_key, plan, and signup_to_key_recovery attribution intact.',
+                    'action': 'Verify recovery handoffs land on /account with start=create_key, plan, and signup_to_key_recovery attribution intact.',
                     'successMetric': 'account_key_recovery_viewed increases after login_key_recovery_account_setup_auto_redirected.',
                 },
                 {
@@ -7613,8 +7613,8 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 {
                     'step': 1,
                     'segment': 'recovery_dropoff',
-                    'action': 'Run bash scripts/diagnose_setup_key_recovery_dropoff.sh, then run bash scripts/check_setup_key_recovery_handoff.sh if the diagnosis is recovery_view_to_account_handoff.',
-                    'successMetric': 'The diagnosis names the failing recovery stage and the smoke probe accepts setup_key_recovery_auto_account_redirected, login_key_recovery_account_setup_auto_redirected, and account_setup_handoff_viewed without storing emails or generated keys.',
+                    'action': 'Run bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff to classify the aggregate stage and include the live no-persistence handoff smoke.',
+                    'successMetric': 'The diagnosis names verified_handoff_waiting_for_fresh_traffic after the smoke probe accepts setup_key_recovery_auto_account_redirected, login_key_recovery_account_setup_auto_redirected, and account_setup_handoff_viewed without storing emails or generated keys.',
                 },
                 {
                     'step': 2,
@@ -7659,7 +7659,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 (
                     'Recovery handoffs are reaching account setup but no key-create attempts are starting. Verify signed-in start=create_key auto-create before sending more activation traffic.'
                     if recovery_handoff_dropoff
-                    else 'Recovery pages are getting views but no account handoffs or key-create attempts. Run bash scripts/diagnose_setup_key_recovery_dropoff.sh, then bash scripts/check_setup_key_recovery_handoff.sh if the diagnosis points at recovery-to-account handoff; if both pass, wait for fresh traffic or use the approval packet before any real activation send.'
+                    else 'Recovery pages are getting views but no account handoffs or key-create attempts. Run bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff to fold the live no-persistence handoff smoke into the diagnosis; if it reports verified_handoff_waiting_for_fresh_traffic, wait for fresh real recovery traffic or use the approval packet before any real activation send.'
                 )
                 if recovery_dropoff
                 else (
@@ -7706,7 +7706,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 'recoveryViewDropoff': recovery_view_dropoff,
                 'recoveryHandoffDropoff': recovery_handoff_dropoff,
                 'recoveryVerifierCommand': 'bash scripts/check_setup_key_recovery_handoff.sh',
-                'recoveryDiagnosticCommand': 'bash scripts/diagnose_setup_key_recovery_dropoff.sh',
+                'recoveryDiagnosticCommand': 'bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff',
                 'recoveryVerifierSmokeEvents': [
                     'setup_key_recovery_auto_account_redirected',
                     'login_key_recovery_account_setup_auto_redirected',
