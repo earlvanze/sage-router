@@ -390,9 +390,20 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
     'No-secret boundary: do not paste emails, customer IDs, prompts, OAuth tokens, generated API keys, provider credentials, raw provider responses, private funnel rows, or private provider-cost values.',
   ].join('\n');
   const cloudflareBicCheck = [
+    'Sage Router Cloudflare BIC reliability packet',
+    'Boundary: no token values, customer data, provider credentials, API keys, prompts, OAuth tokens, or raw provider responses.',
+    'Docs: docs/cloudflare-api-bic-skip.md',
+    'Required token permissions for zone sagerouter.dev: Zone:Zone:Read; Zone Rulesets:Read; Zone Rulesets:Edit.',
+    'Manual UI fallback: Cloudflare Dashboard > sagerouter.dev > Rules > Configuration Rules > Create rule.',
+    'Rule name/ref: sage-router-api-disable-bic.',
+    'Expression: http.host eq "api.sagerouter.dev".',
+    'Action: set configuration setting Browser Integrity Check to Off.',
+    'Scope warning: do not disable Browser Integrity Check for sagerouter.dev, app.sagerouter.dev, www.sagerouter.dev, or the whole zone.',
+    '',
     'scripts/configure_cloudflare_api_bic_skip.sh --operator-packet',
     'scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens',
     'scripts/configure_cloudflare_api_bic_skip.sh --check',
+    'scripts/configure_cloudflare_api_bic_skip.sh',
   ].join('\n');
   const managedStagePublicControls = managedSetup.stagePublicControlsCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
   const managedSetupCommand = managedSetup.setupCommand || [

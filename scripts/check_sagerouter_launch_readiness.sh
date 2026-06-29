@@ -1262,6 +1262,15 @@ check_hosted_onboarding_pages() {
   if [[ "$status_js_code" == "200" ]] && ! grep -q "Browser Integrity Check" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-bic-guidance"
   fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "Zone Rulesets:Edit" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-bic-token-permissions"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q 'http.host eq "api.sagerouter.dev"' /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-bic-host-expression"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "docs/cloudflare-api-bic-skip.md" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-bic-runbook"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   local analytics_js_code
