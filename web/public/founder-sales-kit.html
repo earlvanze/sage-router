@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Sage Router founder-sales kit with copyable Pro activation, Max implementation, gateway migration, and calculator follow-up outreach for the $10k MRR campaign." />
+  <meta name="description" content="Sage Router founder-sales kit with copyable Lite pilot, Pro activation, Max implementation, gateway migration, and calculator follow-up outreach for the $10k MRR campaign." />
   <link rel="canonical" href="https://sagerouter.dev/founder-sales-kit" />
   <meta property="og:title" content="Sage Router Founder Sales Kit" />
-  <meta property="og:description" content="Copyable no-secret founder-sales outreach for Pro and Max Sage Router prospects with measured links and BYOK/local-first boundaries." />
+  <meta property="og:description" content="Copyable no-secret founder-sales outreach for Lite, Pro, and Max Sage Router prospects with measured links and BYOK/local-first boundaries." />
   <meta property="og:url" content="https://sagerouter.dev/founder-sales-kit" />
   <meta property="og:type" content="article" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -19,7 +19,7 @@
     "@context": "https://schema.org",
     "@type": "Article",
     "headline": "Sage Router Founder Sales Kit",
-    "description": "Copyable founder-sales outreach for Sage Router Pro and Max prospects with measured links and no-secret boundaries.",
+    "description": "Copyable founder-sales outreach for Sage Router Lite, Pro, and Max prospects with measured links and no-secret boundaries.",
     "author": {"@type": "Organization", "name": "Sage Router"},
     "publisher": {"@type": "Organization", "name": "Sage Router"},
     "mainEntityOfPage": "https://sagerouter.dev/founder-sales-kit"
@@ -41,10 +41,11 @@
 
   <header class="wrap">
     <p class="eyebrow">Founder sales kit</p>
-    <h1>Turn high-intent routing conversations into Pro and Max activation.</h1>
-    <p class="lead">Use these no-secret snippets for direct founder-sales follow-up. Every link uses measured founder-sales attribution, keeps provider-custody boundaries explicit, and routes prospects toward generated-key activation, Max implementation review, or calculator qualification.</p>
+    <h1>Turn high-intent routing conversations into Lite, Pro, and Max activation.</h1>
+    <p class="lead">Use these no-secret snippets for direct founder-sales follow-up. Every link uses measured founder-sales attribution, keeps provider-custody boundaries explicit, and routes prospects toward Lite pilots, generated-key activation, Max implementation review, or calculator qualification.</p>
     <div class="actions">
       <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-api-key" data-founder-event="content_article_key_activation_clicked" data-founder-button="hero-api-key">Create API key</a>
+      <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=lite&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-lite-pilot" data-founder-event="content_article_key_activation_clicked" data-founder-button="hero-lite-pilot">Start Lite pilot</a>
       <a class="button secondary" href="/managed-access?intent=max-implementation&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-max-review" data-founder-event="content_article_managed_access_clicked" data-founder-button="hero-max-review">Request Max review</a>
       <a class="button secondary" href="/managed-access?intent=one-subscription&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-one-subscription" data-founder-event="content_article_managed_access_clicked" data-founder-button="hero-one-subscription">One-subscription review</a>
       <a class="button secondary" href="/model-routing-calculator?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-calculator" data-founder-event="content_article_calculator_clicked" data-founder-button="hero-calculator">Estimate workflow fit</a>
@@ -96,6 +97,35 @@ curl "$OPENAI_BASE_URL/chat/completions" \
         <h2>Measured links</h2>
         <p>Every CTA uses <code>utm_source=founder-sales</code>, <code>utm_medium=direct</code>, and <code>utm_campaign=sage-router-launch</code> so conversion can be measured without identity leakage.</p>
       </article>
+    </section>
+
+    <section class="two">
+      <article class="panel">
+        <h2>Copyable Lite pilot reply</h2>
+        <pre id="founder-lite-pilot-reply" class="codebox">If you want to try Sage Router without committing a production workflow, start with the Lite pilot.
+
+Lite is the low-friction hosted path: create the sk_sage key first, verify /v1/models, then checkout unlocks routing for a small agent or evaluation workflow.
+
+Start Lite key setup:
+https://app.sagerouter.dev/account.html?plan=lite&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=lite-pilot-reply
+
+Quickstart:
+https://sagerouter.dev/quickstart?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=lite-pilot-reply
+
+Boundary: this is hosted routing, account, quota, analytics, and reliability infrastructure for provider/local access you are authorized to use. It is not bundled model resale.</pre>
+        <div class="copyRow">
+          <button id="copy-founder-lite-pilot-reply" class="copyButton" type="button">Copy Lite pilot reply</button>
+          <span id="copy-founder-lite-status" class="copyStatus" role="status" aria-live="polite"></span>
+        </div>
+      </article>
+      <aside class="panel soft">
+        <h2>When to use it</h2>
+        <ul class="list">
+          <li>Prospect wants to test one agent, one workflow, or one OpenAI-compatible endpoint before a Pro conversation.</li>
+          <li>Goal is low-friction Lite activation: generated key, `/v1/models` verification, then checkout.</li>
+          <li>Success signal is Lite account handoff, quickstart copy, generated key, or first routed request.</li>
+        </ul>
+      </aside>
     </section>
 
     <section class="two">
@@ -333,6 +363,9 @@ https://sagerouter.dev/margin-policy?utm_source=founder-sales&utm_medium=direct&
     });
     document.getElementById('copy-founder-hero-setup-bundle')?.addEventListener('click', () => {
       copyBlock('founder-hero-setup-bundle', 'copy-founder-hero-status', 'Copied 60-second setup bundle.', 'founder-hero-setup-bundle', 'quickstart_snippet_copied');
+    });
+    document.getElementById('copy-founder-lite-pilot-reply')?.addEventListener('click', () => {
+      copyBlock('founder-lite-pilot-reply', 'copy-founder-lite-status', 'Copied Lite pilot reply.', 'founder-lite-pilot-reply');
     });
     document.getElementById('copy-founder-pro-email')?.addEventListener('click', () => {
       copyBlock('founder-pro-email', 'copy-founder-pro-status', 'Copied Pro email.', 'founder-pro-email');

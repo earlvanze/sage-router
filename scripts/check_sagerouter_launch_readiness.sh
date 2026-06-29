@@ -3585,6 +3585,15 @@ check_marketing_founder_sales_kit_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "founder-hero-setup-bundle" /tmp/sage-router-readiness-body; then
     page_code="200:missing-founder-hero-setup-bundle"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable Lite pilot reply" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-lite-pilot-reply-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-lite-pilot-reply" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-founder-lite-pilot-reply"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "plan=lite&start=create_key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-founder-lite-key-first-url"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-pro-email" /tmp/sage-router-readiness-body; then
     page_code="200:missing-copy-founder-pro-email"
   fi
