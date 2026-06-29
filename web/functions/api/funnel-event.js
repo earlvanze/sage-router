@@ -265,6 +265,7 @@ const ALLOWED_EVENTS = new Set([
   'setup_key_recovery_viewed',
   'setup_key_recovery_same_email_clicked',
   'setup_key_recovery_email_form_clicked',
+  'setup_key_recovery_auto_account_redirected',
   'setup_key_recovery_account_clicked',
   'setup_key_recovery_next_account_clicked',
   'setup_key_recovery_next_panel_shown',

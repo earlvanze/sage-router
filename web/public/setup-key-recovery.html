@@ -242,6 +242,34 @@ curl -i "$OPENAI_BASE_URL/models" \
       });
     }
 
+    function shouldAutoOpenSetupRecoveryAccount() {
+      const params = new URLSearchParams(window.location.search);
+      const sourceSurface = attributionValue(params.get('source_surface') || params.get('sourceSurface'));
+      const auto = attributionValue(params.get('auto') || params.get('autostart'));
+      return sourceSurface === 'operator_activation' || auto === 'account' || auto === 'setup';
+    }
+
+    function scheduleSetupRecoveryAccountAutoOpen() {
+      if (!shouldAutoOpenSetupRecoveryAccount()) return;
+      try {
+        const key = `sage_router_setup_recovery_auto_account:${SETUP_RECOVERY_ACCOUNT_URL}`;
+        if (window.sessionStorage?.getItem(key) === '1') return;
+        window.sessionStorage?.setItem(key, '1');
+      } catch {
+        // A missing marker only risks one repeated handoff in locked-down browsers.
+      }
+      const status = document.getElementById('setup-key-recovery-next-status');
+      if (status) status.textContent = 'Opening account setup so the generated key can be created...';
+      trackSetupRecoveryEvent('setup_key_recovery_auto_account_redirected', {
+        button: 'operator-auto-account-setup',
+        state: 'operator_activation',
+        target: SETUP_RECOVERY_ACCOUNT_URL,
+      });
+      setTimeout(() => {
+        window.location.href = SETUP_RECOVERY_ACCOUNT_URL;
+      }, 1400);
+    }
+
     document.querySelectorAll('[data-setup-recovery-event]').forEach((link) => {
       link.addEventListener('click', () => trackSetupRecoveryEvent(link.dataset.setupRecoveryEvent, {
         button: link.dataset.setupRecoveryButton || link.textContent.trim().toLowerCase(),
@@ -414,6 +442,7 @@ curl -i "$OPENAI_BASE_URL/models" \
     });
 
     trackSetupRecoveryEvent('setup_key_recovery_viewed', { state: 'page-view' });
+    scheduleSetupRecoveryAccountAutoOpen();
   </script>
 </body>
 </html>
