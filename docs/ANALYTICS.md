@@ -136,6 +136,11 @@ heading structure used by `docs/launch/distribution-tracker.md`. When recovery
 views are present but generated-key attempts are still zero, run
 `bash scripts/diagnose_setup_key_recovery_dropoff.sh` to classify the failing
 aggregate stage before sending more activation traffic.
+The terminal snapshot reports managed-access demand as combined anonymous and
+waitlist signals, then breaks the demand down by target provider family,
+commercial preference, and intent. This avoids treating the older
+`managed_access_interest_clicked` event as the only signal for one-subscription
+buyer demand.
 
 The same hosted operator dashboard includes a customer review panel backed by
 `/admin/customers`. It uses the same private token boundary as the global

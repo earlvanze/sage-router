@@ -26,12 +26,14 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 ```
 
 - Window: last 30 days
-- Generated at epoch: 1782756338
+- Generated at epoch: 1782761402
 - Marketing intent events: 400
 - Setup snippet copies: 0
 - Recovery auth starts: magic=0, password=0, oauth=0
-- Managed-access anonymous interest: clicks=0, quickSubmitted=0, quickReceived=0
-- Managed-access demand signals: anonymous=4; waitlist=0
+- Managed-access demand: anonymousSignals=4; waitlistSignals=0; legacyClicks=0; quickSubmitted=0; quickReceived=0
+- Managed-access provider buckets: mixed-frontier=4
+- Managed-access commercial buckets: one-subscription=4
+- Managed-access intent buckets: one-subscription=4
 - Signups: 4
 - Generated-key customers: 1
 - First-routed-request customers: 1
@@ -121,7 +123,7 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 - One-subscription pricing packet: `scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet`
 - One-subscription pricing review: `docs/launch/execution/one-subscription-pricing-review.md`
 - Unit-economics preflight: `SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics`
-- Managed-access beta interest: 0; anonymous interest: 4; target-provider buckets: mixed-frontier=4
+- Managed-access beta interest: 0; anonymous interest: 4; target-provider buckets: mixed-frontier=4; commercial buckets: one-subscription=4; intent buckets: one-subscription=4
 
 ### Privacy
 
