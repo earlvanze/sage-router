@@ -199,6 +199,7 @@ const ALLOWED_EVENTS = new Set([
   'login_key_recovery_password_succeeded',
   'login_key_recovery_oauth_clicked',
   'login_key_recovery_oauth_failed',
+  'login_key_recovery_setup_copied',
   'account_activation_nudge_shown',
   'account_activation_nudge_clicked',
   'account_activation_nudge_dismissed',

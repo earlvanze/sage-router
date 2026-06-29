@@ -10,6 +10,20 @@ const ACCOUNT_ACTIVATION_PATH = '/account.html?plan=pro&start=create_key&utm_sou
 const ACTIVATION_PARAM_NAMES = ['plan', 'start', 'auth', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
 let keyRecoverySessionRedirecting = false;
 
+function loginRecoverySetupBundleText() {
+  return `# Sage Router setup-key recovery
+# 1. Use the same email or same GitHub identity, then create the generated key:
+# ${accountActivationUrl()}
+
+export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
+export OPENAI_API_KEY=sk_sage_your_key_here
+export OPENAI_MODEL=sage-router/frontier
+
+# 2. Verify the generated key before wiring an agent:
+curl -i "$OPENAI_BASE_URL/models" \\
+  -H "Authorization: Bearer $OPENAI_API_KEY"`;
+}
+
 function accountActivationUrl() {
   const url = new URL(ACCOUNT_ACTIVATION_PATH, window.location.origin);
   const params = new URLSearchParams(window.location.search || '');
@@ -144,6 +158,22 @@ function trackLoginKeyRecoveryAuthEvent(event, data = {}) {
     ...data,
   });
 }
+async function writeLoginClipboardText(text) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) throw new Error('copy failed');
+}
 function summarizeOauthProviderState(external = {}) {
   const enabledProviders = OAUTH_PROVIDER_ORDER.filter((provider) => external[provider] === true);
   const disabledProviders = OAUTH_PROVIDER_ORDER.filter((provider) => external[provider] !== true);
@@ -256,6 +286,35 @@ document.querySelectorAll('[data-key-recovery]').forEach((link) => link.addEvent
 }));
 $('login-key-recovery-email-focus')?.addEventListener('click', () => {
   activateSameEmailKeyRecovery('manual_same_email_focus');
+});
+$('login-key-recovery-copy-setup')?.addEventListener('click', async () => {
+  const button = $('login-key-recovery-copy-setup');
+  const original = button?.textContent || 'Copy setup first';
+  try {
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Copying...';
+    }
+    await writeLoginClipboardText(loginRecoverySetupBundleText());
+    if (button) button.textContent = 'Copied';
+    set('auth-status', 'Setup copied. Use the same email or GitHub identity next, then replace the placeholder with the generated sk_sage key.');
+    trackLoginFunnelEvent('login_key_recovery_setup_copied', {
+      button: 'copy_setup_first',
+      target: accountActivationUrl(),
+      state: keyRecoveryLandingState(),
+      snippet: 'login-key-recovery-setup',
+    });
+  } catch (_error) {
+    if (button) button.textContent = 'Copy failed';
+    set('auth-status', 'Copy failed. Use Open API key setup or the quickstart for manual setup.');
+  } finally {
+    window.setTimeout(() => {
+      if (button) {
+        button.disabled = false;
+        button.textContent = original;
+      }
+    }, 1800);
+  }
 });
 applyKeyRecoveryLinkTarget();
 applyKeyRecoveryLandingMode();

@@ -7057,6 +7057,7 @@ SETUP_SNIPPET_COPY_EVENTS = {
     'account_snippet_copied',
     'content_article_snippet_copied',
     'api_troubleshooting_setup_copied',
+    'login_key_recovery_setup_copied',
     'setup_key_recovery_setup_copied',
 }
 OPERATOR_FOLLOWUP_COPY_EVENTS = {
