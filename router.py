@@ -7120,6 +7120,7 @@ KEY_RECOVERY_VIEW_EVENTS = {
     'landing_key_recovery_clicked',
     'model_catalog_key_recovery_clicked',
     'setup_key_recovery_account_clicked',
+    'setup_key_recovery_email_form_clicked',
     'setup_key_recovery_managed_access_clicked',
     'setup_key_recovery_magic_link_failed',
     'setup_key_recovery_magic_link_requested',

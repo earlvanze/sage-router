@@ -131,9 +131,10 @@ provider resale claim, or runtime feature flag.
   BYOK/provider access is the blocker.
 - Keep `/setup-key-recovery` as the public no-key signup recovery destination
   for API 401 `keyRecoveryUrl` handoffs, public marketing/docs/status/support
-  recovery CTAs, and operator signup-to-key follow-up drafts, with direct
-  same-email setup-link requests, same-email or direct GitHub same-OAuth account
-  return, generated-key-before-checkout setup, and placeholder setup-copy
+  recovery CTAs, and operator signup-to-key follow-up drafts, with the direct
+  same-email setup-link form as the primary CTA, app login retained as fallback,
+  direct GitHub same-OAuth account return, generated-key-before-checkout setup,
+  and placeholder setup-copy
   telemetry. Operator packets should use it as the primary CTA while retaining
   app-hosted same-email/password and GitHub/OAuth fallbacks. It may route
   one-subscription interest to managed-access beta review, but public managed

@@ -37,7 +37,8 @@
         <h1>Finish the generated API key for your signup.</h1>
         <p class="lead">If Sage Router returned a 401 or you signed up without an <code>sk_sage_*</code> key, use the same email or GitHub identity, create the generated setup key, then verify <code>/v1/models</code> before wiring Codex or another agent.</p>
         <div class="actions">
-          <a class="button primary" href="https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email" data-setup-recovery-event="setup_key_recovery_same_email_clicked" data-setup-recovery-button="same-email-login">Use same-email setup link</a>
+          <button id="setup-key-recovery-email-focus" class="button primary" type="button">Email setup key link</button>
+          <a class="button secondary" href="https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email" data-setup-recovery-event="setup_key_recovery_same_email_clicked" data-setup-recovery-button="same-email-login">Use app login fallback</a>
           <button id="setup-key-recovery-github" class="button secondary" type="button">Continue with GitHub for Pro</button>
           <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=activation&utm_campaign=sage-router-launch&setup=setup-key-recovery&source_surface=recovery" data-setup-recovery-event="setup_key_recovery_account_clicked" data-setup-recovery-button="open-account-setup">Open API key setup</a>
           <button id="setup-key-recovery-copy" class="button secondary" type="button">Copy setup bundle</button>
@@ -46,7 +47,7 @@
           <a class="button secondary" href="/support" data-setup-recovery-event="setup_key_recovery_support_clicked" data-setup-recovery-button="support">Support</a>
         </div>
         <p id="setup-key-recovery-copy-status" class="copyStatus" role="status" aria-live="polite"></p>
-        <p class="note">No provider key or credit card is required before the generated setup key exists. Hosted routing can still stay blocked until the account is active, trialing, or manually enabled.</p>
+        <p class="note">Start with the email field below. No provider key or credit card is required before the generated setup key exists. Hosted routing can still stay blocked until the account is active, trialing, or manually enabled.</p>
         <form class="emailStart" id="setup-key-recovery-email-form">
           <label for="setup-key-recovery-email">Email yourself the same-email setup link</label>
           <input id="setup-key-recovery-email" type="email" name="email" autocomplete="email" inputmode="email" placeholder="you@company.com" required />
@@ -229,6 +230,24 @@ curl -i "$OPENAI_BASE_URL/models" \
         button: link.dataset.setupRecoveryButton || link.textContent.trim().toLowerCase(),
         target: link.getAttribute('href'),
       }));
+    });
+
+    function focusSetupRecoveryEmail(button = 'email-setup-key-link-primary') {
+      const form = document.getElementById('setup-key-recovery-email-form');
+      const input = document.getElementById('setup-key-recovery-email');
+      const status = document.getElementById('setup-key-recovery-email-status');
+      form?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+      input?.focus?.();
+      if (status) status.textContent = 'Enter the same email used at signup, then send the setup key link.';
+      trackSetupRecoveryEvent('setup_key_recovery_email_form_clicked', {
+        button,
+        state: 'email-form-ready',
+        target: '#setup-key-recovery-email-form',
+      });
+    }
+
+    document.getElementById('setup-key-recovery-email-focus')?.addEventListener('click', () => {
+      focusSetupRecoveryEmail('email-setup-key-link-primary');
     });
 
     document.getElementById('setup-key-recovery-github')?.addEventListener('click', async (event) => {

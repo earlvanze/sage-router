@@ -262,8 +262,8 @@ customers a first hosted API request path, `https://sagerouter.dev/api-troublesh
 gives customers a no-secret 401/402/429/503 diagnostic path,
 `https://sagerouter.dev/setup-key-recovery` gives no-key signups a same-email
 generated-key recovery path after API 401 `keyRecoveryUrl` handoffs and public
-marketing/docs/status/support recovery CTA clicks, including a direct same-email
-setup-link form before the app login handoff,
+marketing/docs/status/support recovery CTA clicks, making the direct same-email
+setup-link form the primary action before the app login fallback,
 `https://sagerouter.dev/docs/api-reference` gives OpenAI-compatible customers
 the hosted API contract for models, chat completions, Responses API, quotas,
 rate limits, and failover signals,

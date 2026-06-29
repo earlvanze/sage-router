@@ -263,6 +263,7 @@ const ALLOWED_EVENTS = new Set([
   'billing_troubleshooting_clicked',
   'setup_key_recovery_viewed',
   'setup_key_recovery_same_email_clicked',
+  'setup_key_recovery_email_form_clicked',
   'setup_key_recovery_account_clicked',
   'setup_key_recovery_magic_link_requested',
   'setup_key_recovery_magic_link_sent',
