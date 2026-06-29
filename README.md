@@ -612,6 +612,11 @@ costs or authorization-reference values. Only set
 authorization evidence are approved out of band, and keep
 `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0` until the private
 cost-model and unit-economics preflight also pass.
+The checked-in no-secret worksheet is
+`docs/launch/execution/provider-terms-approval-review.md`; use it as the
+durable review record and keep the actual provider agreements, account details,
+authorization reference values, and cost schedules in the private system of
+record.
 
 Use `--authorization-packet` before acknowledging terms to generate the
 provider-family authorization checklist and private evidence-reference format.

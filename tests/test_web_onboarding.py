@@ -1757,6 +1757,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet", readme)
         self.assertIn("scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet", readme)
         self.assertIn("docs/launch/execution/provider-authorization-outreach.md", readme)
+        self.assertIn("docs/launch/execution/provider-terms-approval-review.md", readme)
         self.assertIn("safe plan thresholds", readme)
         self.assertIn("without printing", readme)
         self.assertIn("provider costs or authorization-reference values", readme)

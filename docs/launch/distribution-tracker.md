@@ -118,6 +118,8 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 - Cost model configured: false; unit economics satisfied: false
 - Public-control staging command: `scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls`
 - Provider outreach packet: `scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet`
+- Terms approval packet: `scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet`
+- Terms approval worksheet: `docs/launch/execution/provider-terms-approval-review.md`
 - Authorization evidence packet: `scripts/configure_managed_provider_resale_readiness.sh --authorization-packet`
 - Authorization ledger template: `scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template`
 - One-subscription pricing packet: `scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet`

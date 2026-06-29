@@ -12,6 +12,7 @@ SCRIPT = ROOT / 'scripts' / 'managed_provider_unit_economics.py'
 CONFIGURE_SCRIPT = ROOT / 'scripts' / 'configure_managed_provider_resale_readiness.sh'
 OUTREACH_DOC = ROOT / 'docs' / 'launch' / 'execution' / 'provider-authorization-outreach.md'
 PRICING_REVIEW_DOC = ROOT / 'docs' / 'launch' / 'execution' / 'one-subscription-pricing-review.md'
+TERMS_REVIEW_DOC = ROOT / 'docs' / 'launch' / 'execution' / 'provider-terms-approval-review.md'
 
 
 class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
@@ -136,6 +137,7 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertIn('--authorization-packet', script)
         self.assertIn('--authorization-ledger-template', script)
         self.assertIn('--provider-outreach-packet', script)
+        self.assertIn('--terms-approval-packet', script)
         self.assertIn('provider-authorization-ledger-template.md', script)
         self.assertIn('--one-subscription-pricing-packet', script)
         self.assertIn('load_local_env_file', script)
@@ -180,6 +182,16 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0', pricing_review)
         self.assertIn('containsActualProviderCosts=false', pricing_review)
         self.assertIn('containsRequiredPrivatePrices=false', pricing_review)
+
+        terms_review = TERMS_REVIEW_DOC.read_text(encoding='utf-8')
+        self.assertIn('Sage Router Provider Terms Approval Review', terms_review)
+        self.assertIn('scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet', terms_review)
+        self.assertIn('provider_terms_acknowledgment', terms_review)
+        self.assertIn('SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED', terms_review)
+        self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC', terms_review)
+        self.assertIn('publicEnableApproved: false', terms_review)
+        self.assertIn('containsActualProviderCosts=false', terms_review)
+        self.assertIn('containsAuthorizationReference=false', terms_review)
 
     def test_configure_helper_one_subscription_pricing_packet_is_public_threshold_only(self):
         script = CONFIGURE_SCRIPT.read_text(encoding='utf-8')
