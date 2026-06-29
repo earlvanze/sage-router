@@ -10,9 +10,19 @@ These Terms govern your use of Sage Router software, the sagerouter.dev website,
 
 Sage Router is local-first AI model routing infrastructure. The open-source core runs on your own machine or server and routes requests across provider accounts, API keys, subscriptions, and local models that you already control. Sage Cloud adds optional hosted convenience: team config sync, provider health monitoring, dashboards, uptime checks, routing policy sync, and an optional reliability/failover layer.
 
-## 2. Bring your own access
+## 2. Provider access
 
 You are responsible for obtaining and maintaining all authorized access to third-party model providers. You must comply with each provider's Terms of Service. Sage Router does not resell model access, pool accounts, share subscriptions, or bypass provider terms. You grant Sage Router only the technical permission to route requests to providers you have configured.
+
+Public hosted plans are customer-authorized by default. Any managed-provider
+access pilot, one-subscription review, or provider-resale path requires a
+separate written agreement or posted pilot terms, explicit provider
+authorization, an authorized provider-family allowlist, provider terms
+acknowledgment, a private provider cost model, positive plan-margin checks,
+durable quotas and rate limits, billing controls, audit events, abuse review,
+and acceptable-use enforcement before activation. A public pricing page,
+waitlist submission, beta request, or managed-access review request does not
+grant third-party model access by itself.
 
 ## 3. Credentials and custody
 
@@ -20,7 +30,11 @@ By default, provider credentials are stored on your machine or server and are no
 
 ## 4. Acceptable use
 
-You agree not to: resell or pool provider access through the Service; bypass provider rate limits, auth, or terms; abuse, overload, or attack the Service; route traffic that is unlawful, infringing, or fraudulent; or reverse-engineer hosted Sage Cloud beyond what open-source licenses permit for the core.
+You agree not to: resell or pool provider access through the Service unless a
+separate managed-provider agreement expressly allows it; bypass provider rate
+limits, auth, or terms; abuse, overload, or attack the Service; route traffic
+that is unlawful, infringing, or fraudulent; or reverse-engineer hosted Sage
+Cloud beyond what open-source licenses permit for the core.
 
 ## 5. Plans and billing
 

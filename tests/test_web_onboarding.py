@@ -28,6 +28,24 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY=...", env)
         self.assertIn("SAGE_ROUTER_SUPABASE_MODEL_MODALITIES_RPC=sage_router_record_model_modalities", env)
 
+    def test_terms_allow_only_gated_managed_access(self):
+        source_terms = self.read_text("docs", "legal", "terms.md")
+        public_terms = self.read_public("terms.html")
+        for terms in (source_terms, public_terms):
+            normalized = re.sub(r"\s+", " ", terms)
+            self.assertIn("Public hosted plans are customer-authorized by default", normalized)
+            self.assertIn("one-subscription review", normalized)
+            self.assertIn("separate written agreement", normalized)
+            self.assertIn("explicit provider authorization", normalized)
+            self.assertIn("authorized provider-family allowlist", normalized)
+            self.assertIn("provider terms acknowledgment", normalized)
+            self.assertIn("private provider cost model", normalized)
+            self.assertIn("positive plan-margin checks", normalized)
+            self.assertIn("durable quotas and rate limits", normalized)
+            self.assertIn("acceptable-use enforcement", normalized)
+            self.assertIn("does not grant third-party model access by itself", normalized)
+            self.assertIn("separate managed-provider agreement expressly allows it", normalized)
+
     def test_launch_readiness_can_enforce_expected_healthy_upstreams(self):
         readiness = self.read_text("scripts", "check_sagerouter_launch_readiness.sh")
         readme = self.read_text("README.md")
