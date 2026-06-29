@@ -3780,6 +3780,9 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-copy-review-packet" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-review-packet-copy"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-email-review-packet" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-review-packet-email"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_review_packet_copied" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-review-packet-funnel"
   fi

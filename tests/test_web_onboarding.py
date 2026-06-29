@@ -3241,8 +3241,12 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("managed_access_quick_request_failed", page)
         self.assertIn('id="managed-access-review-packet"', page)
         self.assertIn('id="managed-access-copy-review-packet"', page)
+        self.assertIn('id="managed-access-email-review-packet"', page)
         self.assertIn("Copy one-subscription review packet", page)
+        self.assertIn("Copy and open email draft", page)
         self.assertIn("Sage Router one-subscription managed-access review", page)
+        self.assertIn("managedAccessReviewMailtoUrl", page)
+        self.assertIn("mailto:?subject=", page)
         self.assertIn("managedAccessReviewPacketText", page)
         self.assertIn("managed_access_review_packet_copied", page)
         self.assertIn("writeClipboardText", page)
@@ -3317,6 +3321,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("missing-pricing-managed-access-funnel", readiness)
         self.assertIn("missing-managed-access-quick-intent", readiness)
         self.assertIn("missing-managed-access-review-packet-copy", readiness)
+        self.assertIn("missing-managed-access-review-packet-email", readiness)
         self.assertIn("missing-managed-access-review-packet-funnel", readiness)
         self.assertIn("missing-managed-readiness-panel", readiness)
         self.assertIn("missing-managed-readiness-plan-thresholds", readiness)
@@ -3328,6 +3333,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("one-subscription review packet", web_readme)
         self.assertIn("support need and target launch window", launch_plan)
         self.assertIn("copyable no-secret one-subscription review packet", launch_plan)
+        self.assertIn("email-draft share path", launch_plan)
         self.assertIn("`/managed-access`", launch_plan)
 
     def test_hosted_pricing_page_and_10k_mrr_plan_are_discoverable(self):
