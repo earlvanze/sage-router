@@ -220,9 +220,17 @@ curl https://api.sagerouter.dev/v1/models \\
         'content_article_key_recovery_clicked',
         'hero-returning-user'
       );
+      const heroSetup = makeCopyButton(
+        'hero-copy-setup',
+        'Copy setup first',
+        'button secondary',
+        'article-hero-setup-bundle'
+      );
+      heroSetup.dataset.articleDockHeroSetup = 'true';
       recovery.dataset.articleDockRecovery = 'true';
       link.dataset.articleDockRecoverySource = 'true';
-      link.insertAdjacentElement('afterend', recovery);
+      link.insertAdjacentElement('afterend', heroSetup);
+      heroSetup.insertAdjacentElement('afterend', recovery);
     });
   }
 
