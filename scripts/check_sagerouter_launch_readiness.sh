@@ -394,6 +394,7 @@ check_public_auth_gate() {
 
 check_api_client_user_agent_gate() {
   local sdk_code raw_python_code raw_error raw_error_code
+  local bic_operator_packet_cmd="bash scripts/configure_cloudflare_api_bic_skip.sh --operator-packet"
   sdk_code="$(python_http_code "${API_BASE%/}/v1/models" "OpenAI/Python 1.0.0")"
   rm -f /tmp/sage-router-readiness-body
   raw_python_code="$(python_http_code "${API_BASE%/}/v1/models")"
@@ -408,13 +409,13 @@ check_api_client_user_agent_gate() {
   if [[ "$raw_python_code" == "403" && "$raw_error_code" == "1010" ]]; then
     if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
       if bash scripts/configure_cloudflare_api_bic_skip.sh --check >/tmp/sage-router-cloudflare-bic-check 2>&1; then
-        warn "Cloudflare Browser Integrity Check still blocks raw Python urllib even though the host-scoped BIC skip rule is present; wait for propagation or inspect Cloudflare security events"
+        warn "Cloudflare Browser Integrity Check still blocks raw Python urllib even though the host-scoped BIC skip rule is present; wait for propagation, inspect Cloudflare security events, or run ${bic_operator_packet_cmd}"
       else
-        warn "Cloudflare Browser Integrity Check blocks raw Python urllib's default signature, but OpenAI/Python-style API clients reach the guided auth gate; the available Cloudflare token cannot verify the host-scoped BIC skip rule: $(tr '\n' ' ' </tmp/sage-router-cloudflare-bic-check)"
+        warn "Cloudflare Browser Integrity Check blocks raw Python urllib's default signature, but OpenAI/Python-style API clients reach the guided auth gate; run ${bic_operator_packet_cmd} to audit local token candidates and get the manual host-scoped fallback; the available Cloudflare token cannot verify the host-scoped BIC skip rule: $(tr '\n' ' ' </tmp/sage-router-cloudflare-bic-check)"
       fi
       rm -f /tmp/sage-router-cloudflare-bic-check
     else
-      warn "Cloudflare Browser Integrity Check blocks Python urllib's default signature; raw HTTP clients should send a normal SDK User-Agent or run scripts/configure_cloudflare_api_bic_skip.sh with a Zone Rulesets token for api.sagerouter.dev"
+      warn "Cloudflare Browser Integrity Check blocks Python urllib's default signature; raw HTTP clients should send a normal SDK User-Agent or run ${bic_operator_packet_cmd} with a Zone Rulesets token for api.sagerouter.dev"
     fi
   elif [[ "$raw_python_code" == "401" ]]; then
     pass "raw Python urllib-style API clients reach the edge auth gate"
