@@ -7307,6 +7307,62 @@ def launch_no_key_execution_checklist(recommended_segments, outreach_not_worked)
 ACTIVATION_REVIEW_ONLY_SEGMENTS = {'missing_auth_user', 'missing_user_id', 'unavailable'}
 
 
+def activation_auth_repair_command(limit=1000):
+    max_limit = max(1, min(int(limit or 1000), 5000))
+    payload = {'limit': max_limit}
+    return (
+        'curl -fsS -X POST https://api.sagerouter.dev/admin/customers/hydrate-auth-users \\\n'
+        '  -H "Authorization: Bearer ${SAGE_ROUTER_API_KEY}" \\\n'
+        '  -H "Origin: https://app.sagerouter.dev" \\\n'
+        '  -H "Content-Type: application/json" \\\n'
+        f"  --data '{json.dumps(payload, separators=(',', ':'))}' \\\n"
+        "  | jq '{status,authUsers,confirmedAuthUsers,created,existing,failed,privacy}'"
+    )
+
+
+def launch_activation_auth_repair_handoff(segment_actions=None, activation_follow_ups=None):
+    """Return aggregate-only auth-repair instructions for review-only segments."""
+    activation_follow_ups = activation_follow_ups if isinstance(activation_follow_ups, dict) else {}
+    segment_actions = segment_actions if isinstance(segment_actions, list) else []
+    review_actions = [row for row in segment_actions if isinstance(row, dict) and row.get('sendable') is False]
+    counts = activation_follow_ups.get('countsByEmailVerification') if isinstance(activation_follow_ups.get('countsByEmailVerification'), dict) else {}
+    if review_actions:
+        review_segments = [str(row.get('segment') or '').strip() for row in review_actions if str(row.get('segment') or '').strip()]
+        review_only_queued = sum(int(row.get('count') or 0) for row in review_actions)
+    else:
+        review_segments = [
+            segment for segment in ('missing_auth_user', 'missing_user_id', 'unavailable')
+            if int((counts or {}).get(segment) or 0) > 0
+        ]
+        review_only_queued = sum(int((counts or {}).get(segment) or 0) for segment in review_segments)
+    needs_missing_auth_hydration = 'missing_auth_user' in review_segments
+    command = activation_auth_repair_command(limit=1000) if needs_missing_auth_hydration else ''
+    return {
+        'status': 'review_required' if review_only_queued > 0 else 'not_required',
+        'required': review_only_queued > 0,
+        'endpoint': '/admin/customers/hydrate-auth-users',
+        'command': command,
+        'reviewOnlyQueued': review_only_queued,
+        'reviewOnlySegments': review_segments,
+        'repairsMissingAuthUsers': needs_missing_auth_hydration,
+        'resultFields': ['status', 'authUsers', 'confirmedAuthUsers', 'created', 'existing', 'failed', 'privacy'],
+        'operatorAction': (
+            'Run auth-user hydration for missing_auth_user signups, refresh the launch funnel, then send only newly sendable verified/unverified segments after a fresh dry-run and approval.'
+            if needs_missing_auth_hydration
+            else 'Review or exclude the review-only activation segments before sending recovery emails.'
+        ),
+        'successMetric': 'review-only queued signups are repaired into sendable segments or explicitly excluded.',
+        'privacy': {
+            'containsEmails': False,
+            'containsUserIds': False,
+            'containsCustomerIds': False,
+            'containsApiKeys': False,
+            'containsProviderCredentials': False,
+            'aggregateOnly': True,
+        },
+    }
+
+
 def launch_activation_delivery_counts(activation_follow_ups=None, counts=None, total=None):
     activation_follow_ups = activation_follow_ups or {}
     if counts is None:
@@ -7547,6 +7603,9 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
             segment_commands = (email_readiness.get('segmentCommandTemplates') or {}).get(segment) or {}
             segment_actions[-1]['dryRunCommand'] = segment_commands.get('dryRunCommand') or activation_followup_send_command(segment=segment, dry_run=True)
             segment_actions[-1]['sendCommand'] = segment_commands.get('sendCommand') or activation_followup_send_command(segment=segment, dry_run=False)
+        elif segment == 'missing_auth_user':
+            segment_actions[-1]['repairEndpoint'] = '/admin/customers/hydrate-auth-users'
+            segment_actions[-1]['repairCommand'] = activation_auth_repair_command(limit=1000)
     send_telemetry = {
         'dryRunActions': int(activation_follow_ups.get('operatorFollowUpSendDryRuns') or 0),
         'dryRunRecordedRecipients': int(activation_follow_ups.get('operatorFollowUpSendDryRunRecipients') or 0),
@@ -7596,6 +7655,7 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
         f'Use GitHub/OAuth only if it is the same account you used before: {github_url}\n\n'
         'No provider key, prompt text, OAuth token, generated API key, or checkout is needed before the setup key exists.'
     )
+    auth_repair = launch_activation_auth_repair_handoff(segment_actions, activation_follow_ups)
     return {
         'kind': 'signup_to_key_recovery' if total > 0 else 'none',
         'title': 'Signup-to-key recovery packet',
@@ -7647,6 +7707,7 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
             'successMetric': next_best_action.get('successMetric') or activation_follow_ups.get('successMetric') or 'Move no-key signups into generated-key accounts, then first routed request.',
         },
         'emailReadiness': email_readiness,
+        'authRepair': auth_repair,
         'instructions': [
             (
                 'Dry-run verified; wait for explicit operator approval before real send.'
@@ -7654,7 +7715,7 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
                 else 'Dry-run the activation sender before real outreach.'
             ),
             'Send or copy the draft to sendable signup segments only after approval.',
-            'Review auth-repair segments separately before expecting recovery email delivery.',
+            auth_repair.get('operatorAction') or 'Review auth-repair segments separately before expecting recovery email delivery.',
             email_readiness.get('operatorAction') or 'Use the dashboard send controls after dry-run verification.',
             'Mark the segment worked only after real outreach is sent or copied into the outbound channel.',
             'Refresh the funnel and watch keyRecoveryViews, keyCreateAttempts, and customersWithGeneratedApiKeys.',
@@ -7676,6 +7737,7 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
     packet = operator_execution_packet if isinstance(operator_execution_packet, dict) else {}
     activation_follow_ups = activation_follow_ups if isinstance(activation_follow_ups, dict) else {}
     telemetry = packet.get('sendTelemetry') if isinstance(packet.get('sendTelemetry'), dict) else {}
+    auth_repair = packet.get('authRepair') if isinstance(packet.get('authRepair'), dict) else {}
     sendable_queued = int(packet.get('sendableQueued') or activation_follow_ups.get('sendableQueued') or 0)
     review_only_queued = int(packet.get('reviewOnlyQueued') or activation_follow_ups.get('reviewOnlyQueued') or 0)
     total_queued = int(packet.get('totalQueued') or activation_follow_ups.get('total') or 0)
@@ -7723,7 +7785,7 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
             'id': 'review_auth_repair_segments',
             'priority': 'next' if next_actions else 'fix_now',
             'owner': 'Activation',
-            'action': 'Review auth-repair segments separately before sending recovery emails.',
+            'action': auth_repair.get('operatorAction') or 'Review auth-repair segments separately before sending recovery emails.',
             'successMetric': 'review-only queued signups are repaired or excluded from sendable outreach.',
         })
     if sent_recipients > 0:
@@ -7777,6 +7839,16 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
             ),
         },
         {
+            'id': 'repair_missing_auth_users',
+            'label': 'Repair missing auth users',
+            'status': 'review' if auth_repair.get('required') else 'ready',
+            'detail': (
+                f'Run {auth_repair.get("endpoint") or "/admin/customers/hydrate-auth-users"} for segments {", ".join(auth_repair.get("reviewOnlySegments") or [])}; refresh the funnel before approving additional sends.'
+                if auth_repair.get('required')
+                else 'No missing-auth-user repair handoff is queued.'
+            ),
+        },
+        {
             'id': 'approve_next_segment_only',
             'label': 'Approve next segment only',
             'status': 'needs_approval' if approval_required else 'ready',
@@ -7812,6 +7884,7 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
         'failedRecipients': failed_recipients,
         'nextActions': next_actions,
         'decisionChecklist': decision_checklist,
+        'authRepair': auth_repair or launch_activation_auth_repair_handoff([], activation_follow_ups),
         'privacy': {
             'containsEmails': False,
             'containsCustomerIds': False,

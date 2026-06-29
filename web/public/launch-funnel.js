@@ -915,12 +915,52 @@ function segmentActionGroups(packet = {}) {
   };
 }
 
+function activationAuthRepair(data = {}) {
+  const packetRepair = data.operatorExecutionPacket?.authRepair || {};
+  const readinessRepair = data.activationApprovalReadiness?.authRepair || {};
+  const repair = packetRepair.status ? packetRepair : readinessRepair;
+  if (repair && repair.status) return repair;
+  const delivery = activationDeliveryCounts(data);
+  return {
+    status: delivery.reviewOnlyQueued > 0 ? 'review_required' : 'not_required',
+    required: delivery.reviewOnlyQueued > 0,
+    endpoint: '/admin/customers/hydrate-auth-users',
+    command: '',
+    reviewOnlyQueued: delivery.reviewOnlyQueued,
+    reviewOnlySegments: delivery.reviewOnlySegments,
+    repairsMissingAuthUsers: delivery.reviewOnlySegments.includes('missing_auth_user'),
+    operatorAction: delivery.reviewOnlyQueued > 0
+      ? 'Review or exclude auth-repair segments before sending recovery emails.'
+      : 'No missing-auth-user repair handoff is queued.',
+    privacy: {
+      containsEmails: false,
+      containsUserIds: false,
+      containsCustomerIds: false,
+      containsApiKeys: false,
+      aggregateOnly: true,
+    },
+  };
+}
+
+function renderActivationAuthRepair(data = {}) {
+  const repair = activationAuthRepair(data);
+  if (!repair.required) return '';
+  const segments = safeList(repair.reviewOnlySegments).join(', ') || 'review-only';
+  const command = repair.command || '';
+  return `<div class="empty warn">
+    <strong>Review-only auth repair:</strong> ${esc(repair.operatorAction || 'Repair or exclude review-only activation segments before email outreach.')}
+    <p class="muted">Queued ${integer(repair.reviewOnlyQueued)} across ${esc(segments)}. Endpoint <code>${esc(repair.endpoint || '/admin/customers/hydrate-auth-users')}</code> returns aggregate counts only; refresh the funnel after hydration and re-run dry-run coverage before any new real send.</p>
+    ${command ? `<div class="actions"><button class="btn secondary small" type="button" data-copy-auth-repair-command="${esc(command)}" data-followup-count="${integer(repair.reviewOnlyQueued)}">Copy auth repair command</button><span class="status">Command requires the private operator token and does not include emails, user IDs, customer IDs, or API keys.</span></div>` : ''}
+  </div>`;
+}
+
 function activationApprovalPacketText(data = {}) {
   const packet = data.operatorExecutionPacket || {};
   const followUps = data.activationFollowUps || {};
   const delivery = activationDeliveryCounts(data);
   const activationSend = activationSendTelemetry(data);
   const approvalReadiness = activationApprovalReadiness(data);
+  const authRepair = activationAuthRepair(data);
   const { sendable, reviewOnly } = segmentActionGroups(packet);
   const sendableLines = sendable.length
     ? sendable.map(row => `- ${row.segment || 'all'}: ${integer(row.count)} queued; order=${integer(row.sendOrder)}; dryRun=${activationSend.dryRunVerified ? 'verified' : 'pending'}; worked=${row.workedKind || ''}`)
@@ -940,6 +980,8 @@ function activationApprovalPacketText(data = {}) {
     `Dry-run segments: covered=${activationSend.dryRunCoveredSegments.join(', ') || 'none'}; pending=${activationSend.dryRunPendingSegments.join(', ') || 'none'}; duplicate raw recipient records=${integer(activationSend.dryRunDuplicateRecipients)}.`,
     `Approval required: ${approvalReadiness.approvalRequired ? 'yes, do not send until explicit operator approval' : 'no pending send'}.`,
     `Next actions: ${(approvalReadiness.nextActions || []).map(row => `${row.priority || 'next'}:${row.id || 'review'}`).join(', ') || 'monitor_activation_queue'}.`,
+    `Auth repair: ${authRepair.status || 'unknown'}; queued=${integer(authRepair.reviewOnlyQueued)}; segments=${safeList(authRepair.reviewOnlySegments).join(', ') || 'none'}; endpoint=${authRepair.endpoint || '/admin/customers/hydrate-auth-users'}.`,
+    ...(authRepair.command ? ['', 'Auth repair command:', authRepair.command] : []),
     '',
     'Approval checklist:',
     ...checklistLines,
@@ -969,6 +1011,7 @@ function buildLaunchBrief(data = {}) {
   const activationEmailReadiness = activationFollowUps.emailReadiness || {};
   const activationDelivery = activationDeliveryCounts(data);
   const activationSend = activationSendTelemetry(data);
+  const authRepair = activationAuthRepair(data);
   const managedReadiness = data.pricing?.publicLaunch?.managedProviderAccess || {};
   const managedSetup = managedReadiness.readinessSetup || {};
   const managedActions = Array.isArray(managedReadiness.nextActions) ? managedReadiness.nextActions : [];
@@ -1000,6 +1043,7 @@ function buildLaunchBrief(data = {}) {
     `- Generated-key to first request: ${percent(rates.generatedKeyToFirstRequest)}; setup-copy to first request: ${percent(rates.setupCopyToFirstRequest)}`,
     `- No-key follow-ups queued: ${integer(activationDelivery.totalQueued || activationFollowUps.total)} total, ${integer(activationDelivery.sendableQueued)} sendable, ${integer(activationDelivery.reviewOnlyQueued)} review-only, ${integer(activationFollowUps.windowedNewSignups)} new in-window; worked: ${integer(activationFollowUps.operatorFollowUpWorked)}; copied/opened: ${integer(activationFollowUps.operatorFollowUpCopies)}; dry-run verified: ${activationSend.dryRunVerified ? 'yes' : 'no'} (${integer(activationSend.dryRunRecipients)} unique sendable recipients; covered ${activationSend.dryRunCoveredSegments.join(', ') || 'none'}); sent: ${integer(activationSend.sentRecipients)} recipients; key-first redirects: ${integer(activationFollowUps.keyFirstRedirects)}. Action: ${activationFollowUps.recommendedOperatorAction || 'Send the generated-key-first follow-up.'}`,
     `- Send approval handoff: next segment=${activationSend.nextSendSegment || 'all'}; approval required=${activationSend.sendApprovalRequired ? 'yes' : 'no'}; command copy remains operator-token gated and confirmation-token protected.`,
+    `- Auth repair handoff: status=${authRepair.status || 'unknown'}; review-only=${integer(authRepair.reviewOnlyQueued)}; segments=${safeList(authRepair.reviewOnlySegments).join(', ') || 'none'}; endpoint=${authRepair.endpoint || '/admin/customers/hydrate-auth-users'}`,
     `- Approval checklist: ${(activationApprovalChecklist(data)).map(row => `${row.id}=${row.status}`).join('; ')}`,
     `- Recovery auth starts: magic=${integer(asNumber(managedAccessEvents.login_key_recovery_magic_link_requested) + asNumber(managedAccessEvents.setup_key_recovery_magic_link_requested))}; password=${integer(managedAccessEvents.login_key_recovery_password_submitted)}; oauth=${integer(managedAccessEvents.login_key_recovery_oauth_clicked)}; account setup clicks=${integer(managedAccessEvents.login_key_recovery_account_setup_clicked)}`,
     `- Activation email sender: ${activationDeliveryLabel(activationEmailReadiness)} via ${activationEmailReadiness.provider || 'resend'}; mode=${activationDeliveryMode(activationEmailReadiness)}; dry run ${activationEmailReadiness.dryRunSupported ? 'supported' : 'not reported'}; action: ${activationEmailReadiness.operatorAction || activationDeliveryMeta(activationEmailReadiness)}`,
@@ -1088,6 +1132,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
   const activationDelivery = activationDeliveryCounts(data);
   const activationSend = activationSendTelemetry(data);
   const approvalReadiness = activationApprovalReadiness(data);
+  const authRepair = activationAuthRepair(data);
   const sendCommand = activationSendCommand(emailReadiness, activationSend);
   return [
     `${packet.title || 'Operator execution packet'} (${packet.kind || 'none'})`,
@@ -1096,6 +1141,8 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
     `Send telemetry: dry-run actions=${integer(activationSend.dryRunActions)} uniqueRecipients=${integer(activationSend.dryRunRecipients)} rawRecordedRecipients=${integer(activationSend.dryRunRecordedRecipients)} duplicateRecords=${integer(activationSend.dryRunDuplicateRecipients)}; sent actions=${integer(activationSend.sendActions)} recipients=${integer(activationSend.sentRecipients)}; failures=${integer(activationSend.failedActions)} recipients=${integer(activationSend.failedRecipients)}; approvalRequired=${activationSend.sendApprovalRequired === true}`,
     `Next send segment: ${activationSend.nextSendSegment || 'all'}; dryRunVerified=${activationSend.dryRunVerified === true}; approvalRequired=${activationSend.sendApprovalRequired === true}`,
     `Approval readiness: ${approvalReadiness.status || 'unknown'}; blockedReason=${approvalReadiness.blockedReason || 'none'}; nextActions=${(approvalReadiness.nextActions || []).map(row => `${row.priority || 'next'}:${row.id || 'review'}`).join(', ') || 'monitor_activation_queue'}`,
+    `Auth repair: status=${authRepair.status || 'unknown'}; queued=${integer(authRepair.reviewOnlyQueued)}; segments=${safeList(authRepair.reviewOnlySegments).join(', ') || 'none'}; endpoint=${authRepair.endpoint || '/admin/customers/hydrate-auth-users'}; aggregateOnly=${authRepair.privacy?.aggregateOnly === true}`,
+    ...(authRepair.command ? ['', 'Auth repair command:', authRepair.command] : []),
     `Auth posture: ${authPosture.label}. ${authPosture.action}`,
     `Activation email sender: ${activationDeliveryLabel(emailReadiness)} via ${emailReadiness.provider || 'resend'}; mode=${activationDeliveryMode(emailReadiness)}; endpoint=${emailReadiness.sendEndpoint || '/admin/customers/send-activation-followups'}; requiredEnv=${(emailReadiness.requiredEnv || []).join(', ') || 'none'}; brandedSender=${emailReadiness.brandedSenderConfigured === true}; recoverySender=${emailReadiness.recoverySenderConfigured === true}`,
     `Activation sender setup: ${emailReadiness.setupScript || 'scripts/configure_activation_email_sender.sh'}`,
@@ -1305,6 +1352,7 @@ function renderOperatorExecutionPacket(data = {}) {
   const activationDelivery = activationDeliveryCounts(data);
   const activationSend = activationSendTelemetry(data);
   const approvalReadiness = activationApprovalReadiness(data);
+  const authRepair = activationAuthRepair(data);
   const sendCommand = activationSendCommand(emailReadiness, activationSend);
   const managedReadiness = data.pricing?.publicLaunch?.managedProviderAccess || {};
   const managedSetup = managedReadiness.readinessSetup || {};
@@ -1353,6 +1401,7 @@ function renderOperatorExecutionPacket(data = {}) {
     <div class="metric"><span>Queued</span><strong>${integer(activationDelivery.totalQueued || packet.totalQueued)} total · ${integer(activationDelivery.sendableQueued)} sendable · ${integer(activationDelivery.reviewOnlyQueued)} review-only</strong></div>
     <div class="metric"><span>Send approval</span><strong><span class="pill ${activationSend.sendApprovalRequired ? 'warn' : 'good'}">${activationSend.sendApprovalRequired ? 'Approval pending' : 'No pending send'}</span></strong></div>
     <div class="metric"><span>Approval readiness</span><strong><span class="pill ${approvalReadiness.status === 'approval_required' ? 'warn' : approvalReadiness.status === 'dry_run_required' ? 'bad' : 'good'}">${esc(approvalReadiness.status || 'unknown')}</span></strong></div>
+    <div class="metric"><span>Auth repair</span><strong><span class="pill ${authRepair.required ? 'warn' : 'good'}">${esc(authRepair.status || 'not_required')}</span></strong></div>
     <div class="metric"><span>Dry-run / sent</span><strong>${integer(activationSend.dryRunRecipients)} unique dry-run · ${integer(activationSend.sentRecipients)} sent · ${integer(activationSend.failedRecipients)} failed</strong></div>
     <div class="metric"><span>Next send segment</span><strong>${esc(activationSend.nextSendSegment || 'all')}</strong></div>
     <div class="metric"><span>Primary CTA</span><strong>${esc(packet.primaryCtaKind || 'setup_key_recovery')}</strong></div>
@@ -1364,6 +1413,7 @@ function renderOperatorExecutionPacket(data = {}) {
   </div>
   <p class="muted">${esc(authPosture.action)} Approval readiness is ${esc(approvalReadiness.status || 'unknown')}${approvalReadiness.blockedReason ? ` (${esc(approvalReadiness.blockedReason)})` : ''}. ${esc(activationDeliveryMeta(emailReadiness))} ${activationSend.sendApprovalRequired ? `Dry-run is ${activationSend.dryRunVerified ? 'verified' : 'not complete'} for ${integer(activationSend.dryRunRecipients)} unique sendable recipient(s); covered segments: ${activationSend.dryRunCoveredSegments.join(', ') || 'none'}; wait for explicit operator approval before real send.` : esc(emailReadiness.operatorAction || 'Dry-run activation follow-up sending before real outreach.')} ${esc(managedSetup.operatorAction || 'Keep managed provider access disabled until resale controls pass.')}</p>
   ${approvalChecklist}
+  ${renderActivationAuthRepair(data)}
   ${renderActivationNextSendStep(data)}
   <div class="actions">
     <button class="btn secondary" type="button" data-copy-operator-packet="${esc(packetText)}">Copy execution packet</button>
@@ -1729,6 +1779,29 @@ async function copyActivationSendCommand(button) {
   } catch (error) {
     button.textContent = 'Copy failed';
     setStatus(`Activation send command copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyAuthRepairCommand(button) {
+  const text = button.getAttribute('data-copy-auth-repair-command') || '';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    trackOperatorFunnelEvent('operator_execution_packet_copied', {
+      state: 'auth_repair_command_copied',
+      resultCount: Number(button.getAttribute('data-followup-count') || 0),
+      snippet: 'auth-repair-command',
+    });
+    setStatus('Copied aggregate-only auth repair command. Run it with the private operator token, refresh the funnel, then re-check dry-run coverage before real sends.', 'warn');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Auth repair command copy failed: ${error.message}`, 'bad');
   } finally {
     setTimeout(() => {
       button.textContent = original;
@@ -2838,6 +2911,11 @@ function handleFollowUpCopyClick(event) {
   const activationApprovalPacketButton = event.target.closest('[data-copy-activation-approval-packet]');
   if (activationApprovalPacketButton) {
     copyActivationApprovalPacket(activationApprovalPacketButton);
+    return;
+  }
+  const authRepairCommandButton = event.target.closest('[data-copy-auth-repair-command]');
+  if (authRepairCommandButton) {
+    copyAuthRepairCommand(authRepairCommandButton);
     return;
   }
   const operatorTokenCommandButton = event.target.closest('[data-copy-operator-token-command]');
