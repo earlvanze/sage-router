@@ -298,11 +298,23 @@ function selectedActivationPlan(summary = {}) {
 function activationFollowUpUrl(summary = {}, options = {}) {
   const activation = summary.activation || {};
   const followUp = summary.followUp || activation.followUp || {};
+  if (options.recovery === true && (followUp.setupKeyRecovery || followUp.primaryCtaUrl)) {
+    return followUp.setupKeyRecovery || followUp.primaryCtaUrl;
+  }
   if (options.auth === false && (followUp.passwordFallback || followUp.primaryCtaUrl)) {
     return followUp.passwordFallback || followUp.primaryCtaUrl;
   }
   if (options.auth !== false && (followUp.githubOAuth || followUp.oauth || followUp.primaryCtaUrl)) {
     return followUp.githubOAuth || followUp.oauth || followUp.primaryCtaUrl;
+  }
+  if (options.recovery === true) {
+    const recoveryUrl = new URL('/setup-key-recovery', MARKETING_BASE);
+    recoveryUrl.searchParams.set('plan', selectedActivationPlan(summary));
+    recoveryUrl.searchParams.set('utm_source', 'operator');
+    recoveryUrl.searchParams.set('utm_medium', 'launch_funnel');
+    recoveryUrl.searchParams.set('utm_campaign', 'signup_to_key_recovery');
+    recoveryUrl.searchParams.set('source_surface', 'operator_activation');
+    return recoveryUrl.toString();
   }
   const url = new URL(options.auth === false ? '/login.html' : '/account.html', APP_BASE);
   url.searchParams.set('start', 'create_key');
@@ -316,15 +328,17 @@ function activationFollowUpUrl(summary = {}, options = {}) {
 
 function primaryFollowUpLinkSet(plan = 'pro', urls = {}) {
   const summary = { activation: { plan } };
+  const setupUrl = urls.setupKeyRecovery || urls.primaryCtaUrl || activationFollowUpUrl(summary, { recovery: true });
   const githubUrl = urls.githubOAuth || urls.github || activationFollowUpUrl(summary);
   const passwordUrl = urls.passwordFallback || urls.emailPassword || activationFollowUpUrl(summary, { auth: false });
   return [
     'Sage Router setup-key recovery links',
     '',
-    `Same-email magic link/password: ${passwordUrl}`,
+    `Start here: ${setupUrl}`,
+    `Same-email magic link/password fallback: ${passwordUrl}`,
     `GitHub/OAuth, only if it is the same account: ${githubUrl}`,
     '',
-    'Start with same-email recovery to avoid creating a second no-key account.',
+    'Start with setup-key recovery to avoid creating a second no-key account.',
   ].join('\n');
 }
 
@@ -384,7 +398,7 @@ function renderAggregateNoKeySegmentControls({ counts = {}, total = 0, plan = 'p
     const draftReady = followUpSegmentDraftReady(plan, segment);
     const draftFirst = draftReady ? '' : ' disabled';
     const step = idx + 1;
-    return `<a class="btn small" href="${esc(mailto)}" data-email-followup-batch="${esc(segment)}" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Open ${step}. ${esc(label)} (${integer(count)})</a><button class="btn secondary small" type="button" data-copy-primary-followup-url="${esc(urls.passwordFallback || urls.primaryCtaUrl || '')}" data-copy-primary-followup-text="${esc(draft)}" data-followup-copy-kind="${esc(segment)}_aggregate_draft_copied" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Copy ${esc(label)}</button><button class="btn secondary small" type="button" data-copy-primary-followup-url="${esc(urls.githubOAuth || '')}" data-copy-primary-followup-text="${esc(linkSet)}" data-followup-copy-kind="${esc(segment)}_aggregate_links_copied" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Copy ${esc(segment)} links</button><button class="btn small" type="button" data-mark-followup-worked="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}" data-followup-draft-ready="${draftReady ? '1' : '0'}" title="${draftReady ? 'Mark worked only after real outreach was sent.' : `Copy or open the ${esc(segment)} aggregate draft first.`}"${draftFirst}>Mark ${esc(segment)} worked</button>`;
+    return `<a class="btn small" href="${esc(mailto)}" data-email-followup-batch="${esc(segment)}" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Open ${step}. ${esc(label)} (${integer(count)})</a><button class="btn secondary small" type="button" data-copy-primary-followup-url="${esc(urls.setupKeyRecovery || urls.primaryCtaUrl || urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(draft)}" data-followup-copy-kind="${esc(segment)}_aggregate_draft_copied" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Copy ${esc(label)}</button><button class="btn secondary small" type="button" data-copy-primary-followup-url="${esc(urls.setupKeyRecovery || urls.primaryCtaUrl || urls.githubOAuth || '')}" data-copy-primary-followup-text="${esc(linkSet)}" data-followup-copy-kind="${esc(segment)}_aggregate_links_copied" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-count="${integer(count)}">Copy ${esc(segment)} links</button><button class="btn small" type="button" data-mark-followup-worked="${esc(segment)}" data-followup-plan="${esc(plan)}" data-followup-segment="${esc(segment)}" data-followup-count="${integer(count)}" data-followup-draft-ready="${draftReady ? '1' : '0'}" title="${draftReady ? 'Mark worked only after real outreach was sent.' : `Copy or open the ${esc(segment)} aggregate draft first.`}"${draftFirst}>Mark ${esc(segment)} worked</button>`;
   }).join('');
 }
 
@@ -404,6 +418,9 @@ function activationFollowUpText(summary = {}) {
     'You are signed in, but the hosted API key step is not complete yet.',
     '',
     firstStep,
+    activationFollowUpUrl(summary, { recovery: true }),
+    '',
+    'If that recovery page does not open the existing account, use the same-email login fallback:',
     activationFollowUpUrl(summary, { auth: false }),
     '',
     'Use GitHub/OAuth only if it is the same account you used before:',
@@ -426,7 +443,8 @@ function activationFollowUpUrlList(customers = [], segment = 'all') {
     const recipient = String(customer.email || '').trim() || customerLabel(summary);
     return [
       `${idx + 1}. ${recipient}`,
-      `Same-email magic link/password: ${activationFollowUpUrl(summary, { auth: false })}`,
+      `Setup-key recovery: ${activationFollowUpUrl(summary, { recovery: true })}`,
+      `Same-email magic link/password fallback: ${activationFollowUpUrl(summary, { auth: false })}`,
       `GitHub/OAuth, only if same account: ${activationFollowUpUrl(summary)}`,
     ].join('\n');
   }).join('\n');
@@ -920,7 +938,7 @@ function activationApprovalPacketText(data = {}) {
     'Review-only segments:',
     ...reviewLines,
     '',
-    `Primary recovery CTA: ${followUps.primaryCtaUrl || packet.recoveryUrls?.passwordFallback || activationFollowUpUrl({}, { auth: false })}`,
+    `Primary recovery CTA: ${followUps.primaryCtaUrl || packet.recoveryUrls?.setupKeyRecovery || packet.recoveryUrls?.passwordFallback || activationFollowUpUrl({}, { recovery: true })}`,
     `Success metric: ${followUps.successMetric || packet.telemetry?.successMetric || 'Move no-key signups into generated-key accounts, then first routed request.'}`,
   ].join('\n') + '\n';
 }
@@ -1088,6 +1106,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
       : ['- none']),
     '',
     'Recovery URLs:',
+    `- Setup-key recovery: ${urls.setupKeyRecovery || ''}`,
     `- Email/password: ${urls.passwordFallback || ''}`,
     `- GitHub/OAuth: ${urls.githubOAuth || ''}`,
     '',
@@ -1324,7 +1343,7 @@ function renderOperatorExecutionPacket(data = {}) {
     <div class="metric"><span>Approval readiness</span><strong><span class="pill ${approvalReadiness.status === 'approval_required' ? 'warn' : approvalReadiness.status === 'dry_run_required' ? 'bad' : 'good'}">${esc(approvalReadiness.status || 'unknown')}</span></strong></div>
     <div class="metric"><span>Dry-run / sent</span><strong>${integer(activationSend.dryRunRecipients)} unique dry-run · ${integer(activationSend.sentRecipients)} sent · ${integer(activationSend.failedRecipients)} failed</strong></div>
     <div class="metric"><span>Next send segment</span><strong>${esc(activationSend.nextSendSegment || 'all')}</strong></div>
-    <div class="metric"><span>Primary CTA</span><strong>${esc(packet.primaryCtaKind || 'same_email_password')}</strong></div>
+    <div class="metric"><span>Primary CTA</span><strong>${esc(packet.primaryCtaKind || 'setup_key_recovery')}</strong></div>
     <div class="metric"><span>Email sender</span><strong><span class="pill ${emailReadiness.configured ? 'good' : 'warn'}">${esc(activationDeliveryLabel(emailReadiness))}</span></strong></div>
     <div class="metric"><span>Managed access</span><strong><span class="pill ${managedReadiness.enabled ? 'good' : 'warn'}">${esc(managedReadiness.status || 'disabled')}</span></strong></div>
     <div class="metric"><span>Auth posture</span><strong><span class="pill ${esc(authPosture.tone)}">${esc(authPosture.label)}</span></strong></div>
@@ -1338,8 +1357,9 @@ function renderOperatorExecutionPacket(data = {}) {
     <button class="btn secondary" type="button" data-copy-operator-packet="${esc(packetText)}">Copy execution packet</button>
     <button class="btn secondary" type="button" data-copy-activation-approval-packet="${esc(approvalPacketText)}" data-followup-count="${integer(activationDelivery.sendableQueued)}">Copy approval packet</button>
     ${sendCommand ? `<button class="btn secondary" type="button" data-copy-activation-send-command="${esc(sendCommand)}" data-followup-segment="${esc(activationSend.nextSendSegment || 'all')}" data-followup-count="${integer(activationSend.sendableQueued)}" ${activationSend.dryRunVerified && activationSend.sendApprovalRequired ? '' : 'disabled'}>Copy approved send command</button>` : ''}
-    <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(draftText)}" data-followup-copy-kind="operator_packet_draft_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(packet.totalQueued)}">Copy packet draft</button>
-    <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(primaryFollowUpLinkSet(plan, urls))}" data-followup-copy-kind="operator_packet_links_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(packet.totalQueued)}">Copy packet links</button>
+    <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(urls.setupKeyRecovery || urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(draftText)}" data-followup-copy-kind="operator_packet_draft_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(packet.totalQueued)}">Copy packet draft</button>
+    <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(urls.setupKeyRecovery || urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(primaryFollowUpLinkSet(plan, urls))}" data-followup-copy-kind="operator_packet_links_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(packet.totalQueued)}">Copy packet links</button>
+    ${urls.setupKeyRecovery ? `<a class="btn secondary" href="${esc(urls.setupKeyRecovery)}" target="_blank" rel="noopener noreferrer">Open setup recovery</a>` : ''}
     ${urls.passwordFallback ? `<a class="btn secondary" href="${esc(urls.passwordFallback)}" target="_blank" rel="noopener noreferrer">Open email/password</a>` : ''}
     ${urls.githubOAuth ? `<a class="btn secondary" href="${esc(urls.githubOAuth)}" target="_blank" rel="noopener noreferrer">Open GitHub/OAuth</a>` : ''}
   </div>
@@ -1358,7 +1378,7 @@ function renderNextBestActionDock(data = {}) {
   const primaryCtaUrls = followUps.primaryCtaUrls || {};
   const evidence = action.evidence || {};
   const emailVerification = evidence.emailVerification || followUps.countsByEmailVerification || {};
-  const primaryCta = primaryCtaUrls.passwordFallback || followUps.primaryCtaUrl || activationFollowUpUrl({ activation: { plan: followUps.suggestedPlan || 'pro' } }, { auth: false });
+  const primaryCta = primaryCtaUrls.setupKeyRecovery || followUps.primaryCtaUrl || primaryCtaUrls.passwordFallback || activationFollowUpUrl({ activation: { plan: followUps.suggestedPlan || 'pro' } }, { recovery: true });
   const actionHref = action.ctaPath || primaryCta || '/launch-funnel.html';
   const priority = action.priority || 'review';
   const metric = action.metric || 'activation';
@@ -2365,11 +2385,12 @@ function contactExportSummaries(exportData = {}) {
     followUp: {
       nextAction: contact.nextAction || 'create_key',
       suggestedPlan: contact.suggestedPlan || 'pro',
-      primaryCtaKind: 'same_email_password',
-      primaryCtaUrl: contact.passwordFallback || '',
+      primaryCtaKind: 'setup_key_recovery',
+      primaryCtaUrl: contact.setupKeyRecovery || contact.passwordFallback || '',
+      setupKeyRecovery: contact.setupKeyRecovery || '',
       passwordFallback: contact.passwordFallback || '',
       githubOAuth: contact.githubOAuth || '',
-      recommendedCtaOrder: ['passwordFallback', 'githubOAuth'],
+      recommendedCtaOrder: ['setupKeyRecovery', 'passwordFallback', 'githubOAuth'],
       emailVerificationSegment: contact.emailVerificationSegment || 'unverified',
     },
     emailVerification: {
@@ -2505,7 +2526,7 @@ function renderNoKeyFollowUps(data = {}) {
         <td>${esc(customerLabel(summary))}<br><span class="muted">${esc(customer.id || '')}</span></td>
         <td><span class="pill warn">${esc(customerActionLabel(activation.nextAction))}</span><br><span class="muted">${integer(activation.activeKeyCount)} active keys · ${esc(selectedActivationPlan(summary).toUpperCase())} suggested · ${esc(emailVerificationLabel(summary))}</span></td>
         <td>${renderReviewFlags(summary.review || {})}</td>
-        <td><div class="actions"><a class="btn small" href="${esc(activationFollowUpUrl(summary, { auth: false }))}" target="_blank" rel="noopener noreferrer">Open email/password</a><a class="btn secondary small" href="${esc(activationFollowUpUrl(summary))}" target="_blank" rel="noopener noreferrer">Open GitHub/OAuth</a>${customer.email ? `<a class="btn secondary small" href="${esc(mailto)}" data-email-followup-single="${esc(segment)}" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(selectedActivationPlan(summary))}">Email</a>` : ''}<button class="btn secondary small" type="button" data-copy-followup="${esc(text)}" data-followup-plan="${esc(selectedActivationPlan(summary))}" data-followup-segment="${esc(segment)}" data-followup-count="1">Copy snippet</button></div></td>
+        <td><div class="actions"><a class="btn small" href="${esc(activationFollowUpUrl(summary, { recovery: true }))}" target="_blank" rel="noopener noreferrer">Open setup recovery</a><a class="btn secondary small" href="${esc(activationFollowUpUrl(summary, { auth: false }))}" target="_blank" rel="noopener noreferrer">Open email/password</a><a class="btn secondary small" href="${esc(activationFollowUpUrl(summary))}" target="_blank" rel="noopener noreferrer">Open GitHub/OAuth</a>${customer.email ? `<a class="btn secondary small" href="${esc(mailto)}" data-email-followup-single="${esc(segment)}" data-followup-segment="${esc(segment)}" data-followup-plan="${esc(selectedActivationPlan(summary))}">Email</a>` : ''}<button class="btn secondary small" type="button" data-copy-followup="${esc(text)}" data-followup-plan="${esc(selectedActivationPlan(summary))}" data-followup-segment="${esc(segment)}" data-followup-count="1">Copy snippet</button></div></td>
       </tr>`;
     }).join('')}</tbody>
   </table></div>
@@ -2521,7 +2542,7 @@ function renderNoKeyFollowUpsAnalyticsFallback(error) {
   const total = Number(followUps.total || 0);
   const plan = followUps.suggestedPlan || 'pro';
   const urls = followUps.primaryCtaUrls || {};
-  const primaryCta = urls.passwordFallback || followUps.primaryCtaUrl || activationFollowUpUrl({ activation: { plan } }, { auth: false });
+  const primaryCta = urls.setupKeyRecovery || followUps.primaryCtaUrl || urls.passwordFallback || activationFollowUpUrl({ activation: { plan } }, { recovery: true });
   const linkSet = primaryFollowUpLinkSet(plan, urls);
   const aggregateDraft = aggregateFollowUpDraft(plan, urls);
   const aggregateMailto = aggregateFollowUpMailtoUrl(plan, urls);

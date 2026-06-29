@@ -130,12 +130,15 @@ provider resale claim, or runtime feature flag.
   telemetry, and one-subscription managed-access beta review demand when
   BYOK/provider access is the blocker.
 - Keep `/setup-key-recovery` as the public no-key signup recovery destination
-  for API 401 `keyRecoveryUrl` handoffs and public marketing/docs/status/support
-  recovery CTAs, with direct same-email setup-link requests, same-email or
-  direct GitHub same-OAuth account return, generated-key-before-checkout setup, and
-  placeholder setup-copy telemetry. It may route one-subscription interest to
-  managed-access beta review, but public managed provider access stays disabled
-  until provider terms, authorization evidence, allowlist, cost model, and
+  for API 401 `keyRecoveryUrl` handoffs, public marketing/docs/status/support
+  recovery CTAs, and operator signup-to-key follow-up drafts, with direct
+  same-email setup-link requests, same-email or direct GitHub same-OAuth account
+  return, generated-key-before-checkout setup, and placeholder setup-copy
+  telemetry. Operator packets should use it as the primary CTA while retaining
+  app-hosted same-email/password and GitHub/OAuth fallbacks. It may route
+  one-subscription interest to managed-access beta review, but public managed
+  provider access stays disabled until provider terms, authorization evidence,
+  allowlist, cost model, and
   margin controls pass.
 - Keep `/login.html?start=create_key` as the hosted same-email bridge for
   returning no-key signups: the recovery panel must include an inline

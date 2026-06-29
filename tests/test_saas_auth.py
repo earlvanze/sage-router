@@ -633,6 +633,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('emailVerification', listing.payload['customers'][0])
         self.assertIn('verified', listing.payload['customers'][0]['emailVerification'])
         self.assertIn('followUp', listing.payload['customers'][0])
+        self.assertIn('/setup-key-recovery?', listing.payload['customers'][0]['followUp']['setupKeyRecovery'])
+        self.assertIn('signup_to_key_recovery', listing.payload['customers'][0]['followUp']['setupKeyRecovery'])
         self.assertIn('/login.html?', listing.payload['customers'][0]['followUp']['passwordFallback'])
         self.assertIn('auth=email', listing.payload['customers'][0]['followUp']['passwordFallback'])
         self.assertIn('signup_to_key_recovery', listing.payload['customers'][0]['followUp']['passwordFallback'])
@@ -649,8 +651,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('inactive', detail.payload['activation']['status'])
         self.assertIn('new_signup', detail.payload['review']['flagCodes'])
         self.assertEqual('create_key', detail.payload['followUp']['nextAction'])
-        self.assertEqual('same_email_password', detail.payload['followUp']['primaryCtaKind'])
-        self.assertEqual(['passwordFallback', 'githubOAuth'], detail.payload['followUp']['recommendedCtaOrder'])
+        self.assertEqual('setup_key_recovery', detail.payload['followUp']['primaryCtaKind'])
+        self.assertEqual(['setupKeyRecovery', 'passwordFallback', 'githubOAuth'], detail.payload['followUp']['recommendedCtaOrder'])
         self.assertEqual([], detail.payload['auditEvents'])
 
         router.suspend_customer_for_operator(customer['id'], reason_code='security')
@@ -722,10 +724,13 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertNotIn('suspended@example.com', emails)
         self.assertNotIn('active@example.com', emails)
         for contact in export.payload['contacts']:
+            self.assertIn('/setup-key-recovery?', contact['setupKeyRecovery'])
+            self.assertIn('source_surface=operator_activation', contact['setupKeyRecovery'])
             self.assertIn('start=create_key', contact['passwordFallback'])
             self.assertIn('auth=email', contact['passwordFallback'])
             self.assertIn('auth=github', contact['githubOAuth'])
             self.assertIn('generated sk_sage setup key', contact['body'])
+            self.assertIn('same-email setup link', contact['body'])
             self.assertNotIn('auth-', json.dumps(contact))
             self.assertNotIn('customer_', json.dumps(contact))
         self.assertIn('operator_no_key_contact_export_copied', export.payload['telemetry']['copyEvents'])
@@ -2082,13 +2087,13 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, snapshot['activationFollowUps']['countsBySuggestedPlan']['pro'])
         self.assertEqual(1, snapshot['activationFollowUps']['countsByStatus']['inactive'])
         self.assertIn('signup_to_key_recovery', snapshot['activationFollowUps']['primaryCtaUrl'])
-        self.assertIn('start=create_key', snapshot['activationFollowUps']['primaryCtaUrl'])
-        self.assertIn('/login.html', snapshot['activationFollowUps']['primaryCtaUrl'])
-        self.assertIn('auth=email', snapshot['activationFollowUps']['primaryCtaUrl'])
-        self.assertEqual('same_email_password', snapshot['activationFollowUps']['primaryCtaKind'])
-        self.assertEqual(['passwordFallback', 'githubOAuth'], snapshot['activationFollowUps']['recommendedCtaOrder'])
+        self.assertIn('/setup-key-recovery', snapshot['activationFollowUps']['primaryCtaUrl'])
+        self.assertIn('source_surface=operator_activation', snapshot['activationFollowUps']['primaryCtaUrl'])
+        self.assertEqual('setup_key_recovery', snapshot['activationFollowUps']['primaryCtaKind'])
+        self.assertEqual(['setupKeyRecovery', 'passwordFallback', 'githubOAuth'], snapshot['activationFollowUps']['recommendedCtaOrder'])
         self.assertIn('primaryCtaUrls', snapshot['activationFollowUps'])
-        self.assertEqual(snapshot['activationFollowUps']['primaryCtaUrls']['passwordFallback'], snapshot['activationFollowUps']['primaryCtaUrl'])
+        self.assertEqual(snapshot['activationFollowUps']['primaryCtaUrls']['setupKeyRecovery'], snapshot['activationFollowUps']['primaryCtaUrl'])
+        self.assertIn('/setup-key-recovery', snapshot['activationFollowUps']['primaryCtaUrls']['setupKeyRecovery'])
         self.assertIn('/account.html', snapshot['activationFollowUps']['primaryCtaUrls']['githubOAuth'])
         self.assertIn('auth=github', snapshot['activationFollowUps']['primaryCtaUrls']['githubOAuth'])
         self.assertIn('/login.html', snapshot['activationFollowUps']['primaryCtaUrls']['passwordFallback'])
@@ -2195,8 +2200,9 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertNotIn('REVIEWED_PRIVATE_COST', json.dumps(managed_readiness))
         self.assertEqual('signupToGeneratedKey', snapshot['nextBestAction']['metric'])
         self.assertEqual('fix_now', snapshot['nextBestAction']['priority'])
-        self.assertIn('start=create_key', snapshot['nextBestAction']['ctaPath'])
-        self.assertIn('auth=email', snapshot['nextBestAction']['ctaPath'])
+        self.assertIn('/setup-key-recovery', snapshot['nextBestAction']['ctaPath'])
+        self.assertIn('signup_to_key_recovery', snapshot['nextBestAction']['ctaPath'])
+        self.assertIn('source_surface=operator_activation', snapshot['nextBestAction']['ctaPath'])
         self.assertEqual(1, snapshot['nextBestAction']['evidence']['noKeyFollowUpsQueued'])
         self.assertEqual(1, snapshot['nextBestAction']['evidence']['sendableQueued'])
         self.assertEqual(0, snapshot['nextBestAction']['evidence']['reviewOnlyQueued'])
@@ -2242,9 +2248,11 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('not_required', packet['segmentActions'][0]['segment'])
         self.assertIn('start=create_key', packet['recoveryUrls']['passwordFallback'])
         self.assertIn('auth=email', packet['recoveryUrls']['passwordFallback'])
+        self.assertIn('/setup-key-recovery?', packet['recoveryUrls']['setupKeyRecovery'])
         self.assertIn('auth=github', packet['recoveryUrls']['githubOAuth'])
         self.assertIn('Finish your Sage Router setup key', packet['draft']['subject'])
-        self.assertIn('same email/password path first', packet['draft']['body'])
+        self.assertIn('same-email setup link', packet['draft']['body'])
+        self.assertIn('same email/password fallback', packet['draft']['body'])
         self.assertIn('operator_no_key_followup_batch_copied', packet['telemetry']['copyEvents'])
         self.assertIn('account_key_recovery_viewed', packet['telemetry']['recoveryViewEvents'])
         self.assertIn('account_api_key_create_clicked', packet['telemetry']['keyCreateAttemptEvents'])
@@ -2423,13 +2431,14 @@ class SaaSAuthTests(unittest.TestCase):
             'windowedNewSignups': 2,
             'countsByEmailVerification': {'verified': 1, 'unverified': 1},
             'suggestedPlan': 'pro',
-            'primaryCtaKind': 'same_email_password',
-            'primaryCtaUrl': 'https://app.sagerouter.dev/login.html?start=create_key&plan=pro&auth=email',
+            'primaryCtaKind': 'setup_key_recovery',
+            'primaryCtaUrl': 'https://sagerouter.dev/setup-key-recovery?utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&plan=pro',
             'primaryCtaUrls': {
+                'setupKeyRecovery': 'https://sagerouter.dev/setup-key-recovery?utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&plan=pro',
                 'passwordFallback': 'https://app.sagerouter.dev/login.html?start=create_key&plan=pro&auth=email',
                 'githubOAuth': 'https://app.sagerouter.dev/account.html?start=create_key&plan=pro&auth=github',
             },
-            'recommendedCtaOrder': ['passwordFallback', 'githubOAuth'],
+            'recommendedCtaOrder': ['setupKeyRecovery', 'passwordFallback', 'githubOAuth'],
             'successMetric': 'Move no-key signups into generated-key accounts, then first routed request.',
             'privacy': privacy,
         }
@@ -2449,7 +2458,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, packet['sendableQueued'])
         self.assertEqual(0, packet['reviewOnlyQueued'])
         self.assertEqual(2, packet['windowedNewSignups'])
-        self.assertEqual(['passwordFallback', 'githubOAuth'], packet['recommendedCtaOrder'])
+        self.assertEqual(['setupKeyRecovery', 'passwordFallback', 'githubOAuth'], packet['recommendedCtaOrder'])
+        self.assertIn('/setup-key-recovery?', packet['recoveryUrls']['setupKeyRecovery'])
         self.assertEqual(['verified', 'unverified'], [row['segment'] for row in packet['segmentActions']])
         self.assertTrue(packet['segmentActions'][0]['sendable'])
         self.assertEqual('send', packet['segmentActions'][0]['deliveryMode'])

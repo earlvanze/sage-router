@@ -184,7 +184,7 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         "Review-only segments:",
         (segment_lines($segments; false; $dry)[]),
         "",
-        "Primary recovery CTA: \($followups.primaryCtaUrl // $packet.recoveryUrls.passwordFallback // "https://app.sagerouter.dev/login.html?plan=pro&start=create_key").",
+        "Primary recovery CTA: \($followups.primaryCtaUrl // $packet.recoveryUrls.setupKeyRecovery // $packet.recoveryUrls.passwordFallback // "https://sagerouter.dev/setup-key-recovery?utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery").",
         "Success metric: \($followups.successMetric // $packet.telemetry.successMetric // "Move no-key signups into generated-key accounts, then first routed request.")",
         "",
         "Safe command handoff:",

@@ -7492,7 +7492,8 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
     urls = activation_follow_ups.get('primaryCtaUrls') if isinstance(activation_follow_ups.get('primaryCtaUrls'), dict) else {}
     if not urls:
         urls = launch_activation_follow_up_urls(plan)
-    password_url = urls.get('passwordFallback') or activation_follow_ups.get('primaryCtaUrl') or launch_activation_follow_up_url(plan, auth=False)
+    setup_url = urls.get('setupKeyRecovery') or activation_follow_ups.get('setupKeyRecovery') or activation_follow_ups.get('primaryCtaUrl') or launch_setup_key_recovery_url(plan)
+    password_url = urls.get('passwordFallback') or launch_activation_follow_up_url(plan, auth=False)
     github_url = urls.get('githubOAuth') or launch_activation_follow_up_url(plan, auth='github')
     counts = activation_follow_ups.get('countsByEmailVerification') if isinstance(activation_follow_ups.get('countsByEmailVerification'), dict) else {}
     evidence = next_best_action.get('evidence') if isinstance(next_best_action.get('evidence'), dict) else {}
@@ -7589,8 +7590,9 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
     draft_subject = 'Finish your Sage Router setup key'
     draft_body = (
         'You already started Sage Router. The next step is to create your generated sk_sage setup key before checkout or routing setup.\n\n'
-        f'Use the same email/password path first: {password_url}\n'
-        f'If you signed in with GitHub, use this path instead: {github_url}\n\n'
+        f'Start here; this page can send the same-email setup link and keeps the key-first path focused: {setup_url}\n\n'
+        f'If the recovery page does not open the existing account, use the same email/password fallback: {password_url}\n'
+        f'Use GitHub/OAuth only if it is the same account you used before: {github_url}\n\n'
         'No provider key, prompt text, OAuth token, generated API key, or checkout is needed before the setup key exists.'
     )
     return {
@@ -7623,9 +7625,10 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
         'sendTelemetry': send_telemetry,
         'segmentCounts': counts or {},
         'segmentActions': segment_actions,
-        'primaryCtaKind': activation_follow_ups.get('primaryCtaKind') or 'same_email_password',
-        'recommendedCtaOrder': activation_follow_ups.get('recommendedCtaOrder') or ['passwordFallback', 'githubOAuth'],
+        'primaryCtaKind': activation_follow_ups.get('primaryCtaKind') or 'setup_key_recovery',
+        'recommendedCtaOrder': activation_follow_ups.get('recommendedCtaOrder') or ['setupKeyRecovery', 'passwordFallback', 'githubOAuth'],
         'recoveryUrls': {
+            'setupKeyRecovery': setup_url,
             'passwordFallback': password_url,
             'githubOAuth': github_url,
         },
@@ -9707,9 +9710,22 @@ def launch_activation_follow_up_url(plan='pro', auth='github'):
     return f'{APP_BASE_URL.rstrip("/")}/{path}?{query}'
 
 
+def launch_setup_key_recovery_url(plan='pro'):
+    plan = normalize_stripe_plan(plan) or 'pro'
+    params = {
+        'plan': plan,
+        'utm_source': 'operator',
+        'utm_medium': 'launch_funnel',
+        'utm_campaign': 'signup_to_key_recovery',
+        'source_surface': 'operator_activation',
+    }
+    return f'{MARKETING_BASE_URL.rstrip("/")}/setup-key-recovery?{urllib.parse.urlencode(params)}'
+
+
 def launch_activation_follow_up_urls(plan='pro'):
     plan = normalize_stripe_plan(plan) or 'pro'
     return {
+        'setupKeyRecovery': launch_setup_key_recovery_url(plan),
         'githubOAuth': launch_activation_follow_up_url(plan, auth='github'),
         'passwordFallback': launch_activation_follow_up_url(plan, auth=False),
     }
@@ -9724,11 +9740,12 @@ def operator_customer_follow_up(customer, activation=None, email_verification=No
     return {
         'nextAction': activation.get('nextAction') or 'create_key',
         'suggestedPlan': plan,
-        'primaryCtaKind': 'same_email_password',
-        'primaryCtaUrl': urls['passwordFallback'],
+        'primaryCtaKind': 'setup_key_recovery',
+        'primaryCtaUrl': urls['setupKeyRecovery'],
+        'setupKeyRecovery': urls['setupKeyRecovery'],
         'passwordFallback': urls['passwordFallback'],
         'githubOAuth': urls['githubOAuth'],
-        'recommendedCtaOrder': ['passwordFallback', 'githubOAuth'],
+        'recommendedCtaOrder': ['setupKeyRecovery', 'passwordFallback', 'githubOAuth'],
         'emailVerificationSegment': verification_bucket,
         'utmCampaign': 'signup_to_key_recovery',
         'privacy': {
@@ -9751,6 +9768,7 @@ def operator_activation_contact_subject(segment):
 def operator_activation_contact_body(plan, urls, segment):
     plan = normalize_stripe_plan(plan) or 'pro'
     segment = str(segment or 'all').lower()
+    setup_url = (urls or {}).get('setupKeyRecovery') or launch_setup_key_recovery_url(plan)
     password_url = (urls or {}).get('passwordFallback') or launch_activation_follow_up_url(plan, auth=False)
     github_url = (urls or {}).get('githubOAuth') or launch_activation_follow_up_url(plan, auth='github')
     intro = (
@@ -9767,6 +9785,10 @@ def operator_activation_contact_body(plan, urls, segment):
         intro,
         '',
         next_step,
+        'Start with this recovery page; it can send the same-email setup link and keeps the key-first path focused:',
+        setup_url,
+        '',
+        'If the recovery page does not open your existing account, use the same-email login fallback:',
         password_url,
         '',
         'Use GitHub/OAuth only if it is the same account you used before:',
@@ -9784,6 +9806,7 @@ def operator_activation_contact_csv(contacts):
         'segment',
         'plan',
         'next_action',
+        'setup_key_recovery_url',
         'same_email_recovery_url',
         'github_oauth_url',
         'subject',
@@ -9794,6 +9817,7 @@ def operator_activation_contact_csv(contacts):
             contact.get('emailVerificationSegment') or '',
             contact.get('suggestedPlan') or '',
             contact.get('nextAction') or '',
+            contact.get('setupKeyRecovery') or '',
             contact.get('passwordFallback') or '',
             contact.get('githubOAuth') or '',
             contact.get('subject') or '',
@@ -9828,6 +9852,7 @@ def operator_activation_contact_export(customers):
         plan = follow_up.get('suggestedPlan') or 'pro'
         subject = operator_activation_contact_subject(segment)
         urls = {
+            'setupKeyRecovery': follow_up.get('setupKeyRecovery') or follow_up.get('primaryCtaUrl'),
             'passwordFallback': follow_up.get('passwordFallback') or follow_up.get('primaryCtaUrl'),
             'githubOAuth': follow_up.get('githubOAuth'),
         }
@@ -9840,6 +9865,7 @@ def operator_activation_contact_export(customers):
             'nextAction': activation.get('nextAction') or 'create_key',
             'subject': subject,
             'body': operator_activation_contact_body(plan, urls, segment),
+            'setupKeyRecovery': urls['setupKeyRecovery'],
             'passwordFallback': urls['passwordFallback'],
             'githubOAuth': urls['githubOAuth'],
         })
@@ -10337,9 +10363,9 @@ def launch_activation_follow_ups(customers, api_keys, since=0, now=None, auth_us
         'countsByEmailVerification': counts_by_email_verification,
         'oldestCreatedAtEpoch': oldest_created_at,
         'newestCreatedAtEpoch': newest_created_at,
-        'primaryCtaUrl': launch_activation_follow_up_url(primary_plan, auth=False),
-        'primaryCtaKind': 'same_email_password',
-        'recommendedCtaOrder': ['passwordFallback', 'githubOAuth'],
+        'primaryCtaUrl': launch_setup_key_recovery_url(primary_plan),
+        'primaryCtaKind': 'setup_key_recovery',
+        'recommendedCtaOrder': ['setupKeyRecovery', 'passwordFallback', 'githubOAuth'],
         'primaryCtaUrls': launch_activation_follow_up_urls(primary_plan),
         'recommendedOperatorAction': 'Send the no-secret generated-key-first follow-up before asking for checkout or routing setup.',
         'successMetric': 'Move no-key signups into generated-key accounts, then first routed request.',
