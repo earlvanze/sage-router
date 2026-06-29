@@ -247,9 +247,12 @@ curl -i "$OPENAI_BASE_URL/models" \
       const sourceSurface = attributionValue(params.get('source_surface') || params.get('sourceSurface'));
       const setup = attributionValue(params.get('setup'));
       const auto = attributionValue(params.get('auto') || params.get('autostart'));
+      const utmSource = attributionValue(params.get('utm_source') || params.get('utmSource'));
+      const utmCampaign = attributionValue(params.get('utm_campaign') || params.get('utmCampaign'));
       return sourceSurface === 'operator_activation'
         || sourceSurface === 'recovery'
         || setup === 'login-key-recovery'
+        || (utmSource === 'api-auth' && utmCampaign === 'signup_to_key_recovery')
         || auto === 'account'
         || auto === 'setup';
     }
@@ -259,11 +262,14 @@ curl -i "$OPENAI_BASE_URL/models" \
       const target = new URL(SETUP_RECOVERY_ACCOUNT_URL);
       const sourceSurface = attributionValue(params.get('source_surface') || params.get('sourceSurface'));
       const setup = attributionValue(params.get('setup'));
+      const utmSource = attributionValue(params.get('utm_source') || params.get('utmSource'));
+      const utmCampaign = attributionValue(params.get('utm_campaign') || params.get('utmCampaign'));
       ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content'].forEach((name) => {
         const value = params.get(name) || params.get(name.replace('utm_', 'utm'));
         if (value) target.searchParams.set(name, value);
       });
       if (sourceSurface) target.searchParams.set('source_surface', sourceSurface);
+      else if (utmSource === 'api-auth' && utmCampaign === 'signup_to_key_recovery') target.searchParams.set('source_surface', 'api-auth');
       if (setup) target.searchParams.set('setup', setup);
       target.searchParams.set('next', 'generated-key');
       return target.toString();
@@ -274,9 +280,12 @@ curl -i "$OPENAI_BASE_URL/models" \
       const sourceSurface = attributionValue(params.get('source_surface') || params.get('sourceSurface'));
       const setup = attributionValue(params.get('setup'));
       const auto = attributionValue(params.get('auto') || params.get('autostart'));
+      const utmSource = attributionValue(params.get('utm_source') || params.get('utmSource'));
+      const utmCampaign = attributionValue(params.get('utm_campaign') || params.get('utmCampaign'));
       if (sourceSurface === 'operator_activation') return 'operator_activation';
       if (setup === 'login-key-recovery') return 'login-key-recovery';
       if (sourceSurface === 'recovery') return 'recovery';
+      if (utmSource === 'api-auth' && utmCampaign === 'signup_to_key_recovery') return 'api-auth';
       if (auto) return `auto_${auto}`;
       return 'recovery_auto';
     }
@@ -295,7 +304,7 @@ curl -i "$OPENAI_BASE_URL/models" \
       const status = document.getElementById('setup-key-recovery-next-status');
       if (status) status.textContent = 'Opening account setup so the generated key can be created...';
       trackSetupRecoveryEvent('setup_key_recovery_auto_account_redirected', {
-        button: state === 'operator_activation' ? 'operator-auto-account-setup' : 'recovery-auto-account-setup',
+        button: state === 'operator_activation' ? 'operator-auto-account-setup' : (state === 'api-auth' ? 'api-auth-auto-account-setup' : 'recovery-auto-account-setup'),
         state,
         target: targetUrl,
       });

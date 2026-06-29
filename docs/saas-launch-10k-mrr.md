@@ -146,9 +146,10 @@ feature flag.
 - Keep `/setup-key-recovery` as the public no-key signup recovery destination
   for API 401 `keyRecoveryUrl` handoffs, public marketing/docs/status/support
   recovery CTAs, and operator signup-to-key follow-up drafts, with the direct
-  same-email setup-link form as the primary CTA, app login retained as fallback,
-  direct GitHub same-OAuth account return, generated-key-before-checkout setup,
-  and placeholder setup-copy
+  API-auth recovery handoff auto-opening account setup when `utm_source=api-auth`
+  plus `signup_to_key_recovery` are present, the same-email setup-link form
+  retained, app login retained as fallback, direct GitHub same-OAuth account
+  return, generated-key-before-checkout setup, and placeholder setup-copy
   telemetry. Operator packets should use it as the primary CTA while retaining
   app-hosted same-email/password and GitHub/OAuth fallbacks. It may route
   one-subscription interest to managed-access beta review, but public managed

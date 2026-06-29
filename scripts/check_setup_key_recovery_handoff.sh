@@ -67,11 +67,13 @@ fi
 grep -q 'Finish Sage Router Setup Key' "$tmp_body" || fail 'setup-key recovery page missing title'
 grep -q 'same email or GitHub identity' "$tmp_body" || fail 'setup-key recovery page missing same-identity guidance'
 grep -q 'operator-auto-account-setup' "$tmp_body" || fail 'setup-key recovery page missing operator auto-account handoff'
+grep -q 'api-auth-auto-account-setup' "$tmp_body" || fail 'setup-key recovery page missing API-auth auto-account handoff'
 grep -q 'recovery-auto-account-setup' "$tmp_body" || fail 'setup-key recovery page missing recovery auto-account handoff'
 grep -q 'setup_key_recovery_auto_account_redirected' "$tmp_body" || fail 'setup-key recovery page missing auto-account telemetry'
 grep -q 'setup_key_recovery_next_account_clicked' "$tmp_body" || fail 'setup-key recovery page missing next-account telemetry'
 grep -q "sourceSurface === 'recovery'" "$tmp_body" || fail 'setup-key recovery page does not auto-open recovery source_surface traffic'
 grep -q "setup === 'login-key-recovery'" "$tmp_body" || fail 'setup-key recovery page does not auto-open login-key-recovery traffic'
+grep -q "utmSource === 'api-auth' && utmCampaign === 'signup_to_key_recovery'" "$tmp_body" || fail 'setup-key recovery page does not auto-open API-auth recovery traffic'
 grep -q "if (sourceSurface) target.searchParams.set('source_surface', sourceSurface)" "$tmp_body" || fail 'setup-key recovery page does not preserve source_surface'
 grep -q "if (setup) target.searchParams.set('setup', setup)" "$tmp_body" || fail 'setup-key recovery page does not preserve setup source'
 grep -q 'target.searchParams.set('\''next'\'', '\''generated-key'\'')' "$tmp_body" || fail 'setup-key recovery page does not preserve generated-key next step'
@@ -100,6 +102,13 @@ post_smoke_event \
   "${page_url}&setup=login-key-recovery&source_surface=recovery" \
   "$account_target" \
   'login-key-recovery'
+
+post_smoke_event \
+  'setup_key_recovery_auto_account_redirected' \
+  "$MARKETING_BASE" \
+  "${MARKETING_BASE%/}/setup-key-recovery?utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&smoke=1" \
+  "${APP_BASE%/}/account?plan=pro&start=create_key&utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=api-auth&next=generated-key" \
+  'api-auth'
 
 post_smoke_event \
   'login_key_recovery_account_setup_auto_redirected' \
