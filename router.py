@@ -7502,6 +7502,9 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
     operator_follow_up_send_failure_recipients = int(activation_follow_ups.get('operatorFollowUpSendFailureRecipients') or 0)
     key_first_redirects = int(activation_follow_ups.get('keyFirstRedirects') or 0)
     key_recovery_views = int(activation_follow_ups.get('keyRecoveryViews') or 0)
+    key_create_attempts = int(activation_follow_ups.get('keyCreateAttempts') or 0)
+    key_create_successes = int(activation_follow_ups.get('keyCreateSuccesses') or 0)
+    key_create_failures = int(activation_follow_ups.get('keyCreateFailures') or 0)
     signups = int(stages.get('signups') or 0)
     generated_keys = int(stages.get('customersWithGeneratedApiKeys') or stages.get('generatedApiKeys') or 0)
     first_requests = int(stages.get('customersWithFirstRoutedRequest') or stages.get('firstRoutedRequest') or 0)
@@ -7510,6 +7513,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
     signup_to_key_below_target = signup_to_key_rate is None or float(signup_to_key_rate or 0) < float(LAUNCH_CONVERSION_TARGETS['signupToGeneratedKey']['targetRate'])
     if no_key_total > 0 and signup_to_key_below_target:
         outreach_not_worked = operator_follow_up_worked <= 0
+        recovery_dropoff = key_recovery_views > 0 and key_create_attempts <= 0
         verification_counts = activation_follow_ups.get('countsByEmailVerification') if isinstance(activation_follow_ups, dict) else {}
         delivery_counts = launch_activation_delivery_counts(activation_follow_ups, verification_counts, no_key_total)
         recommended_segments = [
@@ -7518,20 +7522,55 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
         ]
         no_key_anchor = 'no-key-followups:segments' if len(recommended_segments) > 1 else 'no-key-followups'
         execution_checklist = launch_no_key_execution_checklist(recommended_segments, outreach_not_worked)
+        if recovery_dropoff:
+            execution_checklist = [
+                {
+                    'step': 1,
+                    'segment': 'recovery_dropoff',
+                    'action': 'Verify the setup-key recovery landing path from same-email login through account auto-key creation before sending more recovery traffic.',
+                    'successMetric': 'keyCreateAttempts increases after keyRecoveryViews without storing emails or generated keys.',
+                },
+                {
+                    'step': 2,
+                    'segment': 'same_email',
+                    'action': 'Use the public setup-key recovery page and same-email setup link as the primary recovery path.',
+                    'successMetric': 'setup_key_recovery_magic_link_sent or login_key_recovery_magic_link_sent appears before key creation.',
+                },
+                {
+                    'step': 3,
+                    'segment': 'account_setup',
+                    'action': 'Confirm the account page opens with start=create_key and records account_key_recovery_auto_create_started.',
+                    'successMetric': 'keyCreateAttempts and then keyCreateSuccesses move above zero.',
+                },
+                {
+                    'step': 4,
+                    'segment': 'operator_outreach',
+                    'action': 'After the recovery-to-key path is verified, send or copy only the sendable verified/unverified follow-up drafts.',
+                    'successMetric': 'operatorFollowUpSends or operatorFollowUpCopies increases before more keyRecoveryViews.',
+                },
+            ]
         return {
             'metric': 'signupToGeneratedKey',
             'priority': 'fix_now',
             'owner': 'Activation',
-            'surface': 'launch funnel' if outreach_not_worked else 'account',
+            'surface': 'setup-key recovery' if recovery_dropoff else ('launch funnel' if outreach_not_worked else 'account'),
             'ctaPath': (
+                activation_follow_ups.get('primaryCtaUrl') or launch_setup_key_recovery_url(activation_follow_ups.get('suggestedPlan') or 'pro')
+                if recovery_dropoff
+                else (
                 f'{APP_BASE_URL.rstrip("/")}/launch-funnel.html#{no_key_anchor}'
                 if outreach_not_worked
                 else activation_follow_ups.get('primaryCtaUrl') or launch_activation_follow_up_url(activation_follow_ups.get('suggestedPlan') or 'pro')
+                )
             ),
             'action': (
+                'Recovery pages are getting views but no key-create attempts. Verify and tighten the same-email setup-key handoff before sending more activation traffic.'
+                if recovery_dropoff
+                else (
                 'Open the operator no-key signup queue, send the sendable verified/unverified drafts, review auth-repair segments separately, then mark the worked segment through the launch funnel telemetry.'
                 if outreach_not_worked
                 else activation_follow_ups.get('recommendedOperatorAction') or 'Send the generated-key-first recovery link to no-key signups.'
+                )
             ),
             'executionChecklist': execution_checklist,
             'successMetric': activation_follow_ups.get('successMetric') or 'Move no-key signups into generated-key accounts, then first routed request.',
@@ -7561,12 +7600,13 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 'keyFirstRedirectsByState': activation_follow_ups.get('keyFirstRedirectsByState') or {},
                 'keyRecoveryViews': key_recovery_views,
                 'keyRecoveryViewsByState': activation_follow_ups.get('keyRecoveryViewsByState') or {},
-                'keyCreateAttempts': int(activation_follow_ups.get('keyCreateAttempts') or 0),
+                'keyCreateAttempts': key_create_attempts,
                 'keyCreateAttemptsByState': activation_follow_ups.get('keyCreateAttemptsByState') or {},
-                'keyCreateSuccesses': int(activation_follow_ups.get('keyCreateSuccesses') or 0),
+                'keyCreateSuccesses': key_create_successes,
                 'keyCreateSuccessesByState': activation_follow_ups.get('keyCreateSuccessesByState') or {},
-                'keyCreateFailures': int(activation_follow_ups.get('keyCreateFailures') or 0),
+                'keyCreateFailures': key_create_failures,
                 'keyCreateFailuresByState': activation_follow_ups.get('keyCreateFailuresByState') or {},
+                'recoveryDropoff': recovery_dropoff,
                 'emailVerification': verification_counts or {},
                 'recommendedSegments': recommended_segments,
                 'signupToGeneratedKey': signup_to_key_rate,

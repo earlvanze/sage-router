@@ -2602,6 +2602,60 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('launch funnel', copied_only['surface'])
         self.assertIn('/launch-funnel.html#no-key-followups:segments', copied_only['ctaPath'])
 
+    def test_next_best_action_flags_recovery_views_without_key_attempts(self):
+        stages = {
+            'signups': 4,
+            'customersWithGeneratedApiKeys': 1,
+            'customersWithFirstRoutedRequest': 1,
+            'paidCustomers': 2,
+        }
+        rates = {'signupToGeneratedKey': 0.25}
+        activation_follow_ups = {
+            'total': 4,
+            'windowedNewSignups': 4,
+            'operatorFollowUpCopies': 0,
+            'operatorFollowUpWorked': 0,
+            'operatorFollowUpSendDryRuns': 3,
+            'keyRecoveryViews': 8,
+            'keyRecoveryViewsByState': {'login_create_key': 8},
+            'keyCreateAttempts': 0,
+            'keyCreateSuccesses': 0,
+            'countsByEmailVerification': {
+                'verified': 1,
+                'unverified': 1,
+                'missing_auth_user': 2,
+            },
+            'suggestedPlan': 'pro',
+            'primaryCtaUrl': 'https://sagerouter.dev/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation',
+            'privacy': {
+                'containsEmails': False,
+                'containsCustomerIds': False,
+                'containsApiKeys': False,
+                'containsProviderCredentials': False,
+            },
+        }
+
+        action = router.launch_next_best_action(
+            stages,
+            rates,
+            {'estimatedCurrentMrrUsd': 60, 'targetMrrUsd': 10000},
+            activation_follow_ups,
+            [],
+        )
+
+        self.assertEqual('signupToGeneratedKey', action['metric'])
+        self.assertEqual('setup-key recovery', action['surface'])
+        self.assertIn('/setup-key-recovery', action['ctaPath'])
+        self.assertIn('Recovery pages are getting views but no key-create attempts', action['action'])
+        self.assertTrue(action['evidence']['recoveryDropoff'])
+        self.assertEqual(8, action['evidence']['keyRecoveryViews'])
+        self.assertEqual(0, action['evidence']['keyCreateAttempts'])
+        self.assertEqual(2, action['evidence']['sendableQueued'])
+        self.assertEqual(2, action['evidence']['reviewOnlyQueued'])
+        self.assertEqual('recovery_dropoff', action['executionChecklist'][0]['segment'])
+        self.assertIn('account_key_recovery_auto_create_started', action['executionChecklist'][2]['action'])
+        self.assertFalse(action['privacy']['containsEmails'])
+
     def test_activation_delivery_counts_mark_auth_repair_review_only(self):
         delivery = router.launch_activation_delivery_counts({
             'total': 4,
