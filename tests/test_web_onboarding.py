@@ -3057,6 +3057,9 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("Request private-beta review", page)
         self.assertIn("SAGEROUTER_MARKETING_BASE_URL", readiness)
         self.assertIn("marketing model gateway and OpenRouter comparison pages are live in sitemap and LLM discovery", readiness)
+        self.assertIn("missing-openrouter-setup-copy", readiness)
+        self.assertIn("missing-openrouter-setup-copy-telemetry", readiness)
+        self.assertIn("missing-openrouter-setup-next", readiness)
 
     def test_openrouter_comparison_routes_one_subscription_demand_to_private_beta(self):
         page = self.read_text("web", "public", "compare", "openrouter.html")
@@ -5013,6 +5016,9 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("records `quickstart_snippet_copied` with `fusion-setup-bundle`", readme)
         self.assertIn("check_marketing_fusion_page", readiness)
         self.assertIn("missing-fusion-managed-access-funnel", readiness)
+        self.assertIn("missing-fusion-setup-copy", readiness)
+        self.assertIn("missing-fusion-setup-copy-telemetry", readiness)
+        self.assertIn("missing-fusion-setup-next", readiness)
         self.assertIn("marketing Fusion premium page is live in sitemap and LLM discovery", readiness)
         self.assertIn("Dedicated Fusion page at `/fusion`", web_readme)
         self.assertIn("fusion_plan_required", quickstart)

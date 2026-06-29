@@ -1852,6 +1852,15 @@ check_marketing_comparison_page() {
   if [[ "$openrouter_code" == "200" ]] && ! grep -q "signup_to_key_recovery" /tmp/sage-router-readiness-body; then
     openrouter_code="200:missing-openrouter-key-recovery-campaign"
   fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "openrouter-copy-setup" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-openrouter-setup-copy"
+  fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "openrouter-comparison-setup-bundle" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-openrouter-setup-copy-telemetry"
+  fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "openrouter-copy-next-account" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-openrouter-setup-next"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
@@ -3495,6 +3504,15 @@ check_marketing_fusion_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "fusion_oauth_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-fusion-oauth-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "fusion-copy-setup" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-fusion-setup-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "fusion-setup-bundle" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-fusion-setup-copy-telemetry"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "fusion-copy-next-account" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-fusion-setup-next"
   fi
   rm -f /tmp/sage-router-readiness-body
 
