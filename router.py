@@ -2669,6 +2669,9 @@ def managed_provider_resale_readiness_setup(enabled=False):
     terms_approval_command = (
         "scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet"
     )
+    authorization_packet_command = (
+        "scripts/configure_managed_provider_resale_readiness.sh --authorization-packet"
+    )
     unit_economics_command = (
         "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' "
         "scripts/configure_managed_provider_resale_readiness.sh --unit-economics"
@@ -2685,6 +2688,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
         'stagePublicControlsCommand': '' if enabled else stage_public_controls_command,
         'dryRunCommand': dry_run_command,
         'termsApprovalCommand': terms_approval_command,
+        'authorizationPacketCommand': authorization_packet_command,
         'unitEconomicsCommand': unit_economics_command,
         'enableCommandTemplate': enable_command_template,
         'requiredEnv': [] if enabled else [
@@ -3083,6 +3087,7 @@ def compact_managed_provider_readiness(pricing_metadata):
             'stagePublicControlsCommand': setup.get('stagePublicControlsCommand') or '',
             'dryRunCommand': setup.get('dryRunCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --check',
             'termsApprovalCommand': setup.get('termsApprovalCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet',
+            'authorizationPacketCommand': setup.get('authorizationPacketCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet',
             'unitEconomicsCommand': setup.get('unitEconomicsCommand') or '',
             'enableCommandTemplate': setup.get('enableCommandTemplate') or '',
             'requiredEnv': setup.get('requiredEnv') if isinstance(setup.get('requiredEnv'), list) else [],

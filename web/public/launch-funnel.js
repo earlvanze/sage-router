@@ -1232,6 +1232,7 @@ function managedAccessApprovalPacketText(data = {}) {
   const actions = Array.isArray(managed.nextActions) ? managed.nextActions : [];
   const plans = Array.isArray(unitEconomics.evaluatedPlans) ? unitEconomics.evaluatedPlans : [];
   const termsCommand = setup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
+  const authorizationPacketCommand = setup.authorizationPacketCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet';
   const dryRunCommand = setup.dryRunCommand || 'scripts/configure_managed_provider_resale_readiness.sh --check';
   const unitEconomicsCommand = setup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
   const stagePublicControlsCommand = setup.stagePublicControlsCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
@@ -1270,6 +1271,7 @@ function managedAccessApprovalPacketText(data = {}) {
     '',
     'Secret-safe commands',
     `- Terms approval packet: ${termsCommand}`,
+    `- Authorization evidence packet: ${authorizationPacketCommand}`,
     `- Resale dry-run: ${dryRunCommand}`,
     `- Unit-economics preflight: ${unitEconomicsCommand}`,
     `- Stage public controls without private cost: ${stagePublicControlsCommand}`,
@@ -1285,6 +1287,7 @@ function managedAccessCommand(button, data = {}) {
   const setup = managed.readinessSetup || {};
   const kind = button.getAttribute('data-copy-managed-command') || '';
   if (kind === 'terms-approval') return setup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
+  if (kind === 'authorization-packet') return setup.authorizationPacketCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet';
   if (kind === 'unit-economics') return setup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
   if (kind === 'stage-public-controls') return setup.stagePublicControlsCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
   if (kind === 'stage') return setup.setupCommand || setup.stagePublicControlsCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
@@ -1336,6 +1339,7 @@ function renderManagedAccessReadiness(data = {}) {
   <div class="actions">
     <button class="btn secondary" type="button" data-copy-managed-access-packet="${esc(approvalPacket)}">Copy managed-access packet</button>
     <button class="btn secondary" type="button" data-copy-managed-command="terms-approval">Copy terms packet command</button>
+    <button class="btn secondary" type="button" data-copy-managed-command="authorization-packet">Copy authorization packet</button>
     <button class="btn secondary" type="button" data-copy-managed-command="dry-run">Copy resale dry-run</button>
     <button class="btn secondary" type="button" data-copy-managed-command="unit-economics">Copy unit-economics preflight</button>
     <button class="btn secondary" type="button" data-copy-managed-command="stage-public-controls">Copy public-control staging</button>

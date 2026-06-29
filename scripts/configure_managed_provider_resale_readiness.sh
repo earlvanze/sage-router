@@ -51,7 +51,7 @@ BYOK_ONLY_PROVIDER_FAMILIES="openrouter"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--terms-approval-packet|--stage-public-controls|--unit-economics]
+Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--terms-approval-packet|--stage-public-controls|--unit-economics]
 
 Stage Sage Router managed provider-access readiness on Cloud Run.
 
@@ -80,6 +80,10 @@ Options:
                            Cloud Run binding presence, safe plan thresholds, and
                            next commands. It never prints provider costs or
                            authorization references.
+  --authorization-packet   Print the no-secret provider authorization evidence
+                           checklist and evidence-reference format. It never
+                           prints authorization evidence values or provider
+                           cost values.
   --terms-approval-packet  Print the no-secret provider-terms acknowledgment
                            review packet. It separates the terms decision from
                            the private cost model and never prints provider
@@ -110,6 +114,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --operator-packet)
       MODE="operator-packet"
+      shift
+      ;;
+    --authorization-packet)
+      MODE="authorization-packet"
       shift
       ;;
     --terms-approval-packet)
@@ -441,6 +449,69 @@ managed_provider_operator_packet() {
   printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false.\n'
 }
 
+managed_provider_authorization_packet() {
+  require_cmd curl
+  require_cmd jq
+
+  local body code allowed eligible byok missing auth_evidence terms_ack cost_configured unit_satisfied configured
+  body="$(mktemp)"
+  code="$(curl -sS -o "$body" -w '%{http_code}' https://api.sagerouter.dev/pricing || printf '000')"
+
+  printf 'Sage Router managed provider authorization packet\n'
+  printf 'Boundary: read-only authorization-evidence checklist; no provider credentials, authorization evidence values, provider account IDs, actual provider costs, prompts, OAuth tokens, generated API keys, customer data, or raw provider responses.\n'
+  printf 'Effect: this command does not acknowledge terms, write secrets, deploy Cloud Run, enable managed resale, or send customer email.\n\n'
+
+  if [[ "$code" == "200" ]]; then
+    allowed="$(jq -r '(.publicLaunch.managedProviderAccess.allowedProviderFamilies // []) | join(", ")' "$body")"
+    eligible="$(jq -r '(.publicLaunch.managedProviderAccess.resaleEligibleProviderFamilies // []) | join(", ")' "$body")"
+    byok="$(jq -r '(.publicLaunch.managedProviderAccess.byokOnlyProviderFamilies // []) | join(", ")' "$body")"
+    missing="$(jq -r '(.publicLaunch.managedProviderAccess.missingControls // []) | join(", ")' "$body")"
+    auth_evidence="$(jq -r '.publicLaunch.managedProviderAccess.providerAuthorizationEvidenceConfigured // false' "$body")"
+    terms_ack="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsAcknowledged // false' "$body")"
+    cost_configured="$(jq -r '.publicLaunch.managedProviderAccess.unitEconomics.costModelConfigured // false' "$body")"
+    unit_satisfied="$(jq -r '.publicLaunch.managedProviderAccess.unitEconomics.satisfied // false' "$body")"
+    configured="$(jq -r '(.publicLaunch.managedProviderAccess.configuredProviderFamilies // []) | join(", ")' "$body")"
+
+    printf 'Public decision inputs:\n'
+    printf -- '- configured provider families: %s\n' "${configured:-none}"
+    printf -- '- allowed managed families: %s\n' "${allowed:-none}"
+    printf -- '- resale-eligible families: %s\n' "${eligible:-none}"
+    printf -- '- BYOK-only families excluded from managed resale: %s\n' "${byok:-none}"
+    printf -- '- missing controls: %s\n' "${missing:-none}"
+    printf -- '- authorization evidence configured: %s\n' "$auth_evidence"
+    printf -- '- terms acknowledged: %s\n' "$terms_ack"
+    printf -- '- cost model configured: %s; unit economics satisfied: %s\n\n' "$cost_configured" "$unit_satisfied"
+  else
+    printf 'Public decision inputs: unavailable HTTP %s from https://api.sagerouter.dev/pricing\n\n' "$code"
+  fi
+  rm -f "$body"
+
+  printf 'Evidence reference format:\n'
+  printf -- '- Store only a private reference string in SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF, such as provider-review-YYYYMMDD-doc-or-ticket-id.\n'
+  printf -- '- Do not paste the agreement, email thread, provider account ID, provider credential, or cost schedule into public metadata, PRs, logs, or support channels.\n'
+  printf -- '- The reference should point operators to the private artifact location and review date without revealing the artifact body.\n\n'
+
+  printf 'Provider-family authorization checklist:\n'
+  printf -- '- Ollama: confirm written permission or contract terms for any managed Ollama/Ollama Cloud access, allowed account type, quota/capacity limits, redistribution/resale boundary, abuse contact, and any model-family exclusions.\n'
+  printf -- '- OpenAI: confirm written permission or contract terms for managed OpenAI API access, resale or service-provider rights, end-customer usage obligations, region/data-processing constraints, rate/capacity limits, and abuse/termination requirements.\n'
+  printf -- '- Anthropic: confirm written permission or contract terms for managed Anthropic API access, resale or service-provider rights, customer-use restrictions, content-safety obligations, rate/capacity limits, and abuse/termination requirements.\n'
+  printf -- '- OpenRouter and BYOK-compatible gateways: keep them outside managed resale unless separate provider authorization explicitly promotes them into the resale-eligible allowlist.\n\n'
+
+  printf 'Approval checklist:\n'
+  printf -- '- Confirm provider authorization covers the exact provider families that will be allowlisted for managed resale.\n'
+  printf -- '- Confirm the provider terms do not prohibit bundled access, pooled credentials, resale, commercial proxying, or the planned customer category.\n'
+  printf -- '- Confirm customer terms, acceptable-use policy, quota/rate limits, revocation, operator audit events, and abuse review match provider obligations.\n'
+  printf -- '- Confirm the private provider cost candidate is reviewed separately with --unit-economics before any cost model is written.\n'
+  printf -- '- Keep SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=0 and SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0 until authorization evidence and private unit economics both pass.\n\n'
+
+  printf 'Safe next commands:\n'
+  printf '  scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet\n'
+  printf "  SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls\n"
+  printf "  SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n\n"
+
+  printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false.\n'
+}
+
 managed_provider_terms_approval_packet() {
   require_cmd curl
   require_cmd jq
@@ -529,6 +600,11 @@ fi
 
 if [[ "$MODE" == "operator-packet" ]]; then
   managed_provider_operator_packet
+  exit 0
+fi
+
+if [[ "$MODE" == "authorization-packet" ]]; then
+  managed_provider_authorization_packet
   exit 0
 fi
 

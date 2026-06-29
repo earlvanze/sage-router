@@ -1443,6 +1443,10 @@ class SaaSAuthTests(unittest.TestCase):
             setup['termsApprovalCommand'],
         )
         self.assertEqual(
+            'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet',
+            setup['authorizationPacketCommand'],
+        )
+        self.assertEqual(
             "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' "
             "scripts/configure_managed_provider_resale_readiness.sh --unit-economics",
             setup['unitEconomicsCommand'],
@@ -2360,6 +2364,10 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(
             'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet',
             managed_readiness['readinessSetup']['termsApprovalCommand'],
+        )
+        self.assertEqual(
+            'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet',
+            managed_readiness['readinessSetup']['authorizationPacketCommand'],
         )
         self.assertIn(
             "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST'",

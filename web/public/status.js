@@ -374,6 +374,7 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
       : `Missing ${(activation.requiredEnv || []).join(', ') || 'sender inputs'}; public readiness stays failed until this check passes.`);
   const managedDryRun = managedSetup.dryRunCommand || 'scripts/configure_managed_provider_resale_readiness.sh --check';
   const managedTermsApproval = managedSetup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
+  const managedAuthorizationPacket = managedSetup.authorizationPacketCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet';
   const managedUnitEconomics = managedSetup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
   const activationApprovalPacket = 'scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet';
   const cloudflareBicCheck = [
@@ -436,6 +437,16 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
       meta: 'Review provider terms, authorization-evidence presence, resale-eligible families, and BYOK-only exclusions before setting terms acknowledgment.',
       command: managedTermsApproval,
       copyEvent: 'status_managed_terms_approval_copied',
+    },
+    {
+      id: 'managed-authorization-packet',
+      title: 'Provider authorization evidence',
+      value: managed.providerAuthorizationEvidenceConfigured ? 'Evidence reference configured' : 'Evidence packet required',
+      badge: managed.providerAuthorizationEvidenceConfigured ? 'reference present' : 'no-secret review',
+      state: managed.providerAuthorizationEvidenceConfigured ? 'good' : 'warn',
+      meta: 'Prints the provider-family authorization checklist and private evidence-reference format without printing provider contracts, account IDs, credentials, costs, prompts, or raw responses.',
+      command: managedAuthorizationPacket,
+      copyEvent: 'status_managed_authorization_packet_copied',
     },
     {
       id: 'managed-unit-economics',

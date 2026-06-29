@@ -94,6 +94,17 @@ request until the full prerequisite set is present; the runtime must publish
 `missingControls` for incomplete configurations instead of advertising bundled
 provider access.
 
+Run `scripts/configure_managed_provider_resale_readiness.sh --authorization-packet`
+before acknowledging provider terms. The packet is safe to copy into operator
+review because it prints only the provider-family checklist and private
+evidence-reference format. It must not include provider contracts, account IDs,
+credentials, actual provider costs, prompts, OAuth tokens, generated API keys,
+or raw responses. The only value that belongs in runtime config is a private
+reference string in `SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF`, after the
+underlying Ollama/OpenAI/Anthropic authorization artifact has been reviewed out
+of band. OpenRouter remains BYOK-only unless a separate authorization review
+explicitly promotes it into the managed resale allowlist.
+
 The homepage, sticky activation bar, pricing page, and comparison pages can
 still measure demand for the future one-subscription path and Max
 implementation support by sending prospects to `/managed-access`. Homepage

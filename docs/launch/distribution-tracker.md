@@ -58,9 +58,10 @@ Live funnel snapshot from 2026-06-29 after Cloud Run revision
   and `anthropic`, while `openrouter` stays BYOK-only unless separately
   authorized. Operators should use
   `scripts/configure_managed_provider_resale_readiness.sh --operator-packet`,
-  `--stage-public-controls`, `--terms-approval-packet`, and `--unit-economics`
-  in that order, and should not run the default apply path until provider
-  authorization evidence and reviewed private cost are available.
+  `--stage-public-controls`, `--authorization-packet`,
+  `--terms-approval-packet`, and `--unit-economics` in that order, and should
+  not run the default apply path until provider authorization evidence and
+  reviewed private cost are available.
 - Email boundary: activation sender dry-run has covered the `2` sendable
   recipients, but real sending still requires explicit operator approval.
 - Acquisition signals: internal Sage Router navigation remains the largest

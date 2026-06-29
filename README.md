@@ -567,6 +567,7 @@ public resale or writing the private provider-cost model:
 ```bash
 scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
 scripts/configure_managed_provider_resale_readiness.sh --operator-packet
+scripts/configure_managed_provider_resale_readiness.sh --authorization-packet
 scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet
 scripts/configure_managed_provider_resale_readiness.sh --check
 ```
@@ -598,6 +599,15 @@ costs or authorization-reference values. Only set
 authorization evidence are approved out of band, and keep
 `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0` until the private
 cost-model and unit-economics preflight also pass.
+
+Use `--authorization-packet` before acknowledging terms to generate the
+provider-family authorization checklist and private evidence-reference format.
+It covers Ollama, OpenAI, and Anthropic review questions plus the OpenRouter
+BYOK-only boundary, but it does not print provider contracts, provider account
+IDs, credentials, actual provider costs, prompts, or raw responses. Store only a
+private reference string in `SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF`;
+keep the underlying agreement, email thread, ticket, or legal review artifact
+out of public metadata, PRs, logs, and support channels.
 
 Before writing the private provider-cost model to Secret Manager, run the
 secret-safe unit-economics preflight with the candidate cost in the environment:
