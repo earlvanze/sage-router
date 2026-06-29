@@ -96,6 +96,10 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertIn('bindingPlan=max', combined)
 
     def test_configure_helper_authorization_ledger_template_is_no_secret(self):
+        template = ROOT / 'docs' / 'launch' / 'execution' / 'provider-authorization-ledger-template.md'
+        self.assertTrue(template.exists())
+        self.assertIn('privateEvidenceReference: provider-review-YYYYMMDD-doc-or-ticket-id', template.read_text(encoding='utf-8'))
+
         result = subprocess.run(
             [str(CONFIGURE_SCRIPT), '--authorization-ledger-template'],
             cwd=ROOT,
@@ -122,6 +126,7 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertIn('--authorization-packet', script)
         self.assertIn('--authorization-ledger-template', script)
         self.assertIn('--provider-outreach-packet', script)
+        self.assertIn('provider-authorization-ledger-template.md', script)
         self.assertIn('load_local_env_file', script)
         self.assertIn('SAGEROUTER_SECRET_ENV_FILE', script)
         self.assertIn('Sage Router managed resale operator packet', script)

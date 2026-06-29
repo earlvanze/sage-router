@@ -110,7 +110,9 @@ cap, model exclusion, or compliance process.
   `SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF`.
 - Run `scripts/configure_managed_provider_resale_readiness.sh --authorization-packet`.
 - Run `scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template`
-  and store the filled copy only in the private system of record.
+  or start from
+  `docs/launch/execution/provider-authorization-ledger-template.md`, then store
+  the filled copy only in the private system of record.
 - Run `scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet`.
 - Run `SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS=REVIEWED_PRIVATE_COST scripts/configure_managed_provider_resale_readiness.sh --unit-economics`.
 - Keep `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0` until every

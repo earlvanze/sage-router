@@ -614,9 +614,12 @@ Use `--authorization-ledger-template` after provider replies arrive to create a
 private review worksheet for the evidence reference, provider-family decision,
 terms status, allowed use case, resale/service-provider boundary, model
 exclusions, capacity limits, abuse process, renewal/expiry, and cost-review
-handoff. The template is safe to generate in logs because it contains only
-placeholders and privacy flags; fill it only in the private system of record,
-not in public metadata, PRs, or support channels.
+handoff. The checked-in no-secret source template is
+`docs/launch/execution/provider-authorization-ledger-template.md`; the helper
+prints that file when available so operators have the same canonical worksheet
+in the repo and terminal. The template is safe to generate in logs because it
+contains only placeholders and privacy flags; fill it only in the private system
+of record, not in public metadata, PRs, or support channels.
 
 Before writing the private provider-cost model to Secret Manager, run the
 secret-safe unit-economics preflight with the candidate cost in the environment:

@@ -48,6 +48,8 @@ RUN_READINESS="${SAGEROUTER_RUN_READINESS:-1}"
 MODE="apply"
 RESALE_ELIGIBLE_PROVIDER_FAMILIES="ollama openai anthropic"
 BYOK_ONLY_PROVIDER_FAMILIES="openrouter"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+AUTHORIZATION_LEDGER_TEMPLATE="${ROOT}/docs/launch/execution/provider-authorization-ledger-template.md"
 
 usage() {
   cat >&2 <<'EOF'
@@ -671,6 +673,11 @@ managed_provider_terms_approval_packet() {
 }
 
 managed_provider_authorization_ledger_template() {
+  if [[ -f "$AUTHORIZATION_LEDGER_TEMPLATE" ]]; then
+    cat "$AUTHORIZATION_LEDGER_TEMPLATE"
+    return 0
+  fi
+
   cat <<'EOF'
 # Sage Router Managed Provider Authorization Ledger Template
 
