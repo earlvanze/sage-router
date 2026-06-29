@@ -19,7 +19,8 @@ readiness guard enables it.
 
 ## Current live snapshot
 
-Live funnel snapshot from 2026-06-29:
+Live funnel snapshot from 2026-06-29 after Cloud Run revision
+`sage-router-00201-zcm` and commit `de951a6`:
 
 - Reliability gate: `SAGEROUTER_MIN_HEALTHY_UPSTREAMS=6
   scripts/check_sagerouter_launch_readiness.sh` has no hard failures and the
@@ -31,10 +32,12 @@ Live funnel snapshot from 2026-06-29:
   infrastructure action is to rotate `CLOUDFLARE_API_TOKEN` with `Zone:Zone:Read`
   plus `Zone Rulesets:Read/Edit`.
 - Hosted app deploy: Cloudflare Pages production branch `main` was redeployed
-  after commit `534f64d`; `https://app.sagerouter.dev/launch-funnel.js` now
-  serves the activation next-send handoff panel, including dry-run coverage,
-  next segment, typed approval reminder, and copy command state without
-  exposing emails, customer IDs, keys, prompts, provider credentials, or raw
+  after commit `de951a6`; `https://app.sagerouter.dev/launch-funnel.js` now
+  serves the activation next-send handoff panel and reads top-level
+  `managedProviderReadiness` from `/analytics/funnel` when the legacy nested
+  pricing path is absent. That keeps the private operator dashboard aligned
+  with the live managed-resale guardrails without exposing emails, customer
+  IDs, keys, prompts, provider credentials, private provider costs, or raw
   responses.
 - Activation: `3` signups, `1` customer with a generated `sk_sage_*` key, `1`
   customer with a first routed request, `1` paid Pro customer, and `$30`
@@ -48,6 +51,16 @@ Live funnel snapshot from 2026-06-29:
   operator packet and next-action dock also show the next real-send segment
   (`verified`) and keep the send command disabled unless dry-run verification
   and explicit approval are both present.
+- Managed-access guard: one-subscription resale is still correctly disabled.
+  The live readiness data reports missing `provider_terms_acknowledgment`,
+  `provider_authorization_evidence`, `provider_cost_model`, and
+  `positive_unit_economics`; allowed resale families remain `ollama`, `openai`,
+  and `anthropic`, while `openrouter` stays BYOK-only unless separately
+  authorized. Operators should use
+  `scripts/configure_managed_provider_resale_readiness.sh --operator-packet`,
+  `--stage-public-controls`, `--terms-approval-packet`, and `--unit-economics`
+  in that order, and should not run the default apply path until provider
+  authorization evidence and reviewed private cost are available.
 - Email boundary: activation sender dry-run has covered the `2` sendable
   recipients, but real sending still requires explicit operator approval.
 - Acquisition signals: internal Sage Router navigation remains the largest

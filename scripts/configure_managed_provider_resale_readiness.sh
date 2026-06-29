@@ -311,9 +311,24 @@ check_managed_provider_resale() {
   if [[ "$failures" != "0" ]]; then
     cat >&2 <<'EOF'
 Managed provider access is not launch-ready yet.
-Stage reviewed provider terms, resale-eligible allowlist, private cost model,
-and margin policy with:
-  scripts/configure_managed_provider_resale_readiness.sh
+
+Use the staged approval flow so public metadata, terms acknowledgment, provider
+authorization evidence, and the private cost model stay separated:
+  1. Review the no-secret operator packet:
+     scripts/configure_managed_provider_resale_readiness.sh --operator-packet
+  2. Stage or refresh public terms, margin-policy, allowlist, and disabled
+     public-enable controls without writing private provider cost:
+     scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
+  3. Generate the terms approval packet before acknowledging terms:
+     scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet
+  4. Only after written provider authorization and reviewed private cost are
+     available, run the unit-economics preflight:
+     SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics
+
+Do not run the default apply path until provider authorization evidence and a
+reviewed private cost model are available. Keep
+SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0 until every readiness
+control passes.
 
 The check prints presence, counts, and binding names only; it never prints the
 private provider-cost value.
