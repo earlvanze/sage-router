@@ -9,12 +9,19 @@ const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
 const KEY_RECOVERY_HANDOFF_STORAGE_KEY = 'sage_router_key_recovery_handoff';
 const ACCOUNT_ACTIVATION_PATH = '/account?plan=pro&start=create_key&utm_source=login&utm_medium=activation&utm_campaign=sage-router-launch';
 const ACTIVATION_PARAM_NAMES = ['plan', 'start', 'auth', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+const KEY_RECOVERY_ACCOUNT_HANDOFF_DELAY_MS = 4500;
 let keyRecoverySessionRedirecting = false;
 let keyRecoveryAccountHandoffScheduled = false;
 let keyRecoveryUserInteracted = false;
 
+function setKeyRecoveryHandoffStatus(text) {
+  set('login-key-recovery-handoff-status', text);
+}
+
 function markKeyRecoveryUserInteraction() {
-  if (isKeyRecoveryLanding()) keyRecoveryUserInteracted = true;
+  if (!isKeyRecoveryLanding()) return;
+  keyRecoveryUserInteracted = true;
+  setKeyRecoveryHandoffStatus('Automatic account setup paused while you use same-email recovery.');
 }
 
 function loginRecoverySetupBundleText() {
@@ -62,15 +69,28 @@ function scheduleKeyRecoveryAccountHandoff() {
     state: keyRecoveryLandingState(),
   });
   set('auth-status', 'Enter the same email used at signup. If you do not start recovery here, API key setup will open as a fallback.');
+  let remainingSeconds = Math.ceil(KEY_RECOVERY_ACCOUNT_HANDOFF_DELAY_MS / 1000);
+  setKeyRecoveryHandoffStatus(`API key setup opens automatically in ${remainingSeconds}s unless you start same-email recovery.`);
+  const countdown = window.setInterval(() => {
+    remainingSeconds -= 1;
+    if (remainingSeconds > 0 && !keyRecoveryUserInteracted && !keyRecoverySessionRedirecting) {
+      setKeyRecoveryHandoffStatus(`API key setup opens automatically in ${remainingSeconds}s unless you start same-email recovery.`);
+    }
+  }, 1000);
   window.setTimeout(async () => {
-    if (keyRecoveryUserInteracted || keyRecoverySessionRedirecting) return;
+    window.clearInterval(countdown);
+    if (keyRecoveryUserInteracted || keyRecoverySessionRedirecting) {
+      setKeyRecoveryHandoffStatus('Automatic account setup paused while you use same-email recovery.');
+      return;
+    }
+    setKeyRecoveryHandoffStatus('Opening API key setup now...');
     await trackLoginFunnelEventBeforeNavigation('login_key_recovery_account_setup_auto_redirected', {
       button: 'auto_account_setup_handoff',
       target,
       state: keyRecoveryLandingState(),
     });
     openAccountActivation();
-  }, 8500);
+  }, KEY_RECOVERY_ACCOUNT_HANDOFF_DELAY_MS);
 }
 
 function keyRecoveryLinkTarget() {

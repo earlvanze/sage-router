@@ -7164,6 +7164,10 @@ OPERATOR_FOLLOWUP_SEND_EVENTS = {
 OPERATOR_FOLLOWUP_SEND_FAILURE_EVENTS = {
     'operator_no_key_followup_send_failed',
 }
+AUTH_PROVIDER_STATE_EVENTS = {
+    'auth_provider_state_checked',
+    'pricing_auth_provider_state_checked',
+}
 KEY_FIRST_REDIRECT_EVENTS = {
     'account_setup_handoff_viewed',
     'account_checkout_key_first_redirected',
@@ -7189,7 +7193,10 @@ KEY_RECOVERY_VIEW_EVENTS = {
     'account_setup_handoff_viewed',
     'account_key_recovery_email_field_auto',
     'account_key_recovery_signed_in_prompt_shown',
+    'account_key_recovery_same_email_selected',
+    'account_key_recovery_github_selected',
     'account_key_recovery_viewed',
+    'account_no_key_setup_focus_clicked',
     'content_article_key_recovery_clicked',
     'pricing_key_recovery_clicked',
     'login_key_recovery_landed',
@@ -7229,6 +7236,7 @@ KEY_CREATE_ATTEMPT_EVENTS = {
     'account_intent_create_key_clicked',
     'account_key_recovery_auto_create_started',
     'account_key_recovery_create_clicked',
+    'account_no_key_setup_create_clicked',
 }
 KEY_CREATE_SUCCESS_EVENTS = {
     'account_api_key_created',
@@ -9265,7 +9273,7 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
                 metrics['managedAccessDemand'],
                 managed_access_marketing_metadata(event, metadata),
             )
-        if event == 'auth_provider_state_checked':
+        if event in AUTH_PROVIDER_STATE_EVENTS:
             update_auth_provider_state_metrics(metrics, metadata)
         if event in SETUP_SNIPPET_COPY_EVENTS:
             metrics['setupSnippetCopies'] += 1
