@@ -1,6 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+load_local_env_file() {
+  local path="$1"
+  [[ -f "$path" ]] || return 0
+
+  local key value current
+  while IFS='=' read -r -d '' key value; do
+    case "$key" in
+      PROJECT_ID|SAGE_ROUTER_GCP_PROJECT_ID|REGION|SERVICE_NAME|\
+      SAGEROUTER_PROVIDER_RESALE_TERMS_URL|\
+      SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL|\
+      SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED|\
+      SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF|\
+      SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS|\
+      SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS|\
+      SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT|\
+      SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC|\
+      SAGEROUTER_RUN_READINESS)
+        ;;
+      *)
+        continue
+        ;;
+    esac
+    current="${!key:-}"
+    if [[ -z "$current" && -n "$value" ]]; then
+      printf -v "$key" '%s' "$value"
+      export "$key"
+    fi
+  done < <(set +u; set -a; source "$path" >/dev/null 2>&1; env -0)
+}
+
+load_local_env_file "${SAGEROUTER_SECRET_ENV_FILE:-/home/digit/.openclaw/.env}"
+
 PROJECT_ID="${PROJECT_ID:-${SAGE_ROUTER_GCP_PROJECT_ID:-sage-router-demo-20260428}}"
 REGION="${REGION:-us-central1}"
 SERVICE_NAME="${SERVICE_NAME:-sage-router}"

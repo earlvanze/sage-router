@@ -575,7 +575,10 @@ gross-margin floor. The remaining launch blockers should be the explicit terms
 acknowledgment, an operator-held provider authorization evidence reference, and
 private cost model / positive unit-economics review. The authorization reference
 is never printed in public metadata; `/pricing` exposes only whether it is
-configured.
+configured. Like the other launch helpers, the managed-resale helper loads only
+the named readiness variables from `SAGEROUTER_SECRET_ENV_FILE` or
+`/home/digit/.openclaw/.env` when they are not already set, and still prints
+only presence, counts, binding names, and public thresholds.
 
 Use `--terms-approval-packet` for the provider-terms acknowledgment review. It
 prints public terms/margin URLs, local input presence, resale-eligible provider
