@@ -1445,7 +1445,7 @@ check_waitlist_endpoint() {
 }
 
 check_funnel_event_endpoint() {
-  local code ok service primary_table privacy_ok allowed_events write_guard referer_fallback preview_suffix smoke_events_persisted
+  local code ok service primary_table privacy_ok allowed_events write_guard referer_fallback preview_suffix smoke_events_persisted smoke_code smoke_ok smoke_skipped
   code="$(http_code "${APP_BASE%/}/api/funnel-event")"
   ok="$(jq -r '.ok // false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   service="$(jq -r '.service // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
@@ -1528,6 +1528,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("account_signup_failed") != null) and
     ((.allowedEvents // []) | index("account_magic_link_failed") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_shown") != null) and
+    ((.allowedEvents // []) | index("login_key_recovery_account_setup_auto_redirected") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_clicked") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_magic_link_requested") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_magic_link_sent") != null) and
@@ -1569,10 +1570,22 @@ check_funnel_event_endpoint() {
   preview_suffix="$(jq -r '.writeGuard.previewHostSuffix // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   smoke_events_persisted="$(jq -r '.dataQuality.smokeEventsPersisted == false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   rm -f /tmp/sage-router-readiness-body
-  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-funnel-event" && "$primary_table" == "sage_router_funnel_events" && "$privacy_ok" == "true" && "$allowed_events" == "true" && "$write_guard" == "true" && "$referer_fallback" == "true" && "$preview_suffix" == ".sage-router-web.pages.dev" && "$smoke_events_persisted" == "true" ]]; then
-    pass "privacy-safe marketing funnel event endpoint is configured with browser origin guard"
+
+  smoke_code="$(
+    curl -sS -o /tmp/sage-router-readiness-body -w '%{http_code}' \
+      -H "Origin: ${APP_BASE%/}" \
+      -H 'Content-Type: application/json' \
+      --data "{\"event\":\"login_key_recovery_account_setup_auto_redirected\",\"plan\":\"pro\",\"sourcePage\":\"${APP_BASE%/}/login.html?start=create_key&smoke=1\",\"target\":\"${APP_BASE%/}/account.html?start=create_key\",\"metadata\":{\"source\":\"login\",\"button\":\"smoke\",\"state\":\"smoke\",\"utmCampaign\":\"signup_to_key_recovery\"}}" \
+      "${APP_BASE%/}/api/funnel-event"
+  )"
+  smoke_ok="$(jq -r '.ok // false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  smoke_skipped="$(jq -r '.skipped // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-funnel-event" && "$primary_table" == "sage_router_funnel_events" && "$privacy_ok" == "true" && "$allowed_events" == "true" && "$write_guard" == "true" && "$referer_fallback" == "true" && "$preview_suffix" == ".sage-router-web.pages.dev" && "$smoke_events_persisted" == "true" && "$smoke_code" == "200" && "$smoke_ok" == "true" && "$smoke_skipped" == "smoke" ]]; then
+    pass "privacy-safe marketing funnel event endpoint is configured with browser origin guard and setup-key recovery handoff smoke probe"
   else
-    fail "marketing funnel event endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} table=${primary_table:-missing} privacy=${privacy_ok:-missing} allowedEvents=${allowed_events:-missing} writeGuard=${write_guard:-missing} refererFallbackDisabled=${referer_fallback:-missing} previewSuffix=${preview_suffix:-missing} smokeEventsPersisted=${smoke_events_persisted:-missing}"
+    fail "marketing funnel event endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} table=${primary_table:-missing} privacy=${privacy_ok:-missing} allowedEvents=${allowed_events:-missing} writeGuard=${write_guard:-missing} refererFallbackDisabled=${referer_fallback:-missing} previewSuffix=${preview_suffix:-missing} smokeEventsPersisted=${smoke_events_persisted:-missing} recoveryHandoffSmokeCode=${smoke_code:-missing} recoveryHandoffSmokeOk=${smoke_ok:-missing} recoveryHandoffSmokeSkipped=${smoke_skipped:-missing}"
   fi
 }
 
