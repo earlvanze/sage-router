@@ -2788,6 +2788,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("approval packet is no-secret", summary_script)
         self.assertIn("read-only review packet", summary_script)
         self.assertIn("does not approve, copy a send command, or send activation emails", summary_script)
+        self.assertIn("Pre-send recovery proof:", summary_script)
+        self.assertIn("verified_handoff_waiting_for_fresh_traffic", summary_script)
         self.assertIn("Approval checklist:", summary_script)
         self.assertIn("decisionChecklist", summary_script)
         self.assertIn("Auth repair handoff:", summary_script)

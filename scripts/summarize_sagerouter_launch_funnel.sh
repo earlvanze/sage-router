@@ -162,6 +162,7 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
 
     . as $root
     | ($root.activationFollowUps // {}) as $followups
+    | ($root.nextBestAction // {}) as $next_action
     | ($root.operatorExecutionPacket // {}) as $packet
     | ($packet.sendTelemetry // {}) as $telemetry
     | ($root.activationApprovalReadiness // {
@@ -201,6 +202,11 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         "Dry-run segments: covered=\(list($telemetry.dryRunCoveredSegments)); pending=\(list($telemetry.dryRunPendingSegments)); duplicate raw recipient records=\(n($telemetry.dryRunDuplicateRecipients)).",
         "Approval required: \(if ($approval.approvalRequired // $telemetry.sendApprovalRequired // false) then "yes, do not send until explicit operator approval" else "no pending send" end).",
         "Next actions: \((($approval.nextActions // []) | map((.priority // "next") + ":" + (.id // "review")) | join(", ")) // "monitor_activation_queue").",
+        "",
+        "Pre-send recovery proof:",
+        "- Current bottleneck: \($next_action.metric // "unknown") — \($next_action.action // "Review the live launch funnel before approving any activation send.")",
+        "- Verification command: \($next_action.evidence.recoveryDiagnosticCommand // "bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff")",
+        "- Approval boundary: if the verification command does not report verified_handoff_waiting_for_fresh_traffic, hold real activation sends and inspect the recovery path first.",
         "",
         "Approval checklist:",
         (
