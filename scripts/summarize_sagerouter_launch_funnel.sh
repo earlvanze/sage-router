@@ -451,6 +451,13 @@ jq -r --arg days "$DAYS" '
       "- Recommended send segments: \(list($action.evidence.sendableSegments))",
       "- Review-only segments: \(list($action.evidence.reviewOnlySegments))",
       "",
+      "## Activation Approval Handoff",
+      "",
+      "- Packet command: scripts/summarize_sagerouter_launch_funnel.sh --days \($days) --approval-packet",
+      "- Approval decision: \($approval.status // "unknown") for next segment \($packet.sendTelemetry.nextSendSegment // "all"); blocker=\($approval.blockedReason // "none").",
+      "- Default snapshot policy: No send command is printed in this default snapshot. Real activation sends still require explicit operator approval and typed SEND_ACTIVATION_FOLLOWUPS confirmation.",
+      "- Safe review: the approval packet is no-secret and excludes emails, customer IDs, generated keys, prompts, OAuth tokens, provider credentials, and raw responses.",
+      "",
       "## Top Acquisition Actions",
       (
         (($root.acquisitionActions // [])[0:5])
