@@ -1446,7 +1446,7 @@ check_waitlist_endpoint() {
 }
 
 check_funnel_event_endpoint() {
-  local code ok service primary_table privacy_ok allowed_events write_guard referer_fallback preview_suffix smoke_events_persisted smoke_code smoke_ok smoke_skipped
+  local code ok service primary_table privacy_ok allowed_events write_guard referer_fallback preview_suffix smoke_events_persisted smoke_code smoke_ok smoke_skipped account_smoke_code account_smoke_ok account_smoke_skipped
   code="$(http_code "${APP_BASE%/}/api/funnel-event")"
   ok="$(jq -r '.ok // false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   service="$(jq -r '.service // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
@@ -1584,10 +1584,21 @@ check_funnel_event_endpoint() {
   smoke_skipped="$(jq -r '.skipped // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   rm -f /tmp/sage-router-readiness-body
 
-  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-funnel-event" && "$primary_table" == "sage_router_funnel_events" && "$privacy_ok" == "true" && "$allowed_events" == "true" && "$write_guard" == "true" && "$referer_fallback" == "true" && "$preview_suffix" == ".sage-router-web.pages.dev" && "$smoke_events_persisted" == "true" && "$smoke_code" == "200" && "$smoke_ok" == "true" && "$smoke_skipped" == "smoke" ]]; then
-    pass "privacy-safe marketing funnel event endpoint is configured with browser origin guard and setup-key recovery handoff smoke probe"
+  account_smoke_code="$(
+    curl -sS -o /tmp/sage-router-readiness-body -w '%{http_code}' \
+      -H "Origin: ${APP_BASE%/}" \
+      -H 'Content-Type: application/json' \
+      --data "{\"event\":\"account_setup_handoff_viewed\",\"plan\":\"pro\",\"sourcePage\":\"${APP_BASE%/}/account.html?start=create_key&setup=login-key-recovery&source_surface=recovery&next=generated-key&smoke=1\",\"target\":\"#intent-email\",\"metadata\":{\"source\":\"account\",\"button\":\"smoke\",\"state\":\"smoke\",\"setupSource\":\"login-key-recovery\",\"utmCampaign\":\"signup_to_key_recovery\"}}" \
+      "${APP_BASE%/}/api/funnel-event"
+  )"
+  account_smoke_ok="$(jq -r '.ok // false' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  account_smoke_skipped="$(jq -r '.skipped // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
+  rm -f /tmp/sage-router-readiness-body
+
+  if [[ "$code" == "200" && "$ok" == "true" && "$service" == "sage-router-funnel-event" && "$primary_table" == "sage_router_funnel_events" && "$privacy_ok" == "true" && "$allowed_events" == "true" && "$write_guard" == "true" && "$referer_fallback" == "true" && "$preview_suffix" == ".sage-router-web.pages.dev" && "$smoke_events_persisted" == "true" && "$smoke_code" == "200" && "$smoke_ok" == "true" && "$smoke_skipped" == "smoke" && "$account_smoke_code" == "200" && "$account_smoke_ok" == "true" && "$account_smoke_skipped" == "smoke" ]]; then
+    pass "privacy-safe marketing funnel event endpoint is configured with browser origin guard and setup-key recovery handoff smoke probes"
   else
-    fail "marketing funnel event endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} table=${primary_table:-missing} privacy=${privacy_ok:-missing} allowedEvents=${allowed_events:-missing} writeGuard=${write_guard:-missing} refererFallbackDisabled=${referer_fallback:-missing} previewSuffix=${preview_suffix:-missing} smokeEventsPersisted=${smoke_events_persisted:-missing} recoveryHandoffSmokeCode=${smoke_code:-missing} recoveryHandoffSmokeOk=${smoke_ok:-missing} recoveryHandoffSmokeSkipped=${smoke_skipped:-missing}"
+    fail "marketing funnel event endpoint returned HTTP ${code} ok=${ok:-missing} service=${service:-missing} table=${primary_table:-missing} privacy=${privacy_ok:-missing} allowedEvents=${allowed_events:-missing} writeGuard=${write_guard:-missing} refererFallbackDisabled=${referer_fallback:-missing} previewSuffix=${preview_suffix:-missing} smokeEventsPersisted=${smoke_events_persisted:-missing} recoveryHandoffSmokeCode=${smoke_code:-missing} recoveryHandoffSmokeOk=${smoke_ok:-missing} recoveryHandoffSmokeSkipped=${smoke_skipped:-missing} accountHandoffSmokeCode=${account_smoke_code:-missing} accountHandoffSmokeOk=${account_smoke_ok:-missing} accountHandoffSmokeSkipped=${account_smoke_skipped:-missing}"
   fi
 }
 
