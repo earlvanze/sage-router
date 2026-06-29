@@ -530,11 +530,13 @@ provider resale claim, or runtime feature flag.
   can see whether pricing, calculator, model catalog, and model gateway comparison
   demand exists before signup.
 - Count article-dock setup-copy actions as setup-copy activation with
-  `content_article_snippet_copied`, so long-form article readers can become
+  `content_article_snippet_copied` using `article-inline-setup-bundle` and
+  `article-sticky-setup-bundle`, so long-form article readers can become
   measurable setup-intent users without first navigating to `/quickstart`.
 - Route long-form article API-key CTAs through generated-key creation first and
-  record `content_article_key_activation_clicked`, keeping article checkout
-  interest separate from setup-key activation.
+  record `content_article_key_activation_clicked`; after a copy, the shared
+  dock switches to a setup-attributed `Create API key next` handoff so article
+  checkout interest stays separate from setup-key activation.
 - Filter obvious crawler, obsolete-browser, headless, and same-minute page-sweep
   traffic from `/analytics/funnel` marketing totals while preserving raw funnel
   event storage. Report `filteredSyntheticEvents` so traffic-quality changes are

@@ -136,15 +136,17 @@ curl https://api.sagerouter.dev/v1/models \\
     targetLaunchWindow: 'exploring',
   };
 
-  function makeStartKeyLink(id, label = 'Create API key', className = 'articleDockPrimary') {
+  function makeStartKeyLink(id, label = 'Create API key next', className = 'articleDockPrimary', setup = 'article-direct-key-next') {
     const link = document.createElement('a');
-    link.href = accountUrl;
+    const target = accountUrlWithSetup(setup);
+    link.href = target;
     link.className = className;
     link.textContent = label;
     link.addEventListener('click', () => track('content_article_key_activation_clicked', {
-      target: accountUrl,
+      target,
       button: id,
-      state: 'direct-key-first',
+      state: 'direct-key-next',
+      snippet: setup,
     }));
     return link;
   }
@@ -276,19 +278,19 @@ curl https://api.sagerouter.dev/v1/models \\
     return true;
   }
 
-  function makeCopyButton(id, label, className = 'articleDockSecondary articleDockButton') {
+  function makeCopyButton(id, label, className = 'articleDockSecondary articleDockButton', snippet = 'article-hosted-setup') {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = className;
     button.textContent = label;
     button.addEventListener('click', async () => {
       if (button.dataset.setupCopied === 'true') {
-        const target = accountUrlWithSetup('article-hosted-setup');
+        const target = accountUrlWithSetup(snippet);
         track('content_article_key_activation_clicked', {
           target,
           button: `${id}-create-key-next`,
           state: 'after-copy',
-          snippet: 'article-hosted-setup',
+          snippet,
         });
         window.location.href = target;
         return;
@@ -299,10 +301,10 @@ curl https://api.sagerouter.dev/v1/models \\
         button.dataset.setupCopied = 'true';
         button.textContent = 'Create API key next';
         track('content_article_snippet_copied', {
-          target: accountUrlWithSetup('article-hosted-setup'),
+          target: accountUrlWithSetup(snippet),
           button: id,
           state: 'copied',
-          snippet: 'article-hosted-setup',
+          snippet,
         });
         setTimeout(() => {
           if (button.dataset.setupCopied === 'true') {
@@ -496,10 +498,10 @@ curl https://api.sagerouter.dev/v1/models \\
     offer.id = 'article-activation-inline';
     offer.setAttribute('aria-label', 'Start Sage Router from this article');
     const copy = document.createElement('div');
-    copy.innerHTML = '<strong>Copy setup, then create the key.</strong><span>The bundle gives agents the hosted endpoint; the account link creates the sk_sage key before checkout.</span>';
+    copy.innerHTML = '<strong>Copy setup first, then create the key.</strong><span>The bundle gives agents the hosted endpoint; the account link creates the sk_sage key before checkout.</span>';
     offer.appendChild(copy);
-    offer.appendChild(makeCopyButton('inline-copy-setup', 'Copy setup, then key', 'articleDockPrimary articleDockButton'));
-    offer.appendChild(makeStartKeyLink('inline-direct-api-key', 'Create API key', 'articleDockSecondary'));
+    offer.appendChild(makeCopyButton('inline-copy-setup', 'Copy setup first', 'articleDockPrimary articleDockButton', 'article-inline-setup-bundle'));
+    offer.appendChild(makeStartKeyLink('inline-direct-api-key', 'Create API key next', 'articleDockSecondary', 'article-inline-key-next'));
     offer.appendChild(makeOauthButton('inline-github-pro'));
     offer.appendChild(makeEmailForm('article-activation-email-form', 'Email API key setup link'));
     offer.appendChild(makeManagedAccessQuickForm('article-managed-access-quick-form'));
@@ -532,10 +534,10 @@ curl https://api.sagerouter.dev/v1/models \\
     dock.id = 'article-activation-dock';
     dock.setAttribute('aria-label', 'Sage Router activation');
     const copy = document.createElement('div');
-    copy.innerHTML = '<strong>Copy setup, then create the key.</strong><span>Use the hosted endpoint bundle first, then generate the sk_sage key before checkout.</span>';
+    copy.innerHTML = '<strong>Copy setup first, then create the key.</strong><span>Use the hosted endpoint bundle first, then generate the sk_sage key before checkout.</span>';
     dock.appendChild(copy);
-    dock.appendChild(makeCopyButton('sticky-copy-setup', 'Copy setup, then key', 'articleDockPrimary articleDockButton'));
-    dock.appendChild(makeStartKeyLink('sticky-direct-api-key', 'Create API key', 'articleDockSecondary'));
+    dock.appendChild(makeCopyButton('sticky-copy-setup', 'Copy setup first', 'articleDockPrimary articleDockButton', 'article-sticky-setup-bundle'));
+    dock.appendChild(makeStartKeyLink('sticky-direct-api-key', 'Create API key next', 'articleDockSecondary', 'article-sticky-key-next'));
     dock.appendChild(makeOauthButton('sticky-github-pro'));
     dock.appendChild(makeEmailForm('article-activation-sticky-email-form', 'Email API key setup'));
     dock.appendChild(makeLink('Finish setup key', recoveryUrl, 'articleDockSecondary', 'content_article_key_recovery_clicked', 'sticky-returning-user'));

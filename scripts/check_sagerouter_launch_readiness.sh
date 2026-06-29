@@ -1955,6 +1955,18 @@ check_marketing_local_first_article_page() {
   if [[ "$dock_code" == "200" ]] && ! grep -q "managed_access_quick_request_received" /tmp/sage-router-readiness-body; then
     dock_code="200:missing-article-managed-access-quick-funnel"
   fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "Copy setup first" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-copy-setup-first"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "article-inline-setup-bundle" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-inline-setup-snippet"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "article-sticky-setup-bundle" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-sticky-setup-snippet"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "direct-key-next" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-key-next-state"
+  fi
   if [[ "$dock_code" == "200" ]] && ! grep -q "inline-one-subscription-review" /tmp/sage-router-readiness-body; then
     dock_code="200:missing-article-inline-one-subscription-funnel-state"
   fi
