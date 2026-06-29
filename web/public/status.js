@@ -34,6 +34,7 @@ function trackStatusFunnelEvent(event, data = {}) {
       source: 'status',
       button: data.button || null,
       state: data.state || null,
+      snippet: data.snippet || null,
       utmSource: params.get('utm_source') || params.get('utmSource') || null,
       utmMedium: params.get('utm_medium') || params.get('utmMedium') || null,
       utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
@@ -435,7 +436,7 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
       state: 'warn',
       meta: 'Use when activation sends still need explicit approval or one-subscription managed access is waiting on provider terms, authorization evidence, private cost, or abuse-control review.',
       command: founderSalesFallback,
-      copyEvent: 'status_founder_sales_fallback_copied',
+      copyEvent: 'outreach_snippet_copied',
     },
     {
       id: 'managed-resale-dry-run',
@@ -567,6 +568,7 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
           target: 'operator-launch-actions',
           button: row.title,
           state: row.id,
+          snippet: row.id,
         });
       } catch (_error) {
         button.textContent = 'Copy failed';

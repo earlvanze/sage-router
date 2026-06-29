@@ -271,7 +271,8 @@ checkout entitlement, provider resale claim, or runtime feature flag.
   `utm_source=founder-sales` links, `outreach_snippet_copied` telemetry, and
   no-secret outreach boundaries. The private launch-funnel dashboard should
   also render one copyable next outreach snippet from the current aggregate MRR
-  gap and emit `outreach_snippet_copied` when copied. Aggregate those copy actions into
+  gap, and the status page should expose a founder-sales fallback packet; both
+  emit `outreach_snippet_copied` when copied. Aggregate those copy actions into
   `marketingIntent.founderSalesOutreachCopies` and
   `marketingIntent.founderSalesOutreachCopiesBySnippet` so founder-led
   outreach is visible without exposing conversation text, customer data, or

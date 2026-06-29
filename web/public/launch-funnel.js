@@ -2034,7 +2034,7 @@ async function copyFounderSalesFallback(button) {
     const mrr = lastFunnelData?.mrr || {};
     const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
     const customerGap = revenueActions.reduce((total, row) => total + asNumber(row.customerGap), 0);
-    trackOperatorFunnelEvent('operator_founder_sales_fallback_copied', {
+    trackOperatorFunnelEvent('outreach_snippet_copied', {
       state: 'founder_sales_fallback_copied',
       resultCount: customerGap,
       snippet: 'founder-sales-fallback',
