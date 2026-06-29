@@ -20,7 +20,7 @@ readiness guard enables it.
 ## Current live snapshot
 
 Live funnel snapshot from 2026-06-29 after Cloud Run revision
-`sage-router-00209-gpw` and commit `a1af4c9`:
+`sage-router-00215-mxl` and commit `c95c795`:
 
 - Reliability gate: `SAGEROUTER_MIN_HEALTHY_UPSTREAMS=6
   scripts/check_sagerouter_launch_readiness.sh` has no hard failures and the
@@ -32,18 +32,16 @@ Live funnel snapshot from 2026-06-29 after Cloud Run revision
   infrastructure action is to rotate `CLOUDFLARE_API_TOKEN` with `Zone:Zone:Read`
   plus `Zone Rulesets:Read/Edit`.
 - Hosted app deploy: Cloudflare Pages production branch `main` was redeployed
-  after commit `5c3c866`; `https://app.sagerouter.dev/launch-funnel.js` now
-  serves the activation next-send handoff panel and reads top-level
-  `managedProviderReadiness` from `/analytics/funnel` when the legacy nested
-  pricing path is absent. That keeps the private operator dashboard aligned
-  with the live managed-resale guardrails without exposing emails, customer
-  IDs, keys, prompts, provider credentials, private provider costs, or raw
-  responses.
-- Hosted API deploy: Cloud Run revision `sage-router-00209-gpw` now publishes
-  `readinessSetup.providerOutreachCommand` in both public `/pricing` metadata
-  and the operator-safe `/analytics/funnel` managed-provider snapshot, so
-  runbooks and agents can discover the no-secret provider authorization
-  outreach packet without relying on dashboard-only fallbacks.
+  through preview `590f1755`; `https://sagerouter.dev/setup-key-recovery` now
+  preserves `source_surface=operator_activation` through the operator
+  recovery auto-handoff, and `/analytics/funnel` buckets setup-key recovery as
+  its own source surface instead of burying it under `other`.
+- Hosted API deploy: Cloud Run revision `sage-router-00215-mxl` stages the
+  non-secret managed-provider public controls on `/pricing`: provider-resale
+  terms URL, margin-policy URL, `ollama,openai,anthropic` allowlist, minimum
+  gross-margin floor, and disabled public enablement. It still keeps managed
+  resale off because terms acknowledgment, provider authorization evidence,
+  private cost model, and positive unit economics remain unapproved.
 - Activation: `4` signups, `1` customer with a generated `sk_sage_*` key, `1`
   customer with a first routed request, `2` paid customers, and `$60`
   estimated current MRR.
@@ -58,22 +56,22 @@ Live funnel snapshot from 2026-06-29 after Cloud Run revision
   (`verified`) and keep the send command disabled unless dry-run verification
   and explicit approval are both present.
 - Managed-access guard: one-subscription resale is still correctly disabled.
-  The live readiness data reports missing `provider_terms_acknowledgment`,
+  The public terms URL, margin-policy URL, allowed resale families, margin
+  floor, and disabled enablement flag are now bound on Cloud Run. The remaining
+  live blockers are `provider_terms_acknowledgment`,
   `provider_authorization_evidence`, `provider_cost_model`, and
   `positive_unit_economics`; allowed resale families remain `ollama`, `openai`,
   and `anthropic`, while `openrouter` stays BYOK-only unless separately
-  authorized. Operators should use
-  `scripts/configure_managed_provider_resale_readiness.sh --operator-packet`,
-  `--stage-public-controls`, `--provider-outreach-packet`,
-  `--authorization-packet`,
-  `--terms-approval-packet`, and `--unit-economics` in that order, and should
-  not run the default apply path until provider authorization evidence and
-  reviewed private cost are available.
+  authorized. Operators should now use the no-secret
+  `--provider-outreach-packet`, `--authorization-packet`,
+  `--terms-approval-packet`, and `--unit-economics` flow, and should not run
+  the default apply path until provider authorization evidence and reviewed
+  private cost are available.
 - Email boundary: activation sender dry-run has covered the `2` sendable
   recipients, but real sending still requires explicit operator approval.
 - Acquisition signals: internal Sage Router navigation remains the largest
-  channel (`297` privacy-safe clicks), long-form/article traffic is the largest
-  source surface (`117`), the landing page has `95` privacy-safe source-surface
+  channel (`298` privacy-safe clicks), long-form/article traffic is the largest
+  source surface (`117`), the landing page has `96` privacy-safe source-surface
   clicks, Reddit is the strongest external community channel (`37`), and the
   account surface has `39` privacy-safe clicks. The shared article dock now
   links those readers directly to OpenRouter comparison, Codex setup, hosted
