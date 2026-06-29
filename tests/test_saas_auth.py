@@ -1044,14 +1044,16 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('/admin/customers/hydrate-auth-users', handoff['endpoint'])
         self.assertEqual(2, handoff['reviewOnlyQueued'])
         self.assertEqual(['missing_auth_user'], handoff['reviewOnlySegments'])
-        self.assertTrue(handoff['repairsMissingAuthUsers'])
-        self.assertIn('/admin/customers/hydrate-auth-users', handoff['command'])
+        self.assertFalse(handoff['repairsMissingAuthUsers'])
+        self.assertTrue(handoff['accountLinkRepairRequired'])
+        self.assertEqual(2, handoff['accountLinkReviewQueued'])
+        self.assertEqual(0, handoff['hydrateCandidateCount'])
+        self.assertEqual('', handoff['command'])
         self.assertEqual('/admin/customers', handoff['reviewEndpoint'])
         self.assertIn('/admin/customers?limit=20', handoff['reviewCommand'])
         self.assertIn('verificationSource', handoff['reviewCommand'])
-        self.assertIn('created=0', handoff['noopFallbackAction'])
-        self.assertIn('"limit":1000', handoff['command'])
-        self.assertIn('jq', handoff['command'])
+        self.assertIn('no missing customer rows', handoff['noopFallbackAction'])
+        self.assertIn('Do not retry hydration', handoff['operatorAction'])
         self.assertFalse(handoff['privacy']['containsEmails'])
         self.assertFalse(handoff['privacy']['containsUserIds'])
         self.assertFalse(handoff['privacy']['containsApiKeys'])
@@ -1059,6 +1061,27 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(handoff['privacy']['aggregateOnly'])
         self.assertNotIn('@', json.dumps(handoff))
         self.assertNotIn('auth-user-', json.dumps(handoff))
+
+        hydratable = router.launch_activation_auth_repair_handoff(
+            [
+                {
+                    'segment': 'missing_auth_user',
+                    'count': 2,
+                    'sendable': False,
+                },
+            ],
+            {
+                'countsByEmailVerification': {'missing_auth_user': 2},
+                'authRepairCandidates': {'authSignupsWithoutCustomerRows': 1},
+            },
+        )
+
+        self.assertTrue(hydratable['repairsMissingAuthUsers'])
+        self.assertTrue(hydratable['accountLinkRepairRequired'])
+        self.assertEqual(1, hydratable['hydrateCandidateCount'])
+        self.assertIn('/admin/customers/hydrate-auth-users', hydratable['command'])
+        self.assertIn('"limit":1000', hydratable['command'])
+        self.assertIn('jq', hydratable['command'])
 
     def test_operator_customer_review_flags_are_bounded_and_actionable(self):
         customer = self.active_customer()
@@ -2559,9 +2582,14 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('review_required', packet['authRepair']['status'])
         self.assertEqual(1, packet['authRepair']['reviewOnlyQueued'])
         self.assertEqual(['missing_auth_user'], packet['authRepair']['reviewOnlySegments'])
-        self.assertIn('/admin/customers/hydrate-auth-users', packet['authRepair']['command'])
+        self.assertEqual('', packet['authRepair']['command'])
         self.assertIn('/admin/customers?limit=20', packet['authRepair']['reviewCommand'])
-        self.assertIn('created=0', packet['authRepair']['noopFallbackAction'])
+        self.assertFalse(packet['authRepair']['repairsMissingAuthUsers'])
+        self.assertTrue(packet['authRepair']['accountLinkRepairRequired'])
+        self.assertEqual(1, packet['authRepair']['accountLinkReviewQueued'])
+        self.assertEqual(0, packet['authRepair']['hydrateCandidateCount'])
+        self.assertIn('Do not retry hydration', packet['authRepair']['operatorAction'])
+        self.assertIn('no missing customer rows', packet['authRepair']['noopFallbackAction'])
         rows = {row['segment']: row for row in packet['segmentActions']}
         self.assertTrue(rows['verified']['sendable'])
         self.assertEqual('send', rows['verified']['deliveryMode'])
@@ -2569,7 +2597,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('review', rows['missing_auth_user']['deliveryMode'])
         self.assertIn('auth-user repair', rows['missing_auth_user']['reviewReason'])
         self.assertEqual('/admin/customers/hydrate-auth-users', rows['missing_auth_user']['repairEndpoint'])
-        self.assertIn('/admin/customers/hydrate-auth-users', rows['missing_auth_user']['repairCommand'])
+        self.assertNotIn('repairCommand', rows['missing_auth_user'])
+        self.assertIn('/admin/customers?limit=20', rows['missing_auth_user']['accountLinkReviewCommand'])
         self.assertIn('sendCommand', rows['verified'])
         self.assertIn('"segment":"verified"', rows['verified']['sendCommand'])
         self.assertNotIn('sendCommand', rows['missing_auth_user'])
@@ -2600,13 +2629,24 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('ready', checklist['verify_dry_run_coverage']['status'])
         self.assertEqual('review', checklist['exclude_review_only_segments']['status'])
         self.assertEqual('review', checklist['repair_missing_auth_users']['status'])
-        self.assertIn('/admin/customers/hydrate-auth-users', checklist['repair_missing_auth_users']['detail'])
+        self.assertIn('account-link repair', checklist['repair_missing_auth_users']['detail'])
         self.assertIn('2 unique sendable recipient', checklist['verify_dry_run_coverage']['detail'])
         self.assertIn('2 duplicate record', checklist['verify_dry_run_coverage']['detail'])
         self.assertIn('segment "verified"', checklist['approve_next_segment_only']['detail'])
         self.assertEqual('review_required', readiness['authRepair']['status'])
-        self.assertIn('/admin/customers/hydrate-auth-users', readiness['authRepair']['command'])
+        self.assertEqual('', readiness['authRepair']['command'])
         self.assertIn('/admin/customers?limit=20', readiness['authRepair']['reviewCommand'])
+
+        activation_follow_ups['authRepairCandidates'] = {'authSignupsWithoutCustomerRows': 1, 'customerSignupsWithoutAuthRows': 1}
+        hydrated_packet = router.launch_operator_execution_packet(action, activation_follow_ups)
+        self.assertTrue(hydrated_packet['authRepair']['repairsMissingAuthUsers'])
+        self.assertTrue(hydrated_packet['authRepair']['accountLinkRepairRequired'])
+        self.assertEqual(1, hydrated_packet['authRepair']['hydrateCandidateCount'])
+        self.assertEqual(1, hydrated_packet['authRepair']['customerSignupsWithoutAuthRows'])
+        self.assertIn('/admin/customers/hydrate-auth-users', hydrated_packet['authRepair']['command'])
+        self.assertIn('separately review existing missing-auth-user', hydrated_packet['authRepair']['operatorAction'])
+        hydrated_rows = {row['segment']: row for row in hydrated_packet['segmentActions']}
+        self.assertIn('/admin/customers/hydrate-auth-users', hydrated_rows['missing_auth_user']['repairCommand'])
 
     def test_launch_funnel_counts_supabase_auth_signups_without_customer_rows(self):
         now = router.now_epoch()

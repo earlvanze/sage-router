@@ -928,12 +928,15 @@ function activationAuthRepair(data = {}) {
     command: '',
     reviewOnlyQueued: delivery.reviewOnlyQueued,
     reviewOnlySegments: delivery.reviewOnlySegments,
-    repairsMissingAuthUsers: delivery.reviewOnlySegments.includes('missing_auth_user'),
+    repairsMissingAuthUsers: false,
+    hydrateCandidateCount: 0,
+    accountLinkRepairRequired: delivery.reviewOnlySegments.includes('missing_auth_user'),
+    accountLinkReviewQueued: delivery.reviewOnlySegments.includes('missing_auth_user') ? Number((data.activationFollowUps?.countsByEmailVerification || {}).missing_auth_user || 0) : 0,
     operatorAction: delivery.reviewOnlyQueued > 0
-      ? 'Review or exclude auth-repair segments before sending recovery emails.'
+      ? 'Review account-link repair or exclusion for auth-repair segments before sending recovery emails.'
       : 'No missing-auth-user repair handoff is queued.',
     noopFallbackAction: delivery.reviewOnlyQueued > 0
-      ? 'If hydration creates no rows and review-only remains, keep review-only excluded and inspect the bounded customer review.'
+      ? 'Hydration has no missing customer rows to create; keep review-only rows excluded and inspect the bounded customer review.'
       : 'No review-only auth repair is queued.',
     privacy: {
       containsEmails: false,
@@ -950,11 +953,16 @@ function renderActivationAuthRepair(data = {}) {
   if (!repair.required) return '';
   const segments = safeList(repair.reviewOnlySegments).join(', ') || 'review-only';
   const command = repair.command || '';
+  const hydrateCount = Number(repair.hydrateCandidateCount || 0);
+  const accountLinkCount = Number(repair.accountLinkReviewQueued || 0);
+  const mode = command
+    ? `Hydration candidates ${integer(hydrateCount)}; refresh the funnel after hydration and re-run dry-run coverage before any new real send.`
+    : `Account-link review queued ${integer(accountLinkCount)}; hydration has no missing customer rows to create.`;
   return `<div class="empty warn">
     <strong>Review-only auth repair:</strong> ${esc(repair.operatorAction || 'Repair or exclude review-only activation segments before email outreach.')}
-    <p class="muted">Queued ${integer(repair.reviewOnlyQueued)} across ${esc(segments)}. Endpoint <code>${esc(repair.endpoint || '/admin/customers/hydrate-auth-users')}</code> returns aggregate counts only; refresh the funnel after hydration and re-run dry-run coverage before any new real send. ${esc(repair.noopFallbackAction || '')}</p>
+    <p class="muted">Queued ${integer(repair.reviewOnlyQueued)} across ${esc(segments)}. ${esc(mode)} ${esc(repair.noopFallbackAction || '')}</p>
     ${command ? `<div class="actions"><button class="btn secondary small" type="button" data-copy-auth-repair-command="${esc(command)}" data-followup-count="${integer(repair.reviewOnlyQueued)}">Copy auth repair command</button><span class="status">Command requires the private operator token and does not include emails, user IDs, customer IDs, or API keys.</span></div>` : ''}
-    ${repair.reviewCommand ? `<div class="actions"><button class="btn secondary small" type="button" data-copy-auth-repair-command="${esc(repair.reviewCommand)}" data-followup-count="${integer(repair.reviewOnlyQueued)}">Copy bounded review command</button><span class="status">Use this if hydration reports created=0 and the review-only segment remains.</span></div>` : ''}
+    ${repair.reviewCommand ? `<div class="actions"><button class="btn secondary small" type="button" data-copy-auth-repair-command="${esc(repair.reviewCommand)}" data-followup-count="${integer(repair.reviewOnlyQueued)}">Copy bounded review command</button><span class="status">${command ? 'Use this if hydration reports created=0 and the review-only segment remains.' : 'Use this to inspect account-link repair or exclusion without exposing raw keys or prompts.'}</span></div>` : ''}
   </div>`;
 }
 
@@ -984,7 +992,7 @@ function activationApprovalPacketText(data = {}) {
     `Dry-run segments: covered=${activationSend.dryRunCoveredSegments.join(', ') || 'none'}; pending=${activationSend.dryRunPendingSegments.join(', ') || 'none'}; duplicate raw recipient records=${integer(activationSend.dryRunDuplicateRecipients)}.`,
     `Approval required: ${approvalReadiness.approvalRequired ? 'yes, do not send until explicit operator approval' : 'no pending send'}.`,
     `Next actions: ${(approvalReadiness.nextActions || []).map(row => `${row.priority || 'next'}:${row.id || 'review'}`).join(', ') || 'monitor_activation_queue'}.`,
-    `Auth repair: ${authRepair.status || 'unknown'}; queued=${integer(authRepair.reviewOnlyQueued)}; segments=${safeList(authRepair.reviewOnlySegments).join(', ') || 'none'}; endpoint=${authRepair.endpoint || '/admin/customers/hydrate-auth-users'}.`,
+    `Auth repair: ${authRepair.status || 'unknown'}; queued=${integer(authRepair.reviewOnlyQueued)}; segments=${safeList(authRepair.reviewOnlySegments).join(', ') || 'none'}; hydrateCandidates=${integer(authRepair.hydrateCandidateCount)}; accountLinkReview=${integer(authRepair.accountLinkReviewQueued)}; endpoint=${authRepair.endpoint || '/admin/customers/hydrate-auth-users'}.`,
     `Auth repair fallback: ${authRepair.noopFallbackAction || 'none'}`,
     ...(authRepair.command ? ['', 'Auth repair command:', authRepair.command] : []),
     ...(authRepair.reviewCommand ? ['', 'Bounded auth review command:', authRepair.reviewCommand] : []),
@@ -1049,7 +1057,7 @@ function buildLaunchBrief(data = {}) {
     `- Generated-key to first request: ${percent(rates.generatedKeyToFirstRequest)}; setup-copy to first request: ${percent(rates.setupCopyToFirstRequest)}`,
     `- No-key follow-ups queued: ${integer(activationDelivery.totalQueued || activationFollowUps.total)} total, ${integer(activationDelivery.sendableQueued)} sendable, ${integer(activationDelivery.reviewOnlyQueued)} review-only, ${integer(activationFollowUps.windowedNewSignups)} new in-window; worked: ${integer(activationFollowUps.operatorFollowUpWorked)}; copied/opened: ${integer(activationFollowUps.operatorFollowUpCopies)}; dry-run verified: ${activationSend.dryRunVerified ? 'yes' : 'no'} (${integer(activationSend.dryRunRecipients)} unique sendable recipients; covered ${activationSend.dryRunCoveredSegments.join(', ') || 'none'}); sent: ${integer(activationSend.sentRecipients)} recipients; key-first redirects: ${integer(activationFollowUps.keyFirstRedirects)}. Action: ${activationFollowUps.recommendedOperatorAction || 'Send the generated-key-first follow-up.'}`,
     `- Send approval handoff: next segment=${activationSend.nextSendSegment || 'all'}; approval required=${activationSend.sendApprovalRequired ? 'yes' : 'no'}; command copy remains operator-token gated and confirmation-token protected.`,
-    `- Auth repair handoff: status=${authRepair.status || 'unknown'}; review-only=${integer(authRepair.reviewOnlyQueued)}; segments=${safeList(authRepair.reviewOnlySegments).join(', ') || 'none'}; endpoint=${authRepair.endpoint || '/admin/customers/hydrate-auth-users'}`,
+    `- Auth repair handoff: status=${authRepair.status || 'unknown'}; review-only=${integer(authRepair.reviewOnlyQueued)}; segments=${safeList(authRepair.reviewOnlySegments).join(', ') || 'none'}; hydrateCandidates=${integer(authRepair.hydrateCandidateCount)}; accountLinkReview=${integer(authRepair.accountLinkReviewQueued)}; endpoint=${authRepair.endpoint || '/admin/customers/hydrate-auth-users'}`,
     `- Auth repair fallback: ${authRepair.noopFallbackAction || 'none'}`,
     `- Approval checklist: ${(activationApprovalChecklist(data)).map(row => `${row.id}=${row.status}`).join('; ')}`,
     `- Recovery auth starts: magic=${integer(asNumber(managedAccessEvents.login_key_recovery_magic_link_requested) + asNumber(managedAccessEvents.setup_key_recovery_magic_link_requested))}; password=${integer(managedAccessEvents.login_key_recovery_password_submitted)}; oauth=${integer(managedAccessEvents.login_key_recovery_oauth_clicked)}; account setup clicks=${integer(managedAccessEvents.login_key_recovery_account_setup_clicked)}`,

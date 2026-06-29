@@ -7340,6 +7340,7 @@ def launch_activation_auth_repair_handoff(segment_actions=None, activation_follo
     segment_actions = segment_actions if isinstance(segment_actions, list) else []
     review_actions = [row for row in segment_actions if isinstance(row, dict) and row.get('sendable') is False]
     counts = activation_follow_ups.get('countsByEmailVerification') if isinstance(activation_follow_ups.get('countsByEmailVerification'), dict) else {}
+    repair_candidates = activation_follow_ups.get('authRepairCandidates') if isinstance(activation_follow_ups.get('authRepairCandidates'), dict) else {}
     if review_actions:
         review_segments = [str(row.get('segment') or '').strip() for row in review_actions if str(row.get('segment') or '').strip()]
         review_only_queued = sum(int(row.get('count') or 0) for row in review_actions)
@@ -7349,8 +7350,37 @@ def launch_activation_auth_repair_handoff(segment_actions=None, activation_follo
             if int((counts or {}).get(segment) or 0) > 0
         ]
         review_only_queued = sum(int((counts or {}).get(segment) or 0) for segment in review_segments)
-    needs_missing_auth_hydration = 'missing_auth_user' in review_segments
+    missing_auth_review_queued = int((counts or {}).get('missing_auth_user') or 0)
+    hydrate_candidate_count = int(repair_candidates.get('authSignupsWithoutCustomerRows') or 0)
+    customer_without_auth_count = int(repair_candidates.get('customerSignupsWithoutAuthRows') or 0)
+    needs_missing_auth_review = 'missing_auth_user' in review_segments
+    needs_missing_auth_hydration = hydrate_candidate_count > 0
+    needs_account_link_review = needs_missing_auth_review and missing_auth_review_queued > 0
     command = activation_auth_repair_command(limit=1000) if needs_missing_auth_hydration else ''
+    if needs_missing_auth_hydration and needs_account_link_review:
+        operator_action = (
+            'Run auth-user hydration for auth signups without customer rows, then separately review existing missing-auth-user no-key customers for account-link repair or exclusion before any send.'
+        )
+        noop_fallback = (
+            'If hydration reports created=0 and missing-auth-user review remains, stop retrying hydration; inspect the bounded customer review, keep stale account-link rows excluded from email sends, and approve only already dry-run-covered sendable segments.'
+        )
+    elif needs_missing_auth_hydration:
+        operator_action = (
+            'Run auth-user hydration for auth signups without customer rows, refresh the launch funnel, then send only newly sendable verified/unverified segments after a fresh dry-run and approval.'
+        )
+        noop_fallback = (
+            'If hydration reports created=0 and review-only remains, inspect the bounded customer review and keep unresolved rows excluded from activation sends.'
+        )
+    elif needs_account_link_review:
+        operator_action = (
+            'Do not retry hydration for existing missing-auth-user customers; inspect the bounded customer review, repair the customer account link or contact manually, and keep those rows excluded from recovery sends.'
+        )
+        noop_fallback = (
+            'Hydration has no missing customer rows to create; keep stale account-link rows excluded from activation sends until the customer auth binding is repaired.'
+        )
+    else:
+        operator_action = 'Review or exclude the review-only activation segments before sending recovery emails.'
+        noop_fallback = 'If review-only remains after inspection, keep it excluded from activation sends until the customer auth state is repaired.'
     return {
         'status': 'review_required' if review_only_queued > 0 else 'not_required',
         'required': review_only_queued > 0,
@@ -7361,17 +7391,13 @@ def launch_activation_auth_repair_handoff(segment_actions=None, activation_follo
         'reviewOnlyQueued': review_only_queued,
         'reviewOnlySegments': review_segments,
         'repairsMissingAuthUsers': needs_missing_auth_hydration,
+        'hydrateCandidateCount': hydrate_candidate_count,
+        'accountLinkRepairRequired': needs_account_link_review,
+        'accountLinkReviewQueued': missing_auth_review_queued,
+        'customerSignupsWithoutAuthRows': customer_without_auth_count,
         'resultFields': ['status', 'authUsers', 'confirmedAuthUsers', 'created', 'existing', 'failed', 'privacy'],
-        'operatorAction': (
-            'Run auth-user hydration for missing_auth_user signups, refresh the launch funnel, then send only newly sendable verified/unverified segments after a fresh dry-run and approval.'
-            if needs_missing_auth_hydration
-            else 'Review or exclude the review-only activation segments before sending recovery emails.'
-        ),
-        'noopFallbackAction': (
-            'If hydration reports created=0 and review-only remains, do not retry hydration; inspect the bounded customer review, keep the stale auth-binding row excluded from email sends, and approve only the already dry-run-covered sendable segment.'
-            if needs_missing_auth_hydration
-            else 'If review-only remains after inspection, keep it excluded from activation sends until the customer auth state is repaired.'
-        ),
+        'operatorAction': operator_action,
+        'noopFallbackAction': noop_fallback,
         'successMetric': 'review-only queued signups are repaired into sendable segments or explicitly excluded.',
         'privacy': {
             'containsEmails': False,
@@ -7575,6 +7601,8 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
     password_url = urls.get('passwordFallback') or launch_activation_follow_up_url(plan, auth=False)
     github_url = urls.get('githubOAuth') or launch_activation_follow_up_url(plan, auth='github')
     counts = activation_follow_ups.get('countsByEmailVerification') if isinstance(activation_follow_ups.get('countsByEmailVerification'), dict) else {}
+    repair_candidates = activation_follow_ups.get('authRepairCandidates') if isinstance(activation_follow_ups.get('authRepairCandidates'), dict) else {}
+    hydrate_candidate_count = int(repair_candidates.get('authSignupsWithoutCustomerRows') or 0)
     evidence = next_best_action.get('evidence') if isinstance(next_best_action.get('evidence'), dict) else {}
     email_readiness = activation_follow_ups.get('emailReadiness') if isinstance(activation_follow_ups.get('emailReadiness'), dict) else activation_email_readiness()
     recommended_segments = [
@@ -7627,7 +7655,10 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
             segment_actions[-1]['sendCommand'] = segment_commands.get('sendCommand') or activation_followup_send_command(segment=segment, dry_run=False)
         elif segment == 'missing_auth_user':
             segment_actions[-1]['repairEndpoint'] = '/admin/customers/hydrate-auth-users'
-            segment_actions[-1]['repairCommand'] = activation_auth_repair_command(limit=1000)
+            if hydrate_candidate_count > 0:
+                segment_actions[-1]['repairCommand'] = activation_auth_repair_command(limit=1000)
+            else:
+                segment_actions[-1]['accountLinkReviewCommand'] = activation_auth_review_command(limit=20)
     send_telemetry = {
         'dryRunActions': int(activation_follow_ups.get('operatorFollowUpSendDryRuns') or 0),
         'dryRunRecordedRecipients': int(activation_follow_ups.get('operatorFollowUpSendDryRunRecipients') or 0),
@@ -7865,7 +7896,11 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
             'label': 'Repair missing auth users',
             'status': 'review' if auth_repair.get('required') else 'ready',
             'detail': (
-                f'Run {auth_repair.get("endpoint") or "/admin/customers/hydrate-auth-users"} for segments {", ".join(auth_repair.get("reviewOnlySegments") or [])}; refresh the funnel before approving additional sends.'
+                (
+                    f'Run {auth_repair.get("endpoint") or "/admin/customers/hydrate-auth-users"} for {int(auth_repair.get("hydrateCandidateCount") or 0)} auth signup(s) without customer rows; refresh the funnel before approving additional sends.'
+                    if auth_repair.get('command')
+                    else f'Review account-link repair or exclusion for segments {", ".join(auth_repair.get("reviewOnlySegments") or [])}; hydration has no missing customer rows to create.'
+                )
                 if auth_repair.get('required')
                 else 'No missing-auth-user repair handoff is queued.'
             ),
@@ -9238,6 +9273,10 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         now=now,
         auth_users=auth_users if auth_users_available else None,
     )
+    activation_follow_ups['authRepairCandidates'] = {
+        'authSignupsWithoutCustomerRows': auth_signups_without_customer_rows if auth_users_available else None,
+        'customerSignupsWithoutAuthRows': customer_signups_without_auth_rows if auth_users_available else None,
+    }
     if isinstance(marketing_metrics, dict):
         activation_follow_ups = {
             **activation_follow_ups,
