@@ -56,7 +56,8 @@ Live funnel snapshot from 2026-06-29:
   clicks, Reddit is the strongest external community channel (`35`), and the
   account surface has `39` privacy-safe clicks. The shared article dock now
   links those readers directly to OpenRouter comparison, Codex setup, hosted
-  setup copy, email setup, key recovery, and Max review paths.
+  setup copy, email setup, key recovery, one-subscription review, and Max
+  review paths.
 - Revenue gap: Pro is now the largest gap (`199` more Pro customers, `$5,970`
   remaining MRR), followed by Max (`50` customers, `$3,600`) and Lite (`100`
   customers, `$600`).

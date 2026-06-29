@@ -407,6 +407,12 @@ provider resale claim, or runtime feature flag.
   `managedAccessDemand.targetLaunchWindow`, and `managedAccessDemand.intent` to
   rank private-beta provider resale and implementation conversations instead of
   advertising bundled model access as live.
+- Feed high-intent article traffic into the same one-subscription demand path:
+  the shared article activation dock adds inline and sticky managed-access
+  review CTAs with `inline-one-subscription-review` and
+  `sticky-one-subscription-review` funnel states, using
+  `content_article_managed_access_clicked` without collecting prompts, provider
+  credentials, OAuth tokens, generated keys, or customer data.
 - Keep `/api/waitlist` guarded before Supabase inserts: browser-originating
   writes must come from Sage Router production hosts, Pages previews, local
   development, or exact origins configured with

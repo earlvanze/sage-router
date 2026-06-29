@@ -1860,6 +1860,15 @@ check_marketing_local_first_article_page() {
   if [[ "$dock_code" == "200" ]] && ! grep -q "hero-returning-user" /tmp/sage-router-readiness-body; then
     dock_code="200:missing-article-hero-key-recovery-funnel-state"
   fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "managed-access?intent=one-subscription" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-one-subscription-review"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "inline-one-subscription-review" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-inline-one-subscription-funnel-state"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "sticky-one-subscription-review" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-sticky-one-subscription-funnel-state"
+  fi
   if [[ "$dock_code" == "200" ]] && ! grep -q "signInWithOtp" /tmp/sage-router-readiness-body; then
     dock_code="200:missing-article-magic-link-send"
   fi
