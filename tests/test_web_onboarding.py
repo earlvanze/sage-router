@@ -2645,6 +2645,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("read-only review packet", summary_script)
         self.assertIn("does not approve, copy a send command, or send activation emails", summary_script)
         self.assertIn("Safe command handoff", summary_script)
+        self.assertIn('else "none" end', summary_script)
         self.assertIn("sendConfirmation=SEND_ACTIVATION_FOLLOWUPS", summary_script)
         self.assertIn("Recovery auth starts", summary_script)
         self.assertIn("Managed-access anonymous interest", summary_script)

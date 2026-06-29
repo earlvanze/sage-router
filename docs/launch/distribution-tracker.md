@@ -19,7 +19,7 @@ readiness guard enables it.
 
 ## Current live snapshot
 
-Live funnel snapshot from 2026-06-28:
+Live funnel snapshot from 2026-06-29:
 
 - Reliability gate: `SAGEROUTER_MIN_HEALTHY_UPSTREAMS=6
   scripts/check_sagerouter_launch_readiness.sh` has no hard failures and the
@@ -31,9 +31,11 @@ Live funnel snapshot from 2026-06-28:
   infrastructure action is to rotate `CLOUDFLARE_API_TOKEN` with `Zone:Zone:Read`
   plus `Zone Rulesets:Read/Edit`.
 - Hosted app deploy: Cloudflare Pages production branch `main` was redeployed
-  after commit `0dd643b`; `https://app.sagerouter.dev/account.html` now serves
-  the signed-in no-key setup panel and `account_no_key_setup_create_clicked`
-  telemetry path.
+  after commit `534f64d`; `https://app.sagerouter.dev/launch-funnel.js` now
+  serves the activation next-send handoff panel, including dry-run coverage,
+  next segment, typed approval reminder, and copy command state without
+  exposing emails, customer IDs, keys, prompts, provider credentials, or raw
+  responses.
 - Activation: `3` signups, `1` customer with a generated `sk_sage_*` key, `1`
   customer with a first routed request, `1` paid Pro customer, and `$30`
   estimated current MRR.
@@ -42,13 +44,16 @@ Live funnel snapshot from 2026-06-28:
   `unverified`) and `1` review-only auth-repair segment (`missing_auth_user`).
 - Operator dashboard: the no-key queue now includes a copyable no-secret
   activation approval packet that separates sendable follow-up segments from
-  review-only auth-repair work before any real send command is copied.
+  review-only auth-repair work before any real send command is copied. The
+  operator packet and next-action dock also show the next real-send segment
+  (`verified`) and keep the send command disabled unless dry-run verification
+  and explicit approval are both present.
 - Email boundary: activation sender dry-run has covered the `2` sendable
   recipients, but real sending still requires explicit operator approval.
 - Acquisition signals: internal Sage Router navigation remains the largest
-  channel (`292` privacy-safe clicks), long-form/article traffic is the largest
-  source surface (`114`), the landing page has `91` privacy-safe source-surface
-  clicks, Reddit is the strongest external community channel (`34`), and the
+  channel (`297` privacy-safe clicks), long-form/article traffic is the largest
+  source surface (`117`), the landing page has `93` privacy-safe source-surface
+  clicks, Reddit is the strongest external community channel (`35`), and the
   account surface has `39` privacy-safe clicks. The shared article dock now
   links those readers directly to OpenRouter comparison, Codex setup, hosted
   setup copy, email setup, key recovery, and Max review paths.

@@ -117,7 +117,7 @@ curl -fsS "${API_BASE%/}/analytics/funnel?days=${DAYS}&limit=10000" \
 if [[ "$APPROVAL_PACKET" == "1" ]]; then
   jq -r '
     def n($v): ($v // 0);
-    def list($v): (($v // []) | join(", "));
+    def list($v): if (($v // []) | length) > 0 then (($v // []) | join(", ")) else "none" end;
     def command_for($rows; $segment; $field):
       (
         ($rows // [])
@@ -185,7 +185,7 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         (segment_lines($segments; false; $dry)[]),
         "",
         "Primary recovery CTA: \($followups.primaryCtaUrl // $packet.recoveryUrls.passwordFallback // "https://app.sagerouter.dev/login.html?plan=pro&start=create_key").",
-        "Success metric: \($followups.successMetric // $packet.telemetry.successMetric // "Move no-key signups into generated-key accounts, then first routed request.").",
+        "Success metric: \($followups.successMetric // $packet.telemetry.successMetric // "Move no-key signups into generated-key accounts, then first routed request.")",
         "",
         "Safe command handoff:",
         "- Re-run the segment dry-run before approval:",
@@ -395,8 +395,10 @@ jq -r --arg days "$DAYS" '
   def n($v): ($v // 0);
   def pct($v): if $v == null then "n/a" else (($v * 10000 | round) / 100 | tostring) + "%" end;
   def money($v): "$" + ((n($v) | tostring));
-  def list($v): (($v // []) | join(", "));
-  def buckets($v): (($v // {}) | to_entries | map(select(.value != 0) | "\(.key)=\(.value)") | join(", "));
+  def list($v): if (($v // []) | length) > 0 then (($v // []) | join(", ")) else "none" end;
+  def buckets($v):
+    (($v // {}) | to_entries | map(select(.value != 0) | "\(.key)=\(.value)")) as $rows
+    | if ($rows | length) > 0 then ($rows | join(", ")) else "none" end;
 
   . as $root
   | ($root.stages // {}) as $stages
