@@ -26,8 +26,8 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 ```
 
 - Window: last 30 days
-- Generated at epoch: 1782751112
-- Marketing intent events: 397
+- Generated at epoch: 1782756338
+- Marketing intent events: 400
 - Setup snippet copies: 0
 - Recovery auth starts: magic=0, password=0, oauth=0
 - Managed-access anonymous interest: clicks=0, quickSubmitted=0, quickReceived=0
@@ -72,11 +72,18 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 - Default snapshot policy: no send command is printed in this default snapshot. Real activation sends still require explicit operator approval and typed `SEND_ACTIVATION_FOLLOWUPS` confirmation.
 - Safe review: the approval packet is no-secret and excludes emails, customer IDs, generated keys, prompts, OAuth tokens, provider credentials, and raw responses.
 
+### Verified Recovery Diagnosis
+
+- Command: `bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff`
+- Result: `verified_handoff_waiting_for_fresh_traffic`
+- Evidence: live setup-key recovery handoff smoke passed with no persistence; recovery views exist, but account handoffs, key-create attempts, and key-create successes are still zero.
+- Next action: wait for fresh real recovery traffic or run the no-secret approval packet before any real activation send.
+
 ### Top Acquisition Actions
 
-- attributionChannel/sagerouter: 309 clicks - Cross-link internal Sage Router pages toward the current lowest-performing activation step.
+- attributionChannel/sagerouter: 312 clicks - Cross-link internal Sage Router pages toward the current lowest-performing activation step.
 - sourceSurface/article: 117 clicks - Turn long-form local-first routing readers into quickstart, Codex setup, and gateway comparison CTAs.
-- sourceSurface/landing: 107 clicks - Keep the homepage focused on account creation, pricing, model catalog, and migration CTAs.
+- sourceSurface/landing: 110 clicks - Keep the homepage focused on account creation, pricing, model catalog, and migration CTAs.
 - sourceSurface/account: 39 clicks - Reduce signed-in friction from plan selection to generated key and first routed request.
 - attributionChannel/reddit: 37 clicks - Package comparison, migration, and reliability proof for Reddit-style evaluation threads.
 
@@ -110,6 +117,7 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 - Provider outreach packet: `scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet`
 - Authorization evidence packet: `scripts/configure_managed_provider_resale_readiness.sh --authorization-packet`
 - Authorization ledger template: `scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template`
+- One-subscription pricing packet: `scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet`
 - Unit-economics preflight: `SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics`
 - Managed-access beta interest: 0; anonymous interest: 4; target-provider buckets: mixed-frontier=4
 
