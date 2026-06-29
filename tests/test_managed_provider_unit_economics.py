@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / 'scripts' / 'managed_provider_unit_economics.py'
 CONFIGURE_SCRIPT = ROOT / 'scripts' / 'configure_managed_provider_resale_readiness.sh'
+OUTREACH_DOC = ROOT / 'docs' / 'launch' / 'execution' / 'provider-authorization-outreach.md'
 
 
 class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
@@ -98,19 +99,33 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         script = CONFIGURE_SCRIPT.read_text(encoding='utf-8')
         self.assertIn('--operator-packet', script)
         self.assertIn('--authorization-packet', script)
+        self.assertIn('--provider-outreach-packet', script)
         self.assertIn('load_local_env_file', script)
         self.assertIn('SAGEROUTER_SECRET_ENV_FILE', script)
         self.assertIn('Sage Router managed resale operator packet', script)
         self.assertIn('Sage Router managed provider authorization packet', script)
+        self.assertIn('Sage Router managed provider outreach packet', script)
         self.assertIn('Provider-family authorization checklist', script)
+        self.assertIn('Provider-specific copy blocks', script)
         self.assertIn('provider-review-YYYYMMDD-doc-or-ticket-id', script)
         self.assertIn('OpenRouter and BYOK-compatible gateways', script)
         self.assertIn('read-only review packet', script)
+        self.assertIn('does not send email, acknowledge terms, write secrets, deploy Cloud Run, or enable managed resale', script)
         self.assertIn('does not acknowledge terms, write secrets, enable managed resale, deploy Cloud Run, or send customer email', script)
         self.assertIn('containsActualProviderCosts=false', script)
         self.assertIn('containsAuthorizationReference=false', script)
+        self.assertIn('sendsEmail=false', script)
         self.assertIn('maxSafeProviderCostCentsPer1k', script)
         self.assertIn('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS=REVIEWED_PRIVATE_COST', script)
+
+        doc = OUTREACH_DOC.read_text(encoding='utf-8')
+        self.assertIn('Sage Router Provider Authorization Outreach', doc)
+        self.assertIn('scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet', doc)
+        self.assertIn('Ollama / Ollama Cloud', doc)
+        self.assertIn('OpenAI', doc)
+        self.assertIn('Anthropic', doc)
+        self.assertIn('Do not paste provider agreements, cost schedules, provider account IDs', doc)
+        self.assertIn('Keep `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0`', doc)
 
 
 if __name__ == '__main__':

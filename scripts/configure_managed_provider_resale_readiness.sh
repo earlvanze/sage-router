@@ -51,7 +51,7 @@ BYOK_ONLY_PROVIDER_FAMILIES="openrouter"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--terms-approval-packet|--stage-public-controls|--unit-economics]
+Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--provider-outreach-packet|--terms-approval-packet|--stage-public-controls|--unit-economics]
 
 Stage Sage Router managed provider-access readiness on Cloud Run.
 
@@ -84,6 +84,10 @@ Options:
                            checklist and evidence-reference format. It never
                            prints authorization evidence values or provider
                            cost values.
+  --provider-outreach-packet
+                           Print copyable, no-secret provider-facing outreach
+                           requests for Ollama, OpenAI, and Anthropic managed
+                           access authorization. It does not send email.
   --terms-approval-packet  Print the no-secret provider-terms acknowledgment
                            review packet. It separates the terms decision from
                            the private cost model and never prints provider
@@ -120,6 +124,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --authorization-packet)
       MODE="authorization-packet"
+      shift
+      ;;
+    --provider-outreach-packet)
+      MODE="provider-outreach-packet"
       shift
       ;;
     --terms-approval-packet)
@@ -507,11 +515,85 @@ managed_provider_authorization_packet() {
   printf -- '- Keep SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=0 and SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0 until authorization evidence and private unit economics both pass.\n\n'
 
   printf 'Safe next commands:\n'
+  printf '  scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet\n'
   printf '  scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet\n'
   printf "  SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls\n"
   printf "  SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n\n"
 
   printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false.\n'
+}
+
+managed_provider_outreach_packet() {
+  require_cmd curl
+  require_cmd jq
+
+  local body code allowed eligible byok missing ready blocked terms_url margin_url unit_satisfied
+  body="$(mktemp)"
+  code="$(curl -sS -o "$body" -w '%{http_code}' https://api.sagerouter.dev/pricing || printf '000')"
+
+  printf 'Sage Router managed provider outreach packet\n'
+  printf 'Boundary: read-only provider-facing request templates; no provider credentials, authorization evidence values, private provider costs, prompts, OAuth tokens, generated API keys, customer data, or raw provider responses.\n'
+  printf 'Effect: this command does not send email, acknowledge terms, write secrets, deploy Cloud Run, or enable managed resale.\n\n'
+
+  if [[ "$code" == "200" ]]; then
+    allowed="$(jq -r '(.publicLaunch.managedProviderAccess.allowedProviderFamilies // []) | join(", ")' "$body")"
+    eligible="$(jq -r '(.publicLaunch.managedProviderAccess.resaleEligibleProviderFamilies // []) | join(", ")' "$body")"
+    byok="$(jq -r '(.publicLaunch.managedProviderAccess.byokOnlyProviderFamilies // []) | join(", ")' "$body")"
+    missing="$(jq -r '(.publicLaunch.managedProviderAccess.missingControls // []) | join(", ")' "$body")"
+    ready="$(jq -r '(.publicLaunch.managedProviderAccess.oneSubscriptionReadiness.readyProviderFamilies // []) | join(", ")' "$body")"
+    blocked="$(jq -r '(.publicLaunch.managedProviderAccess.oneSubscriptionReadiness.blockedProviderFamilies // []) | join(", ")' "$body")"
+    terms_url="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsUrl // ""' "$body")"
+    margin_url="$(jq -r '.publicLaunch.managedProviderAccess.marginPolicyUrl // ""' "$body")"
+    unit_satisfied="$(jq -r '.publicLaunch.managedProviderAccess.unitEconomics.satisfied // false' "$body")"
+
+    printf 'Live public context:\n'
+    printf -- '- allowed managed families: %s\n' "${allowed:-none}"
+    printf -- '- resale-eligible families: %s\n' "${eligible:-none}"
+    printf -- '- BYOK-only families excluded from managed resale: %s\n' "${byok:-none}"
+    printf -- '- one-subscription ready families: %s\n' "${ready:-none}"
+    printf -- '- one-subscription blocked families: %s\n' "${blocked:-none}"
+    printf -- '- missing controls: %s\n' "${missing:-none}"
+    printf -- '- unit economics currently satisfied: %s\n' "$unit_satisfied"
+    printf -- '- public terms boundary: %s\n' "${terms_url:-missing}"
+    printf -- '- public margin policy: %s\n\n' "${margin_url:-missing}"
+  else
+    printf 'Live public context: unavailable HTTP %s from https://api.sagerouter.dev/pricing\n\n' "$code"
+  fi
+  rm -f "$body"
+
+  printf 'Common provider request points:\n'
+  printf -- '- Ask for written confirmation that Sage Router may operate a managed-access service for end customers using the named provider family.\n'
+  printf -- '- Ask whether the provider permits service-provider, reseller, marketplace, or hosted-agent routing use cases for the planned customer category.\n'
+  printf -- '- Ask for allowed account type, end-customer terms/pass-through obligations, audit/logging expectations, data-processing restrictions, abuse contact, suspension process, rate/capacity limits, model exclusions, and termination requirements.\n'
+  printf -- '- Ask for the private commercial cost schedule or billing model separately; run it only through --unit-economics and do not paste the cost into public metadata.\n'
+  printf -- '- Store only a private evidence reference in SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF after review.\n\n'
+
+  printf 'Provider-specific copy blocks:\n'
+  printf '\n[Ollama / Ollama Cloud]\n'
+  printf 'Subject: Sage Router managed access authorization review for Ollama-family routing\n'
+  printf 'Body:\n'
+  printf 'Sage Router is preparing a private-beta managed access option for customers who want one Sage Router subscription plus quota-bound routing. Before enabling any Ollama-family managed access, we need written confirmation of the allowed commercial use, account type, redistribution/resale or service-provider boundary, model-family restrictions, rate/capacity limits, abuse process, and any end-customer terms we must pass through. Public managed resale stays disabled until authorization, terms acknowledgment, a private cost model, and unit economics pass.\n'
+  printf 'Please confirm whether Sage Router may include Ollama or Ollama Cloud access in this managed-access pilot, and identify any required contract, addendum, usage cap, model exclusion, or compliance process.\n'
+  printf '\n[OpenAI]\n'
+  printf 'Subject: Sage Router managed API access authorization review for OpenAI-family routing\n'
+  printf 'Body:\n'
+  printf 'Sage Router is preparing a private-beta managed access option for generated API-key customers who want quota-bound routing without bringing their own OpenAI account. Before enabling any OpenAI-family managed access, we need written confirmation of resale/service-provider rights, end-customer obligations, permitted account/billing structure, data-processing and regional constraints, rate/capacity limits, safety/abuse process, model exclusions, and termination requirements. Public managed resale stays disabled until authorization, terms acknowledgment, a private cost model, and unit economics pass.\n'
+  printf 'Please confirm whether Sage Router may include OpenAI API access in this managed-access pilot, and identify any required enterprise agreement, reseller agreement, customer terms, usage cap, model exclusion, or compliance process.\n'
+  printf '\n[Anthropic]\n'
+  printf 'Subject: Sage Router managed API access authorization review for Anthropic-family routing\n'
+  printf 'Body:\n'
+  printf 'Sage Router is preparing a private-beta managed access option for generated API-key customers who want quota-bound routing without bringing their own Anthropic account. Before enabling any Anthropic-family managed access, we need written confirmation of resale/service-provider rights, customer-use restrictions, permitted account/billing structure, content-safety obligations, data-processing constraints, rate/capacity limits, abuse process, model exclusions, and termination requirements. Public managed resale stays disabled until authorization, terms acknowledgment, a private cost model, and unit economics pass.\n'
+  printf 'Please confirm whether Sage Router may include Anthropic API access in this managed-access pilot, and identify any required contract, customer terms, usage cap, model exclusion, or compliance process.\n\n'
+
+  printf 'After provider reply:\n'
+  printf -- '- Save the provider reply or contract in a private system of record.\n'
+  printf -- '- Record only a private evidence reference, such as provider-review-YYYYMMDD-doc-or-ticket-id.\n'
+  printf -- '- Run: scripts/configure_managed_provider_resale_readiness.sh --authorization-packet\n'
+  printf -- '- Run: scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet\n'
+  printf -- '- Run: SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS=REVIEWED_PRIVATE_COST scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n'
+  printf -- '- Keep SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0 until every readiness control passes.\n\n'
+
+  printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false; sendsEmail=false.\n'
 }
 
 managed_provider_terms_approval_packet() {
@@ -607,6 +689,11 @@ fi
 
 if [[ "$MODE" == "authorization-packet" ]]; then
   managed_provider_authorization_packet
+  exit 0
+fi
+
+if [[ "$MODE" == "provider-outreach-packet" ]]; then
+  managed_provider_outreach_packet
   exit 0
 fi
 
