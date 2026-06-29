@@ -637,7 +637,19 @@ MAX_PROVIDER_ATTEMPTS = int(os.environ.get('SAGE_ROUTER_MAX_PROVIDER_ATTEMPTS', 
 OPENROUTER_FREE_ONLY = os.environ.get('SAGE_ROUTER_OPENROUTER_FREE_ONLY', '0').strip().lower() in {'1', 'true', 'yes', 'on'}
 INTENT_CLASSIFIER_ENABLED = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_ENABLED', '0').strip().lower() in {'1', 'true', 'yes', 'on'}
 INTENT_CLASSIFIER_PROVIDER = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_PROVIDER', 'ollama')
-INTENT_CLASSIFIER_BASE_URL = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_BASE_URL', 'http://127.0.0.1:11434')
+LOCAL_OLLAMA_HOSTS = {
+    '127.0.0.1',
+    'localhost',
+    '::1',
+    'host.docker.internal',
+    'ollama',
+    'ollama_ollama_1',
+}
+DEFAULT_CONTAINER_OLLAMA_BASE_URL = os.environ.get(
+    'SAGE_ROUTER_DEFAULT_OLLAMA_BASE_URL',
+    os.environ.get('SAGE_ROUTER_OLLAMA_BASE_URL', os.environ.get('OLLAMA_HOST', 'http://ollama_ollama_1:11434')),
+)
+INTENT_CLASSIFIER_BASE_URL = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_BASE_URL', DEFAULT_CONTAINER_OLLAMA_BASE_URL)
 INTENT_CLASSIFIER_API_KEY = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_API_KEY', os.environ.get('LLAMACPP_API_KEY', 'local'))
 INTENT_CLASSIFIER_MODEL = os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_MODEL', 'qwen2.5:0.5b-instruct')
 INTENT_CLASSIFIER_TIMEOUT_SECONDS = float(os.environ.get('SAGE_ROUTER_INTENT_CLASSIFIER_TIMEOUT_SECONDS', '3'))
@@ -1371,7 +1383,7 @@ def infer_api_type(name, cfg, base_url):
     name_l = str(name or '').strip().lower()
     if (
         name_l.startswith('ollama') or
-        (host in {'ollama', 'localhost', '127.0.0.1', 'host.docker.internal'} and port == 11434) or
+        (host in LOCAL_OLLAMA_HOSTS and port == 11434) or
         'ollama.com' in host
     ):
         return 'ollama'
@@ -3572,7 +3584,7 @@ def is_local_ollama_provider(provider):
     if not provider or provider.api_type != 'ollama':
         return False
     host = (urllib.parse.urlparse(provider.base_url or '').hostname or '').lower()
-    return host in {'127.0.0.1', 'localhost', '::1'}
+    return host in LOCAL_OLLAMA_HOSTS
 
 
 def is_local_cloud_ollama_model(provider, model: str):
@@ -6581,7 +6593,7 @@ def load_openclaw_providers():
         logger.info(f"Loaded {len(providers)} configured providers: {list(providers.keys())}")
     except Exception as e:
         logger.error(f"Config load failed: {e}")
-        providers['ollama'] = Provider('ollama', 'ollama', 'http://127.0.0.1:11434', '', ['qwen3.5:cloud', 'kimi-k2.5:cloud'], set(), {'qwen3.5:cloud': {'reasoning': False, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}, 'kimi-k2.5:cloud': {'reasoning': False, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}})
+        providers['ollama'] = Provider('ollama', 'ollama', DEFAULT_CONTAINER_OLLAMA_BASE_URL, '', ['qwen3.5:cloud', 'kimi-k2.5:cloud'], set(), {'qwen3.5:cloud': {'reasoning': False, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}, 'kimi-k2.5:cloud': {'reasoning': False, 'contextWindow': 256000, 'maxTokens': 128000, 'input': ['text']}})
         # Even without a local OpenClaw config (e.g. public Cloud Run demo),
         # explicitly requested profile overlays should still be able to replace
         # the fallback local Ollama provider.

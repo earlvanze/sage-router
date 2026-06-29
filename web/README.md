@@ -79,6 +79,14 @@ pre-signup checkout interest without collecting secrets or support text.
 
 ## Hosted onboarding CTA
 
+## Local Dashboard Defaults
+
+The legacy setup dashboard defaults the provider base URL to
+`http://ollama_ollama_1:11434` so Umbrel/Docker deployments can reach the
+Ollama app over the shared Docker network. Standalone host installs can still
+override the router with `OLLAMA_HOST`, `SAGE_ROUTER_OLLAMA_BASE_URL`, or
+`SAGE_ROUTER_DEFAULT_OLLAMA_BASE_URL`.
+
 The primary homepage CTA is `Create hosted API key`, which links to
 `https://app.sagerouter.dev/account.html?plan=pro&start=create_key` directly,
 without the marketing-host redirect hop. The above-the-fold key-first panel now

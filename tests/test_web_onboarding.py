@@ -67,6 +67,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("function onCredProviderChange()", dashboard)
         self.assertIn("function applyCredentialProviderDefaults()", dashboard)
         self.assertIn("const providerDefaults", dashboard)
+        self.assertIn('id="providerBaseUrl" value="http://ollama_ollama_1:11434"', dashboard)
         self.assertIn("'ollama': {name: 'ollama', api: 'ollama', baseUrl: 'https://ollama.com'}", dashboard)
         self.assertIn("'openai-codex-responses': {name: 'openai-codex'", dashboard)
         self.assertIn("Endpoint URL", dashboard)

@@ -54,6 +54,26 @@ class ProviderSwitchingTests(unittest.TestCase):
         self.assertEqual('ollama', provider)
         self.assertEqual('glm-5', model)
 
+    def test_docker_ollama_service_hosts_are_local_ollama(self):
+        for base_url in (
+            'http://ollama_ollama_1:11434',
+            'http://ollama:11434',
+            'http://host.docker.internal:11434',
+            'http://localhost:11434',
+        ):
+            with self.subTest(base_url=base_url):
+                provider = router.Provider('ollama', 'ollama', base_url, '', ['glm-5:cloud'])
+                self.assertTrue(router.is_local_ollama_provider(provider))
+                self.assertTrue(router.is_local_cloud_ollama_model(provider, 'glm-5:cloud'))
+                self.assertEqual('ollama', router.infer_api_type('docker-local', {}, base_url))
+
+    def test_default_ollama_base_url_prefers_docker_service(self):
+        expected = os.environ.get(
+            'SAGE_ROUTER_DEFAULT_OLLAMA_BASE_URL',
+            os.environ.get('SAGE_ROUTER_OLLAMA_BASE_URL', os.environ.get('OLLAMA_HOST', 'http://ollama_ollama_1:11434')),
+        )
+        self.assertEqual(expected, router.DEFAULT_CONTAINER_OLLAMA_BASE_URL)
+
     def test_forced_ollama_model_keeps_fallbacks_after_exact_attempt(self):
         _messages, _intent, _complexity, _tokens, chain = router.prepare_route(
             [{'role': 'user', 'content': 'hello'}],

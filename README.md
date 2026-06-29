@@ -1463,7 +1463,7 @@ ANTHROPIC_API_KEY=sk-...
 OPENAI_API_KEY=sk-...
 GEMINI_API_KEY=AIza...
 NVIDIA_API_KEY=nvapi-...
-OLLAMA_HOST=http://localhost:11434
+OLLAMA_HOST=http://localhost:11434  # standalone host; Docker/Umbrel can use http://ollama_ollama_1:11434
 
 # OpenClaw Codex OAuth (chatgpt.com/backend-api/codex)
 SAGE_ROUTER_OPENAI_CODEX_AUTH_PROFILE_PATH=~/.openclaw/agents/main/agent/auth-profiles.json
@@ -1475,6 +1475,14 @@ SAGE_ROUTER_TIMEOUT=60
 SAGE_ROUTER_SHOW_MODEL_PREFIX=0   # diagnostic only; keep off for chat clients
 SAGE_ROUTER_DISABLED_PROVIDERS=    # comma-separated: ollama-cloud,anthropic,...
 ```
+
+When the router starts without an OpenClaw provider config, its fallback Ollama
+base URL follows `SAGE_ROUTER_DEFAULT_OLLAMA_BASE_URL`,
+`SAGE_ROUTER_OLLAMA_BASE_URL`, then `OLLAMA_HOST`, and finally defaults to
+`http://ollama_ollama_1:11434` for Docker/Umbrel networks. The local-Ollama
+classifier and cloud-model auth guard treat `localhost`, `127.0.0.1`,
+`host.docker.internal`, `ollama`, and `ollama_ollama_1` as local Ollama
+runtimes.
 {
   "models": {
     "providers": {
