@@ -255,6 +255,7 @@ ACTIVATION_EMAIL_REDIRECT_TO = os.environ.get(
     'https://app.sagerouter.dev/account?activation=recovery',
 ).strip()
 ACTIVATION_FOLLOWUP_SEND_CONFIRMATION = 'SEND_ACTIVATION_FOLLOWUPS'
+AUTH_LINK_REPAIR_CONFIRMATION = 'REPAIR_AUTH_LINKS'
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY') or os.environ.get('SAGE_ROUTER_STRIPE_SECRET_KEY') or ''
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET') or os.environ.get('SAGE_ROUTER_STRIPE_WEBHOOK_SECRET') or ''
 STRIPE_PRICE_ID = os.environ.get('SAGE_ROUTER_STRIPE_PRICE_ID') or os.environ.get('STRIPE_PRICE_ID') or ''
@@ -7324,6 +7325,21 @@ def activation_auth_repair_command(limit=1000):
     )
 
 
+def activation_auth_link_repair_command(limit=1000, dry_run=True):
+    max_limit = max(1, min(int(limit or 1000), 5000))
+    payload = {'limit': max_limit, 'dryRun': bool(dry_run)}
+    if not dry_run:
+        payload['repairConfirmation'] = AUTH_LINK_REPAIR_CONFIRMATION
+    return (
+        'curl -fsS -X POST https://api.sagerouter.dev/admin/customers/repair-auth-links \\\n'
+        '  -H "Authorization: Bearer ${SAGE_ROUTER_API_KEY}" \\\n'
+        '  -H "Origin: https://app.sagerouter.dev" \\\n'
+        '  -H "Content-Type: application/json" \\\n'
+        f"  --data '{json.dumps(payload, separators=(',', ':'))}' \\\n"
+        "  | jq '{status,dryRun,customersChecked,missingAuthCustomers,eligible,updated,skipped,byPlan,byStatus,privacy}'"
+    )
+
+
 def activation_auth_review_command(limit=20):
     max_limit = max(1, min(int(limit or 20), 100))
     return (
@@ -7388,6 +7404,7 @@ def launch_activation_auth_repair_handoff(segment_actions=None, activation_follo
         'command': command,
         'reviewEndpoint': '/admin/customers',
         'reviewCommand': activation_auth_review_command(limit=20) if review_only_queued > 0 else '',
+        'accountLinkRepairCommand': activation_auth_link_repair_command(limit=1000, dry_run=True) if needs_account_link_review else '',
         'reviewOnlyQueued': review_only_queued,
         'reviewOnlySegments': review_segments,
         'repairsMissingAuthUsers': needs_missing_auth_hydration,
@@ -8055,7 +8072,7 @@ def read_launch_customer_rows(limit=10000):
         if customer_store_uses_supabase():
             return supabase_select(
                 SUPABASE_CUSTOMERS_TABLE,
-                'select=id,user_id,plan,status,created_at_epoch,updated_at_epoch,stripe_customer_id,stripe_subscription_id'
+                'select=id,user_id,email,plan,status,created_at_epoch,updated_at_epoch,stripe_customer_id,stripe_subscription_id'
                 f'&limit={int(limit)}',
                 timeout=8,
             )
@@ -8063,6 +8080,7 @@ def read_launch_customer_rows(limit=10000):
             {
                 'id': row.get('id'),
                 'user_id': row.get('user_id'),
+                'email': row.get('email'),
                 'plan': row.get('plan'),
                 'status': row.get('status'),
                 'created_at_epoch': row.get('created_at_epoch'),
@@ -10868,7 +10886,7 @@ OPERATOR_AUDIT_REASON_CODES = {
     'customer_request',
     'other',
 }
-OPERATOR_AUDIT_ACTIONS = {'customer.suspend', 'customer.unsuspend', 'payment_intent.approve', 'api_key.revoke'}
+OPERATOR_AUDIT_ACTIONS = {'customer.suspend', 'customer.unsuspend', 'customer.auth_link_repair', 'payment_intent.approve', 'api_key.revoke'}
 
 
 def operator_audit_reason(value):
@@ -11981,6 +11999,154 @@ def hydrate_auth_signups_to_customers(auth_user_rows=None, limit=1000):
         except Exception as e:
             result['failed'] += 1
             logger.warning(f'Auth signup customer hydration failed: {extract_http_error(e)}')
+    return result
+
+
+def normalized_email(value):
+    return str(value or '').strip().lower()
+
+
+def auth_user_rows_by_email(auth_users):
+    by_email = {}
+    for row in auth_users or []:
+        if not isinstance(row, dict):
+            continue
+        email = normalized_email(row.get('email'))
+        if not email or not row.get('id'):
+            continue
+        by_email.setdefault(email, []).append(row)
+    return by_email
+
+
+def repair_customer_auth_links(auth_user_rows=None, customer_rows=None, limit=1000, dry_run=True):
+    """Repair stale customer user_id links by exact confirmed auth-email match.
+
+    The response is aggregate-only. It never returns customer IDs, user IDs, or
+    email addresses; use /admin/customers for bounded operator review.
+    """
+    try:
+        limit = max(1, min(int(limit or 1000), 5000))
+    except Exception:
+        limit = 1000
+    auth_rows = read_launch_auth_user_rows(limit=limit) if auth_user_rows is None else auth_user_rows
+    if not isinstance(auth_rows, list):
+        return {
+            'kind': 'auth_link_repair',
+            'status': 'unavailable',
+            'dryRun': bool(dry_run),
+            'customersChecked': 0,
+            'missingAuthCustomers': 0,
+            'eligible': 0,
+            'updated': 0,
+            'auditEventsRecorded': 0,
+            'skipped': {'auth_users_unavailable': 1},
+            'byPlan': {},
+            'byStatus': {},
+            'requiresConfirmedAuthEmail': True,
+            'requiredConfirmation': AUTH_LINK_REPAIR_CONFIRMATION,
+            'privacy': {
+                'containsEmails': False,
+                'containsUserIds': False,
+                'containsCustomerIds': False,
+                'containsApiKeys': False,
+                'containsProviderCredentials': False,
+                'aggregateOnly': True,
+            },
+        }
+    customers = [normalize_customer(row) for row in (customer_rows if customer_rows is not None else read_launch_customer_rows()) if isinstance(row, dict)]
+    auth_by_email = auth_user_rows_by_email(auth_rows)
+    existing_customer_user_ids = {
+        str(row.get('user_id'))
+        for row in customers
+        if row and row.get('user_id')
+    }
+    result = {
+        'kind': 'auth_link_repair',
+        'status': 'ok',
+        'dryRun': bool(dry_run),
+        'customersChecked': 0,
+        'missingAuthCustomers': 0,
+        'eligible': 0,
+        'updated': 0,
+        'auditEventsRecorded': 0,
+        'skipped': {
+            'no_email': 0,
+            'no_auth_email_match': 0,
+            'duplicate_auth_email_match': 0,
+            'unconfirmed_auth_email': 0,
+            'user_id_conflict': 0,
+            'update_failed': 0,
+        },
+        'byPlan': {},
+        'byStatus': {},
+        'requiresConfirmedAuthEmail': True,
+        'requiredConfirmation': AUTH_LINK_REPAIR_CONFIRMATION,
+        'privacy': {
+            'containsEmails': False,
+            'containsUserIds': False,
+            'containsCustomerIds': False,
+            'containsApiKeys': False,
+            'containsProviderCredentials': False,
+            'aggregateOnly': True,
+        },
+    }
+    for customer in customers:
+        if not customer or str(customer.get('status') or '').lower() == 'suspended':
+            continue
+        result['customersChecked'] += 1
+        verification = auth_verification_state_for_customer(customer, auth_users=auth_rows)
+        if verification.get('source') != 'missing_auth_user':
+            continue
+        result['missingAuthCustomers'] += 1
+        email = normalized_email(customer.get('email'))
+        if not email:
+            result['skipped']['no_email'] += 1
+            continue
+        matches = auth_by_email.get(email) or []
+        if not matches:
+            result['skipped']['no_auth_email_match'] += 1
+            continue
+        if len(matches) != 1:
+            result['skipped']['duplicate_auth_email_match'] += 1
+            continue
+        auth_row = matches[0]
+        if not auth_row.get('email_confirmed'):
+            result['skipped']['unconfirmed_auth_email'] += 1
+            continue
+        target_user_id = str(auth_row.get('id') or '').strip()
+        if not target_user_id:
+            result['skipped']['no_auth_email_match'] += 1
+            continue
+        current_user_id = str(customer.get('user_id') or '').strip()
+        if target_user_id in existing_customer_user_ids and target_user_id != current_user_id:
+            result['skipped']['user_id_conflict'] += 1
+            continue
+        result['eligible'] += 1
+        plan = normalize_stripe_plan(customer.get('plan') or 'free') or 'free'
+        status = str(customer.get('status') or 'inactive').strip().lower() or 'inactive'
+        result['byPlan'][plan] = result['byPlan'].get(plan, 0) + 1
+        result['byStatus'][status] = result['byStatus'].get(status, 0) + 1
+        if dry_run:
+            continue
+        try:
+            updated = update_customer(customer.get('id'), {'user_id': target_user_id})
+            if updated and str(updated.get('user_id') or '') == target_user_id:
+                result['updated'] += 1
+                audit = record_operator_audit_event(
+                    'customer.auth_link_repair',
+                    customer.get('id'),
+                    status_before='missing_auth_user',
+                    status_after='supabase_auth_admin',
+                    revoked_api_keys_count=0,
+                    reason_code='operator_review',
+                )
+                if audit:
+                    result['auditEventsRecorded'] += 1
+            else:
+                result['skipped']['update_failed'] += 1
+        except Exception as e:
+            result['skipped']['update_failed'] += 1
+            logger.warning(f'Auth link repair failed: {extract_http_error(e)}')
     return result
 
 
@@ -16997,6 +17163,27 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 logger.exception('Auth signup customer hydration failed')
                 self.write_json(500, {'error': 'auth_signup_customer_hydration_failed', 'detail': str(e)})
+            return
+        if request_path == '/admin/customers/repair-auth-links':
+            if not require_trusted_browser_origin(self):
+                return
+            if not require_operator_request(self):
+                return
+            try:
+                payload = read_json_body(self)
+                dry_run = bool(payload.get('dryRun') if 'dryRun' in payload else payload.get('dry_run', True))
+                if not dry_run and payload.get('repairConfirmation') != AUTH_LINK_REPAIR_CONFIRMATION:
+                    self.write_json(400, {
+                        'error': 'auth_link_repair_confirmation_required',
+                        'requiredConfirmation': AUTH_LINK_REPAIR_CONFIRMATION,
+                        'dryRunSupported': True,
+                    })
+                    return
+                limit = max(1, min(int(payload.get('limit') or 1000), 5000))
+                self.write_json(200, repair_customer_auth_links(limit=limit, dry_run=dry_run))
+            except Exception as e:
+                logger.exception('Auth link repair failed')
+                self.write_json(500, {'error': 'auth_link_repair_failed', 'detail': extract_http_error(e)})
             return
         if request_path == '/admin/customers/send-activation-followups':
             if not require_trusted_browser_origin(self):

@@ -1083,6 +1083,104 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('"limit":1000', hydratable['command'])
         self.assertIn('jq', hydratable['command'])
 
+    def test_operator_can_repair_stale_auth_links_with_confirmation(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        router.SUPABASE_AUTH_ENABLED = True
+        stale = router.customer_for_user({'id': 'stale-user-id', 'email': 'buyer@example.com'})
+        router.update_customer(stale['id'], {'plan': 'pro', 'status': 'active'})
+        other = router.customer_for_user({'id': 'other-user-id', 'email': 'other@example.com'})
+        router.update_customer(other['id'], {'plan': 'free', 'status': 'inactive'})
+        auth_rows = [
+            {'id': 'auth-user-1', 'email': 'buyer@example.com', 'created_at': router.now_epoch(), 'email_confirmed': True},
+            {'id': 'other-user-id', 'email': 'other@example.com', 'created_at': router.now_epoch(), 'email_confirmed': True},
+        ]
+
+        dry = router.repair_customer_auth_links(auth_user_rows=auth_rows, dry_run=True)
+
+        self.assertEqual('ok', dry['status'])
+        self.assertTrue(dry['dryRun'])
+        self.assertEqual(2, dry['customersChecked'])
+        self.assertEqual(1, dry['missingAuthCustomers'])
+        self.assertEqual(1, dry['eligible'])
+        self.assertEqual(0, dry['updated'])
+        self.assertEqual({'pro': 1}, dry['byPlan'])
+        self.assertEqual({'active': 1}, dry['byStatus'])
+        self.assertFalse(dry['privacy']['containsEmails'])
+        self.assertFalse(dry['privacy']['containsUserIds'])
+        self.assertFalse(dry['privacy']['containsCustomerIds'])
+        self.assertNotIn('buyer@example.com', json.dumps(dry))
+        self.assertNotIn('auth-user-1', json.dumps(dry))
+        self.assertEqual('stale-user-id', router.customer_by_id(stale['id'])['user_id'])
+
+        apply = router.repair_customer_auth_links(auth_user_rows=auth_rows, dry_run=False)
+
+        self.assertFalse(apply['dryRun'])
+        self.assertEqual(1, apply['eligible'])
+        self.assertEqual(1, apply['updated'])
+        self.assertEqual(1, apply['auditEventsRecorded'])
+        self.assertEqual('auth-user-1', router.customer_by_id(stale['id'])['user_id'])
+        audit = router.operator_audit_events_for_customer(stale['id'])
+        self.assertEqual(1, len(audit))
+        self.assertEqual('customer.auth_link_repair', audit[0]['action'])
+        self.assertNotIn('buyer@example.com', json.dumps(apply))
+        self.assertNotIn('auth-user-1', json.dumps(apply))
+
+    def test_operator_auth_link_repair_endpoint_defaults_to_dry_run(self):
+        router.CLIENT_API_KEYS = ['operator-token']
+        router.SUPABASE_AUTH_ENABLED = True
+        stale = router.customer_for_user({'id': 'stale-user-id', 'email': 'buyer@example.com'})
+        router.update_customer(stale['id'], {'plan': 'pro', 'status': 'active'})
+        router.read_launch_auth_user_rows = lambda limit=1000: [
+            {'id': 'auth-user-1', 'email': 'buyer@example.com', 'created_at': router.now_epoch(), 'email_confirmed': True},
+        ]
+
+        class Dummy:
+            def __init__(self, body):
+                self.path = '/admin/customers/repair-auth-links'
+                self.headers = {
+                    'Authorization': 'Bearer operator-token',
+                    'Content-Length': str(len(body)),
+                    'Origin': 'https://app.sagerouter.dev',
+                }
+                self.rfile = BytesIO(body)
+                self.status = None
+                self.payload = None
+
+            def write_json(self, status, payload, extra_headers=None):
+                self.status = status
+                self.payload = payload
+
+        dry = Dummy(b'{}')
+        router.Handler.do_POST(dry)
+
+        self.assertEqual(200, dry.status)
+        self.assertTrue(dry.payload['dryRun'])
+        self.assertEqual(1, dry.payload['eligible'])
+        self.assertEqual(0, dry.payload['updated'])
+        self.assertEqual('stale-user-id', router.customer_by_id(stale['id'])['user_id'])
+
+        blocked = Dummy(b'{"dryRun":false}')
+        router.Handler.do_POST(blocked)
+
+        self.assertEqual(400, blocked.status)
+        self.assertEqual('auth_link_repair_confirmation_required', blocked.payload['error'])
+        self.assertEqual(router.AUTH_LINK_REPAIR_CONFIRMATION, blocked.payload['requiredConfirmation'])
+        self.assertEqual('stale-user-id', router.customer_by_id(stale['id'])['user_id'])
+
+        body = json.dumps({
+            'dryRun': False,
+            'repairConfirmation': router.AUTH_LINK_REPAIR_CONFIRMATION,
+        }).encode()
+        applied = Dummy(body)
+        router.Handler.do_POST(applied)
+
+        self.assertEqual(200, applied.status)
+        self.assertFalse(applied.payload['dryRun'])
+        self.assertEqual(1, applied.payload['updated'])
+        self.assertEqual('auth-user-1', router.customer_by_id(stale['id'])['user_id'])
+        self.assertNotIn('buyer@example.com', json.dumps(applied.payload))
+        self.assertNotIn('auth-user-1', json.dumps(applied.payload))
+
     def test_operator_customer_review_flags_are_bounded_and_actionable(self):
         customer = self.active_customer()
         _raw, _row = router.create_api_key_for_customer(customer, 'prod')
@@ -2588,6 +2686,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(packet['authRepair']['accountLinkRepairRequired'])
         self.assertEqual(1, packet['authRepair']['accountLinkReviewQueued'])
         self.assertEqual(0, packet['authRepair']['hydrateCandidateCount'])
+        self.assertIn('/admin/customers/repair-auth-links', packet['authRepair']['accountLinkRepairCommand'])
+        self.assertIn('"dryRun":true', packet['authRepair']['accountLinkRepairCommand'])
         self.assertIn('Do not retry hydration', packet['authRepair']['operatorAction'])
         self.assertIn('no missing customer rows', packet['authRepair']['noopFallbackAction'])
         rows = {row['segment']: row for row in packet['segmentActions']}

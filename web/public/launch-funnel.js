@@ -4,6 +4,7 @@ const APP_BASE = window.SAGE_ROUTER_APP_URL || window.location.origin;
 const SESSION_TOKEN_KEY = 'sage_router_operator_launch_funnel_token';
 const FOLLOWUP_DRAFT_ACTION_PREFIX = 'sage_router_operator_no_key_followup_draft';
 const ACTIVATION_FOLLOWUP_SEND_CONFIRMATION = 'SEND_ACTIVATION_FOLLOWUPS';
+const AUTH_LINK_REPAIR_CONFIRMATION = 'REPAIR_AUTH_LINKS';
 const ACTIVATION_FOLLOWUP_TYPED_APPROVAL_PROMPT = `Type ${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION} to send real activation follow-up emails.`;
 const OPERATOR_TOKEN_COMMAND = [
   "python3 - <<'PY'",
@@ -953,6 +954,7 @@ function renderActivationAuthRepair(data = {}) {
   if (!repair.required) return '';
   const segments = safeList(repair.reviewOnlySegments).join(', ') || 'review-only';
   const command = repair.command || '';
+  const accountLinkCommand = repair.accountLinkRepairCommand || '';
   const hydrateCount = Number(repair.hydrateCandidateCount || 0);
   const accountLinkCount = Number(repair.accountLinkReviewQueued || 0);
   const mode = command
@@ -962,6 +964,7 @@ function renderActivationAuthRepair(data = {}) {
     <strong>Review-only auth repair:</strong> ${esc(repair.operatorAction || 'Repair or exclude review-only activation segments before email outreach.')}
     <p class="muted">Queued ${integer(repair.reviewOnlyQueued)} across ${esc(segments)}. ${esc(mode)} ${esc(repair.noopFallbackAction || '')}</p>
     ${command ? `<div class="actions"><button class="btn secondary small" type="button" data-copy-auth-repair-command="${esc(command)}" data-followup-count="${integer(repair.reviewOnlyQueued)}">Copy auth repair command</button><span class="status">Command requires the private operator token and does not include emails, user IDs, customer IDs, or API keys.</span></div>` : ''}
+    ${accountLinkCommand ? `<div class="actions"><button class="btn secondary small" type="button" data-copy-auth-repair-command="${esc(accountLinkCommand)}" data-followup-count="${integer(repair.accountLinkReviewQueued || repair.reviewOnlyQueued)}">Copy account-link dry-run</button><span class="status">Dry-run only; apply requires ${AUTH_LINK_REPAIR_CONFIRMATION || 'REPAIR_AUTH_LINKS'} and still returns aggregate counts.</span></div>` : ''}
     ${repair.reviewCommand ? `<div class="actions"><button class="btn secondary small" type="button" data-copy-auth-repair-command="${esc(repair.reviewCommand)}" data-followup-count="${integer(repair.reviewOnlyQueued)}">Copy bounded review command</button><span class="status">${command ? 'Use this if hydration reports created=0 and the review-only segment remains.' : 'Use this to inspect account-link repair or exclusion without exposing raw keys or prompts.'}</span></div>` : ''}
   </div>`;
 }
@@ -995,6 +998,7 @@ function activationApprovalPacketText(data = {}) {
     `Auth repair: ${authRepair.status || 'unknown'}; queued=${integer(authRepair.reviewOnlyQueued)}; segments=${safeList(authRepair.reviewOnlySegments).join(', ') || 'none'}; hydrateCandidates=${integer(authRepair.hydrateCandidateCount)}; accountLinkReview=${integer(authRepair.accountLinkReviewQueued)}; endpoint=${authRepair.endpoint || '/admin/customers/hydrate-auth-users'}.`,
     `Auth repair fallback: ${authRepair.noopFallbackAction || 'none'}`,
     ...(authRepair.command ? ['', 'Auth repair command:', authRepair.command] : []),
+    ...(authRepair.accountLinkRepairCommand ? ['', 'Account-link repair dry-run command:', authRepair.accountLinkRepairCommand] : []),
     ...(authRepair.reviewCommand ? ['', 'Bounded auth review command:', authRepair.reviewCommand] : []),
     '',
     'Approval checklist:',

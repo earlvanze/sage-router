@@ -581,10 +581,12 @@ provider resale claim, or runtime feature flag.
   segment names, hydrate candidate counts for auth signups without customer
   rows, account-link review counts for existing customers whose auth binding is
   stale, `/admin/customers/hydrate-auth-users` only when hydration can create
-  rows, expected aggregate result fields, a bounded safe customer review
-  command, no-op fallback guidance, and privacy flags; after any hydration or
-  account-link repair the operator must refresh the funnel and re-run dry-run
-  coverage before approving new real sends.
+  rows, a dry-run `/admin/customers/repair-auth-links` command for exact
+  confirmed same-email account-link repair, expected aggregate result fields, a
+  bounded safe customer review command, no-op fallback guidance, and privacy
+  flags; applying account-link repair must require `REPAIR_AUTH_LINKS`, and
+  after any hydration or account-link repair the operator must refresh the
+  funnel and re-run dry-run coverage before approving new real sends.
 - Keep the operator-only launch funnel no-key queue executable: it should read
   bounded `/admin/customers` rows, render generated-key-first mailto/link
   actions, and provide per-customer plus batch snippet copy for outreach without

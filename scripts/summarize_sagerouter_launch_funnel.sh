@@ -199,6 +199,8 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         "- Fallback/action boundary: \($auth_repair.noopFallbackAction // "none").",
         "- Hydrate command:",
         (if (($auth_repair.command // "") != "") then $auth_repair.command else "  not applicable: no auth signups without customer rows are queued for hydration" end),
+        "- Account-link repair dry-run command:",
+        (if (($auth_repair.accountLinkRepairCommand // "") != "") then $auth_repair.accountLinkRepairCommand else "  not applicable: no account-link review segment is queued" end),
         "- Bounded auth review command:",
         (if (($auth_repair.reviewCommand // "") != "") then $auth_repair.reviewCommand else "  unavailable: no bounded auth review command returned by /analytics/funnel" end),
         "",
