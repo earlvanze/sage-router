@@ -2604,6 +2604,28 @@ def parse_provider_resale_cost_cents_per_thousand_requests():
     return parsed
 
 
+def managed_provider_pricing_guardrail(row, failed_plans, cost_configured):
+    plan = row.get('plan')
+    max_safe_cost = float(row.get('maximumProviderCostCentsPerThousandRequests') or 0)
+    guidance = 'eligible_if_private_cost_is_at_or_below_public_threshold'
+    if not cost_configured:
+        guidance = 'review_private_cost_model_before_bundling_managed_access'
+    elif plan in failed_plans:
+        guidance = 'exclude_or_add_managed_access_surcharge_until_private_cost_passes'
+    elif max_safe_cost < 30:
+        guidance = 'review_quota_or_add_on_before_bundling_expensive_frontier_access'
+    return {
+        'plan': plan,
+        'monthlyRequests': row.get('monthlyRequests'),
+        'monthlyPriceUsd': row.get('monthlyPriceUsd'),
+        'maximumSafeProviderCostCentsPerThousandRequests': row.get('maximumProviderCostCentsPerThousandRequests'),
+        'constraintRank': row.get('constraintRank'),
+        'candidatePasses': bool(row.get('meetsMinimumGrossMargin')),
+        'guidance': guidance,
+        'privacy': 'public_threshold_only',
+    }
+
+
 def managed_provider_unit_economics(cost_cents_per_thousand, minimum_gross_margin_percent):
     plans = public_plan_catalog()
     evaluated = []
@@ -2631,12 +2653,32 @@ def managed_provider_unit_economics(cost_cents_per_thousand, minimum_gross_margi
         else:
             row['meetsMinimumGrossMargin'] = False
         evaluated.append(row)
+    ranked = sorted(
+        evaluated,
+        key=lambda row: float(row.get('maximumProviderCostCentsPerThousandRequests') or 0),
+    )
+    constraint_rank = {
+        str(row.get('plan')): index + 1
+        for index, row in enumerate(ranked)
+        if row.get('plan')
+    }
+    for row in evaluated:
+        row['constraintRank'] = constraint_rank.get(str(row.get('plan')))
+    failed_plans = [
+        row.get('plan') for row in evaluated
+        if row.get('plan') and not row.get('meetsMinimumGrossMargin')
+    ]
+    pricing_guardrails = [
+        managed_provider_pricing_guardrail(row, failed_plans, cost_configured)
+        for row in evaluated
+    ]
     return {
         'costModel': 'cents_per_thousand_requests',
         'costModelConfigured': cost_configured,
         'costModelEnv': 'SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS',
         'minimumGrossMarginPercent': minimum_gross_margin_percent,
         'evaluatedPlans': evaluated,
+        'pricingGuardrails': pricing_guardrails,
         'satisfied': bool(cost_configured and evaluated and all(row.get('meetsMinimumGrossMargin') for row in evaluated)),
     }
 
@@ -3004,6 +3046,7 @@ def public_launch_metadata():
     )
     managed_provider_access['marginPolicyUrl'] = margin_policy_url
     managed_provider_access['unitEconomics'] = unit_economics
+    managed_provider_access['pricingGuardrails'] = unit_economics.get('pricingGuardrails') or []
     managed_provider_access['acceptableUseUrl'] = f"{MARKETING_BASE_URL}/acceptable-use"
     readiness_setup = managed_provider_resale_readiness_setup(
         enabled=bool(managed_provider_access.get('enabled'))
@@ -3088,7 +3131,9 @@ def compact_managed_provider_readiness(pricing_metadata):
             'satisfied': bool(unit.get('satisfied')),
             'minimumGrossMarginPercent': unit.get('minimumGrossMarginPercent'),
             'evaluatedPlans': unit.get('evaluatedPlans') if isinstance(unit.get('evaluatedPlans'), list) else [],
+            'pricingGuardrails': unit.get('pricingGuardrails') if isinstance(unit.get('pricingGuardrails'), list) else [],
         },
+        'pricingGuardrails': managed.get('pricingGuardrails') if isinstance(managed.get('pricingGuardrails'), list) else [],
         'readinessSetup': {
             'setupScript': setup.get('setupScript') or 'scripts/configure_managed_provider_resale_readiness.sh',
             'setupCommand': setup.get('setupCommand') or '',

@@ -1501,10 +1501,21 @@ class SaaSAuthTests(unittest.TestCase):
         plan_margins = {row['plan']: row for row in managed['unitEconomics']['evaluatedPlans']}
         self.assertEqual(60.0, plan_margins['lite']['revenueCentsPerThousandRequests'])
         self.assertEqual(39.0, plan_margins['lite']['maximumProviderCostCentsPerThousandRequests'])
+        self.assertEqual(2, plan_margins['lite']['constraintRank'])
         self.assertEqual(36.0, plan_margins['max']['revenueCentsPerThousandRequests'])
         self.assertEqual(23.4, plan_margins['max']['maximumProviderCostCentsPerThousandRequests'])
+        self.assertEqual(1, plan_margins['max']['constraintRank'])
         for row in plan_margins.values():
             self.assertNotIn('grossMarginPercent', row)
+        guardrails = {row['plan']: row for row in managed['pricingGuardrails']}
+        self.assertEqual(3, len(guardrails))
+        self.assertEqual('public_threshold_only', guardrails['max']['privacy'])
+        self.assertEqual('review_private_cost_model_before_bundling_managed_access', guardrails['max']['guidance'])
+        self.assertFalse(guardrails['max']['candidatePasses'])
+        self.assertEqual(23.4, guardrails['max']['maximumSafeProviderCostCentsPerThousandRequests'])
+        self.assertNotIn('actualProviderCost', json.dumps(managed['pricingGuardrails']))
+        self.assertNotIn('grossMarginPercent', json.dumps(managed['pricingGuardrails']))
+        self.assertEqual(managed['pricingGuardrails'], managed['unitEconomics']['pricingGuardrails'])
         self.assertIn('per_plan_monthly_quotas', managed['costControls'])
         self.assertIn('request_per_minute_limits', managed['costControls'])
         self.assertIn('durable_usage_accounting', managed['costControls'])

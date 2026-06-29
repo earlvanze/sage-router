@@ -246,6 +246,9 @@
         const missing = Array.isArray(managed.missingControls) ? managed.missingControls : [];
         const familyRows = Array.isArray(managed.providerFamilyReadiness) ? managed.providerFamilyReadiness : [];
         const planRows = Array.isArray(unit.evaluatedPlans) ? unit.evaluatedPlans : [];
+        const guardrails = Array.isArray(managed.pricingGuardrails)
+          ? managed.pricingGuardrails
+          : (Array.isArray(unit.pricingGuardrails) ? unit.pricingGuardrails : []);
         const missingBadges = missing.length
           ? missing.map((item) => `<span class="readinessBadge">${esc(humanize(item))}</span>`).join('')
           : '<span class="readinessBadge good">no missing controls reported</span>';
@@ -255,6 +258,9 @@
         const planLabels = planRows.length
           ? planRows.map((row) => `${String(row.plan || '').toUpperCase()} max ${formatCents(row.maximumProviderCostCentsPerThousandRequests)}/1k`).join(' · ')
           : 'No plan-margin rows returned';
+        const guardrailLabels = guardrails.length
+          ? guardrails.map((row) => `${String(row.plan || '').toUpperCase()}: ${humanize(row.guidance || 'review_private_cost_model_before_bundling_managed_access')}`).join(' · ')
+          : 'Run unit-economics preflight before bundling managed access';
         summary.textContent = managed.enabled
           ? 'Managed access reports private-beta readiness. Keep provider authorization, terms, quotas, and audit evidence current.'
           : `Managed access is disabled: ${humanize(managed.status || 'pending controls')}. Request review now, or start Max with BYOK while controls are completed.`;
@@ -264,6 +270,7 @@
           `<div class="readinessCard"><strong>One-subscription ready</strong><span>${esc(listLabel(oneSubscription.readyProviderFamilies))}</span></div>`,
           `<div class="readinessCard"><strong>Blocked / BYOK boundary</strong><span>${esc(listLabel(oneSubscription.blockedProviderFamilies))}; BYOK-only ${esc(listLabel(managed.byokOnlyProviderFamilies))}</span></div>`,
           `<div class="readinessCard"><strong>Plan-margin thresholds</strong><span>${esc(planLabels)}</span></div>`,
+          `<div class="readinessCard"><strong>Pricing guardrails</strong><span>${esc(guardrailLabels)}</span></div>`,
           `<div class="readinessCard"><strong>Operator next action</strong><span>${esc(humanize((managed.nextActions || [])[0]?.id || 'review provider readiness controls'))}</span></div>`,
         ].join('');
       } catch (_error) {

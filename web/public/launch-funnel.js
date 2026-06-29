@@ -1231,6 +1231,9 @@ function managedAccessApprovalPacketText(data = {}) {
   const unitEconomics = managed.unitEconomics || {};
   const actions = Array.isArray(managed.nextActions) ? managed.nextActions : [];
   const plans = Array.isArray(unitEconomics.evaluatedPlans) ? unitEconomics.evaluatedPlans : [];
+  const guardrails = Array.isArray(managed.pricingGuardrails)
+    ? managed.pricingGuardrails
+    : (Array.isArray(unitEconomics.pricingGuardrails) ? unitEconomics.pricingGuardrails : []);
   const termsCommand = setup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
   const authorizationPacketCommand = setup.authorizationPacketCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet';
   const authorizationLedgerTemplateCommand = setup.authorizationLedgerTemplateCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template';
@@ -1242,6 +1245,9 @@ function managedAccessApprovalPacketText(data = {}) {
   const enableCommand = setup.enableCommandTemplate || "SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='1' scripts/configure_managed_provider_resale_readiness.sh";
   const planLines = plans.length
     ? plans.map(plan => `- ${plan.plan || 'plan'}: revenue=${asNumber(plan.revenueCentsPerThousandRequests).toFixed(4)} cents/1k; maxSafeProviderCost=${asNumber(plan.maximumProviderCostCentsPerThousandRequests).toFixed(4)} cents/1k; minimumGrossMargin=${integer(plan.minimumGrossMarginPercent)}%; pass=${plan.meetsMinimumGrossMargin === true}`)
+    : ['- none returned'];
+  const guardrailLines = guardrails.length
+    ? guardrails.map(row => `- ${row.plan || 'plan'}: maxSafeProviderCost=${asNumber(row.maximumSafeProviderCostCentsPerThousandRequests).toFixed(4)} cents/1k; candidatePasses=${row.candidatePasses === true}; guidance=${row.guidance || 'review_private_cost_model_before_bundling_managed_access'}; privacy=${row.privacy || 'public_threshold_only'}`)
     : ['- none returned'];
   const actionLines = actions.length
     ? actions.map(action => `- ${action.priority || 'next'}:${action.id || 'managed_access'} - ${action.title || 'Review managed-access controls'}; action=${action.action || 'Review the next missing control.'}; success=${action.successMetric || 'Remove one managed-access blocker.'}; requiredEnv=${safeList(action.requiredEnv).join(', ') || 'none'}`)
@@ -1270,6 +1276,9 @@ function managedAccessApprovalPacketText(data = {}) {
     '',
     'Unit-economics public thresholds',
     ...planLines,
+    '',
+    'Managed-access pricing guardrails',
+    ...guardrailLines,
     '',
     'Secret-safe commands',
     `- Terms approval packet: ${termsCommand}`,
@@ -1311,6 +1320,10 @@ function renderManagedAccessReadiness(data = {}) {
   const actions = Array.isArray(managed.nextActions) ? managed.nextActions : [];
   const missingControls = safeList(managed.missingControls);
   const plans = Array.isArray(unitEconomics.evaluatedPlans) ? unitEconomics.evaluatedPlans : [];
+  const guardrails = Array.isArray(managed.pricingGuardrails)
+    ? managed.pricingGuardrails
+    : (Array.isArray(unitEconomics.pricingGuardrails) ? unitEconomics.pricingGuardrails : []);
+  const guardrailByPlan = Object.fromEntries(guardrails.map(row => [String(row.plan || ''), row]));
   const approvalPacket = managedAccessApprovalPacketText(data);
   const statusTone = managed.enabled ? 'good' : (missingControls.length ? 'warn' : 'good');
   const renderList = (items, empty = 'none') => safeList(items).map(item => `<span class="pill">${esc(item)}</span>`).join(' ') || `<span class="muted">${esc(empty)}</span>`;
@@ -1321,8 +1334,9 @@ function renderManagedAccessReadiness(data = {}) {
       <td>${asNumber(plan.maximumProviderCostCentsPerThousandRequests).toFixed(4)}</td>
       <td>${integer(plan.minimumGrossMarginPercent)}%</td>
       <td><span class="pill ${plan.meetsMinimumGrossMargin ? 'good' : 'warn'}">${plan.meetsMinimumGrossMargin ? 'pass' : 'pending private cost'}</span></td>
+      <td>${esc((guardrailByPlan[String(plan.plan || '')] || {}).guidance || 'review_private_cost_model_before_bundling_managed_access')}</td>
     </tr>`).join('')
-    : '<tr><td colspan="5">No fixed-plan unit-economics rows returned.</td></tr>';
+    : '<tr><td colspan="6">No fixed-plan unit-economics rows returned.</td></tr>';
   const actionRows = actions.length
     ? actions.map(action => `<tr>
       <td><span class="pill ${action.priority === 'fix_now' ? 'bad' : 'warn'}">${esc(action.priority || 'next')}</span></td>
@@ -1373,7 +1387,7 @@ function renderManagedAccessReadiness(data = {}) {
     <tbody>${actionRows}</tbody>
   </table></div>
   <div class="tableWrap" style="margin-top:14px"><table>
-    <thead><tr><th>Plan</th><th>Revenue cents/1k</th><th>Max safe cost cents/1k</th><th>Min margin</th><th>Private cost check</th></tr></thead>
+    <thead><tr><th>Plan</th><th>Revenue cents/1k</th><th>Max safe cost cents/1k</th><th>Min margin</th><th>Private cost check</th><th>Guardrail</th></tr></thead>
     <tbody>${planRows}</tbody>
   </table></div>`;
 }
