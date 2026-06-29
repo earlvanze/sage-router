@@ -67,9 +67,13 @@ fi
 grep -q 'Finish Sage Router Setup Key' "$tmp_body" || fail 'setup-key recovery page missing title'
 grep -q 'same email or GitHub identity' "$tmp_body" || fail 'setup-key recovery page missing same-identity guidance'
 grep -q 'operator-auto-account-setup' "$tmp_body" || fail 'setup-key recovery page missing operator auto-account handoff'
+grep -q 'recovery-auto-account-setup' "$tmp_body" || fail 'setup-key recovery page missing recovery auto-account handoff'
 grep -q 'setup_key_recovery_auto_account_redirected' "$tmp_body" || fail 'setup-key recovery page missing auto-account telemetry'
 grep -q 'setup_key_recovery_next_account_clicked' "$tmp_body" || fail 'setup-key recovery page missing next-account telemetry'
-grep -q 'target.searchParams.set('\''source_surface'\'', '\''operator_activation'\'')' "$tmp_body" || fail 'setup-key recovery page does not preserve operator source_surface'
+grep -q "sourceSurface === 'recovery'" "$tmp_body" || fail 'setup-key recovery page does not auto-open recovery source_surface traffic'
+grep -q "setup === 'login-key-recovery'" "$tmp_body" || fail 'setup-key recovery page does not auto-open login-key-recovery traffic'
+grep -q "if (sourceSurface) target.searchParams.set('source_surface', sourceSurface)" "$tmp_body" || fail 'setup-key recovery page does not preserve source_surface'
+grep -q "if (setup) target.searchParams.set('setup', setup)" "$tmp_body" || fail 'setup-key recovery page does not preserve setup source'
 grep -q 'target.searchParams.set('\''next'\'', '\''generated-key'\'')' "$tmp_body" || fail 'setup-key recovery page does not preserve generated-key next step'
 pass 'setup-key recovery page exposes operator handoff controls and attribution preservation'
 
@@ -89,6 +93,13 @@ post_smoke_event \
   "$page_url" \
   "$account_target" \
   'operator_activation'
+
+post_smoke_event \
+  'setup_key_recovery_auto_account_redirected' \
+  "$MARKETING_BASE" \
+  "${page_url}&setup=login-key-recovery&source_surface=recovery" \
+  "$account_target" \
+  'login-key-recovery'
 
 post_smoke_event \
   'login_key_recovery_account_setup_auto_redirected' \

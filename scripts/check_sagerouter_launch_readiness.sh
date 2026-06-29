@@ -4012,6 +4012,15 @@ check_marketing_setup_key_recovery_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "operator-auto-account-setup" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-auto-account-operator"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "recovery-auto-account-setup" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-auto-account-recovery"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup === 'login-key-recovery'" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-login-auto-open"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "sourceSurface === 'recovery'" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-source-auto-open"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Email setup key link" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-email-form"
   fi

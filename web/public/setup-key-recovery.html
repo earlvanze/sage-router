@@ -245,28 +245,46 @@ curl -i "$OPENAI_BASE_URL/models" \
     function shouldAutoOpenSetupRecoveryAccount() {
       const params = new URLSearchParams(window.location.search);
       const sourceSurface = attributionValue(params.get('source_surface') || params.get('sourceSurface'));
+      const setup = attributionValue(params.get('setup'));
       const auto = attributionValue(params.get('auto') || params.get('autostart'));
-      return sourceSurface === 'operator_activation' || auto === 'account' || auto === 'setup';
+      return sourceSurface === 'operator_activation'
+        || sourceSurface === 'recovery'
+        || setup === 'login-key-recovery'
+        || auto === 'account'
+        || auto === 'setup';
     }
 
     function setupRecoveryAccountUrlForAutoOpen() {
       const params = new URLSearchParams(window.location.search);
       const target = new URL(SETUP_RECOVERY_ACCOUNT_URL);
       const sourceSurface = attributionValue(params.get('source_surface') || params.get('sourceSurface'));
-      if (sourceSurface === 'operator_activation') {
-        ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content'].forEach((name) => {
-          const value = params.get(name) || params.get(name.replace('utm_', 'utm'));
-          if (value) target.searchParams.set(name, value);
-        });
-        target.searchParams.set('source_surface', 'operator_activation');
-        target.searchParams.set('next', 'generated-key');
-      }
+      const setup = attributionValue(params.get('setup'));
+      ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content'].forEach((name) => {
+        const value = params.get(name) || params.get(name.replace('utm_', 'utm'));
+        if (value) target.searchParams.set(name, value);
+      });
+      if (sourceSurface) target.searchParams.set('source_surface', sourceSurface);
+      if (setup) target.searchParams.set('setup', setup);
+      target.searchParams.set('next', 'generated-key');
       return target.toString();
+    }
+
+    function setupRecoveryAutoOpenState() {
+      const params = new URLSearchParams(window.location.search);
+      const sourceSurface = attributionValue(params.get('source_surface') || params.get('sourceSurface'));
+      const setup = attributionValue(params.get('setup'));
+      const auto = attributionValue(params.get('auto') || params.get('autostart'));
+      if (sourceSurface === 'operator_activation') return 'operator_activation';
+      if (setup === 'login-key-recovery') return 'login-key-recovery';
+      if (sourceSurface === 'recovery') return 'recovery';
+      if (auto) return `auto_${auto}`;
+      return 'recovery_auto';
     }
 
     function scheduleSetupRecoveryAccountAutoOpen() {
       if (!shouldAutoOpenSetupRecoveryAccount()) return;
       const targetUrl = setupRecoveryAccountUrlForAutoOpen();
+      const state = setupRecoveryAutoOpenState();
       try {
         const key = `sage_router_setup_recovery_auto_account:${targetUrl}`;
         if (window.sessionStorage?.getItem(key) === '1') return;
@@ -277,8 +295,8 @@ curl -i "$OPENAI_BASE_URL/models" \
       const status = document.getElementById('setup-key-recovery-next-status');
       if (status) status.textContent = 'Opening account setup so the generated key can be created...';
       trackSetupRecoveryEvent('setup_key_recovery_auto_account_redirected', {
-        button: 'operator-auto-account-setup',
-        state: 'operator_activation',
+        button: state === 'operator_activation' ? 'operator-auto-account-setup' : 'recovery-auto-account-setup',
+        state,
         target: targetUrl,
       });
       setTimeout(() => {
