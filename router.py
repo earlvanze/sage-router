@@ -7104,6 +7104,7 @@ OPERATOR_FOLLOWUP_SEND_FAILURE_EVENTS = {
     'operator_no_key_followup_send_failed',
 }
 KEY_FIRST_REDIRECT_EVENTS = {
+    'account_setup_handoff_viewed',
     'account_checkout_key_first_redirected',
     'account_intent_create_key_clicked',
     'calculator_key_activation_clicked',
@@ -7124,6 +7125,7 @@ KEY_FIRST_REDIRECT_EVENTS = {
     'setup_key_recovery_oauth_clicked',
 }
 KEY_RECOVERY_VIEW_EVENTS = {
+    'account_setup_handoff_viewed',
     'account_key_recovery_email_field_auto',
     'account_key_recovery_signed_in_prompt_shown',
     'account_key_recovery_viewed',

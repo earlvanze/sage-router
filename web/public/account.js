@@ -12,6 +12,7 @@ const AUTO_OAUTH_ATTEMPT_STORAGE_KEY = 'sage_router_auto_oauth_attempt';
 const KEY_RECOVERY_EMAIL_FOCUS_STORAGE_KEY = 'sage_router_key_recovery_email_focus';
 const KEY_RECOVERY_SIGNED_IN_PROMPT_STORAGE_KEY = 'sage_router_key_recovery_signed_in_prompt';
 const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
+const KEY_RECOVERY_HANDOFF_STORAGE_KEY = 'sage_router_key_recovery_handoff';
 const ACCOUNT_AUTH_NUDGE_STORAGE_KEY = 'sage_router_account_auth_nudge_dismissed_until';
 const FALLBACK_PLANS = {
   lite: { name: 'Lite', price: '$6/month', limits: { monthlyRequests: 10000, rateLimitPerMinute: 60 }, features: ['agent-native routing', 'API keys', 'usage analytics'] },
@@ -120,6 +121,21 @@ function rememberOnboardingContext(context) {
     // Onboarding can continue without local persistence.
   }
   return context;
+}
+
+function consumeKeyRecoveryHandoffContext() {
+  try {
+    const raw = window.localStorage?.getItem(KEY_RECOVERY_HANDOFF_STORAGE_KEY);
+    if (!raw) return null;
+    window.localStorage?.removeItem(KEY_RECOVERY_HANDOFF_STORAGE_KEY);
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const ageMs = Date.now() - Number(parsed.createdAt || 0);
+    if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > 10 * 60 * 1000) return null;
+    return parsed;
+  } catch (_error) {
+    return null;
+  }
 }
 
 function normalizePlan(plan) {
@@ -459,13 +475,16 @@ function renderAccountIntent() {
 
 function maybePrimeSetupHandoffLanding() {
   const setupSource = requestedSetupSourceFromUrl();
-  if (!setupSource) return;
+  const handoff = consumeKeyRecoveryHandoffContext();
+  if (!setupSource && !handoff) return;
+  const handoffState = requestedSourceSurfaceFromUrl() || handoff?.state || 'unknown';
+  const handoffSnippet = setupSource || handoff?.source || 'login-key-recovery';
   window.setTimeout(() => {
     trackAccountFunnelEvent('account_setup_handoff_viewed', {
-      button: 'setup_handoff',
-      target: '#intent-email',
-      state: requestedSourceSurfaceFromUrl() || 'unknown',
-      snippet: setupSource,
+      button: handoff?.button || 'setup_handoff',
+      target: handoff?.target || '#intent-email',
+      state: handoffState,
+      snippet: handoffSnippet,
     });
     if (activationState.signedIn) return;
     set('intent-email-status', 'Setup copied. Continue with GitHub or send the setup link, then create the sk_sage key before checkout.');
