@@ -380,6 +380,7 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
     'scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens',
     'scripts/configure_cloudflare_api_bic_skip.sh --check',
   ].join('\n');
+  const managedStagePublicControls = managedSetup.stagePublicControlsCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
   const managedSetupCommand = managedSetup.setupCommand || [
     "SAGEROUTER_PROVIDER_RESALE_TERMS_URL='https://sagerouter.dev/provider-resale-terms' \\",
     "SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL='https://sagerouter.dev/margin-policy' \\",
@@ -447,13 +448,23 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
     },
     {
       id: 'managed-resale-stage',
-      title: 'Provider terms staging',
+      title: 'Provider public-control staging',
       value: 'Ollama/OpenAI/Anthropic only',
-      badge: 'no OpenRouter resale',
+      badge: 'no secret cost model',
       state: 'warn',
-      meta: 'Use reviewed provider terms and a private cost placeholder; do not publish managed resale until unit economics and terms are acknowledged.',
-      command: managedSetupCommand,
+      meta: 'Stages public terms, margin-policy, resale-eligible allowlist, minimum margin, and disabled public-enable controls without writing the private provider-cost model or authorization reference.',
+      command: managedStagePublicControls,
       copyEvent: 'status_managed_resale_stage_copied',
+    },
+    {
+      id: 'managed-private-cost-stage',
+      title: 'Private cost-model staging',
+      value: 'Requires reviewed private cost',
+      badge: 'Secret Manager',
+      state: 'warn',
+      meta: 'Use only after the unit-economics preflight passes with the reviewed private provider-cost candidate. Keep public managed resale disabled until final approval.',
+      command: managedSetupCommand,
+      copyEvent: 'status_managed_private_cost_stage_copied',
     },
     {
       id: 'first-request-proof',

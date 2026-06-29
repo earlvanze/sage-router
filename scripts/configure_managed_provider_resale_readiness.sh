@@ -415,6 +415,8 @@ managed_provider_operator_packet() {
   fi
 
   printf 'Next operator actions:\n'
+  printf -- '- Stage or refresh public controls without terms acknowledgment, provider authorization reference, or private cost:\n'
+  printf '  scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls\n'
   printf -- '- Review provider resale terms out of band, then set SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=1 only when the terms and authorization evidence are approved.\n'
   printf -- '- Store only a private evidence reference in SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF; do not paste the evidence body into public metadata.\n'
   printf -- '- Run: SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS=REVIEWED_PRIVATE_COST scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n'

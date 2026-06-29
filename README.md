@@ -580,6 +580,14 @@ the named readiness variables from `SAGEROUTER_SECRET_ENV_FILE` or
 `/home/digit/.openclaw/.env` when they are not already set, and still prints
 only presence, counts, binding names, and public thresholds.
 
+The `/pricing`, `/status`, and private launch-funnel metadata exposes
+`readinessSetup.stagePublicControlsCommand` separately from the full
+`setupCommand`. Use `stagePublicControlsCommand` first because it stages public
+terms, margin-policy, allowlist, margin floor, and disabled-public-enable
+controls without a provider authorization reference or private provider-cost
+candidate. Only use the full `setupCommand` after `--unit-economics` passes with
+the reviewed private cost model and the evidence reference has been approved.
+
 Use `--terms-approval-packet` for the provider-terms acknowledgment review. It
 prints public terms/margin URLs, local input presence, resale-eligible provider
 families, BYOK-only exclusions, and safe next commands without printing provider

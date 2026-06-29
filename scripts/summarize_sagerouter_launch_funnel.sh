@@ -308,6 +308,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
           readinessSetup: {
             setupScript: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.setupScript // "scripts/configure_managed_provider_resale_readiness.sh"),
             setupCommand: "",
+            stagePublicControlsCommand: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.stagePublicControlsCommand // "scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls"),
             dryRunCommand: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.dryRunCommand // "scripts/configure_managed_provider_resale_readiness.sh --check"),
             unitEconomicsCommand: "",
             enableCommandTemplate: "",
@@ -328,6 +329,11 @@ if [[ "$RAW_JSON" == "1" ]]; then
           }
         }
       )
+      | .readinessSetup = ((.readinessSetup // {}) + {
+          setupScript: (.readinessSetup.setupScript // "scripts/configure_managed_provider_resale_readiness.sh"),
+          stagePublicControlsCommand: (.readinessSetup.stagePublicControlsCommand // "scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls"),
+          dryRunCommand: (.readinessSetup.dryRunCommand // "scripts/configure_managed_provider_resale_readiness.sh --check")
+        })
       | .nextActions = (
           if ((.nextActions // []) | length) > 0 then .nextActions else ((.missingControls // []) | to_entries | map({
             id: .value,
@@ -489,6 +495,7 @@ jq -r --arg days "$DAYS" '
       "- Terms acknowledged: \($managed.providerTermsAcknowledged // false)",
       "- Authorization evidence configured: \($managed.providerAuthorizationEvidenceConfigured // false)",
       "- Cost model configured: \($managed.unitEconomics.costModelConfigured // false); unit economics satisfied: \($managed.unitEconomics.satisfied // false)",
+      "- Public-control staging command: \($managed.readinessSetup.stagePublicControlsCommand // "scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls")",
       "- Managed-access beta interest: \(n($stages.managedAccessBetaInterest)); anonymous interest: \(n($stages.anonymousManagedAccessInterest)); target-provider buckets: \(buckets($managedDemand.targetProviderFamily))",
       "",
       "## Privacy",

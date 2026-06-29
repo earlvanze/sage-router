@@ -2653,6 +2653,15 @@ def managed_provider_resale_readiness_setup(enabled=False):
         "SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' \\\n"
         "scripts/configure_managed_provider_resale_readiness.sh"
     )
+    stage_public_controls_command = (
+        "SAGEROUTER_PROVIDER_RESALE_TERMS_URL='https://sagerouter.dev/provider-resale-terms' \\\n"
+        "SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL='https://sagerouter.dev/margin-policy' \\\n"
+        "SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='0' \\\n"
+        "SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS='ollama,openai,anthropic' \\\n"
+        "SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT='35' \\\n"
+        "SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' \\\n"
+        "scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls"
+    )
     dry_run_command = (
         "scripts/configure_managed_provider_resale_readiness.sh --check"
     )
@@ -2672,6 +2681,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
     return {
         'setupScript': 'scripts/configure_managed_provider_resale_readiness.sh',
         'setupCommand': '' if enabled else setup_command,
+        'stagePublicControlsCommand': '' if enabled else stage_public_controls_command,
         'dryRunCommand': dry_run_command,
         'termsApprovalCommand': terms_approval_command,
         'unitEconomicsCommand': unit_economics_command,
@@ -3069,6 +3079,7 @@ def compact_managed_provider_readiness(pricing_metadata):
         'readinessSetup': {
             'setupScript': setup.get('setupScript') or 'scripts/configure_managed_provider_resale_readiness.sh',
             'setupCommand': '',
+            'stagePublicControlsCommand': setup.get('stagePublicControlsCommand') or '',
             'dryRunCommand': setup.get('dryRunCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --check',
             'unitEconomicsCommand': '',
             'enableCommandTemplate': '',

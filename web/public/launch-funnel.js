@@ -1127,7 +1127,8 @@ function managedAccessApprovalPacketText(data = {}) {
   const termsCommand = setup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
   const dryRunCommand = setup.dryRunCommand || 'scripts/configure_managed_provider_resale_readiness.sh --check';
   const unitEconomicsCommand = setup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
-  const setupCommand = setup.setupCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
+  const stagePublicControlsCommand = setup.stagePublicControlsCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
+  const setupCommand = setup.setupCommand || stagePublicControlsCommand;
   const enableCommand = setup.enableCommandTemplate || "SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='1' scripts/configure_managed_provider_resale_readiness.sh";
   const planLines = plans.length
     ? plans.map(plan => `- ${plan.plan || 'plan'}: revenue=${asNumber(plan.revenueCentsPerThousandRequests).toFixed(4)} cents/1k; maxSafeProviderCost=${asNumber(plan.maximumProviderCostCentsPerThousandRequests).toFixed(4)} cents/1k; minimumGrossMargin=${integer(plan.minimumGrossMarginPercent)}%; pass=${plan.meetsMinimumGrossMargin === true}`)
@@ -1164,7 +1165,8 @@ function managedAccessApprovalPacketText(data = {}) {
     `- Terms approval packet: ${termsCommand}`,
     `- Resale dry-run: ${dryRunCommand}`,
     `- Unit-economics preflight: ${unitEconomicsCommand}`,
-    `- Stage public controls: ${setupCommand}`,
+    `- Stage public controls without private cost: ${stagePublicControlsCommand}`,
+    `- Stage private cost model after preflight: ${setupCommand}`,
     `- Enable template: ${enableCommand}`,
     '',
     'Enable template is not approval. Keep public managed resale disabled until terms, authorization evidence, allowlist, private cost model, and unit economics all pass with explicit operator approval.',
@@ -1177,7 +1179,8 @@ function managedAccessCommand(button, data = {}) {
   const kind = button.getAttribute('data-copy-managed-command') || '';
   if (kind === 'terms-approval') return setup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
   if (kind === 'unit-economics') return setup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
-  if (kind === 'stage') return setup.setupCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
+  if (kind === 'stage-public-controls') return setup.stagePublicControlsCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
+  if (kind === 'stage') return setup.setupCommand || setup.stagePublicControlsCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
   if (kind === 'enable-template') return setup.enableCommandTemplate || "SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='1' scripts/configure_managed_provider_resale_readiness.sh";
   return setup.dryRunCommand || 'scripts/configure_managed_provider_resale_readiness.sh --check';
 }
@@ -1228,7 +1231,8 @@ function renderManagedAccessReadiness(data = {}) {
     <button class="btn secondary" type="button" data-copy-managed-command="terms-approval">Copy terms packet command</button>
     <button class="btn secondary" type="button" data-copy-managed-command="dry-run">Copy resale dry-run</button>
     <button class="btn secondary" type="button" data-copy-managed-command="unit-economics">Copy unit-economics preflight</button>
-    <button class="btn secondary" type="button" data-copy-managed-command="stage">Copy staging command</button>
+    <button class="btn secondary" type="button" data-copy-managed-command="stage-public-controls">Copy public-control staging</button>
+    <button class="btn secondary" type="button" data-copy-managed-command="stage">Copy private-cost staging</button>
     ${setup.enableCommandTemplate ? '<button class="btn danger" type="button" data-copy-managed-command="enable-template">Copy enable template</button>' : ''}
   </div>
   <div class="grid2" style="margin-top:14px">

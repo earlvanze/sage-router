@@ -1270,6 +1270,10 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('positive_unit_economics', managed['missingControls'])
         setup = managed['readinessSetup']
         self.assertEqual('scripts/configure_managed_provider_resale_readiness.sh', setup['setupScript'])
+        self.assertIn('--stage-public-controls', setup['stagePublicControlsCommand'])
+        self.assertIn('SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS', setup['stagePublicControlsCommand'])
+        self.assertNotIn('SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF', setup['stagePublicControlsCommand'])
+        self.assertNotIn('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS', setup['stagePublicControlsCommand'])
         self.assertIn('SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS', setup['setupCommand'])
         self.assertIn('SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF', setup['setupCommand'])
         self.assertIn('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS', setup['setupCommand'])
