@@ -18,7 +18,8 @@ load_local_env_file() {
       SAGE_ROUTER_OPERATOR_TOKEN|SAGE_ROUTER_CLIENT_API_KEY|SAGE_ROUTER_CLIENT_API_KEYS|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED|\
       SAGEROUTER_PROVIDER_RESALE_TERMS_URL|SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL|\
       SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED|SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS|\
-      SAGEROUTER_MIN_HEALTHY_UPSTREAMS|SAGEROUTER_EDGE_HEALTH_RETRY_ATTEMPTS|SAGEROUTER_EDGE_HEALTH_RETRY_DELAY_SECONDS)
+      SAGEROUTER_MIN_HEALTHY_UPSTREAMS|SAGEROUTER_EDGE_HEALTH_RETRY_ATTEMPTS|SAGEROUTER_EDGE_HEALTH_RETRY_DELAY_SECONDS|\
+      SAGEROUTER_PUBLIC_API_RETRY_ATTEMPTS|SAGEROUTER_PUBLIC_API_RETRY_DELAY_SECONDS)
         ;;
       *)
         continue
@@ -53,6 +54,8 @@ MANAGED_PROVIDER_RESALE_ENABLED="${SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED:-0
 MIN_HEALTHY_UPSTREAMS="${SAGEROUTER_MIN_HEALTHY_UPSTREAMS:-0}"
 EDGE_HEALTH_RETRY_ATTEMPTS="${SAGEROUTER_EDGE_HEALTH_RETRY_ATTEMPTS:-3}"
 EDGE_HEALTH_RETRY_DELAY_SECONDS="${SAGEROUTER_EDGE_HEALTH_RETRY_DELAY_SECONDS:-2}"
+PUBLIC_API_RETRY_ATTEMPTS="${SAGEROUTER_PUBLIC_API_RETRY_ATTEMPTS:-4}"
+PUBLIC_API_RETRY_DELAY_SECONDS="${SAGEROUTER_PUBLIC_API_RETRY_DELAY_SECONDS:-3}"
 PROVIDER_RESALE_TERMS_URL="${SAGEROUTER_PROVIDER_RESALE_TERMS_URL:-}"
 PROVIDER_RESALE_MARGIN_POLICY_URL="${SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL:-}"
 PROVIDER_RESALE_TERMS_ACKNOWLEDGED="${SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED:-0}"
@@ -77,6 +80,35 @@ http_code() {
   local url="$1"
   shift
   curl -sS -o /tmp/sage-router-readiness-body -w '%{http_code}' "$url" "$@"
+}
+
+http_code_retry() {
+  local url="$1"
+  local expected_code="$2"
+  local retry_codes="$3"
+  shift 3
+  local attempts delay attempt code
+  attempts="$PUBLIC_API_RETRY_ATTEMPTS"
+  delay="$PUBLIC_API_RETRY_DELAY_SECONDS"
+  if ! [[ "$attempts" =~ ^[0-9]+$ ]] || [[ "$attempts" -lt 1 ]]; then
+    attempts=1
+  fi
+  if ! [[ "$delay" =~ ^[0-9]+$ ]]; then
+    delay=0
+  fi
+
+  attempt=1
+  while true; do
+    code="$(http_code "$url" "$@")"
+    if [[ "$code" == "$expected_code" || "$attempt" -ge "$attempts" || ",${retry_codes}," != *",${code},"* ]]; then
+      printf '%s' "$code"
+      return
+    fi
+    attempt=$((attempt + 1))
+    if [[ "$delay" -gt 0 ]]; then
+      sleep "$delay"
+    fi
+  done
 }
 
 http_code_follow() {
@@ -615,7 +647,7 @@ check_static_security_headers() {
 
 check_public_pricing_metadata() {
   local code plans api_base openai_base checkout_path portal_path api_key_limit limits_ok stripe_ok billing_ok billing_secret_free launch_ok activation_email_ok activation_email_configured activation_email_provider activation_email_setup
-  code="$(http_code "${API_BASE%/}/pricing")"
+  code="$(http_code_retry "${API_BASE%/}/pricing" "200" "502,503,504")"
   if [[ "$code" != "200" ]]; then
     rm -f /tmp/sage-router-readiness-body
     fail "public /pricing returned HTTP ${code}, expected 200"
@@ -716,7 +748,7 @@ check_public_pricing_metadata() {
 
 check_public_model_catalog() {
   local code families auth_required page openai_base boundary_ok
-  code="$(http_code "${API_BASE%/}/model-catalog")"
+  code="$(http_code_retry "${API_BASE%/}/model-catalog" "200" "502,503,504")"
   if [[ "$code" != "200" ]]; then
     rm -f /tmp/sage-router-readiness-body
     fail "public /model-catalog returned HTTP ${code}, expected 200"
@@ -742,7 +774,7 @@ check_public_model_catalog() {
 
 check_managed_provider_access_guard() {
   local code enabled requested readiness_satisfied status terms_url terms_ack terms_ack_env_ok allowlist_count margin_url acceptable_url controls_ok margin_percent unit_economics_ok cost_model_configured unit_economics_satisfied unit_economics_plans_ok unit_economics_safe_thresholds_ok cost_controls_ok provider_family_boundary_ok readiness_setup_ok missing_controls_explain_blockers_ok one_subscription_action_ok missing_count
-  code="$(http_code "${API_BASE%/}/pricing")"
+  code="$(http_code_retry "${API_BASE%/}/pricing" "200" "502,503,504")"
   if [[ "$code" != "200" ]]; then
     rm -f /tmp/sage-router-readiness-body
     fail "managed provider access guard could not read /pricing: HTTP ${code}"
@@ -926,7 +958,7 @@ check_managed_provider_access_guard() {
 
 check_stripe_webhook_guard() {
   local code error
-  code="$(http_code "${API_BASE%/}/billing/stripe/webhook" \
+  code="$(http_code_retry "${API_BASE%/}/billing/stripe/webhook" "400" "502,503,504" \
     -H "Content-Type: application/json" \
     --data '{"id":"evt_readiness_unsigned","type":"readiness.probe"}')"
   error="$(jq -r '.error // empty' /tmp/sage-router-readiness-body 2>/dev/null || true)"
