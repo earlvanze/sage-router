@@ -2883,6 +2883,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("gateway_compare_migration_clicked", readiness)
         self.assertIn("landing_setup_next_clicked", readiness)
         self.assertIn("landing_key_first_direct_clicked", readiness)
+
         self.assertIn("landing_post_copy_prompt_shown", readiness)
         self.assertIn("quickstart_setup_next_clicked", readiness)
         self.assertIn("account_preauth_setup_next_clicked", readiness)
@@ -2937,6 +2938,35 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("activation and\ncheckout intent", self.read_text("web", "README.md"))
         self.assertIn("SAGEROUTER_FUNNEL_ALLOWED_ORIGINS", self.read_text("web", "README.md"))
         self.assertIn("public billing recovery CTA intent", launch_plan)
+
+    def test_launch_operator_handoff_bundles_read_only_external_gates(self):
+        script = self.read_text("scripts", "summarize_sagerouter_launch_operator_handoff.sh")
+        readme = self.read_text("README.md")
+        distribution = self.read_text("docs", "launch", "distribution-tracker.md")
+
+        self.assertIn("Usage: scripts/summarize_sagerouter_launch_operator_handoff.sh [--days N] [--skip-readiness]", script)
+        self.assertIn("scripts/summarize_sagerouter_launch_funnel.sh --days \"$DAYS\"", script)
+        self.assertIn("scripts/summarize_sagerouter_launch_funnel.sh --days \"$DAYS\" --approval-packet --verify-recovery --verify-auth-repair", script)
+        self.assertIn("scripts/configure_cloudflare_api_bic_skip.sh --operator-packet", script)
+        self.assertIn("scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet", script)
+        self.assertIn("scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet", script)
+        self.assertIn("scripts/check_sagerouter_launch_readiness.sh", script)
+        self.assertIn("Boundary: no emails, customer IDs, generated API keys, OAuth tokens", script)
+        self.assertIn("Effect: read-only; does not approve sends, send email, repair account links", script)
+        self.assertIn("mutate Cloudflare, write secrets, deploy, acknowledge provider terms, enable", script)
+        self.assertIn("managed resale, change prices, or copy generated keys", script)
+        self.assertIn("Cloudflare token values are printed", script)
+        self.assertIn("read-only and no-secret", script)
+        self.assertIn("no-secret operator handoff", readme)
+        self.assertIn("scripts/summarize_sagerouter_launch_operator_handoff.sh --days 30", readme)
+        self.assertIn("`--skip-readiness`", readme)
+        self.assertIn("does not approve sends, send email", readme)
+        self.assertIn("mutate Cloudflare", readme)
+        self.assertIn("enable managed resale", readme)
+        self.assertIn("Cloudflare token values", readme)
+        self.assertIn("scripts/summarize_sagerouter_launch_operator_handoff.sh --days 30", distribution)
+        self.assertIn("--skip-readiness", distribution)
+        self.assertIn("without approving sends, sending email, mutating", distribution)
 
     def test_launch_funnel_dashboard_shows_marketing_attribution(self):
         js = self.read_public("launch-funnel.js")

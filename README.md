@@ -679,6 +679,23 @@ operator dashboard or printing secrets, run:
 scripts/summarize_sagerouter_launch_funnel.sh --days 30
 ```
 
+For a single no-secret operator handoff that bundles the live funnel snapshot,
+activation approval packet, Cloudflare BIC reliability packet, one-subscription
+pricing packet, provider outreach packet, and launch readiness check, run:
+
+```bash
+scripts/summarize_sagerouter_launch_operator_handoff.sh --days 30
+```
+
+Add `--skip-readiness` when you need the same read-only handoff without the
+longer live readiness probe. The wrapper does not approve sends, send email,
+repair account links, mutate Cloudflare, write secrets, deploy, acknowledge
+provider terms, enable managed resale, change prices, copy generated keys, or
+print emails, customer IDs, generated API keys, OAuth tokens, provider
+credentials, provider authorization reference values, private provider costs,
+prompts, raw campaign URLs, raw model search text, raw provider responses, or
+Cloudflare token values.
+
 The helper reads `SAGE_ROUTER_ANALYTICS_TOKEN`, `SAGE_ROUTER_OPERATOR_TOKEN`,
 or `SAGE_ROUTER_API_KEY` from the environment or
 `SAGEROUTER_SECRET_ENV_FILE`/`/home/digit/.openclaw/.env`, calls
