@@ -1499,6 +1499,8 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("account_activation_nudge_dismissed") != null) and
     ((.allowedEvents // []) | index("account_intent_primary_clicked") != null) and
     ((.allowedEvents // []) | index("account_preauth_setup_next_clicked") != null) and
+    ((.allowedEvents // []) | index("account_key_recovery_create_clicked") != null) and
+    ((.allowedEvents // []) | index("account_key_recovery_create_failed") != null) and
     ((.allowedEvents // []) | index("account_api_key_create_failed") != null) and
     ((.allowedEvents // []) | index("account_checkout_unavailable") != null) and
     ((.allowedEvents // []) | index("account_email_verification_resent") != null) and

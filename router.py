@@ -7128,6 +7128,7 @@ KEY_CREATE_ATTEMPT_EVENTS = {
     'account_auto_key_create_started',
     'account_intent_create_key_clicked',
     'account_key_recovery_auto_create_started',
+    'account_key_recovery_create_clicked',
 }
 KEY_CREATE_SUCCESS_EVENTS = {
     'account_api_key_created',
@@ -7137,6 +7138,7 @@ KEY_CREATE_FAILURE_EVENTS = {
     'account_api_key_create_failed',
     'account_auto_key_create_failed',
     'account_key_recovery_auto_create_failed',
+    'account_key_recovery_create_failed',
 }
 
 

@@ -1672,7 +1672,9 @@ async function createKey(options = {}) {
   const recoveryIntent = isKeyRecoveryIntent();
   const button = options.button || 'create_key';
   const state = options.state || 'create';
-  const attemptEvent = options.attemptEvent === undefined ? 'account_api_key_create_clicked' : options.attemptEvent;
+  const attemptEvent = options.attemptEvent === undefined
+    ? (recoveryIntent ? 'account_key_recovery_create_clicked' : 'account_api_key_create_clicked')
+    : options.attemptEvent;
   try {
     const name = $('key-name')?.value || 'Default';
     if (attemptEvent) {
@@ -1700,10 +1702,10 @@ async function createKey(options = {}) {
     refresh();
     return true;
   } catch (error) {
-    trackAccountFunnelEvent(options.failureEvent || 'account_api_key_create_failed', {
+    trackAccountFunnelEvent(options.failureEvent || (recoveryIntent ? 'account_key_recovery_create_failed' : 'account_api_key_create_failed'), {
       button,
       target: '/account/api-keys',
-      state: options.failureState || billingFailureState(error, 'key_create_failed'),
+      state: options.failureState || billingFailureState(error, recoveryIntent ? 'key_recovery_create_failed' : 'key_create_failed'),
     });
     set('key-once', error.message);
     return false;
