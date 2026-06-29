@@ -8195,7 +8195,20 @@ def managed_access_marketing_metadata(event, metadata):
     data = dict(metadata) if isinstance(metadata, dict) else {}
     haystack = ' '.join(
         str(data.get(key) or '')
-        for key in ('intent', 'state', 'button', 'target', 'sourcePage', 'source_page')
+        for key in (
+            'intent',
+            'commercialPreference',
+            'commercial_preference',
+            'providerAccess',
+            'provider_access',
+            'supportNeed',
+            'support_need',
+            'state',
+            'button',
+            'target',
+            'sourcePage',
+            'source_page',
+        )
     ).lower()
     if 'one-subscription' in haystack:
         data.setdefault('intent', 'one-subscription')

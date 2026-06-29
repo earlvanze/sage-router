@@ -2714,22 +2714,32 @@ class SaaSAuthTests(unittest.TestCase):
                     'source_page': 'https://sagerouter.dev/pricing',
                     'metadata': {'source': 'pricing'},
                 },
+                {
+                    'event': 'managed_access_interest_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'source_page': 'https://sagerouter.dev/managed-access',
+                    'metadata': {
+                        'commercialPreference': 'one-subscription',
+                        'targetProviderFamily': 'mixed-frontier',
+                    },
+                },
             ]
 
         router.supabase_select = fake_select
 
         metrics, error = router.read_launch_marketing_funnel_counts(0)
         self.assertIsNone(error)
-        self.assertEqual(3, metrics['total'])
-        self.assertEqual(2, metrics['managedAccessAnonymousInterest'])
-        self.assertEqual(2, metrics['managedAccessDemand']['targetProviderFamily']['mixed-frontier'])
-        self.assertEqual(1, metrics['managedAccessDemand']['commercialPreference']['one-subscription'])
+        self.assertEqual(4, metrics['total'])
+        self.assertEqual(3, metrics['managedAccessAnonymousInterest'])
+        self.assertEqual(3, metrics['managedAccessDemand']['targetProviderFamily']['mixed-frontier'])
+        self.assertEqual(2, metrics['managedAccessDemand']['commercialPreference']['one-subscription'])
         self.assertEqual(1, metrics['managedAccessDemand']['commercialPreference']['private-contract'])
-        self.assertEqual(1, metrics['managedAccessDemand']['supportNeed']['managed-provider-review'])
+        self.assertEqual(2, metrics['managedAccessDemand']['supportNeed']['managed-provider-review'])
         self.assertEqual(1, metrics['managedAccessDemand']['supportNeed']['implementation-support'])
-        self.assertEqual(1, metrics['managedAccessDemand']['targetLaunchWindow']['exploring'])
+        self.assertEqual(2, metrics['managedAccessDemand']['targetLaunchWindow']['exploring'])
         self.assertEqual(1, metrics['managedAccessDemand']['targetLaunchWindow']['this-month'])
-        self.assertEqual(1, metrics['managedAccessDemand']['intent']['one-subscription'])
+        self.assertEqual(2, metrics['managedAccessDemand']['intent']['one-subscription'])
         self.assertEqual(1, metrics['managedAccessDemand']['intent']['max-implementation'])
         self.assertNotIn('buyer@example.com', json.dumps(metrics))
 
