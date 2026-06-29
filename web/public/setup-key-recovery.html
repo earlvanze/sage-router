@@ -249,10 +249,26 @@ curl -i "$OPENAI_BASE_URL/models" \
       return sourceSurface === 'operator_activation' || auto === 'account' || auto === 'setup';
     }
 
+    function setupRecoveryAccountUrlForAutoOpen() {
+      const params = new URLSearchParams(window.location.search);
+      const target = new URL(SETUP_RECOVERY_ACCOUNT_URL);
+      const sourceSurface = attributionValue(params.get('source_surface') || params.get('sourceSurface'));
+      if (sourceSurface === 'operator_activation') {
+        ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content'].forEach((name) => {
+          const value = params.get(name) || params.get(name.replace('utm_', 'utm'));
+          if (value) target.searchParams.set(name, value);
+        });
+        target.searchParams.set('source_surface', 'operator_activation');
+        target.searchParams.set('next', 'generated-key');
+      }
+      return target.toString();
+    }
+
     function scheduleSetupRecoveryAccountAutoOpen() {
       if (!shouldAutoOpenSetupRecoveryAccount()) return;
+      const targetUrl = setupRecoveryAccountUrlForAutoOpen();
       try {
-        const key = `sage_router_setup_recovery_auto_account:${SETUP_RECOVERY_ACCOUNT_URL}`;
+        const key = `sage_router_setup_recovery_auto_account:${targetUrl}`;
         if (window.sessionStorage?.getItem(key) === '1') return;
         window.sessionStorage?.setItem(key, '1');
       } catch {
@@ -263,10 +279,10 @@ curl -i "$OPENAI_BASE_URL/models" \
       trackSetupRecoveryEvent('setup_key_recovery_auto_account_redirected', {
         button: 'operator-auto-account-setup',
         state: 'operator_activation',
-        target: SETUP_RECOVERY_ACCOUNT_URL,
+        target: targetUrl,
       });
       setTimeout(() => {
-        window.location.href = SETUP_RECOVERY_ACCOUNT_URL;
+        window.location.href = targetUrl;
       }, 1400);
     }
 

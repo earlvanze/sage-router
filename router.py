@@ -8349,6 +8349,7 @@ MARKETING_SOURCE_SURFACE_BUCKETS = (
     'managed-access',
     'launch-plan',
     'model-catalog',
+    'setup-key-recovery',
     'account',
     'login',
     'billing',
@@ -8361,6 +8362,8 @@ MARKETING_SOURCE_SURFACE_ALIASES = {
     'api-troubleshooting': 'docs',
     'gateway-migration': 'docs',
     'api-docs': 'docs',
+    'operator_activation': 'setup-key-recovery',
+    'recovery': 'setup-key-recovery',
 }
 MARKETING_ATTRIBUTION_CHANNEL_BUCKETS = (
     'direct',
@@ -8771,6 +8774,7 @@ def launch_acquisition_action(kind, bucket):
             'model-routing-calculator': 'Turn calculator interest into generated-key-first Pro/Max activation and implementation calls.',
             'docs': 'Turn API docs and troubleshooting readers into generated-key recovery, quickstart setup, and first-request verification.',
             'model-catalog': 'Turn catalog demand into hosted key activation, route-profile proof, and model availability copy.',
+            'setup-key-recovery': 'Verify setup-key recovery handoffs into account setup, generated-key creation, and first routed request.',
             'quickstart': 'Use copyable quickstart snippets to convert generated-key users into first routed requests.',
             'fusion': 'Convert Fusion page demand into Pro/Max checkout, gateway migration proof, and first high-stakes synthesis requests.',
             'compare-gateways': 'Route gateway comparison traffic into the migration guide, model catalog, and hosted checkout.',
@@ -8823,6 +8827,11 @@ DEFAULT_LAUNCH_ACQUISITION_ACTIONS = (
         'kind': 'sourceSurface',
         'bucket': 'model-catalog',
         'action': 'Seed model catalog traffic with hosted key activation, frontier profile proof, and gateway migration CTAs.',
+    },
+    {
+        'kind': 'sourceSurface',
+        'bucket': 'setup-key-recovery',
+        'action': 'Verify setup-key recovery handoffs into account setup, generated-key creation, and first routed request.',
     },
     {
         'kind': 'sourceSurface',

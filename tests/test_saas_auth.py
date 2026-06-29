@@ -3271,6 +3271,7 @@ class SaaSAuthTests(unittest.TestCase):
                     'created_at': '2026-06-19T00:00:00Z',
                     'metadata': {
                         'source': 'setup-key-recovery',
+                        'sourceSurface': 'operator_activation',
                         'state': 'operator_activation',
                     },
                 },
@@ -3821,7 +3822,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(0, metrics['sourceSurfaces']['integrations'])
         self.assertEqual(2, metrics['sourceSurfaces']['billing'])
         self.assertEqual(2, metrics['sourceSurfaces']['docs'])
-        self.assertEqual(2, metrics['sourceSurfaces']['other'])
+        self.assertEqual(1, metrics['sourceSurfaces']['setup-key-recovery'])
+        self.assertEqual(1, metrics['sourceSurfaces']['other'])
         self.assertEqual(1, metrics['sourceSurfaces']['status'])
         self.assertEqual(1, metrics['sourceSurfaces']['support'])
         self.assertEqual(1, metrics['sourceSurfaces']['unknown'])
@@ -3863,6 +3865,10 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('docs', router.marketing_source_surface_bucket({'source': 'api-reference'}))
         self.assertEqual('docs', router.marketing_source_surface_bucket({'source': 'api-troubleshooting'}))
         self.assertIn('generated-key recovery', router.launch_acquisition_action('sourceSurface', 'docs'))
+        self.assertEqual('setup-key-recovery', router.marketing_source_surface_bucket({'source': 'setup-key-recovery'}))
+        self.assertEqual('setup-key-recovery', router.marketing_source_surface_bucket({'sourceSurface': 'operator_activation'}))
+        self.assertEqual('setup-key-recovery', router.marketing_source_surface_bucket({'sourceSurface': 'recovery'}))
+        self.assertIn('setup-key recovery handoffs', router.launch_acquisition_action('sourceSurface', 'setup-key-recovery'))
         # Ensure no raw email values leak into aggregate marketing funnel metrics.
         # State names like 'email_auth_requested' are intentional and allowed.
         metrics_json = json.dumps(metrics)
