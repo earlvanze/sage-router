@@ -1245,6 +1245,7 @@ function founderSalesFallbackLines(data = {}) {
     `Kit: ${FOUNDER_SALES_KIT_URL}`,
     `Activation gate: approval required=${activationSend.sendApprovalRequired ? 'yes' : 'no'}; dry-run verified=${activationSend.dryRunVerified ? 'yes' : 'no'}; sendable queued=${integer(activationSend.sendableQueued)}; sent=${integer(activationSend.sentRecipients)}.`,
     `Managed access gate: enabled=${managed.enabled === true}; status=${managed.status || 'unknown'}; missing controls=${managedControls}.`,
+    'Founder-led plan paths: Lite pilot for one-agent evaluations, Pro activation for daily agent work, Max review for production teams and migration pain.',
     'Primary revenue motion:',
     ...actionLines,
     'No-secret boundary: do not include emails, customer IDs, prompts, OAuth tokens, generated API keys, provider credentials, raw provider responses, or private cost values.',
@@ -1487,7 +1488,7 @@ function renderFounderSalesFallback(data = {}) {
     <div class="metric"><span>Managed resale</span><strong><span class="pill ${managed.enabled ? 'good' : 'warn'}">${esc(managed.status || (managed.enabled ? 'enabled' : 'gated'))}</span></strong></div>
     <div class="metric"><span>Missing controls</span><strong>${esc(managedControls)}</strong></div>
   </div>
-  <p class="muted">Use when activation sends are approval-gated or managed provider resale is waiting on terms, authorization, private cost, or abuse-control review. Keep outreach no-secret: no emails, customer IDs, prompts, OAuth tokens, generated API keys, provider credentials, raw provider responses, or private cost values.</p>
+  <p class="muted">Use when activation sends are approval-gated or managed provider resale is waiting on terms, authorization, private cost, or abuse-control review. Use Lite pilot copy for one-agent evaluations, Pro activation copy for daily agent work, and Max review copy for production teams. Keep outreach no-secret: no emails, customer IDs, prompts, OAuth tokens, generated API keys, provider credentials, raw provider responses, or private cost values.</p>
   <div class="actions">
     <a class="btn" href="${esc(FOUNDER_SALES_KIT_URL)}" target="_blank" rel="noopener noreferrer">Open founder-sales kit</a>
     <button class="btn secondary" type="button" data-copy-founder-sales-fallback="${esc(fallbackText)}">Copy fallback packet</button>

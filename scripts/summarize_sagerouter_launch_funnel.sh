@@ -556,6 +556,7 @@ jq -r --arg days "$DAYS" '
   | ($root.operatorExecutionPacket // {}) as $packet
   | ($root.activationApprovalReadiness // {}) as $approval
   | (($mrr.planRevenueActions // [])[0] // {}) as $primaryRevenue
+  | (($mrr.planRevenueActions // []) | map(select((.plan // "") == "lite")) | .[0] // {}) as $liteRevenue
   | (($mrr.planRevenueActions // []) | map(select((.plan // "") == "max")) | .[0] // {}) as $maxRevenue
   | [
       "# Sage Router launch funnel snapshot",
@@ -628,10 +629,11 @@ jq -r --arg days "$DAYS" '
       "",
       "## Founder Sales Fallback",
       "",
-      "- Use when: activation sends are approval-gated or provider resale is waiting on terms/evidence, but founder-led Pro/Max conversations can still move.",
+      "- Use when: activation sends are approval-gated or provider resale is waiting on terms/evidence, but founder-led Lite/Pro/Max conversations can still move.",
       "- Kit: https://sagerouter.dev/founder-sales-kit?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch",
       "- Outreach copies recorded: \(n($marketing.founderSalesOutreachCopies)); snippets: \(buckets($marketing.founderSalesOutreachCopiesBySnippet))",
       "- Primary revenue motion: \($primaryRevenue.plan // "pro") needs \(n($primaryRevenue.customerGap)) customers and \(money($primaryRevenue.remainingMrrToTargetUsd)) remaining MRR; \($primaryRevenue.action // "Use direct founder-sales follow-up to move qualified prospects into generated-key activation.")",
+      "- Lite pilot motion: \(n($liteRevenue.customerGap)) Lite customers and \(money($liteRevenue.remainingMrrToTargetUsd)) remaining MRR; use the Lite pilot snippet for one-agent evaluations and low-friction hosted key trials.",
       "- Max review motion: \(n($maxRevenue.customerGap)) Max customers and \(money($maxRevenue.remainingMrrToTargetUsd)) remaining MRR; use the Max implementation snippet for teams with production agents, Tailnet/local routing, or gateway migration pain.",
       "- Safety rule: use one no-secret snippet per warm conversation; do not paste prompts, provider credentials, generated keys, customer data, private funnel rows, OAuth tokens, or raw provider responses.",
       "",

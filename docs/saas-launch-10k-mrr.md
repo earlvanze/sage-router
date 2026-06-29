@@ -571,7 +571,7 @@ feature flag.
   those links copyable for founder-sales outreach.
 - Render founder-sales outreach copy counts and snippet buckets beside setup
   copy activation in the private operator dashboard and CLI launch snapshot, so
-  direct Pro/Max and one-subscription outreach volume can be compared with
+  direct Lite/Pro/Max and one-subscription outreach volume can be compared with
   generated-key and first-request activation.
 - Render a copyable no-secret launch brief in the private operator dashboard
   from the same aggregate funnel snapshot, so founder-sales and support
