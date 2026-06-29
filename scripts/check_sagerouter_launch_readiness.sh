@@ -1745,6 +1745,12 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-setup-copy-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Activation nudge copy setup first" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-nudge-setup-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "landing-nudge-setup-bundle" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-nudge-setup-snippet"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Max implementation review" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-max-implementation-cta"
   fi

@@ -92,7 +92,10 @@ account page focus the generated-key setup path and emit
 `account_setup_handoff_viewed`. A persistent bottom activation bar keeps `Create API key`,
 `Copy 60-second setup`, and `Finish setup key` visible after scroll; the setup
 button records `quickstart_snippet_copied` with `landing-sticky-setup-bundle`
-metadata, then becomes a `landing_setup_next_clicked` account handoff. The same
+metadata, then becomes a `landing_setup_next_clicked` account handoff. The signed-out
+activation nudge also exposes `Copy setup first`, records `quickstart_snippet_copied`
+with `landing-nudge-setup-bundle`, and switches its account handoff to `Create API key next`
+after copy so the highest-friction nudge can move setup-copy activation. The same
 sticky bar and first-screen hero now expose `One-subscription beta` /
 `Request one-subscription review` private-beta review paths that record both
 `landing_managed_access_clicked` and `managed_access_interest_clicked` with

@@ -527,6 +527,8 @@ function ManagedAccessReviewPrompt() {
 function ActivationNudge() {
   const [visible, setVisible] = useState(false);
   const [oauthSubmitting, setOauthSubmitting] = useState(false);
+  const [setupCopied, setSetupCopied] = useState(false);
+  const [setupStatus, setSetupStatus] = useState('');
   const shownRef = useRef(false);
 
   useEffect(() => {
@@ -607,6 +609,34 @@ function ActivationNudge() {
     }
   };
 
+  const copyNudgeSetup = async () => {
+    try {
+      await writeClipboardText(landingSetupBundleText());
+      trackLandingFunnelEvent('quickstart_snippet_copied', {
+        button: 'Activation nudge copy setup first',
+        state: 'activation-nudge',
+        snippet: 'landing-nudge-setup-bundle',
+      });
+      trackLandingFunnelEvent('landing_post_copy_prompt_shown', {
+        plan: 'pro',
+        target: LANDING_SETUP_ACCOUNT_URL,
+        button: 'Activation nudge copy setup first',
+        state: 'activation-nudge-post-copy',
+        snippet: 'landing-nudge-setup-bundle',
+      });
+      setSetupCopied(true);
+      setSetupStatus('Setup copied. Create the API key next.');
+    } catch {
+      trackLandingFunnelEvent('landing_quickstart_clicked', {
+        target: '/quickstart',
+        button: 'Activation nudge copy fallback quickstart',
+        state: 'activation-nudge-copy-failed',
+      });
+      setSetupCopied(false);
+      setSetupStatus('Copy failed. Open the quickstart for manual setup.');
+    }
+  };
+
   if (!visible) return null;
 
   return (
@@ -614,18 +644,22 @@ function ActivationNudge() {
       <button type="button" className="activationNudgeClose" onClick={dismiss} aria-label="Dismiss activation prompt">×</button>
       <div>
         <strong>Ready to try the live edge?</strong>
-        <span>Generate a Pro key first; checkout only unlocks routing after the key exists.</span>
+        <span>{setupStatus || 'Copy setup first, then generate a Pro key; checkout only unlocks routing after the key exists.'}</span>
       </div>
+      <button type="button" className="button secondary" onClick={copyNudgeSetup}>
+        {setupCopied ? 'Setup copied' : 'Copy setup first'}
+      </button>
       <button type="button" className="button primary" onClick={startGithub} disabled={oauthSubmitting}>
         {oauthSubmitting ? 'Opening GitHub...' : 'Continue with GitHub'}
       </button>
-      <a className="button secondary" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_activation_nudge_clicked', {
+      <a className="button secondary" href={setupCopied ? LANDING_SETUP_ACCOUNT_URL : ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_activation_nudge_clicked', {
         plan: 'pro',
-        target: ACCOUNT_PAGE_HREF,
-        button: 'Activation nudge create key',
-        state: 'account',
+        target: setupCopied ? LANDING_SETUP_ACCOUNT_URL : ACCOUNT_PAGE_HREF,
+        button: setupCopied ? 'Activation nudge create key after setup copy' : 'Activation nudge create key',
+        state: setupCopied ? 'activation-nudge-post-copy' : 'account',
+        snippet: setupCopied ? 'landing-nudge-setup-bundle' : null,
       })}>
-        Create API key
+        {setupCopied ? 'Create API key next' : 'Create API key'}
       </a>
     </aside>
   );

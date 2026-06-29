@@ -584,6 +584,11 @@ provider resale claim, or runtime feature flag.
   measured placeholder setup-copy action before GitHub or email setup, using the
   existing `account_snippet_copied` event and `preauth-setup-before-signup`
   snippet ID without copying a real API key.
+- Keep the homepage activation nudge executable as setup-first: it should expose
+  `Copy setup first`, record `quickstart_snippet_copied` with
+  `landing-nudge-setup-bundle`, and change the account handoff to
+  `Create API key next` after copy so the live nudge can move setup-copy
+  activation before signup.
 - Include `activationFollowUps` in `/analytics/funnel` as a privacy-safe
   aggregate for no-key signups, including count, suggested plan, generated-key
   recovery CTA with `start=create_key&auth=github`, and no-secret operator
