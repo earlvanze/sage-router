@@ -130,7 +130,9 @@ does not print tokens, emails, generated keys, prompts, provider credentials,
 OAuth tokens, raw campaign URLs, or raw provider responses. Pass `--json` for a
 bounded JSON subset suitable for automation; the `activationQueue` object is
 the stable field for no-key follow-up counts, sendable/review-only segments,
-dry-run coverage, sent-recipient counts, and approval-required state.
+dry-run coverage, sent-recipient counts, and approval-required state. Pass
+`--distribution-tracker-section` to render the same live aggregates in the
+heading structure used by `docs/launch/distribution-tracker.md`.
 
 The same hosted operator dashboard includes a customer review panel backed by
 `/admin/customers`. It uses the same private token boundary as the global

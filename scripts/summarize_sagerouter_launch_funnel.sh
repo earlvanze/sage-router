@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet]
+Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--distribution-tracker-section]
 
 Fetch the operator-only /analytics/funnel endpoint and print a privacy-safe
 launch snapshot. The script never prints operator tokens, emails, generated API
@@ -13,6 +13,9 @@ provider responses.
 Options:
   --json              Print the bounded machine-readable snapshot.
   --approval-packet   Print the no-secret activation send approval packet only.
+  --distribution-tracker-section
+                      Print a docs/launch/distribution-tracker.md-ready
+                      live snapshot section.
 
 Environment:
   SAGEROUTER_SECRET_ENV_FILE       Optional env file to source first
@@ -55,6 +58,7 @@ require_tool() {
 DAYS=30
 RAW_JSON=0
 APPROVAL_PACKET=0
+TRACKER_SECTION=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --days)
@@ -73,6 +77,10 @@ while [[ $# -gt 0 ]]; do
       APPROVAL_PACKET=1
       shift
       ;;
+    --distribution-tracker-section)
+      TRACKER_SECTION=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -85,8 +93,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$RAW_JSON" == "1" && "$APPROVAL_PACKET" == "1" ]]; then
-  printf '%s\n' '--json and --approval-packet cannot be combined' >&2
+if (( RAW_JSON + APPROVAL_PACKET + TRACKER_SECTION > 1 )); then
+  printf '%s\n' '--json, --approval-packet, and --distribution-tracker-section cannot be combined' >&2
   exit 2
 fi
 
@@ -97,6 +105,21 @@ fi
 
 require_tool curl
 require_tool jq
+
+if [[ "$TRACKER_SECTION" == "1" ]]; then
+  require_tool awk
+  "$0" --days "$DAYS" | awk '
+    NR == 1 {
+      print "## Current live snapshot"
+      next
+    }
+    /^## / {
+      sub(/^## /, "### ")
+    }
+    { print }
+  '
+  exit 0
+fi
 
 load_local_env_file "${SAGEROUTER_SECRET_ENV_FILE:-/home/digit/.openclaw/.env}"
 

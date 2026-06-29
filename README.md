@@ -673,8 +673,10 @@ or `SAGE_ROUTER_API_KEY` from the environment or
 `/analytics/funnel`, and prints only aggregate activation, acquisition, revenue,
 and privacy fields. Use its output to update
 `docs/launch/distribution-tracker.md` before broad community posting or
-activation outreach. When the snapshot reports setup-key recovery views but no
-account handoffs or key-create attempts, run:
+activation outreach. Pass `--distribution-tracker-section` to print the
+ready-to-paste live tracker section with the same no-secret aggregate boundary.
+When the snapshot reports setup-key recovery views but no account handoffs or
+key-create attempts, run:
 
 ```bash
 bash scripts/check_setup_key_recovery_handoff.sh

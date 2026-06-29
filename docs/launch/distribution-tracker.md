@@ -19,70 +19,106 @@ readiness guard enables it.
 
 ## Current live snapshot
 
-Live funnel snapshot from 2026-06-29 after Cloud Run revision
-`sage-router-00215-mxl` and commit `c95c795`:
+Refresh this section from live aggregate telemetry with:
 
-- Reliability gate: `SAGEROUTER_MIN_HEALTHY_UPSTREAMS=6
-  scripts/check_sagerouter_launch_readiness.sh` has no hard failures and the
-  public edge currently reports `6` healthy upstreams. The remaining warning is
-  Cloudflare Browser Integrity Check ruleset verification; the current token
-  cannot read/edit the host-scoped ruleset for `api.sagerouter.dev`. A
-  no-secret local audit found `3` Cloudflare token candidates, `2` zone-readable
-  candidates, and `0` candidates with usable Rulesets permissions, so the next
-  infrastructure action is to rotate `CLOUDFLARE_API_TOKEN` with `Zone:Zone:Read`
-  plus `Zone Rulesets:Read/Edit`.
-- Hosted app deploy: Cloudflare Pages production branch `main` was redeployed
-  through preview `590f1755`; `https://sagerouter.dev/setup-key-recovery` now
-  preserves `source_surface=operator_activation` through the operator
-  recovery auto-handoff, and `/analytics/funnel` buckets setup-key recovery as
-  its own source surface instead of burying it under `other`.
-- Hosted API deploy: Cloud Run revision `sage-router-00215-mxl` stages the
-  non-secret managed-provider public controls on `/pricing`: provider-resale
-  terms URL, margin-policy URL, `ollama,openai,anthropic` allowlist, minimum
-  gross-margin floor, and disabled public enablement. It still keeps managed
-  resale off because terms acknowledgment, provider authorization evidence,
-  private cost model, and positive unit economics remain unapproved.
-- Activation: `4` signups, `1` customer with a generated `sk_sage_*` key, `1`
-  customer with a first routed request, `2` paid customers, and `$60`
-  estimated current MRR.
-- Current bottleneck: signup-to-generated-key recovery. The live funnel reports
-  `4` no-key follow-ups queued: `2` sendable segments (`verified`,
-  `unverified`) and `2` review-only auth-repair rows in the
-  `missing_auth_user` segment.
-- Operator dashboard: the no-key queue now includes a copyable no-secret
-  activation approval packet that separates sendable follow-up segments from
-  review-only auth-repair work before any real send command is copied. The
-  operator packet and next-action dock also show the next real-send segment
-  (`verified`) and keep the send command disabled unless dry-run verification
-  and explicit approval are both present.
-- Managed-access guard: one-subscription resale is still correctly disabled.
-  The public terms URL, margin-policy URL, allowed resale families, margin
-  floor, and disabled enablement flag are now bound on Cloud Run. The remaining
-  live blockers are `provider_terms_acknowledgment`,
-  `provider_authorization_evidence`, `provider_cost_model`, and
-  `positive_unit_economics`; allowed resale families remain `ollama`, `openai`,
-  and `anthropic`, while `openrouter` stays BYOK-only unless separately
-  authorized. Operators should now use the no-secret
-  `--provider-outreach-packet`, `--authorization-packet`,
-  `--terms-approval-packet`, and `--unit-economics` flow, and should not run
-  the default apply path until provider authorization evidence and reviewed
-  private cost are available.
-- Email boundary: activation sender dry-run has covered the `2` sendable
-  recipients, but real sending still requires explicit operator approval.
-- Acquisition signals: internal Sage Router navigation remains the largest
-  channel (`298` privacy-safe clicks), long-form/article traffic is the largest
-  source surface (`117`), the landing page has `96` privacy-safe source-surface
-  clicks, Reddit is the strongest external community channel (`37`), and the
-  account surface has `39` privacy-safe clicks. The shared article dock now
-  links those readers directly to OpenRouter comparison, Codex setup, hosted
-  setup copy, email setup, key recovery, one-subscription review, and Max
-  review paths; one-subscription clicks carry only allowlisted anonymous demand
-  buckets into `/analytics/funnel`, and the inline article offer now has a
-  one-field guarded `/api/waitlist` request so private-beta demand can graduate
-  from anonymous signal to managed-access lead without leaving the article.
-- Revenue gap: Pro is now the largest gap (`198` more Pro customers, `$5,940`
-  remaining MRR), followed by Max (`50` customers, `$3,600`) and Lite (`100`
-  customers, `$600`).
+```bash
+scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-section
+```
+
+- Window: last 30 days
+- Generated at epoch: 1782746880
+- Marketing intent events: 397
+- Setup snippet copies: 0
+- Recovery auth starts: magic=0, password=0, oauth=0
+- Managed-access anonymous interest: clicks=0, quickSubmitted=0, quickReceived=0
+- Managed-access demand signals: anonymous=4; waitlist=0
+- Signups: 4
+- Generated-key customers: 1
+- First-routed-request customers: 1
+- Paid customers: 2
+- Estimated MRR: $60 / $10000 target (0.6%)
+
+### Current Bottleneck
+
+- Metric: signupToGeneratedKey
+- Priority: fix_now
+- Owner/surface: Activation / setup-key recovery
+- Action: Recovery pages are getting views but no account handoffs or key-create attempts. Run `bash scripts/check_setup_key_recovery_handoff.sh`; if it passes, wait for fresh traffic or use the approval packet before any real activation send.
+- Success metric: Move no-key signups into generated-key accounts, then first routed request.
+- CTA: `https://sagerouter.dev/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation`
+
+### Activation Queue
+
+- Total no-key follow-ups: 4
+- Sendable queued: 2
+- Review-only queued: 2
+- Unknown queued: 0
+- Dry-run unique sendable recipients: 2
+- Dry-run raw recorded recipients: 4
+- Dry-run duplicate recipient records: 2
+- Dry-run covered segments: verified, unverified
+- Dry-run pending segments: none
+- Real sends recorded: 0
+- Send approval required: true
+- Approval readiness: approval_required (blockedReason=explicit_operator_approval_required)
+- Approval next actions: fix_now:approve_activation_followups, next:review_auth_repair_segments
+- Recommended send segments: unverified, verified
+- Review-only segments: missing_auth_user
+
+### Activation Approval Handoff
+
+- Packet command: `scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet`
+- Approval decision: approval_required for next segment verified; blocker=explicit_operator_approval_required.
+- Default snapshot policy: no send command is printed in this default snapshot. Real activation sends still require explicit operator approval and typed `SEND_ACTIVATION_FOLLOWUPS` confirmation.
+- Safe review: the approval packet is no-secret and excludes emails, customer IDs, generated keys, prompts, OAuth tokens, provider credentials, and raw responses.
+
+### Top Acquisition Actions
+
+- attributionChannel/sagerouter: 309 clicks - Cross-link internal Sage Router pages toward the current lowest-performing activation step.
+- sourceSurface/article: 117 clicks - Turn long-form local-first routing readers into quickstart, Codex setup, and gateway comparison CTAs.
+- sourceSurface/landing: 107 clicks - Keep the homepage focused on account creation, pricing, model catalog, and migration CTAs.
+- sourceSurface/account: 39 clicks - Reduce signed-in friction from plan selection to generated key and first routed request.
+- attributionChannel/reddit: 37 clicks - Package comparison, migration, and reliability proof for Reddit-style evaluation threads.
+
+### Revenue Gap
+
+- pro: 198 customers, $5940 remaining MRR - Convert active generated-key users into Pro with frontier profile, analytics, and fallback proof.
+- max: 50 customers, $3600 remaining MRR - Book founder-led Max demos for automation/team users and attach private deployment support.
+- lite: 100 customers, $600 remaining MRR - Use low-friction Lite checkout from pricing, calculator, and quickstart entry points.
+
+### Founder Sales Fallback
+
+- Use when: activation sends are approval-gated or provider resale is waiting on terms/evidence, but founder-led Pro/Max conversations can still move.
+- Kit: `https://sagerouter.dev/founder-sales-kit?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch`
+- Primary revenue motion: pro needs 198 customers and $5940 remaining MRR; convert active generated-key users into Pro with frontier profile, analytics, and fallback proof.
+- Max review motion: 50 Max customers and $3600 remaining MRR; use the Max implementation snippet for teams with production agents, Tailnet/local routing, or gateway migration pain.
+- Safety rule: use one no-secret snippet per warm conversation; do not paste prompts, provider credentials, generated keys, customer data, private funnel rows, OAuth tokens, or raw provider responses.
+
+### Managed Access Readiness
+
+- Enabled/requested/ready: false / false / false
+- Status: disabled_pending_provider_terms
+- Missing controls: provider_terms_acknowledgment, provider_authorization_evidence, provider_cost_model, positive_unit_economics
+- Next managed actions: fix_now:provider_terms_acknowledgment, next:provider_authorization_evidence, next:provider_cost_model
+- Allowed provider families: ollama, openai, anthropic
+- One-subscription ready families: none
+- One-subscription blocked families: ollama, openai, anthropic, openrouter, byok-compatible
+- Terms acknowledged: false
+- Authorization evidence configured: false
+- Cost model configured: false; unit economics satisfied: false
+- Public-control staging command: `scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls`
+- Provider outreach packet: `scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet`
+- Authorization evidence packet: `scripts/configure_managed_provider_resale_readiness.sh --authorization-packet`
+- Authorization ledger template: `scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template`
+- Unit-economics preflight: `SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics`
+- Managed-access beta interest: 0; anonymous interest: 4; target-provider buckets: mixed-frontier=4
+
+### Privacy
+
+- Contains emails: false
+- Contains API keys: false
+- Contains provider credentials: false
+- Prompts stored: false
 
 Prioritize the no-key activation queue before broad public posting: moving the
 two sendable signups into generated-key accounts should raise the conversion
