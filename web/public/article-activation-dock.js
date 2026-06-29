@@ -392,6 +392,78 @@ curl https://api.sagerouter.dev/v1/models \\
     return form;
   }
 
+  function articleManagedAccessPayload(email) {
+    return {
+      email,
+      company: '',
+      interest: 'managed-access',
+      intent: oneSubscriptionDemand.intent,
+      deployment: 'hybrid',
+      monthlyVolume: '50k-200k',
+      providerAccess: oneSubscriptionDemand.providerAccess,
+      targetProviderFamily: oneSubscriptionDemand.targetProviderFamily,
+      commercialPreference: oneSubscriptionDemand.commercialPreference,
+      supportNeed: oneSubscriptionDemand.supportNeed,
+      targetLaunchWindow: oneSubscriptionDemand.targetLaunchWindow,
+      sourcePage: `${window.location.origin}${window.location.pathname}`,
+      turnstileToken: '',
+    };
+  }
+
+  function makeManagedAccessQuickForm(id) {
+    const form = document.createElement('form');
+    form.id = id;
+    form.className = 'articleDockEmailForm articleDockManagedAccessForm';
+    form.innerHTML = `
+      <input type="email" name="email" autocomplete="email" inputmode="email" placeholder="work email" aria-label="Email address for one-subscription review" required>
+      <button type="submit">Request one-subscription review</button>
+      <small id="${id}-status" class="articleDockEmailStatus" aria-live="polite"></small>
+    `;
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const emailInput = form.querySelector('input[type="email"]');
+      const button = form.querySelector('button');
+      const status = form.querySelector('.articleDockEmailStatus');
+      const email = String(emailInput?.value || '').trim();
+      if (!email) {
+        status.textContent = 'Enter an email to request one-subscription review.';
+        emailInput?.focus();
+        return;
+      }
+      const payload = articleManagedAccessPayload(email);
+      const telemetry = {
+        plan: 'max',
+        button: 'Article one-subscription review form',
+        state: 'article-managed-access-quick-form',
+        ...oneSubscriptionDemand,
+      };
+      button.disabled = true;
+      button.textContent = 'Requesting...';
+      status.textContent = 'Recording review request...';
+      track('managed_access_quick_request_submitted', telemetry);
+      try {
+        const response = await fetch('/api/waitlist', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+          credentials: 'omit',
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        form.reset();
+        track('managed_access_quick_request_received', telemetry);
+        track('managed_access_request_received', telemetry);
+        status.textContent = 'Request received. Managed resale stays gated until authorization, terms, cost, and margin checks pass.';
+      } catch (_error) {
+        track('managed_access_quick_request_failed', telemetry);
+        status.textContent = 'Quick request failed. Open the full managed-access form; do not send secrets.';
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Request one-subscription review';
+      }
+    });
+    return form;
+  }
+
   function mountInlineOffer() {
     if (document.getElementById('article-activation-inline')) return;
     const main = document.querySelector('main');
@@ -430,6 +502,7 @@ curl https://api.sagerouter.dev/v1/models \\
     offer.appendChild(makeStartKeyLink('inline-direct-api-key', 'Create API key', 'articleDockSecondary'));
     offer.appendChild(makeOauthButton('inline-github-pro'));
     offer.appendChild(makeEmailForm('article-activation-email-form', 'Email API key setup link'));
+    offer.appendChild(makeManagedAccessQuickForm('article-managed-access-quick-form'));
     offer.appendChild(makeLink('Already signed up? Finish key', recoveryUrl, 'articleDockSecondary', 'content_article_key_recovery_clicked', 'inline-returning-user'));
     offer.appendChild(makeLink('Compare OpenRouter', openRouterCompareUrl, 'articleDockSecondary', 'content_article_compare_clicked', 'inline-compare-openrouter'));
     offer.appendChild(makeLink('One-subscription review', oneSubscriptionUrl, 'articleDockSecondary', 'content_article_managed_access_clicked', 'inline-one-subscription-review', oneSubscriptionDemand));

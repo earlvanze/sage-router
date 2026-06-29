@@ -415,7 +415,10 @@ provider resale claim, or runtime feature flag.
   buckets. `/analytics/funnel` aggregates those anonymous clicks into
   `anonymousManagedAccessDemand` and the combined `managedAccessDemand` view
   without collecting prompts, provider credentials, OAuth tokens, generated
-  keys, or customer data.
+  keys, or customer data. The same inline article offer can now submit a
+  one-field one-subscription review request to `/api/waitlist`, turning article
+  demand into `managedAccessBetaInterest` while preserving the provider resale
+  gate until authorization, terms, cost, and margin controls pass.
 - Keep `/api/waitlist` guarded before Supabase inserts: browser-originating
   writes must come from Sage Router production hosts, Pages previews, local
   development, or exact origins configured with

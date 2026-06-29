@@ -58,8 +58,9 @@ Live funnel snapshot from 2026-06-29:
   links those readers directly to OpenRouter comparison, Codex setup, hosted
   setup copy, email setup, key recovery, one-subscription review, and Max
   review paths; one-subscription clicks carry only allowlisted anonymous demand
-  buckets into `/analytics/funnel`, so the private-beta signal can appear before
-  a contact form is submitted.
+  buckets into `/analytics/funnel`, and the inline article offer now has a
+  one-field guarded `/api/waitlist` request so private-beta demand can graduate
+  from anonymous signal to managed-access lead without leaving the article.
 - Revenue gap: Pro is now the largest gap (`199` more Pro customers, `$5,970`
   remaining MRR), followed by Max (`50` customers, `$3,600`) and Lite (`100`
   customers, `$600`).

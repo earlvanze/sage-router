@@ -1863,6 +1863,15 @@ check_marketing_local_first_article_page() {
   if [[ "$dock_code" == "200" ]] && ! grep -q "managed-access?intent=one-subscription" /tmp/sage-router-readiness-body; then
     dock_code="200:missing-article-one-subscription-review"
   fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "article-managed-access-quick-form" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-managed-access-quick-form"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "fetch('/api/waitlist'" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-managed-access-waitlist-post"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "managed_access_quick_request_received" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-managed-access-quick-funnel"
+  fi
   if [[ "$dock_code" == "200" ]] && ! grep -q "inline-one-subscription-review" /tmp/sage-router-readiness-body; then
     dock_code="200:missing-article-inline-one-subscription-funnel-state"
   fi
