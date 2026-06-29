@@ -43,7 +43,7 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 - Metric: signupToGeneratedKey
 - Priority: fix_now
 - Owner/surface: Activation / setup-key recovery
-- Action: Recovery pages are getting views but no account handoffs or key-create attempts. Run `bash scripts/check_setup_key_recovery_handoff.sh`; if it passes, wait for fresh traffic or use the approval packet before any real activation send.
+- Action: Recovery pages are getting views but no account handoffs or key-create attempts. Run `bash scripts/diagnose_setup_key_recovery_dropoff.sh`, then `bash scripts/check_setup_key_recovery_handoff.sh` if the diagnosis points at recovery-to-account handoff; if both pass, wait for fresh traffic or use the approval packet before any real activation send.
 - Success metric: Move no-key signups into generated-key accounts, then first routed request.
 - CTA: `https://sagerouter.dev/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation`
 

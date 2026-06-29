@@ -676,7 +676,14 @@ and privacy fields. Use its output to update
 activation outreach. Pass `--distribution-tracker-section` to print the
 ready-to-paste live tracker section with the same no-secret aggregate boundary.
 When the snapshot reports setup-key recovery views but no account handoffs or
-key-create attempts, run:
+key-create attempts, first classify the aggregate dropoff stage:
+
+```bash
+bash scripts/diagnose_setup_key_recovery_dropoff.sh
+```
+
+If the diagnosis points at recovery-to-account handoff, run the focused smoke
+probe:
 
 ```bash
 bash scripts/check_setup_key_recovery_handoff.sh

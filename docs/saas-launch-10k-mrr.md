@@ -152,6 +152,11 @@ provider resale claim, or runtime feature flag.
   provider access stays disabled until provider terms, authorization evidence,
   allowlist, cost model, and
   margin controls pass.
+- Keep `bash scripts/diagnose_setup_key_recovery_dropoff.sh` available as the
+  no-secret operator diagnostic for signup-to-generated-key stalls. It should
+  classify the aggregate dropoff as no recovery traffic, recovery view to
+  account handoff, account handoff to key creation, key-create attempt to
+  success, or working recovery path before any real activation send is approved.
 - Keep `/login.html?start=create_key` as the hosted same-email bridge for
   returning no-key signups: the recovery panel must include an inline
   same-email setup-link form, copy-first setup, same-GitHub recovery, and

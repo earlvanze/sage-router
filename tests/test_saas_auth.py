@@ -2666,12 +2666,14 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('setup-key recovery', action['surface'])
         self.assertIn('/setup-key-recovery', action['ctaPath'])
         self.assertIn('Recovery pages are getting views but no account handoffs or key-create attempts', action['action'])
+        self.assertIn('bash scripts/diagnose_setup_key_recovery_dropoff.sh', action['action'])
         self.assertIn('bash scripts/check_setup_key_recovery_handoff.sh', action['action'])
         self.assertIn('approval packet', action['action'])
         self.assertTrue(action['evidence']['recoveryDropoff'])
         self.assertTrue(action['evidence']['recoveryViewDropoff'])
         self.assertFalse(action['evidence']['recoveryHandoffDropoff'])
         self.assertEqual('bash scripts/check_setup_key_recovery_handoff.sh', action['evidence']['recoveryVerifierCommand'])
+        self.assertEqual('bash scripts/diagnose_setup_key_recovery_dropoff.sh', action['evidence']['recoveryDiagnosticCommand'])
         self.assertEqual(
             [
                 'setup_key_recovery_auto_account_redirected',
@@ -2685,6 +2687,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, action['evidence']['sendableQueued'])
         self.assertEqual(2, action['evidence']['reviewOnlyQueued'])
         self.assertEqual('recovery_dropoff', action['executionChecklist'][0]['segment'])
+        self.assertIn('bash scripts/diagnose_setup_key_recovery_dropoff.sh', action['executionChecklist'][0]['action'])
         self.assertIn('bash scripts/check_setup_key_recovery_handoff.sh', action['executionChecklist'][0]['action'])
         self.assertIn('account_setup_handoff_viewed', action['executionChecklist'][0]['successMetric'])
         self.assertIn('account_key_recovery_auto_create_started', action['executionChecklist'][2]['action'])
