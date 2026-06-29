@@ -281,6 +281,7 @@ const ALLOWED_EVENTS = new Set([
   'setup_key_recovery_managed_access_clicked',
   'setup_key_recovery_support_clicked',
   'status_key_recovery_clicked',
+  'status_first_request_setup_copied',
   'support_key_recovery_clicked',
   'landing_viewed',
   'landing_account_clicked',

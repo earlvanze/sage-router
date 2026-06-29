@@ -1564,6 +1564,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("setup_key_recovery_setup_copied") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_troubleshooting_clicked") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_support_clicked") != null) and
+    ((.allowedEvents // []) | index("status_first_request_setup_copied") != null) and
     ((.allowedEvents // []) | index("operator_managed_access_packet_copied") != null) and
     ((.allowedEvents // []) | index("operator_managed_access_command_copied") != null)
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"

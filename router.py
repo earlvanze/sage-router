@@ -7132,6 +7132,7 @@ SETUP_SNIPPET_COPY_EVENTS = {
     'api_troubleshooting_setup_copied',
     'login_key_recovery_setup_copied',
     'setup_key_recovery_setup_copied',
+    'status_first_request_setup_copied',
 }
 OPERATOR_FOLLOWUP_COPY_EVENTS = {
     'operator_no_key_followup_copied',
