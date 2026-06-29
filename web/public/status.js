@@ -375,6 +375,7 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
   const managedDryRun = managedSetup.dryRunCommand || 'scripts/configure_managed_provider_resale_readiness.sh --check';
   const managedTermsApproval = managedSetup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
   const managedAuthorizationPacket = managedSetup.authorizationPacketCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet';
+  const managedProviderOutreach = managedSetup.providerOutreachCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet';
   const managedUnitEconomics = managedSetup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
   const activationApprovalPacket = 'scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet';
   const cloudflareBicCheck = [
@@ -447,6 +448,16 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
       meta: 'Prints the provider-family authorization checklist and private evidence-reference format without printing provider contracts, account IDs, credentials, costs, prompts, or raw responses.',
       command: managedAuthorizationPacket,
       copyEvent: 'status_managed_authorization_packet_copied',
+    },
+    {
+      id: 'managed-provider-outreach',
+      title: 'Provider authorization outreach',
+      value: managed.providerAuthorizationEvidenceConfigured ? 'Evidence captured' : 'Request provider approval',
+      badge: 'no-secret outreach',
+      state: managed.providerAuthorizationEvidenceConfigured ? 'good' : 'warn',
+      meta: 'Prints the provider-facing request packet for Ollama, OpenAI, and Anthropic managed-access authorization without provider credentials, contracts, account IDs, costs, prompts, or raw responses.',
+      command: managedProviderOutreach,
+      copyEvent: 'status_managed_provider_outreach_copied',
     },
     {
       id: 'managed-unit-economics',
