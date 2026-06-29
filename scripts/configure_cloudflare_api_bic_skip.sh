@@ -165,6 +165,21 @@ if [[ "$MODE" == "operator-packet" ]]; then
     printf -- '- usable ruleset candidates: %s\n' "$(jq -r '.usableRulesetTokenCandidates // 0' <<<"$summary")"
     printf -- '- can apply existing candidate: %s\n' "$(jq -r '.canApplyExistingCandidate // false' <<<"$summary")"
     printf -- '- recommended action: %s\n\n' "$(jq -r '.recommendedAction // "rotate_CLOUDFLARE_API_TOKEN_with_Zone_Zone_Read_and_Zone_Rulesets_Read_Edit"' <<<"$summary")"
+    candidate_lines="$(
+      jq -r '
+        select(.candidate != null)
+        | "- candidate \(.candidate): sources=" + ((.sourceKinds // []) | join(",")) +
+          "; zoneReadable=\(.zoneReadable // false)" +
+          "; zoneStatus=\(.zoneStatus // "unknown")" +
+          "; rulesetReadable=\(.rulesetReadableOrExists // false)" +
+          "; rulesetStatus=\(.rulesetStatus // "unknown")" +
+          (if ((.rulesetError // "") != "") then "; rulesetError=\(.rulesetError)" else "" end)
+      ' "$audit_body"
+    )"
+    if [[ -n "$candidate_lines" ]]; then
+      printf 'Candidate statuses:\n'
+      printf '%s\n\n' "$candidate_lines"
+    fi
   else
     printf 'Local token-candidate audit:\n'
     printf -- '- unavailable: %s\n\n' "$(tr '\n' ' ' <"$audit_err" | sed 's/[[:space:]]\+/ /g')"

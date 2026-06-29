@@ -42,8 +42,8 @@ mutating Cloudflare or printing token values, run:
 bash scripts/configure_cloudflare_api_bic_skip.sh --operator-packet
 ```
 
-The audit prints candidate numbers, source variable names, zone-read status, and
-ruleset-read status only, followed by a no-secret summary with
+The audit and operator packet print candidate numbers, source variable names,
+zone-read status, and ruleset-read status only, followed by a no-secret summary with
 `requiredPermissions`, `usableRulesetTokenCandidates`,
 `canApplyExistingCandidate`, and a `recommendedAction`. A launch-ready token
 must show the zone as readable and the `http_config_settings` ruleset as
