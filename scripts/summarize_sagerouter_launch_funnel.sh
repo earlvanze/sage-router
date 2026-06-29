@@ -160,6 +160,7 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         nextSendSegment: ($telemetry.nextSendSegment // ""),
         nextActions: []
       }) as $approval
+    | (($approval.authRepair // $packet.authRepair // {})) as $auth_repair
     | ($packet.segmentActions // []) as $segments
     | ($telemetry.dryRunVerified // false) as $dry
     | ($approval.nextSendSegment // $telemetry.nextSendSegment // "all") as $next_segment
@@ -192,6 +193,14 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         "",
         "Review-only segments:",
         (segment_lines($segments; false; $dry)[]),
+        "",
+        "Auth repair handoff:",
+        "- Status: \($auth_repair.status // "unknown"); queued=\(n($auth_repair.reviewOnlyQueued)); segments=\(list($auth_repair.reviewOnlySegments)); endpoint=\($auth_repair.endpoint // "/admin/customers/hydrate-auth-users").",
+        "- Fallback if hydration is a no-op: \($auth_repair.noopFallbackAction // "none").",
+        "- Hydrate command:",
+        (if (($auth_repair.command // "") != "") then $auth_repair.command else "  unavailable: no auth repair command returned by /analytics/funnel" end),
+        "- Bounded auth review command:",
+        (if (($auth_repair.reviewCommand // "") != "") then $auth_repair.reviewCommand else "  unavailable: no bounded auth review command returned by /analytics/funnel" end),
         "",
         "Primary recovery CTA: \($followups.primaryCtaUrl // $packet.recoveryUrls.setupKeyRecovery // $packet.recoveryUrls.passwordFallback // "https://sagerouter.dev/setup-key-recovery?utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery").",
         "Success metric: \($followups.successMetric // $packet.telemetry.successMetric // "Move no-key signups into generated-key accounts, then first routed request.")",
