@@ -3939,6 +3939,15 @@ check_marketing_quickstart_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart-full-setup-bundle" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quickstart-bundle-telemetry"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart-lite-key-first-path" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-lite-key-first-path"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart-lite-key-first" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-lite-key-first-telemetry"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "plan=lite&start=create_key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quickstart-lite-key-first-url"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_managed_access_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quickstart-managed-access-funnel"
   fi
@@ -4403,6 +4412,12 @@ check_model_routing_calculator() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "start=create_key" /tmp/sage-router-readiness-body; then
     page_code="200:missing-key-first-calculator-handoff"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "startLiteKeyFirst" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-calculator-lite-key-first-button"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "calculator-lite-key-first" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-calculator-lite-key-first-attribution"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "calculator-email-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-calculator-email-form"

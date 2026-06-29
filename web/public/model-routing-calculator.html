@@ -306,6 +306,7 @@
           <div class="billingStatus" id="recommendedPlanBilling">Checking checkout readiness...</div>
           <div class="actions">
             <button class="primary" type="button" id="startRecommendedPlan">Start recommended plan</button>
+            <button class="secondary" type="button" id="startLiteKeyFirst">Create Lite key first</button>
             <button class="secondary" type="button" id="comparePlans">Compare plans</button>
           </div>
           <form class="emailStart" id="calculator-email-form" data-email-activation-form data-oauth-activation="github" data-event-prefix="calculator" data-sent-event="calculator_magic_link_sent" data-source="model-routing-calculator" data-status-id="calculator-email-status">
@@ -355,8 +356,9 @@
 
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
     function money(n) { return fmt.format(Number.isFinite(n) ? n : 0); }
-    function planActivationUrl(planKey) {
-      return `https://app.sagerouter.dev/account.html?plan=${encodeURIComponent(planKey)}&start=create_key&utm_source=model-routing-calculator&utm_medium=activation&utm_campaign=sage-router-launch`;
+    function planActivationUrl(planKey, content = '') {
+      const suffix = content ? `&utm_content=${encodeURIComponent(content)}` : '';
+      return `https://app.sagerouter.dev/account.html?plan=${encodeURIComponent(planKey)}&start=create_key&utm_source=model-routing-calculator&utm_medium=activation&utm_campaign=sage-router-launch${suffix}`;
     }
     function planUnitCost(plan) { return plan.requests > 0 ? (plan.price / plan.requests) * 1000 : 0; }
     function monthlyPlanPrice(plan = {}) {
@@ -595,6 +597,19 @@
       $('startRecommendedPlan').onclick = () => {
         trackCurrentIntent('calculator_key_activation_clicked', 'start_recommended_plan', activationUrl);
         window.location.href = activationUrl;
+      };
+      $('startLiteKeyFirst').onclick = () => {
+        const liteUrl = planActivationUrl('lite', 'calculator-lite-key-first');
+        trackFunnelEvent('calculator_key_activation_clicked', {
+          plan: 'lite',
+          target: liteUrl,
+          button: 'start_lite_key_first',
+          score,
+          volumeBucket: volumeBucket(v.volume),
+          riskLevel: label,
+          savingsBucket: savingsBucket(savingsPct),
+        });
+        window.location.href = liteUrl;
       };
       $('createHostedKey').textContent = `Create hosted key on ${plan.label}`;
       $('createHostedKey').onclick = () => {
