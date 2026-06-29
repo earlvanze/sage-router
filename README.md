@@ -677,7 +677,7 @@ activation outreach. When the snapshot reports setup-key recovery views but no
 account handoffs or key-create attempts, run:
 
 ```bash
-scripts/check_setup_key_recovery_handoff.sh
+bash scripts/check_setup_key_recovery_handoff.sh
 ```
 
 That focused no-secret verifier checks the public setup-key recovery page,

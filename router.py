@@ -7613,7 +7613,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 {
                     'step': 1,
                     'segment': 'recovery_dropoff',
-                    'action': 'Run scripts/check_setup_key_recovery_handoff.sh and require the setup-key recovery page, account target, and handoff smoke probes to pass before treating the recovery path as broken.',
+                    'action': 'Run bash scripts/check_setup_key_recovery_handoff.sh and require the setup-key recovery page, account target, and handoff smoke probes to pass before treating the recovery path as broken.',
                     'successMetric': 'setup_key_recovery_auto_account_redirected, login_key_recovery_account_setup_auto_redirected, and account_setup_handoff_viewed smoke events are accepted without storing emails or generated keys.',
                 },
                 {
@@ -7659,7 +7659,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 (
                     'Recovery handoffs are reaching account setup but no key-create attempts are starting. Verify signed-in start=create_key auto-create before sending more activation traffic.'
                     if recovery_handoff_dropoff
-                    else 'Recovery pages are getting views but no account handoffs or key-create attempts. Run scripts/check_setup_key_recovery_handoff.sh; if it passes, wait for fresh traffic or use the approval packet before any real activation send.'
+                    else 'Recovery pages are getting views but no account handoffs or key-create attempts. Run bash scripts/check_setup_key_recovery_handoff.sh; if it passes, wait for fresh traffic or use the approval packet before any real activation send.'
                 )
                 if recovery_dropoff
                 else (
@@ -7705,7 +7705,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 'recoveryDropoff': recovery_dropoff,
                 'recoveryViewDropoff': recovery_view_dropoff,
                 'recoveryHandoffDropoff': recovery_handoff_dropoff,
-                'recoveryVerifierCommand': 'scripts/check_setup_key_recovery_handoff.sh',
+                'recoveryVerifierCommand': 'bash scripts/check_setup_key_recovery_handoff.sh',
                 'recoveryVerifierSmokeEvents': [
                     'setup_key_recovery_auto_account_redirected',
                     'login_key_recovery_account_setup_auto_redirected',
