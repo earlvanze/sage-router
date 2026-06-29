@@ -1478,6 +1478,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("content_article_quickstart_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_key_activation_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_magic_link_sent") != null) and
+    ((.allowedEvents // []) | index("outreach_snippet_copied") != null) and
     ((.allowedEvents // []) | index("content_article_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_oauth_failed") != null) and
     ((.allowedEvents // []) | index("managed_access_quick_request_submitted") != null) and
@@ -3552,6 +3553,15 @@ check_marketing_founder_sales_kit_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-max-dm" /tmp/sage-router-readiness-body; then
     page_code="200:missing-copy-founder-max-dm"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable one-subscription review reply" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-one-subscription-reply-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-one-subscription-reply" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-founder-one-subscription-reply"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "intent=one-subscription" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-founder-one-subscription-intent"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Copyable gateway migration reply" /tmp/sage-router-readiness-body; then
     page_code="200:missing-gateway-reply-copy"

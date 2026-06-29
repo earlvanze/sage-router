@@ -292,7 +292,8 @@ Dev.to, X, and LinkedIn, with measured campaign links and no-secret posting
 boundaries for the `$10k MRR` campaign.
 `https://sagerouter.dev/founder-sales-kit` gives the operator copyable
 no-secret direct outreach for Pro activation, Max implementation review,
-gateway migration replies, and calculator follow-up with measured
+one-subscription managed-access review, gateway migration replies, and
+calculator follow-up with measured
 `utm_source=founder-sales` links for the same `$10k MRR` campaign.
 
 The public homepage now treats hosted signup as live: the homepage primary CTA

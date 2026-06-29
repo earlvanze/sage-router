@@ -257,8 +257,9 @@ provider resale claim, or runtime feature flag.
   Hackers, Dev.to, X, and LinkedIn text, and privacy-safe snippet-copy
   telemetry.
 - Keep `/founder-sales-kit` as the founder-led direct outreach kit for Pro
-  activation, Max implementation review, gateway migration replies, and
-  calculator follow-up, with measured `utm_source=founder-sales` links and
+  activation, Max implementation review, one-subscription managed-access
+  review, gateway migration replies, and calculator follow-up, with measured
+  `utm_source=founder-sales` links, `outreach_snippet_copied` telemetry, and
   no-secret outreach boundaries.
 - Keep `/docs/codex` as the dedicated Codex CLI path with hosted, local port
   `8790`, and Tailnet examples using `wire_api = "responses"` and

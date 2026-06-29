@@ -46,6 +46,7 @@
     <div class="actions">
       <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-api-key" data-founder-event="content_article_key_activation_clicked" data-founder-button="hero-api-key">Create API key</a>
       <a class="button secondary" href="/managed-access?intent=max-implementation&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-max-review" data-founder-event="content_article_managed_access_clicked" data-founder-button="hero-max-review">Request Max review</a>
+      <a class="button secondary" href="/managed-access?intent=one-subscription&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-one-subscription" data-founder-event="content_article_managed_access_clicked" data-founder-button="hero-one-subscription">One-subscription review</a>
       <a class="button secondary" href="/model-routing-calculator?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-calculator" data-founder-event="content_article_calculator_clicked" data-founder-button="hero-calculator">Estimate workflow fit</a>
     </div>
   </header>
@@ -181,6 +182,34 @@ https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=fou
       </aside>
     </section>
 
+    <section class="two">
+      <article class="panel">
+        <h2>Copyable one-subscription review reply</h2>
+        <pre id="founder-one-subscription-reply" class="codebox">If you want one subscription instead of bringing every provider account yourself, use the managed-access review path rather than public checkout.
+
+Sage Router can qualify the workflow, target provider family, request volume, and commercial preference now. Public managed provider access stays disabled until provider authorization, terms acknowledgment, an authorized provider-family allowlist, a private cost model, unit economics, quotas, audit events, and acceptable-use controls all pass.
+
+Request one-subscription review:
+https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=one-subscription-review
+
+Provider and margin boundary:
+https://sagerouter.dev/provider-resale-terms?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=one-subscription-review
+https://sagerouter.dev/margin-policy?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=one-subscription-review</pre>
+        <div class="copyRow">
+          <button id="copy-founder-one-subscription-reply" class="copyButton" type="button">Copy one-subscription reply</button>
+          <span id="copy-founder-one-subscription-status" class="copyStatus" role="status" aria-live="polite"></span>
+        </div>
+      </article>
+      <aside class="panel soft">
+        <h2>When to use it</h2>
+        <ul class="list">
+          <li>Prospect asks for OpenRouter-style simplicity or one vendor relationship.</li>
+          <li>Goal is reviewed managed-access demand, not an entitlement or public resale claim.</li>
+          <li>Success signal is managed-access review submission with one-subscription and target-provider buckets.</li>
+        </ul>
+      </aside>
+    </section>
+
     <section class="panel callout">
       <h2><strong>Founder-sales operating rule</strong></h2>
       <p>Use one snippet per conversation, then wait for the prospect's reply. Do not batch-send identical outreach, and do not include private funnel metrics, customer identities, prompts, provider credentials, generated API keys, OAuth tokens, cookies, or raw provider responses.</p>
@@ -273,6 +302,9 @@ https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=fou
     });
     document.getElementById('copy-founder-max-dm')?.addEventListener('click', () => {
       copyBlock('founder-max-dm', 'copy-founder-max-status', 'Copied Max DM.', 'founder-max-dm');
+    });
+    document.getElementById('copy-founder-one-subscription-reply')?.addEventListener('click', () => {
+      copyBlock('founder-one-subscription-reply', 'copy-founder-one-subscription-status', 'Copied one-subscription reply.', 'founder-one-subscription-reply');
     });
     document.getElementById('copy-founder-gateway-reply')?.addEventListener('click', () => {
       copyBlock('founder-gateway-reply', 'copy-founder-gateway-status', 'Copied migration reply.', 'founder-gateway-reply');
