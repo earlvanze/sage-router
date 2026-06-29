@@ -682,8 +682,17 @@ key-create attempts, first classify the aggregate dropoff stage:
 bash scripts/diagnose_setup_key_recovery_dropoff.sh
 ```
 
-If the diagnosis points at recovery-to-account handoff, run the focused smoke
-probe:
+If the diagnosis points at recovery-to-account handoff, fold the focused smoke
+probe into the diagnosis before sending more traffic:
+
+```bash
+bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff
+```
+
+The verified mode still prints only aggregate counts and smoke status. If the
+live smoke passes while aggregate account handoffs are still zero, wait for
+fresh real recovery traffic or use the no-secret approval packet before any
+real activation send. To run just the focused smoke probe:
 
 ```bash
 bash scripts/check_setup_key_recovery_handoff.sh

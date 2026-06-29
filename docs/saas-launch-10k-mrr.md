@@ -157,6 +157,9 @@ provider resale claim, or runtime feature flag.
   classify the aggregate dropoff as no recovery traffic, recovery view to
   account handoff, account handoff to key creation, key-create attempt to
   success, or working recovery path before any real activation send is approved.
+  Operators can add `--verify-handoff` to run the live no-persistence handoff
+  smoke and distinguish a broken public handoff from verified handoff code that
+  is simply waiting for fresh real recovery traffic.
 - Keep `/login.html?start=create_key` as the hosted same-email bridge for
   returning no-key signups: the recovery panel must include an inline
   same-email setup-link form, copy-first setup, same-GitHub recovery, and
