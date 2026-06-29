@@ -54,7 +54,7 @@ AUTHORIZATION_LEDGER_TEMPLATE="${ROOT}/docs/launch/execution/provider-authorizat
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--authorization-ledger-template|--provider-outreach-packet|--terms-approval-packet|--stage-public-controls|--unit-economics]
+Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--authorization-ledger-template|--provider-outreach-packet|--terms-approval-packet|--one-subscription-pricing-packet|--stage-public-controls|--unit-economics]
 
 Stage Sage Router managed provider-access readiness on Cloud Run.
 
@@ -101,6 +101,13 @@ Options:
                            review packet. It separates the terms decision from
                            the private cost model and never prints provider
                            authorization reference values.
+  --one-subscription-pricing-packet
+                           Print the no-secret managed-access pricing packet
+                           for one-subscription review. It shows only public
+                           plan revenue, public max-safe provider-cost
+                           thresholds, packaging decisions, and next commands;
+                           it never prints private provider costs or required
+                           private prices.
   --stage-public-controls  Bind non-secret terms, margin-policy, allowlist, and
                            disabled public-enable env without requiring or
                            writing the private cost model.
@@ -145,6 +152,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --terms-approval-packet)
       MODE="terms-approval-packet"
+      shift
+      ;;
+    --one-subscription-pricing-packet)
+      MODE="one-subscription-pricing-packet"
       shift
       ;;
     --stage-public-controls)
@@ -681,6 +692,85 @@ managed_provider_terms_approval_packet() {
   printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false.\n'
 }
 
+managed_provider_one_subscription_pricing_packet() {
+  require_cmd curl
+  require_cmd jq
+
+  local body code missing allowed eligible byok ready blocked min_margin binding_plan terms_url margin_url
+  body="$(mktemp)"
+  code="$(curl -sS -o "$body" -w '%{http_code}' https://api.sagerouter.dev/pricing || printf '000')"
+
+  printf 'Sage Router one-subscription pricing packet\n'
+  printf 'Boundary: read-only pricing review; no private provider costs, provider credentials, authorization reference values, prompts, OAuth tokens, generated API keys, customer data, or raw provider responses.\n'
+  printf 'Effect: this command does not acknowledge terms, write secrets, deploy Cloud Run, enable managed resale, change prices, or send customer/provider email.\n\n'
+
+  if [[ "$code" != "200" ]]; then
+    printf 'Live public pricing context: unavailable HTTP %s from https://api.sagerouter.dev/pricing\n' "$code"
+    rm -f "$body"
+    printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsRequiredPrivatePrices=false; mutatesRuntime=false.\n'
+    return 0
+  fi
+
+  missing="$(jq -r '(.publicLaunch.managedProviderAccess.missingControls // []) | join(", ")' "$body")"
+  allowed="$(jq -r '(.publicLaunch.managedProviderAccess.allowedProviderFamilies // []) | join(", ")' "$body")"
+  eligible="$(jq -r '(.publicLaunch.managedProviderAccess.resaleEligibleProviderFamilies // []) | join(", ")' "$body")"
+  byok="$(jq -r '(.publicLaunch.managedProviderAccess.byokOnlyProviderFamilies // []) | join(", ")' "$body")"
+  ready="$(jq -r '(.publicLaunch.managedProviderAccess.oneSubscriptionReadiness.readyProviderFamilies // []) | join(", ")' "$body")"
+  blocked="$(jq -r '(.publicLaunch.managedProviderAccess.oneSubscriptionReadiness.blockedProviderFamilies // []) | join(", ")' "$body")"
+  min_margin="$(jq -r '.publicLaunch.managedProviderAccess.unitEconomics.minimumGrossMarginPercent // 35' "$body")"
+  binding_plan="$(jq -r '
+    (.publicLaunch.managedProviderAccess.unitEconomics.evaluatedPlans // [])
+    | sort_by(.maximumProviderCostCentsPerThousandRequests // 999999)
+    | .[0].plan // "unknown"
+  ' "$body")"
+  terms_url="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsUrl // "https://sagerouter.dev/provider-resale-terms"' "$body")"
+  margin_url="$(jq -r '.publicLaunch.managedProviderAccess.marginPolicyUrl // "https://sagerouter.dev/margin-policy"' "$body")"
+
+  printf 'Live one-subscription readiness:\n'
+  printf -- '- enabled/requested/ready: %s / %s / %s\n' \
+    "$(jq -r '.publicLaunch.managedProviderAccess.enabled // false' "$body")" \
+    "$(jq -r '.publicLaunch.managedProviderAccess.requested // false' "$body")" \
+    "$(jq -r '.publicLaunch.managedProviderAccess.readinessSatisfied // false' "$body")"
+  printf -- '- missing controls: %s\n' "${missing:-none}"
+  printf -- '- allowed managed families: %s\n' "${allowed:-none}"
+  printf -- '- resale-eligible families: %s\n' "${eligible:-none}"
+  printf -- '- BYOK-only families excluded from managed resale: %s\n' "${byok:-none}"
+  printf -- '- one-subscription ready families: %s\n' "${ready:-none}"
+  printf -- '- one-subscription blocked families: %s\n' "${blocked:-none}"
+  printf -- '- binding public plan: %s\n' "$binding_plan"
+  printf -- '- minimum gross-margin floor: %s%%\n\n' "$min_margin"
+
+  printf 'Public fixed-plan thresholds:\n'
+  jq -r '
+    (.publicLaunch.managedProviderAccess.unitEconomics.evaluatedPlans // [])
+    | sort_by(.constraintRank // 999)
+    | .[]
+    | "- \(.plan): price=$\(.monthlyPriceUsd)/mo; includedRequests=\(.monthlyRequests); revenueCentsPer1k=\(.revenueCentsPerThousandRequests); maxSafeProviderCostCentsPer1k=\(.maximumProviderCostCentsPerThousandRequests); constraintRank=\(.constraintRank); privateCostStatus=not_printed"
+  ' "$body"
+  printf '\n'
+
+  printf 'Packaging decision for one-subscription beta:\n'
+  printf -- '- Keep BYOK/OpenRouter-compatible routing sellable in Lite/Pro/Max as customer-authorized routing infrastructure.\n'
+  printf -- '- Keep public managed provider resale disabled until provider terms, authorization evidence, cost model, and positive unit economics all pass.\n'
+  printf -- '- Treat %s as the binding fixed-plan constraint because it has the lowest public max-safe provider-cost threshold.\n' "$binding_plan"
+  printf -- '- If a private provider-cost candidate is above any plan threshold, exclude that plan from managed access, lower included managed-access quota, add a managed-access surcharge, or move the buyer to a private Max contract.\n'
+  printf -- '- Do not publish actual provider costs, exact gross-margin calculations, or derived required private prices in launch pages, PRs, logs, or support channels.\n\n'
+
+  printf 'Review URLs:\n'
+  printf -- '- provider terms: %s\n' "$terms_url"
+  printf -- '- margin policy: %s\n\n' "$margin_url"
+
+  printf 'Safe next commands:\n'
+  printf -- '- Provider outreach: scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet\n'
+  printf -- '- Terms review: scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet\n'
+  printf -- '- Authorization evidence review: scripts/configure_managed_provider_resale_readiness.sh --authorization-packet\n'
+  printf -- '- Private cost preflight: SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS=REVIEWED_PRIVATE_COST scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n'
+  printf -- '- Keep public enablement off until every check passes: SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0\n\n'
+
+  printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsRequiredPrivatePrices=false; containsAuthorizationReference=false; mutatesRuntime=false.\n'
+  rm -f "$body"
+}
+
 managed_provider_authorization_ledger_template() {
   if [[ -f "$AUTHORIZATION_LEDGER_TEMPLATE" ]]; then
     cat "$AUTHORIZATION_LEDGER_TEMPLATE"
@@ -791,6 +881,11 @@ fi
 
 if [[ "$MODE" == "terms-approval-packet" ]]; then
   managed_provider_terms_approval_packet
+  exit 0
+fi
+
+if [[ "$MODE" == "one-subscription-pricing-packet" ]]; then
+  managed_provider_one_subscription_pricing_packet
   exit 0
 fi
 

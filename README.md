@@ -570,6 +570,7 @@ scripts/configure_managed_provider_resale_readiness.sh --operator-packet
 scripts/configure_managed_provider_resale_readiness.sh --authorization-packet
 scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template
 scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet
+scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet
 scripts/configure_managed_provider_resale_readiness.sh --check
 ```
 
@@ -620,6 +621,17 @@ prints that file when available so operators have the same canonical worksheet
 in the repo and terminal. The template is safe to generate in logs because it
 contains only placeholders and privacy flags; fill it only in the private system
 of record, not in public metadata, PRs, or support channels.
+
+Use `--one-subscription-pricing-packet` before writing any private cost model
+to review the public fixed-plan thresholds for managed access. It fetches live
+`/pricing`, names the binding public plan, prints only public plan revenue and
+max-safe provider-cost thresholds, and recommends whether one-subscription
+managed access should stay Max/private-contract only, use a managed-access
+surcharge, lower included quota, or exclude failing plans. It does not print
+actual provider costs, exact gross-margin calculations, derived required private
+prices, provider credentials, authorization-reference values, prompts, raw
+provider responses, or customer data, and it does not mutate Cloud Run,
+Secret Manager, prices, or public enablement.
 
 Before writing the private provider-cost model to Secret Manager, run the
 secret-safe unit-economics preflight with the candidate cost in the environment:
