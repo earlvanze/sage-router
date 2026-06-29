@@ -36,6 +36,11 @@ function accountActivationUrl() {
   if (!['checkout', 'create_key'].includes(url.searchParams.get('start'))) {
     url.searchParams.set('start', 'create_key');
   }
+  if (isKeyRecoveryLanding()) {
+    if (!url.searchParams.get('setup')) url.searchParams.set('setup', 'login-key-recovery');
+    if (!url.searchParams.get('source_surface')) url.searchParams.set('source_surface', 'recovery');
+    if (!url.searchParams.get('next')) url.searchParams.set('next', 'generated-key');
+  }
   return url.toString();
 }
 
