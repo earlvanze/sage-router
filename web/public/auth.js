@@ -9,6 +9,7 @@ const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
 const ACCOUNT_ACTIVATION_PATH = '/account.html?plan=pro&start=create_key&utm_source=login&utm_medium=activation&utm_campaign=sage-router-launch';
 const ACTIVATION_PARAM_NAMES = ['plan', 'start', 'auth', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
 let keyRecoverySessionRedirecting = false;
+let keyRecoveryAccountHandoffScheduled = false;
 
 function loginRecoverySetupBundleText() {
   return `# Sage Router setup-key recovery
@@ -39,6 +40,19 @@ function accountActivationUrl() {
 
 function openAccountActivation() {
   window.location.assign(accountActivationUrl());
+}
+
+function scheduleKeyRecoveryAccountHandoff() {
+  if (!isKeyRecoveryLanding() || keyRecoveryAccountHandoffScheduled || keyRecoverySessionRedirecting) return;
+  keyRecoveryAccountHandoffScheduled = true;
+  const target = accountActivationUrl();
+  set('auth-status', 'Opening API key setup so the generated key can be created after sign-in...');
+  trackLoginFunnelEvent('login_key_recovery_account_setup_auto_redirected', {
+    button: 'auto_account_setup_handoff',
+    target,
+    state: keyRecoveryLandingState(),
+  });
+  window.setTimeout(openAccountActivation, 1200);
 }
 
 function keyRecoveryLinkTarget() {
@@ -313,7 +327,7 @@ async function sendSameEmailSetupLink(email, { button = 'magic_login', statusId 
   set('auth-status', error ? error.message : 'Setup key link sent. Check that same-email inbox to continue to generated-key setup.');
   return { error };
 }
-async function refreshSession() { const { data } = await sb.auth.getSession(); const session = data?.session; if (session?.user) { set('session-status', `Signed in as ${session.user.email || session.user.user_metadata?.full_name || session.user.id}`); $('sign-out')?.classList.remove('hidden'); if (isKeyRecoveryLanding() && !keyRecoverySessionRedirecting) { keyRecoverySessionRedirecting = true; trackLoginFunnelEvent('login_key_recovery_session_redirected', { button: 'signed_in_recovery_redirect', target: accountActivationUrl(), state: keyRecoveryLandingState() }); set('auth-status', 'Signed in. Opening API key setup...'); window.setTimeout(openAccountActivation, 250); } } else { set('session-status', isKeyRecoveryLanding() ? 'Recover setup-key activation with the same email used at signup.' : 'Choose a sign-in method.'); $('sign-out')?.classList.add('hidden'); } }
+async function refreshSession() { const { data } = await sb.auth.getSession(); const session = data?.session; if (session?.user) { set('session-status', `Signed in as ${session.user.email || session.user.user_metadata?.full_name || session.user.id}`); $('sign-out')?.classList.remove('hidden'); if (isKeyRecoveryLanding() && !keyRecoverySessionRedirecting) { keyRecoverySessionRedirecting = true; trackLoginFunnelEvent('login_key_recovery_session_redirected', { button: 'signed_in_recovery_redirect', target: accountActivationUrl(), state: keyRecoveryLandingState() }); set('auth-status', 'Signed in. Opening API key setup...'); window.setTimeout(openAccountActivation, 250); } } else { set('session-status', isKeyRecoveryLanding() ? 'Opening setup-key activation...' : 'Choose a sign-in method.'); $('sign-out')?.classList.add('hidden'); scheduleKeyRecoveryAccountHandoff(); } }
 async function oauthLogin(provider) { set('auth-status', `Opening ${provider} sign-in for API key setup...`); rememberOnboardingContext(onboardingContext({ authMethod: provider })); trackLoginFunnelEvent('account_oauth_clicked', { button: provider, target: '/auth/v1/authorize', state: provider }); trackLoginKeyRecoveryAuthEvent('login_key_recovery_oauth_clicked', { button: provider }); const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: accountActivationUrl() } }); if (error) { trackLoginKeyRecoveryAuthEvent('login_key_recovery_oauth_failed', { button: provider }); set('auth-status', error.message); } }
 async function passwordLogin() { set('auth-status', 'Signing in...'); const email = $('email')?.value.trim(); const password = $('password')?.value; if (!email) { set('auth-status', 'Enter your email first.'); return; } if (!password) { set('auth-status', 'Enter a password, or use Send magic link.'); return; } trackLoginFunnelEvent('account_login_submitted', { button: 'password_login', target: '/auth/v1/token', state: 'password' }); trackLoginKeyRecoveryAuthEvent('login_key_recovery_password_submitted', { button: 'password_login', target: '/auth/v1/token' }); const { error } = await sb.auth.signInWithPassword({ email, password }); set('auth-status', error ? error.message : 'Signed in. Opening API key setup...'); if (!error) { trackLoginFunnelEvent('account_login_succeeded', { button: 'password_login', target: accountActivationUrl(), state: 'password_key_setup' }); trackLoginKeyRecoveryAuthEvent('login_key_recovery_password_succeeded', { button: 'password_login' }); openAccountActivation(); } }
 async function passwordSignup() { set('auth-status', 'Creating account...'); const email = $('email')?.value.trim(); const password = $('password')?.value; if (!email) { set('auth-status', 'Enter your email first.'); return; } if (!password) { set('auth-status', 'Enter a password for the new account.'); return; } if (password.length < 8) { set('auth-status', 'Use at least 8 characters for the password.'); return; } trackLoginFunnelEvent('account_signup_submitted', { button: 'password_signup', target: '/auth/v1/signup', state: 'password' }); const metadata = onboardingContext({ authMethod: 'password' }); rememberOnboardingContext(metadata); const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: accountActivationUrl(), data: metadata } }); if (error) { set('auth-status', error.message); return; } trackLoginFunnelEvent('account_signup_succeeded', { button: 'password_signup', target: accountActivationUrl(), state: data?.session ? 'signed_in_key_setup' : 'email_confirmation_key_setup' }); set('auth-status', data?.session ? 'Account created. Opening API key setup...' : 'Account created. Check your email to continue to API key setup.'); if (data?.session) openAccountActivation(); }
