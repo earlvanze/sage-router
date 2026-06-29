@@ -44,9 +44,14 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertFalse(report['grossMarginPercentExposed'])
         self.assertTrue(report['satisfied'])
         self.assertEqual([], report['failedPlans'])
+        self.assertEqual('max', report['bindingPlan'])
+        self.assertTrue(report['recommendedActions'])
+        self.assertEqual('binding_plan', report['recommendedActions'][0]['kind'])
+        self.assertEqual('max', report['recommendedActions'][0]['plan'])
         self.assertTrue(report['privacy']['containsActualProviderCosts'] is False)
         for row in report['evaluatedPlans']:
             self.assertIn('maximumProviderCostCentsPerThousandRequests', row)
+            self.assertIn('constraintRank', row)
             self.assertIn('meetsMinimumGrossMargin', row)
             self.assertNotIn('grossMarginPercent', row)
 
@@ -63,9 +68,16 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         combined = result.stdout + result.stderr
         self.assertNotIn('30.123456', combined)
         self.assertNotIn('grossMarginPercent=', combined)
+        self.assertNotIn('requiredPrice', combined)
+        self.assertNotIn('required_private_price', combined)
         self.assertIn('candidateCostProvided=true', combined)
         self.assertIn('satisfied=false', combined)
+        self.assertIn('bindingPlan=max', combined)
         self.assertIn('failedPlans=max', combined)
+        self.assertIn('recommendedActions:', combined)
+        self.assertIn('revise_fixed_plan_economics plans=max', combined)
+        self.assertIn('keep_public_resale_disabled plans=max', combined)
+        self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0', combined)
 
     def test_configure_helper_unit_economics_mode_delegates_safely(self):
         result = subprocess.run(
@@ -80,6 +92,7 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertNotIn('1.234567', combined)
         self.assertIn('candidateCostPrinted=false', combined)
         self.assertIn('satisfied=true', combined)
+        self.assertIn('bindingPlan=max', combined)
 
     def test_configure_helper_documents_no_secret_operator_packet(self):
         script = CONFIGURE_SCRIPT.read_text(encoding='utf-8')

@@ -93,7 +93,9 @@ Options:
                            writing the private cost model.
   --unit-economics         Validate the private provider-cost candidate against
                            public plan revenue and minimum-margin thresholds
-                           without printing the private cost value.
+                           without printing the private cost value. The report
+                           names the binding public plan and safe next actions
+                           without printing a derived private required price.
 
 The provider cost model is stored in Secret Manager and is not printed.
 Managed public resale remains disabled unless

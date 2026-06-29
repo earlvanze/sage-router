@@ -55,7 +55,17 @@ def public_safe_preflight(minimum_margin_percent):
         minimum_margin_percent,
     )
     rows = []
-    for row in economics.get('evaluatedPlans') or []:
+    source_rows = economics.get('evaluatedPlans') or []
+    ranked_rows = sorted(
+        source_rows,
+        key=lambda row: float(row.get('maximumProviderCostCentsPerThousandRequests') or 0),
+    )
+    constraint_rank = {
+        str(row.get('plan')): index + 1
+        for index, row in enumerate(ranked_rows)
+        if row.get('plan')
+    }
+    for row in source_rows:
         rows.append({
             'plan': row.get('plan'),
             'monthlyRequests': row.get('monthlyRequests'),
@@ -65,9 +75,60 @@ def public_safe_preflight(minimum_margin_percent):
             'maximumProviderCostCentsPerThousandRequests': row.get(
                 'maximumProviderCostCentsPerThousandRequests'
             ),
+            'constraintRank': constraint_rank.get(str(row.get('plan'))),
             'meetsMinimumGrossMargin': bool(row.get('meetsMinimumGrossMargin')),
         })
     failed = [row['plan'] for row in rows if not row.get('meetsMinimumGrossMargin')]
+    binding = min(
+        rows,
+        key=lambda row: float(row.get('maximumProviderCostCentsPerThousandRequests') or 0),
+        default=None,
+    )
+    recommendations = []
+    if binding:
+        recommendations.append({
+            'kind': 'binding_plan',
+            'plan': binding.get('plan'),
+            'message': (
+                f"{binding.get('plan')} is the tightest fixed-plan constraint because it "
+                "has the lowest public maximum safe provider cost per 1,000 requests."
+            ),
+            'privacy': 'public_threshold_only',
+        })
+    if failed:
+        recommendations.extend([
+            {
+                'kind': 'revise_fixed_plan_economics',
+                'plans': failed,
+                'message': (
+                    "For failed plans, raise public price, lower included monthly "
+                    "requests, require a managed-access add-on, or exclude the plan "
+                    "from one-subscription access until the private cost candidate "
+                    "falls below its public safe threshold."
+                ),
+                'privacy': 'does_not_print_private_cost_or_required_private_price',
+            },
+            {
+                'kind': 'keep_public_resale_disabled',
+                'plans': failed,
+                'message': (
+                    "Keep SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0 while any "
+                    "fixed public API plan fails the unit-economics preflight."
+                ),
+                'privacy': 'public_threshold_only',
+            },
+        ])
+    else:
+        recommendations.append({
+            'kind': 'stage_private_cost_model',
+            'message': (
+                "The candidate cost passes the public fixed-plan thresholds; stage the "
+                "cost model only after provider authorization evidence and terms "
+                "approval are current, and keep public managed resale disabled until "
+                "final approval."
+            ),
+            'privacy': 'does_not_print_private_cost',
+        })
     return {
         'kind': 'managed_provider_unit_economics_preflight',
         'costModel': economics.get('costModel'),
@@ -80,6 +141,8 @@ def public_safe_preflight(minimum_margin_percent):
         'minimumGrossMarginPercent': minimum_margin_percent,
         'evaluatedPlans': rows,
         'failedPlans': failed,
+        'bindingPlan': binding.get('plan') if binding else None,
+        'recommendedActions': recommendations,
         'satisfied': bool(economics.get('satisfied')),
         'privacy': {
             'containsSecrets': False,
@@ -100,6 +163,8 @@ def print_text(report):
     print('grossMarginPercentExposed=false')
     print(f"minimumGrossMarginPercent={report['minimumGrossMarginPercent']}")
     print(f"satisfied={'true' if report['satisfied'] else 'false'}")
+    if report.get('bindingPlan'):
+        print(f"bindingPlan={report['bindingPlan']}")
     print('plans:')
     for row in report['evaluatedPlans']:
         status = 'pass' if row['meetsMinimumGrossMargin'] else 'fail'
@@ -107,10 +172,19 @@ def print_text(report):
             f"- {row['plan']}: revenueCentsPer1k={row['revenueCentsPerThousandRequests']} "
             f"maxSafeProviderCostCentsPer1k={row['maximumProviderCostCentsPerThousandRequests']} "
             f"minimumGrossMarginPercent={row['minimumGrossMarginPercent']} "
+            f"constraintRank={row['constraintRank']} "
             f"status={status}"
         )
     if report['failedPlans']:
         print('failedPlans=' + ','.join(report['failedPlans']))
+    print('recommendedActions:')
+    for action in report.get('recommendedActions') or []:
+        plans = action.get('plans')
+        suffix = f" plans={','.join(plans)}" if plans else ''
+        plan = action.get('plan')
+        if plan and not suffix:
+            suffix = f" plan={plan}"
+        print(f"- {action.get('kind')}{suffix}: {action.get('message')}")
 
 
 def main():
