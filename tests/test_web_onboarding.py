@@ -4748,6 +4748,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("setup_key_recovery_auto_account_redirected", handoff_script)
         self.assertIn("login_key_recovery_account_setup_auto_redirected", handoff_script)
         self.assertIn("account_setup_handoff_viewed", handoff_script)
+        self.assertIn('${APP_BASE%/}/account?start=create_key', handoff_script)
+        self.assertNotIn('${APP_BASE%/}/account.html?start=create_key', handoff_script)
         self.assertIn('"$skipped" == "smoke"', handoff_script)
         self.assertIn("recovery_view_to_account_handoff", dropoff_script)
         self.assertIn("account_handoff_to_key_create", dropoff_script)

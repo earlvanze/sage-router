@@ -94,13 +94,13 @@ post_smoke_event \
   'login_key_recovery_account_setup_auto_redirected' \
   "$APP_BASE" \
   "${APP_BASE%/}/login.html?start=create_key&smoke=1" \
-  "${APP_BASE%/}/account.html?start=create_key" \
+  "${APP_BASE%/}/account?start=create_key" \
   'smoke'
 
 post_smoke_event \
   'account_setup_handoff_viewed' \
   "$APP_BASE" \
-  "${APP_BASE%/}/account.html?start=create_key&setup=login-key-recovery&source_surface=recovery&next=generated-key&smoke=1" \
+  "${APP_BASE%/}/account?start=create_key&setup=login-key-recovery&source_surface=recovery&next=generated-key&smoke=1" \
   '#intent-email' \
   'smoke'
 
