@@ -216,6 +216,7 @@ const ALLOWED_EVENTS = new Set([
   'operator_execution_packet_copied',
   'operator_managed_access_packet_copied',
   'operator_managed_access_command_copied',
+  'status_managed_one_subscription_pricing_copied',
   'account_email_verification_resend_clicked',
   'account_email_verification_resent',
   'account_preauth_setup_next_clicked',

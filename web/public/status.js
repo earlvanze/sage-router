@@ -378,6 +378,7 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
   const managedAuthorizationPacket = managedSetup.authorizationPacketCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet';
   const managedAuthorizationLedgerTemplate = managedSetup.authorizationLedgerTemplateCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template';
   const managedProviderOutreach = managedSetup.providerOutreachCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet';
+  const managedOneSubscriptionPricing = managedSetup.oneSubscriptionPricingCommand || 'scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet';
   const managedUnitEconomics = managedSetup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
   const activationApprovalPacket = 'scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet --verify-recovery --verify-auth-repair';
   const founderSalesFallback = [
@@ -487,6 +488,16 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
       meta: 'Prints the provider-facing request packet for Ollama, OpenAI, and Anthropic managed-access authorization without provider credentials, contracts, account IDs, costs, prompts, or raw responses.',
       command: managedProviderOutreach,
       copyEvent: 'status_managed_provider_outreach_copied',
+    },
+    {
+      id: 'managed-one-subscription-pricing',
+      title: 'One-subscription pricing packet',
+      value: managed.unitEconomics?.satisfied ? 'Thresholds pass' : 'Review public thresholds',
+      badge: 'public thresholds only',
+      state: managed.unitEconomics?.satisfied ? 'good' : 'warn',
+      meta: 'Prints live public plan revenue, max-safe provider-cost thresholds, the binding plan, and packaging decisions without private provider costs, required private prices, credentials, prompts, or customer data.',
+      command: managedOneSubscriptionPricing,
+      copyEvent: 'status_managed_one_subscription_pricing_copied',
     },
     {
       id: 'managed-unit-economics',
