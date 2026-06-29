@@ -450,5 +450,6 @@ if (isKeyRecoveryLanding()) {
     target: accountActivationUrl(),
     state: keyRecoveryLandingState(),
   });
+  window.setTimeout(scheduleKeyRecoveryAccountHandoff, 350);
 }
 applyAuthSettings();

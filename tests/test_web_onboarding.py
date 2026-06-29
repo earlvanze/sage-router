@@ -1178,6 +1178,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("function scheduleKeyRecoveryAccountHandoff()", js)
         self.assertIn("login_key_recovery_account_setup_auto_redirected", js)
         self.assertIn("login_key_recovery_session_redirected", js)
+        self.assertIn("window.setTimeout(scheduleKeyRecoveryAccountHandoff, 350)", js)
         self.assertIn("window.setTimeout(openAccountActivation, 1200)", js)
         self.assertIn("window.setTimeout(openAccountActivation, 250)", js)
         self.assertIn("login_key_recovery_shown", js)
