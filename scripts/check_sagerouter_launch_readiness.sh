@@ -3964,7 +3964,10 @@ check_marketing_setup_key_recovery_page() {
     page_code="200:missing-setup-key-recovery-same-email-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "setup-key-recovery-email-focus" /tmp/sage-router-readiness-body; then
-    page_code="200:missing-setup-key-recovery-email-primary"
+    page_code="200:missing-setup-key-recovery-email-fallback"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'data-setup-recovery-button="open-account-setup-primary"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-account-primary"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_email_form_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-email-form-funnel"
