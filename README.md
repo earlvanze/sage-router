@@ -673,7 +673,20 @@ or `SAGE_ROUTER_API_KEY` from the environment or
 `/analytics/funnel`, and prints only aggregate activation, acquisition, revenue,
 and privacy fields. Use its output to update
 `docs/launch/distribution-tracker.md` before broad community posting or
-activation outreach. Pass `--json` when another script needs the same bounded
+activation outreach. When the snapshot reports setup-key recovery views but no
+account handoffs or key-create attempts, run:
+
+```bash
+scripts/check_setup_key_recovery_handoff.sh
+```
+
+That focused no-secret verifier checks the public setup-key recovery page,
+the generated account handoff URL, and the smoke-only
+`setup_key_recovery_auto_account_redirected`,
+`login_key_recovery_account_setup_auto_redirected`, and
+`account_setup_handoff_viewed` funnel events without storing emails, customer
+IDs, generated keys, prompts, OAuth tokens, provider credentials, or raw
+responses. Pass `--json` when another script needs the same bounded
 data; consume `activationQueue` for no-key follow-up counts, sendable and
 review-only segments, dry-run coverage, sent-recipient counts, and
 approval-required state. Pass `--approval-packet` to print only the

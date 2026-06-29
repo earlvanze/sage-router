@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_BASE="${SAGEROUTER_APP_BASE_URL:-https://app.sagerouter.dev}"
+MARKETING_BASE="${SAGEROUTER_MARKETING_BASE_URL:-https://sagerouter.dev}"
+FUNNEL_ENDPOINT="${SAGEROUTER_FUNNEL_EVENT_URL:-${APP_BASE%/}/api/funnel-event}"
+
+require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    printf 'Missing required command: %s\n' "$1" >&2
+    exit 2
+  fi
+}
+
+tmp_body="$(mktemp /tmp/sage-router-setup-key-recovery.XXXXXX)"
+trap 'rm -f "$tmp_body"' EXIT
+
+require_cmd curl
+require_cmd jq
+
+pass() {
+  printf 'PASS %s\n' "$1"
+}
+
+fail() {
+  printf 'FAIL %s\n' "$1" >&2
+  exit 1
+}
+
+http_get() {
+  local url="$1"
+  curl -sS -L -o "$tmp_body" -w '%{http_code}' "$url"
+}
+
+post_smoke_event() {
+  local event="$1"
+  local origin="$2"
+  local source_page="$3"
+  local target="$4"
+  local state="$5"
+  local code ok skipped
+  code="$(
+    curl -sS -o "$tmp_body" -w '%{http_code}' \
+      -H "Origin: ${origin%/}" \
+      -H 'Content-Type: application/json' \
+      --data "{\"event\":\"${event}\",\"plan\":\"pro\",\"sourcePage\":\"${source_page}\",\"target\":\"${target}\",\"metadata\":{\"source\":\"setup-key-recovery\",\"button\":\"smoke\",\"state\":\"${state}\",\"utmCampaign\":\"signup_to_key_recovery\"}}" \
+      "$FUNNEL_ENDPOINT"
+  )"
+  ok="$(jq -r '.ok // false' "$tmp_body" 2>/dev/null || true)"
+  skipped="$(jq -r '.skipped // empty' "$tmp_body" 2>/dev/null || true)"
+  if [[ "$code" == "200" && "$ok" == "true" && "$skipped" == "smoke" ]]; then
+    pass "${event} smoke accepted without persistence"
+  else
+    fail "${event} smoke failed: http=${code} ok=${ok:-missing} skipped=${skipped:-missing}"
+  fi
+}
+
+page_url="${MARKETING_BASE%/}/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation&smoke=1"
+account_target="${APP_BASE%/}/account.html?plan=pro&start=create_key&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=operator_activation&next=generated-key"
+login_target="${APP_BASE%/}/login.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email"
+
+page_code="$(http_get "$page_url")"
+if [[ "$page_code" != "200" ]]; then
+  fail "setup-key recovery page returned HTTP ${page_code}"
+fi
+
+grep -q 'Finish Sage Router Setup Key' "$tmp_body" || fail 'setup-key recovery page missing title'
+grep -q 'same email or GitHub identity' "$tmp_body" || fail 'setup-key recovery page missing same-identity guidance'
+grep -q 'operator-auto-account-setup' "$tmp_body" || fail 'setup-key recovery page missing operator auto-account handoff'
+grep -q 'setup_key_recovery_auto_account_redirected' "$tmp_body" || fail 'setup-key recovery page missing auto-account telemetry'
+grep -q 'setup_key_recovery_next_account_clicked' "$tmp_body" || fail 'setup-key recovery page missing next-account telemetry'
+grep -q 'target.searchParams.set('\''source_surface'\'', '\''operator_activation'\'')' "$tmp_body" || fail 'setup-key recovery page does not preserve operator source_surface'
+grep -q 'target.searchParams.set('\''next'\'', '\''generated-key'\'')' "$tmp_body" || fail 'setup-key recovery page does not preserve generated-key next step'
+pass 'setup-key recovery page exposes operator handoff controls and attribution preservation'
+
+endpoint_code="$(http_get "$FUNNEL_ENDPOINT")"
+if [[ "$endpoint_code" != "200" ]]; then
+  fail "funnel endpoint returned HTTP ${endpoint_code}"
+fi
+for event in setup_key_recovery_auto_account_redirected login_key_recovery_account_setup_auto_redirected account_setup_handoff_viewed; do
+  jq -e --arg event "$event" '(.allowedEvents // []) | index($event) != null' "$tmp_body" >/dev/null \
+    || fail "funnel endpoint missing allowed event ${event}"
+done
+pass 'funnel endpoint allows setup-key recovery handoff smoke events'
+
+post_smoke_event \
+  'setup_key_recovery_auto_account_redirected' \
+  "$MARKETING_BASE" \
+  "$page_url" \
+  "$account_target" \
+  'operator_activation'
+
+post_smoke_event \
+  'login_key_recovery_account_setup_auto_redirected' \
+  "$APP_BASE" \
+  "${APP_BASE%/}/login.html?start=create_key&smoke=1" \
+  "${APP_BASE%/}/account.html?start=create_key" \
+  'smoke'
+
+post_smoke_event \
+  'account_setup_handoff_viewed' \
+  "$APP_BASE" \
+  "${APP_BASE%/}/account.html?start=create_key&setup=login-key-recovery&source_surface=recovery&next=generated-key&smoke=1" \
+  '#intent-email' \
+  'smoke'
+
+printf 'Setup-key recovery handoff smoke passed. No emails, customer IDs, prompts, generated keys, OAuth tokens, provider credentials, or raw responses were sent or stored.\n'
