@@ -7134,6 +7134,9 @@ SETUP_SNIPPET_COPY_EVENTS = {
     'setup_key_recovery_setup_copied',
     'status_first_request_setup_copied',
 }
+FOUNDER_SALES_OUTREACH_COPY_EVENTS = {
+    'outreach_snippet_copied',
+}
 OPERATOR_FOLLOWUP_COPY_EVENTS = {
     'operator_no_key_followup_copied',
     'operator_no_key_followup_batch_copied',
@@ -8408,6 +8411,7 @@ MARKETING_SOURCE_SURFACE_BUCKETS = (
     'integrations',
     'managed-access',
     'launch-plan',
+    'founder-sales',
     'model-catalog',
     'setup-key-recovery',
     'account',
@@ -9152,6 +9156,8 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'authProviderState': new_auth_provider_state_metrics(),
         'setupSnippetCopies': 0,
         'setupSnippetCopiesBySnippet': {},
+        'founderSalesOutreachCopies': 0,
+        'founderSalesOutreachCopiesBySnippet': {},
         'operatorFollowUpCopies': 0,
         'operatorFollowUpCopiesByKind': {},
         'operatorFollowUpWorked': 0,
@@ -9248,6 +9254,10 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             metrics['setupSnippetCopies'] += 1
             snippet = str(metadata.get('snippet') or 'unknown').strip().lower()[:80] or 'unknown'
             metrics['setupSnippetCopiesBySnippet'][snippet] = metrics['setupSnippetCopiesBySnippet'].get(snippet, 0) + 1
+        if event in FOUNDER_SALES_OUTREACH_COPY_EVENTS:
+            metrics['founderSalesOutreachCopies'] += 1
+            snippet = str(metadata.get('snippet') or 'unknown').strip().lower()[:80] or 'unknown'
+            metrics['founderSalesOutreachCopiesBySnippet'][snippet] = metrics['founderSalesOutreachCopiesBySnippet'].get(snippet, 0) + 1
         if event in OPERATOR_FOLLOWUP_COPY_EVENTS:
             metrics['operatorFollowUpCopies'] += 1
             kind = str(metadata.get('state') or event).strip().lower()[:80] or event
@@ -9328,6 +9338,8 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'keyCreateFailuresByState': {},
             'managedAccessAnonymousInterest': 0,
             'managedAccessDemand': new_managed_access_demand_metrics(),
+            'founderSalesOutreachCopies': 0,
+            'founderSalesOutreachCopiesBySnippet': {},
         }.items():
             marketing_metrics.setdefault(key, default)
         marketing_metrics = {

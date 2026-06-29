@@ -548,7 +548,8 @@ jq -r --arg days "$DAYS" '
   | ($root.rates // {}) as $rates
   | ($root.mrr // {}) as $mrr
   | ($root.nextBestAction // {}) as $action
-  | ($root.marketingIntent.events // {}) as $events
+  | ($root.marketingIntent // {}) as $marketing
+  | ($marketing.events // {}) as $events
   | ($root.managedProviderReadiness // $root.pricing.publicLaunch.managedProviderAccess // {}) as $managed
   | ($root.managedAccessDemand // {}) as $managedDemand
   | ($root.activationFollowUps // {}) as $followups
@@ -563,6 +564,8 @@ jq -r --arg days "$DAYS" '
       "- Generated at epoch: \(n($root.generatedAt))",
       "- Marketing intent events: \(n($stages.marketingIntentEvents))",
       "- Setup snippet copies: \(n($stages.setupSnippetCopies))",
+      "- Founder-sales outreach copies: \(n($marketing.founderSalesOutreachCopies))",
+      "- Founder-sales outreach snippets: \(buckets($marketing.founderSalesOutreachCopiesBySnippet))",
       "- Recovery auth starts: magic=\(n($events.login_key_recovery_magic_link_requested) + n($events.setup_key_recovery_magic_link_requested)), password=\(n($events.login_key_recovery_password_submitted)), oauth=\(n($events.login_key_recovery_oauth_clicked))",
       "- Managed-access demand: anonymousSignals=\(n($stages.anonymousManagedAccessInterest)); waitlistSignals=\(n($stages.managedAccessBetaInterest)); legacyClicks=\(n($events.managed_access_interest_clicked)); quickSubmitted=\(n($events.managed_access_quick_request_submitted)); quickReceived=\(n($events.managed_access_quick_request_received))",
       "- Managed-access provider buckets: \(buckets($managedDemand.targetProviderFamily))",
@@ -627,6 +630,7 @@ jq -r --arg days "$DAYS" '
       "",
       "- Use when: activation sends are approval-gated or provider resale is waiting on terms/evidence, but founder-led Pro/Max conversations can still move.",
       "- Kit: https://sagerouter.dev/founder-sales-kit?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch",
+      "- Outreach copies recorded: \(n($marketing.founderSalesOutreachCopies)); snippets: \(buckets($marketing.founderSalesOutreachCopiesBySnippet))",
       "- Primary revenue motion: \($primaryRevenue.plan // "pro") needs \(n($primaryRevenue.customerGap)) customers and \(money($primaryRevenue.remainingMrrToTargetUsd)) remaining MRR; \($primaryRevenue.action // "Use direct founder-sales follow-up to move qualified prospects into generated-key activation.")",
       "- Max review motion: \(n($maxRevenue.customerGap)) Max customers and \(money($maxRevenue.remainingMrrToTargetUsd)) remaining MRR; use the Max implementation snippet for teams with production agents, Tailnet/local routing, or gateway migration pain.",
       "- Safety rule: use one no-secret snippet per warm conversation; do not paste prompts, provider credentials, generated keys, customer data, private funnel rows, OAuth tokens, or raw provider responses.",

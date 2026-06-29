@@ -2280,12 +2280,23 @@ function renderMarketingIntent(marketingIntent = {}) {
   const modelQueryRows = sortedEntries(modelCatalogDemand.queryBucket);
   const setupRows = sortedEntries(marketingIntent.setupSnippetCopiesBySnippet);
   const setupCopyCount = asNumber(marketingIntent.setupSnippetCopies);
+  const founderSalesRows = sortedEntries(marketingIntent.founderSalesOutreachCopiesBySnippet);
+  const founderSalesCopyCount = asNumber(marketingIntent.founderSalesOutreachCopies);
   const setupBlock = setupCopyCount || setupRows.length ? `<div>
     <h3>Setup copies</h3>
     <table>
       <thead><tr><th>Snippet</th><th>Copies</th></tr></thead>
       <tbody><tr><td><span class="pill">Total setup copies</span></td><td>${integer(setupCopyCount)}</td></tr>${
         setupRows.map(([name, count]) => `<tr><td><span class="pill">${esc(demandLabel(name))}</span></td><td>${integer(count)}</td></tr>`).join('')
+      }</tbody>
+    </table>
+  </div>` : '';
+  const founderSalesBlock = founderSalesCopyCount || founderSalesRows.length ? `<div>
+    <h3>Founder-sales outreach</h3>
+    <table>
+      <thead><tr><th>Snippet</th><th>Copies</th></tr></thead>
+      <tbody><tr><td><span class="pill">Total outreach copies</span></td><td>${integer(founderSalesCopyCount)}</td></tr>${
+        founderSalesRows.map(([name, count]) => `<tr><td><span class="pill">${esc(demandLabel(name))}</span></td><td>${integer(count)}</td></tr>`).join('')
       }</tbody>
     </table>
   </div>` : '';
@@ -2307,7 +2318,7 @@ function renderMarketingIntent(marketingIntent = {}) {
     </table>
   </div>` : '';
   const recoveryAuthBlock = renderRecoveryAuthPulse(marketingIntent);
-  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length && !modelFamilyRows.length && !modelQueryRows.length && !setupBlock && !checkoutBlock && !hasRecoveryAuthPulseSignal(marketingIntent)) {
+  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length && !modelFamilyRows.length && !modelQueryRows.length && !setupBlock && !founderSalesBlock && !checkoutBlock && !hasRecoveryAuthPulseSignal(marketingIntent)) {
     $('marketing-intent-breakdown').innerHTML = '<div class="empty">No anonymous marketing CTA intent events in this window.</div>';
     return;
   }
@@ -2330,7 +2341,7 @@ function renderMarketingIntent(marketingIntent = {}) {
     renderDemandTable('Model catalog families', modelFamilyRows, 'No model catalog family demand returned.')
   }${
     renderDemandTable('Catalog search buckets', modelQueryRows, 'No model catalog search demand returned.')
-  }${setupBlock}${checkoutBlock}</div>`;
+  }${setupBlock}${founderSalesBlock}${checkoutBlock}</div>`;
 }
 
 function renderAuthProviderState(authState = {}) {

@@ -260,7 +260,11 @@ provider resale claim, or runtime feature flag.
   activation, Max implementation review, one-subscription managed-access
   review, gateway migration replies, and calculator follow-up, with measured
   `utm_source=founder-sales` links, `outreach_snippet_copied` telemetry, and
-  no-secret outreach boundaries.
+  no-secret outreach boundaries. Aggregate those copy actions into
+  `marketingIntent.founderSalesOutreachCopies` and
+  `marketingIntent.founderSalesOutreachCopiesBySnippet` so founder-led
+  outreach is visible without exposing conversation text, customer data, or
+  prospect identities.
 - Keep `/docs/codex` as the dedicated Codex CLI path with hosted, local port
   `8790`, and Tailnet examples using `wire_api = "responses"` and
   `sage-router/frontier`.
@@ -553,6 +557,10 @@ provider resale claim, or runtime feature flag.
   the private operator dashboard, using only coarse action buckets to generate
   public UTM URLs instead of storing or replaying raw visitor URLs, and make
   those links copyable for founder-sales outreach.
+- Render founder-sales outreach copy counts and snippet buckets beside setup
+  copy activation in the private operator dashboard and CLI launch snapshot, so
+  direct Pro/Max and one-subscription outreach volume can be compared with
+  generated-key and first-request activation.
 - Render a copyable no-secret launch brief in the private operator dashboard
   from the same aggregate funnel snapshot, so founder-sales and support
   follow-up can use the current MRR, activation, checkout friction, conversion,

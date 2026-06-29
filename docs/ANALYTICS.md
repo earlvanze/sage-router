@@ -111,6 +111,11 @@ checkout friction, the top conversion move, revenue motions, deterministic
 acquisition links, managed-access demand, and GitHub OAuth onboarding state for
 founder-sales or support follow-up without emails, prompts, OAuth tokens,
 generated API keys, provider credentials, raw campaign URLs, or raw responses.
+Founder-sales kit copy actions are also aggregated as
+`marketingIntent.founderSalesOutreachCopies` and
+`marketingIntent.founderSalesOutreachCopiesBySnippet`, keeping direct outreach
+visible in the dashboard and CLI snapshot without storing conversation text or
+prospect identities.
 The same dashboard includes an operational readiness panel backed only by
 public `/edge/health` and `/pricing` metadata. It keeps live edge health,
 customer API-key enforcement, Stripe checkout/portal readiness, and
