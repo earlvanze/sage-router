@@ -1018,7 +1018,7 @@ function buildLaunchBrief(data = {}) {
   const activationDelivery = activationDeliveryCounts(data);
   const activationSend = activationSendTelemetry(data);
   const authRepair = activationAuthRepair(data);
-  const managedReadiness = data.pricing?.publicLaunch?.managedProviderAccess || {};
+  const managedReadiness = managedProviderReadiness(data);
   const managedSetup = managedReadiness.readinessSetup || {};
   const managedActions = Array.isArray(managedReadiness.nextActions) ? managedReadiness.nextActions : [];
   const topManagedAction = managedActions[0] || {};
@@ -1131,7 +1131,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
   const segmentActions = Array.isArray(packet.segmentActions) ? packet.segmentActions : [];
   const instructions = Array.isArray(packet.instructions) ? packet.instructions : [];
   const emailReadiness = packet.emailReadiness || data.activationFollowUps?.emailReadiness || {};
-  const managedReadiness = data.pricing?.publicLaunch?.managedProviderAccess || {};
+  const managedReadiness = managedProviderReadiness(data);
   const managedSetup = managedReadiness.readinessSetup || {};
   const managedActions = Array.isArray(managedReadiness.nextActions) ? managedReadiness.nextActions : [];
   const topManagedAction = managedActions[0] || {};
@@ -1204,8 +1204,16 @@ function listLine(label, value) {
   return `- ${label}: ${values.length ? values.join(', ') : 'none'}`;
 }
 
+function managedProviderReadiness(data = {}) {
+  const topLevel = data.managedProviderReadiness || {};
+  if (topLevel && (topLevel.status || Array.isArray(topLevel.missingControls) || topLevel.readinessSetup)) {
+    return topLevel;
+  }
+  return data.pricing?.publicLaunch?.managedProviderAccess || {};
+}
+
 function managedAccessApprovalPacketText(data = {}) {
-  const managed = data.pricing?.publicLaunch?.managedProviderAccess || {};
+  const managed = managedProviderReadiness(data);
   const setup = managed.readinessSetup || {};
   const oneSubscription = managed.oneSubscriptionReadiness || {};
   const unitEconomics = managed.unitEconomics || {};
@@ -1261,7 +1269,7 @@ function managedAccessApprovalPacketText(data = {}) {
 }
 
 function managedAccessCommand(button, data = {}) {
-  const managed = data.pricing?.publicLaunch?.managedProviderAccess || {};
+  const managed = managedProviderReadiness(data);
   const setup = managed.readinessSetup || {};
   const kind = button.getAttribute('data-copy-managed-command') || '';
   if (kind === 'terms-approval') return setup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
@@ -1275,7 +1283,7 @@ function managedAccessCommand(button, data = {}) {
 function renderManagedAccessReadiness(data = {}) {
   const target = $('managed-access-readiness');
   if (!target) return;
-  const managed = data.pricing?.publicLaunch?.managedProviderAccess || {};
+  const managed = managedProviderReadiness(data);
   const setup = managed.readinessSetup || {};
   const oneSubscription = managed.oneSubscriptionReadiness || {};
   const unitEconomics = managed.unitEconomics || {};
@@ -1363,7 +1371,7 @@ function renderOperatorExecutionPacket(data = {}) {
   const approvalReadiness = activationApprovalReadiness(data);
   const authRepair = activationAuthRepair(data);
   const sendCommand = activationSendCommand(emailReadiness, activationSend);
-  const managedReadiness = data.pricing?.publicLaunch?.managedProviderAccess || {};
+  const managedReadiness = managedProviderReadiness(data);
   const managedSetup = managedReadiness.readinessSetup || {};
   const authPosture = operatorAuthPosture(data);
   const clean = privacy.aggregateOnly === true &&
@@ -1827,7 +1835,7 @@ async function copyManagedAccessApprovalPacket(button) {
     button.textContent = 'Copied';
     trackOperatorFunnelEvent('operator_managed_access_packet_copied', {
       state: 'managed_access_approval_packet_copied',
-      resultCount: safeList(lastFunnelData?.pricing?.publicLaunch?.managedProviderAccess?.missingControls).length,
+      resultCount: safeList(managedProviderReadiness(lastFunnelData || {}).missingControls).length,
       snippet: 'managed-access-approval-packet',
     });
     setStatus('Copied no-secret managed-access approval packet. Keep resale disabled until every control passes.', 'warn');
@@ -1851,7 +1859,7 @@ async function copyManagedAccessCommand(button) {
     button.textContent = 'Copied';
     trackOperatorFunnelEvent('operator_managed_access_command_copied', {
       state: `${kind}_copied`,
-      resultCount: safeList(lastFunnelData?.pricing?.publicLaunch?.managedProviderAccess?.missingControls).length,
+      resultCount: safeList(managedProviderReadiness(lastFunnelData || {}).missingControls).length,
       snippet: 'managed-access-readiness',
     });
     setStatus(`Copied managed-access ${kind} command. Review it locally before changing production env.`, kind === 'enable-template' ? 'warn' : 'good');
