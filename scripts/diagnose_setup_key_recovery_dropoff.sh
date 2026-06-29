@@ -139,7 +139,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
         },
         commands: {
           handoffSmoke: "bash scripts/check_setup_key_recovery_handoff.sh",
-          approvalPacket: ("bash scripts/summarize_sagerouter_launch_funnel.sh --days " + ($days | tostring) + " --approval-packet --verify-recovery"),
+          approvalPacket: ("bash scripts/summarize_sagerouter_launch_funnel.sh --days " + ($days | tostring) + " --approval-packet --verify-recovery --verify-auth-repair"),
           liveSnapshot: ("bash scripts/summarize_sagerouter_launch_funnel.sh --days " + ($days | tostring))
         },
         privacy: {
@@ -207,7 +207,7 @@ jq -r \
       "",
       "Next safe commands:",
       "- bash scripts/check_setup_key_recovery_handoff.sh",
-      "- bash scripts/summarize_sagerouter_launch_funnel.sh --days \($days) --approval-packet --verify-recovery",
+      "- bash scripts/summarize_sagerouter_launch_funnel.sh --days \($days) --approval-packet --verify-recovery --verify-auth-repair",
       "- bash scripts/summarize_sagerouter_launch_funnel.sh --days \($days)"
     ]
     | .[]

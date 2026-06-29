@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--verify-recovery] [--distribution-tracker-section]
+Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section]
 
 Fetch the operator-only /analytics/funnel endpoint and print a privacy-safe
 launch snapshot. The script never prints operator tokens, emails, generated API
@@ -15,6 +15,10 @@ Options:
   --approval-packet   Print the no-secret activation send approval packet only.
   --verify-recovery   With --approval-packet, run the no-persistence setup-key
                       recovery handoff verifier and include the result.
+  --verify-auth-repair
+                      With --approval-packet, run the non-mutating
+                      account-link repair dry run for review-only signup rows
+                      and include aggregate-only proof.
   --distribution-tracker-section
                       Print a docs/launch/distribution-tracker.md-ready
                       live snapshot section.
@@ -61,6 +65,7 @@ DAYS=30
 RAW_JSON=0
 APPROVAL_PACKET=0
 VERIFY_RECOVERY=0
+VERIFY_AUTH_REPAIR=0
 TRACKER_SECTION=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -82,6 +87,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --verify-recovery)
       VERIFY_RECOVERY=1
+      shift
+      ;;
+    --verify-auth-repair)
+      VERIFY_AUTH_REPAIR=1
       shift
       ;;
     --distribution-tracker-section)
@@ -106,6 +115,10 @@ if (( RAW_JSON + APPROVAL_PACKET + TRACKER_SECTION > 1 )); then
 fi
 if [[ "$VERIFY_RECOVERY" == "1" && "$APPROVAL_PACKET" != "1" ]]; then
   printf '%s\n' '--verify-recovery can only be used with --approval-packet' >&2
+  exit 2
+fi
+if [[ "$VERIFY_AUTH_REPAIR" == "1" && "$APPROVAL_PACKET" != "1" ]]; then
+  printf '%s\n' '--verify-auth-repair can only be used with --approval-packet' >&2
   exit 2
 fi
 
@@ -143,7 +156,9 @@ fi
 
 tmp="$(mktemp)"
 recovery_tmp="$(mktemp)"
-trap 'rm -f "$tmp" "$recovery_tmp"' EXIT
+auth_repair_tmp="$(mktemp)"
+auth_repair_raw_tmp="$(mktemp)"
+trap 'rm -f "$tmp" "$recovery_tmp" "$auth_repair_tmp" "$auth_repair_raw_tmp"' EXIT
 
 curl -fsS "${API_BASE%/}/analytics/funnel?days=${DAYS}&limit=10000" \
   -H "Authorization: Bearer ${TOKEN}" \
@@ -154,8 +169,46 @@ if [[ "$APPROVAL_PACKET" == "1" && "$VERIFY_RECOVERY" == "1" ]]; then
   bash scripts/diagnose_setup_key_recovery_dropoff.sh --days "$DAYS" --verify-handoff --json > "$recovery_tmp"
 fi
 
+printf '{"stage":"not_run","checked":false,"passed":false,"dryRun":true,"privacy":{"aggregateOnly":true}}\n' > "$auth_repair_tmp"
+if [[ "$APPROVAL_PACKET" == "1" && "$VERIFY_AUTH_REPAIR" == "1" ]]; then
+  AUTH_REPAIR_TOKEN="${SAGE_ROUTER_OPERATOR_TOKEN:-${SAGE_ROUTER_API_KEY:-}}"
+  if [[ -z "$AUTH_REPAIR_TOKEN" ]]; then
+    printf '{"stage":"skipped_missing_admin_token","checked":false,"passed":false,"dryRun":true,"privacy":{"aggregateOnly":true}}\n' > "$auth_repair_tmp"
+  else
+    if curl -fsS -X POST "${API_BASE%/}/admin/customers/repair-auth-links" \
+      -H "Authorization: Bearer ${AUTH_REPAIR_TOKEN}" \
+      -H "Origin: https://app.sagerouter.dev" \
+      -H "Content-Type: application/json" \
+      --data '{"limit":1000,"dryRun":true}' \
+      -o "$auth_repair_raw_tmp"; then
+      jq '{
+        stage: (if (.dryRun == true) then "dry_run_completed" else "unexpected_non_dry_run_response" end),
+        checked: true,
+        passed: ((.dryRun == true) and ((.privacy.aggregateOnly // false) == true)),
+        dryRun: (.dryRun // false),
+        status: (.status // "unknown"),
+        customersChecked: (.customersChecked // 0),
+        missingAuthCustomers: (.missingAuthCustomers // 0),
+        eligible: (.eligible // 0),
+        updated: (.updated // 0),
+        skipped: (.skipped // {}),
+        privacy: {
+          containsEmails: (.privacy.containsEmails // false),
+          containsUserIds: (.privacy.containsUserIds // false),
+          containsCustomerIds: (.privacy.containsCustomerIds // false),
+          containsApiKeys: (.privacy.containsApiKeys // false),
+          containsProviderCredentials: (.privacy.containsProviderCredentials // false),
+          aggregateOnly: (.privacy.aggregateOnly // true)
+        }
+      }' "$auth_repair_raw_tmp" > "$auth_repair_tmp"
+    else
+      printf '{"stage":"failed","checked":true,"passed":false,"dryRun":true,"privacy":{"aggregateOnly":true}}\n' > "$auth_repair_tmp"
+    fi
+  fi
+fi
+
 if [[ "$APPROVAL_PACKET" == "1" ]]; then
-  jq -r --slurpfile recoveryProof "$recovery_tmp" '
+  jq -r --slurpfile recoveryProof "$recovery_tmp" --slurpfile authRepairProof "$auth_repair_tmp" '
     def n($v): ($v // 0);
     def list($v): if (($v // []) | length) > 0 then (($v // []) | join(", ")) else "none" end;
     def command_for($rows; $segment; $field):
@@ -179,6 +232,7 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
 
     . as $root
     | (($recoveryProof[0] // {})) as $recovery_proof
+    | (($authRepairProof[0] // {})) as $auth_repair_proof
     | ($root.activationFollowUps // {}) as $followups
     | ($root.nextBestAction // {}) as $next_action
     | ($root.operatorExecutionPacket // {}) as $packet
@@ -249,6 +303,8 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         (if (($auth_repair.command // "") != "") then $auth_repair.command else "  not applicable: no auth signups without customer rows are queued for hydration" end),
         "- Account-link repair dry-run command:",
         (if (($auth_repair.accountLinkRepairCommand // "") != "") then $auth_repair.accountLinkRepairCommand else "  not applicable: no account-link review segment is queued" end),
+        "- Account-link repair dry-run proof: stage=\($auth_repair_proof.stage // "not_run"); checked=\($auth_repair_proof.checked // false); passed=\($auth_repair_proof.passed // false); eligible=\(n($auth_repair_proof.eligible)); updated=\(n($auth_repair_proof.updated)); missingAuthCustomers=\(n($auth_repair_proof.missingAuthCustomers)); noAuthEmailMatch=\(n($auth_repair_proof.skipped.no_auth_email_match)); aggregateOnly=\($auth_repair_proof.privacy.aggregateOnly // true).",
+        "- Auth repair approval boundary: if the dry run fails or reports eligible rows, hold broader sends until the bounded customer review or explicit repair path is reviewed; if eligible=0, keep review-only rows excluded from activation sends.",
         "- Bounded auth review command:",
         (if (($auth_repair.reviewCommand // "") != "") then $auth_repair.reviewCommand else "  unavailable: no bounded auth review command returned by /analytics/funnel" end),
         "",
@@ -543,7 +599,7 @@ jq -r --arg days "$DAYS" '
       "",
       "## Activation Approval Handoff",
       "",
-      "- Packet command: scripts/summarize_sagerouter_launch_funnel.sh --days \($days) --approval-packet --verify-recovery",
+      "- Packet command: scripts/summarize_sagerouter_launch_funnel.sh --days \($days) --approval-packet --verify-recovery --verify-auth-repair",
       "- Approval decision: \($approval.status // "unknown") for next segment \($packet.sendTelemetry.nextSendSegment // "all"); blocker=\($approval.blockedReason // "none").",
       "- Default snapshot policy: No send command is printed in this default snapshot. Real activation sends still require explicit operator approval and typed SEND_ACTIVATION_FOLLOWUPS confirmation.",
       "- Safe review: the approval packet is no-secret and excludes emails, customer IDs, generated keys, prompts, OAuth tokens, provider credentials, and raw responses.",
