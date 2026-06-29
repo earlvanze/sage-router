@@ -411,8 +411,11 @@ provider resale claim, or runtime feature flag.
   the shared article activation dock adds inline and sticky managed-access
   review CTAs with `inline-one-subscription-review` and
   `sticky-one-subscription-review` funnel states, using
-  `content_article_managed_access_clicked` without collecting prompts, provider
-  credentials, OAuth tokens, generated keys, or customer data.
+  `content_article_managed_access_clicked` plus allowlisted qualification
+  buckets. `/analytics/funnel` aggregates those anonymous clicks into
+  `anonymousManagedAccessDemand` and the combined `managedAccessDemand` view
+  without collecting prompts, provider credentials, OAuth tokens, generated
+  keys, or customer data.
 - Keep `/api/waitlist` guarded before Supabase inserts: browser-originating
   writes must come from Sage Router production hosts, Pages previews, local
   development, or exact origins configured with

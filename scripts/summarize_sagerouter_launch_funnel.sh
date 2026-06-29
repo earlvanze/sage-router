@@ -283,6 +283,8 @@ if [[ "$RAW_JSON" == "1" ]]; then
       }
     }),
     managedAccessDemand: (.managedAccessDemand // {}),
+    anonymousManagedAccessDemand: (.anonymousManagedAccessDemand // {}),
+    waitlistManagedAccessDemand: (.waitlistManagedAccessDemand // {}),
     managedProviderReadiness: (
       (
         .managedProviderReadiness
@@ -420,6 +422,7 @@ jq -r --arg days "$DAYS" '
       "- Setup snippet copies: \(n($stages.setupSnippetCopies))",
       "- Recovery auth starts: magic=\(n($events.login_key_recovery_magic_link_requested) + n($events.setup_key_recovery_magic_link_requested)), password=\(n($events.login_key_recovery_password_submitted)), oauth=\(n($events.login_key_recovery_oauth_clicked))",
       "- Managed-access anonymous interest: clicks=\(n($events.managed_access_interest_clicked)), quickSubmitted=\(n($events.managed_access_quick_request_submitted)), quickReceived=\(n($events.managed_access_quick_request_received))",
+      "- Managed-access demand signals: anonymous=\(n($stages.anonymousManagedAccessInterest)); waitlist=\(n($stages.managedAccessBetaInterest))",
       "- Signups: \(n($stages.signups))",
       "- Generated-key customers: \(n($stages.customersWithGeneratedApiKeys))",
       "- First-routed-request customers: \(n($stages.customersWithFirstRoutedRequest))",
@@ -486,7 +489,7 @@ jq -r --arg days "$DAYS" '
       "- Terms acknowledged: \($managed.providerTermsAcknowledged // false)",
       "- Authorization evidence configured: \($managed.providerAuthorizationEvidenceConfigured // false)",
       "- Cost model configured: \($managed.unitEconomics.costModelConfigured // false); unit economics satisfied: \($managed.unitEconomics.satisfied // false)",
-      "- Managed-access beta interest: \(n($stages.managedAccessBetaInterest)); target-provider buckets: \(buckets($managedDemand.targetProviderFamily))",
+      "- Managed-access beta interest: \(n($stages.managedAccessBetaInterest)); anonymous interest: \(n($stages.anonymousManagedAccessInterest)); target-provider buckets: \(buckets($managedDemand.targetProviderFamily))",
       "",
       "## Privacy",
       "",

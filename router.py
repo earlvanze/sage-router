@@ -8009,6 +8009,17 @@ MANAGED_ACCESS_INTENT_BUCKETS = (
     'openai',
     'anthropic',
 )
+MANAGED_ACCESS_MARKETING_EVENTS = {
+    'api_troubleshooting_managed_access_clicked',
+    'content_article_managed_access_clicked',
+    'fusion_managed_access_clicked',
+    'gateway_compare_managed_access_clicked',
+    'landing_managed_access_clicked',
+    'launch_plan_managed_access_clicked',
+    'managed_access_interest_clicked',
+    'quickstart_managed_access_clicked',
+    'setup_key_recovery_managed_access_clicked',
+}
 MARKETING_SOURCE_SURFACE_BUCKETS = (
     'article',
     'self-hosted',
@@ -8099,6 +8110,122 @@ def waitlist_metadata_bucket(metadata, allowed, *keys):
         if value in allowed:
             return value
     return 'unknown'
+
+
+def managed_access_demand_metrics_add(metrics, metadata):
+    if not isinstance(metrics, dict):
+        return
+    metadata = metadata if isinstance(metadata, dict) else {}
+    target_provider = waitlist_metadata_bucket(
+        metadata,
+        MANAGED_ACCESS_TARGET_PROVIDER_BUCKETS,
+        'target_provider_family',
+        'targetProviderFamily',
+    )
+    commercial_preference = waitlist_metadata_bucket(
+        metadata,
+        MANAGED_ACCESS_COMMERCIAL_PREFERENCE_BUCKETS,
+        'commercial_preference',
+        'commercialPreference',
+    )
+    support_need = waitlist_metadata_bucket(
+        metadata,
+        MANAGED_ACCESS_SUPPORT_NEED_BUCKETS,
+        'support_need',
+        'supportNeed',
+    )
+    target_launch_window = waitlist_metadata_bucket(
+        metadata,
+        MANAGED_ACCESS_TARGET_LAUNCH_WINDOW_BUCKETS,
+        'target_launch_window',
+        'targetLaunchWindow',
+    )
+    intent = waitlist_metadata_bucket(
+        metadata,
+        MANAGED_ACCESS_INTENT_BUCKETS,
+        'intent',
+    )
+    metrics['targetProviderFamily'][target_provider] = metrics['targetProviderFamily'].get(target_provider, 0) + 1
+    metrics['commercialPreference'][commercial_preference] = metrics['commercialPreference'].get(commercial_preference, 0) + 1
+    metrics['supportNeed'][support_need] = metrics['supportNeed'].get(support_need, 0) + 1
+    metrics['targetLaunchWindow'][target_launch_window] = metrics['targetLaunchWindow'].get(target_launch_window, 0) + 1
+    metrics['intent'][intent] = metrics['intent'].get(intent, 0) + 1
+
+
+def managed_access_demand_metrics_merge(*sources):
+    merged = new_managed_access_demand_metrics()
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        for group, buckets in merged.items():
+            incoming = source.get(group)
+            if not isinstance(incoming, dict):
+                continue
+            for bucket, count in incoming.items():
+                if bucket not in buckets:
+                    buckets[bucket] = 0
+                buckets[bucket] += int(count or 0)
+    return merged
+
+
+def marketing_event_is_managed_access(event, metadata):
+    if event in MANAGED_ACCESS_MARKETING_EVENTS:
+        return True
+    if not isinstance(metadata, dict):
+        return False
+    haystack = ' '.join(
+        str(metadata.get(key) or '')
+        for key in (
+            'intent',
+            'commercialPreference',
+            'commercial_preference',
+            'providerAccess',
+            'provider_access',
+            'supportNeed',
+            'support_need',
+            'state',
+            'button',
+            'target',
+        )
+    ).lower()
+    return 'managed-access' in haystack or 'one-subscription' in haystack
+
+
+def managed_access_marketing_metadata(event, metadata):
+    data = dict(metadata) if isinstance(metadata, dict) else {}
+    haystack = ' '.join(
+        str(data.get(key) or '')
+        for key in ('intent', 'state', 'button', 'target', 'sourcePage', 'source_page')
+    ).lower()
+    if 'one-subscription' in haystack:
+        data.setdefault('intent', 'one-subscription')
+        data.setdefault('targetProviderFamily', 'mixed-frontier')
+        data.setdefault('commercialPreference', 'one-subscription')
+        data.setdefault('supportNeed', 'managed-provider-review')
+        data.setdefault('targetLaunchWindow', 'exploring')
+    elif 'max' in haystack or event == 'quickstart_managed_access_clicked':
+        data.setdefault('intent', 'max-implementation')
+        data.setdefault('targetProviderFamily', 'mixed-frontier')
+        data.setdefault('commercialPreference', 'private-contract')
+        data.setdefault('supportNeed', 'implementation-support')
+        data.setdefault('targetLaunchWindow', 'this-month')
+    elif 'gateway' in haystack:
+        data.setdefault('intent', 'gateway-migration')
+        data.setdefault('targetProviderFamily', 'byok-compatible')
+        data.setdefault('commercialPreference', 'byok-plus-routing')
+        data.setdefault('supportNeed', 'migration-help')
+        data.setdefault('targetLaunchWindow', 'this-month')
+    elif 'private-deployment' in haystack:
+        data.setdefault('intent', 'private-deployment')
+        data.setdefault('targetProviderFamily', 'mixed-frontier')
+        data.setdefault('commercialPreference', 'private-contract')
+        data.setdefault('supportNeed', 'private-deployment')
+        data.setdefault('targetLaunchWindow', 'this-quarter')
+    for family in ('ollama', 'openai', 'anthropic'):
+        if family in haystack:
+            data.setdefault('targetProviderFamily', family)
+            data.setdefault('intent', family)
+    return data
 
 
 def marketing_event_metadata(row):
@@ -8591,40 +8718,7 @@ def read_launch_waitlist_counts(since, limit=10000):
                 metrics['interest'][bucket] = metrics['interest'].get(bucket, 0) + 1
                 if bucket == 'managedAccess':
                     metadata = waitlist_metadata(row)
-                    target_provider = waitlist_metadata_bucket(
-                        metadata,
-                        MANAGED_ACCESS_TARGET_PROVIDER_BUCKETS,
-                        'target_provider_family',
-                        'targetProviderFamily',
-                    )
-                    commercial_preference = waitlist_metadata_bucket(
-                        metadata,
-                        MANAGED_ACCESS_COMMERCIAL_PREFERENCE_BUCKETS,
-                        'commercial_preference',
-                        'commercialPreference',
-                    )
-                    support_need = waitlist_metadata_bucket(
-                        metadata,
-                        MANAGED_ACCESS_SUPPORT_NEED_BUCKETS,
-                        'support_need',
-                        'supportNeed',
-                    )
-                    target_launch_window = waitlist_metadata_bucket(
-                        metadata,
-                        MANAGED_ACCESS_TARGET_LAUNCH_WINDOW_BUCKETS,
-                        'target_launch_window',
-                        'targetLaunchWindow',
-                    )
-                    intent = waitlist_metadata_bucket(
-                        metadata,
-                        MANAGED_ACCESS_INTENT_BUCKETS,
-                        'intent',
-                    )
-                    metrics['managedAccessDemand']['targetProviderFamily'][target_provider] += 1
-                    metrics['managedAccessDemand']['commercialPreference'][commercial_preference] += 1
-                    metrics['managedAccessDemand']['supportNeed'][support_need] += 1
-                    metrics['managedAccessDemand']['targetLaunchWindow'][target_launch_window] += 1
-                    metrics['managedAccessDemand']['intent'][intent] += 1
+                    managed_access_demand_metrics_add(metrics['managedAccessDemand'], metadata)
         except Exception as e:
             logger.debug(f'Launch funnel waitlist read failed for {table}: {extract_http_error(e)}')
     if tables_read == 0:
@@ -8651,6 +8745,8 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'sourceSurfaces': {bucket: 0 for bucket in (*MARKETING_SOURCE_SURFACE_BUCKETS, 'other', 'unknown')},
         'attributionChannels': {bucket: 0 for bucket in (*MARKETING_ATTRIBUTION_CHANNEL_BUCKETS, 'other', 'unknown')},
         'modelCatalogDemand': new_model_catalog_demand_metrics(),
+        'managedAccessAnonymousInterest': 0,
+        'managedAccessDemand': new_managed_access_demand_metrics(),
         'authProviderState': new_auth_provider_state_metrics(),
         'setupSnippetCopies': 0,
         'setupSnippetCopiesBySnippet': {},
@@ -8738,6 +8834,12 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             )
             metrics['modelCatalogDemand']['modelFamily'][family] = metrics['modelCatalogDemand']['modelFamily'].get(family, 0) + 1
             metrics['modelCatalogDemand']['queryBucket'][query_bucket] = metrics['modelCatalogDemand']['queryBucket'].get(query_bucket, 0) + 1
+        if marketing_event_is_managed_access(event, metadata):
+            metrics['managedAccessAnonymousInterest'] += 1
+            managed_access_demand_metrics_add(
+                metrics['managedAccessDemand'],
+                managed_access_marketing_metadata(event, metadata),
+            )
         if event == 'auth_provider_state_checked':
             update_auth_provider_state_metrics(metrics, metadata)
         if event in SETUP_SNIPPET_COPY_EVENTS:
@@ -8822,6 +8924,8 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'keyCreateSuccessesByState': {},
             'keyCreateFailures': 0,
             'keyCreateFailuresByState': {},
+            'managedAccessAnonymousInterest': 0,
+            'managedAccessDemand': new_managed_access_demand_metrics(),
         }.items():
             marketing_metrics.setdefault(key, default)
         marketing_metrics = {
@@ -8831,8 +8935,14 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         }
     waitlist_count = waitlist_metrics.get('total', 0) if isinstance(waitlist_metrics, dict) else None
     waitlist_interest = waitlist_metrics.get('interest') if isinstance(waitlist_metrics, dict) else None
-    managed_access_demand = waitlist_metrics.get('managedAccessDemand') if isinstance(waitlist_metrics, dict) else None
+    waitlist_managed_access_demand = waitlist_metrics.get('managedAccessDemand') if isinstance(waitlist_metrics, dict) else None
+    anonymous_managed_access_demand = marketing_metrics.get('managedAccessDemand') if isinstance(marketing_metrics, dict) else None
+    managed_access_demand = managed_access_demand_metrics_merge(
+        waitlist_managed_access_demand,
+        anonymous_managed_access_demand,
+    ) if (waitlist_managed_access_demand is not None or anonymous_managed_access_demand is not None) else None
     managed_access_interest = waitlist_interest.get('managedAccess', 0) if isinstance(waitlist_interest, dict) else None
+    anonymous_managed_access_interest = marketing_metrics.get('managedAccessAnonymousInterest', 0) if isinstance(marketing_metrics, dict) else None
     marketing_intent_events = marketing_metrics.get('total', 0) if isinstance(marketing_metrics, dict) else None
     setup_snippet_copies = marketing_metrics.get('setupSnippetCopies', 0) if isinstance(marketing_metrics, dict) else None
 
@@ -8899,6 +9009,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'marketingIntentEvents': marketing_intent_events,
         'waitlistLeads': waitlist_count,
         'managedAccessBetaInterest': managed_access_interest,
+        'anonymousManagedAccessInterest': anonymous_managed_access_interest,
         'signups': signups_count,
         'customersWithActiveApiKeys': len(active_key_customer_ids & customer_ids),
         'customersWithGeneratedApiKeys': len(generated_key_customer_ids & customer_ids),
@@ -9023,6 +9134,8 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'stages': stages,
         'signupHydration': signup_hydration,
         'waitlistInterest': waitlist_interest,
+        'waitlistManagedAccessDemand': waitlist_managed_access_demand,
+        'anonymousManagedAccessDemand': anonymous_managed_access_demand,
         'managedAccessDemand': managed_access_demand,
         'mrr': mrr,
         'rates': rates,

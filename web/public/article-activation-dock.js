@@ -68,6 +68,12 @@ curl https://api.sagerouter.dev/v1/models \\
         button: attributionValue(extra.button),
         state: attributionValue(extra.state),
         snippet: attributionValue(extra.snippet),
+        intent: attributionValue(extra.intent),
+        providerAccess: attributionValue(extra.providerAccess),
+        targetProviderFamily: attributionValue(extra.targetProviderFamily),
+        commercialPreference: attributionValue(extra.commercialPreference),
+        supportNeed: attributionValue(extra.supportNeed),
+        targetLaunchWindow: attributionValue(extra.targetLaunchWindow),
         utmSource: attributionValue(params.get('utm_source')),
         utmMedium: attributionValue(params.get('utm_medium')),
         utmCampaign: attributionValue(params.get('utm_campaign')),
@@ -104,14 +110,31 @@ curl https://api.sagerouter.dev/v1/models \\
     return window.__sageRouterArticleSupabasePromise;
   }
 
-  function makeLink(label, href, className, event, button) {
+  function makeLink(label, href, className, event, button, extra = {}) {
     const link = document.createElement('a');
     link.href = href;
     link.className = className;
     link.textContent = label;
-    link.addEventListener('click', () => track(event, { target: href, button }));
+    link.addEventListener('click', () => track(event, { target: href, button, ...extra }));
     return link;
   }
+
+  const maxReviewDemand = {
+    intent: 'max-implementation',
+    providerAccess: 'byok',
+    targetProviderFamily: 'mixed-frontier',
+    commercialPreference: 'private-contract',
+    supportNeed: 'implementation-support',
+    targetLaunchWindow: 'this-month',
+  };
+  const oneSubscriptionDemand = {
+    intent: 'one-subscription',
+    providerAccess: 'needs-managed-access',
+    targetProviderFamily: 'mixed-frontier',
+    commercialPreference: 'one-subscription',
+    supportNeed: 'managed-provider-review',
+    targetLaunchWindow: 'exploring',
+  };
 
   function makeStartKeyLink(id, label = 'Create API key', className = 'articleDockPrimary') {
     const link = document.createElement('a');
@@ -409,8 +432,8 @@ curl https://api.sagerouter.dev/v1/models \\
     offer.appendChild(makeEmailForm('article-activation-email-form', 'Email API key setup link'));
     offer.appendChild(makeLink('Already signed up? Finish key', recoveryUrl, 'articleDockSecondary', 'content_article_key_recovery_clicked', 'inline-returning-user'));
     offer.appendChild(makeLink('Compare OpenRouter', openRouterCompareUrl, 'articleDockSecondary', 'content_article_compare_clicked', 'inline-compare-openrouter'));
-    offer.appendChild(makeLink('One-subscription review', oneSubscriptionUrl, 'articleDockSecondary', 'content_article_managed_access_clicked', 'inline-one-subscription-review'));
-    offer.appendChild(makeLink('Request Max review', managedAccessUrl, 'articleDockSecondary', 'content_article_managed_access_clicked', 'inline-max-review'));
+    offer.appendChild(makeLink('One-subscription review', oneSubscriptionUrl, 'articleDockSecondary', 'content_article_managed_access_clicked', 'inline-one-subscription-review', oneSubscriptionDemand));
+    offer.appendChild(makeLink('Request Max review', managedAccessUrl, 'articleDockSecondary', 'content_article_managed_access_clicked', 'inline-max-review', maxReviewDemand));
     firstSection.insertAdjacentElement('afterend', offer);
     track('content_article_inline_offer_viewed', { state: 'mounted' });
   }
@@ -444,7 +467,7 @@ curl https://api.sagerouter.dev/v1/models \\
     dock.appendChild(makeEmailForm('article-activation-sticky-email-form', 'Email API key setup'));
     dock.appendChild(makeLink('Finish setup key', recoveryUrl, 'articleDockSecondary', 'content_article_key_recovery_clicked', 'sticky-returning-user'));
     dock.appendChild(makeLink('Codex setup', codexSetupUrl, 'articleDockSecondary', 'content_article_codex_clicked', 'sticky-codex-setup'));
-    dock.appendChild(makeLink('One-subscription', oneSubscriptionUrl, 'articleDockSecondary', 'content_article_managed_access_clicked', 'sticky-one-subscription-review'));
+    dock.appendChild(makeLink('One-subscription', oneSubscriptionUrl, 'articleDockSecondary', 'content_article_managed_access_clicked', 'sticky-one-subscription-review', oneSubscriptionDemand));
     dock.appendChild(makeLink('Estimate fit', calculatorUrl, 'articleDockSecondary', 'content_article_calculator_clicked', 'sticky-estimate-fit'));
     document.body.appendChild(dock);
     track('content_article_activation_dock_viewed', { state: 'mounted' });

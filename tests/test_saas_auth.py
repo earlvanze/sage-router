@@ -2673,6 +2673,66 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIsNone(error)
         self.assertEqual(5, count)
 
+    def test_launch_marketing_counts_group_anonymous_managed_access_interest(self):
+        router.SUPABASE_URL = 'https://example.supabase.co'
+        router.SUPABASE_SERVICE_ROLE_KEY = 'service-role'
+
+        def fake_select(table, query, timeout=8):
+            self.assertEqual(router.SUPABASE_FUNNEL_EVENTS_TABLE, table)
+            self.assertIn('select=event,plan,created_at,source_page,metadata', query)
+            return [
+                {
+                    'event': 'content_article_managed_access_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'source_page': 'https://sagerouter.dev/openai-api-router',
+                    'metadata': {
+                        'source': 'article-dock',
+                        'state': 'inline-one-subscription-review',
+                        'targetProviderFamily': 'mixed-frontier',
+                        'commercialPreference': 'one-subscription',
+                        'supportNeed': 'managed-provider-review',
+                        'targetLaunchWindow': 'exploring',
+                        'intent': 'one-subscription',
+                        'email': 'buyer@example.com',
+                    },
+                },
+                {
+                    'event': 'fusion_managed_access_clicked',
+                    'plan': 'max',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'source_page': 'https://sagerouter.dev/fusion',
+                    'metadata': json.dumps({
+                        'source': 'fusion',
+                        'state': 'max-implementation',
+                    }),
+                },
+                {
+                    'event': 'pricing_key_activation_clicked',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'source_page': 'https://sagerouter.dev/pricing',
+                    'metadata': {'source': 'pricing'},
+                },
+            ]
+
+        router.supabase_select = fake_select
+
+        metrics, error = router.read_launch_marketing_funnel_counts(0)
+        self.assertIsNone(error)
+        self.assertEqual(3, metrics['total'])
+        self.assertEqual(2, metrics['managedAccessAnonymousInterest'])
+        self.assertEqual(2, metrics['managedAccessDemand']['targetProviderFamily']['mixed-frontier'])
+        self.assertEqual(1, metrics['managedAccessDemand']['commercialPreference']['one-subscription'])
+        self.assertEqual(1, metrics['managedAccessDemand']['commercialPreference']['private-contract'])
+        self.assertEqual(1, metrics['managedAccessDemand']['supportNeed']['managed-provider-review'])
+        self.assertEqual(1, metrics['managedAccessDemand']['supportNeed']['implementation-support'])
+        self.assertEqual(1, metrics['managedAccessDemand']['targetLaunchWindow']['exploring'])
+        self.assertEqual(1, metrics['managedAccessDemand']['targetLaunchWindow']['this-month'])
+        self.assertEqual(1, metrics['managedAccessDemand']['intent']['one-subscription'])
+        self.assertEqual(1, metrics['managedAccessDemand']['intent']['max-implementation'])
+        self.assertNotIn('buyer@example.com', json.dumps(metrics))
+
     def test_launch_marketing_funnel_counts_group_events_without_identity(self):
         router.SUPABASE_URL = 'https://example.supabase.co'
         router.SUPABASE_SERVICE_ROLE_KEY = 'service-role'

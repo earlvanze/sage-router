@@ -57,7 +57,9 @@ Live funnel snapshot from 2026-06-29:
   account surface has `39` privacy-safe clicks. The shared article dock now
   links those readers directly to OpenRouter comparison, Codex setup, hosted
   setup copy, email setup, key recovery, one-subscription review, and Max
-  review paths.
+  review paths; one-subscription clicks carry only allowlisted anonymous demand
+  buckets into `/analytics/funnel`, so the private-beta signal can appear before
+  a contact form is submitted.
 - Revenue gap: Pro is now the largest gap (`199` more Pro customers, `$5,970`
   remaining MRR), followed by Max (`50` customers, `$3,600`) and Lite (`100`
   customers, `$600`).
