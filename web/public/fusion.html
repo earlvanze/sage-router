@@ -16,6 +16,7 @@
   </style>
   <style>
     .emailStart{display:flex;flex-wrap:wrap;gap:12px;align-items:center;max-width:760px;margin:22px 0 12px;padding:16px;border:1px solid rgba(141,240,178,.24);border-radius:8px;background:rgba(255,255,255,.045)}.emailStart label{flex:1 1 100%;font-weight:900}.emailStart input{flex:1 1 280px;min-height:48px;border:1px solid var(--border);border-radius:999px;background:rgba(5,15,11,.74);color:var(--text);padding:0 18px;font:inherit}.emailStart input::placeholder{color:#789184}.emailStart .button{border:0;cursor:pointer}.emailStart .oauthButton{background:linear-gradient(135deg,var(--brand),#50d891);color:#04150d}.emailStart .button:disabled{opacity:.72;cursor:wait}.emailStartStatus{flex:1 1 100%;margin:0;color:var(--muted);font-size:14px}
+    .copyRow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:18px;padding:14px 16px;border:1px solid rgba(138,180,255,.28);border-radius:8px;background:rgba(138,180,255,.07)}.copyRow strong{margin-right:auto}.copyRow button{border:0;cursor:pointer}.copyRow span{min-height:22px;color:var(--brand);font-size:14px}
   </style>
   <script type="application/ld+json">
   {
@@ -111,6 +112,13 @@
       {"role": "user", "content": "Compare the safest launch options and recommend one."}
     ]
   }'</code></pre>
+          <div class="copyRow">
+            <strong>Copy Fusion setup first.</strong>
+            <span class="muted">Paste the bundle into your agent or terminal, then replace the placeholder with your generated <code>sk_sage_*</code> key.</span>
+            <button id="fusion-copy-setup" class="button primary" type="button">Copy 60-second Fusion setup</button>
+            <a id="fusion-copy-next-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=fusion&utm_medium=activation&utm_campaign=sage-router-launch" hidden>Create API key next</a>
+            <span id="fusion-copy-status" role="status" aria-live="polite"></span>
+          </div>
         </div>
       </section>
 
@@ -237,7 +245,9 @@
           utmMedium: params.get('utm_medium') || params.get('utmMedium') || null,
           utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
           referrerHost,
-          landingPath: window.location.pathname
+          landingPath: window.location.pathname,
+          state: data.state || null,
+          snippet: data.snippet || null
         }
       });
       try {
@@ -255,7 +265,66 @@
       }).catch(() => {});
     }
 
+    function fusionSetupBundleText() {
+      return `# Sage Router 60-second Fusion setup
+# 1. Create or paste your generated key from:
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=fusion&utm_medium=activation&utm_campaign=sage-router-launch
+# 2. Paste this into your terminal or agent environment:
+
+export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
+export OPENAI_API_KEY=sk_sage_your_key_here
+
+# Verify the generated key before requesting Fusion
+curl "$OPENAI_BASE_URL/models" \\
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+
+# Premium Pro/Max Fusion request
+curl "$OPENAI_BASE_URL/chat/completions" \\
+  -H "Authorization: Bearer $OPENAI_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "sage-router/fusion",
+    "messages": [{"role": "user", "content": "Compare the safest launch options and recommend one."}]
+  }'
+
+# Lite/free keys receive 402 fusion_plan_required with upgrade guidance.`;
+    }
+
+    async function writeClipboardText(text) {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+
+    async function copyFusionSetupBundle() {
+      const status = document.getElementById('fusion-copy-status');
+      try {
+        await writeClipboardText(fusionSetupBundleText());
+        trackFusionFunnelEvent('quickstart_snippet_copied', {
+          plan: 'pro',
+          button: 'Copy 60-second Fusion setup',
+          state: 'fusion-activation-copy',
+          snippet: 'fusion-setup-bundle'
+        });
+        if (status) status.textContent = 'Copied. Create your API key next; Fusion is available on Pro and Max.';
+        document.getElementById('fusion-copy-next-account')?.removeAttribute('hidden');
+      } catch {
+        if (status) status.textContent = 'Copy failed. Open the quickstart for manual setup.';
+      }
+    }
+
     trackFusionFunnelEvent('fusion_viewed', { state: 'page-view' });
+    document.getElementById('fusion-copy-setup')?.addEventListener('click', copyFusionSetupBundle);
 
     document.getElementById('fusion-github-pro')?.addEventListener('click', async (event) => {
       const button = event.currentTarget;
