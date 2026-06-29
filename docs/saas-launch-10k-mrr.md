@@ -170,7 +170,10 @@ checkout entitlement, provider resale claim, or runtime feature flag.
   fully attributed `Create API key next` handoff with `setup=login-key-recovery`
   plus `source_surface=recovery`, and `login_key_recovery_magic_link_*`
   telemetry so recovery views can move into generated-key setup without waiting
-  for operator outreach or JS-only link rewriting.
+  for operator outreach or JS-only link rewriting. Recovery landings should
+  focus same-email recovery first; account-setup auto-handoff is a delayed idle
+  fallback that cancels as soon as the user types or clicks a recovery action,
+  so it does not suppress `login_key_recovery_magic_link_requested/sent`.
 - Keep `/docs/api-reference` as the hosted OpenAI-compatible API reference for
   `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public
   `/model-catalog`, generated `sk_sage_*` keys, quota headers, rate-limit
