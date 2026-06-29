@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--distribution-tracker-section]
+Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--verify-recovery] [--distribution-tracker-section]
 
 Fetch the operator-only /analytics/funnel endpoint and print a privacy-safe
 launch snapshot. The script never prints operator tokens, emails, generated API
@@ -13,6 +13,8 @@ provider responses.
 Options:
   --json              Print the bounded machine-readable snapshot.
   --approval-packet   Print the no-secret activation send approval packet only.
+  --verify-recovery   With --approval-packet, run the no-persistence setup-key
+                      recovery handoff verifier and include the result.
   --distribution-tracker-section
                       Print a docs/launch/distribution-tracker.md-ready
                       live snapshot section.
@@ -58,6 +60,7 @@ require_tool() {
 DAYS=30
 RAW_JSON=0
 APPROVAL_PACKET=0
+VERIFY_RECOVERY=0
 TRACKER_SECTION=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -75,6 +78,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --approval-packet)
       APPROVAL_PACKET=1
+      shift
+      ;;
+    --verify-recovery)
+      VERIFY_RECOVERY=1
       shift
       ;;
     --distribution-tracker-section)
@@ -95,6 +102,10 @@ done
 
 if (( RAW_JSON + APPROVAL_PACKET + TRACKER_SECTION > 1 )); then
   printf '%s\n' '--json, --approval-packet, and --distribution-tracker-section cannot be combined' >&2
+  exit 2
+fi
+if [[ "$VERIFY_RECOVERY" == "1" && "$APPROVAL_PACKET" != "1" ]]; then
+  printf '%s\n' '--verify-recovery can only be used with --approval-packet' >&2
   exit 2
 fi
 
@@ -131,14 +142,20 @@ if [[ -z "$TOKEN" ]]; then
 fi
 
 tmp="$(mktemp)"
-trap 'rm -f "$tmp"' EXIT
+recovery_tmp="$(mktemp)"
+trap 'rm -f "$tmp" "$recovery_tmp"' EXIT
 
 curl -fsS "${API_BASE%/}/analytics/funnel?days=${DAYS}&limit=10000" \
   -H "Authorization: Bearer ${TOKEN}" \
   -o "$tmp"
 
+printf '{"stage":"not_run","handoffSmoke":{"checked":false,"passed":false,"noPersistence":true},"privacy":{"aggregateOnly":true}}\n' > "$recovery_tmp"
+if [[ "$APPROVAL_PACKET" == "1" && "$VERIFY_RECOVERY" == "1" ]]; then
+  bash scripts/diagnose_setup_key_recovery_dropoff.sh --days "$DAYS" --verify-handoff --json > "$recovery_tmp"
+fi
+
 if [[ "$APPROVAL_PACKET" == "1" ]]; then
-  jq -r '
+  jq -r --slurpfile recoveryProof "$recovery_tmp" '
     def n($v): ($v // 0);
     def list($v): if (($v // []) | length) > 0 then (($v // []) | join(", ")) else "none" end;
     def command_for($rows; $segment; $field):
@@ -161,6 +178,7 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         else ["- none"] end;
 
     . as $root
+    | (($recoveryProof[0] // {})) as $recovery_proof
     | ($root.activationFollowUps // {}) as $followups
     | ($root.nextBestAction // {}) as $next_action
     | ($root.operatorExecutionPacket // {}) as $packet
@@ -206,6 +224,7 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         "Pre-send recovery proof:",
         "- Current bottleneck: \($next_action.metric // "unknown") — \($next_action.action // "Review the live launch funnel before approving any activation send.")",
         "- Verification command: \($next_action.evidence.recoveryDiagnosticCommand // "bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff")",
+        "- Verification result: stage=\($recovery_proof.stage // "not_run"); checked=\($recovery_proof.handoffSmoke.checked // false); passed=\($recovery_proof.handoffSmoke.passed // false); noPersistence=\($recovery_proof.handoffSmoke.noPersistence // true).",
         "- Approval boundary: if the verification command does not report verified_handoff_waiting_for_fresh_traffic, hold real activation sends and inspect the recovery path first.",
         "",
         "Approval checklist:",

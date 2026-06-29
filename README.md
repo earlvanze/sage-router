@@ -709,11 +709,13 @@ data; consume `activationQueue` for no-key follow-up counts, sendable and
 review-only segments, dry-run coverage, sent-recipient counts, and
 approval-required state. Pass `--approval-packet` to print only the
 no-secret activation approval packet from the same live funnel snapshot before
-any operator approves a real send. The packet includes the next segment dry-run
-command, the typed-confirmation send command template, and the same
-server-derived approval decision checklist used by the dashboard, but it
-remains read-only: it does not approve, copy, or send activation outreach, and
-the printed command still requires `SAGE_ROUTER_API_KEY` plus
+any operator approves a real send. Add `--verify-recovery` to the approval
+packet command to run the same no-persistence setup-key recovery handoff smoke
+and include its current stage before the send handoff. The packet includes the
+next segment dry-run command, the typed-confirmation send command template, and
+the same server-derived approval decision checklist used by the dashboard, but
+it remains read-only: it does not approve, copy, or send activation outreach,
+and the printed command still requires `SAGE_ROUTER_API_KEY` plus
 `sendConfirmation=SEND_ACTIVATION_FOLLOWUPS`. The default snapshot also prints
 a compact approval handoff with the packet command, current approval decision,
 and reminder that no send command is printed until the operator explicitly asks
