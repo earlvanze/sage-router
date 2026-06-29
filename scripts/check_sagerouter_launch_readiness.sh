@@ -893,6 +893,7 @@ check_managed_provider_access_guard() {
     (.publicLaunch.managedProviderAccess.readinessSetup.setupScript == "scripts/configure_managed_provider_resale_readiness.sh") and
     ((.publicLaunch.managedProviderAccess.readinessSetup.dryRunCommand // "") | contains("scripts/configure_managed_provider_resale_readiness.sh --check")) and
     ((.publicLaunch.managedProviderAccess.readinessSetup.authorizationPacketCommand // "") | contains("scripts/configure_managed_provider_resale_readiness.sh --authorization-packet")) and
+    ((.publicLaunch.managedProviderAccess.readinessSetup.providerOutreachCommand // "") | contains("scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet")) and
     ((.publicLaunch.managedProviderAccess.readinessSetup.enableCommandTemplate // "") | contains("SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC")) and
     (
       (.publicLaunch.managedProviderAccess.enabled == true) or
