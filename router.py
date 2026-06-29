@@ -7567,8 +7567,8 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 {
                     'step': 1,
                     'segment': 'recovery_dropoff',
-                    'action': 'Verify the setup-key recovery landing path from same-email login through account auto-key creation before sending more recovery traffic.',
-                    'successMetric': 'keyCreateAttempts increases after keyRecoveryViews without storing emails or generated keys.',
+                    'action': 'Run scripts/check_sagerouter_launch_readiness.sh and require the setup-key recovery dual smoke probe to pass before treating the recovery path as broken.',
+                    'successMetric': 'login_key_recovery_account_setup_auto_redirected and account_setup_handoff_viewed smoke events are accepted without storing emails or generated keys.',
                 },
                 {
                     'step': 2,
@@ -7585,7 +7585,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 {
                     'step': 4,
                     'segment': 'operator_outreach',
-                    'action': 'After the recovery-to-key path is verified, send or copy only the sendable verified/unverified follow-up drafts.',
+                    'action': 'After the dual smoke probe passes, wait for new traffic or use the approval packet before any real verified/unverified activation send.',
                     'successMetric': 'operatorFollowUpSends or operatorFollowUpCopies increases before more keyRecoveryViews.',
                 },
             ]
@@ -7613,7 +7613,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 (
                     'Recovery handoffs are reaching account setup but no key-create attempts are starting. Verify signed-in start=create_key auto-create before sending more activation traffic.'
                     if recovery_handoff_dropoff
-                    else 'Recovery pages are getting views but no account handoffs or key-create attempts. Verify and tighten the same-email setup-key handoff before sending more activation traffic.'
+                    else 'Recovery pages are getting views but no account handoffs or key-create attempts. Run the no-secret dual smoke verifier; if it passes, wait for fresh traffic or use the approval packet before any real activation send.'
                 )
                 if recovery_dropoff
                 else (
@@ -7659,6 +7659,11 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 'recoveryDropoff': recovery_dropoff,
                 'recoveryViewDropoff': recovery_view_dropoff,
                 'recoveryHandoffDropoff': recovery_handoff_dropoff,
+                'recoveryVerifierCommand': 'scripts/check_sagerouter_launch_readiness.sh',
+                'recoveryVerifierSmokeEvents': [
+                    'login_key_recovery_account_setup_auto_redirected',
+                    'account_setup_handoff_viewed',
+                ],
                 'emailVerification': verification_counts or {},
                 'recommendedSegments': recommended_segments,
                 'signupToGeneratedKey': signup_to_key_rate,

@@ -2655,15 +2655,28 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('setup-key recovery', action['surface'])
         self.assertIn('/setup-key-recovery', action['ctaPath'])
         self.assertIn('Recovery pages are getting views but no account handoffs or key-create attempts', action['action'])
+        self.assertIn('dual smoke verifier', action['action'])
+        self.assertIn('approval packet', action['action'])
         self.assertTrue(action['evidence']['recoveryDropoff'])
         self.assertTrue(action['evidence']['recoveryViewDropoff'])
         self.assertFalse(action['evidence']['recoveryHandoffDropoff'])
+        self.assertEqual('scripts/check_sagerouter_launch_readiness.sh', action['evidence']['recoveryVerifierCommand'])
+        self.assertEqual(
+            [
+                'login_key_recovery_account_setup_auto_redirected',
+                'account_setup_handoff_viewed',
+            ],
+            action['evidence']['recoveryVerifierSmokeEvents'],
+        )
         self.assertEqual(8, action['evidence']['keyRecoveryViews'])
         self.assertEqual(0, action['evidence']['keyCreateAttempts'])
         self.assertEqual(2, action['evidence']['sendableQueued'])
         self.assertEqual(2, action['evidence']['reviewOnlyQueued'])
         self.assertEqual('recovery_dropoff', action['executionChecklist'][0]['segment'])
+        self.assertIn('scripts/check_sagerouter_launch_readiness.sh', action['executionChecklist'][0]['action'])
+        self.assertIn('account_setup_handoff_viewed', action['executionChecklist'][0]['successMetric'])
         self.assertIn('account_key_recovery_auto_create_started', action['executionChecklist'][2]['action'])
+        self.assertIn('approval packet', action['executionChecklist'][3]['action'])
         self.assertFalse(action['privacy']['containsEmails'])
 
     def test_next_best_action_flags_account_handoff_without_key_attempts(self):
