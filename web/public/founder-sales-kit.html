@@ -49,6 +49,37 @@
       <a class="button secondary" href="/managed-access?intent=one-subscription&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-one-subscription" data-founder-event="content_article_managed_access_clicked" data-founder-button="hero-one-subscription">One-subscription review</a>
       <a class="button secondary" href="/model-routing-calculator?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-calculator" data-founder-event="content_article_calculator_clicked" data-founder-button="hero-calculator">Estimate workflow fit</a>
     </div>
+    <section class="panel callout" aria-label="Copy the next founder-sales action">
+      <h2><strong>Copy the next action first</strong></h2>
+      <p>Use this when the launch funnel shows zero outreach or setup copies. Copy one no-secret reply for a warm conversation, or copy the hosted setup bundle before sending a prospect to create a generated key.</p>
+      <pre id="founder-hero-pro-reply" class="codebox">Sage Router may fit your agent routing work if you want one OpenAI-compatible endpoint with health-aware fallback, model routing, and hosted generated keys.
+
+Start by creating the sk_sage key, then verify /v1/models before wiring it into an agent:
+https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-pro-reply
+
+60-second setup:
+https://sagerouter.dev/quickstart?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-pro-reply</pre>
+      <details>
+        <summary>Preview the setup bundle</summary>
+        <pre id="founder-hero-setup-bundle" class="codebox"># Sage Router hosted setup
+export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
+export OPENAI_API_KEY=sk_sage_your_key_here
+export SAGE_ROUTER_MODEL=sage-router/frontier
+
+curl "$OPENAI_BASE_URL/models" \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+
+curl "$OPENAI_BASE_URL/chat/completions" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"sage-router/frontier","messages":[{"role":"user","content":"Route this well"}]}'</pre>
+      </details>
+      <div class="copyRow">
+        <button id="copy-founder-hero-pro-reply" class="copyButton" type="button">Copy next Pro reply</button>
+        <button id="copy-founder-hero-setup-bundle" class="copyButton" type="button">Copy 60-second setup bundle</button>
+        <span id="copy-founder-hero-status" class="copyStatus" role="status" aria-live="polite"></span>
+      </div>
+    </section>
   </header>
 
   <main class="wrap stack">
@@ -280,13 +311,13 @@ https://sagerouter.dev/margin-policy?utm_source=founder-sales&utm_medium=direct&
       textarea.remove();
     }
 
-    async function copyBlock(blockId, statusId, successText, snippet) {
+    async function copyBlock(blockId, statusId, successText, snippet, event = 'outreach_snippet_copied') {
       const block = document.getElementById(blockId);
       const status = document.getElementById(statusId);
       if (!block) return;
       try {
         await writeClipboardText(block.textContent.trim());
-        trackFounderSalesEvent('outreach_snippet_copied', {
+        trackFounderSalesEvent(event, {
           button: blockId,
           snippet
         });
@@ -297,6 +328,12 @@ https://sagerouter.dev/margin-policy?utm_source=founder-sales&utm_medium=direct&
     }
 
     trackFounderSalesEvent('content_article_viewed', { button: 'page-view' });
+    document.getElementById('copy-founder-hero-pro-reply')?.addEventListener('click', () => {
+      copyBlock('founder-hero-pro-reply', 'copy-founder-hero-status', 'Copied next Pro reply.', 'founder-hero-pro-reply');
+    });
+    document.getElementById('copy-founder-hero-setup-bundle')?.addEventListener('click', () => {
+      copyBlock('founder-hero-setup-bundle', 'copy-founder-hero-status', 'Copied 60-second setup bundle.', 'founder-hero-setup-bundle', 'quickstart_snippet_copied');
+    });
     document.getElementById('copy-founder-pro-email')?.addEventListener('click', () => {
       copyBlock('founder-pro-email', 'copy-founder-pro-status', 'Copied Pro email.', 'founder-pro-email');
     });

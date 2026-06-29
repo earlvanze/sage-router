@@ -3570,6 +3570,15 @@ check_marketing_founder_sales_kit_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "Copyable Pro activation email" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pro-email-copy"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-hero-pro-reply" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-founder-hero-pro-reply"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-hero-setup-bundle" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-founder-hero-setup-bundle"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "founder-hero-setup-bundle" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-founder-hero-setup-bundle"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-pro-email" /tmp/sage-router-readiness-body; then
     page_code="200:missing-copy-founder-pro-email"
   fi
@@ -3605,6 +3614,9 @@ check_marketing_founder_sales_kit_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "outreach_snippet_copied" /tmp/sage-router-readiness-body; then
     page_code="200:missing-founder-sales-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-founder-sales-setup-copy-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then
     page_code="200:missing-founder-sales-view-funnel"
