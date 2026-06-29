@@ -42,6 +42,9 @@
     .pricingSetupCopy strong{margin-right:auto}
     .pricingSetupCopy button{border:0;cursor:pointer}
     .pricingSetupCopy span{min-height:22px;color:var(--brand);font-size:14px}
+    .liteFastPath{margin-top:18px;max-width:920px;border:1px solid rgba(141,240,178,.34);border-radius:8px;background:linear-gradient(135deg,rgba(141,240,178,.12),rgba(247,213,122,.07));padding:16px}
+    .liteFastPath h2{font-size:24px;line-height:1.14;margin:4px 0 8px}
+    .liteFastPath .actions{margin-top:14px}
     .recoveryCallout{margin-top:16px;max-width:920px;border:1px solid rgba(247,213,122,.32);border-radius:8px;background:rgba(247,213,122,.08);padding:16px}
     .recoveryCallout .actions{margin-top:12px}
     .managedQuickForm{display:grid;grid-template-columns:minmax(220px,1fr) minmax(190px,.7fr) auto;gap:10px;margin:18px 0 0;padding:14px;border:1px solid rgba(141,240,178,.28);border-radius:8px;background:linear-gradient(135deg,rgba(141,240,178,.1),rgba(138,180,255,.07))}
@@ -92,6 +95,15 @@
           <a class="button secondary" href="/launch-plan">See launch plan</a>
         </div>
         <p class="note">Sage Router sells routing, reliability, account management, quotas, analytics, and support. It does not grant unauthorized model access, pool provider accounts, or bypass provider terms.</p>
+        <div class="liteFastPath" id="pricing-lite-key-first-path">
+          <p class="eyebrow">Lowest-friction Lite path</p>
+          <h2>Start Lite for $6 after the generated key exists.</h2>
+          <p class="note">Use this when you just need hosted Sage Router routing for one agent. Create the <code>sk_sage_*</code> key first, then checkout unlocks routing; BYOK and local model access stay under your authorization.</p>
+          <div class="actions">
+            <a id="pricing-lite-key-first-account" class="button primary" data-pricing-setup-next="lite" href="https://app.sagerouter.dev/account.html?plan=lite&start=create_key&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=lite-first-key">Create Lite key first</a>
+            <a class="button secondary" href="#pricing-plan-lite">Compare Lite limits</a>
+          </div>
+        </div>
         <div class="emailStart">
           <strong>Fastest API key start: email yourself the setup link</strong>
           <p class="note">No provider key or credit card is required until your generated <code>sk_sage_*</code> key exists. Continue with GitHub or email; both open the hosted account page with Pro selected, then you can create the key first and complete checkout.</p>
@@ -138,7 +150,7 @@
       </section>
 
       <section class="section plans" aria-label="Hosted pricing plans">
-        <article class="plan">
+        <article class="plan" id="pricing-plan-lite">
           <span class="pill">Lite</span>
           <div class="price">$6 <small>/ month</small></div>
           <p class="muted">For individual agent experiments and lightweight hosted routing.</p>

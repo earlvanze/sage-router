@@ -3435,6 +3435,12 @@ check_marketing_pricing_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "Create API key first" /tmp/sage-router-readiness-body; then
     page_code="200:missing-key-first-pricing-cta"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "pricing-lite-key-first-path" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-lite-key-first-path"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "utm_content=lite-first-key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-lite-key-first-attribution"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing-github-pro" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-github-activation"
   fi
