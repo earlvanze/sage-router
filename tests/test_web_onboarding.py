@@ -3025,6 +3025,32 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("SAGEROUTER_FUNNEL_ALLOWED_ORIGINS", self.read_text("web", "README.md"))
         self.assertIn("public billing recovery CTA intent", launch_plan)
 
+    def test_browser_funnel_events_are_allowlisted(self):
+        function_js = self.read_text("web", "functions", "api", "funnel-event.js")
+        allowed_block = function_js.split("const ALLOWED_EVENTS = new Set([", 1)[1].split("]);", 1)[0]
+        allowed_events = set(re.findall(r"'([^']+)'", allowed_block))
+        emitted_events = {}
+        event_patterns = [
+            re.compile(r"""track[A-Za-z0-9_]*Event\(\s*['"]([^'"]+)['"]"""),
+            re.compile(r"""data-[a-z0-9-]+-event=['"]([^'"]+)['"]"""),
+        ]
+        for path in sorted((ROOT / "web" / "public").rglob("*")):
+            if path.suffix not in {".html", ".js"}:
+                continue
+            text = path.read_text(encoding="utf-8")
+            for pattern in event_patterns:
+                for match in pattern.finditer(text):
+                    emitted_events.setdefault(match.group(1), []).append(
+                        f"{path.relative_to(ROOT)}:{text[:match.start()].count(chr(10)) + 1}"
+                    )
+
+        missing_events = {
+            event: locations
+            for event, locations in emitted_events.items()
+            if event not in allowed_events
+        }
+        self.assertEqual({}, missing_events)
+
     def test_launch_operator_handoff_bundles_read_only_external_gates(self):
         script = self.read_text("scripts", "summarize_sagerouter_launch_operator_handoff.sh")
         readme = self.read_text("README.md")
