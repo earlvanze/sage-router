@@ -189,6 +189,8 @@ const LANDING_SETUP_ACCOUNT_URL = `${ACCOUNT_PAGE_URL}&setup=landing-full-setup-
 const HERO_SETUP_ACCOUNT_URL = `${ACCOUNT_PAGE_URL}&setup=landing-hero-setup-bundle&source_surface=landing`;
 const STICKY_SETUP_ACCOUNT_URL = `${ACCOUNT_PAGE_URL}&setup=landing-sticky-setup-bundle&source_surface=landing`;
 const LANDING_KEY_RECOVERY_URL = 'https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=landing&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email';
+const MANAGED_ONE_SUBSCRIPTION_URL = '/managed-access?intent=one-subscription&utm_source=landing&utm_medium=managed_access&utm_campaign=sage-router-launch&utm_content=one-subscription-review';
+const MANAGED_MAX_IMPLEMENTATION_URL = '/managed-access?intent=max-implementation&utm_source=landing&utm_medium=managed_access&utm_campaign=sage-router-launch&utm_content=max-implementation-review';
 const ACTIVATION_NUDGE_STORAGE_KEY = 'sage_router_activation_nudge_dismissed_until';
 const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
@@ -219,6 +221,9 @@ function trackLandingFunnelEvent(event, data = {}) {
       referrerHost: referrerHost(),
       landingPath: window.location.pathname,
       snippet: data.snippet || null,
+      intent: data.intent || null,
+      commercialPreference: data.commercialPreference || null,
+      supportNeed: data.supportNeed || null,
     },
   });
   try {
@@ -234,6 +239,12 @@ function trackLandingFunnelEvent(event, data = {}) {
     keepalive: true,
     credentials: 'omit',
   }).catch(() => {});
+}
+
+function trackManagedAccessReviewClick({ target, button, state, intent, commercialPreference, supportNeed }) {
+  const eventData = { target, button, state, intent, commercialPreference, supportNeed };
+  trackLandingFunnelEvent('landing_managed_access_clicked', eventData);
+  trackLandingFunnelEvent('managed_access_interest_clicked', eventData);
 }
 
 function landingSetupBundleText() {
@@ -452,6 +463,16 @@ function StickyActivationBar() {
       })}>
         Finish setup key
       </a>
+      <a className="button secondary stickyManagedButton" href={MANAGED_ONE_SUBSCRIPTION_URL} onClick={() => trackManagedAccessReviewClick({
+        target: MANAGED_ONE_SUBSCRIPTION_URL,
+        button: 'Sticky one-subscription review',
+        state: 'sticky-managed-access',
+        intent: 'one-subscription',
+        commercialPreference: 'one-subscription',
+        supportNeed: 'managed-provider-review',
+      })}>
+        One-subscription beta
+      </a>
     </aside>
   );
 }
@@ -467,6 +488,37 @@ function LandingKeyRecovery() {
         state: 'landing-returning-user',
       })}>
         Finish setup key
+      </a>
+    </div>
+  );
+}
+
+function ManagedAccessReviewPrompt() {
+  return (
+    <div className="managedAccessPrompt" aria-label="One-subscription private beta review">
+      <div>
+        <strong>Need one subscription instead of BYOK?</strong>
+        <span>Request private-beta review. Hosted managed provider access still waits for provider authorization, terms, cost controls, and margin checks.</span>
+      </div>
+      <a href={MANAGED_ONE_SUBSCRIPTION_URL} onClick={() => trackManagedAccessReviewClick({
+        target: MANAGED_ONE_SUBSCRIPTION_URL,
+        button: 'Hero one-subscription review',
+        state: 'hero-managed-access',
+        intent: 'one-subscription',
+        commercialPreference: 'one-subscription',
+        supportNeed: 'managed-provider-review',
+      })}>
+        Request one-subscription review
+      </a>
+      <a href={MANAGED_MAX_IMPLEMENTATION_URL} onClick={() => trackManagedAccessReviewClick({
+        target: MANAGED_MAX_IMPLEMENTATION_URL,
+        button: 'Hero Max implementation review',
+        state: 'hero-managed-access',
+        intent: 'max-implementation',
+        commercialPreference: 'private-contract',
+        supportNeed: 'implementation-support',
+      })}>
+        Max implementation review
       </a>
     </div>
   );
@@ -913,6 +965,7 @@ function App() {
             <LandingEmailStart />
             <LandingKeyRecovery />
             <HeroSetupCopy />
+            <ManagedAccessReviewPrompt />
             <div className="heroActions heroPrimaryActions">
               <a className="button primary" href={ACCOUNT_PAGE_HREF} onClick={() => trackLandingFunnelEvent('landing_account_clicked', {
                 plan: 'pro',
@@ -1086,15 +1139,21 @@ function App() {
                 button: 'Estimate routing savings',
                 state: 'hero-secondary',
               })}>Estimate routing savings</a>
-              <a href="/managed-access?intent=one-subscription" onClick={() => trackLandingFunnelEvent('landing_managed_access_clicked', {
-                target: '/managed-access?intent=one-subscription',
-                button: 'One-subscription review',
+              <a href={MANAGED_ONE_SUBSCRIPTION_URL} onClick={() => trackManagedAccessReviewClick({
+                target: MANAGED_ONE_SUBSCRIPTION_URL,
+                button: 'Explore one-subscription review',
                 state: 'hero-secondary-one-subscription',
+                intent: 'one-subscription',
+                commercialPreference: 'one-subscription',
+                supportNeed: 'managed-provider-review',
               })}>One-subscription review</a>
-              <a href="/managed-access?intent=max-implementation" onClick={() => trackLandingFunnelEvent('landing_managed_access_clicked', {
-                target: '/managed-access?intent=max-implementation',
-                button: 'Max implementation review',
+              <a href={MANAGED_MAX_IMPLEMENTATION_URL} onClick={() => trackManagedAccessReviewClick({
+                target: MANAGED_MAX_IMPLEMENTATION_URL,
+                button: 'Explore Max implementation review',
                 state: 'hero-secondary-max-implementation',
+                intent: 'max-implementation',
+                commercialPreference: 'private-contract',
+                supportNeed: 'implementation-support',
               })}>Max implementation review</a>
               <a href="/security" onClick={() => trackLandingFunnelEvent('landing_security_clicked', {
                 target: '/security',

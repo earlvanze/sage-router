@@ -94,9 +94,12 @@ request until the full prerequisite set is present; the runtime must publish
 `missingControls` for incomplete configurations instead of advertising bundled
 provider access.
 
-Pricing and comparison pages can still measure demand for the future
-one-subscription path and Max implementation support by sending prospects to
-`/managed-access`. That private-beta intake stores contact and allowlisted
+The homepage, sticky activation bar, pricing page, and comparison pages can
+still measure demand for the future one-subscription path and Max
+implementation support by sending prospects to `/managed-access`. Homepage
+CTAs emit `landing_managed_access_clicked` and `managed_access_interest_clicked`
+with allowlisted intent/commercial-preference/support-need metadata before the
+handoff. That private-beta intake stores contact and allowlisted
 qualification buckets only, including target provider family and commercial
 preference demand for Ollama, OpenAI, Anthropic, and BYOK-compatible routes,
 plus support need and target launch window, and coarse inbound intent from
@@ -385,14 +388,15 @@ provider resale claim, or runtime feature flag.
   create/status responses must use the bounded public intent shape and avoid
   echoing arbitrary customer notes or support text.
 - Capture managed-access beta and Max implementation demand through the
-  waitlist `interest` metadata path from `/managed-access` and the one-field
-  pricing-page review request, then watch
+  homepage/sticky review CTAs, the waitlist `interest` metadata path from
+  `/managed-access`, and the one-field pricing-page review request, then watch
   `managedAccessBetaInterest` plus `managedAccessShareOfWaitlist` in
   `/analytics/funnel`; the page also emits anonymous managed-access page-view,
   form-start, submit, and received events with only allowlisted qualification
-  buckets, while pricing emits `managed_access_quick_request_*` events for
-  buyer-intent traffic, so one-subscription and implementation demand is
-  visible before full contact submission. Use
+  buckets, while homepage CTAs emit `managed_access_interest_clicked` and
+  pricing emits `managed_access_quick_request_*` events for buyer-intent
+  traffic, so one-subscription and implementation demand is visible before full
+  contact submission. Use
   `managedAccessDemand.targetProviderFamily`,
   `managedAccessDemand.commercialPreference`, `managedAccessDemand.supportNeed`,
   `managedAccessDemand.targetLaunchWindow`, and `managedAccessDemand.intent` to

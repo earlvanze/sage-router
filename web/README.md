@@ -92,7 +92,13 @@ account page focus the generated-key setup path and emit
 `account_setup_handoff_viewed`. A persistent bottom activation bar keeps `Create API key`,
 `Copy 60-second setup`, and `Finish setup key` visible after scroll; the setup
 button records `quickstart_snippet_copied` with `landing-sticky-setup-bundle`
-metadata, then becomes a `landing_setup_next_clicked` account handoff. The hero keeps pricing, quickstart, public status,
+metadata, then becomes a `landing_setup_next_clicked` account handoff. The same
+sticky bar and first-screen hero now expose `One-subscription beta` /
+`Request one-subscription review` private-beta review paths that record both
+`landing_managed_access_clicked` and `managed_access_interest_clicked` with
+allowlisted `intent`, `commercialPreference`, and `supportNeed` metadata while
+stating that hosted managed provider access still depends on provider
+authorization, terms, cost controls, and margin checks. The hero keeps pricing, quickstart, public status,
 model-gateway comparison, model catalog, calculator, security, analytics, login,
 managed-access private beta review, support, and local GitHub install paths
 visible so a prospect can move from discovery to generated `sk_sage_*` key setup
