@@ -2646,14 +2646,74 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('signupToGeneratedKey', action['metric'])
         self.assertEqual('setup-key recovery', action['surface'])
         self.assertIn('/setup-key-recovery', action['ctaPath'])
-        self.assertIn('Recovery pages are getting views but no key-create attempts', action['action'])
+        self.assertIn('Recovery pages are getting views but no account handoffs or key-create attempts', action['action'])
         self.assertTrue(action['evidence']['recoveryDropoff'])
+        self.assertTrue(action['evidence']['recoveryViewDropoff'])
+        self.assertFalse(action['evidence']['recoveryHandoffDropoff'])
         self.assertEqual(8, action['evidence']['keyRecoveryViews'])
         self.assertEqual(0, action['evidence']['keyCreateAttempts'])
         self.assertEqual(2, action['evidence']['sendableQueued'])
         self.assertEqual(2, action['evidence']['reviewOnlyQueued'])
         self.assertEqual('recovery_dropoff', action['executionChecklist'][0]['segment'])
         self.assertIn('account_key_recovery_auto_create_started', action['executionChecklist'][2]['action'])
+        self.assertFalse(action['privacy']['containsEmails'])
+
+    def test_next_best_action_flags_account_handoff_without_key_attempts(self):
+        stages = {
+            'signups': 4,
+            'customersWithGeneratedApiKeys': 1,
+            'customersWithFirstRoutedRequest': 1,
+            'paidCustomers': 2,
+        }
+        rates = {'signupToGeneratedKey': 0.25}
+        activation_follow_ups = {
+            'total': 4,
+            'windowedNewSignups': 4,
+            'operatorFollowUpCopies': 0,
+            'operatorFollowUpWorked': 0,
+            'keyRecoveryViews': 8,
+            'keyRecoveryViewsByState': {'login_create_key': 8},
+            'keyFirstRedirects': 3,
+            'keyFirstRedirectsByState': {'password_fallback': 2, 'github': 1},
+            'keyCreateAttempts': 0,
+            'keyCreateSuccesses': 0,
+            'countsByEmailVerification': {
+                'verified': 1,
+                'unverified': 1,
+                'missing_auth_user': 2,
+            },
+            'suggestedPlan': 'pro',
+            'primaryCtaUrl': 'https://sagerouter.dev/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation',
+            'privacy': {
+                'containsEmails': False,
+                'containsCustomerIds': False,
+                'containsApiKeys': False,
+                'containsProviderCredentials': False,
+            },
+        }
+
+        action = router.launch_next_best_action(
+            stages,
+            rates,
+            {'estimatedCurrentMrrUsd': 60, 'targetMrrUsd': 10000},
+            activation_follow_ups,
+            [],
+        )
+
+        self.assertEqual('signupToGeneratedKey', action['metric'])
+        self.assertEqual('account setup', action['surface'])
+        self.assertIn('/account.html', action['ctaPath'])
+        self.assertIn('start=create_key', action['ctaPath'])
+        self.assertIn('Recovery handoffs are reaching account setup but no key-create attempts are starting', action['action'])
+        self.assertTrue(action['evidence']['recoveryDropoff'])
+        self.assertFalse(action['evidence']['recoveryViewDropoff'])
+        self.assertTrue(action['evidence']['recoveryHandoffDropoff'])
+        self.assertEqual(3, action['evidence']['keyFirstRedirects'])
+        self.assertEqual(0, action['evidence']['keyCreateAttempts'])
+        self.assertEqual('account_handoff', action['executionChecklist'][0]['segment'])
+        self.assertIn('start=create_key', action['executionChecklist'][0]['action'])
+        self.assertEqual('auto_create', action['executionChecklist'][1]['segment'])
+        self.assertIn('account_key_recovery_auto_create_started', action['executionChecklist'][1]['action'])
         self.assertFalse(action['privacy']['containsEmails'])
 
     def test_activation_delivery_counts_mark_auth_repair_review_only(self):

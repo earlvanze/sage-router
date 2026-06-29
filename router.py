@@ -7515,7 +7515,9 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
     signup_to_key_below_target = signup_to_key_rate is None or float(signup_to_key_rate or 0) < float(LAUNCH_CONVERSION_TARGETS['signupToGeneratedKey']['targetRate'])
     if no_key_total > 0 and signup_to_key_below_target:
         outreach_not_worked = operator_follow_up_worked <= 0
-        recovery_dropoff = key_recovery_views > 0 and key_create_attempts <= 0
+        recovery_view_dropoff = key_recovery_views > 0 and key_first_redirects <= 0 and key_create_attempts <= 0
+        recovery_handoff_dropoff = key_recovery_views > 0 and key_first_redirects > 0 and key_create_attempts <= 0
+        recovery_dropoff = recovery_view_dropoff or recovery_handoff_dropoff
         verification_counts = activation_follow_ups.get('countsByEmailVerification') if isinstance(activation_follow_ups, dict) else {}
         delivery_counts = launch_activation_delivery_counts(activation_follow_ups, verification_counts, no_key_total)
         recommended_segments = [
@@ -7524,7 +7526,34 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
         ]
         no_key_anchor = 'no-key-followups:segments' if len(recommended_segments) > 1 else 'no-key-followups'
         execution_checklist = launch_no_key_execution_checklist(recommended_segments, outreach_not_worked)
-        if recovery_dropoff:
+        if recovery_handoff_dropoff:
+            execution_checklist = [
+                {
+                    'step': 1,
+                    'segment': 'account_handoff',
+                    'action': 'Verify recovery handoffs land on account.html with start=create_key, plan, and signup_to_key_recovery attribution intact.',
+                    'successMetric': 'account_key_recovery_viewed increases after login_key_recovery_account_setup_auto_redirected.',
+                },
+                {
+                    'step': 2,
+                    'segment': 'auto_create',
+                    'action': 'Confirm a signed-in no-key account with start=create_key records account_key_recovery_auto_create_started before checkout.',
+                    'successMetric': 'keyCreateAttempts increases after keyFirstRedirects without storing emails or generated keys.',
+                },
+                {
+                    'step': 3,
+                    'segment': 'auth_provider',
+                    'action': 'Check same-email magic-link, password, and OAuth success/failure telemetry for sign-in dropoff before key creation.',
+                    'successMetric': 'login_key_recovery_session_redirected or account_login_succeeded appears before account_key_recovery_auto_create_started.',
+                },
+                {
+                    'step': 4,
+                    'segment': 'operator_outreach',
+                    'action': 'After account handoff to auto-create is verified, send or copy only the sendable verified/unverified follow-up drafts.',
+                    'successMetric': 'operatorFollowUpSends or operatorFollowUpCopies increases before more keyRecoveryViews.',
+                },
+            ]
+        elif recovery_view_dropoff:
             execution_checklist = [
                 {
                     'step': 1,
@@ -7555,9 +7584,15 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
             'metric': 'signupToGeneratedKey',
             'priority': 'fix_now',
             'owner': 'Activation',
-            'surface': 'setup-key recovery' if recovery_dropoff else ('launch funnel' if outreach_not_worked else 'account'),
+            'surface': (
+                'account setup'
+                if recovery_handoff_dropoff
+                else ('setup-key recovery' if recovery_view_dropoff else ('launch funnel' if outreach_not_worked else 'account'))
+            ),
             'ctaPath': (
-                activation_follow_ups.get('primaryCtaUrl') or launch_setup_key_recovery_url(activation_follow_ups.get('suggestedPlan') or 'pro')
+                launch_activation_follow_up_url(activation_follow_ups.get('suggestedPlan') or 'pro', auth='github')
+                if recovery_handoff_dropoff
+                else (activation_follow_ups.get('primaryCtaUrl') or launch_setup_key_recovery_url(activation_follow_ups.get('suggestedPlan') or 'pro'))
                 if recovery_dropoff
                 else (
                 f'{APP_BASE_URL.rstrip("/")}/launch-funnel.html#{no_key_anchor}'
@@ -7566,7 +7601,11 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 )
             ),
             'action': (
-                'Recovery pages are getting views but no key-create attempts. Verify and tighten the same-email setup-key handoff before sending more activation traffic.'
+                (
+                    'Recovery handoffs are reaching account setup but no key-create attempts are starting. Verify signed-in start=create_key auto-create before sending more activation traffic.'
+                    if recovery_handoff_dropoff
+                    else 'Recovery pages are getting views but no account handoffs or key-create attempts. Verify and tighten the same-email setup-key handoff before sending more activation traffic.'
+                )
                 if recovery_dropoff
                 else (
                 'Open the operator no-key signup queue, send the sendable verified/unverified drafts, review auth-repair segments separately, then mark the worked segment through the launch funnel telemetry.'
@@ -7609,6 +7648,8 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 'keyCreateFailures': key_create_failures,
                 'keyCreateFailuresByState': activation_follow_ups.get('keyCreateFailuresByState') or {},
                 'recoveryDropoff': recovery_dropoff,
+                'recoveryViewDropoff': recovery_view_dropoff,
+                'recoveryHandoffDropoff': recovery_handoff_dropoff,
                 'emailVerification': verification_counts or {},
                 'recommendedSegments': recommended_segments,
                 'signupToGeneratedKey': signup_to_key_rate,
