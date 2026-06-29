@@ -7146,6 +7146,10 @@ KEY_CREATE_SUCCESS_EVENTS = {
     'account_api_key_created',
     'account_key_recovery_key_created',
 }
+KEY_CREATE_SUCCESS_TELEMETRY_EVENTS = KEY_CREATE_SUCCESS_EVENTS | {
+    'account_auto_key_create_succeeded',
+    'account_key_recovery_auto_create_succeeded',
+}
 KEY_CREATE_FAILURE_EVENTS = {
     'account_api_key_create_failed',
     'account_auto_key_create_failed',
@@ -7720,7 +7724,7 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
             'workedKindPattern': '<segment>_marked_worked',
             'recoveryViewEvents': sorted(KEY_RECOVERY_VIEW_EVENTS),
             'keyCreateAttemptEvents': sorted(KEY_CREATE_ATTEMPT_EVENTS),
-            'keyCreateSuccessEvents': sorted(KEY_CREATE_SUCCESS_EVENTS),
+            'keyCreateSuccessEvents': sorted(KEY_CREATE_SUCCESS_TELEMETRY_EVENTS),
             'keyCreateFailureEvents': sorted(KEY_CREATE_FAILURE_EVENTS),
             'successMetric': next_best_action.get('successMetric') or activation_follow_ups.get('successMetric') or 'Move no-key signups into generated-key accounts, then first routed request.',
         },

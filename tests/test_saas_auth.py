@@ -2292,6 +2292,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('account_key_recovery_auto_create_started', packet['telemetry']['keyCreateAttemptEvents'])
         self.assertIn('account_key_recovery_create_clicked', packet['telemetry']['keyCreateAttemptEvents'])
         self.assertIn('account_key_recovery_key_created', packet['telemetry']['keyCreateSuccessEvents'])
+        self.assertIn('account_auto_key_create_succeeded', packet['telemetry']['keyCreateSuccessEvents'])
+        self.assertIn('account_key_recovery_auto_create_succeeded', packet['telemetry']['keyCreateSuccessEvents'])
         self.assertIn('account_key_recovery_auto_create_failed', packet['telemetry']['keyCreateFailureEvents'])
         self.assertIn('account_key_recovery_create_failed', packet['telemetry']['keyCreateFailureEvents'])
         self.assertFalse(packet['emailReadiness']['configured'])
@@ -2909,6 +2911,24 @@ class SaaSAuthTests(unittest.TestCase):
                     },
                 },
                 {
+                    'event': 'account_key_recovery_auto_create_succeeded',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'account',
+                        'state': 'saved_key_recovery_auto_key',
+                    },
+                },
+                {
+                    'event': 'account_auto_key_create_succeeded',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'account',
+                        'state': 'saved_intent_auto_key',
+                    },
+                },
+                {
                     'event': 'account_key_recovery_viewed',
                     'plan': 'pro',
                     'created_at': '2026-06-19T00:00:00Z',
@@ -3373,7 +3393,7 @@ class SaaSAuthTests(unittest.TestCase):
         metrics, error = router.read_launch_marketing_funnel_counts(0)
 
         self.assertIsNone(error)
-        self.assertEqual(58, metrics['total'])
+        self.assertEqual(60, metrics['total'])
         self.assertEqual(1, metrics['events']['landing_account_clicked'])
         self.assertEqual(1, metrics['events']['landing_key_first_direct_clicked'])
         self.assertEqual(1, metrics['events']['landing_key_recovery_clicked'])
@@ -3383,6 +3403,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['events']['api_troubleshooting_key_recovery_clicked'])
         self.assertEqual(1, metrics['events']['landing_viewed'])
         self.assertEqual(1, metrics['events']['account_api_key_created'])
+        self.assertEqual(1, metrics['events']['account_key_recovery_auto_create_succeeded'])
+        self.assertEqual(1, metrics['events']['account_auto_key_create_succeeded'])
         self.assertEqual(1, metrics['events']['account_key_recovery_viewed'])
         self.assertEqual(1, metrics['events']['account_key_recovery_create_clicked'])
         self.assertEqual(1, metrics['events']['account_key_recovery_create_failed'])
@@ -3479,7 +3501,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['events']['pricing_viewed'])
         self.assertEqual(1, metrics['events']['billing_payment_recovery_clicked'])
         self.assertEqual(1, metrics['events']['unknown'])
-        self.assertEqual(43, metrics['plans']['pro'])
+        self.assertEqual(45, metrics['plans']['pro'])
         self.assertEqual(1, metrics['plans']['lite'])
         self.assertEqual(1, metrics['plans']['manual'])
         self.assertEqual(4, metrics['sourceSurfaces']['landing'])
@@ -3488,7 +3510,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(5, metrics['sourceSurfaces']['model-catalog'])
         self.assertEqual(3, metrics['sourceSurfaces']['compare-gateways'])
         self.assertEqual(4, metrics['sourceSurfaces']['pricing'])
-        self.assertEqual(9, metrics['sourceSurfaces']['account'])
+        self.assertEqual(11, metrics['sourceSurfaces']['account'])
         self.assertEqual(7, metrics['sourceSurfaces']['login'])
         self.assertEqual(1, metrics['sourceSurfaces']['quickstart'])
         self.assertEqual(0, metrics['sourceSurfaces']['agent-native'])
@@ -3504,7 +3526,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, metrics['attributionChannels']['newsletter'])
         self.assertEqual(2, metrics['attributionChannels']['google'])
         self.assertEqual(1, metrics['attributionChannels']['discord'])
-        self.assertEqual(47, metrics['attributionChannels']['direct'])
+        self.assertEqual(49, metrics['attributionChannels']['direct'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['all'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['ollama'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['openai-codex'])
