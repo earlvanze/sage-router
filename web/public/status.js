@@ -1,4 +1,5 @@
 let sageRouterUrl = window.SAGE_ROUTER_API_URL || 'https://api.sagerouter.dev';
+const FOUNDER_SALES_KIT_URL = 'https://sagerouter.dev/founder-sales-kit?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch';
 
 const $ = (id) => document.getElementById(id);
 const set = (id, text) => {
@@ -379,6 +380,13 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
   const managedProviderOutreach = managedSetup.providerOutreachCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet';
   const managedUnitEconomics = managedSetup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
   const activationApprovalPacket = 'scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet';
+  const founderSalesFallback = [
+    'Founder sales fallback',
+    'Use when activation sends are approval-gated or managed provider resale is waiting on terms, authorization evidence, a private cost model, or abuse-control review.',
+    `Kit: ${FOUNDER_SALES_KIT_URL}`,
+    'Primary motion: sell Pro activation and Max implementation review from warm routing, reliability, gateway migration, calculator, and model-catalog conversations.',
+    'No-secret boundary: do not paste emails, customer IDs, prompts, OAuth tokens, generated API keys, provider credentials, raw provider responses, private funnel rows, or private provider-cost values.',
+  ].join('\n');
   const cloudflareBicCheck = [
     'scripts/configure_cloudflare_api_bic_skip.sh --operator-packet',
     'scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens',
@@ -417,6 +425,16 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
       meta: 'Prints the current no-key signup queue, dry-run coverage, next segment, and explicit-confirmation send command without sending email or exposing emails, keys, prompts, or provider credentials.',
       command: activationApprovalPacket,
       copyEvent: 'status_activation_approval_packet_copied',
+    },
+    {
+      id: 'founder-sales-fallback',
+      title: 'Founder-sales fallback',
+      value: 'Pro and Max direct outreach',
+      badge: 'no-secret revenue motion',
+      state: 'warn',
+      meta: 'Use when activation sends still need explicit approval or one-subscription managed access is waiting on provider terms, authorization evidence, private cost, or abuse-control review.',
+      command: founderSalesFallback,
+      copyEvent: 'status_founder_sales_fallback_copied',
     },
     {
       id: 'managed-resale-dry-run',
