@@ -47,6 +47,7 @@ ENABLE_PUBLIC="${SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC:-0}"
 RUN_READINESS="${SAGEROUTER_RUN_READINESS:-1}"
 MODE="apply"
 RESALE_ELIGIBLE_PROVIDER_FAMILIES="ollama openai anthropic"
+DEFAULT_RESALE_ALLOWED_PROVIDERS="ollama,openai,anthropic"
 BYOK_ONLY_PROVIDER_FAMILIES="openrouter"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AUTHORIZATION_LEDGER_TEMPLATE="${ROOT}/docs/launch/execution/provider-authorization-ledger-template.md"
@@ -197,6 +198,14 @@ presence() {
   fi
 }
 
+allowed_providers_input_state() {
+  if [[ -n "${ALLOWED_PROVIDERS:-}" ]]; then
+    printf 'present'
+  else
+    printf 'default:%s' "$DEFAULT_RESALE_ALLOWED_PROVIDERS"
+  fi
+}
+
 contains_word() {
   local needle="$1"
   shift
@@ -300,7 +309,7 @@ check_managed_provider_resale() {
   rm -f "$body"
 
   printf 'Local apply inputs: termsUrl=%s marginPolicyUrl=%s termsAcknowledged=%s authorizationEvidence=%s allowedProviders=%s costModel=%s minimumMargin=%s enablePublic=%s\n' \
-    "$(presence "$TERMS_URL")" "$(presence "$MARGIN_POLICY_URL")" "$TERMS_ACKNOWLEDGED" "$(presence "$AUTHORIZATION_REF")" "$(presence "$ALLOWED_PROVIDERS")" "$(presence "$COST_CENTS_PER_1K")" "$MIN_MARGIN" "$ENABLE_PUBLIC"
+    "$(presence "$TERMS_URL")" "$(presence "$MARGIN_POLICY_URL")" "$TERMS_ACKNOWLEDGED" "$(presence "$AUTHORIZATION_REF")" "$(allowed_providers_input_state)" "$(presence "$COST_CENTS_PER_1K")" "$MIN_MARGIN" "$ENABLE_PUBLIC"
   if [[ -n "$ALLOWED_PROVIDERS" ]] && ! validate_allowed_providers "$ALLOWED_PROVIDERS"; then
     failures=1
   fi
@@ -429,7 +438,7 @@ managed_provider_operator_packet() {
 
   printf 'Local apply input presence:\n'
   printf -- '- termsUrl=%s marginPolicyUrl=%s termsAcknowledged=%s authorizationEvidence=%s allowedProviders=%s costModel=%s minimumMargin=%s enablePublic=%s\n\n' \
-    "$(presence "$TERMS_URL")" "$(presence "$MARGIN_POLICY_URL")" "$TERMS_ACKNOWLEDGED" "$(presence "$AUTHORIZATION_REF")" "$(presence "$ALLOWED_PROVIDERS")" "$(presence "$COST_CENTS_PER_1K")" "$MIN_MARGIN" "$ENABLE_PUBLIC"
+    "$(presence "$TERMS_URL")" "$(presence "$MARGIN_POLICY_URL")" "$TERMS_ACKNOWLEDGED" "$(presence "$AUTHORIZATION_REF")" "$(allowed_providers_input_state)" "$(presence "$COST_CENTS_PER_1K")" "$MIN_MARGIN" "$ENABLE_PUBLIC"
 
   if command -v gcloud >/dev/null 2>&1; then
     local service_json enabled_env allowed_env auth_ref_env cost_secret margin_env terms_env ack_env
@@ -650,7 +659,7 @@ managed_provider_terms_approval_packet() {
 
   printf 'Local approval input presence:\n'
   printf -- '- termsUrl=%s marginPolicyUrl=%s authorizationEvidence=%s allowedProviders=%s costModel=%s minimumMargin=%s enablePublic=%s\n\n' \
-    "$(presence "$TERMS_URL")" "$(presence "$MARGIN_POLICY_URL")" "$(presence "$AUTHORIZATION_REF")" "$(presence "$ALLOWED_PROVIDERS")" "$(presence "$COST_CENTS_PER_1K")" "$MIN_MARGIN" "$ENABLE_PUBLIC"
+    "$(presence "$TERMS_URL")" "$(presence "$MARGIN_POLICY_URL")" "$(presence "$AUTHORIZATION_REF")" "$(allowed_providers_input_state)" "$(presence "$COST_CENTS_PER_1K")" "$MIN_MARGIN" "$ENABLE_PUBLIC"
 
   printf 'Approval checklist:\n'
   printf -- '- Review provider-resale terms and provider authorization evidence out of band.\n'
@@ -796,7 +805,7 @@ require_cmd awk
 
 if [[ "$MODE" == "stage-public-controls" ]]; then
   if [[ -z "$ALLOWED_PROVIDERS" ]]; then
-    ALLOWED_PROVIDERS="ollama,openai,anthropic"
+    ALLOWED_PROVIDERS="$DEFAULT_RESALE_ALLOWED_PROVIDERS"
   fi
   validate_allowed_providers "$ALLOWED_PROVIDERS"
   validate_margin_threshold
