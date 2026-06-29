@@ -178,6 +178,15 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         "Approval required: \(if ($approval.approvalRequired // $telemetry.sendApprovalRequired // false) then "yes, do not send until explicit operator approval" else "no pending send" end).",
         "Next actions: \((($approval.nextActions // []) | map((.priority // "next") + ":" + (.id // "review")) | join(", ")) // "monitor_activation_queue").",
         "",
+        "Approval checklist:",
+        (
+          (($approval.decisionChecklist // []) | if length > 0 then
+            map("- \(.id // "approval_gate")=\(.status // "review"): \(.detail // "")")
+          else
+            ["- unavailable: refresh /analytics/funnel after deploying decisionChecklist support"]
+          end)[]
+        ),
+        "",
         "Sendable segments:",
         (segment_lines($segments; true; $dry)[]),
         "",

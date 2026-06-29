@@ -2492,6 +2492,12 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertFalse(readiness['dryRunVerified'])
         self.assertEqual('dry_run_not_verified', readiness['blockedReason'])
         self.assertEqual('dry_run_activation_followups', readiness['nextActions'][0]['id'])
+        checklist = {row['id']: row for row in readiness['decisionChecklist']}
+        self.assertEqual('ready', checklist['review_no_secret_packet']['status'])
+        self.assertEqual('blocked', checklist['verify_dry_run_coverage']['status'])
+        self.assertEqual('ready', checklist['exclude_review_only_segments']['status'])
+        self.assertEqual('needs_approval', checklist['approve_next_segment_only']['status'])
+        self.assertIn('SEND_ACTIVATION_FOLLOWUPS', checklist['require_typed_confirmation']['detail'])
         self.assertFalse(readiness['privacy']['containsEmails'])
         self.assertTrue(readiness['privacy']['aggregateOnly'])
 
@@ -2547,6 +2553,12 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('verified', readiness['nextSendSegment'])
         self.assertEqual('approve_activation_followups', readiness['nextActions'][0]['id'])
         self.assertEqual('review_auth_repair_segments', readiness['nextActions'][1]['id'])
+        checklist = {row['id']: row for row in readiness['decisionChecklist']}
+        self.assertEqual('ready', checklist['verify_dry_run_coverage']['status'])
+        self.assertEqual('review', checklist['exclude_review_only_segments']['status'])
+        self.assertIn('2 unique sendable recipient', checklist['verify_dry_run_coverage']['detail'])
+        self.assertIn('2 duplicate record', checklist['verify_dry_run_coverage']['detail'])
+        self.assertIn('segment "verified"', checklist['approve_next_segment_only']['detail'])
 
     def test_launch_funnel_counts_supabase_auth_signups_without_customer_rows(self):
         now = router.now_epoch()

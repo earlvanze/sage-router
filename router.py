@@ -7743,6 +7743,56 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
             'successMetric': 'No pending sendable activation follow-ups remain unworked.',
         })
 
+    covered_segments = telemetry.get('dryRunCoveredSegments') if isinstance(telemetry.get('dryRunCoveredSegments'), list) else []
+    pending_segments = telemetry.get('dryRunPendingSegments') if isinstance(telemetry.get('dryRunPendingSegments'), list) else []
+    dry_run_recipients = int(telemetry.get('dryRunRecipients') or 0)
+    dry_run_recorded_recipients = int(telemetry.get('dryRunRecordedRecipients') or 0)
+    dry_run_duplicate_recipients = int(telemetry.get('dryRunDuplicateRecipients') or 0)
+    decision_checklist = [
+        {
+            'id': 'review_no_secret_packet',
+            'label': 'Review no-secret packet',
+            'status': 'ready',
+            'detail': 'Packet excludes emails, customer IDs, generated keys, prompts, OAuth tokens, provider credentials, and raw provider responses.',
+        },
+        {
+            'id': 'verify_dry_run_coverage',
+            'label': 'Verify dry-run coverage',
+            'status': 'ready' if dry_run_verified or sendable_queued <= 0 else 'blocked',
+            'detail': (
+                f'{dry_run_recipients} unique sendable recipient(s); '
+                f'{dry_run_recorded_recipients} raw dry-run recipient record(s); '
+                f'{dry_run_duplicate_recipients} duplicate record(s); '
+                f'covered={", ".join(covered_segments) if covered_segments else "none"}; '
+                f'pending={", ".join(pending_segments) if pending_segments else "none"}.'
+            ),
+        },
+        {
+            'id': 'exclude_review_only_segments',
+            'label': 'Exclude review-only segments',
+            'status': 'review' if review_only_queued > 0 else 'ready',
+            'detail': (
+                f'{review_only_queued} review-only signup(s) need auth repair or exclusion before email outreach.'
+                if review_only_queued > 0 else 'No review-only signup segment is queued.'
+            ),
+        },
+        {
+            'id': 'approve_next_segment_only',
+            'label': 'Approve next segment only',
+            'status': 'needs_approval' if approval_required else 'ready',
+            'detail': (
+                f'Approve or hold only segment "{next_send_segment or "all"}"; do not broaden to other segments without a fresh packet.'
+                if approval_required else 'No pending real activation send requires approval.'
+            ),
+        },
+        {
+            'id': 'require_typed_confirmation',
+            'label': 'Require typed confirmation',
+            'status': 'protected',
+            'detail': f'Real sends require {ACTIVATION_FOLLOWUP_SEND_CONFIRMATION} plus the private operator token and trusted browser origin.',
+        },
+    ]
+
     return {
         'status': status,
         'approvalRequired': approval_required,
@@ -7753,14 +7803,15 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
         'sendableQueued': sendable_queued,
         'reviewOnlyQueued': review_only_queued,
         'unknownQueued': unknown_queued,
-        'dryRunRecipients': int(telemetry.get('dryRunRecipients') or 0),
-        'dryRunRecordedRecipients': int(telemetry.get('dryRunRecordedRecipients') or 0),
-        'dryRunDuplicateRecipients': int(telemetry.get('dryRunDuplicateRecipients') or 0),
-        'dryRunCoveredSegments': telemetry.get('dryRunCoveredSegments') if isinstance(telemetry.get('dryRunCoveredSegments'), list) else [],
-        'dryRunPendingSegments': telemetry.get('dryRunPendingSegments') if isinstance(telemetry.get('dryRunPendingSegments'), list) else [],
+        'dryRunRecipients': dry_run_recipients,
+        'dryRunRecordedRecipients': dry_run_recorded_recipients,
+        'dryRunDuplicateRecipients': dry_run_duplicate_recipients,
+        'dryRunCoveredSegments': covered_segments,
+        'dryRunPendingSegments': pending_segments,
         'sentRecipients': sent_recipients,
         'failedRecipients': failed_recipients,
         'nextActions': next_actions,
+        'decisionChecklist': decision_checklist,
         'privacy': {
             'containsEmails': False,
             'containsCustomerIds': False,

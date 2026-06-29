@@ -816,6 +816,14 @@ function activationApprovalChecklist(data = {}) {
   const delivery = activationDeliveryCounts(data);
   const activationSend = activationSendTelemetry(data);
   const approvalReadiness = activationApprovalReadiness(data);
+  if (Array.isArray(approvalReadiness.decisionChecklist) && approvalReadiness.decisionChecklist.length) {
+    return approvalReadiness.decisionChecklist.map(row => ({
+      id: row.id || 'approval_gate',
+      label: row.label || row.id || 'Approval gate',
+      status: row.status || 'review',
+      detail: row.detail || '',
+    }));
+  }
   const hasSendable = asNumber(delivery.sendableQueued || activationSend.sendableQueued) > 0;
   const hasReviewOnly = asNumber(delivery.reviewOnlyQueued) > 0;
   return [
@@ -920,6 +928,7 @@ function activationApprovalPacketText(data = {}) {
   const reviewLines = reviewOnly.length
     ? reviewOnly.map(row => `- ${row.segment || 'review'}: ${integer(row.count)} queued; reason=${row.reviewReason || 'Review before sending.'}`)
     : ['- none'];
+  const checklistLines = activationApprovalChecklist(data).map(row => `- ${row.id || 'approval_gate'}=${row.status || 'review'}: ${row.detail || ''}`);
   return [
     'Sage Router activation approval packet',
     'Boundary: no emails, customer IDs, API keys, prompts, OAuth tokens, provider credentials, or raw provider responses.',
@@ -931,6 +940,9 @@ function activationApprovalPacketText(data = {}) {
     `Dry-run segments: covered=${activationSend.dryRunCoveredSegments.join(', ') || 'none'}; pending=${activationSend.dryRunPendingSegments.join(', ') || 'none'}; duplicate raw recipient records=${integer(activationSend.dryRunDuplicateRecipients)}.`,
     `Approval required: ${approvalReadiness.approvalRequired ? 'yes, do not send until explicit operator approval' : 'no pending send'}.`,
     `Next actions: ${(approvalReadiness.nextActions || []).map(row => `${row.priority || 'next'}:${row.id || 'review'}`).join(', ') || 'monitor_activation_queue'}.`,
+    '',
+    'Approval checklist:',
+    ...checklistLines,
     '',
     'Sendable segments:',
     ...sendableLines,
