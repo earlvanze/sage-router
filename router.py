@@ -8193,6 +8193,12 @@ def marketing_event_is_managed_access(event, metadata):
 
 def managed_access_marketing_metadata(event, metadata):
     data = dict(metadata) if isinstance(metadata, dict) else {}
+
+    def set_missing_or_unknown(key, value):
+        current = str(data.get(key) or '').strip().lower()
+        if current in ('', 'unknown', 'other'):
+            data[key] = value
+
     haystack = ' '.join(
         str(data.get(key) or '')
         for key in (
@@ -8211,33 +8217,33 @@ def managed_access_marketing_metadata(event, metadata):
         )
     ).lower()
     if 'one-subscription' in haystack:
-        data.setdefault('intent', 'one-subscription')
-        data.setdefault('targetProviderFamily', 'mixed-frontier')
-        data.setdefault('commercialPreference', 'one-subscription')
-        data.setdefault('supportNeed', 'managed-provider-review')
-        data.setdefault('targetLaunchWindow', 'exploring')
+        set_missing_or_unknown('intent', 'one-subscription')
+        set_missing_or_unknown('targetProviderFamily', 'mixed-frontier')
+        set_missing_or_unknown('commercialPreference', 'one-subscription')
+        set_missing_or_unknown('supportNeed', 'managed-provider-review')
+        set_missing_or_unknown('targetLaunchWindow', 'exploring')
     elif 'max' in haystack or event == 'quickstart_managed_access_clicked':
-        data.setdefault('intent', 'max-implementation')
-        data.setdefault('targetProviderFamily', 'mixed-frontier')
-        data.setdefault('commercialPreference', 'private-contract')
-        data.setdefault('supportNeed', 'implementation-support')
-        data.setdefault('targetLaunchWindow', 'this-month')
+        set_missing_or_unknown('intent', 'max-implementation')
+        set_missing_or_unknown('targetProviderFamily', 'mixed-frontier')
+        set_missing_or_unknown('commercialPreference', 'private-contract')
+        set_missing_or_unknown('supportNeed', 'implementation-support')
+        set_missing_or_unknown('targetLaunchWindow', 'this-month')
     elif 'gateway' in haystack:
-        data.setdefault('intent', 'gateway-migration')
-        data.setdefault('targetProviderFamily', 'byok-compatible')
-        data.setdefault('commercialPreference', 'byok-plus-routing')
-        data.setdefault('supportNeed', 'migration-help')
-        data.setdefault('targetLaunchWindow', 'this-month')
+        set_missing_or_unknown('intent', 'gateway-migration')
+        set_missing_or_unknown('targetProviderFamily', 'byok-compatible')
+        set_missing_or_unknown('commercialPreference', 'byok-plus-routing')
+        set_missing_or_unknown('supportNeed', 'migration-help')
+        set_missing_or_unknown('targetLaunchWindow', 'this-month')
     elif 'private-deployment' in haystack:
-        data.setdefault('intent', 'private-deployment')
-        data.setdefault('targetProviderFamily', 'mixed-frontier')
-        data.setdefault('commercialPreference', 'private-contract')
-        data.setdefault('supportNeed', 'private-deployment')
-        data.setdefault('targetLaunchWindow', 'this-quarter')
+        set_missing_or_unknown('intent', 'private-deployment')
+        set_missing_or_unknown('targetProviderFamily', 'mixed-frontier')
+        set_missing_or_unknown('commercialPreference', 'private-contract')
+        set_missing_or_unknown('supportNeed', 'private-deployment')
+        set_missing_or_unknown('targetLaunchWindow', 'this-quarter')
     for family in ('ollama', 'openai', 'anthropic'):
         if family in haystack:
-            data.setdefault('targetProviderFamily', family)
-            data.setdefault('intent', family)
+            set_missing_or_unknown('targetProviderFamily', family)
+            set_missing_or_unknown('intent', family)
     return data
 
 

@@ -2722,6 +2722,9 @@ class SaaSAuthTests(unittest.TestCase):
                     'metadata': {
                         'commercialPreference': 'one-subscription',
                         'targetProviderFamily': 'mixed-frontier',
+                        'supportNeed': 'unknown',
+                        'targetLaunchWindow': 'other',
+                        'intent': 'unknown',
                     },
                 },
             ]
