@@ -579,9 +579,10 @@ provider resale claim, or runtime feature flag.
 - Include an aggregate `operatorExecutionPacket.authRepair` handoff for
   review-only `missing_auth_user` segments. It should expose only counts,
   segment names, `/admin/customers/hydrate-auth-users`, a copyable hydrate
-  command template, expected aggregate result fields, and privacy flags; after
-  hydration the operator must refresh the funnel and re-run dry-run coverage
-  before approving new real sends.
+  command template, expected aggregate result fields, a bounded safe customer
+  review command, no-op fallback guidance for `created=0`, and privacy flags;
+  after hydration the operator must refresh the funnel and re-run dry-run
+  coverage before approving new real sends.
 - Keep the operator-only launch funnel no-key queue executable: it should read
   bounded `/admin/customers` rows, render generated-key-first mailto/link
   actions, and provide per-customer plus batch snippet copy for outreach without

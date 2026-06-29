@@ -7320,6 +7320,16 @@ def activation_auth_repair_command(limit=1000):
     )
 
 
+def activation_auth_review_command(limit=20):
+    max_limit = max(1, min(int(limit or 20), 100))
+    return (
+        f"curl -fsS 'https://api.sagerouter.dev/admin/customers?limit={max_limit}' \\\n"
+        '  -H "Authorization: Bearer ${SAGE_ROUTER_API_KEY}" \\\n'
+        '  -H "Origin: https://app.sagerouter.dev" \\\n'
+        "  | jq '{count,statusCounts,emailVerification,noKeyCreateKey,customers:[.customers[]? | {status:.customer.status,plan:.customer.plan,hasEmail:(.customer.email != null and .customer.email != \"\"),activationNextAction:.activation.nextAction,activeKeyCount:.activation.activeKeyCount,verificationVerified:.emailVerification.verified,verificationSource:.emailVerification.source,reviewFlags:[.review.flagCodes[]?]}]}'"
+    )
+
+
 def launch_activation_auth_repair_handoff(segment_actions=None, activation_follow_ups=None):
     """Return aggregate-only auth-repair instructions for review-only segments."""
     activation_follow_ups = activation_follow_ups if isinstance(activation_follow_ups, dict) else {}
@@ -7342,6 +7352,8 @@ def launch_activation_auth_repair_handoff(segment_actions=None, activation_follo
         'required': review_only_queued > 0,
         'endpoint': '/admin/customers/hydrate-auth-users',
         'command': command,
+        'reviewEndpoint': '/admin/customers',
+        'reviewCommand': activation_auth_review_command(limit=20) if review_only_queued > 0 else '',
         'reviewOnlyQueued': review_only_queued,
         'reviewOnlySegments': review_segments,
         'repairsMissingAuthUsers': needs_missing_auth_hydration,
@@ -7351,6 +7363,11 @@ def launch_activation_auth_repair_handoff(segment_actions=None, activation_follo
             if needs_missing_auth_hydration
             else 'Review or exclude the review-only activation segments before sending recovery emails.'
         ),
+        'noopFallbackAction': (
+            'If hydration reports created=0 and review-only remains, do not retry hydration; inspect the bounded customer review, keep the stale auth-binding row excluded from email sends, and approve only the already dry-run-covered sendable segment.'
+            if needs_missing_auth_hydration
+            else 'If review-only remains after inspection, keep it excluded from activation sends until the customer auth state is repaired.'
+        ),
         'successMetric': 'review-only queued signups are repaired into sendable segments or explicitly excluded.',
         'privacy': {
             'containsEmails': False,
@@ -7358,6 +7375,7 @@ def launch_activation_auth_repair_handoff(segment_actions=None, activation_follo
             'containsCustomerIds': False,
             'containsApiKeys': False,
             'containsProviderCredentials': False,
+            'containsProviderResponses': False,
             'aggregateOnly': True,
         },
     }
