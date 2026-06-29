@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Create a hosted Sage Router API key
+    url: https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=github&utm_medium=issue-template&utm_campaign=sage-router-launch
+    about: Start here if you want the hosted OpenAI-compatible endpoint at https://api.sagerouter.dev/v1.
+  - name: Copy the 60-second hosted setup
+    url: https://sagerouter.dev/quickstart?utm_source=github&utm_medium=issue-template&utm_campaign=sage-router-launch
+    about: Get the OpenAI base URL, generated sk_sage key flow, Codex, curl, Python, and JavaScript examples.
+  - name: Compare hosted plans
+    url: https://sagerouter.dev/pricing?utm_source=github&utm_medium=issue-template&utm_campaign=sage-router-launch
+    about: Review Lite, Pro, Max, key-first activation, quotas, and billing readiness.
+  - name: Support and safe escalation
+    url: https://sagerouter.dev/support?utm_source=github&utm_medium=issue-template&utm_campaign=sage-router-launch
+    about: Get help without posting prompts, provider credentials, OAuth tokens, API keys, cookies, or customer data in public issues.
