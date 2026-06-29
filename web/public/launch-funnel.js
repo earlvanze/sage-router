@@ -6,6 +6,7 @@ const FOLLOWUP_DRAFT_ACTION_PREFIX = 'sage_router_operator_no_key_followup_draft
 const ACTIVATION_FOLLOWUP_SEND_CONFIRMATION = 'SEND_ACTIVATION_FOLLOWUPS';
 const AUTH_LINK_REPAIR_CONFIRMATION = 'REPAIR_AUTH_LINKS';
 const ACTIVATION_FOLLOWUP_TYPED_APPROVAL_PROMPT = `Type ${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION} to send real activation follow-up emails.`;
+const FOUNDER_SALES_KIT_URL = `${MARKETING_BASE}/founder-sales-kit?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch`;
 const OPERATOR_TOKEN_COMMAND = [
   "python3 - <<'PY'",
   "import os, subprocess",
@@ -1084,6 +1085,8 @@ function buildLaunchBrief(data = {}) {
     'Revenue motions',
     ...(topRevenue.length ? topRevenue.map(row => `- ${row.plan || row.label || 'plan'}: ${integer(row.customerGap)} customers remaining, ${money(row.remainingMrrToTargetUsd)} gap. ${row.action || 'Review plan conversion.'}`) : ['- No remaining revenue actions returned for the launch mix.']),
     '',
+    ...founderSalesFallbackLines(data),
+    '',
     'Acquisition motions',
     ...(topAcquisition.length ? topAcquisition.map(row => `- ${attributionLabel(row.bucket || row.kind || 'source')}: ${integer(row.clicks)} clicks, ${customerActionLabel(row.priority || 'review')}. ${row.action || 'Review this channel.'} Link: ${launchActionUrl(row)}`) : ['- No ranked acquisition actions returned for this window.']),
     '',
@@ -1222,6 +1225,34 @@ function managedProviderReadiness(data = {}) {
     return topLevel;
   }
   return data.pricing?.publicLaunch?.managedProviderAccess || {};
+}
+
+function founderSalesFallbackLines(data = {}) {
+  const mrr = data.mrr || {};
+  const activationSend = activationSendTelemetry(data);
+  const managed = managedProviderReadiness(data);
+  const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+  const prioritized = revenueActions.slice().sort((left, right) =>
+    asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
+  ).slice(0, 3);
+  const actionLines = prioritized.length
+    ? prioritized.map(row => `- ${row.plan || row.label || 'plan'}: ${integer(row.customerGap)} customers remaining, ${money(row.remainingMrrToTargetUsd)} gap. ${row.action || 'Run direct founder outreach.'}`)
+    : ['- Pro: prioritize direct founder outreach until self-serve activation traffic resumes.'];
+  const managedControls = safeList(managed.missingControls).slice(0, 4).join(', ') || 'no missing controls reported';
+  return [
+    'Founder sales fallback',
+    'Use when activation sends are approval-gated or managed provider resale is waiting on terms, authorization, private cost, or abuse-control review.',
+    `Kit: ${FOUNDER_SALES_KIT_URL}`,
+    `Activation gate: approval required=${activationSend.sendApprovalRequired ? 'yes' : 'no'}; dry-run verified=${activationSend.dryRunVerified ? 'yes' : 'no'}; sendable queued=${integer(activationSend.sendableQueued)}; sent=${integer(activationSend.sentRecipients)}.`,
+    `Managed access gate: enabled=${managed.enabled === true}; status=${managed.status || 'unknown'}; missing controls=${managedControls}.`,
+    'Primary revenue motion:',
+    ...actionLines,
+    'No-secret boundary: do not include emails, customer IDs, prompts, OAuth tokens, generated API keys, provider credentials, raw provider responses, or private cost values.',
+  ];
+}
+
+function founderSalesFallbackText(data = {}) {
+  return `${founderSalesFallbackLines(data).join('\n')}\n`;
 }
 
 function managedAccessApprovalPacketText(data = {}) {
@@ -1389,6 +1420,43 @@ function renderManagedAccessReadiness(data = {}) {
   <div class="tableWrap" style="margin-top:14px"><table>
     <thead><tr><th>Plan</th><th>Revenue cents/1k</th><th>Max safe cost cents/1k</th><th>Min margin</th><th>Private cost check</th><th>Guardrail</th></tr></thead>
     <tbody>${planRows}</tbody>
+  </table></div>`;
+}
+
+function renderFounderSalesFallback(data = {}) {
+  const target = $('founder-sales-fallback');
+  if (!target) return;
+  const mrr = data.mrr || {};
+  const activationSend = activationSendTelemetry(data);
+  const managed = managedProviderReadiness(data);
+  const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+  const topRevenue = revenueActions.slice().sort((left, right) =>
+    asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
+  ).slice(0, 3);
+  const fallbackText = founderSalesFallbackText(data);
+  const rows = topRevenue.length
+    ? topRevenue.map(row => `<tr>
+      <td><span class="pill">${esc(row.plan || row.label || 'plan')}</span></td>
+      <td>${integer(row.customerGap)}</td>
+      <td>${money(row.remainingMrrToTargetUsd)}</td>
+      <td>${esc(row.action || 'Run direct founder outreach.')}</td>
+    </tr>`).join('')
+    : '<tr><td colspan="4">No plan revenue actions returned; use Pro founder outreach as the manual fallback.</td></tr>';
+  const managedControls = safeList(managed.missingControls).slice(0, 4).join(', ') || 'none reported';
+  target.innerHTML = `<div class="metricList">
+    <div class="metric"><span>Fallback trigger</span><strong>${activationSend.sendApprovalRequired ? 'Activation approval gated' : 'Manual revenue backup'}</strong></div>
+    <div class="metric"><span>Activation sends</span><strong>${integer(activationSend.sendableQueued)} sendable · ${integer(activationSend.sentRecipients)} sent</strong></div>
+    <div class="metric"><span>Managed resale</span><strong><span class="pill ${managed.enabled ? 'good' : 'warn'}">${esc(managed.status || (managed.enabled ? 'enabled' : 'gated'))}</span></strong></div>
+    <div class="metric"><span>Missing controls</span><strong>${esc(managedControls)}</strong></div>
+  </div>
+  <p class="muted">Use when activation sends are approval-gated or managed provider resale is waiting on terms, authorization, private cost, or abuse-control review. Keep outreach no-secret: no emails, customer IDs, prompts, OAuth tokens, generated API keys, provider credentials, raw provider responses, or private cost values.</p>
+  <div class="actions">
+    <a class="btn" href="${esc(FOUNDER_SALES_KIT_URL)}" target="_blank" rel="noopener noreferrer">Open founder-sales kit</a>
+    <button class="btn secondary" type="button" data-copy-founder-sales-fallback="${esc(fallbackText)}">Copy fallback packet</button>
+  </div>
+  <div class="tableWrap" style="margin-top:14px"><table>
+    <thead><tr><th>Plan</th><th>Customers needed</th><th>MRR gap</th><th>Action</th></tr></thead>
+    <tbody>${rows}</tbody>
   </table></div>`;
 }
 
@@ -1911,6 +1979,32 @@ async function copyManagedAccessCommand(button) {
   }
 }
 
+async function copyFounderSalesFallback(button) {
+  const text = button.getAttribute('data-copy-founder-sales-fallback') || '';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    const mrr = lastFunnelData?.mrr || {};
+    const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+    const customerGap = revenueActions.reduce((total, row) => total + asNumber(row.customerGap), 0);
+    trackOperatorFunnelEvent('operator_founder_sales_fallback_copied', {
+      state: 'founder_sales_fallback_copied',
+      resultCount: customerGap,
+      snippet: 'founder-sales-fallback',
+    });
+    setStatus('Copied no-secret founder-sales fallback packet.', 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Founder-sales fallback copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
 function markActivationFollowUpSegmentWorked(button) {
   const count = Number(button.getAttribute('data-followup-count') || 0);
   const segment = button.getAttribute('data-followup-segment') || 'all';
@@ -2387,6 +2481,7 @@ function renderFunnel(data) {
   renderRevenueActions(mrr.planRevenueActions || []);
   renderNextBestActionDock(data);
   renderLaunchBrief(data);
+  renderFounderSalesFallback(data);
   renderManagedAccessReadiness(data);
   renderOperatorExecutionPacket(data);
   $('dashboard').classList.remove('hidden');
@@ -2988,6 +3083,11 @@ function handleFollowUpCopyClick(event) {
     copyManagedAccessCommand(managedAccessCommandButton);
     return;
   }
+  const founderSalesFallbackButton = event.target.closest('[data-copy-founder-sales-fallback]');
+  if (founderSalesFallbackButton) {
+    copyFounderSalesFallback(founderSalesFallbackButton);
+    return;
+  }
   const primaryUrlButton = event.target.closest('[data-copy-primary-followup-url]');
   if (primaryUrlButton) {
     copyPrimaryFollowUpUrl(primaryUrlButton);
@@ -3075,6 +3175,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('next-best-action-dock').addEventListener('click', handleFollowUpCopyClick);
   $('operator-execution-packet')?.addEventListener('click', handleFollowUpCopyClick);
   $('managed-access-readiness')?.addEventListener('click', handleFollowUpCopyClick);
+  $('founder-sales-fallback')?.addEventListener('click', handleFollowUpCopyClick);
   $('copy-launch-brief').addEventListener('click', copyLaunchBrief);
   if ($('operator-token').value) {
     fetchFunnel();
