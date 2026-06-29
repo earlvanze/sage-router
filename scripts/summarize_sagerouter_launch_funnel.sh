@@ -332,6 +332,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
             dryRunCommand: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.dryRunCommand // "scripts/configure_managed_provider_resale_readiness.sh --check"),
             termsApprovalCommand: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.termsApprovalCommand // "scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet"),
             authorizationPacketCommand: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.authorizationPacketCommand // "scripts/configure_managed_provider_resale_readiness.sh --authorization-packet"),
+            authorizationLedgerTemplateCommand: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.authorizationLedgerTemplateCommand // "scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template"),
             providerOutreachCommand: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.providerOutreachCommand // "scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet"),
             unitEconomicsCommand: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.unitEconomicsCommand // "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics"),
             enableCommandTemplate: (.pricing.publicLaunch.managedProviderAccess.readinessSetup.enableCommandTemplate // ""),
@@ -358,6 +359,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
           dryRunCommand: (if ((.readinessSetup.dryRunCommand // "") != "") then .readinessSetup.dryRunCommand else "scripts/configure_managed_provider_resale_readiness.sh --check" end),
           termsApprovalCommand: (if ((.readinessSetup.termsApprovalCommand // "") != "") then .readinessSetup.termsApprovalCommand else "scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet" end),
           authorizationPacketCommand: (if ((.readinessSetup.authorizationPacketCommand // "") != "") then .readinessSetup.authorizationPacketCommand else "scripts/configure_managed_provider_resale_readiness.sh --authorization-packet" end),
+          authorizationLedgerTemplateCommand: (if ((.readinessSetup.authorizationLedgerTemplateCommand // "") != "") then .readinessSetup.authorizationLedgerTemplateCommand else "scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template" end),
           providerOutreachCommand: (if ((.readinessSetup.providerOutreachCommand // "") != "") then .readinessSetup.providerOutreachCommand else "scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet" end),
           unitEconomicsCommand: (if ((.readinessSetup.unitEconomicsCommand // "") != "") then .readinessSetup.unitEconomicsCommand else "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics" end)
         })
@@ -525,6 +527,7 @@ jq -r --arg days "$DAYS" '
       "- Public-control staging command: \($managed.readinessSetup.stagePublicControlsCommand // "scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls")",
       "- Provider outreach packet: \(if (($managed.readinessSetup.providerOutreachCommand // "") != "") then $managed.readinessSetup.providerOutreachCommand else "scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet" end)",
       "- Authorization evidence packet: \(if (($managed.readinessSetup.authorizationPacketCommand // "") != "") then $managed.readinessSetup.authorizationPacketCommand else "scripts/configure_managed_provider_resale_readiness.sh --authorization-packet" end)",
+      "- Authorization ledger template: \(if (($managed.readinessSetup.authorizationLedgerTemplateCommand // "") != "") then $managed.readinessSetup.authorizationLedgerTemplateCommand else "scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template" end)",
       "- Unit-economics preflight: \(if (($managed.readinessSetup.unitEconomicsCommand // "") != "") then $managed.readinessSetup.unitEconomicsCommand else "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics" end)",
       "- Managed-access beta interest: \(n($stages.managedAccessBetaInterest)); anonymous interest: \(n($stages.anonymousManagedAccessInterest)); target-provider buckets: \(buckets($managedDemand.targetProviderFamily))",
       "",

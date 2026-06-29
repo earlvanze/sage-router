@@ -2672,6 +2672,9 @@ def managed_provider_resale_readiness_setup(enabled=False):
     authorization_packet_command = (
         "scripts/configure_managed_provider_resale_readiness.sh --authorization-packet"
     )
+    authorization_ledger_template_command = (
+        "scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template"
+    )
     provider_outreach_command = (
         "scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet"
     )
@@ -2692,6 +2695,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
         'dryRunCommand': dry_run_command,
         'termsApprovalCommand': terms_approval_command,
         'authorizationPacketCommand': authorization_packet_command,
+        'authorizationLedgerTemplateCommand': authorization_ledger_template_command,
         'providerOutreachCommand': provider_outreach_command,
         'unitEconomicsCommand': unit_economics_command,
         'enableCommandTemplate': enable_command_template,
@@ -3092,6 +3096,7 @@ def compact_managed_provider_readiness(pricing_metadata):
             'dryRunCommand': setup.get('dryRunCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --check',
             'termsApprovalCommand': setup.get('termsApprovalCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet',
             'authorizationPacketCommand': setup.get('authorizationPacketCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet',
+            'authorizationLedgerTemplateCommand': setup.get('authorizationLedgerTemplateCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template',
             'providerOutreachCommand': setup.get('providerOutreachCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet',
             'unitEconomicsCommand': setup.get('unitEconomicsCommand') or '',
             'enableCommandTemplate': setup.get('enableCommandTemplate') or '',

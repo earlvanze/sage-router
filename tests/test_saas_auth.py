@@ -1447,6 +1447,10 @@ class SaaSAuthTests(unittest.TestCase):
             setup['authorizationPacketCommand'],
         )
         self.assertEqual(
+            'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template',
+            setup['authorizationLedgerTemplateCommand'],
+        )
+        self.assertEqual(
             'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet',
             setup['providerOutreachCommand'],
         )
@@ -2372,6 +2376,10 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(
             'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet',
             managed_readiness['readinessSetup']['authorizationPacketCommand'],
+        )
+        self.assertEqual(
+            'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template',
+            managed_readiness['readinessSetup']['authorizationLedgerTemplateCommand'],
         )
         self.assertEqual(
             'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet',

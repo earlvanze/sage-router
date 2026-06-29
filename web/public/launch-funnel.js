@@ -1233,6 +1233,7 @@ function managedAccessApprovalPacketText(data = {}) {
   const plans = Array.isArray(unitEconomics.evaluatedPlans) ? unitEconomics.evaluatedPlans : [];
   const termsCommand = setup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
   const authorizationPacketCommand = setup.authorizationPacketCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet';
+  const authorizationLedgerTemplateCommand = setup.authorizationLedgerTemplateCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template';
   const providerOutreachCommand = setup.providerOutreachCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet';
   const dryRunCommand = setup.dryRunCommand || 'scripts/configure_managed_provider_resale_readiness.sh --check';
   const unitEconomicsCommand = setup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
@@ -1273,6 +1274,7 @@ function managedAccessApprovalPacketText(data = {}) {
     'Secret-safe commands',
     `- Terms approval packet: ${termsCommand}`,
     `- Authorization evidence packet: ${authorizationPacketCommand}`,
+    `- Authorization ledger template: ${authorizationLedgerTemplateCommand}`,
     `- Provider outreach packet: ${providerOutreachCommand}`,
     `- Resale dry-run: ${dryRunCommand}`,
     `- Unit-economics preflight: ${unitEconomicsCommand}`,
@@ -1290,6 +1292,7 @@ function managedAccessCommand(button, data = {}) {
   const kind = button.getAttribute('data-copy-managed-command') || '';
   if (kind === 'terms-approval') return setup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
   if (kind === 'authorization-packet') return setup.authorizationPacketCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet';
+  if (kind === 'authorization-ledger-template') return setup.authorizationLedgerTemplateCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template';
   if (kind === 'provider-outreach') return setup.providerOutreachCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet';
   if (kind === 'unit-economics') return setup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
   if (kind === 'stage-public-controls') return setup.stagePublicControlsCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
@@ -1343,6 +1346,7 @@ function renderManagedAccessReadiness(data = {}) {
     <button class="btn secondary" type="button" data-copy-managed-access-packet="${esc(approvalPacket)}">Copy managed-access packet</button>
     <button class="btn secondary" type="button" data-copy-managed-command="terms-approval">Copy terms packet command</button>
     <button class="btn secondary" type="button" data-copy-managed-command="authorization-packet">Copy authorization packet</button>
+    <button class="btn secondary" type="button" data-copy-managed-command="authorization-ledger-template">Copy authorization ledger template</button>
     <button class="btn secondary" type="button" data-copy-managed-command="provider-outreach">Copy provider outreach packet</button>
     <button class="btn secondary" type="button" data-copy-managed-command="dry-run">Copy resale dry-run</button>
     <button class="btn secondary" type="button" data-copy-managed-command="unit-economics">Copy unit-economics preflight</button>
