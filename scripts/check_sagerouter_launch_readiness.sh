@@ -15,7 +15,7 @@ load_local_env_file() {
       SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY|SAGE_ROUTER_API_KEY|SAGE_ROUTER_EDGE_TOKEN|\
       SAGE_ROUTER_API_KEY_HASH_PEPPER|SAGE_ROUTER_SIGNING_SECRET|\
       CLOUDFLARE_API_TOKEN|CLOUDFLARE_ZONE_ID|SAGEROUTER_CLOUDFLARE_ZONE_ID|SAGEROUTER_API_HOST|\
-      SAGE_ROUTER_OPERATOR_TOKEN|SAGE_ROUTER_CLIENT_API_KEY|SAGE_ROUTER_CLIENT_API_KEYS|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED|\
+      SAGE_ROUTER_OPERATOR_TOKEN|SAGE_ROUTER_CLIENT_API_KEY|SAGE_ROUTER_CLIENT_API_KEYS|SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED|\
       SAGEROUTER_PROVIDER_RESALE_TERMS_URL|SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL|\
       SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED|SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS|\
       SAGEROUTER_MIN_HEALTHY_UPSTREAMS|SAGEROUTER_EDGE_HEALTH_RETRY_ATTEMPTS|SAGEROUTER_EDGE_HEALTH_RETRY_DELAY_SECONDS|\
@@ -50,6 +50,7 @@ SUPABASE_ACCESS_TOKEN="${SUPABASE_ACCESS_TOKEN:-}"
 SUPABASE_SERVICE_ROLE_KEY="${SAGE_ROUTER_SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_SERVICE_ROLE_KEY:-}}"
 ADMIN_TOKEN="${SAGE_ROUTER_API_KEY:-${SAGE_ROUTER_EDGE_TOKEN:-}}"
 OPERATOR_TOKEN="${SAGE_ROUTER_OPERATOR_TOKEN:-${SAGE_ROUTER_CLIENT_API_KEY:-}}"
+MANAGED_PROVIDER_RESALE_REQUESTED="${SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED:-0}"
 MANAGED_PROVIDER_RESALE_ENABLED="${SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED:-0}"
 MIN_HEALTHY_UPSTREAMS="${SAGEROUTER_MIN_HEALTHY_UPSTREAMS:-0}"
 EDGE_HEALTH_RETRY_ATTEMPTS="${SAGEROUTER_EDGE_HEALTH_RETRY_ATTEMPTS:-3}"
@@ -892,6 +893,7 @@ check_managed_provider_access_guard() {
   ' /tmp/sage-router-readiness-body)"
   readiness_setup_ok="$(jq -r '
     (.publicLaunch.managedProviderAccess.readinessSetup.setupScript == "scripts/configure_managed_provider_resale_readiness.sh") and
+    ((.publicLaunch.managedProviderAccess.readinessSetup.stagePublicControlsCommand // "") | contains("SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED")) and
     ((.publicLaunch.managedProviderAccess.readinessSetup.dryRunCommand // "") | contains("scripts/configure_managed_provider_resale_readiness.sh --check")) and
     ((.publicLaunch.managedProviderAccess.readinessSetup.authorizationPacketCommand // "") | contains("scripts/configure_managed_provider_resale_readiness.sh --authorization-packet")) and
     ((.publicLaunch.managedProviderAccess.readinessSetup.authorizationLedgerTemplateCommand // "") | contains("scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template")) and

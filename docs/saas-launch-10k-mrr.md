@@ -88,11 +88,13 @@ configured provider cost model before bundled access can be treated as
 launchable. Public metadata can show each plan's public revenue and derived
 maximum safe provider cost per 1,000 requests for the margin threshold, but it
 must not expose the configured provider cost.
-Likewise, `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` is only an operator
-request until the full prerequisite set is present; the runtime must publish
-`requested: true`, `readinessSatisfied: false`, `enabled: false`, and
+Likewise, `SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED=1` is only an operator
+review marker until the full prerequisite set is present; the runtime must
+publish `requested: true`, `readinessSatisfied: false`, `enabled: false`, and
 `missingControls` for incomplete configurations instead of advertising bundled
-provider access.
+provider access. `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` remains the
+explicit final enable request and still fails closed unless every readiness
+control passes.
 
 Run `scripts/configure_managed_provider_resale_readiness.sh --authorization-packet`
 before acknowledging provider terms. The packet is safe to copy into operator
@@ -501,8 +503,9 @@ flag.
   conversations can be ranked by real Ollama, OpenAI, Anthropic, and
   BYOK-compatible buyer interest.
 - Keep the managed provider access readiness guard active: default disabled,
-  with `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1` allowed only when provider
-  resale terms and margin-policy URLs are configured,
+  with `SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED=1` allowed for public
+  "under review" metadata and `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=1`
+  allowed only when provider resale terms and margin-policy URLs are configured,
   `SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=1` is set,
   `SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS` names the authorized provider
   families, `SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS` is set to

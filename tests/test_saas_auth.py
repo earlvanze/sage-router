@@ -1461,9 +1461,11 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('scripts/configure_managed_provider_resale_readiness.sh', setup['setupScript'])
         self.assertIn('--stage-public-controls', setup['stagePublicControlsCommand'])
         self.assertIn('SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS', setup['stagePublicControlsCommand'])
+        self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED', setup['stagePublicControlsCommand'])
         self.assertNotIn('SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF', setup['stagePublicControlsCommand'])
         self.assertNotIn('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS', setup['stagePublicControlsCommand'])
         self.assertIn('SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS', setup['setupCommand'])
+        self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED', setup['setupCommand'])
         self.assertIn('SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF', setup['setupCommand'])
         self.assertIn('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS', setup['setupCommand'])
         self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC', setup['setupCommand'])
@@ -1623,6 +1625,7 @@ class SaaSAuthTests(unittest.TestCase):
     def test_managed_provider_access_requires_terms_and_margin_policy(self):
         old_env = {
             'SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED': os.environ.get('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED'),
+            'SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED': os.environ.get('SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED'),
             'SAGEROUTER_PROVIDER_RESALE_TERMS_URL': os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_URL'),
             'SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL': os.environ.get('SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL'),
             'SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED': os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED'),
@@ -1633,6 +1636,7 @@ class SaaSAuthTests(unittest.TestCase):
         }
         try:
             os.environ['SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED'] = '1'
+            os.environ.pop('SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED', None)
             os.environ.pop('SAGEROUTER_PROVIDER_RESALE_TERMS_URL', None)
             os.environ.pop('SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL', None)
             os.environ.pop('SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED', None)
@@ -1749,6 +1753,49 @@ class SaaSAuthTests(unittest.TestCase):
             self.assertEqual([], managed['missingControls'])
             self.assertEqual('', managed['readinessSetup']['setupCommand'])
             self.assertIn('ready for private beta', managed['readinessSetup']['operatorAction'])
+        finally:
+            for key, value in old_env.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+    def test_managed_provider_access_review_requested_does_not_enable_resale(self):
+        old_env = {
+            'SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED': os.environ.get('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED'),
+            'SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED': os.environ.get('SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED'),
+            'SAGEROUTER_PROVIDER_RESALE_TERMS_URL': os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_URL'),
+            'SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL': os.environ.get('SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL'),
+            'SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED': os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED'),
+            'SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF': os.environ.get('SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF'),
+            'SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS': os.environ.get('SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS'),
+            'SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT': os.environ.get('SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT'),
+            'SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS': os.environ.get('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS'),
+        }
+        try:
+            os.environ.pop('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED', None)
+            os.environ['SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED'] = '1'
+            os.environ['SAGEROUTER_PROVIDER_RESALE_TERMS_URL'] = 'https://sagerouter.dev/provider-resale-terms'
+            os.environ['SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL'] = 'https://sagerouter.dev/margin-policy'
+            os.environ['SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS'] = 'ollama,openai,anthropic'
+            os.environ['SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT'] = '35'
+            os.environ.pop('SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED', None)
+            os.environ.pop('SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF', None)
+            os.environ.pop('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS', None)
+
+            managed = router.public_launch_metadata()['publicLaunch']['managedProviderAccess']
+
+            self.assertTrue(managed['requested'])
+            self.assertFalse(managed['enabled'])
+            self.assertFalse(managed['readinessSatisfied'])
+            self.assertEqual('requires_readiness_verification', managed['status'])
+            self.assertEqual(['ollama', 'openai', 'anthropic'], managed['allowedProviderFamilies'])
+            self.assertTrue(managed['oneSubscriptionReadiness']['requested'])
+            self.assertFalse(managed['oneSubscriptionReadiness']['enabled'])
+            self.assertIn('provider_terms_acknowledgment', managed['missingControls'])
+            self.assertIn('provider_authorization_evidence', managed['missingControls'])
+            self.assertIn('provider_cost_model', managed['missingControls'])
+            self.assertIn('positive_unit_economics', managed['missingControls'])
         finally:
             for key, value in old_env.items():
                 if value is None:

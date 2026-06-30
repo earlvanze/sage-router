@@ -50,6 +50,7 @@ Run, enable managed resale, or send provider/customer email.
 ```bash
 SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' \
 SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' \
+SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED='1' \
 SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' \
 scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
 

@@ -16,6 +16,7 @@ load_local_env_file() {
       SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS|\
       SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS|\
       SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT|\
+      SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED|\
       SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC|\
       SAGEROUTER_RUN_READINESS)
         ;;
@@ -43,6 +44,7 @@ AUTHORIZATION_REF="${SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF:-}"
 ALLOWED_PROVIDERS="${SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS:-}"
 COST_CENTS_PER_1K="${SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS:-}"
 MIN_MARGIN="${SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT:-35}"
+REQUESTED="${SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED:-1}"
 ENABLE_PUBLIC="${SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC:-0}"
 RUN_READINESS="${SAGEROUTER_RUN_READINESS:-1}"
 MODE="apply"
@@ -68,6 +70,7 @@ Optional:
   SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=0
   SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF="private provider authorization evidence reference"
   SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT=35
+  SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED=1
   SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0
   PROJECT_ID=sage-router-demo-20260428
   REGION=us-central1
@@ -124,6 +127,8 @@ Options:
 The provider cost model is stored in Secret Manager and is not printed.
 Managed public resale remains disabled unless
 SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=1 is explicitly set.
+SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED=1 means one-subscription
+managed-access review is active in public metadata; it does not enable resale.
 The helper also rejects managed-resale provider allowlists with BYOK-only
 families and rejects minimum gross-margin thresholds below the launch floor.
 Terms acknowledgment or public enablement also requires
@@ -327,8 +332,8 @@ check_managed_provider_resale() {
   fi
   rm -f "$body"
 
-  printf 'Local apply inputs: termsUrl=%s marginPolicyUrl=%s termsAcknowledged=%s authorizationEvidence=%s allowedProviders=%s costModel=%s minimumMargin=%s enablePublic=%s\n' \
-    "$(presence "$TERMS_URL")" "$(presence "$MARGIN_POLICY_URL")" "$TERMS_ACKNOWLEDGED" "$(presence "$AUTHORIZATION_REF")" "$(allowed_providers_input_state)" "$(presence "$COST_CENTS_PER_1K")" "$MIN_MARGIN" "$ENABLE_PUBLIC"
+  printf 'Local apply inputs: termsUrl=%s marginPolicyUrl=%s reviewRequested=%s termsAcknowledged=%s authorizationEvidence=%s allowedProviders=%s costModel=%s minimumMargin=%s enablePublic=%s\n' \
+    "$(presence "$TERMS_URL")" "$(presence "$MARGIN_POLICY_URL")" "$REQUESTED" "$TERMS_ACKNOWLEDGED" "$(presence "$AUTHORIZATION_REF")" "$(allowed_providers_input_state)" "$(presence "$COST_CENTS_PER_1K")" "$MIN_MARGIN" "$ENABLE_PUBLIC"
   if [[ -n "$ALLOWED_PROVIDERS" ]] && ! validate_allowed_providers "$ALLOWED_PROVIDERS"; then
     failures=1
   fi
@@ -340,7 +345,7 @@ check_managed_provider_resale() {
   fi
 
   if command -v gcloud >/dev/null 2>&1; then
-    local service_json service_status enabled_env allowed_env auth_ref_env cost_secret margin_env terms_env ack_env
+    local service_json service_status enabled_env requested_env allowed_env auth_ref_env cost_secret margin_env terms_env ack_env
     service_json="$(mktemp)"
     if gcloud run services describe "$SERVICE_NAME" \
       --project "$PROJECT_ID" \
@@ -349,14 +354,15 @@ check_managed_provider_resale() {
       --format=json >"$service_json" 2>/dev/null; then
       service_status="present"
       enabled_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED") | (.value // empty)' "$service_json" | tail -n1)"
+      requested_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED") | (.value // empty)' "$service_json" | tail -n1)"
       allowed_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS") | (.value // empty)' "$service_json" | tail -n1)"
       terms_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_TERMS_URL") | (.value // empty)' "$service_json" | tail -n1)"
       margin_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL") | (.value // empty)' "$service_json" | tail -n1)"
       ack_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED") | (.value // empty)' "$service_json" | tail -n1)"
       auth_ref_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF") | (.value // empty)' "$service_json" | tail -n1)"
       cost_secret="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS") | (.valueFrom.secretKeyRef.name // empty)' "$service_json" | tail -n1)"
-      printf 'Cloud Run bindings: service=%s enabledEnv=%s allowedProvidersEnv=%s termsUrlEnv=%s termsAckEnv=%s authorizationRefEnv=%s marginPolicyEnv=%s costSecret=%s\n' \
-        "$service_status" "$(presence "$enabled_env")" "$(presence "$allowed_env")" "$(presence "$terms_env")" "$(presence "$ack_env")" "$(presence "$auth_ref_env")" "$(presence "$margin_env")" "$(presence "$cost_secret")"
+      printf 'Cloud Run bindings: service=%s enabledEnv=%s requestedEnv=%s allowedProvidersEnv=%s termsUrlEnv=%s termsAckEnv=%s authorizationRefEnv=%s marginPolicyEnv=%s costSecret=%s\n' \
+        "$service_status" "$(presence "$enabled_env")" "$(presence "$requested_env")" "$(presence "$allowed_env")" "$(presence "$terms_env")" "$(presence "$ack_env")" "$(presence "$auth_ref_env")" "$(presence "$margin_env")" "$(presence "$cost_secret")"
     else
       printf 'Cloud Run bindings: service=unavailable project=%s region=%s service=%s\n' "$PROJECT_ID" "$REGION" "$SERVICE_NAME" >&2
       failures=1
@@ -456,11 +462,11 @@ managed_provider_operator_packet() {
   rm -f "$body"
 
   printf 'Local apply input presence:\n'
-  printf -- '- termsUrl=%s marginPolicyUrl=%s termsAcknowledged=%s authorizationEvidence=%s allowedProviders=%s costModel=%s minimumMargin=%s enablePublic=%s\n\n' \
-    "$(presence "$TERMS_URL")" "$(presence "$MARGIN_POLICY_URL")" "$TERMS_ACKNOWLEDGED" "$(presence "$AUTHORIZATION_REF")" "$(allowed_providers_input_state)" "$(presence "$COST_CENTS_PER_1K")" "$MIN_MARGIN" "$ENABLE_PUBLIC"
+  printf -- '- termsUrl=%s marginPolicyUrl=%s reviewRequested=%s termsAcknowledged=%s authorizationEvidence=%s allowedProviders=%s costModel=%s minimumMargin=%s enablePublic=%s\n\n' \
+    "$(presence "$TERMS_URL")" "$(presence "$MARGIN_POLICY_URL")" "$REQUESTED" "$TERMS_ACKNOWLEDGED" "$(presence "$AUTHORIZATION_REF")" "$(allowed_providers_input_state)" "$(presence "$COST_CENTS_PER_1K")" "$MIN_MARGIN" "$ENABLE_PUBLIC"
 
   if command -v gcloud >/dev/null 2>&1; then
-    local service_json enabled_env allowed_env auth_ref_env cost_secret margin_env terms_env ack_env
+    local service_json enabled_env requested_env allowed_env auth_ref_env cost_secret margin_env terms_env ack_env
     service_json="$(mktemp)"
     if gcloud run services describe "$SERVICE_NAME" \
       --project "$PROJECT_ID" \
@@ -468,6 +474,7 @@ managed_provider_operator_packet() {
       --platform managed \
       --format=json >"$service_json" 2>/dev/null; then
       enabled_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED") | (.value // empty)' "$service_json" | tail -n1)"
+      requested_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED") | (.value // empty)' "$service_json" | tail -n1)"
       allowed_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS") | (.value // empty)' "$service_json" | tail -n1)"
       terms_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_TERMS_URL") | (.value // empty)' "$service_json" | tail -n1)"
       margin_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL") | (.value // empty)' "$service_json" | tail -n1)"
@@ -475,8 +482,8 @@ managed_provider_operator_packet() {
       auth_ref_env="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF") | (.value // empty)' "$service_json" | tail -n1)"
       cost_secret="$(jq -r '(.spec.template.spec.containers[0].env // [])[]? | select(.name == "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS") | (.valueFrom.secretKeyRef.name // empty)' "$service_json" | tail -n1)"
       printf 'Cloud Run binding presence:\n'
-      printf -- '- service=present enabledEnv=%s allowedProvidersEnv=%s termsUrlEnv=%s termsAckEnv=%s authorizationRefEnv=%s marginPolicyEnv=%s costSecret=%s\n\n' \
-        "$(presence "$enabled_env")" "$(presence "$allowed_env")" "$(presence "$terms_env")" "$(presence "$ack_env")" "$(presence "$auth_ref_env")" "$(presence "$margin_env")" "$(presence "$cost_secret")"
+      printf -- '- service=present enabledEnv=%s requestedEnv=%s allowedProvidersEnv=%s termsUrlEnv=%s termsAckEnv=%s authorizationRefEnv=%s marginPolicyEnv=%s costSecret=%s\n\n' \
+        "$(presence "$enabled_env")" "$(presence "$requested_env")" "$(presence "$allowed_env")" "$(presence "$terms_env")" "$(presence "$ack_env")" "$(presence "$auth_ref_env")" "$(presence "$margin_env")" "$(presence "$cost_secret")"
     else
       printf 'Cloud Run binding presence:\n'
       printf -- '- service=unavailable project=%s region=%s service=%s\n\n' "$PROJECT_ID" "$REGION" "$SERVICE_NAME"
@@ -558,7 +565,7 @@ managed_provider_authorization_packet() {
   printf '  scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet\n'
   printf '  scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet\n'
   printf '  scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet\n'
-  printf "  SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls\n"
+  printf "  SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED='1' SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls\n"
   printf "  SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n\n"
 
   printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false.\n'
@@ -696,7 +703,7 @@ managed_provider_reply_triage_packet() {
   printf -- '- Unit economics preflight:\n'
   printf "  SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n"
   printf -- '- Stage private evidence reference while public resale remains disabled:\n'
-  printf "  SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls\n\n"
+  printf "  SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED='1' SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls\n\n"
 
   printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false; containsProviderReplyBody=false; mutatesRuntime=false; sendsEmail=false.\n'
 }
@@ -758,7 +765,7 @@ managed_provider_terms_approval_packet() {
   printf -- '- Generate this packet again after evidence review:\n'
   printf '  scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet\n'
   printf -- '- After written approval, acknowledge terms while keeping public resale disabled and without printing the evidence reference:\n'
-  printf "  SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls\n"
+  printf "  SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED='1' SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls\n"
   printf -- '- Then run the secret-safe private cost preflight:\n'
   printf "  SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n\n"
 
@@ -903,6 +910,7 @@ Run, enable managed resale, or send provider/customer email.
 
 SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' \
 SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' \
+SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED='1' \
 SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' \
 scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
 
@@ -986,7 +994,7 @@ if [[ "$MODE" == "stage-public-controls" ]]; then
   validate_allowed_providers "$ALLOWED_PROVIDERS"
   validate_margin_threshold
   validate_authorization_reference
-  stage_env_vars="^|^SAGEROUTER_PROVIDER_RESALE_TERMS_URL=${TERMS_URL}|SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL=${MARGIN_POLICY_URL}|SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=${TERMS_ACKNOWLEDGED}|SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS=${ALLOWED_PROVIDERS}|SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT=${MIN_MARGIN}|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=0"
+  stage_env_vars="^|^SAGEROUTER_PROVIDER_RESALE_TERMS_URL=${TERMS_URL}|SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL=${MARGIN_POLICY_URL}|SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED=${REQUESTED}|SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=${TERMS_ACKNOWLEDGED}|SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS=${ALLOWED_PROVIDERS}|SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT=${MIN_MARGIN}|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=0"
   if [[ -n "$AUTHORIZATION_REF" ]]; then
     stage_env_vars="${stage_env_vars}|SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF=${AUTHORIZATION_REF}"
   fi
@@ -996,7 +1004,7 @@ if [[ "$MODE" == "stage-public-controls" ]]; then
     --region "$REGION" \
     --platform managed \
     --update-env-vars "$stage_env_vars"
-  printf 'Managed provider-access public controls staged without writing the private cost model. Review terms acknowledgment and unit economics before enabling managed access.\n' >&2
+  printf 'Managed provider-access public controls staged with reviewRequested=%s and public enable disabled, without writing the private cost model. Review terms acknowledgment and unit economics before enabling managed access.\n' "$REQUESTED" >&2
   if [[ "$RUN_READINESS" != "0" ]]; then
     "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/check_sagerouter_launch_readiness.sh"
   fi
@@ -1041,7 +1049,7 @@ gcloud run services update "$SERVICE_NAME" \
   --project "$PROJECT_ID" \
   --region "$REGION" \
   --platform managed \
-  --update-env-vars "^|^SAGEROUTER_PROVIDER_RESALE_TERMS_URL=${TERMS_URL}|SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL=${MARGIN_POLICY_URL}|SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=${TERMS_ACKNOWLEDGED}|SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF=${AUTHORIZATION_REF}|SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS=${ALLOWED_PROVIDERS}|SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT=${MIN_MARGIN}|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=${managed_enabled}" \
+  --update-env-vars "^|^SAGEROUTER_PROVIDER_RESALE_TERMS_URL=${TERMS_URL}|SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL=${MARGIN_POLICY_URL}|SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED=1|SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=${TERMS_ACKNOWLEDGED}|SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF=${AUTHORIZATION_REF}|SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS=${ALLOWED_PROVIDERS}|SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT=${MIN_MARGIN}|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED=${managed_enabled}" \
   --update-secrets "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS=SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS:latest"
 
 printf 'Managed provider-access readiness staged. Verify /pricing before enabling any private-beta managed access.\n' >&2
