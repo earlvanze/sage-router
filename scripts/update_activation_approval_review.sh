@@ -75,6 +75,11 @@ scripts/summarize_sagerouter_launch_funnel.sh \
   --verify-auth-repair \
   > "$packet_tmp"
 
+# The live approval packet is useful review evidence, but the typed real-send
+# command inside it expires quickly. Keep persistent worksheets from embedding a
+# soon-stale approvalPacketIssuedAt that an operator might later copy.
+safe_packet="$(sed -E 's/"approvalPacketIssuedAt":[0-9]+/"approvalPacketIssuedAt":<CURRENT_APPROVAL_PACKET_ISSUED_AT>/g' "$packet_tmp")"
+
 extract_after_colon() {
   local pattern="$1"
   local fallback="$2"
@@ -149,10 +154,12 @@ Current launch state:
 
 The packet below is safe for review, but any embedded real-send command expires
 with its \`approvalPacketIssuedAt\`. Re-run the source command immediately before
-any approved send.
+any approved send. Persistent worksheet output replaces embedded real-send
+\`approvalPacketIssuedAt\` values with \`<CURRENT_APPROVAL_PACKET_ISSUED_AT>\`
+so the file cannot be reused as an approval token.
 
 \`\`\`text
-$(cat "$packet_tmp")
+${safe_packet}
 \`\`\`
 
 ## Pre-Send Recovery Proof

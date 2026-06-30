@@ -3154,6 +3154,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("does not approve activation", activation_review_script)
         self.assertIn("approvalPacketIssuedAt", activation_review_script)
         self.assertIn("CURRENT_APPROVAL_PACKET_ISSUED_AT", activation_review_script)
+        self.assertIn("safe_packet=", activation_review_script)
+        self.assertIn('s/"approvalPacketIssuedAt":[0-9]+/"approvalPacketIssuedAt":<CURRENT_APPROVAL_PACKET_ISSUED_AT>/g', activation_review_script)
         self.assertIn("containsEmails=false", activation_review_script)
         self.assertIn("--approval-packet", readme)
         distribution = self.read_text("docs", "launch", "distribution-tracker.md")
