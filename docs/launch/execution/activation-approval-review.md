@@ -124,7 +124,7 @@ curl -fsS -X POST https://api.sagerouter.dev/admin/customers/send-activation-fol
   -H "Authorization: Bearer ${SAGE_ROUTER_API_KEY}" \
   -H "Origin: https://app.sagerouter.dev" \
   -H "Content-Type: application/json" \
-  --data '{"status":"inactive","segment":"verified","limit":25,"dryRun":false,"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS"}'
+  --data '{"status":"inactive","segment":"verified","limit":25,"dryRun":false,"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS","approvalPacketIssuedAt":<CURRENT_APPROVAL_PACKET_ISSUED_AT>}'
 ```
 
 The command still requires `SAGE_ROUTER_API_KEY` in the shell and

@@ -819,6 +819,22 @@ function activationApprovalReadiness(data = {}) {
   };
 }
 
+function currentActivationApprovalPacket(data = lastFunnelData || {}) {
+  const readiness = data.activationApprovalReadiness || {};
+  const emailReadiness = data.operatorExecutionPacket?.emailReadiness || data.activationFollowUps?.emailReadiness || {};
+  const issuedAt = asNumber(readiness.approvalPacketIssuedAt || emailReadiness.approvalPacketIssuedAt);
+  const expiresAt = asNumber(readiness.approvalPacketExpiresAt || emailReadiness.approvalPacketExpiresAt);
+  const validSeconds = asNumber(readiness.approvalPacketValidSeconds || emailReadiness.approvalPacketValidSeconds);
+  const resolvedExpiresAt = expiresAt || (issuedAt && validSeconds ? issuedAt + validSeconds : 0);
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    issuedAt,
+    expiresAt: resolvedExpiresAt,
+    validSeconds,
+    fresh: issuedAt > 0 && (!resolvedExpiresAt || resolvedExpiresAt >= now),
+  };
+}
+
 function activationApprovalChecklist(data = {}) {
   const delivery = activationDeliveryCounts(data);
   const activationSend = activationSendTelemetry(data);
@@ -2862,7 +2878,7 @@ function renderNoKeyFollowUps(data = {}) {
   const segmentPrompt = mode === 'segments'
     ? '<div class="empty good">Start here: open <strong>Email verified</strong>, review/send that draft, then click <strong>Mark verified worked</strong>. Repeat for unverified. Worked buttons stay disabled until a draft is copied or opened, and record only segment/count telemetry.</div>'
     : '';
-  const sendGuard = `<div class="empty warn">Real sends require the private operator token, server-side <code>sendConfirmation: ${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code>, browser confirmation, and typed approval phrase <code>${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code>. Dry runs are safe before approval.</div>`;
+  const sendGuard = `<div class="empty warn">Real sends require the private operator token, fresh <code>approvalPacketIssuedAt</code>, server-side <code>sendConfirmation: ${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code>, browser confirmation, and typed approval phrase <code>${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code>. Dry runs are safe before approval.</div>`;
   const verifiedControls = renderNoKeySegmentControls({
     segment: 'verified',
     label: 'verified',
@@ -2977,7 +2993,12 @@ async function sendActivationFollowUps(button) {
   const segment = button.getAttribute('data-send-followups') || 'all';
   const dryRun = button.getAttribute('data-send-followups-dry-run') === 'true';
   const count = Number(button.getAttribute('data-followup-count') || 0);
+  const approvalPacket = currentActivationApprovalPacket();
   if (!dryRun) {
+    if (!approvalPacket.fresh) {
+      setStatus('Refresh the launch funnel and copy/review a fresh activation approval packet before a real send.', 'bad');
+      return;
+    }
     const typedApproval = window.prompt(ACTIVATION_FOLLOWUP_TYPED_APPROVAL_PROMPT, '');
     if (typedApproval !== ACTIVATION_FOLLOWUP_SEND_CONFIRMATION) {
       setStatus(`Real activation send canceled. Type ${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION} exactly after explicit approval.`, 'warn');
@@ -3000,7 +3021,10 @@ async function sendActivationFollowUps(button) {
         segment,
         limit: 50,
         dryRun,
-        ...(dryRun ? {} : { sendConfirmation: ACTIVATION_FOLLOWUP_SEND_CONFIRMATION }),
+        ...(dryRun ? {} : {
+          sendConfirmation: ACTIVATION_FOLLOWUP_SEND_CONFIRMATION,
+          approvalPacketIssuedAt: approvalPacket.issuedAt,
+        }),
       }),
     });
     const data = await response.json().catch(() => ({}));
