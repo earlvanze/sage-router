@@ -32,12 +32,6 @@
       <p class="eyebrow">Private beta intake</p>
       <h1>Sage Router Managed Access Private Beta</h1>
       <p class="lead">Use this path if your team wants one Sage Router subscription for hosted routing, quotas, fallback reliability, Max implementation support, private deployment review, and a managed-provider access pilot only when Sage Router has the right provider authorization, provider allowlist, terms acknowledgment, and unit economics.</p>
-      <div class="quickIntentBar" aria-label="Private-beta demand signals">
-        <button type="button" data-quick-managed-intent="one-subscription">I want one subscription</button>
-        <button type="button" data-quick-managed-intent="max-implementation">I want Max implementation</button>
-        <button type="button" data-quick-managed-intent="private-deployment">I want private deployment</button>
-        <button type="button" data-quick-managed-intent="gateway-migration">I am migrating gateways</button>
-      </div>
       <form id="managed-access-quick-form" class="quickReviewForm">
         <label for="quick-review-email">Fast one-subscription review request</label>
         <input id="quick-review-email" name="email" type="email" autocomplete="email" placeholder="you@company.com" required />
@@ -49,6 +43,12 @@
         <div id="quick-turnstile-slot" class="quickTurnstileSlot" aria-label="Review request verification"></div>
         <p id="quick-review-status" class="quickReviewStatus" role="status" aria-live="polite">One field now; defaults to reviewed managed access. Qualification buckets can be adjusted below. Do not send secrets.</p>
       </form>
+      <div class="quickIntentBar" aria-label="Private-beta demand signals">
+        <button type="button" data-quick-managed-intent="one-subscription">I want one subscription</button>
+        <button type="button" data-quick-managed-intent="max-implementation">I want Max implementation</button>
+        <button type="button" data-quick-managed-intent="private-deployment">I want private deployment</button>
+        <button type="button" data-quick-managed-intent="gateway-migration">I am migrating gateways</button>
+      </div>
       <div id="managed-access-intent-handoff" class="packetPanel" hidden>
         <strong>Intent handoff</strong>
         <p id="managed-access-intent-handoff-copy">Copy a no-secret review packet or use Max with BYOK while private-beta review is pending.</p>
