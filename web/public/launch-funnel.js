@@ -1084,6 +1084,7 @@ function buildLaunchBrief(data = {}) {
   const modelCatalogDemand = marketingIntent.modelCatalogDemand || {};
   const authState = marketingIntent.authProviderState || {};
   const managedAccessDemand = data.managedAccessDemand || {};
+  const managedAccessConversion = data.managedAccessDemandConversion || {};
   const managedAccessEvents = marketingIntent.events || {};
   const activationFollowUps = data.activationFollowUps || {};
   const activationEmailReadiness = activationFollowUps.emailReadiness || {};
@@ -1155,6 +1156,7 @@ function buildLaunchBrief(data = {}) {
     '',
     'Managed-access demand',
     `- Beta interest: ${integer(stages.managedAccessBetaInterest)}; waitlist share: ${percent(rates.managedAccessShareOfWaitlist)}`,
+    `- Conversion status: ${managedAccessConversion.status || 'unknown'}; priority=${managedAccessConversion.priority || 'monitor'}; anonymous=${integer(managedAccessConversion.anonymousSignals)}; contactable=${integer(managedAccessConversion.waitlistSignals)}; lead gap=${integer(managedAccessConversion.contactableLeadGap)}; CTA=${managedAccessConversion.ctaPath || '/managed-access'}`,
     `- Anonymous interest clicks: ${integer(managedAccessEvents.managed_access_interest_clicked)}; quick requests submitted: ${integer(managedAccessEvents.managed_access_quick_request_submitted)}; quick requests received: ${integer(managedAccessEvents.managed_access_quick_request_received)}`,
     `- Target-provider buckets: ${sortedEntries(managedAccessDemand.targetProviderFamily).slice(0, 4).map(([name, count]) => `${demandLabel(name)} ${integer(count)}`).join(', ') || 'none'}`,
     `- Commercial buckets: ${sortedEntries(managedAccessDemand.commercialPreference).slice(0, 4).map(([name, count]) => `${demandLabel(name)} ${integer(count)}`).join(', ') || 'none'}`,
@@ -2587,6 +2589,38 @@ function hasManagedAccessPulseSignal(marketingIntent = {}) {
   return managedAccessPulse(marketingIntent).some(([, count]) => asNumber(count) > 0);
 }
 
+function hasManagedAccessConversionSignal(conversion = {}) {
+  return asNumber(conversion.anonymousSignals) > 0
+    || asNumber(conversion.waitlistSignals) > 0
+    || asNumber(conversion.contactableLeadGap) > 0
+    || Boolean(conversion.status);
+}
+
+function renderManagedAccessConversion(conversion = {}) {
+  if (!hasManagedAccessConversionSignal(conversion)) return '';
+  const status = conversion.status || 'no_current_demand';
+  const priority = conversion.priority || 'monitor';
+  const ctaPath = conversion.ctaPath || '/managed-access';
+  const dominantIntent = conversion.dominantIntent?.bucket || 'unknown';
+  const dominantProvider = conversion.dominantTargetProviderFamily?.bucket || 'unknown';
+  const statusClass = status === 'contact_capture_gap' ? 'warn' : (status === 'contact_capture_started' ? 'good' : '');
+  return `<div>
+    <h3>Managed-access conversion</h3>
+    <table>
+      <tbody>
+        <tr><td><span class="pill ${statusClass}">${esc(status.replaceAll('_', ' '))}</span></td><td>Priority ${esc(priority.replaceAll('_', ' '))}</td></tr>
+        <tr><td>Anonymous signals</td><td>${integer(conversion.anonymousSignals)}</td></tr>
+        <tr><td>Contactable review signals</td><td>${integer(conversion.waitlistSignals)}</td></tr>
+        <tr><td>Contactable lead gap</td><td>${integer(conversion.contactableLeadGap)}</td></tr>
+        <tr><td>Dominant intent</td><td>${esc(demandLabel(dominantIntent))}</td></tr>
+        <tr><td>Provider family</td><td>${esc(demandLabel(dominantProvider))}</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">${esc(conversion.action || 'Monitor managed-access demand before changing managed provider resale controls.')}</p>
+    <p><a class="btn secondary" href="${esc(ctaPath)}" target="_blank" rel="noopener">Open contact-capture CTA</a></p>
+  </div>`;
+}
+
 function renderManagedAccessPulse(marketingIntent = {}) {
   const rows = managedAccessPulse(marketingIntent);
   const hasSignal = hasManagedAccessPulseSignal(marketingIntent);
@@ -2599,18 +2633,19 @@ function renderManagedAccessPulse(marketingIntent = {}) {
   </div>`;
 }
 
-function renderManagedAccessDemand(demand = {}, marketingIntent = {}) {
+function renderManagedAccessDemand(demand = {}, marketingIntent = {}, conversion = {}) {
   const targetProviderRows = sortedEntries(demand.targetProviderFamily);
   const commercialRows = sortedEntries(demand.commercialPreference);
   const supportRows = sortedEntries(demand.supportNeed);
   const launchWindowRows = sortedEntries(demand.targetLaunchWindow);
   const intentRows = sortedEntries(demand.intent);
+  const conversionBlock = renderManagedAccessConversion(conversion);
   const pulseBlock = renderManagedAccessPulse(marketingIntent);
-  if (!targetProviderRows.length && !commercialRows.length && !supportRows.length && !launchWindowRows.length && !intentRows.length && !hasManagedAccessPulseSignal(marketingIntent)) {
+  if (!targetProviderRows.length && !commercialRows.length && !supportRows.length && !launchWindowRows.length && !intentRows.length && !hasManagedAccessPulseSignal(marketingIntent) && !conversionBlock) {
     $('managed-access-demand-breakdown').innerHTML = '<div class="empty">No managed-access qualification buckets returned for this window.</div>';
     return;
   }
-  $('managed-access-demand-breakdown').innerHTML = `<div class="grid2">${pulseBlock}${
+  $('managed-access-demand-breakdown').innerHTML = `<div class="grid2">${conversionBlock}${pulseBlock}${
     renderDemandTable('Target provider family', targetProviderRows, 'No target provider demand returned.')
   }${
     renderDemandTable('Commercial preference', commercialRows, 'No commercial preference demand returned.')
@@ -2850,6 +2885,7 @@ function renderFunnel(data) {
   const waitlistInterest = data.waitlistInterest || {};
   const marketingIntent = data.marketingIntent || {};
   const managedAccessDemand = data.managedAccessDemand || {};
+  const managedAccessConversion = data.managedAccessDemandConversion || {};
   const privacy = data.privacy || {};
 
   setText('kpi-marketing-intent', integer(stages.marketingIntentEvents ?? marketingIntent.total));
@@ -2882,7 +2918,7 @@ function renderFunnel(data) {
   renderMarketingIntent(marketingIntent);
   renderAuthProviderState(marketingIntent.authProviderState || {});
   renderAcquisitionActions(data.acquisitionActions || marketingIntent.acquisitionActions || []);
-  renderManagedAccessDemand(managedAccessDemand, marketingIntent);
+  renderManagedAccessDemand(managedAccessDemand, marketingIntent, managedAccessConversion);
   renderPlanMix(mrr.byPlan || {});
   renderRevenueActions(mrr.planRevenueActions || []);
   renderSetupCopyFallbackBanner(data);
