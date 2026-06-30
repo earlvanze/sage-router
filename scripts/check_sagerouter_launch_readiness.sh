@@ -900,6 +900,7 @@ check_managed_provider_access_guard() {
     ((.publicLaunch.managedProviderAccess.readinessSetup.authorizationPacketCommand // "") | contains("scripts/configure_managed_provider_resale_readiness.sh --authorization-packet")) and
     ((.publicLaunch.managedProviderAccess.readinessSetup.authorizationLedgerTemplateCommand // "") | contains("scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template")) and
     ((.publicLaunch.managedProviderAccess.readinessSetup.providerOutreachCommand // "") | contains("scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet")) and
+    ((.publicLaunch.managedProviderAccess.readinessSetup.privateCostModelTemplateCommand // "") | contains("scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template")) and
     ((.publicLaunch.managedProviderAccess.readinessSetup.enableCommandTemplate // "") | contains("SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC")) and
     (
       (.publicLaunch.managedProviderAccess.enabled == true) or
@@ -924,7 +925,7 @@ check_managed_provider_access_guard() {
     ($steps | all((.privacy.containsActualProviderCosts // false) == false)) and
     ($steps | all((.privacy.containsAuthorizationReference // false) == false)) and
     ($steps | any(.id == "collect_provider_authorization" and ((.primaryCommand // "") | contains("--provider-outreach-packet")) and ((.secondaryCommand // "") | contains("--authorization-ledger-template")))) and
-    ($steps | any(.id == "verify_private_unit_economics" and ((.primaryCommand // "") | contains("--unit-economics")) and ((.secondaryCommand // "") | contains("--one-subscription-pricing-packet")))) and
+    ($steps | any(.id == "verify_private_unit_economics" and ((.primaryCommand // "") | contains("--unit-economics")) and ((.secondaryCommand // "") | contains("--private-cost-model-template")) and ((.reviewCommand // "") | contains("--one-subscription-pricing-packet")))) and
     ($steps | any(.id == "final_private_beta_enablement_review" and ((.primaryCommand // "") | contains("--check"))))
   ' /tmp/sage-router-readiness-body)"
   missing_count="$(jq -r '(.publicLaunch.managedProviderAccess.missingControls // []) | length' /tmp/sage-router-readiness-body)"
