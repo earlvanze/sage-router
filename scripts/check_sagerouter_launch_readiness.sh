@@ -3728,6 +3728,9 @@ check_marketing_founder_sales_kit_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "Copyable Pro activation email" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pro-email-copy"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-recommended-first-reply" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-founder-recommended-first-reply"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-next-revenue-packet" /tmp/sage-router-readiness-body; then
     page_code="200:missing-copy-founder-next-revenue-packet"
   fi

@@ -52,7 +52,23 @@
     </div>
     <section class="panel callout" aria-label="Copy the next founder-sales action">
       <h2><strong>Copy the next action first</strong></h2>
-      <p>Use this when the launch funnel shows zero outreach or setup copies. Copy the revenue packet for a warm founder-sales thread, or copy one focused reply and setup bundle before sending a prospect to create a generated key.</p>
+      <p>Use this when the launch funnel shows zero outreach or setup copies. Start with the short recommended reply for a warm thread, then use the full revenue packet or one focused reply when the prospect asks for implementation detail.</p>
+      <pre id="founder-recommended-first-reply" class="codebox">Sage Router may fit if your agent stack needs one OpenAI-compatible endpoint with health-aware fallback, generated Sage keys, and route profiles for frontier/local/coding traffic.
+
+Best first step: create the generated key, then verify /v1/models before wiring it into Codex, OpenClaw, Cursor, Aider, Continue, or a custom OpenAI-compatible client:
+https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=recommended-first-reply
+
+60-second setup:
+https://sagerouter.dev/quickstart?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=recommended-first-reply
+
+If this is a team or production workflow, Max implementation review is better than guessing at a self-serve config:
+https://sagerouter.dev/managed-access?intent=max-implementation&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=recommended-first-reply
+
+Boundary: Sage Router is routing, generated-key, quota, analytics, and reliability infrastructure for provider/local access you are authorized to use. One-subscription managed access is review-only until provider authorization, terms, cost model, margin checks, quotas, audit, and acceptable-use controls pass.</pre>
+      <div class="copyRow">
+        <button id="copy-founder-recommended-first-reply" class="copyButton" type="button">Copy recommended first reply</button>
+        <span id="copy-founder-recommended-status" class="copyStatus" role="status" aria-live="polite"></span>
+      </div>
       <pre id="founder-next-revenue-packet" class="codebox">Sage Router may fit your agent/model routing work if you want one OpenAI-compatible endpoint with health-aware fallback, generated Sage keys, and route profiles for frontier/local/coding traffic.
 
 Fastest path:
@@ -409,6 +425,9 @@ https://sagerouter.dev/margin-policy?utm_source=founder-sales&utm_medium=direct&
     }
 
     trackFounderSalesEvent('content_article_viewed', { button: 'page-view' });
+    document.getElementById('copy-founder-recommended-first-reply')?.addEventListener('click', () => {
+      copyBlock('founder-recommended-first-reply', 'copy-founder-recommended-status', 'Copied recommended first reply.', 'founder-recommended-first-reply');
+    });
     document.getElementById('copy-founder-next-revenue-packet')?.addEventListener('click', () => {
       copyBlock('founder-next-revenue-packet', 'copy-founder-next-revenue-status', 'Copied next revenue packet.', 'founder-next-revenue-packet');
     });
