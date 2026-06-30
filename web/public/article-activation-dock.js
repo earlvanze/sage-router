@@ -5,8 +5,8 @@
   const path = window.location.pathname || '/';
   const title = (document.querySelector('h1')?.textContent || document.title || 'Sage Router').trim();
   const articleSlug = attributionValue(path)?.replace(/^\/+/, '').replace(/\/+/g, '-') || 'article';
-  const accountUrl = `https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&source_surface=article&utm_content=${encodeURIComponent(`${articleSlug}-pro-key`)}`;
-  const accountEmailUrl = `https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&source_surface=article&utm_content=${encodeURIComponent(`${articleSlug}-email`)}`;
+  const accountUrl = `https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&source_surface=article&setup=article-dock&next=generated-key&utm_content=${encodeURIComponent(`${articleSlug}-pro-key`)}`;
+  const accountEmailUrl = `https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&source_surface=article&setup=article-dock&next=generated-key&utm_content=${encodeURIComponent(`${articleSlug}-email`)}`;
   const recoveryUrl = `/setup-key-recovery?utm_source=article-dock&utm_medium=recovery&utm_campaign=signup_to_key_recovery&source_surface=article&utm_content=${encodeURIComponent(`${articleSlug}-returning-user`)}`;
   const quickstartUrl = `/quickstart?utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-quickstart`)}`;
   const calculatorUrl = `/model-routing-calculator?utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-calculator`)}`;
@@ -42,8 +42,17 @@ curl https://api.sagerouter.dev/v1/models \\
 
   function accountUrlWithSetup(setup) {
     const url = new URL(accountUrl);
+    url.searchParams.set('source_surface', 'article');
+    url.searchParams.set('next', 'generated-key');
     if (setup) url.searchParams.set('setup', setup);
     return url.toString();
+  }
+
+  function markGeneratedKeyHandoff(url, setup) {
+    url.searchParams.set('source_surface', url.searchParams.get('source_surface') || 'article');
+    url.searchParams.set('setup', url.searchParams.get('setup') || setup || 'article-dock');
+    url.searchParams.set('next', url.searchParams.get('next') || 'generated-key');
+    return url;
   }
 
   function track(event, extra = {}) {
@@ -168,6 +177,7 @@ curl https://api.sagerouter.dev/v1/models \\
       upgraded.searchParams.set('utm_medium', upgraded.searchParams.get('utm_medium') || 'activation');
       upgraded.searchParams.set('utm_campaign', upgraded.searchParams.get('utm_campaign') || 'sage-router-launch');
       upgraded.searchParams.set('utm_content', upgraded.searchParams.get('utm_content') || `${articleSlug}-checkout-upgrade`);
+      markGeneratedKeyHandoff(upgraded, 'article-checkout-upgrade');
       link.href = upgraded.toString();
       link.dataset.articleDockUpgraded = 'true';
       link.addEventListener('click', () => track('content_article_key_activation_clicked', {
@@ -180,12 +190,12 @@ curl https://api.sagerouter.dev/v1/models \\
       if (link.dataset.articleDockUpgraded === 'true') return;
       const upgraded = new URL(link.href);
       if (upgraded.searchParams.get('start') !== 'create_key') return;
-      if (upgraded.searchParams.get('utm_source')) return;
       const button = attributionValue(link.dataset.articleButton || link.dataset.button || link.textContent || 'article-account-link') || 'article-account-link';
-      upgraded.searchParams.set('utm_source', 'article-dock');
-      upgraded.searchParams.set('utm_medium', 'activation');
-      upgraded.searchParams.set('utm_campaign', 'sage-router-launch');
-      upgraded.searchParams.set('utm_content', `${articleSlug}-${button}`);
+      upgraded.searchParams.set('utm_source', upgraded.searchParams.get('utm_source') || 'article-dock');
+      upgraded.searchParams.set('utm_medium', upgraded.searchParams.get('utm_medium') || 'activation');
+      upgraded.searchParams.set('utm_campaign', upgraded.searchParams.get('utm_campaign') || 'sage-router-launch');
+      upgraded.searchParams.set('utm_content', upgraded.searchParams.get('utm_content') || `${articleSlug}-${button}`);
+      markGeneratedKeyHandoff(upgraded, button);
       link.href = upgraded.toString();
       link.dataset.articleDockUpgraded = 'true';
       link.addEventListener('click', () => track('content_article_key_activation_clicked', {
