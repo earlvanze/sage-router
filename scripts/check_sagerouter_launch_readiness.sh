@@ -1235,6 +1235,15 @@ check_hosted_onboarding_pages() {
   if [[ "$status_code" == "200" ]] && ! grep -q "Operator Launch Actions" /tmp/sage-router-readiness-body; then
     status_code="200:missing-status-operator-launch-actions"
   fi
+  if [[ "$status_code" == "200" ]] && ! grep -q "Revenue action now" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-revenue-action"
+  fi
+  if [[ "$status_code" == "200" ]] && ! grep -q "status-copy-founder-pro-reply" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-founder-sales-copy"
+  fi
+  if [[ "$status_code" == "200" ]] && ! grep -q "status-one-subscription-review-link" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-one-subscription-review"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   status_js_code="$(http_code_follow "${APP_BASE%/}/status.js")"
@@ -1258,6 +1267,12 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$status_js_code" == "200" ]] && ! grep -q "One-subscription managed access" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-managed-resale-action"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "status-founder-pro-reply" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-founder-sales-copy-handler"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "outreach_snippet_copied" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-founder-sales-copy-funnel"
   fi
   if [[ "$status_js_code" == "200" ]] && ! grep -q "Browser Integrity Check" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-bic-guidance"

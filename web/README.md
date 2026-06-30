@@ -120,10 +120,12 @@ direct route from the homepage to the most relevant setup page while recording
 notes, integration updates, private deployment help, and future managed-provider
 beta interest.
 The public status page doubles as a no-secret operator launch-actions surface:
-it copies activation-email preflight, managed-provider resale dry-run/staging,
+it exposes a first-screen no-secret founder-sales Pro reply and copies
+activation-email preflight, managed-provider resale dry-run/staging,
 first-request setup, and Cloudflare BIC verification commands from safe public
 metadata without exposing provider credentials, private costs, customer data, or
-tokens. The Cloudflare BIC copy includes the `docs/cloudflare-api-bic-skip.md`
+tokens. The founder-sales copy records `outreach_snippet_copied`, and the
+Cloudflare BIC copy includes the `docs/cloudflare-api-bic-skip.md`
 runbook path, required Zone/Rulesets token permissions, host-scoped
 `http.host eq "api.sagerouter.dev"` expression, and scope warning for the API
 host only.
@@ -164,7 +166,7 @@ The MVP treats discoverability as first-class. Current static assets include:
 - Reddit-style AI gateway evaluation kit at `/reddit-ai-gateway-evaluation` with copyable comparison/setup snippets, local-first custody proof, OpenRouter BYOK boundary, multiple API-key load balancing, 429 failover, multimodal routing, hosted generated-key activation, sitemap, LLM discovery, and readiness checks.
 - Reliability proof kit at `/reliability-proof` with copyable 429 failover, credential load-balancing, multimodal routing, and Reddit proof-reply snippets, measured proof CTAs, sitemap, LLM discovery, and readiness checks.
 - Community launch kit at `/community-launch-kit` with copyable Show HN, Indie Hackers, Dev.to, X, and LinkedIn launch copy, measured community/social campaign links, no-secret posting boundaries, sitemap, LLM discovery, and readiness checks.
-- Founder sales kit at `/founder-sales-kit` with first-viewport `Copy next Pro reply` and `Copy 60-second setup bundle` actions plus copyable Lite pilot, Pro activation, Max implementation, gateway migration, OpenRouter migration, one-subscription review, and calculator follow-up outreach. The hero setup copy records `quickstart_snippet_copied` with `founder-hero-setup-bundle`, includes the generated-key setup link in the copied bundle, outreach copies record `outreach_snippet_copied`, links use measured `utm_source=founder-sales`, and the page keeps no-secret boundaries, sitemap, LLM discovery, and readiness checks. The private launch-funnel dashboard also renders a copyable next outreach snippet from aggregate MRR gap data, the status page exposes a founder-sales fallback packet, and both record `outreach_snippet_copied` so founder-sales work is visible before broad automation.
+- Founder sales kit at `/founder-sales-kit` with first-viewport `Copy next Pro reply` and `Copy 60-second setup bundle` actions plus copyable Lite pilot, Pro activation, Max implementation, gateway migration, OpenRouter migration, one-subscription review, and calculator follow-up outreach. The hero setup copy records `quickstart_snippet_copied` with `founder-hero-setup-bundle`, includes the generated-key setup link in the copied bundle, outreach copies record `outreach_snippet_copied`, links use measured `utm_source=founder-sales`, and the page keeps no-secret boundaries, sitemap, LLM discovery, and readiness checks. The private launch-funnel dashboard also renders a copyable next outreach snippet from aggregate MRR gap data, the status page exposes a first-screen Pro reply plus founder-sales fallback packet, and both record `outreach_snippet_copied` so founder-sales work is visible before broad automation.
 - Ollama AI model router page at `/ollama-ai-model-router` with local Ollama and Ollama Cloud positioning, one OpenAI-compatible endpoint, multiple API-key load balancing, 429 failover, multimodal routing, hosted generated-key activation, copyable setup snippets, sitemap, LLM discovery, and readiness checks.
 - OpenAI API router page at `/openai-api-router` with hosted generated keys, `OPENAI_BASE_URL=https://api.sagerouter.dev/v1`, OpenAI-compatible chat and Responses API positioning, multiple OpenAI API-key load balancing, 429 failover, multimodal routing, copyable setup snippets, sitemap, LLM discovery, and readiness checks.
 - Azure OpenAI router page at `/azure-openai-router` with customer-owned `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT` custody, Azure deployment routing, OpenAI-compatible setup, credential load balancing, 429 failover, multimodal safeguards, provider-authorization boundaries, copyable setup snippets, sitemap, LLM discovery, and readiness checks.
