@@ -7243,6 +7243,9 @@ MANAGED_ACCESS_PACKET_COPY_EVENTS = {
 PROVIDER_AUTHORIZATION_OUTREACH_COPY_EVENTS = {
     'status_managed_provider_outreach_copied',
 }
+PROVIDER_AUTHORIZATION_REVIEW_COPY_EVENTS = {
+    'status_managed_provider_authorization_review_copied',
+}
 PROVIDER_TERMS_REVIEW_COPY_EVENTS = {
     'status_managed_provider_terms_review_copied',
 }
@@ -9356,6 +9359,8 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'managedAccessPacketCopiesBySnippet': {},
         'providerAuthorizationOutreachCopies': 0,
         'providerAuthorizationOutreachCopiesBySnippet': {},
+        'providerAuthorizationReviewCopies': 0,
+        'providerAuthorizationReviewCopiesBySnippet': {},
         'providerTermsReviewCopies': 0,
         'providerTermsReviewCopiesBySnippet': {},
         'activationApprovalPacketCopies': 0,
@@ -9468,6 +9473,10 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             metrics['providerAuthorizationOutreachCopies'] += 1
             snippet = str(metadata.get('snippet') or metadata.get('state') or 'provider-authorization-outreach').strip().lower()[:80] or 'provider-authorization-outreach'
             metrics['providerAuthorizationOutreachCopiesBySnippet'][snippet] = metrics['providerAuthorizationOutreachCopiesBySnippet'].get(snippet, 0) + 1
+        if event in PROVIDER_AUTHORIZATION_REVIEW_COPY_EVENTS:
+            metrics['providerAuthorizationReviewCopies'] += 1
+            snippet = str(metadata.get('snippet') or metadata.get('state') or 'provider-authorization-review').strip().lower()[:80] or 'provider-authorization-review'
+            metrics['providerAuthorizationReviewCopiesBySnippet'][snippet] = metrics['providerAuthorizationReviewCopiesBySnippet'].get(snippet, 0) + 1
         if event in PROVIDER_TERMS_REVIEW_COPY_EVENTS:
             metrics['providerTermsReviewCopies'] += 1
             snippet = str(metadata.get('snippet') or metadata.get('state') or 'provider-terms-review').strip().lower()[:80] or 'provider-terms-review'
@@ -9562,6 +9571,8 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'managedAccessPacketCopiesBySnippet': {},
             'providerAuthorizationOutreachCopies': 0,
             'providerAuthorizationOutreachCopiesBySnippet': {},
+            'providerAuthorizationReviewCopies': 0,
+            'providerAuthorizationReviewCopiesBySnippet': {},
             'providerTermsReviewCopies': 0,
             'providerTermsReviewCopiesBySnippet': {},
             'activationApprovalPacketCopies': 0,

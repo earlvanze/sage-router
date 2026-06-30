@@ -58,7 +58,7 @@ AUTHORIZATION_LEDGER_TEMPLATE="${ROOT}/docs/launch/execution/provider-authorizat
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--authorization-ledger-template|--provider-outreach-packet|--record-provider-outreach|--provider-reply-triage-packet|--terms-approval-packet|--record-terms-review|--one-subscription-pricing-packet|--stage-public-controls|--unit-economics]
+Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--record-authorization-review|--authorization-ledger-template|--provider-outreach-packet|--record-provider-outreach|--provider-reply-triage-packet|--terms-approval-packet|--record-terms-review|--one-subscription-pricing-packet|--stage-public-controls|--unit-economics]
 
 Stage Sage Router managed provider-access readiness on Cloud Run.
 
@@ -92,6 +92,13 @@ Options:
                            checklist and evidence-reference format. It never
                            prints authorization evidence values or provider
                            cost values.
+  --record-authorization-review
+                           Print the authorization packet and record one
+                           aggregate status_managed_provider_authorization_review_copied
+                           event for the operator terminal review. Run only
+                           after an operator actually reviews the packet; this
+                           does not stage provider evidence, acknowledge terms,
+                           write costs, deploy Cloud Run, or enable resale.
   --authorization-ledger-template
                            Print a no-secret private-review ledger template for
                            recording provider replies, terms review, evidence
@@ -165,6 +172,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --authorization-packet)
       MODE="authorization-packet"
+      shift
+      ;;
+    --record-authorization-review)
+      MODE="record-authorization-review"
       shift
       ;;
     --authorization-ledger-template)
@@ -592,6 +603,13 @@ managed_provider_authorization_packet() {
   printf "  SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED='1' SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls\n"
   printf "  SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n\n"
 
+  if [[ "$MODE" == "record-authorization-review" ]]; then
+    printf 'Recording boundary: this terminal review records one aggregate status_managed_provider_authorization_review_copied event with snippet operator-provider-authorization-review-packet after an operator actually reviews the authorization packet. It still does not stage authorization evidence, acknowledge terms, write provider costs, deploy Cloud Run, or enable managed resale.\n'
+  else
+    printf 'Recording command: scripts/configure_managed_provider_resale_readiness.sh --record-authorization-review\n'
+    printf 'Recording boundary: run only after an operator actually reviews this packet; it records one aggregate provider-authorization review and still does not stage evidence, acknowledge terms, write costs, deploy Cloud Run, or enable managed resale.\n'
+  fi
+  printf '\n'
   printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false.\n'
 }
 
@@ -1024,8 +1042,42 @@ if [[ "$MODE" == "operator-packet" ]]; then
   exit 0
 fi
 
-if [[ "$MODE" == "authorization-packet" ]]; then
+if [[ "$MODE" == "authorization-packet" || "$MODE" == "record-authorization-review" ]]; then
   managed_provider_authorization_packet
+  if [[ "$MODE" == "record-authorization-review" ]]; then
+    require_cmd jq
+    require_cmd curl
+    payload="$(jq -n \
+      --arg sourcePage "${APP_BASE%/}/launch-funnel.html#managed-provider-readiness" \
+      --arg target "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=authorization_review&utm_campaign=managed-provider-authorization" \
+      '{
+        event: "status_managed_provider_authorization_review_copied",
+        plan: "max",
+        sourcePage: $sourcePage,
+        target: $target,
+        metadata: {
+          source: "operator-managed-provider-cli",
+          sourceSurface: "launch-funnel",
+          button: "provider-authorization-review-cli",
+          state: "operator_provider_authorization_reviewed",
+          snippet: "operator-provider-authorization-review-packet",
+          providerFamilies: "ollama,openai,anthropic",
+          resultCount: 3,
+          utmSource: "operator",
+          utmMedium: "authorization_review",
+          utmCampaign: "managed-provider-authorization"
+        }
+      }')"
+
+    curl -fsS -X POST "${APP_BASE%/}/api/funnel-event" \
+      -H "Origin: ${APP_BASE%/}" \
+      -H "Content-Type: application/json" \
+      -H "User-Agent: SageRouterManagedProviderCLI/1.0" \
+      --data "$payload" \
+      >/dev/null
+
+    printf '\nRecorded provider authorization review event status_managed_provider_authorization_review_copied with snippet operator-provider-authorization-review-packet from SageRouterManagedProviderCLI/1.0.\n'
+  fi
   exit 0
 fi
 
