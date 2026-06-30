@@ -4224,6 +4224,12 @@ check_marketing_api_troubleshooting_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "api-troubleshooting-setup-snippet" /tmp/sage-router-readiness-body; then
     page_code="200:missing-api-troubleshooting-setup-snippet"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "api-troubleshooting-python-urllib-snippet" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-troubleshooting-python-urllib-snippet"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "api-troubleshooting-python-urllib-user-agent" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-api-troubleshooting-python-urllib-telemetry"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "api_troubleshooting_setup_copied" /tmp/sage-router-readiness-body; then
     page_code="200:missing-api-troubleshooting-setup-copy-funnel"
   fi
