@@ -258,21 +258,40 @@ curl -i "$OPENAI_BASE_URL/models" \
     }
 
     function setupRecoveryAccountUrlForAutoOpen() {
+      return setupRecoveryAccountUrl({ preserveAutoSource: true });
+    }
+
+    function setupRecoveryAccountUrl({ auth = 'email', preserveAutoSource = false } = {}) {
       const params = new URLSearchParams(window.location.search);
-      const target = new URL(SETUP_RECOVERY_ACCOUNT_URL);
+      const target = new URL(auth === 'github' ? SETUP_RECOVERY_GITHUB_ACCOUNT_URL : SETUP_RECOVERY_ACCOUNT_URL);
       const sourceSurface = attributionValue(params.get('source_surface') || params.get('sourceSurface'));
       const setup = attributionValue(params.get('setup'));
       const utmSource = attributionValue(params.get('utm_source') || params.get('utmSource'));
       const utmCampaign = attributionValue(params.get('utm_campaign') || params.get('utmCampaign'));
+      const plan = attributionValue(params.get('plan'));
+      if (plan) target.searchParams.set('plan', plan);
+      if (auth) target.searchParams.set('auth', auth);
       ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content'].forEach((name) => {
         const value = params.get(name) || params.get(name.replace('utm_', 'utm'));
         if (value) target.searchParams.set(name, value);
       });
       if (sourceSurface) target.searchParams.set('source_surface', sourceSurface);
-      else if (utmSource === 'api-auth' && utmCampaign === 'signup_to_key_recovery') target.searchParams.set('source_surface', 'api-auth');
+      else if (preserveAutoSource && utmSource === 'api-auth' && utmCampaign === 'signup_to_key_recovery') target.searchParams.set('source_surface', 'api-auth');
       if (setup) target.searchParams.set('setup', setup);
       target.searchParams.set('next', 'generated-key');
       return target.toString();
+    }
+
+    function applySetupRecoveryAccountLinks() {
+      const emailTarget = setupRecoveryAccountUrl();
+      const githubTarget = setupRecoveryAccountUrl({ auth: 'github' });
+      [
+        document.querySelector('[data-setup-recovery-button="open-account-setup-primary"]'),
+        document.getElementById('setup-key-recovery-next-account'),
+      ].forEach((link) => {
+        if (link) link.setAttribute('href', emailTarget);
+      });
+      return { emailTarget, githubTarget };
     }
 
     function setupRecoveryAutoOpenState() {
@@ -341,29 +360,30 @@ curl -i "$OPENAI_BASE_URL/models" \
     document.getElementById('setup-key-recovery-github')?.addEventListener('click', async (event) => {
       const button = event.currentTarget;
       const original = button.textContent;
+      const targetUrl = setupRecoveryAccountUrl({ auth: 'github' });
       button.disabled = true;
       button.textContent = 'Opening GitHub...';
       trackSetupRecoveryEvent('setup_key_recovery_oauth_clicked', {
         button: 'github-recovery',
         state: 'github',
-        target: SETUP_RECOVERY_GITHUB_ACCOUNT_URL,
+        target: targetUrl,
       });
       try {
         const api = await loadSetupRecoverySupabaseClient();
         const client = api.createClient(SETUP_RECOVERY_SUPABASE_URL, SETUP_RECOVERY_SUPABASE_ANON_KEY);
         const { error } = await client.auth.signInWithOAuth({
           provider: 'github',
-          options: { redirectTo: SETUP_RECOVERY_GITHUB_ACCOUNT_URL },
+          options: { redirectTo: targetUrl },
         });
         if (error) throw error;
       } catch {
         trackSetupRecoveryEvent('setup_key_recovery_oauth_failed', {
           button: 'github-recovery',
           state: 'github',
-          target: SETUP_RECOVERY_GITHUB_ACCOUNT_URL,
+          target: targetUrl,
         });
         button.textContent = 'Opening account setup...';
-        setTimeout(() => { window.location.href = SETUP_RECOVERY_GITHUB_ACCOUNT_URL; }, 900);
+        setTimeout(() => { window.location.href = targetUrl; }, 900);
       } finally {
         button.disabled = false;
         button.textContent = original;
@@ -377,6 +397,7 @@ curl -i "$OPENAI_BASE_URL/models" \
       const button = document.getElementById('setup-key-recovery-email-submit');
       const status = document.getElementById('setup-key-recovery-email-status');
       const email = String(input?.value || '').trim();
+      const targetUrl = setupRecoveryAccountUrl();
       if (!email) {
         status.textContent = 'Enter the email used for signup.';
         input?.focus();
@@ -389,7 +410,7 @@ curl -i "$OPENAI_BASE_URL/models" \
       trackSetupRecoveryEvent('setup_key_recovery_magic_link_requested', {
         button: 'email-setup-key-link',
         state: 'email-start',
-        target: SETUP_RECOVERY_ACCOUNT_URL,
+        target: targetUrl,
       });
       try {
         const api = await loadSetupRecoverySupabaseClient();
@@ -397,7 +418,7 @@ curl -i "$OPENAI_BASE_URL/models" \
         const { error } = await client.auth.signInWithOtp({
           email,
           options: {
-            emailRedirectTo: SETUP_RECOVERY_ACCOUNT_URL,
+            emailRedirectTo: targetUrl,
             data: {
               sage_router_onboarding: true,
               signup_source: 'setup-key-recovery',
@@ -414,19 +435,19 @@ curl -i "$OPENAI_BASE_URL/models" \
         trackSetupRecoveryEvent('setup_key_recovery_magic_link_sent', {
           button: 'email-setup-key-link',
           state: 'email-start',
-          target: SETUP_RECOVERY_ACCOUNT_URL,
+          target: targetUrl,
         });
         trackSetupRecoveryEvent('setup_key_recovery_next_panel_shown', {
           button: 'email-setup-key-link',
           state: 'magic-link-sent',
-          target: SETUP_RECOVERY_ACCOUNT_URL,
+          target: targetUrl,
         });
       } catch {
         status.textContent = 'Email setup is unavailable right now. Opening same-email recovery instead...';
         trackSetupRecoveryEvent('setup_key_recovery_magic_link_failed', {
           button: 'email-setup-key-link',
           state: 'email-start',
-          target: SETUP_RECOVERY_ACCOUNT_URL,
+          target: targetUrl,
         });
         setTimeout(() => {
           window.location.href = 'https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email';
@@ -464,15 +485,16 @@ curl -i "$OPENAI_BASE_URL/models" \
     document.getElementById('setup-key-recovery-copy-account-link')?.addEventListener('click', async () => {
       const button = document.getElementById('setup-key-recovery-copy-account-link');
       const status = document.getElementById('setup-key-recovery-next-status');
+      const targetUrl = setupRecoveryAccountUrl();
       const original = button.textContent;
       try {
-        await writeClipboardText(SETUP_RECOVERY_ACCOUNT_URL);
+        await writeClipboardText(targetUrl);
         button.textContent = 'Copied';
         status.textContent = 'Copied account setup link.';
         trackSetupRecoveryEvent('setup_key_recovery_account_link_copied', {
           button: 'copy-account-setup-link',
           state: 'copied',
-          target: SETUP_RECOVERY_ACCOUNT_URL,
+          target: targetUrl,
         });
       } catch {
         button.textContent = 'Copy failed';
@@ -484,6 +506,7 @@ curl -i "$OPENAI_BASE_URL/models" \
       }
     });
 
+    applySetupRecoveryAccountLinks();
     trackSetupRecoveryEvent('setup_key_recovery_viewed', { state: 'page-view' });
     scheduleSetupRecoveryAccountAutoOpen();
   </script>
