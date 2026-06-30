@@ -50,6 +50,19 @@ The Max plan is the binding fixed-plan constraint because it has the lowest
 public max-safe provider-cost threshold. A private provider-cost candidate must
 fit below the applicable threshold before a plan can include managed access.
 
+## Public Managed-Access Offer Ladder
+
+Use this public-threshold-only ladder when fixed-plan bundled access fails
+private cost review. It does not change Stripe prices or create a public
+entitlement; it gives the operator concrete private-beta packaging candidates
+to validate against the private cost model.
+
+| Offer | Price | Included managed requests | Public revenue / 1k requests | Max safe provider cost / 1k requests | Use |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Managed Access Max Contract Floor | `$100/mo` | `75,000` | `133.3333c` | `86.6667c` | Private Max contract floor for buyers who need bundled managed provider access |
+| Managed Access Pro Add-on | `$30/mo` | `25,000` | `120.0c` | `78.0c` | Paid Pro/Max add-on when fixed-plan included quota fails private cost review |
+| Managed Access Pilot | `$10/mo` | `10,000` | `100.0c` | `65.0c` | Small private-beta trial before bundling managed provider access into fixed plans |
+
 ## Packaging Decision
 
 - Keep BYOK/OpenRouter-compatible routing sellable in Lite/Pro/Max as
@@ -58,8 +71,10 @@ fit below the applicable threshold before a plan can include managed access.
   authorization evidence, cost model, and positive unit economics all pass.
 - If a private provider-cost candidate is above any plan threshold, exclude that
   plan from one-subscription managed access, lower included managed-access
-  quota, add a managed-access surcharge, or move the buyer to a private Max
-  contract.
+  quota, add a managed-access surcharge from the public offer ladder, or move
+  the buyer to a private Max contract.
+- Treat the add-on ladder as review packaging only until provider
+  authorization, terms, cost model, and operator approval pass.
 - Do not publish actual provider costs, exact gross-margin calculations, or
   derived required private prices in launch pages, pull requests, logs, support
   channels, or public metadata.
