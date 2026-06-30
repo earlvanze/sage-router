@@ -1257,6 +1257,12 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "copyOperatorSetupBundle" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-operator-setup-bundle-handler"
   fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "founder-sales-recommended-first-reply" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-founder-sales-recommended-first-reply"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "operator-founder-recommended-first-reply" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-founder-sales-recommended-first-reply-telemetry"
+  fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderManagedAccessReadiness" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-managed-access-readiness-renderer"
   fi
