@@ -1299,6 +1299,9 @@ check_hosted_onboarding_pages() {
   if [[ "$status_code" == "200" ]] && ! grep -q "Revenue action now" /tmp/sage-router-readiness-body; then
     status_code="200:missing-status-revenue-action"
   fi
+  if [[ "$status_code" == "200" ]] && ! grep -q "status-copy-founder-recommended-first-reply" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-founder-recommended-first-reply-copy"
+  fi
   if [[ "$status_code" == "200" ]] && ! grep -q "status-copy-founder-pro-reply" /tmp/sage-router-readiness-body; then
     status_code="200:missing-status-founder-sales-copy"
   fi
@@ -1350,8 +1353,14 @@ check_hosted_onboarding_pages() {
   if [[ "$status_js_code" == "200" ]] && ! grep -q "status-founder-pro-reply" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-founder-sales-copy-handler"
   fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "status-founder-recommended-first-reply" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-founder-recommended-first-reply-handler"
+  fi
   if [[ "$status_js_code" == "200" ]] && ! grep -q "outreach_snippet_copied" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-founder-sales-copy-funnel"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "snippet: 'status-founder-recommended-first-reply'" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-founder-recommended-first-reply-funnel"
   fi
   if [[ "$status_js_code" == "200" ]] && ! grep -q "status_first_request_setup_copied" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-setup-copy-funnel"

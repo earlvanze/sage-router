@@ -85,7 +85,19 @@
     </section>
     <section class="panel">
       <h2>Revenue action now</h2>
-      <p class="muted">Use this no-secret founder-sales reply when activation sends still need operator approval or managed-provider access is waiting on provider terms and cost review.</p>
+      <p class="muted">Use the short recommended reply first when activation sends still need operator approval or managed-provider access is waiting on provider terms and cost review. Use the longer Pro reply when a prospect asks for more routing detail.</p>
+      <pre id="status-founder-recommended-first-reply" class="commandText">Sage Router may fit if your agent stack needs one OpenAI-compatible endpoint with health-aware fallback, generated Sage keys, and route profiles for frontier/local/coding traffic.
+
+Best first step: create the generated key, then verify /v1/models before wiring it into Codex, OpenClaw, Cursor, Aider, Continue, or a custom OpenAI-compatible client:
+https://app.sagerouter.dev/account.html?plan=pro&amp;start=create_key&amp;utm_source=status&amp;utm_medium=founder-sales&amp;utm_campaign=sage-router-launch&amp;utm_content=status-recommended-first-reply
+
+60-second setup:
+https://sagerouter.dev/quickstart?utm_source=status&amp;utm_medium=founder-sales&amp;utm_campaign=sage-router-launch&amp;utm_content=status-recommended-first-reply
+
+If this is a team or production workflow, Max implementation review is better than guessing at a self-serve config:
+https://sagerouter.dev/managed-access?intent=max-implementation&amp;utm_source=status&amp;utm_medium=founder-sales&amp;utm_campaign=sage-router-launch&amp;utm_content=status-recommended-first-reply
+
+Boundary: Sage Router is routing, generated-key, quota, analytics, and reliability infrastructure for provider/local access you are authorized to use. One-subscription managed access is review-only until provider authorization, terms, cost model, margin checks, quotas, audit, and acceptable-use controls pass.</pre>
       <pre id="status-founder-pro-reply" class="commandText">Sage Router may fit your agent routing work if you want one OpenAI-compatible endpoint with health-aware fallback, model routing, hosted generated keys, and Tailnet/cloud reliability.
 
 Start by creating the generated sk_sage key, then verify /v1/models before wiring it into an agent:
@@ -149,6 +161,7 @@ Approval boundary:
 Do not paste emails, customer IDs, generated keys, key hashes, prompts, OAuth tokens, provider credentials, raw campaign URLs, raw provider responses, or private funnel rows.</pre>
       </details>
       <div class="actions">
+        <button id="status-copy-founder-recommended-first-reply" class="btn" type="button">Copy recommended first reply</button>
         <button id="status-copy-founder-pro-reply" class="btn" type="button">Copy Pro reply</button>
         <button id="status-copy-first-request-setup" class="btn" type="button">Copy setup bundle</button>
         <button id="status-copy-one-subscription-review-packet" class="btn" type="button">Copy review packet</button>
