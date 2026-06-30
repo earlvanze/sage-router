@@ -26,7 +26,7 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 ```
 
 - Window: last 30 days
-- Generated at epoch: 1782833365
+- Generated at epoch: 1782835378
 - Marketing intent events: 411
 - Setup snippet copies: 1
 - Founder-sales outreach copies: 0
@@ -42,7 +42,7 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 - Activation approval packet reviews: 0
 - Activation approval packet snippets: none
 - Recovery auth starts: magic=0, password=0, oauth=0
-- Key-first recovery: setupClicks=0; redirects=0; recoveryViews=8; keyCreateAttempts=0; keyCreateSuccesses=0; noKeyCreateClicks=0
+- Key-first recovery: setupClicks=0; scheduled=0; redirects=0; paused=0; recoveryViews=8; keyCreateAttempts=0; keyCreateSuccesses=0; noKeyCreateClicks=0
 - Managed-access demand: anonymousSignals=4; waitlistSignals=0; legacyClicks=0; quickStarted=0; quickValidationFailed=0; quickSubmitted=0; quickReceived=0
 - Managed-access provider buckets: mixed-frontier=4
 - Managed-access commercial buckets: one-subscription=4
@@ -94,7 +94,7 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 - Command: bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff
 - Result: verified_handoff_waiting_for_fresh_traffic
 - Interpretation: Recovery handoff is verified with no persistence; the remaining activation work is fresh setup-copy traffic or explicit operator approval for real follow-up sends.
-- Evidence: checked=true; passed=true; noPersistence=true; recoveryViews=8; accountHandoffs=0; keyCreateAttempts=0; keyCreateSuccesses=0.
+- Evidence: checked=true; passed=true; noPersistence=true; recoveryViews=8; scheduledHandoffs=0; accountHandoffs=0; pausedHandoffs=0; keyCreateAttempts=0; keyCreateSuccesses=0.
 - Next action: Use the no-secret approval packet for the next sendable activation follow-up or wait for fresh real recovery traffic.
 
 ### Top Acquisition Actions

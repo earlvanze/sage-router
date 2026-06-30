@@ -9382,6 +9382,10 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'operatorFollowUpSendFailureRecipients': 0,
         'keyFirstRedirects': 0,
         'keyFirstRedirectsByState': {},
+        'keyRecoveryHandoffScheduled': 0,
+        'keyRecoveryHandoffScheduledByState': {},
+        'keyRecoveryHandoffPaused': 0,
+        'keyRecoveryHandoffPausedByState': {},
         'keyRecoveryViews': 0,
         'keyRecoveryViewsByState': {},
         'keyCreateAttempts': 0,
@@ -9513,6 +9517,14 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             metrics['keyFirstRedirects'] += 1
             state = str(metadata.get('state') or event).strip().lower()[:80] or event
             metrics['keyFirstRedirectsByState'][state] = metrics['keyFirstRedirectsByState'].get(state, 0) + 1
+        if event.endswith('_account_setup_scheduled'):
+            metrics['keyRecoveryHandoffScheduled'] += 1
+            state = str(metadata.get('state') or event).strip().lower()[:80] or event
+            metrics['keyRecoveryHandoffScheduledByState'][state] = metrics['keyRecoveryHandoffScheduledByState'].get(state, 0) + 1
+        if event.endswith('_account_setup_paused'):
+            metrics['keyRecoveryHandoffPaused'] += 1
+            state = str(metadata.get('state') or event).strip().lower()[:80] or event
+            metrics['keyRecoveryHandoffPausedByState'][state] = metrics['keyRecoveryHandoffPausedByState'].get(state, 0) + 1
         if event in KEY_RECOVERY_VIEW_EVENTS:
             metrics['keyRecoveryViews'] += 1
             state = str(metadata.get('state') or 'unknown').strip().lower()[:80] or 'unknown'
@@ -9565,6 +9577,10 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'keyCreateSuccessesByState': {},
             'keyCreateFailures': 0,
             'keyCreateFailuresByState': {},
+            'keyRecoveryHandoffScheduled': 0,
+            'keyRecoveryHandoffScheduledByState': {},
+            'keyRecoveryHandoffPaused': 0,
+            'keyRecoveryHandoffPausedByState': {},
             'managedAccessAnonymousInterest': 0,
             'managedAccessDemand': new_managed_access_demand_metrics(),
             'founderSalesOutreachCopies': 0,
@@ -9733,6 +9749,10 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'operatorFollowUpSendFailureRecipients': int(marketing_metrics.get('operatorFollowUpSendFailureRecipients') or 0),
             'keyFirstRedirects': int(marketing_metrics.get('keyFirstRedirects') or 0),
             'keyFirstRedirectsByState': marketing_metrics.get('keyFirstRedirectsByState') or {},
+            'keyRecoveryHandoffScheduled': int(marketing_metrics.get('keyRecoveryHandoffScheduled') or 0),
+            'keyRecoveryHandoffScheduledByState': marketing_metrics.get('keyRecoveryHandoffScheduledByState') or {},
+            'keyRecoveryHandoffPaused': int(marketing_metrics.get('keyRecoveryHandoffPaused') or 0),
+            'keyRecoveryHandoffPausedByState': marketing_metrics.get('keyRecoveryHandoffPausedByState') or {},
             'keyRecoveryViews': int(marketing_metrics.get('keyRecoveryViews') or 0),
             'keyRecoveryViewsByState': marketing_metrics.get('keyRecoveryViewsByState') or {},
             'keyCreateAttempts': int(marketing_metrics.get('keyCreateAttempts') or 0),
