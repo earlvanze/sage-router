@@ -1485,6 +1485,10 @@ class SaaSAuthTests(unittest.TestCase):
             setup['providerOutreachCommand'],
         )
         self.assertEqual(
+            'scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet',
+            setup['oneSubscriptionPricingCommand'],
+        )
+        self.assertEqual(
             "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' "
             "scripts/configure_managed_provider_resale_readiness.sh --unit-economics",
             setup['unitEconomicsCommand'],
@@ -1495,6 +1499,22 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertFalse(setup['privacy']['containsSecrets'])
         self.assertFalse(setup['privacy']['containsActualProviderCosts'])
         self.assertFalse(setup['privacy']['containsGrossMarginPercent'])
+        self.assertEqual(
+            [
+                'collect_provider_authorization',
+                'review_terms_and_public_controls',
+                'verify_private_unit_economics',
+                'final_private_beta_enablement_review',
+            ],
+            [step['id'] for step in managed['onboardingSequence']],
+        )
+        self.assertEqual('required', managed['onboardingSequence'][0]['status'])
+        self.assertEqual('hold', managed['onboardingSequence'][-1]['status'])
+        self.assertTrue(all(step['secretFree'] for step in managed['onboardingSequence']))
+        self.assertTrue(all(step['publicSafe'] for step in managed['onboardingSequence']))
+        self.assertTrue(all(not step['privacy']['containsSecrets'] for step in managed['onboardingSequence']))
+        self.assertIn('--provider-outreach-packet', managed['onboardingSequence'][0]['primaryCommand'])
+        self.assertIn('--unit-economics', managed['onboardingSequence'][2]['primaryCommand'])
         self.assertFalse(managed['providerAuthorizationEvidenceConfigured'])
         self.assertEqual(
             'SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF',
@@ -2382,8 +2402,19 @@ class SaaSAuthTests(unittest.TestCase):
             pricing_managed['missingControls'],
             [row['id'] for row in pricing_managed['nextActions']],
         )
+        self.assertEqual(
+            [
+                'collect_provider_authorization',
+                'review_terms_and_public_controls',
+                'verify_private_unit_economics',
+                'final_private_beta_enablement_review',
+            ],
+            [row['id'] for row in pricing_managed['onboardingSequence']],
+        )
         self.assertTrue(all(row['secretFree'] for row in pricing_managed['nextActions']))
         self.assertTrue(all(row['publicSafe'] for row in pricing_managed['nextActions']))
+        self.assertTrue(all(row['secretFree'] for row in pricing_managed['onboardingSequence']))
+        self.assertTrue(all(row['publicSafe'] for row in pricing_managed['onboardingSequence']))
         self.assertIn(
             'providerAuthorizationEvidenceConfigured is true',
             json.dumps(pricing_managed['nextActions']),
@@ -2397,7 +2428,12 @@ class SaaSAuthTests(unittest.TestCase):
             [row['id'] for row in pricing_managed['nextActions']],
             [row['id'] for row in managed_readiness['nextActions']],
         )
+        self.assertEqual(
+            [row['id'] for row in pricing_managed['onboardingSequence']],
+            [row['id'] for row in managed_readiness['onboardingSequence']],
+        )
         self.assertTrue(all(not row['privacy']['containsSecrets'] for row in managed_readiness['nextActions']))
+        self.assertTrue(all(not row['privacy']['containsSecrets'] for row in managed_readiness['onboardingSequence']))
         self.assertEqual(
             pricing_managed['allowedProviderFamilies'],
             managed_readiness['allowedProviderFamilies'],
@@ -2435,6 +2471,10 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(
             'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet',
             managed_readiness['readinessSetup']['providerOutreachCommand'],
+        )
+        self.assertEqual(
+            'scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet',
+            managed_readiness['readinessSetup']['oneSubscriptionPricingCommand'],
         )
         self.assertIn(
             "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST'",

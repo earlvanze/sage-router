@@ -2733,6 +2733,9 @@ def managed_provider_resale_readiness_setup(enabled=False):
     provider_outreach_command = (
         "scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet"
     )
+    one_subscription_pricing_command = (
+        "scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet"
+    )
     unit_economics_command = (
         "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' "
         "scripts/configure_managed_provider_resale_readiness.sh --unit-economics"
@@ -2752,6 +2755,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
         'authorizationPacketCommand': authorization_packet_command,
         'authorizationLedgerTemplateCommand': authorization_ledger_template_command,
         'providerOutreachCommand': provider_outreach_command,
+        'oneSubscriptionPricingCommand': one_subscription_pricing_command,
         'unitEconomicsCommand': unit_economics_command,
         'enableCommandTemplate': enable_command_template,
         'requiredEnv': [] if enabled else [
@@ -2781,6 +2785,75 @@ def managed_provider_resale_readiness_setup(enabled=False):
             'containsRawProviderResponses': False,
         },
     }
+
+
+def managed_provider_resale_onboarding_sequence(managed_access, unit_economics, setup):
+    enabled = bool(managed_access.get('enabled'))
+    terms_ready = bool(managed_access.get('providerTermsUrl') and managed_access.get('providerTermsAcknowledged'))
+    authorization_ready = bool(managed_access.get('providerAuthorizationEvidenceConfigured'))
+    allowlist_ready = bool(managed_access.get('allowedProviderFamilies'))
+    cost_ready = bool(unit_economics.get('costModelConfigured'))
+    margin_ready = bool(unit_economics.get('satisfied'))
+    sequence = [
+        {
+            'id': 'collect_provider_authorization',
+            'title': 'Collect provider authorization evidence',
+            'status': 'complete' if authorization_ready else 'required',
+            'operatorAction': 'Use the provider outreach packet, then record only a private evidence reference in the private ledger.',
+            'primaryCommand': setup.get('providerOutreachCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet',
+            'secondaryCommand': setup.get('authorizationLedgerTemplateCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template',
+            'successMetric': 'providerAuthorizationEvidenceConfigured is true without exposing provider contracts, account IDs, credentials, or cost values.',
+            'blocksPublicEnable': not authorization_ready,
+            'publicSafe': True,
+            'secretFree': True,
+        },
+        {
+            'id': 'review_terms_and_public_controls',
+            'title': 'Review terms and stage public controls',
+            'status': 'complete' if terms_ready and allowlist_ready else 'required',
+            'operatorAction': 'Review provider terms, BYOK exclusions, and the managed-family allowlist before staging non-secret public controls.',
+            'primaryCommand': setup.get('termsApprovalCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet',
+            'secondaryCommand': setup.get('stagePublicControlsCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls',
+            'successMetric': 'providerTermsAcknowledged is true and allowedProviderFamilies contains only authorized resale-eligible families.',
+            'blocksPublicEnable': not (terms_ready and allowlist_ready),
+            'publicSafe': True,
+            'secretFree': True,
+        },
+        {
+            'id': 'verify_private_unit_economics',
+            'title': 'Verify private unit economics',
+            'status': 'complete' if cost_ready and margin_ready else 'required',
+            'operatorAction': 'Run the private cost preflight and pricing worksheet; do not publish actual provider costs or derived private prices.',
+            'primaryCommand': setup.get('unitEconomicsCommand') or "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics",
+            'secondaryCommand': setup.get('oneSubscriptionPricingCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet',
+            'successMetric': 'unitEconomics.satisfied is true for the selected managed-access packaging.',
+            'blocksPublicEnable': not (cost_ready and margin_ready),
+            'publicSafe': True,
+            'secretFree': True,
+        },
+        {
+            'id': 'final_private_beta_enablement_review',
+            'title': 'Final private-beta enablement review',
+            'status': 'complete' if enabled else 'hold',
+            'operatorAction': 'Keep public managed resale disabled until all readiness gates pass and the operator explicitly approves public enablement.',
+            'primaryCommand': setup.get('dryRunCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --check',
+            'secondaryCommand': setup.get('enableCommandTemplate') or '',
+            'successMetric': 'readinessSatisfied is true before any enable-template command is used.',
+            'blocksPublicEnable': not enabled,
+            'publicSafe': True,
+            'secretFree': True,
+        },
+    ]
+    for step in sequence:
+        step['privacy'] = {
+            'containsSecrets': False,
+            'containsProviderCredentials': False,
+            'containsActualProviderCosts': False,
+            'containsAuthorizationReference': False,
+            'containsPrompts': False,
+            'containsRawProviderResponses': False,
+        }
+    return sequence
 
 
 def managed_provider_resale_next_actions(missing_controls, managed_access, unit_economics, setup):
@@ -3065,6 +3138,11 @@ def public_launch_metadata():
         enabled=bool(managed_provider_access.get('enabled'))
     )
     managed_provider_access['readinessSetup'] = readiness_setup
+    managed_provider_access['onboardingSequence'] = managed_provider_resale_onboarding_sequence(
+        managed_provider_access,
+        unit_economics,
+        readiness_setup,
+    )
     managed_provider_access['nextActions'] = managed_provider_resale_next_actions(
         missing_controls,
         managed_provider_access,
@@ -3121,6 +3199,7 @@ def compact_managed_provider_readiness(pricing_metadata):
         'status': managed.get('status') or 'unknown',
         'missingControls': managed.get('missingControls') if isinstance(managed.get('missingControls'), list) else [],
         'nextActions': managed.get('nextActions') if isinstance(managed.get('nextActions'), list) else [],
+        'onboardingSequence': managed.get('onboardingSequence') if isinstance(managed.get('onboardingSequence'), list) else [],
         'providerTermsAcknowledged': bool(managed.get('providerTermsAcknowledged')),
         'providerAuthorizationEvidenceConfigured': bool(managed.get('providerAuthorizationEvidenceConfigured')),
         'configuredProviderFamilies': managed.get('configuredProviderFamilies') if isinstance(managed.get('configuredProviderFamilies'), list) else [],
@@ -3156,6 +3235,7 @@ def compact_managed_provider_readiness(pricing_metadata):
             'authorizationPacketCommand': setup.get('authorizationPacketCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet',
             'authorizationLedgerTemplateCommand': setup.get('authorizationLedgerTemplateCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template',
             'providerOutreachCommand': setup.get('providerOutreachCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet',
+            'oneSubscriptionPricingCommand': setup.get('oneSubscriptionPricingCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet',
             'unitEconomicsCommand': setup.get('unitEconomicsCommand') or '',
             'enableCommandTemplate': setup.get('enableCommandTemplate') or '',
             'requiredEnv': setup.get('requiredEnv') if isinstance(setup.get('requiredEnv'), list) else [],
