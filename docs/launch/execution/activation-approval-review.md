@@ -33,7 +33,7 @@ Current launch state:
 
 - Approval readiness: `approval_required; blocker=explicit_operator_approval_required.`
 - Decision needed: approve or hold the next real activation send for segment "verified".
-- Approval packet freshness: `issuedAt=1782833360; expiresAt=1782834260; validSeconds=900; requiredForRealSend=true.`
+- Approval packet freshness: `issuedAt=<CURRENT_APPROVAL_PACKET_ISSUED_AT>; expiresAt=<CURRENT_APPROVAL_PACKET_EXPIRES_AT>; validSeconds=900; requiredForRealSend=true.`
 - Queue: `4 total; 2 sendable; 2 review-only; 0 unknown.`
 - Dry-run coverage: `verified for 2 unique sendable recipient(s). Sent: 0; failed: 0.`
 - Dry-run segments: `covered=verified, unverified; pending=none; duplicate raw recipient records=2.`
@@ -57,7 +57,7 @@ Effect: read-only review packet; this command does not approve, copy a send comm
 
 Approval readiness: approval_required; blocker=explicit_operator_approval_required.
 Decision needed: approve or hold the next real activation send for segment "verified".
-Approval packet freshness: issuedAt=1782833360; expiresAt=1782834260; validSeconds=900; requiredForRealSend=true.
+Approval packet freshness: issuedAt=<CURRENT_APPROVAL_PACKET_ISSUED_AT>; expiresAt=<CURRENT_APPROVAL_PACKET_EXPIRES_AT>; validSeconds=900; requiredForRealSend=true.
 Queued: 4 total; 2 sendable; 2 review-only; 0 unknown.
 Dry-run: verified for 2 unique sendable recipient(s). Sent: 0; failed: 0.
 Dry-run segments: covered=verified, unverified; pending=none; duplicate raw recipient records=2.
@@ -75,7 +75,7 @@ Approval checklist:
 - verify_dry_run_coverage=ready: 2 unique sendable recipient(s); 4 raw dry-run recipient record(s); 2 duplicate record(s); covered=verified, unverified; pending=none.
 - exclude_review_only_segments=review: 2 review-only signup(s) need auth repair or exclusion before email outreach.
 - repair_missing_auth_users=review: Review account-link repair or exclusion for segments missing_auth_user; hydration has no missing customer rows to create.
-- refresh_recent_approval_packet=ready: Packet issued at 1782833360; expires at 1782834260; re-run the approval packet after 900 seconds before any real send.
+- refresh_recent_approval_packet=ready: Packet issued at <CURRENT_APPROVAL_PACKET_ISSUED_AT>; expires at <CURRENT_APPROVAL_PACKET_EXPIRES_AT>; re-run the approval packet after 900 seconds before any real send.
 - approve_next_segment_only=needs_approval: Approve or hold only segment "verified"; do not broaden to other segments without a fresh packet.
 - require_typed_confirmation=protected: Real sends require SEND_ACTIVATION_FOLLOWUPS plus the private operator token and trusted browser origin.
 
