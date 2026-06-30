@@ -239,6 +239,8 @@ const ALLOWED_EVENTS = new Set([
   'status_managed_authorization_packet_copied',
   'status_managed_authorization_ledger_template_copied',
   'status_managed_provider_outreach_copied',
+  'status_managed_provider_authorization_review_copied',
+  'status_managed_provider_terms_review_copied',
   'status_managed_one_subscription_pricing_copied',
   'status_managed_unit_economics_copied',
   'status_managed_resale_stage_copied',

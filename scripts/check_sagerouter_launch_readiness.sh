@@ -1392,6 +1392,21 @@ check_hosted_onboarding_pages() {
   if [[ "$status_js_code" == "200" ]] && ! grep -q "snippet: 'status-activation-review-record'" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-activation-review-record-snippet"
   fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "status_managed_provider_authorization_review_copied" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-managed-authorization-review-record-funnel"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "status_managed_provider_terms_review_copied" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-managed-terms-review-record-funnel"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q -- "--record-authorization-review" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-managed-authorization-review-record-command"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q -- "--record-terms-review" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-managed-terms-review-record-command"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q -- "--record-provider-outreach" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-managed-provider-outreach-record-command"
+  fi
   if [[ "$status_js_code" == "200" ]] && ! grep -q "Browser Integrity Check" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-bic-guidance"
   fi
@@ -1721,6 +1736,8 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("setup_key_recovery_support_clicked") != null) and
     ((.allowedEvents // []) | index("status_first_request_setup_copied") != null) and
     ((.allowedEvents // []) | index("status_managed_one_subscription_pricing_copied") != null) and
+    ((.allowedEvents // []) | index("status_managed_provider_authorization_review_copied") != null) and
+    ((.allowedEvents // []) | index("status_managed_provider_terms_review_copied") != null) and
     ((.allowedEvents // []) | index("operator_managed_access_packet_copied") != null) and
     ((.allowedEvents // []) | index("operator_managed_access_command_copied") != null)
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
