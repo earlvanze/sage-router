@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--founder-sales-packet] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section] [--update-distribution-tracker]
+Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--founder-sales-packet] [--setup-copy-packet] [--record-setup-copy] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section] [--update-distribution-tracker]
 
 Fetch the operator-only /analytics/funnel endpoint and print a privacy-safe
 launch snapshot. The script never prints operator tokens, emails, generated API
@@ -16,6 +16,12 @@ Options:
   --founder-sales-packet
                       Print the no-secret founder-sales next-revenue packet
                       for direct warm outreach while sends/resale are gated.
+  --setup-copy-packet
+                      Print the no-secret first-request setup-copy activation
+                      packet for terminal operators.
+  --record-setup-copy Print the setup-copy packet and record one aggregate
+                      status_first_request_setup_copied event for the
+                      operator terminal handoff.
   --verify-recovery   With --approval-packet, run the no-persistence setup-key
                       recovery handoff verifier and include the result.
   --verify-auth-repair
@@ -33,6 +39,7 @@ Options:
 Environment:
   SAGEROUTER_SECRET_ENV_FILE       Optional env file to source first
   SAGEROUTER_API_BASE_URL          Defaults to https://api.sagerouter.dev
+  SAGEROUTER_APP_BASE_URL          Defaults to https://app.sagerouter.dev
   SAGEROUTER_DISTRIBUTION_TRACKER_PATH
                                   Defaults to docs/launch/distribution-tracker.md
   SAGE_ROUTER_ANALYTICS_TOKEN      Preferred read-only funnel token
@@ -48,7 +55,7 @@ load_local_env_file() {
   local key value current
   while IFS='=' read -r -d '' key value; do
     case "$key" in
-      SAGEROUTER_API_BASE_URL|SAGE_ROUTER_ANALYTICS_TOKEN|SAGE_ROUTER_OPERATOR_TOKEN|SAGE_ROUTER_API_KEY)
+      SAGEROUTER_API_BASE_URL|SAGEROUTER_APP_BASE_URL|SAGE_ROUTER_ANALYTICS_TOKEN|SAGE_ROUTER_OPERATOR_TOKEN|SAGE_ROUTER_API_KEY)
         ;;
       *)
         continue
@@ -74,6 +81,8 @@ DAYS=30
 RAW_JSON=0
 APPROVAL_PACKET=0
 FOUNDER_SALES_PACKET=0
+SETUP_COPY_PACKET=0
+RECORD_SETUP_COPY=0
 VERIFY_RECOVERY=0
 VERIFY_AUTH_REPAIR=0
 TRACKER_SECTION=0
@@ -98,6 +107,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --founder-sales-packet)
       FOUNDER_SALES_PACKET=1
+      shift
+      ;;
+    --setup-copy-packet)
+      SETUP_COPY_PACKET=1
+      shift
+      ;;
+    --record-setup-copy)
+      RECORD_SETUP_COPY=1
       shift
       ;;
     --verify-recovery)
@@ -128,8 +145,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if (( RAW_JSON + APPROVAL_PACKET + FOUNDER_SALES_PACKET + TRACKER_SECTION + UPDATE_TRACKER > 1 )); then
-  printf '%s\n' '--json, --approval-packet, --founder-sales-packet, --distribution-tracker-section, and --update-distribution-tracker cannot be combined' >&2
+if (( RAW_JSON + APPROVAL_PACKET + FOUNDER_SALES_PACKET + SETUP_COPY_PACKET + RECORD_SETUP_COPY + TRACKER_SECTION + UPDATE_TRACKER > 1 )); then
+  printf '%s\n' '--json, --approval-packet, --founder-sales-packet, --setup-copy-packet, --record-setup-copy, --distribution-tracker-section, and --update-distribution-tracker cannot be combined' >&2
   exit 2
 fi
 if [[ "$VERIFY_RECOVERY" == "1" && "$APPROVAL_PACKET" != "1" ]]; then
@@ -247,6 +264,7 @@ fi
 load_local_env_file "${SAGEROUTER_SECRET_ENV_FILE:-/home/digit/.openclaw/.env}"
 
 API_BASE="${SAGEROUTER_API_BASE_URL:-https://api.sagerouter.dev}"
+APP_BASE="${SAGEROUTER_APP_BASE_URL:-https://app.sagerouter.dev}"
 TOKEN="${SAGE_ROUTER_ANALYTICS_TOKEN:-${SAGE_ROUTER_OPERATOR_TOKEN:-${SAGE_ROUTER_API_KEY:-}}}"
 if [[ -z "$TOKEN" ]]; then
   printf 'Missing SAGE_ROUTER_ANALYTICS_TOKEN, SAGE_ROUTER_OPERATOR_TOKEN, or SAGE_ROUTER_API_KEY\n' >&2
@@ -267,7 +285,7 @@ printf '{"stage":"not_run","handoffSmoke":{"checked":false,"passed":false,"noPer
 if [[ "$APPROVAL_PACKET" == "1" && "$VERIFY_RECOVERY" == "1" ]]; then
   bash scripts/diagnose_setup_key_recovery_dropoff.sh --days "$DAYS" --verify-handoff --json > "$recovery_tmp"
 fi
-if [[ "$APPROVAL_PACKET" != "1" && "$RAW_JSON" != "1" ]]; then
+if [[ "$APPROVAL_PACKET" != "1" && "$RAW_JSON" != "1" && "$SETUP_COPY_PACKET" != "1" && "$RECORD_SETUP_COPY" != "1" ]]; then
   if ! bash scripts/diagnose_setup_key_recovery_dropoff.sh --days "$DAYS" --verify-handoff --json > "$recovery_tmp"; then
     printf '{"stage":"failed","handoffSmoke":{"checked":true,"passed":false,"noPersistence":true},"privacy":{"aggregateOnly":true}}\n' > "$recovery_tmp"
   fi
@@ -309,6 +327,84 @@ if [[ "$APPROVAL_PACKET" == "1" && "$VERIFY_AUTH_REPAIR" == "1" ]]; then
       printf '{"stage":"failed","checked":true,"passed":false,"dryRun":true,"privacy":{"aggregateOnly":true}}\n' > "$auth_repair_tmp"
     fi
   fi
+fi
+
+if [[ "$SETUP_COPY_PACKET" == "1" || "$RECORD_SETUP_COPY" == "1" ]]; then
+  plan="$(jq -r '.activationFollowUps.suggestedPlan // .nextBestAction.evidence.suggestedPlan // "pro"' "$tmp")"
+  case "$plan" in
+    lite|pro|max)
+      ;;
+    *)
+      plan="pro"
+      ;;
+  esac
+  account_url="${APP_BASE%/}/account.html?plan=${plan}&start=create_key&utm_source=operator&utm_medium=launch_funnel&utm_campaign=sage-router-launch&utm_content=operator-first-request-setup"
+  source_page="${APP_BASE%/}/launch-funnel.html#next-best-action-dock"
+  target_url="${APP_BASE%/}/account.html"
+
+  cat <<EOF
+Sage Router setup-copy activation packet
+Boundary: no emails, customer IDs, generated API keys, prompts, OAuth tokens, provider credentials, raw campaign URLs, or raw provider responses.
+Effect: no-secret terminal handoff for setup-copy activation without sending email, approving activation sends, changing billing, mutating providers, or enabling managed resale.
+
+# Sage Router hosted setup
+# 1. Create your generated setup key:
+# ${account_url}
+# 2. Replace the placeholder below with the one-time sk_sage key.
+
+export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
+export OPENAI_API_KEY=sk_sage_your_key_here
+export SAGE_ROUTER_MODEL=sage-router/frontier
+
+curl "\$OPENAI_BASE_URL/models" \\
+  -H "Authorization: Bearer \$OPENAI_API_KEY"
+
+# Then run your first chat/completions request with sage-router/frontier.
+# Boundary: do not paste real API keys, provider credentials, prompts, OAuth tokens, or customer data into public channels.
+
+Setup-copy KPI: status_first_request_setup_copied with snippet operator-first-request-setup.
+EOF
+
+  if [[ "$RECORD_SETUP_COPY" != "1" ]]; then
+    cat <<EOF
+
+Recording command: scripts/summarize_sagerouter_launch_funnel.sh --days ${DAYS} --record-setup-copy
+Recording boundary: only run that after an operator actually uses or shares this setup-copy packet; it records one aggregate event and still does not send email or expose a real key.
+EOF
+    exit 0
+  fi
+
+  payload="$(jq -n \
+    --arg plan "$plan" \
+    --arg sourcePage "$source_page" \
+    --arg target "$target_url" \
+    '{
+      event: "status_first_request_setup_copied",
+      plan: $plan,
+      sourcePage: $sourcePage,
+      target: $target,
+      metadata: {
+        sourceSurface: "launch-plan",
+        source: "operator-launch-funnel-cli",
+        button: "setup-copy-packet-cli",
+        state: "operator_first_request_setup_copied",
+        snippet: "operator-first-request-setup",
+        resultCount: 1,
+        utmSource: "operator",
+        utmMedium: "launch_funnel",
+        utmCampaign: "signup_to_key_recovery"
+      }
+    }')"
+
+  curl -fsS -X POST "${APP_BASE%/}/api/funnel-event" \
+    -H "Origin: ${APP_BASE%/}" \
+    -H "Content-Type: application/json" \
+    -H "User-Agent: SageRouterLaunchFunnelCLI/1.0" \
+    --data "$payload" \
+    >/dev/null
+
+  printf '\nRecorded setup-copy activation event status_first_request_setup_copied with snippet operator-first-request-setup from SageRouterLaunchFunnelCLI/1.0.\n'
+  exit 0
 fi
 
 if [[ "$APPROVAL_PACKET" == "1" ]]; then
