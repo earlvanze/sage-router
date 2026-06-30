@@ -136,6 +136,11 @@
         <div>
           <p class="eyebrow">Safe probes</p>
           <h2>Use headers first, then a tiny chat check.</h2>
+          <p class="muted">If raw Python <code>urllib</code> gets Cloudflare <code>403 / 1010</code>, use a normal client <code>User-Agent</code> so the request reaches the Sage Router auth gate.</p>
+          <div class="actions">
+            <button id="api-troubleshooting-copy-python-urllib" class="button secondary" type="button">Copy Python urllib probe</button>
+          </div>
+          <p id="api-troubleshooting-python-copy-status" class="copyStatus" role="status" aria-live="polite"></p>
         </div>
         <div class="panel">
           <pre><code>curl -i https://api.sagerouter.dev/v1/models \
@@ -150,6 +155,33 @@ curl -i https://api.sagerouter.dev/v1/chat/completions \
     "model": "sage-router/frontier",
     "messages": [{"role": "user", "content": "Return ok."}]
   }'</code></pre>
+        </div>
+      </section>
+
+      <section class="section grid2">
+        <div>
+          <p class="eyebrow">Python urllib</p>
+          <h2>Reach the auth gate from raw Python clients.</h2>
+          <p class="muted">This probe should return Sage Router's guided <code>401</code> until you replace the placeholder with a generated <code>sk_sage_*</code> key. It should not return Cloudflare <code>1010</code>.</p>
+        </div>
+        <div class="panel">
+          <pre><code id="api-troubleshooting-python-urllib-snippet">import urllib.error
+import urllib.request
+
+req = urllib.request.Request(
+    "https://api.sagerouter.dev/v1/models",
+    headers={
+        "Authorization": "Bearer sk_sage_REPLACE_WITH_GENERATED_KEY",
+        "User-Agent": "OpenAI-compatible-client/1.0",
+        "Accept": "application/json",
+    },
+)
+
+try:
+    with urllib.request.urlopen(req, timeout=15) as response:
+        print(response.status, response.read().decode("utf-8", errors="replace"))
+except urllib.error.HTTPError as exc:
+    print(exc.code, exc.read().decode("utf-8", errors="replace"))</code></pre>
         </div>
       </section>
 
@@ -283,6 +315,23 @@ curl "$OPENAI_BASE_URL/models" \
       }
     }
 
+    async function copyApiTroubleshootingPythonProbe() {
+      const snippet = document.getElementById('api-troubleshooting-python-urllib-snippet')?.textContent || '';
+      const status = document.getElementById('api-troubleshooting-python-copy-status');
+      if (!snippet.trim()) return;
+      try {
+        await writeClipboardText(snippet.trim());
+        if (status) status.textContent = 'Copied Python urllib probe with a normal User-Agent and placeholder key.';
+        trackApiTroubleshootingEvent('api_troubleshooting_setup_copied', {
+          button: 'copy-python-urllib-probe',
+          state: 'python-urllib-bic-workaround',
+          snippet: 'api-troubleshooting-python-urllib-user-agent',
+        });
+      } catch {
+        if (status) status.textContent = 'Copy failed. Select the Python snippet text and copy it manually.';
+      }
+    }
+
     document.querySelectorAll('[data-api-troubleshooting-event]').forEach((link) => {
       link.addEventListener('click', () => {
         trackApiTroubleshootingEvent(link.dataset.apiTroubleshootingEvent, {
@@ -298,6 +347,9 @@ curl "$OPENAI_BASE_URL/models" \
     });
     document.getElementById('api-troubleshooting-copy-setup-panel')?.addEventListener('click', () => {
       copyApiTroubleshootingSetupSnippet('api-troubleshooting-copy-status-panel');
+    });
+    document.getElementById('api-troubleshooting-copy-python-urllib')?.addEventListener('click', () => {
+      copyApiTroubleshootingPythonProbe();
     });
   </script>
   <script src="/marketing-email-activation.js" defer></script>
