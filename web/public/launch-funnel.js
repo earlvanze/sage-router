@@ -1734,6 +1734,7 @@ function renderNextBestActionDock(data = {}) {
   const emailVerification = evidence.emailVerification || followUps.countsByEmailVerification || {};
   const primaryCta = primaryCtaUrls.setupKeyRecovery || followUps.primaryCtaUrl || primaryCtaUrls.passwordFallback || activationFollowUpUrl({ activation: { plan: followUps.suggestedPlan || 'pro' } }, { recovery: true });
   const actionHref = action.ctaPath || primaryCta || '/launch-funnel.html';
+  const setupCopyFallback = evidence.nonGatedSetupCopyFallback === true;
   const priority = action.priority || 'review';
   const metric = action.metric || 'activation';
   const noKeyCount = Number(evidence.noKeyFollowUpsQueued ?? followUps.total ?? 0);
@@ -1779,7 +1780,16 @@ function renderNextBestActionDock(data = {}) {
     ? `<button class="btn secondary" type="button" data-copy-activation-approval-packet="${esc(approvalPacketText)}" data-followup-count="${integer(activationDelivery.sendableQueued)}">Copy approval packet</button>`
     : '';
   const setupBundleText = firstRequestSetupBundleText(data);
-  const setupButton = `<button class="btn secondary" type="button" data-copy-operator-setup-bundle="${esc(setupBundleText)}" data-followup-plan="${esc(followUps.suggestedPlan || 'pro')}">Copy first-request setup</button>`;
+  const setupButton = `<button class="btn ${setupCopyFallback ? '' : 'secondary'}" type="button" data-copy-operator-setup-bundle="${esc(setupBundleText)}" data-followup-plan="${esc(followUps.suggestedPlan || 'pro')}">${setupCopyFallback ? 'Copy first-request setup now' : 'Copy first-request setup'}</button>`;
+  const recommendedSurfaceButton = setupCopyFallback && String(actionHref).includes('#next-best-action-dock')
+    ? ''
+    : `<a class="btn secondary" href="${esc(actionHref)}">Open recommended surface</a>`;
+  const dockActions = setupCopyFallback
+    ? `${setupButton}${queueButton}${recommendedSurfaceButton}${approvalButton}${mailtoButton}${copyButton}`
+    : `${queueButton}${recommendedSurfaceButton}${setupButton}${approvalButton}${mailtoButton}${copyButton}`;
+  const actionStatus = setupCopyFallback
+    ? 'Next no-secret move: copy first-request setup first; it records setup-copy activation without sending email or exposing a real key.'
+    : 'Use the queue buttons to record only segment/count telemetry after real outreach.';
   const checklist = Array.isArray(action.executionChecklist) && action.executionChecklist.length
     ? `<ol class="muted" style="margin:10px 0 0 20px">${action.executionChecklist.slice(0, 5).map(item => `<li><strong>${esc(item.action || '')}</strong><br><span>${esc(item.successMetric || '')}</span></li>`).join('')}</ol>`
     : '';
@@ -1798,7 +1808,7 @@ function renderNextBestActionDock(data = {}) {
   <p><strong>${esc(action.action || followUps.recommendedOperatorAction || 'Review the current launch funnel bottleneck.')}</strong></p>
   <p class="muted">Success metric: ${esc(action.successMetric || followUps.successMetric || 'Improve the next funnel stage.')} ${activationSend.sendApprovalRequired ? `Dry-run verified=${activationSend.dryRunVerified ? 'yes' : 'no'}; real send still needs explicit operator approval.` : ''}</p>${checklist}
   ${renderActivationNextSendStep(data, { compact: true })}
-  <div class="actions">${queueButton}<a class="btn secondary" href="${esc(actionHref)}">Open recommended surface</a>${setupButton}${approvalButton}${mailtoButton}${copyButton}<span class="status">Use the queue buttons to record only segment/count telemetry after real outreach.</span></div>${segmentDraftDock}`;
+  <div class="actions">${dockActions}<span class="status">${actionStatus}</span></div>${segmentDraftDock}`;
 }
 
 async function writeClipboard(value) {
