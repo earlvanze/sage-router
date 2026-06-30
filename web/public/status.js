@@ -504,6 +504,7 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
   const managedAuthorizationReviewRecord = 'scripts/configure_managed_provider_resale_readiness.sh --record-authorization-review';
   const managedProviderOutreachRecord = 'scripts/configure_managed_provider_resale_readiness.sh --record-provider-outreach';
   const managedOneSubscriptionPricing = managedSetup.oneSubscriptionPricingCommand || 'scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet';
+  const managedPrivateCostModelTemplate = managedSetup.privateCostModelTemplateCommand || 'scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template';
   const managedUnitEconomics = managedSetup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
   const activationApprovalPacket = 'scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet --verify-recovery --verify-auth-repair';
   const founderSalesFallback = [
@@ -673,6 +674,16 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
       state: managed.unitEconomics?.satisfied ? 'good' : 'warn',
       meta: 'Run before writing the private provider-cost model; output shows only candidate presence, public plan revenue, max-safe thresholds, and pass/fail status.',
       command: managedUnitEconomics,
+      copyEvent: 'status_managed_unit_economics_copied',
+    },
+    {
+      id: 'managed-private-cost-template',
+      title: 'Private cost-model template',
+      value: managed.unitEconomics?.costModelConfigured ? 'Cost model present' : 'Prepare private review',
+      badge: 'no actual costs',
+      state: managed.unitEconomics?.costModelConfigured ? 'good' : 'warn',
+      meta: 'Prints a private worksheet template with placeholders and approval fields only; the completed worksheet stays outside public pages, PRs, logs, and support channels.',
+      command: managedPrivateCostModelTemplate,
       copyEvent: 'status_managed_unit_economics_copied',
     },
     {

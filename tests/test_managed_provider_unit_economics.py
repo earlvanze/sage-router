@@ -218,6 +218,7 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         pricing_review = PRICING_REVIEW_DOC.read_text(encoding='utf-8')
         self.assertIn('Sage Router One-Subscription Pricing Review', pricing_review)
         self.assertIn('scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet', pricing_review)
+        self.assertIn('scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template', pricing_review)
         self.assertIn('scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet', pricing_review)
         self.assertIn('Binding public plan: `max`', pricing_review)
         self.assertIn('| Max | `$72/mo` | `200,000` | `36.0c` | `23.4c` | `1` |', pricing_review)
@@ -246,7 +247,9 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         script = CONFIGURE_SCRIPT.read_text(encoding='utf-8')
         self.assertIn('Usage: scripts/configure_managed_provider_resale_readiness.sh', script)
         self.assertIn('--one-subscription-pricing-packet', script)
+        self.assertIn('--private-cost-model-template', script)
         self.assertIn('Sage Router one-subscription pricing packet', script)
+        self.assertIn('Sage Router Private Managed-Provider Cost Model Template', script)
         self.assertIn('Public fixed-plan thresholds:', script)
         self.assertIn('Public managed-access offer ladder:', script)
         self.assertIn('Packaging decision for one-subscription beta:', script)
@@ -264,6 +267,8 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertIn('containsRequiredPrivatePrices=false', script)
         self.assertIn('containsAuthorizationReference=false', script)
         self.assertIn('mutatesRuntime=false', script)
+        self.assertIn('providerCostCentsPer1kRequests: PRIVATE_VALUE_NOT_FOR_CHAT_OR_GIT', script)
+        self.assertIn('publicEnableApproved=false', script)
         self.assertNotIn('required_private_price', script)
 
     def test_configure_helper_provider_reply_triage_packet_is_no_secret(self):

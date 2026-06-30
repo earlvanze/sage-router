@@ -593,6 +593,7 @@ scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-p
 scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template
 scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet
 scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet
+scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template
 scripts/configure_managed_provider_resale_readiness.sh --check
 ```
 
@@ -612,8 +613,11 @@ The `/pricing`, `/status`, and private launch-funnel metadata exposes
 `setupCommand`. Use `stagePublicControlsCommand` first because it stages public
 terms, margin-policy, allowlist, margin floor, and disabled-public-enable
 controls without a provider authorization reference or private provider-cost
-candidate. Only use the full `setupCommand` after `--unit-economics` passes with
-the reviewed private cost model and the evidence reference has been approved.
+candidate. Use `readinessSetup.privateCostModelTemplateCommand` to prepare the
+private offline cost worksheet, then run `--unit-economics` with the reviewed
+private cost candidate. Only use the full `setupCommand` after
+`--unit-economics` passes with the reviewed private cost model and the evidence
+reference has been approved.
 
 Use `--terms-approval-packet` for the provider-terms acknowledgment review. It
 prints public terms/margin URLs, local input presence, resale-eligible provider
