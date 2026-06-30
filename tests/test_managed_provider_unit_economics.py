@@ -122,6 +122,7 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         combined = result.stdout + result.stderr
         self.assertIn('Sage Router Managed Provider Authorization Ledger Template', combined)
         self.assertIn('privateEvidenceReference: provider-review-YYYYMMDD-doc-or-ticket-id', combined)
+        self.assertIn('--provider-reply-triage-packet', combined)
         self.assertIn('| ollama | pending | pending | private-ref-only', combined)
         self.assertIn('| openai | pending | pending | private-ref-only', combined)
         self.assertIn('| anthropic | pending | pending | private-ref-only', combined)
@@ -137,6 +138,7 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertIn('--authorization-packet', script)
         self.assertIn('--authorization-ledger-template', script)
         self.assertIn('--provider-outreach-packet', script)
+        self.assertIn('--provider-reply-triage-packet', script)
         self.assertIn('--terms-approval-packet', script)
         self.assertIn('provider-authorization-ledger-template.md', script)
         self.assertIn('--one-subscription-pricing-packet', script)
@@ -146,9 +148,12 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertIn('Sage Router managed provider authorization packet', script)
         self.assertIn('Sage Router Managed Provider Authorization Ledger Template', script)
         self.assertIn('Sage Router managed provider outreach packet', script)
+        self.assertIn('Sage Router provider reply triage packet', script)
         self.assertIn('Sage Router one-subscription pricing packet', script)
         self.assertIn('Provider-family authorization checklist', script)
         self.assertIn('Provider-specific copy blocks', script)
+        self.assertIn('Reply triage matrix:', script)
+        self.assertIn('containsProviderReplyBody=false', script)
         self.assertIn('provider-review-YYYYMMDD-doc-or-ticket-id', script)
         self.assertIn('OpenRouter and BYOK-compatible gateways', script)
         self.assertIn('read-only review packet', script)
@@ -168,6 +173,7 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         doc = OUTREACH_DOC.read_text(encoding='utf-8')
         self.assertIn('Sage Router Provider Authorization Outreach', doc)
         self.assertIn('scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet', doc)
+        self.assertIn('scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet', doc)
         self.assertIn('Ollama / Ollama Cloud', doc)
         self.assertIn('OpenAI', doc)
         self.assertIn('Anthropic', doc)
@@ -177,6 +183,7 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         pricing_review = PRICING_REVIEW_DOC.read_text(encoding='utf-8')
         self.assertIn('Sage Router One-Subscription Pricing Review', pricing_review)
         self.assertIn('scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet', pricing_review)
+        self.assertIn('scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet', pricing_review)
         self.assertIn('Binding public plan: `max`', pricing_review)
         self.assertIn('| Max | `$72/mo` | `200,000` | `36.0c` | `23.4c` | `1` |', pricing_review)
         self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0', pricing_review)
@@ -205,6 +212,7 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertIn('add a managed-access surcharge', script)
         self.assertIn('private Max contract', script)
         self.assertIn('Provider outreach: scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet', script)
+        self.assertIn('Provider reply triage: scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet', script)
         self.assertIn('SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS=REVIEWED_PRIVATE_COST', script)
         self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0', script)
         self.assertIn('containsActualProviderCosts=false', script)
@@ -212,6 +220,41 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertIn('containsAuthorizationReference=false', script)
         self.assertIn('mutatesRuntime=false', script)
         self.assertNotIn('required_private_price', script)
+
+    def test_configure_helper_provider_reply_triage_packet_is_no_secret(self):
+        script = CONFIGURE_SCRIPT.read_text(encoding='utf-8')
+        self.assertIn('--provider-reply-triage-packet', script)
+        self.assertIn('Sage Router provider reply triage packet', script)
+        self.assertIn('Reply triage matrix:', script)
+        self.assertIn('managedAccessDecision', script)
+        self.assertIn('privateEvidenceReference', script)
+        self.assertIn('privateCostReviewReference', script)
+        self.assertIn('Keep OpenRouter and BYOK-compatible gateways outside the managed resale allowlist', script)
+        self.assertIn('mutatesRuntime=false; sendsEmail=false', script)
+        self.assertIn('containsProviderReplyBody=false', script)
+
+        result = subprocess.run(
+            [str(CONFIGURE_SCRIPT), '--provider-reply-triage-packet'],
+            cwd=ROOT,
+            env=self.env(),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        combined = result.stdout + result.stderr
+        self.assertIn('Sage Router provider reply triage packet', combined)
+        self.assertIn('Reply triage matrix:', combined)
+        self.assertIn('| ollama | pending | pending | pending |', combined)
+        self.assertIn('| openai | pending | pending | pending |', combined)
+        self.assertIn('| anthropic | pending | pending | pending |', combined)
+        self.assertIn('private-ref-only', combined)
+        self.assertIn('managedAccessDecision', combined)
+        self.assertIn('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC', combined)
+        self.assertIn('containsProviderReplyBody=false', combined)
+        self.assertIn('containsActualProviderCosts=false', combined)
+        self.assertIn('containsAuthorizationReference=false', combined)
+        self.assertNotIn('1.234567', combined)
+        self.assertNotIn('provider account ID:', combined)
 
 
 if __name__ == '__main__':
