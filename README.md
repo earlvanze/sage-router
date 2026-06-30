@@ -294,12 +294,12 @@ Dev.to, X, and LinkedIn, with measured campaign links and no-secret posting
 boundaries for the `$10k MRR` campaign. Copying those launch posts records
 `outreach_snippet_copied`, not setup-copy activation, so setup-copy KPIs stay
 reserved for snippets that help prospects configure Sage Router.
-`https://sagerouter.dev/founder-sales-kit` gives the operator first-viewport
-`Copy next Pro reply` and `Copy 60-second setup bundle` actions plus copyable
-no-secret direct outreach for Lite pilots, Pro activation, Max implementation review,
-one-subscription managed-access review, gateway migration replies, OpenRouter
-migration replies, and
-calculator follow-up with measured
+`https://sagerouter.dev/founder-sales-kit` gives the operator a first-viewport
+`Copy next revenue packet` action, plus `Copy next Pro reply` and
+`Copy 60-second setup bundle` actions, and copyable no-secret direct outreach
+for Lite pilots, Pro activation, Max implementation review, one-subscription
+managed-access review, gateway migration replies, OpenRouter migration replies,
+and calculator follow-up with measured
 `utm_source=founder-sales` links for the same `$10k MRR` campaign. Those copy
 actions roll into `/analytics/funnel.marketingIntent.founderSalesOutreachCopies`,
 `founderSalesOutreachCopiesBySnippet`, and setup-copy activation metrics. The private launch-funnel dashboard

@@ -52,7 +52,27 @@
     </div>
     <section class="panel callout" aria-label="Copy the next founder-sales action">
       <h2><strong>Copy the next action first</strong></h2>
-      <p>Use this when the launch funnel shows zero outreach or setup copies. Copy one no-secret reply for a warm conversation, or copy the hosted setup bundle before sending a prospect to create a generated key.</p>
+      <p>Use this when the launch funnel shows zero outreach or setup copies. Copy the revenue packet for a warm founder-sales thread, or copy one focused reply and setup bundle before sending a prospect to create a generated key.</p>
+      <pre id="founder-next-revenue-packet" class="codebox">Sage Router may fit your agent/model routing work if you want one OpenAI-compatible endpoint with health-aware fallback, generated Sage keys, and route profiles for frontier/local/coding traffic.
+
+Fastest path:
+1. Create a Pro generated key, then verify /v1/models:
+https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=next-revenue-packet
+
+2. Copy the 60-second setup:
+https://sagerouter.dev/quickstart?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=next-revenue-packet
+
+If this is a production/team workflow, request Max implementation review:
+https://sagerouter.dev/managed-access?intent=max-implementation&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=next-revenue-packet
+
+If you want one-subscription simplicity, use managed-access review instead of assuming public bundled resale is enabled:
+https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=next-revenue-packet
+
+Boundary: Sage Router is routing, generated-key, quota, analytics, and reliability infrastructure for provider/local access you are authorized to use. Public managed-provider access remains gated behind provider authorization, terms, cost model, unit economics, quotas, and acceptable-use controls.</pre>
+      <div class="copyRow">
+        <button id="copy-founder-next-revenue-packet" class="copyButton" type="button">Copy next revenue packet</button>
+        <span id="copy-founder-next-revenue-status" class="copyStatus" role="status" aria-live="polite"></span>
+      </div>
       <pre id="founder-hero-pro-reply" class="codebox">Sage Router may fit your agent routing work if you want one OpenAI-compatible endpoint with health-aware fallback, model routing, and hosted generated keys.
 
 Start by creating the sk_sage key, then verify /v1/models before wiring it into an agent:
@@ -389,6 +409,9 @@ https://sagerouter.dev/margin-policy?utm_source=founder-sales&utm_medium=direct&
     }
 
     trackFounderSalesEvent('content_article_viewed', { button: 'page-view' });
+    document.getElementById('copy-founder-next-revenue-packet')?.addEventListener('click', () => {
+      copyBlock('founder-next-revenue-packet', 'copy-founder-next-revenue-status', 'Copied next revenue packet.', 'founder-next-revenue-packet');
+    });
     document.getElementById('copy-founder-hero-pro-reply')?.addEventListener('click', () => {
       copyBlock('founder-hero-pro-reply', 'copy-founder-hero-status', 'Copied next Pro reply.', 'founder-hero-pro-reply');
     });

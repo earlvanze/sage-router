@@ -3681,6 +3681,12 @@ check_marketing_founder_sales_kit_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "Copyable Pro activation email" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pro-email-copy"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-next-revenue-packet" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-founder-next-revenue-packet"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Public managed-provider access remains gated" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-founder-next-revenue-managed-boundary"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-hero-pro-reply" /tmp/sage-router-readiness-body; then
     page_code="200:missing-copy-founder-hero-pro-reply"
   fi
