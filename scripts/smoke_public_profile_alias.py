@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import time
 import urllib.error
 import urllib.parse
@@ -13,6 +14,7 @@ import uuid
 from pathlib import Path
 
 MODEL_PREFIX_RE = re.compile(r"^\s*\[(?:[A-Za-z0-9_.-]+/[^\]\s]+|tool calls omitted)\]", re.IGNORECASE)
+RETRYABLE_HTTP_STATUSES = {408, 429, 502, 503, 504, 520, 522, 524}
 
 
 def read_env_file(path):
@@ -36,6 +38,17 @@ def env_value(env, *names):
     return ""
 
 
+def positive_int(value, default, minimum=1, maximum=None):
+    try:
+        parsed = int(str(value).strip())
+    except Exception:
+        parsed = int(default)
+    parsed = max(int(minimum), parsed)
+    if maximum is not None:
+        parsed = min(int(maximum), parsed)
+    return parsed
+
+
 def supabase_request(supabase_url, service_key, method, path, payload=None, prefer=False):
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     headers = {
@@ -51,7 +64,7 @@ def supabase_request(supabase_url, service_key, method, path, payload=None, pref
         return json.loads(body) if body else None
 
 
-def request_json(api_base, raw_key, model, mode):
+def request_json(api_base, raw_key, model, mode, timeout):
     if mode == "responses":
         path = "/v1/responses"
         body = {
@@ -78,13 +91,13 @@ def request_json(api_base, raw_key, model, mode):
             "User-Agent": "SageRouterEdgeProfileSmoke/1.0",
         },
     )
-    with urllib.request.urlopen(req, timeout=90) as resp:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         payload = json.loads(resp.read().decode("utf-8"))
         response_headers = {key.lower(): value for key, value in resp.headers.items()}
         return {"status": resp.status, "payload": payload, "headers": response_headers}
 
 
-def request_responses_stream(api_base, raw_key, model):
+def request_responses_stream(api_base, raw_key, model, timeout):
     req = urllib.request.Request(
         f"{api_base.rstrip('/')}/v1/responses",
         data=json.dumps({
@@ -100,7 +113,7 @@ def request_responses_stream(api_base, raw_key, model):
             "User-Agent": "SageRouterEdgeProfileSmoke/1.0",
         },
     )
-    with urllib.request.urlopen(req, timeout=90) as resp:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         response_headers = {key.lower(): value for key, value in resp.headers.items()}
         events = []
         deltas = []
@@ -136,6 +149,64 @@ def request_responses_stream(api_base, raw_key, model):
             },
             "headers": response_headers,
         }
+
+
+def request_profile_once(api_base, raw_key, model, mode, timeout):
+    if mode == "responses-stream":
+        return request_responses_stream(api_base, raw_key, model, timeout)
+    return request_json(api_base, raw_key, model, mode, timeout)
+
+
+def http_error_result(exc):
+    raw = exc.read().decode("utf-8", errors="replace")
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        payload = {"raw": raw[:300]}
+    return {"status": exc.code, "payload": payload, "headers": {key.lower(): value for key, value in exc.headers.items()}}
+
+
+def transient_error_result(exc, attempt, attempts):
+    return {
+        "status": "timeout",
+        "payload": {
+            "error": {
+                "type": "transient_timeout",
+                "message": str(exc)[:240],
+                "attempt": attempt,
+                "attempts": attempts,
+            }
+        },
+        "headers": {},
+    }
+
+
+def retryable_status(status):
+    if status == "timeout":
+        return True
+    try:
+        return int(status) in RETRYABLE_HTTP_STATUSES
+    except Exception:
+        return False
+
+
+def request_profile_with_retries(api_base, raw_key, model, mode, timeout, attempts, retry_delay):
+    result = {"status": None, "payload": {}, "headers": {}}
+    for attempt in range(1, attempts + 1):
+        try:
+            result = request_profile_once(api_base, raw_key, model, mode, timeout)
+        except urllib.error.HTTPError as exc:
+            result = http_error_result(exc)
+        except (TimeoutError, socket.timeout, urllib.error.URLError) as exc:
+            result = transient_error_result(exc, attempt, attempts)
+        if attempt >= attempts or not retryable_status(result.get("status")):
+            result["attempt"] = attempt
+            result["attempts"] = attempts
+            return result
+        time.sleep(retry_delay)
+    result["attempt"] = attempts
+    result["attempts"] = attempts
+    return result
 
 
 def visible_text_from_payload(payload, mode):
@@ -179,6 +250,9 @@ def main():
     parser.add_argument("--api-base", default=os.environ.get("SAGEROUTER_API_BASE_URL", "https://api.sagerouter.dev"))
     parser.add_argument("--model", default=os.environ.get("SAGEROUTER_SMOKE_MODEL", "sage-router/frontier"))
     parser.add_argument("--mode", choices=("chat-completions", "responses", "responses-stream"), default="chat-completions")
+    parser.add_argument("--request-timeout", type=int, default=positive_int(os.environ.get("SAGEROUTER_SMOKE_REQUEST_TIMEOUT_SECONDS", "90"), 90, minimum=5, maximum=300))
+    parser.add_argument("--attempts", type=int, default=positive_int(os.environ.get("SAGEROUTER_SMOKE_ATTEMPTS", "2"), 2, minimum=1, maximum=5))
+    parser.add_argument("--retry-delay", type=float, default=float(os.environ.get("SAGEROUTER_SMOKE_RETRY_DELAY_SECONDS", "2") or "2"))
     args = parser.parse_args()
 
     env = read_env_file(args.env_file)
@@ -227,18 +301,15 @@ def main():
         else:
             raw_key = configured_smoke_key
 
-        try:
-            if args.mode == "responses-stream":
-                result = request_responses_stream(args.api_base, raw_key, args.model)
-            else:
-                result = request_json(args.api_base, raw_key, args.model, args.mode)
-        except urllib.error.HTTPError as exc:
-            raw = exc.read().decode("utf-8", errors="replace")
-            try:
-                payload = json.loads(raw)
-            except Exception:
-                payload = {"raw": raw[:300]}
-            result = {"status": exc.code, "payload": payload, "headers": {key.lower(): value for key, value in exc.headers.items()}}
+        result = request_profile_with_retries(
+            args.api_base,
+            raw_key,
+            args.model,
+            args.mode,
+            args.request_timeout,
+            args.attempts,
+            max(0.0, args.retry_delay),
+        )
     finally:
         if created_disposable_key:
             try:
@@ -293,6 +364,8 @@ def main():
         "streamPrefixLines": prefix_lines,
         "profileContractOk": profile_contract_ok,
         "disposableKey": created_disposable_key,
+        "attempt": result.get("attempt"),
+        "attempts": result.get("attempts"),
         "edge": headers.get("x-sage-router-edge"),
         "selectedUpstream": headers.get("x-sage-router-upstream"),
         "headerModel": headers.get("x-sage-router-model"),
