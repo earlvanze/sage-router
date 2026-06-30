@@ -3316,6 +3316,7 @@ class HostedOnboardingTests(unittest.TestCase):
 
     def test_openrouter_comparison_routes_one_subscription_demand_to_private_beta(self):
         page = self.read_text("web", "public", "compare", "openrouter.html")
+        legacy_redirect = self.read_public("vs-openrouter.html")
 
         self.assertIn("Sage Router vs OpenRouter", page)
         self.assertIn('id="openrouter-github-pro"', page)
@@ -3356,6 +3357,12 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("copyable 60-second setup bundles", self.read_text("README.md"))
         self.assertIn("copyable no-secret one-subscription review packet", self.read_text("README.md"))
         self.assertIn("quickstart_snippet_copied", self.read_text("README.md"))
+        self.assertIn("gateway_compare_viewed", legacy_redirect)
+        self.assertIn("target.search = window.location.search", legacy_redirect)
+        self.assertIn("target.hash = window.location.hash", legacy_redirect)
+        self.assertIn("source: 'vs-openrouter-redirect'", legacy_redirect)
+        self.assertIn("utmSource: params.get('utm_source')", legacy_redirect)
+        self.assertIn("window.location.replace(target.toString())", legacy_redirect)
 
     def test_gateway_migration_guide_is_discoverable(self):
         page = self.read_text("web", "public", "docs", "gateway-migration.html")
