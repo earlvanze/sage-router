@@ -754,6 +754,13 @@ and privacy fields. Use its output to update
 `docs/launch/distribution-tracker.md` before broad community posting or
 activation outreach. Pass `--distribution-tracker-section` to print the
 ready-to-paste live tracker section with the same no-secret aggregate boundary.
+When activation sends remain approval-gated but a warm founder-sales thread is
+actually worked from the terminal, run
+`scripts/summarize_sagerouter_launch_funnel.sh --days 30 --record-founder-sales`
+after using or sharing the packet. That records one aggregate
+`outreach_snippet_copied` event with an `operator-next-<plan>-outreach` snippet
+and still does not send email, approve activation sends, expose secrets, or
+enable managed resale.
 The default snapshot also runs the no-persistence setup-key recovery handoff
 diagnosis and prints a `Verified Recovery Diagnosis` section, so the operator
 can see whether the current blocker is recovery-page code, fresh traffic,
