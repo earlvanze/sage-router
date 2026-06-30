@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex, follow" />
-  <meta http-equiv="refresh" content="0; url=/compare/openrouter" />
   <link rel="canonical" href="https://sagerouter.dev/compare/openrouter" />
   <meta property="og:title" content="Sage Router vs OpenRouter" />
   <meta property="og:description" content="Local-first model routing for agents, private credential custody, BYOK routes, local Ollama, and Tailnet failover." />
@@ -14,8 +13,49 @@
 <body>
   <main>
     <h1>Sage Router vs OpenRouter</h1>
-    <p>This page moved to <a href="/compare/openrouter">/compare/openrouter</a>.</p>
+    <p>This page moved to <a id="openrouter-compare-link" href="/compare/openrouter">/compare/openrouter</a>.</p>
   </main>
-  <script>window.location.replace('/compare/openrouter');</script>
+  <script>
+    (function () {
+      const target = new URL('/compare/openrouter', window.location.origin);
+      target.search = window.location.search;
+      target.hash = window.location.hash;
+      const link = document.getElementById('openrouter-compare-link');
+      if (link) link.href = target.pathname + target.search + target.hash;
+
+      const params = new URLSearchParams(window.location.search);
+      const payload = JSON.stringify({
+        event: 'gateway_compare_viewed',
+        plan: 'pro',
+        sourcePage: window.location.href,
+        target: target.toString(),
+        metadata: {
+          source: 'vs-openrouter-redirect',
+          sourceSurface: 'comparison',
+          state: 'legacy-redirect',
+          button: 'legacy-vs-openrouter',
+          utmSource: params.get('utm_source') || null,
+          utmMedium: params.get('utm_medium') || null,
+          utmCampaign: params.get('utm_campaign') || null,
+        },
+      });
+
+      try {
+        if (!navigator.sendBeacon?.('/api/funnel-event', new Blob([payload], { type: 'application/json' }))) {
+          fetch('/api/funnel-event', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: payload,
+            credentials: 'omit',
+            keepalive: true,
+          }).catch(function () {});
+        }
+      } catch (_error) {}
+
+      window.setTimeout(function () {
+        window.location.replace(target.toString());
+      }, 80);
+    })();
+  </script>
 </body>
 </html>
