@@ -3691,6 +3691,19 @@ class SaaSAuthTests(unittest.TestCase):
                     },
                 },
                 {
+                    'event': 'status_activation_approval_packet_copied',
+                    'plan': 'pro',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'operator-launch-funnel-cli',
+                        'sourceSurface': 'launch-funnel',
+                        'state': 'operator_activation_approval_reviewed',
+                        'snippet': 'operator-activation-approval-packet',
+                        'segment': 'verified',
+                        'resultCount': 2,
+                    },
+                },
+                {
                     'event': 'operator_no_key_followup_copied',
                     'plan': 'pro',
                     'created_at': '2026-06-19T00:00:00Z',
@@ -4006,7 +4019,7 @@ class SaaSAuthTests(unittest.TestCase):
         metrics, error = router.read_launch_marketing_funnel_counts(0)
 
         self.assertIsNone(error)
-        self.assertEqual(63, metrics['total'])
+        self.assertEqual(64, metrics['total'])
         self.assertEqual(1, metrics['events']['landing_account_clicked'])
         self.assertEqual(1, metrics['events']['landing_key_first_direct_clicked'])
         self.assertEqual(1, metrics['events']['landing_key_recovery_clicked'])
@@ -4045,6 +4058,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['events']['account_snippet_copied'])
         self.assertEqual(1, metrics['events']['quickstart_snippet_copied'])
         self.assertEqual(1, metrics['events']['outreach_snippet_copied'])
+        self.assertEqual(1, metrics['events']['status_activation_approval_packet_copied'])
         self.assertEqual(1, metrics['events']['operator_no_key_followup_copied'])
         self.assertEqual(3, metrics['events']['operator_no_key_followup_batch_copied'])
         self.assertEqual(1, metrics['events']['operator_no_key_followup_mailto_opened'])
@@ -4057,6 +4071,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['setupSnippetCopiesBySnippet']['quickstart-curl'])
         self.assertEqual(1, metrics['founderSalesOutreachCopies'])
         self.assertEqual(1, metrics['founderSalesOutreachCopiesBySnippet']['founder-one-subscription-reply'])
+        self.assertEqual(1, metrics['activationApprovalPacketCopies'])
+        self.assertEqual(1, metrics['activationApprovalPacketCopiesBySnippet']['operator-activation-approval-packet'])
         self.assertEqual(6, metrics['operatorFollowUpCopies'])
         self.assertEqual(1, metrics['operatorFollowUpWorked'])
         self.assertEqual(1, metrics['operatorFollowUpSendDryRuns'])
@@ -4123,7 +4139,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['events']['pricing_viewed'])
         self.assertEqual(1, metrics['events']['billing_payment_recovery_clicked'])
         self.assertEqual(1, metrics['events']['unknown'])
-        self.assertEqual(47, metrics['plans']['pro'])
+        self.assertEqual(48, metrics['plans']['pro'])
         self.assertEqual(1, metrics['plans']['lite'])
         self.assertEqual(1, metrics['plans']['manual'])
         self.assertEqual(4, metrics['sourceSurfaces']['landing'])
@@ -4141,7 +4157,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, metrics['sourceSurfaces']['billing'])
         self.assertEqual(2, metrics['sourceSurfaces']['docs'])
         self.assertEqual(1, metrics['sourceSurfaces']['setup-key-recovery'])
-        self.assertEqual(1, metrics['sourceSurfaces']['other'])
+        self.assertEqual(2, metrics['sourceSurfaces']['other'])
         self.assertEqual(1, metrics['sourceSurfaces']['status'])
         self.assertEqual(1, metrics['sourceSurfaces']['support'])
         self.assertEqual(1, metrics['sourceSurfaces']['unknown'])
@@ -4150,7 +4166,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, metrics['attributionChannels']['newsletter'])
         self.assertEqual(2, metrics['attributionChannels']['google'])
         self.assertEqual(1, metrics['attributionChannels']['discord'])
-        self.assertEqual(52, metrics['attributionChannels']['direct'])
+        self.assertEqual(53, metrics['attributionChannels']['direct'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['all'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['ollama'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['openai-codex'])

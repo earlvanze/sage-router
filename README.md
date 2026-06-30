@@ -828,6 +828,12 @@ the approval packet. Real activation sends also require a fresh
 `approvalPacketIssuedAt` from that approval packet; the default validity window
 is 15 minutes (`SAGE_ROUTER_ACTIVATION_APPROVAL_PACKET_VALID_SECONDS`), so old
 copied send commands expire even if they still include the typed confirmation.
+After the operator has actually reviewed the terminal approval packet, run
+`scripts/summarize_sagerouter_launch_funnel.sh --days 30 --record-activation-approval-review --verify-recovery --verify-auth-repair`
+to record one aggregate `status_activation_approval_packet_copied` event with
+the `operator-activation-approval-packet` snippet. That records terminal review
+work for the live funnel, but still does not approve a send, send email, repair
+auth links, expose secrets, or enable managed resale.
 
 Use the public deploy helper to avoid branch/digest drift between the static
 site and hosted API:

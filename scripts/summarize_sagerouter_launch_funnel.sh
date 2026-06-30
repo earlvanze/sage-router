@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--founder-sales-packet] [--record-founder-sales] [--setup-copy-packet] [--record-setup-copy] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section] [--update-distribution-tracker]
+Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--record-activation-approval-review] [--founder-sales-packet] [--record-founder-sales] [--setup-copy-packet] [--record-setup-copy] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section] [--update-distribution-tracker]
 
 Fetch the operator-only /analytics/funnel endpoint and print a privacy-safe
 launch snapshot. The script never prints operator tokens, emails, generated API
@@ -13,6 +13,12 @@ provider responses.
 Options:
   --json              Print the bounded machine-readable snapshot.
   --approval-packet   Print the no-secret activation send approval packet only.
+  --record-activation-approval-review
+                      Print the activation approval packet and record one
+                      aggregate status_activation_approval_packet_copied event
+                      for the operator terminal review. Run only after an
+                      operator actually reviews the packet; this does not
+                      approve or send activation follow-ups.
   --founder-sales-packet
                       Print the no-secret founder-sales next-revenue packet
                       for direct warm outreach while sends/resale are gated.
@@ -85,6 +91,7 @@ require_tool() {
 DAYS=30
 RAW_JSON=0
 APPROVAL_PACKET=0
+RECORD_ACTIVATION_APPROVAL_REVIEW=0
 FOUNDER_SALES_PACKET=0
 RECORD_FOUNDER_SALES=0
 SETUP_COPY_PACKET=0
@@ -109,6 +116,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --approval-packet)
       APPROVAL_PACKET=1
+      shift
+      ;;
+    --record-activation-approval-review)
+      RECORD_ACTIVATION_APPROVAL_REVIEW=1
       shift
       ;;
     --founder-sales-packet)
@@ -155,16 +166,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if (( RAW_JSON + APPROVAL_PACKET + FOUNDER_SALES_PACKET + RECORD_FOUNDER_SALES + SETUP_COPY_PACKET + RECORD_SETUP_COPY + TRACKER_SECTION + UPDATE_TRACKER > 1 )); then
-  printf '%s\n' '--json, --approval-packet, --founder-sales-packet, --record-founder-sales, --setup-copy-packet, --record-setup-copy, --distribution-tracker-section, and --update-distribution-tracker cannot be combined' >&2
+if (( RAW_JSON + APPROVAL_PACKET + RECORD_ACTIVATION_APPROVAL_REVIEW + FOUNDER_SALES_PACKET + RECORD_FOUNDER_SALES + SETUP_COPY_PACKET + RECORD_SETUP_COPY + TRACKER_SECTION + UPDATE_TRACKER > 1 )); then
+  printf '%s\n' '--json, --approval-packet, --record-activation-approval-review, --founder-sales-packet, --record-founder-sales, --setup-copy-packet, --record-setup-copy, --distribution-tracker-section, and --update-distribution-tracker cannot be combined' >&2
   exit 2
 fi
-if [[ "$VERIFY_RECOVERY" == "1" && "$APPROVAL_PACKET" != "1" ]]; then
-  printf '%s\n' '--verify-recovery can only be used with --approval-packet' >&2
+if [[ "$VERIFY_RECOVERY" == "1" && "$APPROVAL_PACKET" != "1" && "$RECORD_ACTIVATION_APPROVAL_REVIEW" != "1" ]]; then
+  printf '%s\n' '--verify-recovery can only be used with --approval-packet or --record-activation-approval-review' >&2
   exit 2
 fi
-if [[ "$VERIFY_AUTH_REPAIR" == "1" && "$APPROVAL_PACKET" != "1" ]]; then
-  printf '%s\n' '--verify-auth-repair can only be used with --approval-packet' >&2
+if [[ "$VERIFY_AUTH_REPAIR" == "1" && "$APPROVAL_PACKET" != "1" && "$RECORD_ACTIVATION_APPROVAL_REVIEW" != "1" ]]; then
+  printf '%s\n' '--verify-auth-repair can only be used with --approval-packet or --record-activation-approval-review' >&2
   exit 2
 fi
 
@@ -292,17 +303,17 @@ curl -fsS "${API_BASE%/}/analytics/funnel?days=${DAYS}&limit=10000" \
   -o "$tmp"
 
 printf '{"stage":"not_run","handoffSmoke":{"checked":false,"passed":false,"noPersistence":true},"privacy":{"aggregateOnly":true}}\n' > "$recovery_tmp"
-if [[ "$APPROVAL_PACKET" == "1" && "$VERIFY_RECOVERY" == "1" ]]; then
+if [[ ("$APPROVAL_PACKET" == "1" || "$RECORD_ACTIVATION_APPROVAL_REVIEW" == "1") && "$VERIFY_RECOVERY" == "1" ]]; then
   bash scripts/diagnose_setup_key_recovery_dropoff.sh --days "$DAYS" --verify-handoff --json > "$recovery_tmp"
 fi
-if [[ "$APPROVAL_PACKET" != "1" && "$RAW_JSON" != "1" && "$SETUP_COPY_PACKET" != "1" && "$RECORD_SETUP_COPY" != "1" ]]; then
+if [[ "$APPROVAL_PACKET" != "1" && "$RECORD_ACTIVATION_APPROVAL_REVIEW" != "1" && "$RAW_JSON" != "1" && "$SETUP_COPY_PACKET" != "1" && "$RECORD_SETUP_COPY" != "1" ]]; then
   if ! bash scripts/diagnose_setup_key_recovery_dropoff.sh --days "$DAYS" --verify-handoff --json > "$recovery_tmp"; then
     printf '{"stage":"failed","handoffSmoke":{"checked":true,"passed":false,"noPersistence":true},"privacy":{"aggregateOnly":true}}\n' > "$recovery_tmp"
   fi
 fi
 
 printf '{"stage":"not_run","checked":false,"passed":false,"dryRun":true,"privacy":{"aggregateOnly":true}}\n' > "$auth_repair_tmp"
-if [[ "$APPROVAL_PACKET" == "1" && "$VERIFY_AUTH_REPAIR" == "1" ]]; then
+if [[ ("$APPROVAL_PACKET" == "1" || "$RECORD_ACTIVATION_APPROVAL_REVIEW" == "1") && "$VERIFY_AUTH_REPAIR" == "1" ]]; then
   AUTH_REPAIR_TOKEN="${SAGE_ROUTER_OPERATOR_TOKEN:-${SAGE_ROUTER_API_KEY:-}}"
   if [[ -z "$AUTH_REPAIR_TOKEN" ]]; then
     printf '{"stage":"skipped_missing_admin_token","checked":false,"passed":false,"dryRun":true,"privacy":{"aggregateOnly":true}}\n' > "$auth_repair_tmp"
@@ -417,8 +428,12 @@ EOF
   exit 0
 fi
 
-if [[ "$APPROVAL_PACKET" == "1" ]]; then
-  jq -r --slurpfile recoveryProof "$recovery_tmp" --slurpfile authRepairProof "$auth_repair_tmp" '
+if [[ "$APPROVAL_PACKET" == "1" || "$RECORD_ACTIVATION_APPROVAL_REVIEW" == "1" ]]; then
+  jq -r \
+    --slurpfile recoveryProof "$recovery_tmp" \
+    --slurpfile authRepairProof "$auth_repair_tmp" \
+    --arg recordApproval "$RECORD_ACTIVATION_APPROVAL_REVIEW" \
+    --argjson days "$DAYS" '
     def n($v): ($v // 0);
     def list($v): if (($v // []) | length) > 0 then (($v // []) | join(", ")) else "none" end;
     def command_for($rows; $segment; $field):
@@ -534,10 +549,69 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         (if $next_send_command != "" then $next_send_command else "  unavailable: no segment send command returned by /analytics/funnel" end),
         "- This printed command still requires SAGE_ROUTER_API_KEY in the shell, a fresh approvalPacketIssuedAt, and sendConfirmation=SEND_ACTIVATION_FOLLOWUPS in the request body.",
         "",
+        if ($recordApproval == "1") then "Recording boundary: this terminal review records one aggregate status_activation_approval_packet_copied event with snippet operator-activation-approval-packet; it still does not approve, copy a real-send command into the default snapshot, send email, repair auth links, expose secrets, or enable managed resale." else "Recording command: scripts/summarize_sagerouter_launch_funnel.sh --days \($days) --record-activation-approval-review --verify-recovery --verify-auth-repair" end,
         "Privacy flags: containsEmails=\($root.privacy.containsEmails // false); containsApiKeys=\($root.privacy.containsApiKeys // false); containsProviderCredentials=\($root.privacy.containsProviderCredentials // false); promptsStored=\($root.privacy.promptsStored // false)."
       ]
       | .[]
   ' "$tmp"
+
+  if [[ "$RECORD_ACTIVATION_APPROVAL_REVIEW" != "1" ]]; then
+    exit 0
+  fi
+
+  plan="$(jq -r '.activationFollowUps.suggestedPlan // .nextBestAction.evidence.suggestedPlan // "pro"' "$tmp")"
+  case "$plan" in
+    lite|pro|max)
+      ;;
+    *)
+      plan="pro"
+      ;;
+  esac
+  next_segment="$(jq -r '.activationApprovalReadiness.nextSendSegment // .operatorExecutionPacket.sendTelemetry.nextSendSegment // "verified"' "$tmp")"
+  case "$next_segment" in
+    verified|unverified|not_required|all)
+      ;;
+    *)
+      next_segment="verified"
+      ;;
+  esac
+  queued_count="$(jq -r '.activationApprovalReadiness.sendableQueued // .operatorExecutionPacket.sendableQueued // .activationFollowUps.sendableQueued // 0' "$tmp")"
+  source_page="${APP_BASE%/}/launch-funnel.html#activation-approval"
+  target_url="${APP_BASE%/}/launch-funnel.html#no-key-followups"
+
+  payload="$(jq -n \
+    --arg plan "$plan" \
+    --arg segment "$next_segment" \
+    --arg sourcePage "$source_page" \
+    --arg target "$target_url" \
+    --argjson resultCount "$queued_count" \
+    '{
+      event: "status_activation_approval_packet_copied",
+      plan: $plan,
+      sourcePage: $sourcePage,
+      target: $target,
+      metadata: {
+        source: "operator-launch-funnel-cli",
+        sourceSurface: "launch-funnel",
+        button: "activation-approval-packet-cli",
+        state: "operator_activation_approval_reviewed",
+        snippet: "operator-activation-approval-packet",
+        segment: $segment,
+        resultCount: $resultCount,
+        utmSource: "operator",
+        utmMedium: "launch_funnel",
+        utmCampaign: "signup_to_key_recovery"
+      }
+    }')"
+
+  curl -fsS -X POST "${APP_BASE%/}/api/funnel-event" \
+    -H "Origin: ${APP_BASE%/}" \
+    -H "Content-Type: application/json" \
+    -H "User-Agent: SageRouterLaunchFunnelCLI/1.0" \
+    --data "$payload" \
+    >/dev/null
+
+  printf '\nRecorded activation approval review event status_activation_approval_packet_copied with snippet operator-activation-approval-packet for segment %s from SageRouterLaunchFunnelCLI/1.0.\n' "$next_segment"
   exit 0
 fi
 
@@ -760,6 +834,8 @@ if [[ "$RAW_JSON" == "1" ]]; then
         founderSalesOutreachCopiesBySnippet: ($marketing.founderSalesOutreachCopiesBySnippet // {}),
         managedAccessPacketCopies: ($marketing.managedAccessPacketCopies // 0),
         managedAccessPacketCopiesBySnippet: ($marketing.managedAccessPacketCopiesBySnippet // {}),
+        activationApprovalPacketCopies: ($marketing.activationApprovalPacketCopies // 0),
+        activationApprovalPacketCopiesBySnippet: ($marketing.activationApprovalPacketCopiesBySnippet // {}),
         operatorFollowUpCopies: ($marketing.operatorFollowUpCopies // 0),
         operatorFollowUpCopiesByKind: ($marketing.operatorFollowUpCopiesByKind // {}),
         operatorFollowUpWorked: ($marketing.operatorFollowUpWorked // 0),
@@ -942,6 +1018,8 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
       "- Founder-sales outreach snippets: \(buckets($marketing.founderSalesOutreachCopiesBySnippet))",
       "- Managed-access packet copies: \(n($marketing.managedAccessPacketCopies))",
       "- Managed-access packet snippets: \(buckets($marketing.managedAccessPacketCopiesBySnippet))",
+      "- Activation approval packet reviews: \(n($marketing.activationApprovalPacketCopies))",
+      "- Activation approval packet snippets: \(buckets($marketing.activationApprovalPacketCopiesBySnippet))",
       "- Recovery auth starts: magic=\(n($events.login_key_recovery_magic_link_requested) + n($events.setup_key_recovery_magic_link_requested)), password=\(n($events.login_key_recovery_password_submitted)), oauth=\(n($events.login_key_recovery_oauth_clicked))",
       "- Key-first recovery: setupClicks=\(n($events.login_key_recovery_account_setup_clicked) + n($events.setup_key_recovery_account_clicked) + n($events.setup_key_recovery_next_account_clicked)); redirects=\(n($followups.keyFirstRedirects)); recoveryViews=\(n($followups.keyRecoveryViews)); keyCreateAttempts=\(n($followups.keyCreateAttempts)); keyCreateSuccesses=\(n($followups.keyCreateSuccesses)); noKeyCreateClicks=\(n($events.account_no_key_setup_create_clicked))",
       "- Managed-access demand: anonymousSignals=\(n($stages.anonymousManagedAccessInterest)); waitlistSignals=\(n($stages.managedAccessBetaInterest)); legacyClicks=\(n($events.managed_access_interest_clicked)); quickStarted=\(n($events.managed_access_quick_form_started)); quickValidationFailed=\(n($events.managed_access_quick_request_validation_failed)); quickSubmitted=\(n($events.managed_access_quick_request_submitted)); quickReceived=\(n($events.managed_access_quick_request_received))",
@@ -984,6 +1062,7 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
       "## Activation Approval Handoff",
       "",
       "- Packet command: scripts/summarize_sagerouter_launch_funnel.sh --days \($days) --approval-packet --verify-recovery --verify-auth-repair",
+      "- Terminal review recording: scripts/summarize_sagerouter_launch_funnel.sh --days \($days) --record-activation-approval-review --verify-recovery --verify-auth-repair after an operator actually reviews the packet.",
       "- Review worksheet: docs/launch/execution/activation-approval-review.md",
       "- Approval decision: \($approval.status // "unknown") for next segment \($packet.sendTelemetry.nextSendSegment // "all"); blocker=\($approval.blockedReason // "none").",
       "- Default snapshot policy: No send command is printed in this default snapshot. Real activation sends still require explicit operator approval and typed SEND_ACTIVATION_FOLLOWUPS confirmation.",
