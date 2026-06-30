@@ -754,6 +754,73 @@ if [[ "$RAW_JSON" == "1" ]]; then
       sendsEmail: false
     }
   ];
+  def activation_approval_readiness:
+    . as $root
+    | (.activationApprovalReadiness // {
+    status: (
+      if ((.operatorExecutionPacket.sendTelemetry.sendApprovalRequired // false) == true) then "approval_required"
+      elif ((.operatorExecutionPacket.sendTelemetry.dryRunVerified // false) == false and (.operatorExecutionPacket.sendableQueued // 0) > 0) then "dry_run_required"
+      else "unknown"
+      end
+    ),
+    approvalRequired: (.operatorExecutionPacket.sendTelemetry.sendApprovalRequired // false),
+    dryRunVerified: (.operatorExecutionPacket.sendTelemetry.dryRunVerified // false),
+    blockedReason: (
+      if ((.operatorExecutionPacket.sendableQueued // 0) <= 0) then "no_sendable_segments"
+      elif ((.operatorExecutionPacket.sendTelemetry.dryRunVerified // false) == false) then "dry_run_not_verified"
+      elif ((.operatorExecutionPacket.sendTelemetry.sendApprovalRequired // false) == true) then "explicit_operator_approval_required"
+      else ""
+      end
+    ),
+    nextSendSegment: (.operatorExecutionPacket.sendTelemetry.nextSendSegment // ""),
+    approvalPacketIssuedAt: (.operatorExecutionPacket.emailReadiness.approvalPacketIssuedAt // 0),
+    approvalPacketExpiresAt: (.operatorExecutionPacket.emailReadiness.approvalPacketExpiresAt // 0),
+    approvalPacketValidSeconds: (.operatorExecutionPacket.emailReadiness.approvalPacketValidSeconds // 0),
+    approvalPacketRequiredForRealSend: (.operatorExecutionPacket.emailReadiness.approvalPacketRequiredForRealSend // true),
+    decisionLines: activation_decision_lines($root),
+    totalQueued: (.operatorExecutionPacket.totalQueued // .activationFollowUps.total // 0),
+    sendableQueued: (.operatorExecutionPacket.sendableQueued // .activationFollowUps.sendableQueued // 0),
+    reviewOnlyQueued: (.operatorExecutionPacket.reviewOnlyQueued // .activationFollowUps.reviewOnlyQueued // 0),
+    unknownQueued: (.activationFollowUps.unknownQueued // 0),
+    dryRunRecipients: (.operatorExecutionPacket.sendTelemetry.dryRunRecipients // 0),
+    dryRunCoveredSegments: (.operatorExecutionPacket.sendTelemetry.dryRunCoveredSegments // []),
+    dryRunPendingSegments: (.operatorExecutionPacket.sendTelemetry.dryRunPendingSegments // []),
+    sentRecipients: (.operatorExecutionPacket.sendTelemetry.sentRecipients // 0),
+    failedRecipients: (.operatorExecutionPacket.sendTelemetry.failedRecipients // 0),
+    nextActions: (
+      [
+        if ((.operatorExecutionPacket.sendableQueued // 0) > 0 and (.operatorExecutionPacket.sendTelemetry.dryRunVerified // false) == false) then {
+          id: "dry_run_activation_followups",
+          priority: "fix_now",
+          owner: "Activation"
+        } else empty end,
+        if ((.operatorExecutionPacket.sendableQueued // 0) > 0 and (.operatorExecutionPacket.sendTelemetry.dryRunVerified // false) == true and (.operatorExecutionPacket.sendTelemetry.sendApprovalRequired // false) == true) then {
+          id: "approve_activation_followups",
+          priority: "fix_now",
+          owner: "Operator"
+        } else empty end,
+        if ((.operatorExecutionPacket.reviewOnlyQueued // .activationFollowUps.reviewOnlyQueued // 0) > 0) then {
+          id: "review_auth_repair_segments",
+          priority: "next",
+          owner: "Activation"
+        } else empty end
+      ]
+    ),
+    privacy: {
+      containsEmails: false,
+      containsCustomerIds: false,
+      containsApiKeys: false,
+      containsProviderCredentials: false,
+      aggregateOnly: true
+    }
+    }) as $approval
+    | $approval + {
+        decisionLines: (
+          if (($approval.decisionLines // []) | length) > 0 then $approval.decisionLines
+          else activation_decision_lines($root)
+          end
+        )
+      };
   {
     generatedAt,
     stages,
@@ -811,74 +878,8 @@ if [[ "$RAW_JSON" == "1" ]]; then
           )
         else . end
     ),
-    activationApprovalReadiness: (
-      . as $root
-      | (.activationApprovalReadiness // {
-      status: (
-        if ((.operatorExecutionPacket.sendTelemetry.sendApprovalRequired // false) == true) then "approval_required"
-        elif ((.operatorExecutionPacket.sendTelemetry.dryRunVerified // false) == false and (.operatorExecutionPacket.sendableQueued // 0) > 0) then "dry_run_required"
-        else "unknown"
-        end
-      ),
-      approvalRequired: (.operatorExecutionPacket.sendTelemetry.sendApprovalRequired // false),
-      dryRunVerified: (.operatorExecutionPacket.sendTelemetry.dryRunVerified // false),
-      blockedReason: (
-        if ((.operatorExecutionPacket.sendableQueued // 0) <= 0) then "no_sendable_segments"
-        elif ((.operatorExecutionPacket.sendTelemetry.dryRunVerified // false) == false) then "dry_run_not_verified"
-        elif ((.operatorExecutionPacket.sendTelemetry.sendApprovalRequired // false) == true) then "explicit_operator_approval_required"
-        else ""
-        end
-      ),
-      nextSendSegment: (.operatorExecutionPacket.sendTelemetry.nextSendSegment // ""),
-      approvalPacketIssuedAt: (.operatorExecutionPacket.emailReadiness.approvalPacketIssuedAt // 0),
-      approvalPacketExpiresAt: (.operatorExecutionPacket.emailReadiness.approvalPacketExpiresAt // 0),
-      approvalPacketValidSeconds: (.operatorExecutionPacket.emailReadiness.approvalPacketValidSeconds // 0),
-      approvalPacketRequiredForRealSend: (.operatorExecutionPacket.emailReadiness.approvalPacketRequiredForRealSend // true),
-      decisionLines: activation_decision_lines($root),
-      totalQueued: (.operatorExecutionPacket.totalQueued // .activationFollowUps.total // 0),
-      sendableQueued: (.operatorExecutionPacket.sendableQueued // .activationFollowUps.sendableQueued // 0),
-      reviewOnlyQueued: (.operatorExecutionPacket.reviewOnlyQueued // .activationFollowUps.reviewOnlyQueued // 0),
-      unknownQueued: (.activationFollowUps.unknownQueued // 0),
-      dryRunRecipients: (.operatorExecutionPacket.sendTelemetry.dryRunRecipients // 0),
-      dryRunCoveredSegments: (.operatorExecutionPacket.sendTelemetry.dryRunCoveredSegments // []),
-      dryRunPendingSegments: (.operatorExecutionPacket.sendTelemetry.dryRunPendingSegments // []),
-      sentRecipients: (.operatorExecutionPacket.sendTelemetry.sentRecipients // 0),
-      failedRecipients: (.operatorExecutionPacket.sendTelemetry.failedRecipients // 0),
-      nextActions: (
-        [
-          if ((.operatorExecutionPacket.sendableQueued // 0) > 0 and (.operatorExecutionPacket.sendTelemetry.dryRunVerified // false) == false) then {
-            id: "dry_run_activation_followups",
-            priority: "fix_now",
-            owner: "Activation"
-          } else empty end,
-          if ((.operatorExecutionPacket.sendableQueued // 0) > 0 and (.operatorExecutionPacket.sendTelemetry.dryRunVerified // false) == true and (.operatorExecutionPacket.sendTelemetry.sendApprovalRequired // false) == true) then {
-            id: "approve_activation_followups",
-            priority: "fix_now",
-            owner: "Operator"
-          } else empty end,
-          if ((.operatorExecutionPacket.reviewOnlyQueued // .activationFollowUps.reviewOnlyQueued // 0) > 0) then {
-            id: "review_auth_repair_segments",
-            priority: "next",
-            owner: "Activation"
-          } else empty end
-        ]
-      ),
-      privacy: {
-        containsEmails: false,
-        containsCustomerIds: false,
-        containsApiKeys: false,
-        containsProviderCredentials: false,
-        aggregateOnly: true
-      }
-      }) as $approval
-      | $approval + {
-          decisionLines: (
-            if (($approval.decisionLines // []) | length) > 0 then $approval.decisionLines
-            else activation_decision_lines($root)
-            end
-          )
-        }
-    ),
+    activationApprovalReadiness: activation_approval_readiness,
+    activationApproval: activation_approval_readiness,
     managedAccessDemand: (.managedAccessDemand // {}),
     anonymousManagedAccessDemand: (.anonymousManagedAccessDemand // {}),
     waitlistManagedAccessDemand: (.waitlistManagedAccessDemand // {}),
