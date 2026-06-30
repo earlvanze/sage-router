@@ -331,6 +331,19 @@
       return intent === 'max-implementation' ? 'Request Max review' : 'Request one-subscription review';
     }
 
+    function quickReviewNextAction(intent = quickReviewIntent()) {
+      if (intent === 'max-implementation') {
+        return 'Max implementation selected. Add work email to request review; BYOK setup is available immediately.';
+      }
+      if (intent === 'private-deployment') {
+        return 'Private deployment selected. Add work email for Tailnet or self-hosted review; do not send secrets.';
+      }
+      if (intent === 'gateway-migration') {
+        return 'Gateway migration selected. Add work email for migration review, or copy Max BYOK setup for immediate routing.';
+      }
+      return 'One-subscription review selected. Add work email to request review; managed provider access remains gated.';
+    }
+
     function setSelectValue(name, value) {
       if (!value) return;
       const field = form.elements[name];
@@ -621,6 +634,19 @@
       quickFormStarted = true;
       trackManagedAccessFunnelEvent('managed_access_quick_form_started', { state, target });
     }
+
+    function presentQuickFormFromRequestedIntent() {
+      if (!requestedIntentParam) return;
+      const state = quickReviewIntent();
+      setQuickStatus(quickReviewNextAction(state));
+      trackManagedAccessFunnelEvent('managed_access_quick_form_presented', {
+        state,
+        target: '#managed-access-quick-form',
+      });
+      window.setTimeout(() => {
+        document.getElementById('quick-review-email')?.focus();
+      }, 250);
+    }
     form.addEventListener('input', () => {
       if (formStarted) return;
       formStarted = true;
@@ -858,6 +884,7 @@
 
     applyRequestedIntent();
     quickSubmit.textContent = quickReviewSubmitLabel();
+    presentQuickFormFromRequestedIntent();
     trackManagedAccessFunnelEvent('managed_access_viewed', { state: 'page-view' });
     loadManagedReadiness();
     configureTurnstile();
