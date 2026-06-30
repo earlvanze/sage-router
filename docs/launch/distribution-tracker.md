@@ -85,7 +85,7 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 - Command: `bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff`
 - Result: `verified_handoff_waiting_for_fresh_traffic`
 - Evidence: checked=true; passed=true; noPersistence=true; recoveryViews=8; accountHandoffs=0; keyCreateAttempts=0; keyCreateSuccesses=0.
-- Next action: Use the no-secret approval packet for the next sendable activation follow-up or wait for fresh real recovery traffic.
+- Next action: Copy the no-secret first-request setup bundle from `https://app.sagerouter.dev/launch-funnel.html#next-best-action-dock` before any real activation send; this records `status_first_request_setup_copied` with snippet `operator-first-request-setup` and does not send email or expose a real key.
 
 ### Top Acquisition Actions
 

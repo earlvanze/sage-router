@@ -753,9 +753,9 @@ activation outreach. Pass `--distribution-tracker-section` to print the
 ready-to-paste live tracker section with the same no-secret aggregate boundary.
 The default snapshot also runs the no-persistence setup-key recovery handoff
 diagnosis and prints a `Verified Recovery Diagnosis` section, so the operator
-can see whether the current blocker is recovery-page code, fresh traffic, or
-explicit activation-send approval. When you need the standalone aggregate
-dropoff classifier, run:
+can see whether the current blocker is recovery-page code, fresh traffic,
+explicit activation-send approval, or the no-secret first-request setup-copy
+fallback. When you need the standalone aggregate dropoff classifier, run:
 
 ```bash
 bash scripts/diagnose_setup_key_recovery_dropoff.sh
@@ -769,9 +769,10 @@ bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff
 ```
 
 The verified mode still prints only aggregate counts and smoke status. If the
-live smoke passes while aggregate account handoffs are still zero, wait for
-fresh real recovery traffic or use the no-secret approval packet before any
-real activation send. To run just the focused smoke probe:
+live smoke passes while aggregate account handoffs are still zero and
+activation sends are approval-gated, copy the no-secret first-request setup
+bundle from the launch-funnel Do Next dock before any real activation send. To
+run just the focused smoke probe:
 
 ```bash
 bash scripts/check_setup_key_recovery_handoff.sh

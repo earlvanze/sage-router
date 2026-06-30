@@ -3018,6 +3018,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("No send command is printed in this default snapshot", summary_script)
         self.assertIn("Verified Recovery Diagnosis", summary_script)
         self.assertIn("Recovery handoff is verified with no persistence", summary_script)
+        self.assertIn("status_first_request_setup_copied with snippet operator-first-request-setup", summary_script)
         self.assertIn("Use the no-secret approval packet for the next sendable activation follow-up", summary_script)
         self.assertIn("approval packet is no-secret", summary_script)
         self.assertIn("read-only review packet", summary_script)

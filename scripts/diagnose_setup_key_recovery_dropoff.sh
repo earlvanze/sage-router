@@ -93,6 +93,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
     def n($v): ($v // 0);
     def events: (.nextBestAction.evidence // {});
     (events) as $e
+    | (($e.nonGatedSetupCopyFallback // false) == true) as $setup_copy_fallback
     | (n($e.keyRecoveryViews)) as $views
     | (n($e.keyFirstRedirects)) as $redirects
     | (n($e.keyCreateAttempts)) as $attempts
@@ -110,6 +111,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
         ),
         action: (
           if $views <= 0 then "Drive qualified no-key users to setup-key recovery before debugging account handoff."
+          elif $redirects <= 0 and $handoffSmokeChecked and $handoffSmokePassed and $setup_copy_fallback then "The live setup-key recovery handoff smoke passed and activation sends are approval-gated; copy the no-secret first-request setup bundle from the launch-funnel Do Next dock before any real send."
           elif $redirects <= 0 and $handoffSmokeChecked and $handoffSmokePassed then "The live setup-key recovery handoff smoke passed; wait for fresh real recovery traffic or use the no-secret approval packet before any real activation send."
           elif $redirects <= 0 then "Run bash scripts/check_setup_key_recovery_handoff.sh, then inspect the public recovery/login CTAs before sending more traffic."
           elif $attempts <= 0 then "Inspect /account start=create_key handling and signed-in no-key setup controls before sending more recovery traffic."
@@ -192,6 +194,8 @@ jq -r \
       (
         if $views <= 0 then
           "Diagnosis: no_recovery_traffic. Drive qualified no-key users to setup-key recovery before debugging account handoff."
+        elif $redirects <= 0 and $handoffSmokeChecked and $handoffSmokePassed and (($e.nonGatedSetupCopyFallback // false) == true) then
+          "Diagnosis: verified_handoff_waiting_for_fresh_traffic. The live setup-key recovery handoff smoke passed and activation sends are approval-gated; copy the no-secret first-request setup bundle from https://app.sagerouter.dev/launch-funnel.html#next-best-action-dock before any real send."
         elif $redirects <= 0 and $handoffSmokeChecked and $handoffSmokePassed then
           "Diagnosis: verified_handoff_waiting_for_fresh_traffic. The live setup-key recovery handoff smoke passed; wait for fresh real recovery traffic or use the no-secret approval packet before any real activation send."
         elif $redirects <= 0 then
