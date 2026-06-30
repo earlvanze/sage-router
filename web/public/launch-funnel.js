@@ -1317,6 +1317,33 @@ function founderSalesNextOutreachText(data = {}) {
   ].join('\n');
 }
 
+function founderSalesRecommendedFirstReplyText(data = {}) {
+  const mrr = data.mrr || {};
+  const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+  const topRevenue = revenueActions.slice().sort((left, right) =>
+    asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
+  )[0] || {};
+  const rawPlan = String(topRevenue.plan || 'pro').toLowerCase();
+  const plan = ['lite', 'pro', 'max'].includes(rawPlan) ? rawPlan : 'pro';
+  const content = `operator-recommended-${encodeURIComponent(plan)}-first-reply`;
+  const activationUrl = `${APP_BASE.replace(/\/$/, '')}/account.html?plan=${encodeURIComponent(plan === 'max' ? 'pro' : plan)}&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=${content}`;
+  const reviewUrl = `${MARKETING_BASE}/managed-access?intent=max-implementation&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=${content}`;
+  const quickstartUrl = `${MARKETING_BASE}/quickstart?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=${content}`;
+  const primaryStep = plan === 'max'
+    ? `For a team or production workflow, start with Max implementation review:\n${reviewUrl}`
+    : `Best first step: create the generated ${plan.toUpperCase()} key, then verify /v1/models before wiring it into an agent:\n${activationUrl}`;
+  return [
+    'Sage Router may fit if your agent stack needs one OpenAI-compatible endpoint with health-aware fallback, generated Sage keys, and route profiles for frontier/local/coding traffic.',
+    '',
+    primaryStep,
+    '',
+    '60-second setup:',
+    quickstartUrl,
+    '',
+    'Boundary: Sage Router is routing, generated-key, quota, analytics, and reliability infrastructure for provider/local access you are authorized to use. One-subscription managed access is review-only until provider authorization, terms, cost model, margin checks, quotas, audit, and acceptable-use controls pass.',
+  ].join('\n');
+}
+
 function firstRequestSetupBundleText(data = {}) {
   const followUps = data.activationFollowUps || {};
   const plan = followUps.suggestedPlan || 'pro';
@@ -1630,6 +1657,7 @@ function renderFounderSalesFallback(data = {}) {
     : '<tr><td colspan="4">No plan revenue actions returned; use Pro founder outreach as the manual fallback.</td></tr>';
   const managedControls = safeList(managed.missingControls).slice(0, 4).join(', ') || 'none reported';
   const nextOutreach = founderSalesNextOutreachText(data);
+  const recommendedFirstReply = founderSalesRecommendedFirstReplyText(data);
   target.innerHTML = `<div class="metricList">
     <div class="metric"><span>Fallback trigger</span><strong>${activationSend.sendApprovalRequired ? 'Activation approval gated' : 'Manual revenue backup'}</strong></div>
     <div class="metric"><span>Activation sends</span><strong>${integer(activationSend.sendableQueued)} sendable · ${integer(activationSend.sentRecipients)} sent</strong></div>
@@ -1640,6 +1668,12 @@ function renderFounderSalesFallback(data = {}) {
   <div class="actions">
     <a class="btn" href="${esc(FOUNDER_SALES_KIT_URL)}" target="_blank" rel="noopener noreferrer">Open founder-sales kit</a>
     <button class="btn secondary" type="button" data-copy-founder-sales-fallback="${esc(fallbackText)}">Copy fallback packet</button>
+  </div>
+  <div class="detail">
+    <h3>Recommended first reply</h3>
+    <p class="muted">Copy this first for a warm thread. It mirrors the public founder-sales kit's shortest no-secret handoff and records one founder-sales outreach copy.</p>
+    <pre id="founder-sales-recommended-first-reply" class="briefBox">${esc(recommendedFirstReply)}</pre>
+    <div class="actions"><button class="btn" type="button" data-copy-founder-sales-recommended="1">Copy recommended first reply</button></div>
   </div>
   <div class="detail">
     <h3>Next one-message outreach</h3>
@@ -2259,6 +2293,38 @@ async function copyFounderSalesNextOutreach(button) {
   } catch (error) {
     button.textContent = 'Copy failed';
     setStatus(`Founder-sales next outreach copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyFounderSalesRecommendedFirstReply(button) {
+  const snippet = $('founder-sales-recommended-first-reply');
+  const text = snippet?.textContent?.trim() || '';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    const mrr = lastFunnelData?.mrr || {};
+    const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+    const topRevenue = revenueActions.slice().sort((left, right) =>
+      asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
+    )[0] || {};
+    const plan = String(topRevenue.plan || 'pro').toLowerCase();
+    trackOperatorFunnelEvent('outreach_snippet_copied', {
+      plan: ['lite', 'pro', 'max'].includes(plan) ? plan : 'pro',
+      state: 'operator_recommended_first_reply_copied',
+      resultCount: asNumber(topRevenue.customerGap || 1),
+      snippet: 'operator-founder-recommended-first-reply',
+      target: FOUNDER_SALES_KIT_URL,
+    });
+    setStatus('Copied no-secret founder-sales recommended first reply. This counts toward founder-sales outreach copies.', 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Founder-sales recommended first reply copy failed: ${error.message}`, 'bad');
   } finally {
     setTimeout(() => {
       button.textContent = original;
@@ -3413,6 +3479,11 @@ function handleFollowUpCopyClick(event) {
   const founderSalesNextButton = event.target.closest('[data-copy-founder-sales-next]');
   if (founderSalesNextButton) {
     copyFounderSalesNextOutreach(founderSalesNextButton);
+    return;
+  }
+  const founderSalesRecommendedButton = event.target.closest('[data-copy-founder-sales-recommended]');
+  if (founderSalesRecommendedButton) {
+    copyFounderSalesRecommendedFirstReply(founderSalesRecommendedButton);
     return;
   }
   const operatorSetupBundleButton = event.target.closest('[data-copy-operator-setup-bundle]');
