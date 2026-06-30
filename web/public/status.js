@@ -166,6 +166,40 @@ $('status-copy-activation-approval-packet')?.addEventListener('click', async () 
     if (status) status.textContent = 'Copy failed. Select the approval packet manually.';
   }
 });
+
+$('status-copy-activation-worksheet-refresh')?.addEventListener('click', async () => {
+  const block = $('status-activation-worksheet-refresh');
+  const status = $('status-founder-pro-status');
+  try {
+    await writeClipboardText(block?.textContent.trim() || '');
+    if (status) status.textContent = 'Copied activation worksheet refresh command.';
+    trackStatusFunnelEvent('status_activation_approval_packet_copied', {
+      target: 'status-revenue-action',
+      button: 'Copy worksheet refresh',
+      state: 'status-activation-worksheet-refresh',
+      snippet: 'status-activation-worksheet-refresh',
+    });
+  } catch (_error) {
+    if (status) status.textContent = 'Copy failed. Select the worksheet refresh command manually.';
+  }
+});
+
+$('status-copy-activation-review-record')?.addEventListener('click', async () => {
+  const block = $('status-activation-review-record');
+  const status = $('status-founder-pro-status');
+  try {
+    await writeClipboardText(block?.textContent.trim() || '');
+    if (status) status.textContent = 'Copied activation review recording command.';
+    trackStatusFunnelEvent('status_activation_approval_packet_copied', {
+      target: 'status-revenue-action',
+      button: 'Copy review record',
+      state: 'status-activation-review-record',
+      snippet: 'status-activation-review-record',
+    });
+  } catch (_error) {
+    if (status) status.textContent = 'Copy failed. Select the review recording command manually.';
+  }
+});
 const originKind = (url = '') => {
   if (url && typeof url === 'object') return url.originKind || originKind(url.url || url.label || url.id || '');
   const name = host(url).toLowerCase();

@@ -76,9 +76,13 @@ scripts/summarize_sagerouter_launch_funnel.sh \
   > "$packet_tmp"
 
 # The live approval packet is useful review evidence, but the typed real-send
-# command inside it expires quickly. Keep persistent worksheets from embedding a
-# soon-stale approvalPacketIssuedAt that an operator might later copy.
-safe_packet="$(sed -E 's/"approvalPacketIssuedAt":[0-9]+/"approvalPacketIssuedAt":<CURRENT_APPROVAL_PACKET_ISSUED_AT>/g' "$packet_tmp")"
+# command and freshness timestamps expire quickly. Keep persistent worksheets
+# from embedding soon-stale values that an operator might later copy.
+safe_packet="$(sed -E \
+  -e 's/"approvalPacketIssuedAt":[0-9]+/"approvalPacketIssuedAt":<CURRENT_APPROVAL_PACKET_ISSUED_AT>/g' \
+  -e 's/issuedAt=[0-9]+; expiresAt=[0-9]+;/issuedAt=<CURRENT_APPROVAL_PACKET_ISSUED_AT>; expiresAt=<CURRENT_APPROVAL_PACKET_EXPIRES_AT>;/g' \
+  -e 's/Packet issued at [0-9]+; expires at [0-9]+;/Packet issued at <CURRENT_APPROVAL_PACKET_ISSUED_AT>; expires at <CURRENT_APPROVAL_PACKET_EXPIRES_AT>;/g' \
+  "$packet_tmp")"
 
 extract_after_colon() {
   local pattern="$1"
@@ -91,6 +95,7 @@ extract_after_colon() {
 approval_line="$(extract_after_colon '^Approval readiness:' 'unknown; blocker=unknown.')"
 decision_line="$(extract_after_colon '^Decision needed:' 'approve or hold the next real activation send for the next segment.')"
 freshness_line="$(extract_after_colon '^Approval packet freshness:' 'issuedAt=0; expiresAt=0; validSeconds=0; requiredForRealSend=true.')"
+freshness_line="$(sed -E 's/issuedAt=[0-9]+; expiresAt=[0-9]+;/issuedAt=<CURRENT_APPROVAL_PACKET_ISSUED_AT>; expiresAt=<CURRENT_APPROVAL_PACKET_EXPIRES_AT>;/' <<<"$freshness_line")"
 queue_line="$(extract_after_colon '^Queued:' '0 total; 0 sendable; 0 review-only; 0 unknown.')"
 dry_run_line="$(extract_after_colon '^Dry-run:' 'not complete for 0 unique sendable recipient(s). Sent: 0; failed: 0.')"
 dry_segments_line="$(extract_after_colon '^Dry-run segments:' 'covered=none; pending=unknown; duplicate raw recipient records=0.')"
