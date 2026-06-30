@@ -3424,7 +3424,7 @@ check_marketing_community_launch_kit_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "utm_source=linkedin" /tmp/sage-router-readiness-body; then
     page_code="200:missing-linkedin-utm"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
+  if [[ "$page_code" == "200" ]] && ! grep -q "outreach_snippet_copied" /tmp/sage-router-readiness-body; then
     page_code="200:missing-launch-kit-copy-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "content_article_viewed" /tmp/sage-router-readiness-body; then

@@ -343,7 +343,7 @@ codex --model openai/gpt-4.1
       if (!block) return;
       try {
         await writeClipboardText(block.textContent.trim());
-        trackCommunityLaunchEvent('quickstart_snippet_copied', {
+        trackCommunityLaunchEvent('outreach_snippet_copied', {
           button: blockId,
           snippet
         });

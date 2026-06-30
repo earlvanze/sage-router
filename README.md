@@ -291,7 +291,9 @@ the key activation path; clicks record `calculator_key_activation_clicked`.
 `https://sagerouter.dev/community-launch-kit` gives the operator copyable,
 owner-approved community launch posts, including Show HN, Indie Hackers,
 Dev.to, X, and LinkedIn, with measured campaign links and no-secret posting
-boundaries for the `$10k MRR` campaign.
+boundaries for the `$10k MRR` campaign. Copying those launch posts records
+`outreach_snippet_copied`, not setup-copy activation, so setup-copy KPIs stay
+reserved for snippets that help prospects configure Sage Router.
 `https://sagerouter.dev/founder-sales-kit` gives the operator first-viewport
 `Copy next Pro reply` and `Copy 60-second setup bundle` actions plus copyable
 no-secret direct outreach for Lite pilots, Pro activation, Max implementation review,
