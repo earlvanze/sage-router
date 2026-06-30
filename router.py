@@ -8645,6 +8645,8 @@ MANAGED_ACCESS_MARKETING_EVENTS = {
     'landing_managed_access_clicked',
     'launch_plan_managed_access_clicked',
     'managed_access_interest_clicked',
+    'managed_access_contact_draft_opened',
+    'managed_access_quick_form_focused',
     'managed_access_quick_form_started',
     'managed_access_quick_request_failed',
     'managed_access_quick_request_submitted',
