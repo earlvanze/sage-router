@@ -3528,11 +3528,20 @@ check_marketing_pricing_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html?plan=pro" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pro-account-link"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "start=checkout" /tmp/sage-router-readiness-body; then
-    page_code="200:missing-pricing-saved-checkout-intent"
-  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "start=create_key" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-generated-key-intent"
+  fi
+  if [[ "$page_code" == "200" ]] && grep -q "app.sagerouter.dev/account.html?plan=.*start=checkout" /tmp/sage-router-readiness-body; then
+    page_code="200:pricing-checkout-first-link-regressed"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "plan=lite&start=create_key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-lite-key-first-link"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "plan=max&start=create_key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-max-key-first-link"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Create Max BYOK key first" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-max-byok-key-first-link"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing_key_activation_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-key-activation-funnel-event"
