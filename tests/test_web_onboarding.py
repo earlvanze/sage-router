@@ -5384,6 +5384,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("Start with the same-email setup link", page)
         self.assertIn("Email same-email setup link", page)
         self.assertIn("Open API key setup if signed in", page)
+        self.assertLess(page.index('id="setup-key-recovery-email-form"'), page.index('<div class="actions">'))
+        self.assertLess(page.index('id="setup-key-recovery-email-submit"'), page.index('data-setup-recovery-button="open-account-setup-primary"'))
         self.assertIn("function focusSetupRecoveryEmail", page)
         self.assertIn("setup_key_recovery_email_form_clicked", page)
         self.assertIn("function shouldAutoOpenSetupRecoveryAccount", page)
