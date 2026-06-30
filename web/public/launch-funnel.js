@@ -808,6 +808,22 @@ function activationApprovalReadiness(data = {}) {
     approvalPacketExpiresAt: asNumber(emailReadiness.approvalPacketExpiresAt),
     approvalPacketValidSeconds: asNumber(emailReadiness.approvalPacketValidSeconds),
     approvalPacketRequiredForRealSend: emailReadiness.approvalPacketRequiredForRealSend !== false,
+    decisionLines: [
+      {
+        id: 'approve_after_review',
+        label: 'Approve after review',
+        value: `APPROVE_ACTIVATION_FOLLOWUP segment="${activationSend.nextSendSegment || 'all'}" issuedAt=${asNumber(emailReadiness.approvalPacketIssuedAt)} expiresAt=${asNumber(emailReadiness.approvalPacketExpiresAt)}`,
+        mutatesRuntime: false,
+        sendsEmail: false,
+      },
+      {
+        id: 'hold',
+        label: 'Hold',
+        value: `HOLD_ACTIVATION_FOLLOWUP segment="${activationSend.nextSendSegment || 'all'}" reason="<reason>"`,
+        mutatesRuntime: false,
+        sendsEmail: false,
+      },
+    ],
     nextActions,
     privacy: {
       containsEmails: false,
@@ -817,6 +833,19 @@ function activationApprovalReadiness(data = {}) {
       aggregateOnly: true,
     },
   };
+}
+
+function activationApprovalDecisionLines(data = {}) {
+  const approvalReadiness = activationApprovalReadiness(data);
+  if (Array.isArray(approvalReadiness.decisionLines) && approvalReadiness.decisionLines.length) {
+    return approvalReadiness.decisionLines.map(row => row.value || '').filter(Boolean);
+  }
+  const activationSend = activationSendTelemetry(data);
+  const segment = approvalReadiness.nextSendSegment || activationSend.nextSendSegment || 'all';
+  return [
+    `APPROVE_ACTIVATION_FOLLOWUP segment="${segment}" issuedAt=${integer(approvalReadiness.approvalPacketIssuedAt)} expiresAt=${integer(approvalReadiness.approvalPacketExpiresAt)}`,
+    `HOLD_ACTIVATION_FOLLOWUP segment="${segment}" reason="<reason>"`,
+  ];
 }
 
 function currentActivationApprovalPacket(data = lastFunnelData || {}) {
@@ -1003,6 +1032,7 @@ function activationApprovalPacketText(data = {}) {
   const activationSend = activationSendTelemetry(data);
   const approvalReadiness = activationApprovalReadiness(data);
   const authRepair = activationAuthRepair(data);
+  const decisionLines = activationApprovalDecisionLines(data);
   const { sendable, reviewOnly } = segmentActionGroups(packet);
   const sendableLines = sendable.length
     ? sendable.map(row => `- ${row.segment || 'all'}: ${integer(row.count)} queued; order=${integer(row.sendOrder)}; dryRun=${activationSend.dryRunVerified ? 'verified' : 'pending'}; worked=${row.workedKind || ''}`)
@@ -1018,8 +1048,7 @@ function activationApprovalPacketText(data = {}) {
     `Approval readiness: ${approvalReadiness.status || 'unknown'}; blocker=${approvalReadiness.blockedReason || 'none'}.`,
     `Decision needed: approve or hold the next real activation send for segment "${approvalReadiness.nextSendSegment || activationSend.nextSendSegment || 'all'}".`,
     'Decision lines:',
-    `- Approve after review: APPROVE_ACTIVATION_FOLLOWUP segment="${approvalReadiness.nextSendSegment || activationSend.nextSendSegment || 'all'}" issuedAt=${integer(approvalReadiness.approvalPacketIssuedAt)} expiresAt=${integer(approvalReadiness.approvalPacketExpiresAt)}`,
-    `- Hold: HOLD_ACTIVATION_FOLLOWUP segment="${approvalReadiness.nextSendSegment || activationSend.nextSendSegment || 'all'}" reason="<reason>"`,
+    ...decisionLines.map(line => `- ${line}`),
     `Approval packet freshness: issuedAt=${integer(approvalReadiness.approvalPacketIssuedAt)}; expiresAt=${integer(approvalReadiness.approvalPacketExpiresAt)}; validSeconds=${integer(approvalReadiness.approvalPacketValidSeconds)}; requiredForRealSend=${approvalReadiness.approvalPacketRequiredForRealSend !== false}.`,
     `Queued: ${integer(delivery.totalQueued || followUps.total)} total; ${integer(delivery.sendableQueued)} sendable; ${integer(delivery.reviewOnlyQueued)} review-only; ${integer(delivery.unknownQueued)} unknown.`,
     `Dry-run: ${activationSend.dryRunVerified ? 'verified' : 'not complete'} for ${integer(activationSend.dryRunRecipients)} unique sendable recipient(s). Sent: ${integer(activationSend.sentRecipients)}; failed: ${integer(activationSend.failedRecipients)}.`,

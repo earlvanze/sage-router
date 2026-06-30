@@ -8231,6 +8231,27 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
     dry_run_recipients = int(telemetry.get('dryRunRecipients') or 0)
     dry_run_recorded_recipients = int(telemetry.get('dryRunRecordedRecipients') or 0)
     dry_run_duplicate_recipients = int(telemetry.get('dryRunDuplicateRecipients') or 0)
+    decision_lines = [
+        {
+            'id': 'approve_after_review',
+            'label': 'Approve after review',
+            'value': (
+                f'APPROVE_ACTIVATION_FOLLOWUP segment="{next_send_segment or "all"}" '
+                f'issuedAt={approval_issued_at} expiresAt={approval_expires_at}'
+            ),
+            'operatorMeaning': 'Human approval record only; it does not send email by itself.',
+            'mutatesRuntime': False,
+            'sendsEmail': False,
+        },
+        {
+            'id': 'hold',
+            'label': 'Hold',
+            'value': f'HOLD_ACTIVATION_FOLLOWUP segment="{next_send_segment or "all"}" reason="<reason>"',
+            'operatorMeaning': 'Human hold record only; it does not change queued follow-ups by itself.',
+            'mutatesRuntime': False,
+            'sendsEmail': False,
+        },
+    ]
     decision_checklist = [
         {
             'id': 'review_no_secret_packet',
@@ -8321,6 +8342,7 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
         'sentRecipients': sent_recipients,
         'failedRecipients': failed_recipients,
         'nextActions': next_actions,
+        'decisionLines': decision_lines,
         'decisionChecklist': decision_checklist,
         'authRepair': auth_repair or launch_activation_auth_repair_handoff([], activation_follow_ups),
         'privacy': {

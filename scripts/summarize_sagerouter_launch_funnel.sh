@@ -493,6 +493,7 @@ if [[ "$APPROVAL_PACKET" == "1" || "$RECORD_ACTIVATION_APPROVAL_REVIEW" == "1" ]
     | ($approval.nextSendSegment // $telemetry.nextSendSegment // "all") as $next_segment
     | (command_for($segments; $next_segment; "dryRunCommand")) as $next_dry_run_command
     | (command_for($segments; $next_segment; "sendCommand")) as $next_send_command
+    | (($approval.decisionLines // []) | map(.value // empty) | map(select(. != ""))) as $decision_lines
     | [
         "Sage Router activation approval packet",
         "Boundary: no emails, customer IDs, API keys, prompts, OAuth tokens, provider credentials, raw campaign URLs, or raw provider responses.",
@@ -501,8 +502,7 @@ if [[ "$APPROVAL_PACKET" == "1" || "$RECORD_ACTIVATION_APPROVAL_REVIEW" == "1" ]
         "Approval readiness: \($approval.status // "unknown"); blocker=\($approval.blockedReason // "none").",
         "Decision needed: approve or hold the next real activation send for segment \"\($next_segment)\".",
         "Decision lines:",
-        "- Approve after review: APPROVE_ACTIVATION_FOLLOWUP segment=\"\($next_segment)\" issuedAt=\(n($approval.approvalPacketIssuedAt)) expiresAt=\(n($approval.approvalPacketExpiresAt))",
-        "- Hold: HOLD_ACTIVATION_FOLLOWUP segment=\"\($next_segment)\" reason=\"<reason>\"",
+        (if ($decision_lines | length) > 0 then ($decision_lines | map("- " + .)[]) else "- APPROVE_ACTIVATION_FOLLOWUP segment=\"\($next_segment)\" issuedAt=\(n($approval.approvalPacketIssuedAt)) expiresAt=\(n($approval.approvalPacketExpiresAt))", "- HOLD_ACTIVATION_FOLLOWUP segment=\"\($next_segment)\" reason=\"<reason>\"" end),
         "Approval packet freshness: issuedAt=\(n($approval.approvalPacketIssuedAt)); expiresAt=\(n($approval.approvalPacketExpiresAt)); validSeconds=\(n($approval.approvalPacketValidSeconds)); requiredForRealSend=\($approval.approvalPacketRequiredForRealSend // true).",
         "Queued: \(n($packet.totalQueued // $followups.total)) total; \(n($packet.sendableQueued // $followups.sendableQueued)) sendable; \(n($packet.reviewOnlyQueued // $followups.reviewOnlyQueued)) review-only; \(n($followups.unknownQueued)) unknown.",
         "Dry-run: \(if $dry then "verified" else "not complete" end) for \(n($telemetry.dryRunRecipients)) unique sendable recipient(s). Sent: \(n($telemetry.sentRecipients)); failed: \(n($telemetry.failedRecipients)).",
@@ -737,7 +737,24 @@ if [[ "$FOUNDER_SALES_PACKET" == "1" || "$RECORD_FOUNDER_SALES" == "1" ]]; then
 fi
 
 if [[ "$RAW_JSON" == "1" ]]; then
-  jq '{
+  jq '
+  def activation_decision_lines($root): [
+    {
+      id: "approve_after_review",
+      label: "Approve after review",
+      value: "APPROVE_ACTIVATION_FOLLOWUP segment=\"\($root.operatorExecutionPacket.sendTelemetry.nextSendSegment // $root.activationApprovalReadiness.nextSendSegment // "all")\" issuedAt=\($root.operatorExecutionPacket.emailReadiness.approvalPacketIssuedAt // $root.activationApprovalReadiness.approvalPacketIssuedAt // 0) expiresAt=\($root.operatorExecutionPacket.emailReadiness.approvalPacketExpiresAt // $root.activationApprovalReadiness.approvalPacketExpiresAt // 0)",
+      mutatesRuntime: false,
+      sendsEmail: false
+    },
+    {
+      id: "hold",
+      label: "Hold",
+      value: "HOLD_ACTIVATION_FOLLOWUP segment=\"\($root.operatorExecutionPacket.sendTelemetry.nextSendSegment // $root.activationApprovalReadiness.nextSendSegment // "all")\" reason=\"<reason>\"",
+      mutatesRuntime: false,
+      sendsEmail: false
+    }
+  ];
+  {
     generatedAt,
     stages,
     rates,
@@ -794,7 +811,9 @@ if [[ "$RAW_JSON" == "1" ]]; then
           )
         else . end
     ),
-    activationApprovalReadiness: (.activationApprovalReadiness // {
+    activationApprovalReadiness: (
+      . as $root
+      | (.activationApprovalReadiness // {
       status: (
         if ((.operatorExecutionPacket.sendTelemetry.sendApprovalRequired // false) == true) then "approval_required"
         elif ((.operatorExecutionPacket.sendTelemetry.dryRunVerified // false) == false and (.operatorExecutionPacket.sendableQueued // 0) > 0) then "dry_run_required"
@@ -815,6 +834,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
       approvalPacketExpiresAt: (.operatorExecutionPacket.emailReadiness.approvalPacketExpiresAt // 0),
       approvalPacketValidSeconds: (.operatorExecutionPacket.emailReadiness.approvalPacketValidSeconds // 0),
       approvalPacketRequiredForRealSend: (.operatorExecutionPacket.emailReadiness.approvalPacketRequiredForRealSend // true),
+      decisionLines: activation_decision_lines($root),
       totalQueued: (.operatorExecutionPacket.totalQueued // .activationFollowUps.total // 0),
       sendableQueued: (.operatorExecutionPacket.sendableQueued // .activationFollowUps.sendableQueued // 0),
       reviewOnlyQueued: (.operatorExecutionPacket.reviewOnlyQueued // .activationFollowUps.reviewOnlyQueued // 0),
@@ -850,7 +870,15 @@ if [[ "$RAW_JSON" == "1" ]]; then
         containsProviderCredentials: false,
         aggregateOnly: true
       }
-    }),
+      }) as $approval
+      | $approval + {
+          decisionLines: (
+            if (($approval.decisionLines // []) | length) > 0 then $approval.decisionLines
+            else activation_decision_lines($root)
+            end
+          )
+        }
+    ),
     managedAccessDemand: (.managedAccessDemand // {}),
     anonymousManagedAccessDemand: (.anonymousManagedAccessDemand // {}),
     waitlistManagedAccessDemand: (.waitlistManagedAccessDemand // {}),
