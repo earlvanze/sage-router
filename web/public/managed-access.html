@@ -55,12 +55,13 @@
         <div class="packetActions">
           <button id="managed-access-copy-review-packet" type="button">Copy one-subscription review packet</button>
           <button id="managed-access-email-review-packet" class="secondary" type="button">Copy and open email draft</button>
+          <button id="managed-access-copy-max-byok-setup" class="secondary" type="button">Copy Max BYOK setup</button>
         </div>
         <p id="managed-access-packet-status" class="packetStatus" role="status" aria-live="polite"></p>
       </div>
       <div class="actions">
         <a class="button primary" href="#apply">Request review</a>
-        <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max&start=checkout&utm_source=managed-access&utm_medium=private-beta&utm_campaign=sage-router-launch">Start Max with BYOK</a>
+        <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max&start=create_key&utm_source=managed-access&utm_medium=max-byok&utm_campaign=sage-router-launch" data-managed-access-event="managed_access_interest_clicked" data-managed-access-state="max-byok-setup" data-managed-access-target="https://app.sagerouter.dev/account.html?plan=max&start=create_key">Start Max with BYOK</a>
         <a class="button secondary" href="/provider-resale-terms">Provider terms</a>
         <a class="button secondary" href="/margin-policy">Margin policy</a>
       </div>
@@ -462,10 +463,30 @@
         `Target launch window: ${buckets.targetLaunchWindow || 'this-month'}`,
         '',
         'Boundary: managed provider access is disabled until provider authorization, provider terms acknowledgment, an authorized provider allowlist, a private cost model, positive unit economics, quotas, audit events, and acceptable-use controls pass.',
-        'Immediate fallback: start Max with BYOK at https://app.sagerouter.dev/account.html?plan=max&start=checkout&utm_source=managed-access&utm_medium=review-packet&utm_campaign=sage-router-launch',
+        'Immediate fallback: start Max with BYOK at https://app.sagerouter.dev/account.html?plan=max&start=create_key&utm_source=managed-access&utm_medium=review-packet&utm_campaign=sage-router-launch',
         'Review URL: https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=review-packet&utm_medium=shared&utm_campaign=sage-router-launch',
         '',
         'Do not paste prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, or customer data.',
+      ].join('\n');
+    }
+
+    function maxByokSetupText() {
+      return [
+        'Sage Router Max BYOK setup',
+        '',
+        '1. Create the generated sk_sage setup key before checkout:',
+        'https://app.sagerouter.dev/account.html?plan=max&start=create_key&utm_source=managed-access&utm_medium=max-byok-setup&utm_campaign=sage-router-launch',
+        '',
+        '2. After the key is shown once, set:',
+        'export OPENAI_BASE_URL=https://api.sagerouter.dev/v1',
+        'export OPENAI_API_KEY=sk_sage_your_key_here',
+        'export OPENAI_MODEL=sage-router/frontier',
+        '',
+        '3. Verify the key before wiring an agent:',
+        'curl -i "$OPENAI_BASE_URL/models" \\',
+        '  -H "Authorization: Bearer $OPENAI_API_KEY"',
+        '',
+        'Provider access stays BYOK or separately authorized. Do not paste prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, or customer data.',
       ].join('\n');
     }
 
@@ -714,6 +735,40 @@
     document.getElementById('managed-access-email-review-packet')?.addEventListener('click', async (event) => {
       await copyManagedAccessReviewPacket(event.currentTarget, 'Copied packet and opened your email draft.');
       window.location.href = managedAccessReviewMailtoUrl();
+    });
+
+    document.getElementById('managed-access-copy-max-byok-setup')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Copying...';
+      try {
+        await writeClipboardText(maxByokSetupText());
+        button.textContent = 'Copied';
+        if (packetStatus) packetStatus.textContent = 'Copied Max BYOK setup. Create the generated key first, then verify /v1/models.';
+        trackManagedAccessFunnelEvent('quickstart_snippet_copied', {
+          state: 'copied',
+          target: '#managed-access-review-packet',
+          snippet: 'managed-access-max-byok-setup',
+        });
+      } catch (_error) {
+        button.textContent = 'Copy failed';
+        if (packetStatus) packetStatus.textContent = 'Copy failed. Use the account link or quickstart without sending secrets.';
+      } finally {
+        window.setTimeout(() => {
+          button.disabled = false;
+          button.textContent = original;
+        }, 1800);
+      }
+    });
+
+    document.querySelectorAll('[data-managed-access-event]').forEach((link) => {
+      link.addEventListener('click', () => {
+        trackManagedAccessFunnelEvent(link.dataset.managedAccessEvent, {
+          state: link.dataset.managedAccessState || 'clicked',
+          target: link.dataset.managedAccessTarget || link.getAttribute('href') || '',
+        });
+      });
     });
 
     applyRequestedIntent();
