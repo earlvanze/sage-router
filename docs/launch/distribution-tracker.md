@@ -26,9 +26,9 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 ```
 
 - Window: last 30 days
-- Generated at epoch: 1782819987
-- Marketing intent events: 410
-- Setup snippet copies: 0
+- Generated at epoch: 1782825405
+- Marketing intent events: 411
+- Setup snippet copies: 1
 - Founder-sales outreach copies: 0
 - Founder-sales outreach snippets: none
 - Managed-access packet copies: 0
@@ -49,10 +49,10 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 
 - Metric: signupToGeneratedKey
 - Priority: fix_now
-- Owner/surface: Activation / launch funnel
-- Action: Real activation sends are approval-gated and setup-copy activation is still zero. Copy the first-request setup bundle from the Do Next dock now; it moves a no-secret setup-copy KPI without sending email, exposing a real key, or changing billing/provider resale.
-- Success metric: status_first_request_setup_copied increases with snippet operator-first-request-setup, then first routed request and generated-key conversion can be measured.
-- CTA: https://app.sagerouter.dev/launch-funnel.html#next-best-action-dock
+- Owner/surface: Activation / setup-key recovery
+- Action: Recovery handoff is verified with no persistence; the next blocker is explicit operator approval for the next sendable follow-up or fresh recovery traffic, not recovery-page code.
+- Success metric: setup_key_recovery_magic_link_requested/sent increases, then keyCreateAttempts and generated-key customers increase.
+- CTA: https://sagerouter.dev/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation
 
 ### Activation Queue
 
@@ -86,7 +86,7 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 - Result: verified_handoff_waiting_for_fresh_traffic
 - Interpretation: Recovery handoff is verified with no persistence; the remaining activation work is fresh setup-copy traffic or explicit operator approval for real follow-up sends.
 - Evidence: checked=true; passed=true; noPersistence=true; recoveryViews=8; accountHandoffs=0; keyCreateAttempts=0; keyCreateSuccesses=0.
-- Next action: Copy the no-secret first-request setup bundle from https://app.sagerouter.dev/launch-funnel.html#next-best-action-dock before any real activation send; this records status_first_request_setup_copied with snippet operator-first-request-setup and does not send email or expose a real key.
+- Next action: Use the no-secret approval packet for the next sendable activation follow-up or wait for fresh real recovery traffic.
 
 ### Top Acquisition Actions
 - attributionChannel/sagerouter: 318 clicks - Cross-link internal Sage Router pages toward the current lowest-performing activation step.
