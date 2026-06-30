@@ -4001,6 +4001,15 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "maximumProviderCostCentsPerThousandRequests" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-readiness-plan-thresholds"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-offer-ladder" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-offer-ladder"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Managed Access Pro Add-on" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-offer-ladder-pro"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "public threshold 86.6667c per 1k" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-offer-ladder-threshold"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
