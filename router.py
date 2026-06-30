@@ -7796,6 +7796,8 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                     'step': 4,
                     'segment': 'operator_outreach',
                     'action': (
+                        'After the approve/hold decision, either execute the approved next-segment send or wait for fresh recovery traffic; do not re-run recovery diagnostics unless new evidence changes.'
+                        if approval_packet_already_reviewed else
                         'If the approval packet reports verified_handoff_waiting_for_fresh_traffic, the next blocker is explicit operator approval or fresh recovery traffic, not a recovery-page code fix.'
                         if activation_send_ready_for_approval
                         else 'After the dual smoke probe passes, wait for new traffic or use the approval packet before any real verified/unverified activation send.'
@@ -7808,6 +7810,9 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
             'priority': 'fix_now',
             'owner': 'Activation',
             'surface': (
+                'activation approval'
+                if approval_packet_already_reviewed
+                else
                 'launch funnel'
                 if non_gated_setup_copy_fallback
                 else (
@@ -7817,6 +7822,9 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 )
             ),
             'ctaPath': (
+                f'{APP_BASE_URL.rstrip("/")}/launch-funnel.html#no-key-followups:segments'
+                if approval_packet_already_reviewed
+                else
                 f'{APP_BASE_URL.rstrip("/")}/launch-funnel.html#next-best-action-dock'
                 if non_gated_setup_copy_fallback
                 else (
@@ -7856,6 +7864,9 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
             ),
             'executionChecklist': execution_checklist,
             'successMetric': (
+                'operatorFollowUpSends, operatorFollowUpSentRecipients, or fresh recovery traffic increases without send failures.'
+                if approval_packet_already_reviewed
+                else
                 'status_first_request_setup_copied increases with snippet operator-first-request-setup, then first routed request and generated-key conversion can be measured.'
                 if non_gated_setup_copy_fallback
                 else (
