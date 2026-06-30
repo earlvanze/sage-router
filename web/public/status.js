@@ -82,6 +82,23 @@ document.querySelectorAll('[data-status-event]').forEach((link) => {
   });
 });
 
+$('status-copy-founder-recommended-first-reply')?.addEventListener('click', async () => {
+  const block = $('status-founder-recommended-first-reply');
+  const status = $('status-founder-pro-status');
+  try {
+    await writeClipboardText(block?.textContent.trim() || '');
+    if (status) status.textContent = 'Copied no-secret recommended first reply.';
+    trackStatusFunnelEvent('outreach_snippet_copied', {
+      target: 'status-revenue-action',
+      button: 'Copy recommended first reply',
+      state: 'status-founder-recommended-first-reply',
+      snippet: 'status-founder-recommended-first-reply',
+    });
+  } catch (_error) {
+    if (status) status.textContent = 'Copy failed. Select the reply manually.';
+  }
+});
+
 $('status-copy-founder-pro-reply')?.addEventListener('click', async () => {
   const block = $('status-founder-pro-reply');
   const status = $('status-founder-pro-status');
