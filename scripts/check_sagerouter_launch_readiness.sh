@@ -970,10 +970,21 @@ check_managed_provider_access_guard() {
       fi
       ;;
     *)
-      if [[ "$enabled" == "false" && "$requested" == "false" && "$readiness_satisfied" == "false" && "$status" == "disabled_pending_provider_terms" && "$terms_ack" == "false" && "$controls_ok" == "true" && "$cost_controls_ok" == "true" && "$unit_economics_ok" == "true" && "$unit_economics_safe_thresholds_ok" == "true" && "$provider_family_boundary_ok" == "true" && "$one_subscription_action_ok" == "true" && "$missing_controls_explain_blockers_ok" == "true" && "$readiness_setup_ok" == "true" && "$onboarding_sequence_ok" == "true" && "$margin_percent" =~ ^[0-9]+$ && "$margin_percent" -ge 30 && "$missing_count" =~ ^[0-9]+$ && "$missing_count" -gt 0 ]]; then
-        pass "managed provider access remains disabled until provider resale terms are acknowledged, provider authorization evidence, provider allowlist, positive unit economics, provider-family BYOK boundary, margin policy, quotas, operator audit events, setup guard, onboarding sequence, and acceptable-use controls are ready"
+      local expected_requested expected_status
+      case "${MANAGED_PROVIDER_RESALE_REQUESTED,,}" in
+        1|true|yes|on)
+          expected_requested="true"
+          expected_status="requires_readiness_verification"
+          ;;
+        *)
+          expected_requested="false"
+          expected_status="disabled_pending_provider_terms"
+          ;;
+      esac
+      if [[ "$enabled" == "false" && "$requested" == "$expected_requested" && "$readiness_satisfied" == "false" && "$status" == "$expected_status" && "$terms_ack" == "false" && "$controls_ok" == "true" && "$cost_controls_ok" == "true" && "$unit_economics_ok" == "true" && "$unit_economics_safe_thresholds_ok" == "true" && "$provider_family_boundary_ok" == "true" && "$one_subscription_action_ok" == "true" && "$missing_controls_explain_blockers_ok" == "true" && "$readiness_setup_ok" == "true" && "$onboarding_sequence_ok" == "true" && "$margin_percent" =~ ^[0-9]+$ && "$margin_percent" -ge 30 && "$missing_count" =~ ^[0-9]+$ && "$missing_count" -gt 0 ]]; then
+        pass "managed provider access remains disabled while reviewRequested=${expected_requested}; provider resale terms, provider authorization evidence, provider allowlist, positive unit economics, provider-family BYOK boundary, margin policy, quotas, operator audit events, setup guard, onboarding sequence, and acceptable-use controls are still enforced"
       else
-        fail "managed provider access guard unexpected: enabled=${enabled} requested=${requested:-missing} readinessSatisfied=${readiness_satisfied:-missing} status=${status:-missing} termsAcknowledged=${terms_ack:-missing} authorizationEvidence=${auth_evidence:-missing} allowedProviderFamilies=${allowlist_count:-missing} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} unitEconomicsSafeThresholds=${unit_economics_safe_thresholds_ok:-missing} providerFamilyBoundary=${provider_family_boundary_ok:-missing} oneSubscriptionAction=${one_subscription_action_ok:-missing} missingControlsExplainBlockers=${missing_controls_explain_blockers_ok:-missing} readinessSetup=${readiness_setup_ok:-missing} onboardingSequence=${onboarding_sequence_ok:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing} missingControls=${missing_count:-missing}, expected disabled_pending_provider_terms"
+        fail "managed provider access guard unexpected: enabled=${enabled} requested=${requested:-missing} readinessSatisfied=${readiness_satisfied:-missing} status=${status:-missing} termsAcknowledged=${terms_ack:-missing} authorizationEvidence=${auth_evidence:-missing} allowedProviderFamilies=${allowlist_count:-missing} minimumGrossMarginPercent=${margin_percent:-missing} positiveUnitEconomics=${unit_economics_ok:-missing} unitEconomicsSafeThresholds=${unit_economics_safe_thresholds_ok:-missing} providerFamilyBoundary=${provider_family_boundary_ok:-missing} oneSubscriptionAction=${one_subscription_action_ok:-missing} missingControlsExplainBlockers=${missing_controls_explain_blockers_ok:-missing} readinessSetup=${readiness_setup_ok:-missing} onboardingSequence=${onboarding_sequence_ok:-missing} controls=${controls_ok:-missing} costControls=${cost_controls_ok:-missing} missingControls=${missing_count:-missing}, expected requested=${expected_requested} status=${expected_status}"
       fi
       ;;
   esac
