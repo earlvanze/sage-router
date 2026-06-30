@@ -286,10 +286,10 @@ flag.
   prospect identities.
 - Keep `/managed-access` as the one-subscription qualification path with
   copyable no-secret review packets, a provider authorization request packet,
-  Max/BYOK fallback setup, and live readiness guardrails. The provider packet
-  must not enable resale, acknowledge terms, expose provider costs, print
-  authorization references, or claim OpenRouter is part of the managed
-  subscription offer.
+  Max/BYOK fallback setup, deep-link intent handoff packets, and live readiness
+  guardrails. The provider packet must not enable resale, acknowledge terms,
+  expose provider costs, print authorization references, or claim OpenRouter is
+  part of the managed subscription offer.
 - Keep `/docs/codex` as the dedicated Codex CLI path with hosted, local port
   `8790`, and Tailnet examples using `wire_api = "responses"` and
   `sage-router/frontier`.
@@ -456,8 +456,9 @@ flag.
   pricing emits `managed_access_quick_request_*` events for buyer-intent
   traffic. The `/managed-access` page also provides a copyable no-secret
   one-subscription review packet and email-draft share path with
-  `managed_access_review_packet_copied`, plus a Max/BYOK setup bundle measured
-  as `quickstart_snippet_copied` with `managed-access-max-byok-setup`, so
+  `managed_access_review_packet_copied`, an intent handoff packet for
+  `?intent=one-subscription` visitors, plus a Max/BYOK setup bundle measured as
+  `quickstart_snippet_copied` with `managed-access-max-byok-setup`, so
   one-subscription, implementation, and immediate key-first Max fallback demand
   are visible before full contact submission. The launch funnel also rolls
   managed-access review and provider-authorization packet copies into

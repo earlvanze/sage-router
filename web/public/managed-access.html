@@ -49,6 +49,15 @@
         <div id="quick-turnstile-slot" class="quickTurnstileSlot" aria-label="Review request verification"></div>
         <p id="quick-review-status" class="quickReviewStatus" role="status" aria-live="polite">One field now; defaults to reviewed managed access. Qualification buckets can be adjusted below. Do not send secrets.</p>
       </form>
+      <div id="managed-access-intent-handoff" class="packetPanel" hidden>
+        <strong>Intent handoff</strong>
+        <p id="managed-access-intent-handoff-copy">Copy a no-secret review packet or use Max with BYOK while private-beta review is pending.</p>
+        <div class="packetActions">
+          <button id="managed-access-copy-intent-review-packet" type="button">Copy intent review packet</button>
+          <button id="managed-access-email-intent-review-packet" class="secondary" type="button">Copy and email intent packet</button>
+          <button id="managed-access-copy-intent-max-byok" class="secondary" type="button">Copy Max BYOK fallback</button>
+        </div>
+      </div>
       <div id="managed-access-review-packet" class="packetPanel">
         <strong>Need to share internally first?</strong>
         <p>Copy a no-secret one-subscription review packet with the current qualification buckets, provider-authorization boundary, and Max/BYOK fallback, or copy the provider authorization request needed before managed access can launch.</p>
@@ -639,6 +648,16 @@
       if (!requestedIntentParam) return;
       const state = quickReviewIntent();
       setQuickStatus(quickReviewNextAction(state));
+      const handoff = document.getElementById('managed-access-intent-handoff');
+      const handoffCopy = document.getElementById('managed-access-intent-handoff-copy');
+      if (handoff) {
+        handoff.hidden = false;
+        if (handoffCopy) {
+          handoffCopy.textContent = state === 'one-subscription'
+            ? 'One-subscription intent detected. Copy the no-secret buyer packet for internal review, request review with work email, or use Max with BYOK while managed access remains gated.'
+            : 'Managed-access intent detected. Copy a no-secret packet, request review with work email, or use Max with BYOK while review is pending.';
+        }
+      }
       trackManagedAccessFunnelEvent('managed_access_quick_form_presented', {
         state,
         target: '#managed-access-quick-form',
@@ -814,6 +833,25 @@
       );
     });
 
+    document.getElementById('managed-access-copy-intent-review-packet')?.addEventListener('click', async (event) => {
+      await copyManagedAccessReviewPacket(
+        event.currentTarget,
+        'Copied intent review packet. Request review with work email when ready; managed resale remains gated.',
+        'managed-access-intent-one-subscription-packet',
+        '#managed-access-intent-handoff'
+      );
+    });
+
+    document.getElementById('managed-access-email-intent-review-packet')?.addEventListener('click', async (event) => {
+      await copyManagedAccessReviewPacket(
+        event.currentTarget,
+        'Copied intent packet and opened your email draft.',
+        'managed-access-intent-email-packet',
+        '#managed-access-intent-handoff'
+      );
+      window.location.href = managedAccessReviewMailtoUrl();
+    });
+
     document.getElementById('managed-access-copy-review-packet')?.addEventListener('click', async (event) => {
       await copyManagedAccessReviewPacket(event.currentTarget, 'Copied no-secret one-subscription review packet.');
     });
@@ -865,6 +903,31 @@
       } catch (_error) {
         button.textContent = 'Copy failed';
         if (packetStatus) packetStatus.textContent = 'Copy failed. Use the account link or quickstart without sending secrets.';
+      } finally {
+        window.setTimeout(() => {
+          button.disabled = false;
+          button.textContent = original;
+        }, 1800);
+      }
+    });
+
+    document.getElementById('managed-access-copy-intent-max-byok')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Copying...';
+      try {
+        await writeClipboardText(maxByokSetupText());
+        button.textContent = 'Copied';
+        if (packetStatus) packetStatus.textContent = 'Copied Max BYOK fallback from the intent handoff. Managed access still requires review.';
+        trackManagedAccessFunnelEvent('quickstart_snippet_copied', {
+          state: quickReviewIntent(),
+          target: '#managed-access-intent-handoff',
+          snippet: 'managed-access-intent-max-byok-setup',
+        });
+      } catch (_error) {
+        button.textContent = 'Copy failed';
+        if (packetStatus) packetStatus.textContent = 'Copy failed. Use the account setup link without sending secrets.';
       } finally {
         window.setTimeout(() => {
           button.disabled = false;
