@@ -28,17 +28,30 @@ git_value() {
 
 resolve_release_digest_from_actions() {
   require_cmd gh
-  local run_id digest
-  run_id="$(
+  require_cmd jq
+  local run_id digest target_sha runs_json
+  target_sha="$(git_value rev-parse HEAD)"
+  runs_json="$(
     gh run list \
       --repo earlvanze/sage-router \
       --workflow "Release image" \
-      --branch master \
-      --limit 1 \
-      --json databaseId,conclusion \
-      --jq '.[] | select(.conclusion == "success") | .databaseId' \
-      | head -n1
+      --limit 20 \
+      --json databaseId,conclusion,headSha,createdAt
   )"
+  if [[ -n "$target_sha" ]]; then
+    run_id="$(
+      jq -r --arg sha "$target_sha" '.[] | select(.conclusion == "success" and .headSha == $sha) | .databaseId' <<<"$runs_json" \
+        | head -n1
+    )"
+  else
+    run_id=""
+  fi
+  if [[ -z "$run_id" ]]; then
+    run_id="$(
+      jq -r '.[] | select(.conclusion == "success") | .databaseId' <<<"$runs_json" \
+        | head -n1
+    )"
+  fi
   if [[ -z "$run_id" ]]; then
     return 1
   fi
