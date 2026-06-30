@@ -2858,11 +2858,15 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('approval packet has already been reviewed', reviewed_packet['action'])
         self.assertIn('explicit operator approval for the next segment', reviewed_packet['action'])
         self.assertNotIn('Run the approval packet with --verify-recovery', reviewed_packet['action'])
+        self.assertEqual('activation approval', reviewed_packet['surface'])
+        self.assertIn('/launch-funnel.html#no-key-followups:segments', reviewed_packet['ctaPath'])
+        self.assertIn('operatorFollowUpSends', reviewed_packet['successMetric'])
         self.assertTrue(reviewed_packet['evidence']['approvalPacketAlreadyReviewed'])
         self.assertEqual(1, reviewed_packet['evidence']['activationApprovalPacketCopies'])
         self.assertEqual('approval_decision', reviewed_packet['executionChecklist'][0]['segment'])
         self.assertIn('current decision lines', reviewed_packet['executionChecklist'][0]['action'])
         self.assertIn('operatorFollowUpSends', reviewed_packet['executionChecklist'][0]['successMetric'])
+        self.assertIn('do not re-run recovery diagnostics', reviewed_packet['executionChecklist'][3]['action'])
 
         needs_diagnostic = router.launch_next_best_action(
             stages,
