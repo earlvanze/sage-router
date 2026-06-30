@@ -9,7 +9,7 @@ const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
 const KEY_RECOVERY_HANDOFF_STORAGE_KEY = 'sage_router_key_recovery_handoff';
 const ACCOUNT_ACTIVATION_PATH = '/account.html?plan=pro&start=create_key&utm_source=login&utm_medium=activation&utm_campaign=sage-router-launch';
 const ACTIVATION_PARAM_NAMES = ['plan', 'start', 'auth', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
-const KEY_RECOVERY_ACCOUNT_HANDOFF_DELAY_MS = 1800;
+const KEY_RECOVERY_ACCOUNT_HANDOFF_DELAY_MS = 1000;
 let keyRecoverySessionRedirecting = false;
 let keyRecoveryAccountHandoffScheduled = false;
 let keyRecoveryUserInteracted = false;
@@ -424,20 +424,21 @@ document.querySelectorAll('[data-key-recovery]').forEach((link) => link.addEvent
   event.preventDefault();
   markKeyRecoveryUserInteraction();
   const target = link.getAttribute('href') || ACCOUNT_ACTIVATION_PATH;
+  const buttonName = link.dataset.keyRecoveryButton || link.textContent.trim() || 'Open API key setup';
   rememberKeyRecoveryAccountHandoff(target, {
-    button: 'manual_account_setup_handoff',
+    button: buttonName,
     state: keyRecoveryLandingState(),
   });
   setKeyRecoveryHandoffStatus('Opening API key setup now...');
   set('auth-status', 'Opening API key setup now...');
   await Promise.all([
     trackLoginFunnelEventBeforeNavigation('login_key_recovery_clicked', {
-      button: link.textContent.trim() || 'Finish setup key',
+      button: buttonName,
       target,
       state: keyRecoveryLandingState(),
     }, 500),
     trackLoginFunnelEventBeforeNavigation('login_key_recovery_account_setup_clicked', {
-      button: link.textContent.trim() || 'Open API key setup',
+      button: buttonName,
       target,
       state: keyRecoveryLandingState(),
     }, 500),

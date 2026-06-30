@@ -169,14 +169,15 @@ flag.
   is simply waiting for fresh real recovery traffic.
 - Keep `/login.html?start=create_key` as the hosted same-email bridge for
   returning no-key signups: the recovery panel must include an inline
-  same-email setup-link form, copy-first setup, same-GitHub recovery, a static
-  fully attributed `Create API key next` handoff with `setup=login-key-recovery`
-  plus `source_surface=recovery`, and `login_key_recovery_magic_link_*`
-  telemetry so recovery views can move into generated-key setup without waiting
-  for operator outreach or JS-only link rewriting. Recovery landings should
-  focus same-email recovery first; account-setup auto-handoff is a delayed idle
-  fallback that cancels as soon as the user types or clicks a recovery action,
-  so it does not suppress `login_key_recovery_magic_link_requested/sent`.
+  same-email setup-link form, copy-first setup, same-GitHub recovery, a
+  first-panel `Open API key setup now` handoff, a static fully attributed
+  `Create API key next` handoff with `setup=login-key-recovery` plus
+  `source_surface=recovery`, and `login_key_recovery_magic_link_*` telemetry so
+  recovery views can move into generated-key setup without waiting for operator
+  outreach or JS-only link rewriting. Recovery landings should focus same-email
+  recovery first; account-setup auto-handoff is a one-second idle fallback that
+  cancels as soon as the user types or clicks a recovery action, so it does not
+  suppress `login_key_recovery_magic_link_requested/sent`.
 - Keep `/docs/api-reference` as the hosted OpenAI-compatible API reference for
   `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/responses`, public
   `/model-catalog`, generated `sk_sage_*` keys, quota headers, rate-limit
