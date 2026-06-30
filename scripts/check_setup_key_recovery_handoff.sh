@@ -58,6 +58,7 @@ post_smoke_event() {
 page_url="${MARKETING_BASE%/}/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation&smoke=1"
 account_target="${APP_BASE%/}/account.html?plan=pro&start=create_key&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=operator_activation&next=generated-key"
 login_target="${APP_BASE%/}/login.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email"
+auth_js_target="${APP_BASE%/}/auth.js"
 
 page_code="$(http_get "$page_url")"
 if [[ "$page_code" != "200" ]]; then
@@ -82,6 +83,25 @@ if grep -q 'https://app.sagerouter.dev/account?plan=pro&start=create_key' "$tmp_
   fail 'setup-key recovery page still uses non-canonical account handoff'
 fi
 pass 'setup-key recovery page exposes operator handoff controls and attribution preservation'
+
+login_code="$(http_get "$login_target")"
+if [[ "$login_code" != "200" ]]; then
+  fail "login recovery page returned HTTP ${login_code}"
+fi
+grep -q 'href="/account.html?plan=pro&start=create_key' "$tmp_body" || fail 'login recovery page does not use canonical account.html handoff'
+if grep -q 'href="/account?plan=pro&start=create_key' "$tmp_body"; then
+  fail 'login recovery page still uses non-canonical account handoff'
+fi
+
+auth_js_code="$(http_get "$auth_js_target")"
+if [[ "$auth_js_code" != "200" ]]; then
+  fail "auth.js returned HTTP ${auth_js_code}"
+fi
+grep -q "ACCOUNT_ACTIVATION_PATH = '/account.html?plan=pro&start=create_key" "$tmp_body" || fail 'auth.js does not use canonical account.html activation path'
+if grep -q "ACCOUNT_ACTIVATION_PATH = '/account?plan=pro&start=create_key" "$tmp_body"; then
+  fail 'auth.js still uses non-canonical account activation path'
+fi
+pass 'login recovery page and auth.js use canonical account.html handoffs'
 
 endpoint_code="$(http_get "$FUNNEL_ENDPOINT")"
 if [[ "$endpoint_code" != "200" ]]; then
