@@ -174,6 +174,12 @@ curl "$OPENAI_BASE_URL/chat/completions" \
         <div class="callout">
           <h3>What gets captured</h3>
           <p class="muted">The intake stores company contact plus allowlisted buckets such as target provider family, commercial preference, support need, and launch window. It does not collect prompts, provider credentials, OAuth tokens, generated API keys, raw provider responses, actual provider costs, or customer data.</p>
+          <div class="copyRow">
+            <strong>Copy review packet.</strong>
+            <span class="muted">Share the no-secret one-subscription review request internally before the full intake.</span>
+            <button id="openrouter-copy-one-subscription-review" class="button primary" type="button">Copy one-subscription review packet</button>
+            <span id="openrouter-review-copy-status" role="status" aria-live="polite"></span>
+          </div>
         </div>
       </section>
     </main>
@@ -285,6 +291,28 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
 # Public Sage Router plans do not bundle OpenRouter resale.`;
     }
 
+    function openrouterOneSubscriptionReviewText() {
+      return [
+        'Sage Router one-subscription review from OpenRouter comparison',
+        '',
+        'Request: review Sage Router as one subscription for hosted routing, quotas, failover, local-first controls, and Max implementation support.',
+        'Current use case: evaluating OpenRouter-style one-endpoint ergonomics while keeping Sage Router as the routing/control plane.',
+        'Intent: one-subscription',
+        'Provider access posture: needs-managed-access',
+        'Target provider family: mixed-frontier',
+        'Commercial preference: one-subscription',
+        'Support need: managed-provider-review',
+        'Target launch window: exploring',
+        '',
+        'Review URL: https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=openrouter-comparison&utm_medium=review-packet&utm_campaign=sage-router-launch',
+        'Immediate BYOK fallback: https://app.sagerouter.dev/account.html?plan=max&start=create_key&utm_source=openrouter-comparison&utm_medium=review-packet&utm_campaign=sage-router-launch',
+        '',
+        'Boundary: Sage Router may route customer-authorized OpenRouter as a BYOK provider, but public Sage Router plans do not bundle OpenRouter resale. Managed provider access stays disabled until provider authorization, terms acknowledgment, an authorized provider allowlist, a private cost model, positive unit economics, quotas, audit events, and acceptable-use controls pass.',
+        '',
+        'Do not paste prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, actual provider costs, customer IDs, or customer data.',
+      ].join('\n');
+    }
+
     async function writeClipboardText(text) {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
@@ -315,6 +343,22 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
         document.getElementById('openrouter-copy-next-account')?.removeAttribute('hidden');
       } catch {
         if (status) status.textContent = 'Copy failed. Open the quickstart for manual setup.';
+      }
+    }
+
+    async function copyOpenrouterOneSubscriptionReview() {
+      const status = document.getElementById('openrouter-review-copy-status');
+      try {
+        await writeClipboardText(openrouterOneSubscriptionReviewText());
+        trackGatewayComparisonEvent('managed_access_review_packet_copied', {
+          plan: 'max',
+          button: 'Copy one-subscription review packet',
+          state: 'openrouter-one-subscription-review',
+          snippet: 'openrouter-comparison-one-subscription-review-packet'
+        });
+        if (status) status.textContent = 'Copied no-secret one-subscription review packet.';
+      } catch {
+        if (status) status.textContent = 'Copy failed. Open managed-access review instead.';
       }
     }
 
@@ -409,6 +453,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
 
     trackGatewayComparisonEvent('gateway_compare_viewed', { state: 'page-view' });
     document.getElementById('openrouter-copy-setup')?.addEventListener('click', copyOpenrouterSetupBundle);
+    document.getElementById('openrouter-copy-one-subscription-review')?.addEventListener('click', copyOpenrouterOneSubscriptionReview);
     document.getElementById('openrouter-email-form')?.addEventListener('submit', sendGatewayCompareMagicLink);
     document.getElementById('openrouter-github-pro')?.addEventListener('click', gatewayCompareOauthLogin);
     document.querySelectorAll('[data-gateway-key-recovery]').forEach((link) => {

@@ -1937,6 +1937,15 @@ check_marketing_comparison_page() {
   if [[ "$openrouter_code" == "200" ]] && ! grep -q "openrouter-copy-next-account" /tmp/sage-router-readiness-body; then
     openrouter_code="200:missing-openrouter-setup-next"
   fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "openrouter-copy-one-subscription-review" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-openrouter-one-subscription-review-copy"
+  fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "openrouter-comparison-one-subscription-review-packet" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-openrouter-one-subscription-review-snippet"
+  fi
+  if [[ "$openrouter_code" == "200" ]] && ! grep -q "managed_access_review_packet_copied" /tmp/sage-router-readiness-body; then
+    openrouter_code="200:missing-openrouter-one-subscription-review-funnel"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   sitemap_code="$(http_code_follow "${MARKETING_BASE%/}/sitemap.xml")"
