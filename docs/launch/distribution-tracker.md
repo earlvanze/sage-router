@@ -26,7 +26,7 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 ```
 
 - Window: last 30 days
-- Generated at epoch: 1782832557
+- Generated at epoch: 1782833365
 - Marketing intent events: 411
 - Setup snippet copies: 1
 - Founder-sales outreach copies: 0

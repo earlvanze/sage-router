@@ -33,7 +33,7 @@ Current launch state:
 
 - Approval readiness: `approval_required; blocker=explicit_operator_approval_required.`
 - Decision needed: approve or hold the next real activation send for segment "verified".
-- Approval packet freshness: `issuedAt=1782828845; expiresAt=1782829745; validSeconds=900; requiredForRealSend=true.`
+- Approval packet freshness: `issuedAt=1782833360; expiresAt=1782834260; validSeconds=900; requiredForRealSend=true.`
 - Queue: `4 total; 2 sendable; 2 review-only; 0 unknown.`
 - Dry-run coverage: `verified for 2 unique sendable recipient(s). Sent: 0; failed: 0.`
 - Dry-run segments: `covered=verified, unverified; pending=none; duplicate raw recipient records=2.`
@@ -46,7 +46,9 @@ Current launch state:
 
 The packet below is safe for review, but any embedded real-send command expires
 with its `approvalPacketIssuedAt`. Re-run the source command immediately before
-any approved send.
+any approved send. Persistent worksheet output replaces embedded real-send
+`approvalPacketIssuedAt` values with `<CURRENT_APPROVAL_PACKET_ISSUED_AT>`
+so the file cannot be reused as an approval token.
 
 ```text
 Sage Router activation approval packet
@@ -55,7 +57,7 @@ Effect: read-only review packet; this command does not approve, copy a send comm
 
 Approval readiness: approval_required; blocker=explicit_operator_approval_required.
 Decision needed: approve or hold the next real activation send for segment "verified".
-Approval packet freshness: issuedAt=1782828845; expiresAt=1782829745; validSeconds=900; requiredForRealSend=true.
+Approval packet freshness: issuedAt=1782833360; expiresAt=1782834260; validSeconds=900; requiredForRealSend=true.
 Queued: 4 total; 2 sendable; 2 review-only; 0 unknown.
 Dry-run: verified for 2 unique sendable recipient(s). Sent: 0; failed: 0.
 Dry-run segments: covered=verified, unverified; pending=none; duplicate raw recipient records=2.
@@ -73,7 +75,7 @@ Approval checklist:
 - verify_dry_run_coverage=ready: 2 unique sendable recipient(s); 4 raw dry-run recipient record(s); 2 duplicate record(s); covered=verified, unverified; pending=none.
 - exclude_review_only_segments=review: 2 review-only signup(s) need auth repair or exclusion before email outreach.
 - repair_missing_auth_users=review: Review account-link repair or exclusion for segments missing_auth_user; hydration has no missing customer rows to create.
-- refresh_recent_approval_packet=ready: Packet issued at 1782828845; expires at 1782829745; re-run the approval packet after 900 seconds before any real send.
+- refresh_recent_approval_packet=ready: Packet issued at 1782833360; expires at 1782834260; re-run the approval packet after 900 seconds before any real send.
 - approve_next_segment_only=needs_approval: Approve or hold only segment "verified"; do not broaden to other segments without a fresh packet.
 - require_typed_confirmation=protected: Real sends require SEND_ACTIVATION_FOLLOWUPS plus the private operator token and trusted browser origin.
 
@@ -120,7 +122,7 @@ curl -fsS -X POST https://api.sagerouter.dev/admin/customers/send-activation-fol
   -H "Authorization: Bearer ${SAGE_ROUTER_API_KEY}" \
   -H "Origin: https://app.sagerouter.dev" \
   -H "Content-Type: application/json" \
-  --data '{"status":"inactive","segment":"verified","limit":25,"dryRun":false,"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS","approvalPacketIssuedAt":1782828845}'
+  --data '{"status":"inactive","segment":"verified","limit":25,"dryRun":false,"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS","approvalPacketIssuedAt":<CURRENT_APPROVAL_PACKET_ISSUED_AT>}'
 - This printed command still requires SAGE_ROUTER_API_KEY in the shell, a fresh approvalPacketIssuedAt, and sendConfirmation=SEND_ACTIVATION_FOLLOWUPS in the request body.
 
 Recording command: scripts/summarize_sagerouter_launch_funnel.sh --days 30 --record-activation-approval-review --verify-recovery --verify-auth-repair
