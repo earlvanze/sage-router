@@ -2848,6 +2848,22 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('explicit operator approval or fresh recovery traffic', action['executionChecklist'][3]['action'])
         self.assertFalse(action['privacy']['containsEmails'])
 
+        reviewed_packet = router.launch_next_best_action(
+            stages,
+            rates,
+            {'estimatedCurrentMrrUsd': 60, 'targetMrrUsd': 10000},
+            {**activation_follow_ups, 'activationApprovalPacketCopies': 1},
+            [],
+        )
+        self.assertIn('approval packet has already been reviewed', reviewed_packet['action'])
+        self.assertIn('explicit operator approval for the next segment', reviewed_packet['action'])
+        self.assertNotIn('Run the approval packet with --verify-recovery', reviewed_packet['action'])
+        self.assertTrue(reviewed_packet['evidence']['approvalPacketAlreadyReviewed'])
+        self.assertEqual(1, reviewed_packet['evidence']['activationApprovalPacketCopies'])
+        self.assertEqual('approval_decision', reviewed_packet['executionChecklist'][0]['segment'])
+        self.assertIn('current decision lines', reviewed_packet['executionChecklist'][0]['action'])
+        self.assertIn('operatorFollowUpSends', reviewed_packet['executionChecklist'][0]['successMetric'])
+
         needs_diagnostic = router.launch_next_best_action(
             stages,
             rates,
