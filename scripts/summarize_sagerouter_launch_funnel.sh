@@ -742,6 +742,13 @@ if [[ "$RAW_JSON" == "1" ]]; then
     activationFollowUps: (
       .activationFollowUps
       | if type == "object" then
+          {
+            keyRecoveryHandoffScheduled: 0,
+            keyRecoveryHandoffScheduledByState: {},
+            keyRecoveryHandoffPaused: 0,
+            keyRecoveryHandoffPausedByState: {}
+          } + .
+          |
           del(
             .emailReadiness.dryRunCommand,
             .emailReadiness.sendCommandTemplate,
@@ -848,6 +855,10 @@ if [[ "$RAW_JSON" == "1" ]]; then
         operatorFollowUpWorkedByKind: ($marketing.operatorFollowUpWorkedByKind // {}),
         keyFirstRedirects: ($marketing.keyFirstRedirects // 0),
         keyFirstRedirectsByState: ($marketing.keyFirstRedirectsByState // {}),
+        keyRecoveryHandoffScheduled: ($marketing.keyRecoveryHandoffScheduled // 0),
+        keyRecoveryHandoffScheduledByState: ($marketing.keyRecoveryHandoffScheduledByState // {}),
+        keyRecoveryHandoffPaused: ($marketing.keyRecoveryHandoffPaused // 0),
+        keyRecoveryHandoffPausedByState: ($marketing.keyRecoveryHandoffPausedByState // {}),
         keyRecoveryViews: ($marketing.keyRecoveryViews // 0),
         keyRecoveryViewsByState: ($marketing.keyRecoveryViewsByState // {}),
         keyCreateAttempts: ($marketing.keyCreateAttempts // 0),
@@ -1033,7 +1044,7 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
       "- Activation approval packet reviews: \(n($marketing.activationApprovalPacketCopies))",
       "- Activation approval packet snippets: \(buckets($marketing.activationApprovalPacketCopiesBySnippet))",
       "- Recovery auth starts: magic=\(n($events.login_key_recovery_magic_link_requested) + n($events.setup_key_recovery_magic_link_requested)), password=\(n($events.login_key_recovery_password_submitted)), oauth=\(n($events.login_key_recovery_oauth_clicked))",
-      "- Key-first recovery: setupClicks=\(n($events.login_key_recovery_account_setup_clicked) + n($events.setup_key_recovery_account_clicked) + n($events.setup_key_recovery_next_account_clicked)); redirects=\(n($followups.keyFirstRedirects)); recoveryViews=\(n($followups.keyRecoveryViews)); keyCreateAttempts=\(n($followups.keyCreateAttempts)); keyCreateSuccesses=\(n($followups.keyCreateSuccesses)); noKeyCreateClicks=\(n($events.account_no_key_setup_create_clicked))",
+      "- Key-first recovery: setupClicks=\(n($events.login_key_recovery_account_setup_clicked) + n($events.setup_key_recovery_account_clicked) + n($events.setup_key_recovery_next_account_clicked)); scheduled=\(n($followups.keyRecoveryHandoffScheduled)); redirects=\(n($followups.keyFirstRedirects)); paused=\(n($followups.keyRecoveryHandoffPaused)); recoveryViews=\(n($followups.keyRecoveryViews)); keyCreateAttempts=\(n($followups.keyCreateAttempts)); keyCreateSuccesses=\(n($followups.keyCreateSuccesses)); noKeyCreateClicks=\(n($events.account_no_key_setup_create_clicked))",
       "- Managed-access demand: anonymousSignals=\(n($stages.anonymousManagedAccessInterest)); waitlistSignals=\(n($stages.managedAccessBetaInterest)); legacyClicks=\(n($events.managed_access_interest_clicked)); quickStarted=\(n($events.managed_access_quick_form_started)); quickValidationFailed=\(n($events.managed_access_quick_request_validation_failed)); quickSubmitted=\(n($events.managed_access_quick_request_submitted)); quickReceived=\(n($events.managed_access_quick_request_received))",
       "- Managed-access provider buckets: \(buckets($managedDemand.targetProviderFamily))",
       "- Managed-access commercial buckets: \(buckets($managedDemand.commercialPreference))",
@@ -1085,7 +1096,7 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
       "- Command: bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff",
       "- Result: \($recovery_proof.stage // "not_run")",
       "- Interpretation: \(if (($recovery_proof.stage // "") == "verified_handoff_waiting_for_fresh_traffic") then "Recovery handoff is verified with no persistence; the remaining activation work is fresh setup-copy traffic or explicit operator approval for real follow-up sends." elif (($recovery_proof.stage // "") == "failed") then "Recovery handoff verification failed; hold real activation sends and inspect setup-key recovery." else "Recovery handoff verification has not produced a final send-ready diagnosis yet." end)",
-      "- Evidence: checked=\($recovery_proof.handoffSmoke.checked // false); passed=\($recovery_proof.handoffSmoke.passed // false); noPersistence=\($recovery_proof.handoffSmoke.noPersistence // true); recoveryViews=\(n($followups.keyRecoveryViews)); accountHandoffs=\(n($followups.keyFirstRedirects)); keyCreateAttempts=\(n($followups.keyCreateAttempts)); keyCreateSuccesses=\(n($followups.keyCreateSuccesses)).",
+      "- Evidence: checked=\($recovery_proof.handoffSmoke.checked // false); passed=\($recovery_proof.handoffSmoke.passed // false); noPersistence=\($recovery_proof.handoffSmoke.noPersistence // true); recoveryViews=\(n($followups.keyRecoveryViews)); scheduledHandoffs=\(n($followups.keyRecoveryHandoffScheduled)); accountHandoffs=\(n($followups.keyFirstRedirects)); pausedHandoffs=\(n($followups.keyRecoveryHandoffPaused)); keyCreateAttempts=\(n($followups.keyCreateAttempts)); keyCreateSuccesses=\(n($followups.keyCreateSuccesses)).",
       "- Next action: \(if (($action.evidence.nonGatedSetupCopyFallback // false) == true) then "Copy the no-secret first-request setup bundle from https://app.sagerouter.dev/launch-funnel.html#next-best-action-dock before any real activation send; this records status_first_request_setup_copied with snippet operator-first-request-setup and does not send email or expose a real key." elif (($recovery_proof.stage // "") == "verified_handoff_waiting_for_fresh_traffic") then "Use the no-secret approval packet for the next sendable activation follow-up or wait for fresh real recovery traffic." elif (($recovery_proof.stage // "") == "failed") then "Hold real activation sends and inspect the recovery handoff smoke failure." else "Follow the recovery diagnosis before approving any real activation send." end)",
       "",
       "## Top Acquisition Actions",

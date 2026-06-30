@@ -95,13 +95,17 @@ if [[ "$RAW_JSON" == "1" ]]; then
     (events) as $e
     | (($e.nonGatedSetupCopyFallback // false) == true) as $setup_copy_fallback
     | (n($e.keyRecoveryViews)) as $views
+    | (n($e.keyRecoveryHandoffScheduled)) as $scheduled
     | (n($e.keyFirstRedirects)) as $redirects
+    | (n($e.keyRecoveryHandoffPaused)) as $paused
     | (n($e.keyCreateAttempts)) as $attempts
     | (n($e.keyCreateSuccesses)) as $successes
     | {
         days: $days,
         stage: (
           if $views <= 0 then "no_recovery_traffic"
+          elif $redirects <= 0 and $scheduled > 0 and $paused > 0 then "recovery_handoff_paused"
+          elif $redirects <= 0 and $scheduled > 0 then "recovery_handoff_scheduled_waiting"
           elif $redirects <= 0 and $handoffSmokeChecked and $handoffSmokePassed then "verified_handoff_waiting_for_fresh_traffic"
           elif $redirects <= 0 then "recovery_view_to_account_handoff"
           elif $attempts <= 0 then "account_handoff_to_key_create"
@@ -111,6 +115,8 @@ if [[ "$RAW_JSON" == "1" ]]; then
         ),
         action: (
           if $views <= 0 then "Drive qualified no-key users to setup-key recovery before debugging account handoff."
+          elif $redirects <= 0 and $scheduled > 0 and $paused > 0 then "Users are reaching recovery and pausing the automatic account handoff to use same-email recovery; watch setup_key_recovery_magic_link_requested/sent next."
+          elif $redirects <= 0 and $scheduled > 0 then "Users are reaching recovery and the automatic account handoff is scheduled; wait for redirected handoff telemetry or inspect browser navigation if redirects remain zero."
           elif $redirects <= 0 and $handoffSmokeChecked and $handoffSmokePassed and $setup_copy_fallback then "The live setup-key recovery handoff smoke passed and activation sends are approval-gated; copy the no-secret first-request setup bundle from the launch-funnel Do Next dock before any real send."
           elif $redirects <= 0 and $handoffSmokeChecked and $handoffSmokePassed then "The live setup-key recovery handoff smoke passed; wait for fresh real recovery traffic or use the no-secret approval packet before any real activation send."
           elif $redirects <= 0 then "Run bash scripts/check_setup_key_recovery_handoff.sh, then inspect the public recovery/login CTAs before sending more traffic."
@@ -121,7 +127,9 @@ if [[ "$RAW_JSON" == "1" ]]; then
         ),
         counts: {
           keyRecoveryViews: $views,
+          keyRecoveryHandoffScheduled: $scheduled,
           keyFirstRedirects: $redirects,
+          keyRecoveryHandoffPaused: $paused,
           keyCreateAttempts: $attempts,
           keyCreateSuccesses: $successes,
           noKeyFollowUpsQueued: n($e.noKeyFollowUpsQueued),
@@ -129,7 +137,9 @@ if [[ "$RAW_JSON" == "1" ]]; then
           reviewOnlyQueued: n($e.reviewOnlyQueued)
         },
         viewsByState: ($e.keyRecoveryViewsByState // {}),
+        scheduledByState: ($e.keyRecoveryHandoffScheduledByState // {}),
         redirectsByState: ($e.keyFirstRedirectsByState // {}),
+        pausedByState: ($e.keyRecoveryHandoffPausedByState // {}),
         attemptsByState: ($e.keyCreateAttemptsByState // {}),
         successesByState: ($e.keyCreateSuccessesByState // {}),
         handoffSmoke: {
@@ -169,7 +179,9 @@ jq -r \
     | if ($rows | length) > 0 then ($rows | join(", ")) else "none" end;
   (.nextBestAction.evidence // {}) as $e
   | (n($e.keyRecoveryViews)) as $views
+  | (n($e.keyRecoveryHandoffScheduled)) as $scheduled
   | (n($e.keyFirstRedirects)) as $redirects
+  | (n($e.keyRecoveryHandoffPaused)) as $paused
   | (n($e.keyCreateAttempts)) as $attempts
   | (n($e.keyCreateSuccesses)) as $successes
   | [
@@ -177,10 +189,12 @@ jq -r \
       "Boundary: aggregate-only; no emails, customer IDs, generated keys, prompts, OAuth tokens, provider credentials, raw campaign URLs, or raw provider responses.",
       "",
       "Window: last \($days) days",
-      "Counts: recoveryViews=\($views); accountHandoffs=\($redirects); keyCreateAttempts=\($attempts); keyCreateSuccesses=\($successes).",
+      "Counts: recoveryViews=\($views); scheduledHandoffs=\($scheduled); accountHandoffs=\($redirects); pausedHandoffs=\($paused); keyCreateAttempts=\($attempts); keyCreateSuccesses=\($successes).",
       "Queue: noKey=\(n($e.noKeyFollowUpsQueued)); sendable=\(n($e.sendableQueued)); reviewOnly=\(n($e.reviewOnlyQueued)).",
       "Recovery view states: \(list($e.keyRecoveryViewsByState))",
+      "Scheduled handoff states: \(list($e.keyRecoveryHandoffScheduledByState))",
       "Account handoff states: \(list($e.keyFirstRedirectsByState))",
+      "Paused handoff states: \(list($e.keyRecoveryHandoffPausedByState))",
       "Key-create attempt states: \(list($e.keyCreateAttemptsByState))",
       "Key-create success states: \(list($e.keyCreateSuccessesByState))",
       (
@@ -194,6 +208,10 @@ jq -r \
       (
         if $views <= 0 then
           "Diagnosis: no_recovery_traffic. Drive qualified no-key users to setup-key recovery before debugging account handoff."
+        elif $redirects <= 0 and $scheduled > 0 and $paused > 0 then
+          "Diagnosis: recovery_handoff_paused. Users are reaching recovery and pausing the automatic account handoff to use same-email recovery. Watch setup_key_recovery_magic_link_requested/sent before debugging key creation."
+        elif $redirects <= 0 and $scheduled > 0 then
+          "Diagnosis: recovery_handoff_scheduled_waiting. Users are reaching recovery and the automatic account handoff is scheduled. Wait for redirected handoff telemetry or inspect browser navigation if redirects remain zero."
         elif $redirects <= 0 and $handoffSmokeChecked and $handoffSmokePassed and (($e.nonGatedSetupCopyFallback // false) == true) then
           "Diagnosis: verified_handoff_waiting_for_fresh_traffic. The live setup-key recovery handoff smoke passed and activation sends are approval-gated; copy the no-secret first-request setup bundle from https://app.sagerouter.dev/launch-funnel.html#next-best-action-dock before any real send."
         elif $redirects <= 0 and $handoffSmokeChecked and $handoffSmokePassed then
