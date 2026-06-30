@@ -740,6 +740,29 @@ if [[ "$RAW_JSON" == "1" ]]; then
     rates,
     mrr,
     nextBestAction,
+    revenue: {
+      currentMrrUsd: (.mrr.estimatedCurrentMrrUsd // 0),
+      targetMrrUsd: (.mrr.targetMrrUsd // 10000),
+      targetAttainment: (.mrr.targetAttainment // 0),
+      byPlan: (.mrr.byPlan // {}),
+      planRevenueActions: (.mrr.planRevenueActions // []),
+      assumptions: (.mrr.assumptions // {}),
+      privacy: {
+        containsEmails: false,
+        containsCustomerIds: false,
+        containsApiKeys: false,
+        containsProviderCredentials: false,
+        aggregateOnly: true
+      }
+    },
+    bottleneck: (.nextBestAction // {}),
+    nextActions: (
+      [
+        if ((.nextBestAction.metric // "") != "") then .nextBestAction else empty end
+      ]
+      + ((.activationApprovalReadiness.nextActions // []) | map(. + {surface: "Activation approval"}))
+      + ((.managedProviderReadiness.nextActions // .pricing.publicLaunch.managedProviderAccess.nextActions // []) | map(. + {surface: "Managed provider access"}))
+    )[0:8],
     activationFollowUps: (
       .activationFollowUps
       | if type == "object" then

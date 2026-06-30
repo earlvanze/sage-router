@@ -138,9 +138,11 @@ It reads the same operator-only endpoint with `SAGE_ROUTER_ANALYTICS_TOKEN`,
 activation queue, acquisition, revenue-gap, bottleneck, and privacy fields. It
 does not print tokens, emails, generated keys, prompts, provider credentials,
 OAuth tokens, raw campaign URLs, or raw provider responses. Pass `--json` for a
-bounded JSON subset suitable for automation; the `activationQueue` object is
-the stable field for no-key follow-up counts, sendable/review-only segments,
-dry-run coverage, sent-recipient counts, and approval-required state. The
+bounded JSON subset suitable for automation; `revenue`, `bottleneck`, and
+`nextActions` mirror the human `$10k MRR` snapshot and top conversion move,
+while `activationQueue` is the stable field for no-key follow-up counts,
+sendable/review-only segments, dry-run coverage, sent-recipient counts, and
+approval-required state. The
 approval packet exposes `approvalPacketIssuedAt`, `approvalPacketExpiresAt`,
 and `approvalPacketValidSeconds`; real activation sends must include a fresh
 `approvalPacketIssuedAt` in addition to `SEND_ACTIVATION_FOLLOWUPS`, so stale
