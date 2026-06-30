@@ -583,6 +583,7 @@ public resale or writing the private provider-cost model:
 scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
 scripts/configure_managed_provider_resale_readiness.sh --operator-packet
 scripts/configure_managed_provider_resale_readiness.sh --authorization-packet
+scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet
 scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template
 scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet
 scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet
@@ -630,6 +631,18 @@ IDs, credentials, actual provider costs, prompts, or raw responses. Store only a
 private reference string in `SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF`;
 keep the underlying agreement, email thread, ticket, or legal review artifact
 out of public metadata, PRs, logs, and support channels.
+
+Use `--provider-reply-triage-packet` after provider replies arrive and before
+terms acknowledgment or cost-model staging. It prints a no-secret
+provider-family matrix for authorization status, terms status, allowed account
+type, resale/service-provider boundary, end-customer terms, quota/capacity,
+model exclusions, data-processing restrictions, abuse/suspension process, opaque
+private evidence reference, opaque private cost-review reference, and
+managed-access decision. It keeps OpenRouter/BYOK-compatible providers outside
+the managed resale allowlist unless separate written authorization explicitly
+promotes them later, and it does not print provider reply bodies, authorization
+reference values, provider costs, account IDs, credentials, prompts, raw
+provider responses, or customer data.
 
 Use `--authorization-ledger-template` after provider replies arrive to create a
 private review worksheet for the evidence reference, provider-family decision,

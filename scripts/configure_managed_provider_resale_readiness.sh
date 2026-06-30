@@ -54,7 +54,7 @@ AUTHORIZATION_LEDGER_TEMPLATE="${ROOT}/docs/launch/execution/provider-authorizat
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--authorization-ledger-template|--provider-outreach-packet|--terms-approval-packet|--one-subscription-pricing-packet|--stage-public-controls|--unit-economics]
+Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--authorization-ledger-template|--provider-outreach-packet|--provider-reply-triage-packet|--terms-approval-packet|--one-subscription-pricing-packet|--stage-public-controls|--unit-economics]
 
 Stage Sage Router managed provider-access readiness on Cloud Run.
 
@@ -97,6 +97,10 @@ Options:
                            Print copyable, no-secret provider-facing outreach
                            requests for Ollama, OpenAI, and Anthropic managed
                            access authorization. It does not send email.
+  --provider-reply-triage-packet
+                           Print a no-secret provider-reply triage matrix for
+                           classifying written replies before terms
+                           acknowledgment, cost review, or public enablement.
   --terms-approval-packet  Print the no-secret provider-terms acknowledgment
                            review packet. It separates the terms decision from
                            the private cost model and never prints provider
@@ -148,6 +152,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --provider-outreach-packet)
       MODE="provider-outreach-packet"
+      shift
+      ;;
+    --provider-reply-triage-packet)
+      MODE="provider-reply-triage-packet"
       shift
       ;;
     --terms-approval-packet)
@@ -548,6 +556,7 @@ managed_provider_authorization_packet() {
 
   printf 'Safe next commands:\n'
   printf '  scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet\n'
+  printf '  scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet\n'
   printf '  scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet\n'
   printf "  SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls\n"
   printf "  SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n\n"
@@ -620,12 +629,76 @@ managed_provider_outreach_packet() {
   printf 'After provider reply:\n'
   printf -- '- Save the provider reply or contract in a private system of record.\n'
   printf -- '- Record only a private evidence reference, such as provider-review-YYYYMMDD-doc-or-ticket-id.\n'
+  printf -- '- Run: scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet\n'
   printf -- '- Run: scripts/configure_managed_provider_resale_readiness.sh --authorization-packet\n'
   printf -- '- Run: scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet\n'
   printf -- '- Run: SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS=REVIEWED_PRIVATE_COST scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n'
   printf -- '- Keep SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0 until every readiness control passes.\n\n'
 
   printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false; sendsEmail=false.\n'
+}
+
+managed_provider_reply_triage_packet() {
+  require_cmd curl
+  require_cmd jq
+
+  local body code allowed eligible byok missing ready blocked terms_url margin_url
+  body="$(mktemp)"
+  code="$(curl -sS -o "$body" -w '%{http_code}' https://api.sagerouter.dev/pricing || printf '000')"
+
+  printf 'Sage Router provider reply triage packet\n'
+  printf 'Boundary: read-only operator worksheet; no provider agreements, account IDs, provider credentials, OAuth tokens, generated API keys, customer data, prompts, private provider costs, cost schedules, authorization-reference values, or raw provider responses.\n'
+  printf 'Effect: this command does not acknowledge terms, write secrets, deploy Cloud Run, change Stripe prices, enable managed resale, or send provider/customer email.\n\n'
+
+  if [[ "$code" == "200" ]]; then
+    allowed="$(jq -r '(.publicLaunch.managedProviderAccess.allowedProviderFamilies // []) | join(", ")' "$body")"
+    eligible="$(jq -r '(.publicLaunch.managedProviderAccess.resaleEligibleProviderFamilies // []) | join(", ")' "$body")"
+    byok="$(jq -r '(.publicLaunch.managedProviderAccess.byokOnlyProviderFamilies // []) | join(", ")' "$body")"
+    missing="$(jq -r '(.publicLaunch.managedProviderAccess.missingControls // []) | join(", ")' "$body")"
+    ready="$(jq -r '(.publicLaunch.managedProviderAccess.oneSubscriptionReadiness.readyProviderFamilies // []) | join(", ")' "$body")"
+    blocked="$(jq -r '(.publicLaunch.managedProviderAccess.oneSubscriptionReadiness.blockedProviderFamilies // []) | join(", ")' "$body")"
+    terms_url="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsUrl // "https://sagerouter.dev/provider-resale-terms"' "$body")"
+    margin_url="$(jq -r '.publicLaunch.managedProviderAccess.marginPolicyUrl // "https://sagerouter.dev/margin-policy"' "$body")"
+
+    printf 'Live public context:\n'
+    printf -- '- allowed managed families: %s\n' "${allowed:-none}"
+    printf -- '- resale-eligible families: %s\n' "${eligible:-none}"
+    printf -- '- BYOK-only families excluded from managed resale: %s\n' "${byok:-none}"
+    printf -- '- one-subscription ready families: %s\n' "${ready:-none}"
+    printf -- '- one-subscription blocked families: %s\n' "${blocked:-none}"
+    printf -- '- missing controls: %s\n' "${missing:-none}"
+    printf -- '- provider terms boundary: %s\n' "${terms_url:-missing}"
+    printf -- '- margin policy: %s\n\n' "${margin_url:-missing}"
+  else
+    printf 'Live public context: unavailable HTTP %s from https://api.sagerouter.dev/pricing\n\n' "$code"
+  fi
+  rm -f "$body"
+
+  printf 'Reply triage matrix:\n'
+  printf -- '| providerFamily | replyReceived | authorizationStatus | termsStatus | allowedAccountType | resaleOrServiceProviderBoundary | endCustomerTermsRequired | quotaOrCapacityLimit | modelExclusions | dataProcessingRestrictions | abuseOrSuspensionProcess | privateEvidenceReference | privateCostReviewReference | managedAccessDecision |\n'
+  printf -- '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n'
+  printf -- '| ollama | pending | pending | pending | TBD | TBD | TBD | TBD | TBD | TBD | TBD | private-ref-only | private-ref-only | hold |\n'
+  printf -- '| openai | pending | pending | pending | TBD | TBD | TBD | TBD | TBD | TBD | TBD | private-ref-only | private-ref-only | hold |\n'
+  printf -- '| anthropic | pending | pending | pending | TBD | TBD | TBD | TBD | TBD | TBD | TBD | private-ref-only | private-ref-only | hold |\n\n'
+
+  printf 'Decision rules:\n'
+  printf -- '- Approve a provider family only when written authorization covers the planned managed-access customer category and the provider terms do not prohibit resale, commercial proxying, bundled access, pooled credentials, or the planned account/billing structure.\n'
+  printf -- '- Mark hold if the reply is ambiguous, time-limited without renewal terms, excludes required models, lacks abuse/suspension process, lacks end-customer terms, or requires a contract not yet signed.\n'
+  printf -- '- Keep OpenRouter and BYOK-compatible gateways outside the managed resale allowlist unless separate written authorization explicitly promotes them later.\n'
+  printf -- '- Store provider replies, agreements, cost schedules, and account identifiers only in the private system of record; put only opaque private references in the worksheet/env.\n'
+  printf -- '- Run the private cost candidate through --unit-economics before writing the cost model, and do not publish actual costs or derived required private prices.\n\n'
+
+  printf 'Safe next commands after private triage:\n'
+  printf -- '- Authorization evidence checklist:\n'
+  printf '  scripts/configure_managed_provider_resale_readiness.sh --authorization-packet\n'
+  printf -- '- Terms approval checklist:\n'
+  printf '  scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet\n'
+  printf -- '- Unit economics preflight:\n'
+  printf "  SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n"
+  printf -- '- Stage private evidence reference while public resale remains disabled:\n'
+  printf "  SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls\n\n"
+
+  printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false; containsProviderReplyBody=false; mutatesRuntime=false; sendsEmail=false.\n'
 }
 
 managed_provider_terms_approval_packet() {
@@ -762,6 +835,7 @@ managed_provider_one_subscription_pricing_packet() {
 
   printf 'Safe next commands:\n'
   printf -- '- Provider outreach: scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet\n'
+  printf -- '- Provider reply triage: scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet\n'
   printf -- '- Terms review: scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet\n'
   printf -- '- Authorization evidence review: scripts/configure_managed_provider_resale_readiness.sh --authorization-packet\n'
   printf -- '- Private cost preflight: SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS=REVIEWED_PRIVATE_COST scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n'
@@ -812,6 +886,8 @@ Run, enable managed resale, or send provider/customer email.
 
 ## Approval Checklist
 
+- Provider replies have been classified with:
+  scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet
 - Provider authorization covers every family in the managed resale allowlist.
 - Provider terms permit the planned managed-access customer category.
 - BYOK-only providers, including OpenRouter, remain outside managed resale
@@ -876,6 +952,11 @@ fi
 
 if [[ "$MODE" == "provider-outreach-packet" ]]; then
   managed_provider_outreach_packet
+  exit 0
+fi
+
+if [[ "$MODE" == "provider-reply-triage-packet" ]]; then
+  managed_provider_reply_triage_packet
   exit 0
 fi
 

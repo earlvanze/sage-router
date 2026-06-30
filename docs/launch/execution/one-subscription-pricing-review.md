@@ -68,6 +68,8 @@ fit below the applicable threshold before a plan can include managed access.
 
 - Provider authorization packet has been reviewed:
   `scripts/configure_managed_provider_resale_readiness.sh --authorization-packet`
+- Provider replies have been triaged:
+  `scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet`
 - Provider outreach has a private response or contract reference for every
   family in the managed allowlist.
 - Terms approval packet has been reviewed:

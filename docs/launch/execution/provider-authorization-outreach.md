@@ -109,6 +109,9 @@ cap, model exclusion, or compliance process.
   `provider-review-YYYYMMDD-doc-or-ticket-id`, in
   `SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF`.
 - Run `scripts/configure_managed_provider_resale_readiness.sh --authorization-packet`.
+- Run `scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet`
+  to classify each reply before terms acknowledgment, cost-model review, or
+  runtime staging.
 - Run `scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template`
   or start from
   `docs/launch/execution/provider-authorization-ledger-template.md`, then store

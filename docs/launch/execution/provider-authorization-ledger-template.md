@@ -32,6 +32,8 @@ Run, enable managed resale, or send provider/customer email.
 
 ## Approval Checklist
 
+- Provider replies have been classified with:
+  `scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet`
 - Provider authorization covers every family in the managed resale allowlist.
 - Provider terms permit the planned managed-access customer category.
 - BYOK-only providers, including OpenRouter, remain outside managed resale
