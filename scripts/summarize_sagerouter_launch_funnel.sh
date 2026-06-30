@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section]
+Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--founder-sales-packet] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section]
 
 Fetch the operator-only /analytics/funnel endpoint and print a privacy-safe
 launch snapshot. The script never prints operator tokens, emails, generated API
@@ -13,6 +13,9 @@ provider responses.
 Options:
   --json              Print the bounded machine-readable snapshot.
   --approval-packet   Print the no-secret activation send approval packet only.
+  --founder-sales-packet
+                      Print the no-secret founder-sales next-revenue packet
+                      for direct warm outreach while sends/resale are gated.
   --verify-recovery   With --approval-packet, run the no-persistence setup-key
                       recovery handoff verifier and include the result.
   --verify-auth-repair
@@ -64,6 +67,7 @@ require_tool() {
 DAYS=30
 RAW_JSON=0
 APPROVAL_PACKET=0
+FOUNDER_SALES_PACKET=0
 VERIFY_RECOVERY=0
 VERIFY_AUTH_REPAIR=0
 TRACKER_SECTION=0
@@ -83,6 +87,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --approval-packet)
       APPROVAL_PACKET=1
+      shift
+      ;;
+    --founder-sales-packet)
+      FOUNDER_SALES_PACKET=1
       shift
       ;;
     --verify-recovery)
@@ -109,8 +117,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if (( RAW_JSON + APPROVAL_PACKET + TRACKER_SECTION > 1 )); then
-  printf '%s\n' '--json, --approval-packet, and --distribution-tracker-section cannot be combined' >&2
+if (( RAW_JSON + APPROVAL_PACKET + FOUNDER_SALES_PACKET + TRACKER_SECTION > 1 )); then
+  printf '%s\n' '--json, --approval-packet, --founder-sales-packet, and --distribution-tracker-section cannot be combined' >&2
   exit 2
 fi
 if [[ "$VERIFY_RECOVERY" == "1" && "$APPROVAL_PACKET" != "1" ]]; then
@@ -330,6 +338,71 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         "- This printed command still requires SAGE_ROUTER_API_KEY in the shell, a fresh approvalPacketIssuedAt, and sendConfirmation=SEND_ACTIVATION_FOLLOWUPS in the request body.",
         "",
         "Privacy flags: containsEmails=\($root.privacy.containsEmails // false); containsApiKeys=\($root.privacy.containsApiKeys // false); containsProviderCredentials=\($root.privacy.containsProviderCredentials // false); promptsStored=\($root.privacy.promptsStored // false)."
+      ]
+      | .[]
+  ' "$tmp"
+  exit 0
+fi
+
+if [[ "$FOUNDER_SALES_PACKET" == "1" ]]; then
+  jq -r '
+    def n($v): ($v // 0);
+    def money($v): "$" + ((n($v) | tostring));
+    def pct($v): if $v == null then "n/a" else (($v * 10000 | round) / 100 | tostring) + "%" end;
+    def buckets($v):
+      (($v // {}) | to_entries | map(select(.value != 0) | "\(.key)=\(.value)")) as $rows
+      | if ($rows | length) > 0 then ($rows | join(", ")) else "none" end;
+
+    . as $root
+    | ($root.stages // {}) as $stages
+    | ($root.mrr // {}) as $mrr
+    | ($root.marketingIntent // {}) as $marketing
+    | (($mrr.planRevenueActions // [])[0] // {}) as $primaryRevenue
+    | (($mrr.planRevenueActions // []) | map(select((.plan // "") == "lite")) | .[0] // {}) as $liteRevenue
+    | (($mrr.planRevenueActions // []) | map(select((.plan // "") == "max")) | .[0] // {}) as $maxRevenue
+    | [
+        "Sage Router founder-sales next-revenue packet",
+        "Boundary: no emails, customer IDs, generated API keys, OAuth tokens, provider credentials, private funnel rows, prompts, raw campaign URLs, raw model search text, raw provider responses, private provider costs, or provider authorization evidence are printed.",
+        "Effect: read-only outreach packet; this command does not approve sends, send email, mutate customer records, mutate Cloudflare, write secrets, change prices, acknowledge provider terms, enable managed resale, or copy generated keys.",
+        "",
+        "$10k MRR snapshot:",
+        "- Estimated MRR: \(money($mrr.estimatedCurrentMrrUsd)) / \(money($mrr.targetMrrUsd)) target (\(pct($mrr.targetAttainment))).",
+        "- Paid customers: \(n($stages.paidCustomers)); generated-key customers: \(n($stages.customersWithGeneratedApiKeys)); first routed request customers: \(n($stages.customersWithFirstRoutedRequest)).",
+        "- Setup snippet copies: \(n($stages.setupSnippetCopies)); founder-sales outreach copies: \(n($marketing.founderSalesOutreachCopies)); snippets=\(buckets($marketing.founderSalesOutreachCopiesBySnippet)).",
+        "- Managed-access packet copies: \(n($marketing.managedAccessPacketCopies)); snippets=\(buckets($marketing.managedAccessPacketCopiesBySnippet)).",
+        "",
+        "Prioritized revenue motions:",
+        "- Primary: \($primaryRevenue.plan // "pro") needs \(n($primaryRevenue.customerGap)) customer(s), \(money($primaryRevenue.remainingMrrToTargetUsd)) remaining MRR. \($primaryRevenue.action // "Use direct founder-sales follow-up to move qualified prospects into generated-key activation.")",
+        "- Lite pilot: \(n($liteRevenue.customerGap)) Lite customer(s), \(money($liteRevenue.remainingMrrToTargetUsd)) remaining MRR. Use one-agent evaluation and low-friction hosted key trials.",
+        "- Max review: \(n($maxRevenue.customerGap)) Max customer(s), \(money($maxRevenue.remainingMrrToTargetUsd)) remaining MRR. Use Max implementation review for teams with production agents, Tailnet/local routing, or gateway migration pain.",
+        "",
+        "Copyable next-revenue packet:",
+        "Sage Router may fit your agent/model routing work if you want one OpenAI-compatible endpoint with health-aware fallback, generated Sage keys, and route profiles for frontier/local/coding traffic.",
+        "",
+        "Fastest path:",
+        "1. Create a Pro generated key, then verify /v1/models:",
+        "https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=operator-next-revenue-packet",
+        "",
+        "2. Copy the 60-second setup:",
+        "https://sagerouter.dev/quickstart?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=operator-next-revenue-packet",
+        "",
+        "Lite pilot for one-agent evaluations:",
+        "https://app.sagerouter.dev/account.html?plan=lite&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=operator-lite-pilot",
+        "",
+        "Max implementation review for production/team workflows:",
+        "https://sagerouter.dev/managed-access?intent=max-implementation&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=operator-max-review",
+        "",
+        "One-subscription review without assuming public bundled resale is enabled:",
+        "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=operator-one-subscription-review",
+        "",
+        "Boundary: Sage Router is routing, generated-key, quota, analytics, and reliability infrastructure for provider/local access the customer is authorized to use. Public managed-provider access remains gated behind provider authorization, terms, cost model, unit economics, quotas, and acceptable-use controls.",
+        "",
+        "Operator use:",
+        "- Use one no-secret snippet per warm conversation; do not paste private funnel rows or raw customer/provider artifacts into outreach.",
+        "- Track success by founderSalesOutreachCopies, setupSnippetCopies, generated-key customers, first routed requests, paid customers, and managed-access review requests.",
+        "- Use /founder-sales-kit for browser copy telemetry when possible; use this packet when the operator needs a terminal-only handoff.",
+        "",
+        "Privacy flags: containsEmails=\($root.privacy.containsEmails // false); containsApiKeys=\($root.privacy.containsApiKeys // false); containsProviderCredentials=\($root.privacy.containsProviderCredentials // false); containsActualProviderCosts=false; containsAuthorizationReference=false; promptsStored=\($root.privacy.promptsStored // false)."
       ]
       | .[]
   ' "$tmp"

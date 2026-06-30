@@ -306,7 +306,11 @@ actions roll into `/analytics/funnel.marketingIntent.founderSalesOutreachCopies`
 also renders a one-click next outreach snippet from the current aggregate MRR
 gap; copying it emits the same `outreach_snippet_copied` funnel event without
 including customer identities, private funnel rows, prompts, generated keys, or
-provider credentials.
+provider credentials. The terminal handoff can also print the same no-secret
+founder-sales packet with
+`scripts/summarize_sagerouter_launch_funnel.sh --days 30 --founder-sales-packet`
+when activation sends are approval-gated but warm Pro/Lite/Max outreach can
+still move.
 
 The public homepage now treats hosted signup as live: the homepage primary CTA
 is `Create hosted API key`, links directly to `https://app.sagerouter.dev/account.html?plan=pro&start=create_key`, and
@@ -717,9 +721,10 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30
 ```
 
 For a single no-secret operator handoff that bundles the live funnel snapshot,
-activation approval packet, Cloudflare BIC reliability packet, managed-provider
-readiness packet, one-subscription pricing packet, provider outreach packet,
-provider reply triage packet, and launch readiness check, run:
+activation approval packet, founder-sales next-revenue packet, Cloudflare BIC
+reliability packet, managed-provider readiness packet, one-subscription pricing
+packet, provider outreach packet, provider reply triage packet, and launch
+readiness check, run:
 
 ```bash
 scripts/summarize_sagerouter_launch_operator_handoff.sh --days 30
