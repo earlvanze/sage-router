@@ -81,6 +81,7 @@ scripts/summarize_sagerouter_launch_funnel.sh \
 safe_packet="$(sed -E \
   -e 's/"approvalPacketIssuedAt":[0-9]+/"approvalPacketIssuedAt":<CURRENT_APPROVAL_PACKET_ISSUED_AT>/g' \
   -e 's/issuedAt=[0-9]+; expiresAt=[0-9]+;/issuedAt=<CURRENT_APPROVAL_PACKET_ISSUED_AT>; expiresAt=<CURRENT_APPROVAL_PACKET_EXPIRES_AT>;/g' \
+  -e 's/(APPROVE_ACTIVATION_FOLLOWUP segment="[^"]*" )issuedAt=[0-9]+ expiresAt=[0-9]+/\1issuedAt=<CURRENT_APPROVAL_PACKET_ISSUED_AT> expiresAt=<CURRENT_APPROVAL_PACKET_EXPIRES_AT>/g' \
   -e 's/Packet issued at [0-9]+; expires at [0-9]+;/Packet issued at <CURRENT_APPROVAL_PACKET_ISSUED_AT>; expires at <CURRENT_APPROVAL_PACKET_EXPIRES_AT>;/g' \
   "$packet_tmp")"
 
@@ -198,6 +199,10 @@ is reviewed.
   until auth repair or explicit exclusion is reviewed.
 - Recovery proof reviewed: the verifier result is
   \`${recovery_stage}\`.
+- Decision line reviewed: use the packet's
+  \`APPROVE_ACTIVATION_FOLLOWUP segment="${approved_segment}"\` or
+  \`HOLD_ACTIVATION_FOLLOWUP segment="${approved_segment}"\` line as the human
+  decision record only; it does not send email by itself.
 - Fresh packet timestamp: use only send commands from a current approval packet;
   stale commands are rejected when \`approvalPacketIssuedAt\` is missing or
   expired.

@@ -57,6 +57,9 @@ Effect: read-only review packet; this command does not approve, copy a send comm
 
 Approval readiness: approval_required; blocker=explicit_operator_approval_required.
 Decision needed: approve or hold the next real activation send for segment "verified".
+Decision lines:
+- Approve after review: APPROVE_ACTIVATION_FOLLOWUP segment="verified" issuedAt=<CURRENT_APPROVAL_PACKET_ISSUED_AT> expiresAt=<CURRENT_APPROVAL_PACKET_EXPIRES_AT>
+- Hold: HOLD_ACTIVATION_FOLLOWUP segment="verified" reason="<reason>"
 Approval packet freshness: issuedAt=<CURRENT_APPROVAL_PACKET_ISSUED_AT>; expiresAt=<CURRENT_APPROVAL_PACKET_EXPIRES_AT>; validSeconds=900; requiredForRealSend=true.
 Queued: 4 total; 2 sendable; 2 review-only; 0 unknown.
 Dry-run: verified for 2 unique sendable recipient(s). Sent: 0; failed: 0.
@@ -160,6 +163,10 @@ is reviewed.
   until auth repair or explicit exclusion is reviewed.
 - Recovery proof reviewed: the verifier result is
   `verified_handoff_waiting_for_fresh_traffic`.
+- Decision line reviewed: use the packet's
+  `APPROVE_ACTIVATION_FOLLOWUP segment="verified"` or
+  `HOLD_ACTIVATION_FOLLOWUP segment="verified"` line as the human
+  decision record only; it does not send email by itself.
 - Fresh packet timestamp: use only send commands from a current approval packet;
   stale commands are rejected when `approvalPacketIssuedAt` is missing or
   expired.
