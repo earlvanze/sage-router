@@ -2366,6 +2366,14 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, snapshot['managedAccessDemand']['commercialPreference']['one-subscription'])
         self.assertEqual(1, snapshot['managedAccessDemand']['intent']['max-implementation'])
         self.assertEqual(1, snapshot['managedAccessDemand']['intent']['gateway-migration'])
+        self.assertEqual('contact_capture_started', snapshot['managedAccessDemandConversion']['status'])
+        self.assertEqual('next', snapshot['managedAccessDemandConversion']['priority'])
+        self.assertEqual(0, snapshot['managedAccessDemandConversion']['anonymousSignals'])
+        self.assertEqual(2, snapshot['managedAccessDemandConversion']['waitlistSignals'])
+        self.assertEqual(0, snapshot['managedAccessDemandConversion']['contactableLeadGap'])
+        self.assertIn('/managed-access?', snapshot['managedAccessDemandConversion']['ctaPath'])
+        self.assertFalse(snapshot['managedAccessDemandConversion']['managedResaleEnabled'])
+        self.assertFalse(snapshot['managedAccessDemandConversion']['privacy']['containsEmails'])
         self.assertEqual(0.6667, snapshot['rates']['managedAccessShareOfWaitlist'])
         self.assertEqual(2, snapshot['stages']['signups'])
         self.assertEqual(1, snapshot['stages']['customersWithGeneratedApiKeys'])
@@ -3444,6 +3452,38 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['managedAccessPacketCopies'])
         self.assertEqual(1, metrics['managedAccessPacketCopiesBySnippet']['managed-access-provider-authorization-request'])
         self.assertNotIn('buyer@example.com', json.dumps(metrics))
+
+    def test_managed_access_demand_conversion_flags_anonymous_contact_gap(self):
+        anonymous = router.new_managed_access_demand_metrics()
+        router.managed_access_demand_metrics_add(anonymous, {
+            'targetProviderFamily': 'mixed-frontier',
+            'commercialPreference': 'one-subscription',
+            'supportNeed': 'implementation-support',
+            'targetLaunchWindow': 'this-month',
+            'intent': 'one-subscription',
+        })
+        router.managed_access_demand_metrics_add(anonymous, {
+            'targetProviderFamily': 'mixed-frontier',
+            'commercialPreference': 'one-subscription',
+            'supportNeed': 'implementation-support',
+            'targetLaunchWindow': 'this-month',
+            'intent': 'one-subscription',
+        })
+
+        conversion = router.managed_access_demand_conversion(router.new_managed_access_demand_metrics(), anonymous)
+
+        self.assertEqual('contact_capture_gap', conversion['status'])
+        self.assertEqual('fix_now', conversion['priority'])
+        self.assertEqual(2, conversion['anonymousSignals'])
+        self.assertEqual(0, conversion['waitlistSignals'])
+        self.assertEqual(2, conversion['contactableLeadGap'])
+        self.assertEqual('one-subscription', conversion['dominantIntent']['bucket'])
+        self.assertEqual('mixed-frontier', conversion['dominantTargetProviderFamily']['bucket'])
+        self.assertIn('managed_access_contact_capture', conversion['ctaPath'])
+        self.assertIn('one-subscription', conversion['action'])
+        self.assertFalse(conversion['managedResaleEnabled'])
+        self.assertFalse(conversion['privacy']['containsProviderCredentials'])
+        self.assertTrue(conversion['privacy']['aggregateOnly'])
 
     def test_launch_marketing_funnel_counts_group_events_without_identity(self):
         router.SUPABASE_URL = 'https://example.supabase.co'

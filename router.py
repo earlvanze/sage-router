@@ -8805,6 +8805,77 @@ def managed_access_demand_metrics_merge(*sources):
     return merged
 
 
+def managed_access_demand_total(metrics):
+    if not isinstance(metrics, dict):
+        return 0
+    intent = metrics.get('intent') if isinstance(metrics.get('intent'), dict) else {}
+    return sum(int(value or 0) for value in intent.values())
+
+
+def managed_access_top_bucket(metrics, group):
+    buckets = metrics.get(group) if isinstance(metrics, dict) and isinstance(metrics.get(group), dict) else {}
+    rows = [
+        (str(bucket), int(count or 0))
+        for bucket, count in buckets.items()
+        if str(bucket or '').strip() and str(bucket) != 'unknown' and int(count or 0) > 0
+    ]
+    if not rows:
+        return {'bucket': 'unknown', 'count': 0}
+    rows.sort(key=lambda row: (-row[1], row[0]))
+    return {'bucket': rows[0][0], 'count': rows[0][1]}
+
+
+def managed_access_demand_conversion(waitlist_demand, anonymous_demand):
+    waitlist_signals = managed_access_demand_total(waitlist_demand)
+    anonymous_signals = managed_access_demand_total(anonymous_demand)
+    contactable_gap = max(0, anonymous_signals - waitlist_signals)
+    status = (
+        'contact_capture_gap'
+        if anonymous_signals > 0 and waitlist_signals <= 0
+        else 'contact_capture_started'
+        if anonymous_signals > 0 or waitlist_signals > 0
+        else 'no_current_demand'
+    )
+    priority = 'fix_now' if status == 'contact_capture_gap' else ('next' if status == 'contact_capture_started' else 'monitor')
+    intent = managed_access_top_bucket(anonymous_demand or waitlist_demand, 'intent')
+    commercial = managed_access_top_bucket(anonymous_demand or waitlist_demand, 'commercialPreference')
+    provider = managed_access_top_bucket(anonymous_demand or waitlist_demand, 'targetProviderFamily')
+    cta_params = {
+        'intent': intent['bucket'] if intent['bucket'] != 'unknown' else 'one-subscription',
+        'utm_source': 'operator',
+        'utm_medium': 'launch_funnel',
+        'utm_campaign': 'managed_access_contact_capture',
+        'utm_content': 'anonymous-demand-to-review',
+    }
+    return {
+        'status': status,
+        'priority': priority,
+        'anonymousSignals': anonymous_signals,
+        'waitlistSignals': waitlist_signals,
+        'contactableLeadGap': contactable_gap,
+        'dominantIntent': intent,
+        'dominantCommercialPreference': commercial,
+        'dominantTargetProviderFamily': provider,
+        'ctaPath': f'{MARKETING_BASE_URL.rstrip("/")}/managed-access?{urllib.parse.urlencode(cta_params)}',
+        'action': (
+            'Convert anonymous one-subscription managed-access demand into contactable private-beta review requests before enabling managed provider resale.'
+            if status == 'contact_capture_gap'
+            else 'Follow up on contactable managed-access review requests while keeping public managed provider resale disabled.'
+            if status == 'contact_capture_started'
+            else 'Monitor managed-access demand and keep managed resale gated behind provider authorization, terms, cost, and margin controls.'
+        ),
+        'successMetric': 'managedAccessBetaInterest or managed_access_quick_request_received increases without enabling managed provider resale.',
+        'managedResaleEnabled': False,
+        'privacy': {
+            'containsEmails': False,
+            'containsCustomerIds': False,
+            'containsProviderCredentials': False,
+            'containsActualProviderCosts': False,
+            'aggregateOnly': True,
+        },
+    }
+
+
 def marketing_event_is_managed_access(event, metadata):
     if event in MANAGED_ACCESS_MARKETING_EVENTS:
         return True
@@ -9667,6 +9738,10 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         waitlist_managed_access_demand,
         anonymous_managed_access_demand,
     ) if (waitlist_managed_access_demand is not None or anonymous_managed_access_demand is not None) else None
+    managed_access_conversion = managed_access_demand_conversion(
+        waitlist_managed_access_demand,
+        anonymous_managed_access_demand,
+    )
     managed_access_interest = waitlist_interest.get('managedAccess', 0) if isinstance(waitlist_interest, dict) else None
     anonymous_managed_access_interest = marketing_metrics.get('managedAccessAnonymousInterest', 0) if isinstance(marketing_metrics, dict) else None
     marketing_intent_events = marketing_metrics.get('total', 0) if isinstance(marketing_metrics, dict) else None
@@ -9873,6 +9948,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'waitlistManagedAccessDemand': waitlist_managed_access_demand,
         'anonymousManagedAccessDemand': anonymous_managed_access_demand,
         'managedAccessDemand': managed_access_demand,
+        'managedAccessDemandConversion': managed_access_conversion,
         'mrr': mrr,
         'rates': rates,
         **conversion,

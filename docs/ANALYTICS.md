@@ -144,7 +144,9 @@ while `activationQueue` is the stable field for no-key follow-up counts,
 sendable/review-only segments, dry-run coverage, sent-recipient counts, and
 approval-required state. `activationApprovalReadiness.decisionLines` exposes
 the no-secret approve/hold review text for agents without requiring packet-text
-parsing. The
+parsing. `managedAccessDemandConversion` summarizes anonymous managed-access
+signals, contactable waitlist review signals, the contactable lead gap, and the
+safe `/managed-access` review CTA without enabling managed provider resale. The
 approval packet exposes `approvalPacketIssuedAt`, `approvalPacketExpiresAt`,
 and `approvalPacketValidSeconds`; real activation sends must include a fresh
 `approvalPacketIssuedAt` in addition to `SEND_ACTIVATION_FOLLOWUPS`, so stale
