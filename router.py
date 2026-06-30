@@ -255,6 +255,7 @@ ACTIVATION_EMAIL_REDIRECT_TO = os.environ.get(
     'https://app.sagerouter.dev/account?activation=recovery',
 ).strip()
 ACTIVATION_FOLLOWUP_SEND_CONFIRMATION = 'SEND_ACTIVATION_FOLLOWUPS'
+ACTIVATION_APPROVAL_PACKET_VALID_SECONDS = max(60, min(int(os.environ.get('SAGE_ROUTER_ACTIVATION_APPROVAL_PACKET_VALID_SECONDS', '900') or '900'), 86400))
 AUTH_LINK_REPAIR_CONFIRMATION = 'REPAIR_AUTH_LINKS'
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY') or os.environ.get('SAGE_ROUTER_STRIPE_SECRET_KEY') or ''
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET') or os.environ.get('SAGE_ROUTER_STRIPE_WEBHOOK_SECRET') or ''
@@ -7998,6 +7999,10 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
     activation_follow_ups = activation_follow_ups if isinstance(activation_follow_ups, dict) else {}
     telemetry = packet.get('sendTelemetry') if isinstance(packet.get('sendTelemetry'), dict) else {}
     auth_repair = packet.get('authRepair') if isinstance(packet.get('authRepair'), dict) else {}
+    email_readiness = packet.get('emailReadiness') if isinstance(packet.get('emailReadiness'), dict) else {}
+    approval_issued_at = int(email_readiness.get('approvalPacketIssuedAt') or now_epoch())
+    approval_valid_seconds = int(email_readiness.get('approvalPacketValidSeconds') or ACTIVATION_APPROVAL_PACKET_VALID_SECONDS)
+    approval_expires_at = int(email_readiness.get('approvalPacketExpiresAt') or (approval_issued_at + approval_valid_seconds))
     sendable_queued = int(packet.get('sendableQueued') or activation_follow_ups.get('sendableQueued') or 0)
     review_only_queued = int(packet.get('reviewOnlyQueued') or activation_follow_ups.get('reviewOnlyQueued') or 0)
     total_queued = int(packet.get('totalQueued') or activation_follow_ups.get('total') or 0)
@@ -8113,6 +8118,15 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
             ),
         },
         {
+            'id': 'refresh_recent_approval_packet',
+            'label': 'Refresh recent approval packet',
+            'status': 'ready' if approval_required else 'ready',
+            'detail': (
+                f'Packet issued at {approval_issued_at}; expires at {approval_expires_at}; '
+                f're-run the approval packet after {approval_valid_seconds} seconds before any real send.'
+            ),
+        },
+        {
             'id': 'approve_next_segment_only',
             'label': 'Approve next segment only',
             'status': 'needs_approval' if approval_required else 'ready',
@@ -8135,6 +8149,10 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
         'dryRunVerified': dry_run_verified,
         'blockedReason': blocked_reason,
         'nextSendSegment': next_send_segment,
+        'approvalPacketIssuedAt': approval_issued_at,
+        'approvalPacketExpiresAt': approval_expires_at,
+        'approvalPacketValidSeconds': approval_valid_seconds,
+        'approvalPacketRequiredForRealSend': True,
         'totalQueued': total_queued,
         'sendableQueued': sendable_queued,
         'reviewOnlyQueued': review_only_queued,
@@ -10338,7 +10356,7 @@ def activation_email_provider_label():
     return ACTIVATION_EMAIL_PROVIDER or 'resend'
 
 
-def activation_followup_send_command(segment='all', dry_run=True, limit=None):
+def activation_followup_send_command(segment='all', dry_run=True, limit=None, approval_issued_at=None):
     segment = re.sub(r'[^a-z0-9_.-]+', '_', str(segment or 'all').strip().lower()) or 'all'
     max_limit = max(1, min(int(limit or ACTIVATION_EMAIL_MAX_BATCH), ACTIVATION_EMAIL_MAX_BATCH))
     payload = {
@@ -10349,6 +10367,7 @@ def activation_followup_send_command(segment='all', dry_run=True, limit=None):
     }
     if not dry_run:
         payload['sendConfirmation'] = ACTIVATION_FOLLOWUP_SEND_CONFIRMATION
+        payload['approvalPacketIssuedAt'] = int(approval_issued_at or now_epoch())
     command = (
         'curl -fsS -X POST https://api.sagerouter.dev/admin/customers/send-activation-followups \\\n'
         '  -H "Authorization: Bearer ${SAGE_ROUTER_API_KEY}" \\\n'
@@ -10364,6 +10383,8 @@ def activation_followup_send_command(segment='all', dry_run=True, limit=None):
 def activation_email_readiness():
     configured = activation_email_configured()
     provider = activation_email_provider_label()
+    approval_issued_at = int(now_epoch())
+    approval_expires_at = approval_issued_at + ACTIVATION_APPROVAL_PACKET_VALID_SECONDS
     branded_sender_configured = bool(
         provider == 'resend' and ACTIVATION_EMAIL_FROM and ACTIVATION_EMAIL_API_KEY
     )
@@ -10392,11 +10413,11 @@ def activation_email_readiness():
                 "scripts/configure_activation_email_sender.sh"
             )
     dry_run_command = activation_followup_send_command(segment='all', dry_run=True)
-    send_command_template = activation_followup_send_command(segment='all', dry_run=False)
+    send_command_template = activation_followup_send_command(segment='all', dry_run=False, approval_issued_at=approval_issued_at)
     segment_command_templates = {
         segment: {
             'dryRunCommand': activation_followup_send_command(segment=segment, dry_run=True),
-            'sendCommand': activation_followup_send_command(segment=segment, dry_run=False),
+            'sendCommand': activation_followup_send_command(segment=segment, dry_run=False, approval_issued_at=approval_issued_at),
         }
         for segment in ('verified', 'unverified')
     }
@@ -10410,6 +10431,10 @@ def activation_email_readiness():
         'sendEndpoint': '/admin/customers/send-activation-followups',
         'dryRunSupported': True,
         'sendConfirmation': ACTIVATION_FOLLOWUP_SEND_CONFIRMATION,
+        'approvalPacketIssuedAt': approval_issued_at,
+        'approvalPacketExpiresAt': approval_expires_at,
+        'approvalPacketValidSeconds': ACTIVATION_APPROVAL_PACKET_VALID_SECONDS,
+        'approvalPacketRequiredForRealSend': True,
         'dryRunCommand': dry_run_command,
         'sendCommandTemplate': send_command_template,
         'segmentCommandTemplates': segment_command_templates,
@@ -17417,6 +17442,30 @@ class Handler(BaseHTTPRequestHandler):
                         'dryRunSupported': True,
                     })
                     return
+                if not dry_run:
+                    try:
+                        approval_issued_at = int(payload.get('approvalPacketIssuedAt') or payload.get('approval_packet_issued_at') or 0)
+                    except (TypeError, ValueError):
+                        approval_issued_at = 0
+                    now = now_epoch()
+                    if approval_issued_at <= 0:
+                        self.write_json(400, {
+                            'error': 'activation_followup_approval_packet_required',
+                            'requiredField': 'approvalPacketIssuedAt',
+                            'validSeconds': ACTIVATION_APPROVAL_PACKET_VALID_SECONDS,
+                            'dryRunSupported': True,
+                        })
+                        return
+                    if approval_issued_at > now + 60 or now - approval_issued_at > ACTIVATION_APPROVAL_PACKET_VALID_SECONDS:
+                        self.write_json(400, {
+                            'error': 'activation_followup_approval_packet_expired',
+                            'requiredField': 'approvalPacketIssuedAt',
+                            'issuedAt': approval_issued_at,
+                            'now': now,
+                            'validSeconds': ACTIVATION_APPROVAL_PACKET_VALID_SECONDS,
+                            'dryRunSupported': True,
+                        })
+                        return
                 limit = max(1, min(int(payload.get('limit') or ACTIVATION_EMAIL_MAX_BATCH), ACTIVATION_EMAIL_MAX_BATCH))
                 rows = operator_customer_rows(
                     query=payload.get('q') or payload.get('query') or '',

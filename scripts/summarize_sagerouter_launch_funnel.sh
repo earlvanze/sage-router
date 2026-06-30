@@ -237,6 +237,7 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
     | ($root.nextBestAction // {}) as $next_action
     | ($root.operatorExecutionPacket // {}) as $packet
     | ($packet.sendTelemetry // {}) as $telemetry
+    | ($packet.emailReadiness // {}) as $email_readiness
     | ($root.activationApprovalReadiness // {
         status: (
           if (($telemetry.sendApprovalRequired // false) == true) then "approval_required"
@@ -254,6 +255,10 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
           end
         ),
         nextSendSegment: ($telemetry.nextSendSegment // ""),
+        approvalPacketIssuedAt: ($email_readiness.approvalPacketIssuedAt // 0),
+        approvalPacketExpiresAt: ($email_readiness.approvalPacketExpiresAt // 0),
+        approvalPacketValidSeconds: ($email_readiness.approvalPacketValidSeconds // 0),
+        approvalPacketRequiredForRealSend: ($email_readiness.approvalPacketRequiredForRealSend // true),
         nextActions: []
       }) as $approval
     | (($approval.authRepair // $packet.authRepair // {})) as $auth_repair
@@ -269,6 +274,7 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         "",
         "Approval readiness: \($approval.status // "unknown"); blocker=\($approval.blockedReason // "none").",
         "Decision needed: approve or hold the next real activation send for segment \"\($next_segment)\".",
+        "Approval packet freshness: issuedAt=\(n($approval.approvalPacketIssuedAt)); expiresAt=\(n($approval.approvalPacketExpiresAt)); validSeconds=\(n($approval.approvalPacketValidSeconds)); requiredForRealSend=\($approval.approvalPacketRequiredForRealSend // true).",
         "Queued: \(n($packet.totalQueued // $followups.total)) total; \(n($packet.sendableQueued // $followups.sendableQueued)) sendable; \(n($packet.reviewOnlyQueued // $followups.reviewOnlyQueued)) review-only; \(n($followups.unknownQueued)) unknown.",
         "Dry-run: \(if $dry then "verified" else "not complete" end) for \(n($telemetry.dryRunRecipients)) unique sendable recipient(s). Sent: \(n($telemetry.sentRecipients)); failed: \(n($telemetry.failedRecipients)).",
         "Dry-run segments: covered=\(list($telemetry.dryRunCoveredSegments)); pending=\(list($telemetry.dryRunPendingSegments)); duplicate raw recipient records=\(n($telemetry.dryRunDuplicateRecipients)).",
@@ -316,7 +322,7 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         (if $next_dry_run_command != "" then $next_dry_run_command else "  unavailable: no segment dry-run command returned by /analytics/funnel" end),
         "- After explicit approval, run the typed-confirmation send command for this segment:",
         (if $next_send_command != "" then $next_send_command else "  unavailable: no segment send command returned by /analytics/funnel" end),
-        "- This printed command still requires SAGE_ROUTER_API_KEY in the shell and sendConfirmation=SEND_ACTIVATION_FOLLOWUPS in the request body.",
+        "- This printed command still requires SAGE_ROUTER_API_KEY in the shell, a fresh approvalPacketIssuedAt, and sendConfirmation=SEND_ACTIVATION_FOLLOWUPS in the request body.",
         "",
         "Privacy flags: containsEmails=\($root.privacy.containsEmails // false); containsApiKeys=\($root.privacy.containsApiKeys // false); containsProviderCredentials=\($root.privacy.containsProviderCredentials // false); promptsStored=\($root.privacy.promptsStored // false)."
       ]
@@ -370,6 +376,10 @@ if [[ "$RAW_JSON" == "1" ]]; then
         end
       ),
       nextSendSegment: (.operatorExecutionPacket.sendTelemetry.nextSendSegment // ""),
+      approvalPacketIssuedAt: (.operatorExecutionPacket.emailReadiness.approvalPacketIssuedAt // 0),
+      approvalPacketExpiresAt: (.operatorExecutionPacket.emailReadiness.approvalPacketExpiresAt // 0),
+      approvalPacketValidSeconds: (.operatorExecutionPacket.emailReadiness.approvalPacketValidSeconds // 0),
+      approvalPacketRequiredForRealSend: (.operatorExecutionPacket.emailReadiness.approvalPacketRequiredForRealSend // true),
       totalQueued: (.operatorExecutionPacket.totalQueued // .activationFollowUps.total // 0),
       sendableQueued: (.operatorExecutionPacket.sendableQueued // .activationFollowUps.sendableQueued // 0),
       reviewOnlyQueued: (.operatorExecutionPacket.reviewOnlyQueued // .activationFollowUps.reviewOnlyQueued // 0),

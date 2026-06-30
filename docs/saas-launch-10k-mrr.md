@@ -637,8 +637,9 @@ flag.
 - In the private operator dashboard, render the next send segment and a
   copyable activation send command only as an explicit-approval handoff. The
   copied command must still require the private operator token and
-  `SEND_ACTIVATION_FOLLOWUPS` confirmation token, and copying it records only
-  aggregate `operator_execution_packet_copied` telemetry.
+  `SEND_ACTIVATION_FOLLOWUPS` confirmation token plus a fresh
+  `approvalPacketIssuedAt` from the current approval packet, and copying it
+  records only aggregate `operator_execution_packet_copied` telemetry.
 - Also render a no-secret activation approval packet before the send command so
   the operator can review sendable segments, review-only auth-repair segments,
   dry-run coverage, the server-derived decision checklist, and the success

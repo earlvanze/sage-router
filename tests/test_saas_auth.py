@@ -809,6 +809,32 @@ class SaaSAuthTests(unittest.TestCase):
             b'"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS"}'
         )
         router.Handler.do_POST(not_configured)
+        self.assertEqual(400, not_configured.status)
+        self.assertEqual('activation_followup_approval_packet_required', not_configured.payload['error'])
+        self.assertEqual('approvalPacketIssuedAt', not_configured.payload['requiredField'])
+        self.assertTrue(not_configured.payload['dryRunSupported'])
+        self.assertEqual(1, len(inserted_events))
+
+        expired = Dummy(
+            ('{"status":"inactive","segment":"verified","limit":10,'
+             '"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS",'
+             f'"approvalPacketIssuedAt":{router.now_epoch() - router.ACTIVATION_APPROVAL_PACKET_VALID_SECONDS - 10}'
+             '}').encode('utf-8')
+        )
+        router.Handler.do_POST(expired)
+        self.assertEqual(400, expired.status)
+        self.assertEqual('activation_followup_approval_packet_expired', expired.payload['error'])
+        self.assertEqual('approvalPacketIssuedAt', expired.payload['requiredField'])
+        self.assertEqual(router.ACTIVATION_APPROVAL_PACKET_VALID_SECONDS, expired.payload['validSeconds'])
+        self.assertEqual(1, len(inserted_events))
+
+        not_configured = Dummy(
+            ('{"status":"inactive","segment":"verified","limit":10,'
+             '"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS",'
+             f'"approvalPacketIssuedAt":{router.now_epoch()}'
+             '}').encode('utf-8')
+        )
+        router.Handler.do_POST(not_configured)
         self.assertEqual(503, not_configured.status)
         self.assertEqual('activation_email_not_configured', not_configured.payload['error'])
         self.assertEqual(1, not_configured.payload['failed'])
@@ -845,7 +871,11 @@ class SaaSAuthTests(unittest.TestCase):
         router.supabase_insert = lambda table, row, timeout=8: inserted_events.append((table, row, timeout)) or [row]
         sent = []
         router.send_activation_email = lambda contact: sent.append(contact) or {'id': 'email_123', 'status': 200}
-        body = b'{"status":"inactive","limit":10,"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS"}'
+        body = (
+            '{"status":"inactive","limit":10,"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS",'
+            f'"approvalPacketIssuedAt":{router.now_epoch()}'
+            '}'
+        ).encode('utf-8')
 
         class Dummy:
             path = '/admin/customers/send-activation-followups'
@@ -2832,7 +2862,15 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('"segment":"verified"', packet['segmentActions'][0]['dryRunCommand'])
         self.assertIn('"segment":"verified"', packet['segmentActions'][0]['sendCommand'])
         self.assertIn('"sendConfirmation":"SEND_ACTIVATION_FOLLOWUPS"', packet['segmentActions'][0]['sendCommand'])
+        self.assertIn('"approvalPacketIssuedAt":', packet['segmentActions'][0]['sendCommand'])
         self.assertIn('"segment":"unverified"', packet['segmentActions'][1]['sendCommand'])
+        self.assertTrue(packet['emailReadiness']['approvalPacketRequiredForRealSend'])
+        self.assertGreater(packet['emailReadiness']['approvalPacketIssuedAt'], 0)
+        self.assertEqual(router.ACTIVATION_APPROVAL_PACKET_VALID_SECONDS, packet['emailReadiness']['approvalPacketValidSeconds'])
+        self.assertEqual(
+            packet['emailReadiness']['approvalPacketIssuedAt'] + router.ACTIVATION_APPROVAL_PACKET_VALID_SECONDS,
+            packet['emailReadiness']['approvalPacketExpiresAt'],
+        )
         self.assertEqual(0, packet['sendTelemetry']['dryRunRecipients'])
         self.assertEqual(0, packet['sendTelemetry']['dryRunRecordedRecipients'])
         self.assertEqual(0, packet['sendTelemetry']['dryRunDuplicateRecipients'])
@@ -2856,11 +2894,16 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(readiness['approvalRequired'])
         self.assertFalse(readiness['dryRunVerified'])
         self.assertEqual('dry_run_not_verified', readiness['blockedReason'])
+        self.assertTrue(readiness['approvalPacketRequiredForRealSend'])
+        self.assertEqual(packet['emailReadiness']['approvalPacketIssuedAt'], readiness['approvalPacketIssuedAt'])
+        self.assertEqual(packet['emailReadiness']['approvalPacketExpiresAt'], readiness['approvalPacketExpiresAt'])
         self.assertEqual('dry_run_activation_followups', readiness['nextActions'][0]['id'])
         checklist = {row['id']: row for row in readiness['decisionChecklist']}
         self.assertEqual('ready', checklist['review_no_secret_packet']['status'])
         self.assertEqual('blocked', checklist['verify_dry_run_coverage']['status'])
         self.assertEqual('ready', checklist['exclude_review_only_segments']['status'])
+        self.assertIn('approval packet', checklist['refresh_recent_approval_packet']['detail'])
+        self.assertIn(str(router.ACTIVATION_APPROVAL_PACKET_VALID_SECONDS), checklist['refresh_recent_approval_packet']['detail'])
         self.assertEqual('needs_approval', checklist['approve_next_segment_only']['status'])
         self.assertIn('SEND_ACTIVATION_FOLLOWUPS', checklist['require_typed_confirmation']['detail'])
         self.assertFalse(readiness['privacy']['containsEmails'])

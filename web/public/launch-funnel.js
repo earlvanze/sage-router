@@ -760,6 +760,7 @@ function activationDeliveryMeta(emailReadiness = {}) {
 function activationApprovalReadiness(data = {}) {
   const readiness = data.activationApprovalReadiness || {};
   if (readiness && readiness.status) return readiness;
+  const emailReadiness = data.operatorExecutionPacket?.emailReadiness || data.activationFollowUps?.emailReadiness || {};
   const delivery = activationDeliveryCounts(data);
   const activationSend = activationSendTelemetry(data);
   const sendableQueued = Number(delivery.sendableQueued || activationSend.sendableQueued || 0);
@@ -803,6 +804,10 @@ function activationApprovalReadiness(data = {}) {
     dryRunPendingSegments: activationSend.dryRunPendingSegments,
     sentRecipients: activationSend.sentRecipients,
     failedRecipients: activationSend.failedRecipients,
+    approvalPacketIssuedAt: asNumber(emailReadiness.approvalPacketIssuedAt),
+    approvalPacketExpiresAt: asNumber(emailReadiness.approvalPacketExpiresAt),
+    approvalPacketValidSeconds: asNumber(emailReadiness.approvalPacketValidSeconds),
+    approvalPacketRequiredForRealSend: emailReadiness.approvalPacketRequiredForRealSend !== false,
     nextActions,
     privacy: {
       containsEmails: false,
@@ -891,6 +896,8 @@ function renderActivationNextSendStep(data = {}, { compact = false } = {}) {
   const nextSegment = activationSend.nextSendSegment || approvalReadiness.nextSendSegment || 'all';
   const dryRunReady = activationSend.dryRunVerified === true;
   const approvalNeeded = activationSend.sendApprovalRequired === true;
+  const approvalExpiresAt = asNumber(approvalReadiness.approvalPacketExpiresAt);
+  const approvalValidSeconds = asNumber(approvalReadiness.approvalPacketValidSeconds);
   const canCopySend = Boolean(sendCommand && dryRunReady && approvalNeeded);
   const pendingSegments = activationSend.dryRunPendingSegments.join(', ') || 'none';
   const coveredSegments = activationSend.dryRunCoveredSegments.join(', ') || 'none';
@@ -902,9 +909,12 @@ function renderActivationNextSendStep(data = {}, { compact = false } = {}) {
     ? `Ready for operator approval: type ${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION} only when sending ${nextSegment}.`
     : 'No pending real send remains; monitor generated-key creation and first routed request.';
   const detail = `Sendable ${integer(delivery.sendableQueued)} · review-only ${integer(delivery.reviewOnlyQueued)} · dry-run ${dryRunReady ? 'verified' : 'pending'} for ${integer(activationSend.dryRunRecipients)} unique recipient(s) · covered ${coveredSegments}.`;
+  const freshness = approvalExpiresAt > 0
+    ? ` Approval packet expires ${formatDate(approvalExpiresAt)}${approvalValidSeconds > 0 ? ` (${integer(approvalValidSeconds)} second window)` : ''}; refresh the packet before using an old send command.`
+    : ' Refresh the approval packet immediately before any real send.';
   return `<div class="empty ${approvalNeeded ? 'warn' : 'good'}">
     <strong>${compact ? 'Activation next step' : 'Activation next send step'}:</strong> ${esc(nextAction)}
-    <p class="muted">${esc(detail)} Real sends remain protected by private operator token, browser confirmation, and typed approval phrase <code>${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code>. Do not mark worked until the outreach is actually sent or copied into the outbound channel.</p>
+    <p class="muted">${esc(detail)}${esc(freshness)} Real sends remain protected by private operator token, fresh <code>approvalPacketIssuedAt</code>, browser confirmation, and typed approval phrase <code>${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code>. Do not mark worked until the outreach is actually sent or copied into the outbound channel.</p>
     ${sendCommand ? `<div class="actions"><button class="btn secondary small" type="button" data-copy-activation-send-command="${esc(sendCommand)}" data-followup-segment="${esc(nextSegment)}" data-followup-count="${integer(activationSend.sendableQueued)}" ${canCopySend ? '' : 'disabled'}>Copy next approved send command</button><span class="status">${canCopySend ? 'Dry-run verified; approval still required before real send.' : 'Complete dry-run verification and approval before copying the real-send command.'}</span></div>` : ''}
   </div>`;
 }
@@ -991,6 +1001,7 @@ function activationApprovalPacketText(data = {}) {
     '',
     `Approval readiness: ${approvalReadiness.status || 'unknown'}; blocker=${approvalReadiness.blockedReason || 'none'}.`,
     `Decision needed: approve or hold the next real activation send for segment "${approvalReadiness.nextSendSegment || activationSend.nextSendSegment || 'all'}".`,
+    `Approval packet freshness: issuedAt=${integer(approvalReadiness.approvalPacketIssuedAt)}; expiresAt=${integer(approvalReadiness.approvalPacketExpiresAt)}; validSeconds=${integer(approvalReadiness.approvalPacketValidSeconds)}; requiredForRealSend=${approvalReadiness.approvalPacketRequiredForRealSend !== false}.`,
     `Queued: ${integer(delivery.totalQueued || followUps.total)} total; ${integer(delivery.sendableQueued)} sendable; ${integer(delivery.reviewOnlyQueued)} review-only; ${integer(delivery.unknownQueued)} unknown.`,
     `Dry-run: ${activationSend.dryRunVerified ? 'verified' : 'not complete'} for ${integer(activationSend.dryRunRecipients)} unique sendable recipient(s). Sent: ${integer(activationSend.sentRecipients)}; failed: ${integer(activationSend.failedRecipients)}.`,
     `Dry-run segments: covered=${activationSend.dryRunCoveredSegments.join(', ') || 'none'}; pending=${activationSend.dryRunPendingSegments.join(', ') || 'none'}; duplicate raw recipient records=${integer(activationSend.dryRunDuplicateRecipients)}.`,
@@ -1163,6 +1174,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
     `Send telemetry: dry-run actions=${integer(activationSend.dryRunActions)} uniqueRecipients=${integer(activationSend.dryRunRecipients)} rawRecordedRecipients=${integer(activationSend.dryRunRecordedRecipients)} duplicateRecords=${integer(activationSend.dryRunDuplicateRecipients)}; sent actions=${integer(activationSend.sendActions)} recipients=${integer(activationSend.sentRecipients)}; failures=${integer(activationSend.failedActions)} recipients=${integer(activationSend.failedRecipients)}; approvalRequired=${activationSend.sendApprovalRequired === true}`,
     `Next send segment: ${activationSend.nextSendSegment || 'all'}; dryRunVerified=${activationSend.dryRunVerified === true}; approvalRequired=${activationSend.sendApprovalRequired === true}`,
     `Approval readiness: ${approvalReadiness.status || 'unknown'}; blockedReason=${approvalReadiness.blockedReason || 'none'}; nextActions=${(approvalReadiness.nextActions || []).map(row => `${row.priority || 'next'}:${row.id || 'review'}`).join(', ') || 'monitor_activation_queue'}`,
+    `Approval freshness: issuedAt=${integer(approvalReadiness.approvalPacketIssuedAt)}; expiresAt=${integer(approvalReadiness.approvalPacketExpiresAt)}; validSeconds=${integer(approvalReadiness.approvalPacketValidSeconds)}; approvalPacketIssuedAtRequired=${approvalReadiness.approvalPacketRequiredForRealSend !== false}`,
     `Auth repair: status=${authRepair.status || 'unknown'}; queued=${integer(authRepair.reviewOnlyQueued)}; segments=${safeList(authRepair.reviewOnlySegments).join(', ') || 'none'}; endpoint=${authRepair.endpoint || '/admin/customers/hydrate-auth-users'}; aggregateOnly=${authRepair.privacy?.aggregateOnly === true}`,
     `Auth repair fallback: ${authRepair.noopFallbackAction || 'none'}`,
     ...(authRepair.command ? ['', 'Auth repair command:', authRepair.command] : []),
@@ -1569,6 +1581,7 @@ function renderOperatorExecutionPacket(data = {}) {
     <div class="metric"><span>Queued</span><strong>${integer(activationDelivery.totalQueued || packet.totalQueued)} total · ${integer(activationDelivery.sendableQueued)} sendable · ${integer(activationDelivery.reviewOnlyQueued)} review-only</strong></div>
     <div class="metric"><span>Send approval</span><strong><span class="pill ${activationSend.sendApprovalRequired ? 'warn' : 'good'}">${activationSend.sendApprovalRequired ? 'Approval pending' : 'No pending send'}</span></strong></div>
     <div class="metric"><span>Approval readiness</span><strong><span class="pill ${approvalReadiness.status === 'approval_required' ? 'warn' : approvalReadiness.status === 'dry_run_required' ? 'bad' : 'good'}">${esc(approvalReadiness.status || 'unknown')}</span></strong></div>
+    <div class="metric"><span>Approval expires</span><strong>${formatDate(approvalReadiness.approvalPacketExpiresAt)}</strong></div>
     <div class="metric"><span>Auth repair</span><strong><span class="pill ${authRepair.required ? 'warn' : 'good'}">${esc(authRepair.status || 'not_required')}</span></strong></div>
     <div class="metric"><span>Dry-run / sent</span><strong>${integer(activationSend.dryRunRecipients)} unique dry-run · ${integer(activationSend.sentRecipients)} sent · ${integer(activationSend.failedRecipients)} failed</strong></div>
     <div class="metric"><span>Next send segment</span><strong>${esc(activationSend.nextSendSegment || 'all')}</strong></div>

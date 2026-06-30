@@ -32,6 +32,9 @@ Current launch state:
 - Dry-run coverage: `2` unique sendable recipients; covered segments
   `verified`, `unverified`; pending `none`
 - Real sends recorded: `0`
+- Approval packet freshness: real sends require a fresh
+  `approvalPacketIssuedAt` from the current packet; the default validity window
+  is 15 minutes.
 - Primary recovery CTA:
   `https://sagerouter.dev/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation`
 - Success metric: move no-key signups into generated-key accounts, then first
@@ -67,6 +70,9 @@ sending more traffic.
 - Next segment only: approval covers only the next `verified` segment; do not
   broaden to `unverified`, `missing_auth_user`, or all segments without a fresh
   packet.
+- Fresh packet timestamp: use only send commands from a current approval packet;
+  stale commands are rejected when `approvalPacketIssuedAt` is missing or
+  expired.
 - Typed confirmation protected: real sends require the private operator token,
   trusted Sage Router browser origin, and
   `sendConfirmation=SEND_ACTIVATION_FOLLOWUPS`.
@@ -122,7 +128,8 @@ curl -fsS -X POST https://api.sagerouter.dev/admin/customers/send-activation-fol
 ```
 
 The command still requires `SAGE_ROUTER_API_KEY` in the shell and
-`sendConfirmation=SEND_ACTIVATION_FOLLOWUPS` in the request body.
+`sendConfirmation=SEND_ACTIVATION_FOLLOWUPS` plus a fresh
+`approvalPacketIssuedAt` in the request body.
 
 ## Outcome Fields
 

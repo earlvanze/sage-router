@@ -776,7 +776,10 @@ outreach, and the printed command still requires `SAGE_ROUTER_API_KEY` plus
 `sendConfirmation=SEND_ACTIVATION_FOLLOWUPS`. The default snapshot also prints a
 compact approval handoff with the packet command, current approval decision, and
 reminder that no send command is printed until the operator explicitly asks for
-the approval packet.
+the approval packet. Real activation sends also require a fresh
+`approvalPacketIssuedAt` from that approval packet; the default validity window
+is 15 minutes (`SAGE_ROUTER_ACTIVATION_APPROVAL_PACKET_VALID_SECONDS`), so old
+copied send commands expire even if they still include the typed confirmation.
 
 Use the public deploy helper to avoid branch/digest drift between the static
 site and hosted API:

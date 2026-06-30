@@ -140,7 +140,11 @@ does not print tokens, emails, generated keys, prompts, provider credentials,
 OAuth tokens, raw campaign URLs, or raw provider responses. Pass `--json` for a
 bounded JSON subset suitable for automation; the `activationQueue` object is
 the stable field for no-key follow-up counts, sendable/review-only segments,
-dry-run coverage, sent-recipient counts, and approval-required state. Pass
+dry-run coverage, sent-recipient counts, and approval-required state. The
+approval packet exposes `approvalPacketIssuedAt`, `approvalPacketExpiresAt`,
+and `approvalPacketValidSeconds`; real activation sends must include a fresh
+`approvalPacketIssuedAt` in addition to `SEND_ACTIVATION_FOLLOWUPS`, so stale
+copied send commands expire instead of remaining usable. Pass
 `--distribution-tracker-section` to render the same live aggregates in the
 heading structure used by `docs/launch/distribution-tracker.md`. When recovery
 views are present but generated-key attempts are still zero, run
