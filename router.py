@@ -7696,6 +7696,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
     operator_follow_up_send_dry_run_recipients = int(activation_follow_ups.get('operatorFollowUpSendDryRunRecipients') or 0)
     operator_follow_up_sent_recipients = int(activation_follow_ups.get('operatorFollowUpSentRecipients') or 0)
     operator_follow_up_send_failure_recipients = int(activation_follow_ups.get('operatorFollowUpSendFailureRecipients') or 0)
+    activation_approval_packet_copies = int(activation_follow_ups.get('activationApprovalPacketCopies') or 0)
     key_first_redirects = int(activation_follow_ups.get('keyFirstRedirects') or 0)
     key_recovery_views = int(activation_follow_ups.get('keyRecoveryViews') or 0)
     key_create_attempts = int(activation_follow_ups.get('keyCreateAttempts') or 0)
@@ -7722,6 +7723,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
             and operator_follow_up_send_dry_runs > 0
             and operator_follow_up_sends <= 0
         )
+        approval_packet_already_reviewed = activation_send_ready_for_approval and activation_approval_packet_copies > 0
         non_gated_setup_copy_fallback = activation_send_ready_for_approval and setup_snippet_copies <= 0
         recommended_segments = [
             segment for segment in ('verified', 'unverified', 'missing_auth_user', 'missing_user_id', 'unavailable', 'not_required')
@@ -7760,13 +7762,23 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
             execution_checklist = [
                 {
                     'step': 1,
-                    'segment': 'approval_packet' if activation_send_ready_for_approval else 'recovery_dropoff',
+                    'segment': (
+                        'approval_decision'
+                        if approval_packet_already_reviewed
+                        else ('approval_packet' if activation_send_ready_for_approval else 'recovery_dropoff')
+                    ),
                     'action': (
+                        'Use the already recorded no-secret approval packet and current decision lines to approve or hold only the next sendable segment; re-run the packet only if the timestamp has expired.'
+                        if approval_packet_already_reviewed else
                         'Run bash scripts/summarize_sagerouter_launch_funnel.sh --approval-packet --verify-recovery --verify-auth-repair so the approval decision includes the live no-persistence recovery handoff smoke before any real send.'
                         if activation_send_ready_for_approval
                         else 'Run bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff to classify the aggregate stage and include the live no-persistence handoff smoke.'
                     ),
-                    'successMetric': 'The diagnosis names verified_handoff_waiting_for_fresh_traffic after the smoke probe accepts setup_key_recovery_auto_account_redirected, login_key_recovery_account_setup_auto_redirected, and account_setup_handoff_viewed without storing emails or generated keys.',
+                    'successMetric': (
+                        'operatorFollowUpSends, operatorFollowUpSentRecipients, or fresh recovery traffic increases without send failures.'
+                        if approval_packet_already_reviewed
+                        else 'The diagnosis names verified_handoff_waiting_for_fresh_traffic after the smoke probe accepts setup_key_recovery_auto_account_redirected, login_key_recovery_account_setup_auto_redirected, and account_setup_handoff_viewed without storing emails or generated keys.'
+                    ),
                 },
                 {
                     'step': 2,
@@ -7827,6 +7839,8 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                     'Recovery handoffs are reaching account setup but no key-create attempts are starting. Verify signed-in start=create_key auto-create before sending more activation traffic.'
                     if recovery_handoff_dropoff
                     else (
+                        'The no-secret approval packet has already been reviewed and sendable follow-up dry-runs are covered; the remaining blocker is explicit operator approval for the next segment or fresh recovery traffic, not another recovery-page code change.'
+                        if approval_packet_already_reviewed else
                         'Recovery pages have views but no account handoffs or key-create attempts, while sendable follow-up dry runs are already covered. Run the approval packet with --verify-recovery; if it reports verified_handoff_waiting_for_fresh_traffic, the next blocker is explicit operator approval or fresh recovery traffic, not a recovery-page code fix.'
                         if activation_send_ready_for_approval
                         else 'Recovery pages are getting views but no account handoffs or key-create attempts. The public recovery page now leads with Email same-email setup link; run bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff and expect verified_handoff_waiting_for_fresh_traffic when the no-persistence smoke passes, then watch for setup_key_recovery_magic_link_requested/sent before key creation, or use the approval packet before any real activation send.'
@@ -7873,6 +7887,9 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 'operatorFollowUpSendFailures': operator_follow_up_send_failures,
                 'operatorFollowUpSendFailuresByKind': activation_follow_ups.get('operatorFollowUpSendFailuresByKind') or {},
                 'operatorFollowUpSendFailureRecipients': operator_follow_up_send_failure_recipients,
+                'activationApprovalPacketCopies': activation_approval_packet_copies,
+                'activationApprovalPacketCopiesBySnippet': activation_follow_ups.get('activationApprovalPacketCopiesBySnippet') or {},
+                'approvalPacketAlreadyReviewed': approval_packet_already_reviewed,
                 'keyFirstRedirects': key_first_redirects,
                 'keyFirstRedirectsByState': activation_follow_ups.get('keyFirstRedirectsByState') or {},
                 'keyRecoveryViews': key_recovery_views,
@@ -9776,6 +9793,8 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'operatorFollowUpSendFailures': int(marketing_metrics.get('operatorFollowUpSendFailures') or 0),
             'operatorFollowUpSendFailuresByKind': marketing_metrics.get('operatorFollowUpSendFailuresByKind') or {},
             'operatorFollowUpSendFailureRecipients': int(marketing_metrics.get('operatorFollowUpSendFailureRecipients') or 0),
+            'activationApprovalPacketCopies': int(marketing_metrics.get('activationApprovalPacketCopies') or 0),
+            'activationApprovalPacketCopiesBySnippet': marketing_metrics.get('activationApprovalPacketCopiesBySnippet') or {},
             'keyFirstRedirects': int(marketing_metrics.get('keyFirstRedirects') or 0),
             'keyFirstRedirectsByState': marketing_metrics.get('keyFirstRedirectsByState') or {},
             'keyRecoveryHandoffScheduled': int(marketing_metrics.get('keyRecoveryHandoffScheduled') or 0),
