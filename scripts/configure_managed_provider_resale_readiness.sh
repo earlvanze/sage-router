@@ -58,7 +58,7 @@ AUTHORIZATION_LEDGER_TEMPLATE="${ROOT}/docs/launch/execution/provider-authorizat
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--record-authorization-review|--authorization-ledger-template|--provider-outreach-packet|--record-provider-outreach|--provider-reply-triage-packet|--terms-approval-packet|--record-terms-review|--one-subscription-pricing-packet|--stage-public-controls|--unit-economics]
+Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--record-authorization-review|--authorization-ledger-template|--provider-outreach-packet|--record-provider-outreach|--provider-reply-triage-packet|--terms-approval-packet|--record-terms-review|--one-subscription-pricing-packet|--private-cost-model-template|--stage-public-controls|--unit-economics]
 
 Stage Sage Router managed provider-access readiness on Cloud Run.
 
@@ -138,6 +138,11 @@ Options:
                            thresholds, packaging decisions, and next commands;
                            it never prints private provider costs or required
                            private prices.
+  --private-cost-model-template
+                           Print a no-secret private cost-model worksheet
+                           template for offline provider-cost review. It
+                           includes placeholders and review fields only; it
+                           never prints or records actual provider costs.
   --stage-public-controls  Bind non-secret terms, margin-policy, allowlist, and
                            disabled public-enable env without requiring or
                            writing the private cost model.
@@ -204,6 +209,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --one-subscription-pricing-packet)
       MODE="one-subscription-pricing-packet"
+      shift
+      ;;
+    --private-cost-model-template)
+      MODE="private-cost-model-template"
       shift
       ;;
     --stage-public-controls)
@@ -946,6 +955,101 @@ managed_provider_one_subscription_pricing_packet() {
   rm -f "$body"
 }
 
+managed_provider_private_cost_model_template() {
+  cat <<'EOF'
+# Sage Router Private Managed-Provider Cost Model Template
+
+Boundary: private operator worksheet. Do not paste provider agreements,
+provider account IDs, provider credentials, OAuth tokens, generated API keys,
+prompts, customer data, raw provider responses, or this completed worksheet into
+public channels, pull requests, launch pages, support tickets, or logs.
+
+Effect: this template is read-only. It does not acknowledge provider terms,
+stage authorization evidence, write Secret Manager values, deploy Cloud Run,
+change Stripe prices, enable managed resale, or send provider/customer email.
+
+## Review Metadata
+
+- reviewDate:
+- reviewer:
+- providerFamily:
+- providerPlanOrAccountType:
+- privateAuthorizationReference:
+- privateCostReviewReference:
+- costSourceReference:
+- costReviewStatus: pending
+- publicEnableApproved: false
+
+## Private Cost Inputs
+
+Store actual values only in the private system of record.
+
+- providerCostCentsPer1kRequests: PRIVATE_VALUE_NOT_FOR_CHAT_OR_GIT
+- expectedMonthlyManagedRequests:
+- burstOrRateLimitAssumption:
+- includedModelFamilies:
+- excludedModelFamilies:
+- quotaResetPolicy:
+- overagePolicy:
+- dataProcessingOrRetentionBoundary:
+- abuseOrSuspensionProcess:
+
+## Public Threshold Check
+
+Run the public-threshold packet first:
+
+```bash
+scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet
+```
+
+Then run the private preflight locally with the reviewed cost candidate:
+
+```bash
+SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' \
+scripts/configure_managed_provider_resale_readiness.sh --unit-economics
+```
+
+Record only the opaque result here:
+
+- bindingPublicPlan:
+- privateCostFitsFixedPlans: pending
+- privateCostFitsPilotAddOnOrContractFloor: pending
+- selectedManagedAccessPackaging:
+- unitEconomicsPreflightReference:
+- unitEconomicsPreflightPassed: false
+
+## Approval Checklist
+
+- Provider authorization covers this managed-access use case.
+- Provider terms permit the planned service-provider/resale boundary.
+- BYOK-only providers remain outside managed resale unless separately
+  authorized.
+- Customer acceptable-use, quota, rate-limit, generated-key revocation,
+  operator audit, and abuse-review controls satisfy provider obligations.
+- Private provider cost fits the selected packaging at the configured minimum
+  gross margin.
+- Public enablement remains disabled until final operator approval.
+
+## Safe Handoff
+
+Only after private review passes, stage the cost model through the helper:
+
+```bash
+SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS='ollama,openai,anthropic' \
+SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' \
+SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' \
+SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' \
+SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED='1' \
+SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' \
+scripts/configure_managed_provider_resale_readiness.sh
+```
+
+Privacy flags: containsSecrets=false; containsProviderCredentials=false;
+containsActualProviderCosts=false; containsRequiredPrivatePrices=false;
+containsAuthorizationReference=false; mutatesRuntime=false; publicEnableApproved=false.
+EOF
+}
+
 managed_provider_authorization_ledger_template() {
   if [[ -f "$AUTHORIZATION_LEDGER_TEMPLATE" ]]; then
     cat "$AUTHORIZATION_LEDGER_TEMPLATE"
@@ -1171,6 +1275,11 @@ fi
 
 if [[ "$MODE" == "one-subscription-pricing-packet" ]]; then
   managed_provider_one_subscription_pricing_packet
+  exit 0
+fi
+
+if [[ "$MODE" == "private-cost-model-template" ]]; then
+  managed_provider_private_cost_model_template
   exit 0
 fi
 

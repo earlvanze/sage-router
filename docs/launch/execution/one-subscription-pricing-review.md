@@ -90,6 +90,7 @@ to validate against the private cost model.
 - Terms approval packet has been reviewed:
   `scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet`
 - Private cost model has been checked without printing the cost:
+  `scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template`
   `SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics`
 - Public enablement remains off:
   `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0`

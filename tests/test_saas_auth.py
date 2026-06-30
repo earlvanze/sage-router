@@ -1491,6 +1491,10 @@ class SaaSAuthTests(unittest.TestCase):
             setup['oneSubscriptionPricingCommand'],
         )
         self.assertEqual(
+            'scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template',
+            setup['privateCostModelTemplateCommand'],
+        )
+        self.assertEqual(
             "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' "
             "scripts/configure_managed_provider_resale_readiness.sh --unit-economics",
             setup['unitEconomicsCommand'],
@@ -2522,6 +2526,10 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(
             'scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet',
             managed_readiness['readinessSetup']['oneSubscriptionPricingCommand'],
+        )
+        self.assertEqual(
+            'scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template',
+            managed_readiness['readinessSetup']['privateCostModelTemplateCommand'],
         )
         self.assertIn(
             "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST'",

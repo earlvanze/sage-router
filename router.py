@@ -2738,6 +2738,9 @@ def managed_provider_resale_readiness_setup(enabled=False):
     one_subscription_pricing_command = (
         "scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet"
     )
+    private_cost_model_template_command = (
+        "scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template"
+    )
     unit_economics_command = (
         "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' "
         "scripts/configure_managed_provider_resale_readiness.sh --unit-economics"
@@ -2758,6 +2761,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
         'authorizationLedgerTemplateCommand': authorization_ledger_template_command,
         'providerOutreachCommand': provider_outreach_command,
         'oneSubscriptionPricingCommand': one_subscription_pricing_command,
+        'privateCostModelTemplateCommand': private_cost_model_template_command,
         'unitEconomicsCommand': unit_economics_command,
         'enableCommandTemplate': enable_command_template,
         'requiredEnv': [] if enabled else [
@@ -2828,7 +2832,8 @@ def managed_provider_resale_onboarding_sequence(managed_access, unit_economics, 
             'status': 'complete' if cost_ready and margin_ready else 'required',
             'operatorAction': 'Run the private cost preflight and pricing worksheet; do not publish actual provider costs or derived private prices.',
             'primaryCommand': setup.get('unitEconomicsCommand') or "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics",
-            'secondaryCommand': setup.get('oneSubscriptionPricingCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet',
+            'secondaryCommand': setup.get('privateCostModelTemplateCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template',
+            'reviewCommand': setup.get('oneSubscriptionPricingCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet',
             'successMetric': 'unitEconomics.satisfied is true for the selected managed-access packaging.',
             'blocksPublicEnable': not (cost_ready and margin_ready),
             'publicSafe': True,
@@ -3243,6 +3248,7 @@ def compact_managed_provider_readiness(pricing_metadata):
             'authorizationLedgerTemplateCommand': setup.get('authorizationLedgerTemplateCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template',
             'providerOutreachCommand': setup.get('providerOutreachCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet',
             'oneSubscriptionPricingCommand': setup.get('oneSubscriptionPricingCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet',
+            'privateCostModelTemplateCommand': setup.get('privateCostModelTemplateCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template',
             'unitEconomicsCommand': setup.get('unitEconomicsCommand') or '',
             'enableCommandTemplate': setup.get('enableCommandTemplate') or '',
             'requiredEnv': setup.get('requiredEnv') if isinstance(setup.get('requiredEnv'), list) else [],

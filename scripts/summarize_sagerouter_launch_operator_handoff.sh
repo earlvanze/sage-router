@@ -15,8 +15,8 @@ Print a read-only Sage Router launch operator handoff that bundles the live
 funnel snapshot, no-secret setup-copy activation packet, activation approval
 packet, Cloudflare BIC reliability packet, founder-sales next-revenue packet,
 managed-provider readiness packet, provider terms approval packet,
-one-subscription pricing packet, provider outreach packet, provider reply
-triage packet, and optional launch readiness check.
+one-subscription pricing packet, private cost-model template, provider outreach
+packet, provider reply triage packet, and optional launch readiness check.
 
 Boundary: no emails, customer IDs, generated API keys, OAuth tokens, provider
 credentials, provider authorization reference values, private provider costs,
@@ -102,6 +102,9 @@ run_read_only scripts/configure_managed_provider_resale_readiness.sh --terms-app
 
 section "One-Subscription Pricing Packet"
 run_read_only scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet
+
+section "Private Cost-Model Template"
+run_read_only scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template
 
 section "Provider Authorization Outreach Packet"
 run_read_only scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet
