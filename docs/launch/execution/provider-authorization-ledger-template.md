@@ -34,6 +34,9 @@ Run, enable managed resale, or send provider/customer email.
 
 - Provider replies have been classified with:
   `scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet`
+- The no-secret authorization packet has been reviewed and, after review, the
+  review-only handoff has been recorded with:
+  `scripts/configure_managed_provider_resale_readiness.sh --record-authorization-review`
 - Provider authorization covers every family in the managed resale allowlist.
 - Provider terms permit the planned managed-access customer category.
 - BYOK-only providers, including OpenRouter, remain outside managed resale
@@ -48,6 +51,8 @@ Run, enable managed resale, or send provider/customer email.
 ## Safe Commands After Private Review
 
 ```bash
+scripts/configure_managed_provider_resale_readiness.sh --record-authorization-review
+
 SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' \
 SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='1' \
 SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED='1' \
