@@ -25,6 +25,18 @@ readiness, and safe next commands. It must not print provider credentials,
 provider authorization-reference values, actual provider costs, prompts, raw
 provider responses, OAuth tokens, generated API keys, or customer data.
 
+After an operator actually reviews the packet, record that review handoff
+without acknowledging terms or enabling resale:
+
+```bash
+scripts/configure_managed_provider_resale_readiness.sh --record-terms-review
+```
+
+This records one aggregate `status_managed_provider_terms_review_copied` event
+with snippet `operator-provider-terms-review-packet`. It does not acknowledge
+terms, stage authorization evidence, write costs, deploy Cloud Run, or enable
+managed resale.
+
 ## Current Launch State
 
 - Managed provider access: disabled until every private readiness control passes.

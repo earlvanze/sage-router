@@ -7243,6 +7243,9 @@ MANAGED_ACCESS_PACKET_COPY_EVENTS = {
 PROVIDER_AUTHORIZATION_OUTREACH_COPY_EVENTS = {
     'status_managed_provider_outreach_copied',
 }
+PROVIDER_TERMS_REVIEW_COPY_EVENTS = {
+    'status_managed_provider_terms_review_copied',
+}
 ACTIVATION_APPROVAL_PACKET_COPY_EVENTS = {
     'status_activation_approval_packet_copied',
 }
@@ -9353,6 +9356,8 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'managedAccessPacketCopiesBySnippet': {},
         'providerAuthorizationOutreachCopies': 0,
         'providerAuthorizationOutreachCopiesBySnippet': {},
+        'providerTermsReviewCopies': 0,
+        'providerTermsReviewCopiesBySnippet': {},
         'activationApprovalPacketCopies': 0,
         'activationApprovalPacketCopiesBySnippet': {},
         'operatorFollowUpCopies': 0,
@@ -9463,6 +9468,10 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             metrics['providerAuthorizationOutreachCopies'] += 1
             snippet = str(metadata.get('snippet') or metadata.get('state') or 'provider-authorization-outreach').strip().lower()[:80] or 'provider-authorization-outreach'
             metrics['providerAuthorizationOutreachCopiesBySnippet'][snippet] = metrics['providerAuthorizationOutreachCopiesBySnippet'].get(snippet, 0) + 1
+        if event in PROVIDER_TERMS_REVIEW_COPY_EVENTS:
+            metrics['providerTermsReviewCopies'] += 1
+            snippet = str(metadata.get('snippet') or metadata.get('state') or 'provider-terms-review').strip().lower()[:80] or 'provider-terms-review'
+            metrics['providerTermsReviewCopiesBySnippet'][snippet] = metrics['providerTermsReviewCopiesBySnippet'].get(snippet, 0) + 1
         if event in ACTIVATION_APPROVAL_PACKET_COPY_EVENTS:
             metrics['activationApprovalPacketCopies'] += 1
             snippet = str(metadata.get('snippet') or metadata.get('state') or 'activation-approval-packet').strip().lower()[:80] or 'activation-approval-packet'
@@ -9553,6 +9562,8 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'managedAccessPacketCopiesBySnippet': {},
             'providerAuthorizationOutreachCopies': 0,
             'providerAuthorizationOutreachCopiesBySnippet': {},
+            'providerTermsReviewCopies': 0,
+            'providerTermsReviewCopiesBySnippet': {},
             'activationApprovalPacketCopies': 0,
             'activationApprovalPacketCopiesBySnippet': {},
         }.items():
