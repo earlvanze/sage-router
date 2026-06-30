@@ -354,6 +354,7 @@ let emailActionAllowed = true;
 let verificationEmail = '';
 let latestOauthExternalState = null;
 let signupOptionsShownTracked = false;
+let sameEmailRecoveryPromptTracked = false;
 
 function configuredStripePlans() {
   const configured = billingMetadata?.stripe?.configuredPlans || [];
@@ -439,11 +440,19 @@ function renderAccountIntent() {
       ? 'Setup was copied before account creation. Continue with GitHub or email the setup link, then this page will create the generated sk_sage key first.'
       : recoveryIntent
       ? (sameEmailRecovery
-        ? 'Same-email recovery requested. Enter the email used at signup so the magic link opens this existing account and creates the generated sk_sage setup key first. OAuth is available only if it is the same account.'
+        ? 'Same-email recovery requested. Enter the original signup email, send the magic link, and open it to create the missing sk_sage setup key before checkout. OAuth is only safe if it is the exact same account.'
         : 'This recovery link is set to create the generated sk_sage setup key first. Continue with GitHub, or email yourself the setup link; checkout and routing unlock after the key exists.')
       : 'No provider key or credit card is required until your generated sk_sage key exists. Continue with an enabled OAuth provider, or enter your email for the API key setup link, then create the key first and complete checkout to unlock routing.');
     const intentButton = $('intent-primary');
-    if (intentButton) intentButton.textContent = sameEmailRecovery ? 'Send same-email setup link' : (recoveryIntent || setupSource ? 'Email setup key link instead' : 'Email API key setup link');
+    if (intentButton) intentButton.textContent = sameEmailRecovery ? 'Send same-email recovery link' : (recoveryIntent || setupSource ? 'Email setup key link instead' : 'Email API key setup link');
+    if (sameEmailRecovery && !sameEmailRecoveryPromptTracked) {
+      sameEmailRecoveryPromptTracked = true;
+      trackAccountFunnelEvent('account_key_recovery_same_email_prompt_shown', {
+        button: 'same_email_recovery_prompt',
+        target: '#intent-email',
+        state: requestedKeyRecoveryStateFromUrl(),
+      });
+    }
     return;
   }
   if (!activationState.emailVerified) {
@@ -578,7 +587,7 @@ function applyOauthButtons(external = {}, status = '') {
   set('oauth-status', oauthStatusText(external, labels, status));
   if (!activationState.signedIn && labels.length && !status) {
     set('intent-email-status', sameEmailRecovery
-      ? 'Same-email recovery requested. Enter the original signup email; use OAuth only if it is the same account.'
+      ? 'Use the original signup email here, then open the magic link to create the missing setup key.'
       : isKeyRecoveryIntent()
       ? `Recommended: continue with ${labels[0]} to create the setup key now. Email setup link remains available.`
       : `Recommended: continue with ${labels[0]} for ${planName}. Email magic link remains available.`);

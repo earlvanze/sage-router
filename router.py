@@ -7295,6 +7295,7 @@ KEY_FIRST_REDIRECT_EVENTS = {
 KEY_RECOVERY_VIEW_EVENTS = {
     'account_setup_handoff_viewed',
     'account_key_recovery_email_field_auto',
+    'account_key_recovery_same_email_prompt_shown',
     'account_key_recovery_signed_in_prompt_shown',
     'account_key_recovery_same_email_selected',
     'account_key_recovery_github_selected',
