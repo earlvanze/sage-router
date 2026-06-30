@@ -1397,6 +1397,55 @@ function managedAccessApprovalPacketText(data = {}) {
   ].join('\n') + '\n';
 }
 
+function managedAccessTermsApprovalPacketText(data = {}) {
+  const managed = managedProviderReadiness(data);
+  const setup = managed.readinessSetup || {};
+  const oneSubscription = managed.oneSubscriptionReadiness || {};
+  const unitEconomics = managed.unitEconomics || {};
+  const termsCommand = setup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
+  const stagePublicControlsCommand = setup.stagePublicControlsCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
+  const unitEconomicsCommand = setup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
+  const missingControls = safeList(managed.missingControls);
+  const allowedFamilies = safeList(managed.allowedProviderFamilies);
+  const resaleFamilies = safeList(managed.resaleEligibleProviderFamilies);
+  const byokFamilies = safeList(managed.byokOnlyProviderFamilies);
+  return [
+    'Sage Router managed provider terms approval packet',
+    'Boundary: read-only approval review; no provider credentials, provider authorization reference values, private provider costs, prompts, OAuth tokens, generated API keys, customer data, or raw provider responses.',
+    'Effect: this browser packet does not acknowledge terms, write secrets, deploy Cloud Run, enable managed resale, or send customer email.',
+    '',
+    'Public decision inputs:',
+    `- provider terms URL: ${managed.providerTermsUrl || 'not configured'}`,
+    `- margin policy URL: ${managed.marginPolicyUrl || 'not configured'}`,
+    `- acceptable-use URL: ${managed.acceptableUseUrl || 'not configured'}`,
+    `- terms already acknowledged: ${managed.providerTermsAcknowledged === true}`,
+    `- authorization evidence configured: ${managed.providerAuthorizationEvidenceConfigured === true}`,
+    `- missing controls: ${missingControls.join(', ') || 'none'}`,
+    `- currently allowed managed families: ${allowedFamilies.join(', ') || 'none'}`,
+    `- resale-eligible families: ${resaleFamilies.join(', ') || 'none'}`,
+    `- BYOK-only families excluded from resale: ${byokFamilies.join(', ') || 'none'}`,
+    `- one-subscription ready families: ${safeList(oneSubscription.readyProviderFamilies).join(', ') || 'none'}`,
+    `- one-subscription blocked families: ${safeList(oneSubscription.blockedProviderFamilies).join(', ') || 'none'}`,
+    '',
+    'Local approval input presence:',
+    `- termsUrl=${managed.providerTermsUrl ? 'present' : 'missing'} marginPolicyUrl=${managed.marginPolicyUrl ? 'present' : 'missing'} authorizationEvidence=${managed.providerAuthorizationEvidenceConfigured ? 'present' : 'missing'} allowedProviders=${allowedFamilies.length ? 'present' : 'missing'} costModel=${unitEconomics.costModelConfigured ? 'present' : 'missing'} minimumMargin=${unitEconomics.minimumGrossMarginPercent || 'unknown'} enablePublic=${managed.enabled ? '1' : '0'}`,
+    '',
+    'Approval checklist:',
+    '- Review provider-resale terms and provider authorization evidence out of band.',
+    `- Confirm each managed provider family is resale-eligible: ${resaleFamilies.join(' ') || 'none'}.`,
+    `- Keep BYOK-only families out of the managed resale allowlist: ${byokFamilies.join(' ') || 'none'}.`,
+    '- Confirm the authorization evidence reference exists before setting SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED=1.',
+    '- Keep SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0 until the private cost model and unit economics also pass.',
+    '',
+    'Safe next commands:',
+    `- Generate the live shell packet again before approval: ${termsCommand}`,
+    `- Stage public controls without terms acknowledgment or private cost: ${stagePublicControlsCommand}`,
+    `- Then run the secret-safe private cost preflight: ${unitEconomicsCommand}`,
+    '',
+    'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false.',
+  ].join('\n') + '\n';
+}
+
 function managedAccessCommand(button, data = {}) {
   const managed = managedProviderReadiness(data);
   const setup = managed.readinessSetup || {};
@@ -1429,6 +1478,7 @@ function renderManagedAccessReadiness(data = {}) {
     : (Array.isArray(unitEconomics.pricingGuardrails) ? unitEconomics.pricingGuardrails : []);
   const guardrailByPlan = Object.fromEntries(guardrails.map(row => [String(row.plan || ''), row]));
   const approvalPacket = managedAccessApprovalPacketText(data);
+  const termsApprovalPacket = managedAccessTermsApprovalPacketText(data);
   const statusTone = managed.enabled ? 'good' : (missingControls.length ? 'warn' : 'good');
   const renderList = (items, empty = 'none') => safeList(items).map(item => `<span class="pill">${esc(item)}</span>`).join(' ') || `<span class="muted">${esc(empty)}</span>`;
   const planRows = plans.length
@@ -1471,6 +1521,7 @@ function renderManagedAccessReadiness(data = {}) {
   <p class="muted">${esc(managed.providerBoundary || 'OpenRouter remains supported as BYOK routing unless separately authorized for managed resale.')} Actual provider costs and authorization-reference values are intentionally omitted.</p>
   <div class="actions">
     <button class="btn secondary" type="button" data-copy-managed-access-packet="${esc(approvalPacket)}">Copy managed-access packet</button>
+    <button class="btn secondary" type="button" data-copy-managed-terms-packet="${esc(termsApprovalPacket)}">Copy terms approval packet</button>
     <button class="btn secondary" type="button" data-copy-managed-command="terms-approval">Copy terms packet command</button>
     <button class="btn secondary" type="button" data-copy-managed-command="authorization-packet">Copy authorization packet</button>
     <button class="btn secondary" type="button" data-copy-managed-command="authorization-ledger-template">Copy authorization ledger template</button>
@@ -2043,6 +2094,29 @@ async function copyManagedAccessApprovalPacket(button) {
   } catch (error) {
     button.textContent = 'Copy failed';
     setStatus(`Managed-access packet copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyManagedAccessTermsPacket(button) {
+  const text = button.getAttribute('data-copy-managed-terms-packet') || '';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    trackOperatorFunnelEvent('operator_managed_access_packet_copied', {
+      state: 'managed_access_terms_approval_packet_copied',
+      resultCount: safeList(managedProviderReadiness(lastFunnelData || {}).missingControls).length,
+      snippet: 'managed-access-terms-approval-packet',
+    });
+    setStatus('Copied no-secret provider terms approval packet. This does not acknowledge terms or enable managed resale.', 'warn');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Managed-access terms packet copy failed: ${error.message}`, 'bad');
   } finally {
     setTimeout(() => {
       button.textContent = original;
@@ -3234,6 +3308,11 @@ function handleFollowUpCopyClick(event) {
   const managedAccessPacketButton = event.target.closest('[data-copy-managed-access-packet]');
   if (managedAccessPacketButton) {
     copyManagedAccessApprovalPacket(managedAccessPacketButton);
+    return;
+  }
+  const managedAccessTermsPacketButton = event.target.closest('[data-copy-managed-terms-packet]');
+  if (managedAccessTermsPacketButton) {
+    copyManagedAccessTermsPacket(managedAccessTermsPacketButton);
     return;
   }
   const managedAccessCommandButton = event.target.closest('[data-copy-managed-command]');
