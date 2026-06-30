@@ -805,11 +805,13 @@ the API-auth and operator generated account handoff URLs, and the smoke-only
 `account_setup_handoff_viewed` funnel events without storing emails, customer
 IDs, generated keys, prompts, OAuth tokens, provider credentials, or raw
 responses. Pass `--json` when another script needs the same bounded
-data; consume `activationQueue` for no-key follow-up counts, sendable and
-review-only segments, dry-run coverage, sent-recipient counts, and
-approval-required state. Pass `--approval-packet` to print only the
-no-secret activation approval packet from the same live funnel snapshot before
-any operator approves a real send. Add `--verify-recovery` to the approval
+data; consume `revenue`, `bottleneck`, and `nextActions` for the current
+`$10k MRR` state and top conversion move, and consume `activationQueue` for
+no-key follow-up counts, sendable and review-only segments, dry-run coverage,
+sent-recipient counts, and approval-required state. Pass `--approval-packet`
+to print only the no-secret activation approval packet from the same live
+funnel snapshot before any operator approves a real send. Add
+`--verify-recovery` to the approval
 packet command to run the same no-persistence setup-key recovery handoff smoke
 and include its current stage before the send handoff. Add
 `--verify-auth-repair` to run the aggregate-only account-link repair dry run
