@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--founder-sales-packet] [--setup-copy-packet] [--record-setup-copy] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section] [--update-distribution-tracker]
+Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--founder-sales-packet] [--record-founder-sales] [--setup-copy-packet] [--record-setup-copy] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section] [--update-distribution-tracker]
 
 Fetch the operator-only /analytics/funnel endpoint and print a privacy-safe
 launch snapshot. The script never prints operator tokens, emails, generated API
@@ -16,6 +16,11 @@ Options:
   --founder-sales-packet
                       Print the no-secret founder-sales next-revenue packet
                       for direct warm outreach while sends/resale are gated.
+  --record-founder-sales
+                      Print the founder-sales packet and record one aggregate
+                      outreach_snippet_copied event for the operator terminal
+                      handoff. Run only after an operator actually uses or
+                      shares the packet.
   --setup-copy-packet
                       Print the no-secret first-request setup-copy activation
                       packet for terminal operators.
@@ -81,6 +86,7 @@ DAYS=30
 RAW_JSON=0
 APPROVAL_PACKET=0
 FOUNDER_SALES_PACKET=0
+RECORD_FOUNDER_SALES=0
 SETUP_COPY_PACKET=0
 RECORD_SETUP_COPY=0
 VERIFY_RECOVERY=0
@@ -107,6 +113,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --founder-sales-packet)
       FOUNDER_SALES_PACKET=1
+      shift
+      ;;
+    --record-founder-sales)
+      RECORD_FOUNDER_SALES=1
       shift
       ;;
     --setup-copy-packet)
@@ -145,8 +155,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if (( RAW_JSON + APPROVAL_PACKET + FOUNDER_SALES_PACKET + SETUP_COPY_PACKET + RECORD_SETUP_COPY + TRACKER_SECTION + UPDATE_TRACKER > 1 )); then
-  printf '%s\n' '--json, --approval-packet, --founder-sales-packet, --setup-copy-packet, --record-setup-copy, --distribution-tracker-section, and --update-distribution-tracker cannot be combined' >&2
+if (( RAW_JSON + APPROVAL_PACKET + FOUNDER_SALES_PACKET + RECORD_FOUNDER_SALES + SETUP_COPY_PACKET + RECORD_SETUP_COPY + TRACKER_SECTION + UPDATE_TRACKER > 1 )); then
+  printf '%s\n' '--json, --approval-packet, --founder-sales-packet, --record-founder-sales, --setup-copy-packet, --record-setup-copy, --distribution-tracker-section, and --update-distribution-tracker cannot be combined' >&2
   exit 2
 fi
 if [[ "$VERIFY_RECOVERY" == "1" && "$APPROVAL_PACKET" != "1" ]]; then
@@ -531,7 +541,7 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
   exit 0
 fi
 
-if [[ "$FOUNDER_SALES_PACKET" == "1" ]]; then
+if [[ "$FOUNDER_SALES_PACKET" == "1" || "$RECORD_FOUNDER_SALES" == "1" ]]; then
   jq -r '
     def n($v): ($v // 0);
     def money($v): "$" + ((n($v) | tostring));
@@ -588,11 +598,63 @@ if [[ "$FOUNDER_SALES_PACKET" == "1" ]]; then
         "- Use one no-secret snippet per warm conversation; do not paste private funnel rows or raw customer/provider artifacts into outreach.",
         "- Track success by founderSalesOutreachCopies, setupSnippetCopies, generated-key customers, first routed requests, paid customers, and managed-access review requests.",
         "- Use /founder-sales-kit for browser copy telemetry when possible; use this packet when the operator needs a terminal-only handoff.",
+        if (($root.marketingIntent.founderSalesOutreachCopies // 0) == 0) then "- Recording command: scripts/summarize_sagerouter_launch_funnel.sh --days 30 --record-founder-sales" else empty end,
+        "- Recording boundary: only run the recording command after an operator actually uses or shares this packet; it records one aggregate outreach_snippet_copied event and still does not send email, approve activation sends, expose secrets, or enable managed resale.",
         "",
         "Privacy flags: containsEmails=\($root.privacy.containsEmails // false); containsApiKeys=\($root.privacy.containsApiKeys // false); containsProviderCredentials=\($root.privacy.containsProviderCredentials // false); containsActualProviderCosts=false; containsAuthorizationReference=false; promptsStored=\($root.privacy.promptsStored // false)."
       ]
       | .[]
   ' "$tmp"
+
+  if [[ "$RECORD_FOUNDER_SALES" != "1" ]]; then
+    exit 0
+  fi
+
+  plan="$(jq -r '(.mrr.planRevenueActions // [])[0].plan // "pro"' "$tmp")"
+  case "$plan" in
+    lite|pro|max)
+      ;;
+    *)
+      plan="pro"
+      ;;
+  esac
+  result_count="$(jq -r '
+    (.mrr.planRevenueActions // [])[0].customerGap // 1
+  ' "$tmp")"
+  source_page="https://sagerouter.dev/founder-sales-kit?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch"
+  target_url="https://app.sagerouter.dev/account.html?plan=${plan}&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=operator-next-${plan}-outreach"
+
+  payload="$(jq -n \
+    --arg plan "$plan" \
+    --arg sourcePage "$source_page" \
+    --arg target "$target_url" \
+    --argjson resultCount "$result_count" \
+    '{
+      event: "outreach_snippet_copied",
+      plan: $plan,
+      sourcePage: $sourcePage,
+      target: $target,
+      metadata: {
+        source: "founder-sales",
+        sourceSurface: "founder-sales",
+        button: "founder-sales-packet-cli",
+        state: "operator_next_outreach_copied",
+        snippet: ("operator-next-" + $plan + "-outreach"),
+        resultCount: $resultCount,
+        utmSource: "founder-sales",
+        utmMedium: "direct",
+        utmCampaign: "sage-router-launch"
+      }
+    }')"
+
+  curl -fsS -X POST "${APP_BASE%/}/api/funnel-event" \
+    -H "Origin: ${APP_BASE%/}" \
+    -H "Content-Type: application/json" \
+    -H "User-Agent: SageRouterLaunchFunnelCLI/1.0" \
+    --data "$payload" \
+    >/dev/null
+
+  printf '\nRecorded founder-sales outreach event outreach_snippet_copied with snippet operator-next-%s-outreach from SageRouterLaunchFunnelCLI/1.0.\n' "$plan"
   exit 0
 fi
 
