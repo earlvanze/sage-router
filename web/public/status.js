@@ -98,6 +98,23 @@ $('status-copy-founder-pro-reply')?.addEventListener('click', async () => {
     if (status) status.textContent = 'Copy failed. Select the reply manually.';
   }
 });
+
+$('status-copy-first-request-setup')?.addEventListener('click', async () => {
+  const block = $('status-first-request-setup-bundle');
+  const status = $('status-founder-pro-status');
+  try {
+    await writeClipboardText(block?.textContent.trim() || '');
+    if (status) status.textContent = 'Copied setup bundle.';
+    trackStatusFunnelEvent('status_first_request_setup_copied', {
+      target: 'status-revenue-action',
+      button: 'Copy setup bundle',
+      state: 'status-revenue-setup',
+      snippet: 'status-revenue-setup-bundle',
+    });
+  } catch (_error) {
+    if (status) status.textContent = 'Copy failed. Select the setup bundle manually.';
+  }
+});
 const originKind = (url = '') => {
   if (url && typeof url === 'object') return url.originKind || originKind(url.url || url.label || url.id || '');
   const name = host(url).toLowerCase();

@@ -95,8 +95,24 @@ https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=sta
 https://sagerouter.dev/quickstart?utm_source=status&utm_medium=founder-sales&utm_campaign=sage-router-launch&utm_content=status-pro-reply
 
 Boundary: Sage Router is routing infrastructure for provider access you are authorized to use. One-subscription managed access remains review-only until provider authorization, terms, cost model, margin, quota, audit, and acceptable-use controls pass.</pre>
+      <details>
+        <summary>Preview the 60-second setup bundle</summary>
+        <pre id="status-first-request-setup-bundle" class="commandText"># Sage Router hosted setup
+# 1. Create your generated key:
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=status&utm_medium=setup-copy&utm_campaign=sage-router-launch&utm_content=status-revenue-setup
+# 2. Replace the placeholder below with the one-time sk_sage key.
+
+export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
+export OPENAI_API_KEY=sk_sage_your_key_here
+export SAGE_ROUTER_MODEL=sage-router/frontier
+
+curl "$OPENAI_BASE_URL/models" \
+  -H "Authorization: Bearer $OPENAI_API_KEY"</pre>
+      </details>
       <div class="actions">
         <button id="status-copy-founder-pro-reply" class="btn" type="button">Copy Pro reply</button>
+        <button id="status-copy-first-request-setup" class="btn" type="button">Copy setup bundle</button>
+        <a id="status-create-api-key-link" class="btn secondary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=status&utm_medium=setup-copy&utm_campaign=sage-router-launch&utm_content=status-revenue-panel" data-status-event="content_article_key_activation_clicked" data-status-state="status-create-api-key">Create API key</a>
         <a id="status-founder-sales-kit-link" class="btn secondary" href="https://sagerouter.dev/founder-sales-kit?utm_source=status&utm_medium=founder-sales&utm_campaign=sage-router-launch&utm_content=status-revenue-panel" data-status-event="content_article_launch_plan_clicked" data-status-state="status-founder-sales-kit">Founder sales kit</a>
         <a id="status-one-subscription-review-link" class="btn secondary" href="/managed-access?intent=one-subscription&utm_source=status&utm_medium=founder-sales&utm_campaign=sage-router-launch&utm_content=status-revenue-panel" data-status-event="content_article_managed_access_clicked" data-status-state="status-one-subscription-review">One-subscription review</a>
         <span id="status-founder-pro-status" class="status" role="status" aria-live="polite"></span>
