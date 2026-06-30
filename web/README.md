@@ -107,8 +107,10 @@ after copy so the highest-friction nudge can move setup-copy activation. The sam
 sticky bar and first-screen hero now expose `One-subscription beta` /
 `Request one-subscription review` private-beta review paths that record both
 `landing_managed_access_clicked` and `managed_access_interest_clicked` with
-allowlisted `intent`, `commercialPreference`, and `supportNeed` metadata while
-stating that hosted managed provider access still depends on provider
+allowlisted `intent`, `commercialPreference`, and `supportNeed` metadata. The
+hero also offers a copyable no-secret one-subscription review packet measured as
+`managed_access_review_packet_copied` with `landing-one-subscription-review-packet`;
+it states that hosted managed provider access still depends on provider
 authorization, terms, cost controls, and margin checks. The hero keeps pricing, quickstart, public status,
 model-gateway comparison, model catalog, calculator, security, analytics, login,
 managed-access private beta review, support, and local GitHub install paths

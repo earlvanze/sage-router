@@ -1826,6 +1826,15 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access?intent=max-implementation" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-max-implementation-intent"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copy review packet" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-review-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "landing-one-subscription-review-packet" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-review-snippet"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_review_packet_copied" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-review-funnel"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Choose your route path" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-route-paths"
   fi

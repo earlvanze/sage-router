@@ -79,12 +79,14 @@ h3 { font-size: 21px; line-height: 1.2; letter-spacing: -0.035em; margin-bottom:
 .landingKeyRecovery span { display: inline-flex; align-items: center; gap: 4px; }
 .landingKeyRecovery code { color: #ffe6a0; }
 .landingKeyRecovery a { color: #04150d; background: var(--amber); border-radius: 999px; padding: 8px 13px; font-weight: 900; }
-.managedAccessPrompt { display: grid; grid-template-columns: minmax(220px, 1fr) auto auto; gap: 10px; align-items: center; max-width: 760px; margin: 0 0 18px; padding: 14px; border: 1px solid rgba(159,199,255,.24); border-radius: 22px; background: rgba(12,27,45,.68); box-shadow: 0 18px 60px rgba(0,0,0,.16); }
+.managedAccessPrompt { display: grid; grid-template-columns: minmax(220px, 1fr) auto auto auto; gap: 10px; align-items: center; max-width: 860px; margin: 0 0 18px; padding: 14px; border: 1px solid rgba(159,199,255,.24); border-radius: 22px; background: rgba(12,27,45,.68); box-shadow: 0 18px 60px rgba(0,0,0,.16); }
 .managedAccessPrompt strong, .managedAccessPrompt span { display: block; }
 .managedAccessPrompt strong { color: var(--text); font-size: 15px; margin-bottom: 3px; }
 .managedAccessPrompt span { color: var(--muted); font-size: 13px; line-height: 1.4; }
-.managedAccessPrompt a { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 999px; padding: 0 14px; border: 1px solid rgba(159,199,255,.34); color: #d8e8ff; background: rgba(76,132,216,.12); font-weight: 900; white-space: nowrap; }
+.managedAccessPrompt a, .managedAccessPrompt button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 999px; padding: 0 14px; border: 1px solid rgba(159,199,255,.34); color: #d8e8ff; background: rgba(76,132,216,.12); font: inherit; font-weight: 900; white-space: nowrap; }
 .managedAccessPrompt a:first-of-type { color: #04150d; border-color: transparent; background: #9fc7ff; }
+.managedAccessPrompt button { cursor: pointer; }
+.managedAccessPrompt .managedAccessCopyStatus { grid-column: 1 / -1; min-height: 18px; color: var(--brand); font-size: 13px; }
 .heroSetupCopyWrap { display: grid; gap: 10px; margin: 0 0 16px; max-width: 720px; }
 .heroSetupCopy { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0; }
 .heroSetupCopy .setupBundleButton { border: 0; background: linear-gradient(135deg, var(--brand), var(--brand-strong)); color: #04150d; cursor: pointer; box-shadow: 0 16px 48px rgba(80,216,145,.24); }

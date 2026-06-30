@@ -288,6 +288,28 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
 # export OPENAI_BASE_URL=http://localhost:8790/v1`;
 }
 
+function landingOneSubscriptionReviewText() {
+  return [
+    'Sage Router one-subscription review from homepage',
+    '',
+    'Request: review Sage Router as one subscription for hosted routing, quotas, failover, local-first controls, and Max implementation support.',
+    'Intent: one-subscription',
+    'Provider access posture: needs-managed-access',
+    'Target provider family: mixed-frontier',
+    'Commercial preference: one-subscription',
+    'Support need: managed-provider-review',
+    'Target launch window: exploring',
+    '',
+    `Review URL: https://sagerouter.dev${MANAGED_ONE_SUBSCRIPTION_URL}`,
+    `Immediate BYOK fallback: ${ACCOUNT_PAGE_URL.replace('plan=pro', 'plan=max')}&utm_content=landing-one-subscription-review-packet`,
+    '',
+    'Boundary: managed provider access is disabled until provider authorization, provider terms acknowledgment, an authorized provider allowlist, a private cost model, positive unit economics, quotas, audit events, abuse controls, and acceptable-use controls pass.',
+    'OpenRouter and other OpenAI-compatible endpoints remain customer-authorized BYOK routes unless separate managed-access authorization is added later.',
+    '',
+    'Do not paste prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, actual provider costs, customer IDs, or customer data.',
+  ].join('\n');
+}
+
 async function writeClipboardText(text) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text);
@@ -494,6 +516,27 @@ function LandingKeyRecovery() {
 }
 
 function ManagedAccessReviewPrompt() {
+  const [status, setStatus] = useState('');
+
+  const copyReviewPacket = async () => {
+    try {
+      await writeClipboardText(landingOneSubscriptionReviewText());
+      trackLandingFunnelEvent('managed_access_review_packet_copied', {
+        plan: 'max',
+        target: MANAGED_ONE_SUBSCRIPTION_URL,
+        button: 'Hero copy one-subscription review packet',
+        state: 'hero-managed-access-copy',
+        snippet: 'landing-one-subscription-review-packet',
+        intent: 'one-subscription',
+        commercialPreference: 'one-subscription',
+        supportNeed: 'managed-provider-review',
+      });
+      setStatus('Copied no-secret one-subscription review packet.');
+    } catch {
+      setStatus('Copy failed. Open managed-access review instead.');
+    }
+  };
+
   return (
     <div className="managedAccessPrompt" aria-label="One-subscription private beta review">
       <div>
@@ -520,6 +563,10 @@ function ManagedAccessReviewPrompt() {
       })}>
         Max implementation review
       </a>
+      <button type="button" onClick={copyReviewPacket}>
+        Copy review packet
+      </button>
+      <span className="managedAccessCopyStatus" role="status" aria-live="polite">{status}</span>
     </div>
   );
 }
