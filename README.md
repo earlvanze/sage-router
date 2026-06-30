@@ -621,6 +621,9 @@ costs or authorization-reference values. Only set
 authorization evidence are approved out of band, and keep
 `SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0` until the private
 cost-model and unit-economics preflight also pass.
+The private launch-funnel dashboard mirrors this as a browser-copyable
+`Copy terms approval packet` action so the operator can review the current
+aggregate terms gate without pasting a shell command or exposing secrets.
 The checked-in no-secret worksheet is
 `docs/launch/execution/provider-terms-approval-review.md`; use it as the
 durable review record and keep the actual provider agreements, account details,

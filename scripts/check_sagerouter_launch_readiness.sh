@@ -1255,6 +1255,12 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "managedAccessApprovalPacketText" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-managed-access-approval-packet"
   fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "managedAccessTermsApprovalPacketText" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-terms-approval-packet"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "data-copy-managed-terms-packet" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-terms-packet-control"
+  fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "operator_managed_access_packet_copied" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-managed-access-packet-telemetry"
   fi
