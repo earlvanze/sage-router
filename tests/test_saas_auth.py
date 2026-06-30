@@ -2745,12 +2745,11 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('signupToGeneratedKey', action['metric'])
         self.assertEqual('setup-key recovery', action['surface'])
         self.assertIn('/setup-key-recovery', action['ctaPath'])
-        self.assertIn('Recovery pages are getting views but no account handoffs or key-create attempts', action['action'])
-        self.assertIn('Email same-email setup link', action['action'])
-        self.assertIn('setup_key_recovery_magic_link_requested/sent', action['action'])
-        self.assertIn('bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff', action['action'])
+        self.assertIn('Recovery pages have views but no account handoffs or key-create attempts', action['action'])
+        self.assertIn('sendable follow-up dry runs are already covered', action['action'])
+        self.assertIn('approval packet with --verify-recovery', action['action'])
         self.assertIn('verified_handoff_waiting_for_fresh_traffic', action['action'])
-        self.assertIn('approval packet', action['action'])
+        self.assertIn('explicit operator approval or fresh recovery traffic', action['action'])
         self.assertEqual(
             'setup_key_recovery_magic_link_requested/sent increases, then keyCreateAttempts and generated-key customers increase.',
             action['successMetric'],
@@ -2758,8 +2757,13 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(action['evidence']['recoveryDropoff'])
         self.assertTrue(action['evidence']['recoveryViewDropoff'])
         self.assertFalse(action['evidence']['recoveryHandoffDropoff'])
+        self.assertTrue(action['evidence']['activationSendReadyForApproval'])
         self.assertEqual('bash scripts/check_setup_key_recovery_handoff.sh', action['evidence']['recoveryVerifierCommand'])
         self.assertEqual('bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff', action['evidence']['recoveryDiagnosticCommand'])
+        self.assertEqual(
+            'bash scripts/summarize_sagerouter_launch_funnel.sh --approval-packet --verify-recovery --verify-auth-repair',
+            action['evidence']['activationApprovalPacketCommand'],
+        )
         self.assertEqual(
             [
                 'setup_key_recovery_auto_account_redirected',
@@ -2772,14 +2776,25 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(0, action['evidence']['keyCreateAttempts'])
         self.assertEqual(2, action['evidence']['sendableQueued'])
         self.assertEqual(2, action['evidence']['reviewOnlyQueued'])
-        self.assertEqual('recovery_dropoff', action['executionChecklist'][0]['segment'])
-        self.assertIn('bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff', action['executionChecklist'][0]['action'])
+        self.assertEqual('approval_packet', action['executionChecklist'][0]['segment'])
+        self.assertIn('bash scripts/summarize_sagerouter_launch_funnel.sh --approval-packet --verify-recovery --verify-auth-repair', action['executionChecklist'][0]['action'])
         self.assertIn('account_setup_handoff_viewed', action['executionChecklist'][0]['successMetric'])
         self.assertIn('Email same-email setup link', action['executionChecklist'][1]['action'])
         self.assertIn('setup_key_recovery_magic_link_requested', action['executionChecklist'][1]['successMetric'])
         self.assertIn('account_key_recovery_auto_create_started', action['executionChecklist'][2]['action'])
-        self.assertIn('approval packet', action['executionChecklist'][3]['action'])
+        self.assertIn('explicit operator approval or fresh recovery traffic', action['executionChecklist'][3]['action'])
         self.assertFalse(action['privacy']['containsEmails'])
+
+        needs_diagnostic = router.launch_next_best_action(
+            stages,
+            rates,
+            {'estimatedCurrentMrrUsd': 60, 'targetMrrUsd': 10000},
+            {**activation_follow_ups, 'operatorFollowUpSendDryRuns': 0},
+            [],
+        )
+        self.assertFalse(needs_diagnostic['evidence']['activationSendReadyForApproval'])
+        self.assertIn('bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff', needs_diagnostic['action'])
+        self.assertEqual('recovery_dropoff', needs_diagnostic['executionChecklist'][0]['segment'])
 
     def test_next_best_action_flags_account_handoff_without_key_attempts(self):
         stages = {
