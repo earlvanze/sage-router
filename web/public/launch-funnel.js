@@ -1340,6 +1340,31 @@ function firstRequestSetupBundleText(data = {}) {
   ].join('\n');
 }
 
+function renderSetupCopyFallbackBanner(data = {}) {
+  const target = $('setup-copy-fallback-banner');
+  if (!target) return;
+  const action = data.nextBestAction || {};
+  const evidence = action.evidence || {};
+  if (evidence.nonGatedSetupCopyFallback !== true) {
+    target.classList.add('hidden');
+    target.innerHTML = '<div class="empty">No setup-copy fallback is active.</div>';
+    return;
+  }
+  const followUps = data.activationFollowUps || {};
+  const stages = data.stages || {};
+  const setupCopies = Number(stages.setupSnippetCopies ?? data.marketingIntent?.setupSnippetCopies ?? evidence.setupSnippetCopies ?? 0);
+  const setupBundleText = firstRequestSetupBundleText(data);
+  target.classList.remove('hidden');
+  target.innerHTML = `<div class="metricList">
+    <div class="metric"><span>Live next move</span><strong><span class="pill warn">Setup-copy fallback</span></strong></div>
+    <div class="metric"><span>Setup copies</span><strong>${integer(setupCopies)}</strong></div>
+    <div class="metric"><span>Send gate</span><strong><span class="pill warn">Real sends still approval-gated</span></strong></div>
+  </div>
+  <p><strong>Copy the first-request setup bundle before any activation send.</strong></p>
+  <p class="muted">This records <code>status_first_request_setup_copied</code> with snippet <code>operator-first-request-setup</code>, without sending email, exposing a real key, or changing billing/provider resale.</p>
+  <div class="actions"><button class="btn" type="button" data-copy-operator-setup-bundle="${esc(setupBundleText)}" data-followup-plan="${esc(followUps.suggestedPlan || 'pro')}">Copy first-request setup now</button><a class="btn secondary" href="#next-best-action-dock">Review Do Next dock</a><span class="status">First-screen fallback: copy setup, then measure generated-key and first-request movement.</span></div>`;
+}
+
 function managedAccessApprovalPacketText(data = {}) {
   const managed = managedProviderReadiness(data);
   const setup = managed.readinessSetup || {};
@@ -2762,6 +2787,7 @@ function renderFunnel(data) {
   renderManagedAccessDemand(managedAccessDemand, marketingIntent);
   renderPlanMix(mrr.byPlan || {});
   renderRevenueActions(mrr.planRevenueActions || []);
+  renderSetupCopyFallbackBanner(data);
   renderNextBestActionDock(data);
   renderLaunchBrief(data);
   renderFounderSalesFallback(data);
@@ -3478,6 +3504,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('customer-detail').addEventListener('click', handleCustomerClick);
   $('acquisition-actions').addEventListener('click', handleCampaignCopyClick);
   $('no-key-followups').addEventListener('click', handleFollowUpCopyClick);
+  $('setup-copy-fallback-banner')?.addEventListener('click', handleFollowUpCopyClick);
   $('next-best-action-dock').addEventListener('click', handleFollowUpCopyClick);
   $('operator-execution-packet')?.addEventListener('click', handleFollowUpCopyClick);
   $('managed-access-readiness')?.addEventListener('click', handleFollowUpCopyClick);
