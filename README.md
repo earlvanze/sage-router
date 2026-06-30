@@ -728,9 +728,9 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30
 ```
 
 For a single no-secret operator handoff that bundles the live funnel snapshot,
-activation approval packet, founder-sales next-revenue packet, Cloudflare BIC
-reliability packet, managed-provider readiness packet, one-subscription pricing
-packet, provider outreach packet, provider reply triage packet, and launch
+setup-copy activation packet, activation approval packet, founder-sales next-revenue packet,
+Cloudflare BIC reliability packet, managed-provider readiness packet, one-subscription
+pricing packet, provider outreach packet, provider reply triage packet, and launch
 readiness check, run:
 
 ```bash
@@ -774,7 +774,12 @@ bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff
 The verified mode still prints only aggregate counts and smoke status. If the
 live smoke passes while aggregate account handoffs are still zero and
 activation sends are approval-gated, copy the no-secret first-request setup
-bundle from the launch-funnel Do Next dock before any real activation send. To
+bundle from the launch-funnel Do Next dock or run
+`scripts/summarize_sagerouter_launch_funnel.sh --days 30 --setup-copy-packet`
+before any real activation send. Only run `--record-setup-copy` after an
+operator actually uses or shares that packet; it records one aggregate
+`status_first_request_setup_copied` event and still does not expose a real key
+or send email. To
 run just the focused smoke probe:
 
 ```bash
