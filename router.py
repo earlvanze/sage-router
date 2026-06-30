@@ -7336,6 +7336,8 @@ KEY_RECOVERY_VIEW_EVENTS = {
 KEY_RECOVERY_HANDOFF_DIAGNOSTIC_EVENTS = {
     'login_key_recovery_account_setup_scheduled',
     'login_key_recovery_account_setup_paused',
+    'setup_key_recovery_account_setup_scheduled',
+    'setup_key_recovery_account_setup_paused',
 }
 KEY_CREATE_ATTEMPT_EVENTS = {
     'account_api_key_create_clicked',

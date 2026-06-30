@@ -155,6 +155,10 @@ curl -i "$OPENAI_BASE_URL/models" \
     const SETUP_RECOVERY_ACCOUNT_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=recovery&next=generated-key';
     const SETUP_RECOVERY_GITHUB_ACCOUNT_URL = 'https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=github&setup=setup-key-recovery&source_surface=recovery';
     const SETUP_RECOVERY_SUPABASE_JS_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    const SETUP_RECOVERY_ATTRIBUTED_HANDOFF_DELAY_MS = 1400;
+    const SETUP_RECOVERY_DEFAULT_HANDOFF_DELAY_MS = 5200;
+    let setupRecoveryUserInteracted = false;
+    let setupRecoveryAutoPaused = false;
 
     function attributionValue(value) {
       const sanitized = String(value || '')
@@ -247,14 +251,17 @@ curl -i "$OPENAI_BASE_URL/models" \
       const sourceSurface = attributionValue(params.get('source_surface') || params.get('sourceSurface'));
       const setup = attributionValue(params.get('setup'));
       const auto = attributionValue(params.get('auto') || params.get('autostart'));
+      const noAuto = attributionValue(params.get('no_auto') || params.get('noAuto'));
       const utmSource = attributionValue(params.get('utm_source') || params.get('utmSource'));
       const utmCampaign = attributionValue(params.get('utm_campaign') || params.get('utmCampaign'));
+      if (auto === '0' || auto === 'false' || auto === 'off' || noAuto === '1' || noAuto === 'true') return false;
       return sourceSurface === 'operator_activation'
         || sourceSurface === 'recovery'
         || setup === 'login-key-recovery'
         || (utmSource === 'api-auth' && utmCampaign === 'signup_to_key_recovery')
         || auto === 'account'
-        || auto === 'setup';
+        || auto === 'setup'
+        || (!sourceSurface && !setup && !utmSource && !utmCampaign);
     }
 
     function setupRecoveryAccountUrlForAutoOpen() {
@@ -309,10 +316,30 @@ curl -i "$OPENAI_BASE_URL/models" \
       return 'recovery_auto';
     }
 
+    function setupRecoveryAutoOpenDelayMs(state) {
+      return state === 'recovery_auto'
+        ? SETUP_RECOVERY_DEFAULT_HANDOFF_DELAY_MS
+        : SETUP_RECOVERY_ATTRIBUTED_HANDOFF_DELAY_MS;
+    }
+
+    function markSetupRecoveryUserInteraction(reason = 'user-interaction') {
+      setupRecoveryUserInteracted = true;
+      if (setupRecoveryAutoPaused) return;
+      setupRecoveryAutoPaused = true;
+      const status = document.getElementById('setup-key-recovery-next-status');
+      if (status) status.textContent = 'Automatic account setup paused while you use same-email recovery.';
+      trackSetupRecoveryEvent('setup_key_recovery_account_setup_paused', {
+        button: reason,
+        state: setupRecoveryAutoOpenState(),
+        target: setupRecoveryAccountUrlForAutoOpen(),
+      });
+    }
+
     function scheduleSetupRecoveryAccountAutoOpen() {
       if (!shouldAutoOpenSetupRecoveryAccount()) return;
       const targetUrl = setupRecoveryAccountUrlForAutoOpen();
       const state = setupRecoveryAutoOpenState();
+      const delayMs = setupRecoveryAutoOpenDelayMs(state);
       try {
         const key = `sage_router_setup_recovery_auto_account:${targetUrl}`;
         if (window.sessionStorage?.getItem(key) === '1') return;
@@ -321,15 +348,26 @@ curl -i "$OPENAI_BASE_URL/models" \
         // A missing marker only risks one repeated handoff in locked-down browsers.
       }
       const status = document.getElementById('setup-key-recovery-next-status');
-      if (status) status.textContent = 'Opening account setup so the generated key can be created...';
-      trackSetupRecoveryEvent('setup_key_recovery_auto_account_redirected', {
-        button: state === 'operator_activation' ? 'operator-auto-account-setup' : (state === 'api-auth' ? 'api-auth-auto-account-setup' : 'recovery-auto-account-setup'),
+      if (status) {
+        const seconds = Math.max(1, Math.ceil(delayMs / 1000));
+        status.textContent = `Account setup opens automatically in ${seconds}s unless you start same-email recovery.`;
+      }
+      const buttonName = state === 'operator_activation' ? 'operator-auto-account-setup' : (state === 'api-auth' ? 'api-auth-auto-account-setup' : 'recovery-auto-account-setup');
+      trackSetupRecoveryEvent('setup_key_recovery_account_setup_scheduled', {
+        button: buttonName,
         state,
         target: targetUrl,
       });
       setTimeout(() => {
+        if (setupRecoveryUserInteracted) return;
+        if (status) status.textContent = 'Opening account setup so the generated key can be created...';
+        trackSetupRecoveryEvent('setup_key_recovery_auto_account_redirected', {
+          button: buttonName,
+          state,
+          target: targetUrl,
+        });
         window.location.href = targetUrl;
-      }, 1400);
+      }, delayMs);
     }
 
     document.querySelectorAll('[data-setup-recovery-event]').forEach((link) => {
@@ -340,6 +378,7 @@ curl -i "$OPENAI_BASE_URL/models" \
     });
 
     function focusSetupRecoveryEmail(button = 'email-setup-key-link-primary') {
+      markSetupRecoveryUserInteraction(button);
       const form = document.getElementById('setup-key-recovery-email-form');
       const input = document.getElementById('setup-key-recovery-email');
       const status = document.getElementById('setup-key-recovery-email-status');
@@ -358,6 +397,7 @@ curl -i "$OPENAI_BASE_URL/models" \
     });
 
     document.getElementById('setup-key-recovery-github')?.addEventListener('click', async (event) => {
+      markSetupRecoveryUserInteraction('github-recovery');
       const button = event.currentTarget;
       const original = button.textContent;
       const targetUrl = setupRecoveryAccountUrl({ auth: 'github' });
@@ -392,6 +432,7 @@ curl -i "$OPENAI_BASE_URL/models" \
 
     document.getElementById('setup-key-recovery-email-form')?.addEventListener('submit', async (event) => {
       event.preventDefault();
+      markSetupRecoveryUserInteraction('email-setup-key-link');
       const form = event.currentTarget;
       const input = document.getElementById('setup-key-recovery-email');
       const button = document.getElementById('setup-key-recovery-email-submit');
@@ -459,6 +500,7 @@ curl -i "$OPENAI_BASE_URL/models" \
     });
 
     document.getElementById('setup-key-recovery-copy')?.addEventListener('click', async () => {
+      markSetupRecoveryUserInteraction('copy-setup-bundle');
       const button = document.getElementById('setup-key-recovery-copy');
       const status = document.getElementById('setup-key-recovery-copy-status');
       const code = document.getElementById('setup-key-recovery-bundle');
@@ -483,6 +525,7 @@ curl -i "$OPENAI_BASE_URL/models" \
     });
 
     document.getElementById('setup-key-recovery-copy-account-link')?.addEventListener('click', async () => {
+      markSetupRecoveryUserInteraction('copy-account-setup-link');
       const button = document.getElementById('setup-key-recovery-copy-account-link');
       const status = document.getElementById('setup-key-recovery-next-status');
       const targetUrl = setupRecoveryAccountUrl();
@@ -507,6 +550,7 @@ curl -i "$OPENAI_BASE_URL/models" \
     });
 
     applySetupRecoveryAccountLinks();
+    document.getElementById('setup-key-recovery-email')?.addEventListener('input', () => markSetupRecoveryUserInteraction('email-input'));
     trackSetupRecoveryEvent('setup_key_recovery_viewed', { state: 'page-view' });
     scheduleSetupRecoveryAccountAutoOpen();
   </script>
