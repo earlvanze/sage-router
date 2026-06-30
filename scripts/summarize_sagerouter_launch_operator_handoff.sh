@@ -14,7 +14,7 @@ Usage: scripts/summarize_sagerouter_launch_operator_handoff.sh [--days N] [--ski
 Print a read-only Sage Router launch operator handoff that bundles the live
 funnel snapshot, no-secret setup-copy activation packet, activation approval
 packet, Cloudflare BIC reliability packet, founder-sales next-revenue packet,
-managed-provider readiness packet,
+managed-provider readiness packet, provider terms approval packet,
 one-subscription pricing packet, provider outreach packet, provider reply
 triage packet, and optional launch readiness check.
 
@@ -96,6 +96,9 @@ run_read_only scripts/configure_cloudflare_api_bic_skip.sh --operator-packet
 
 section "Managed Provider Readiness Packet"
 run_read_only scripts/configure_managed_provider_resale_readiness.sh --operator-packet
+
+section "Provider Terms Approval Packet"
+run_read_only scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet
 
 section "One-Subscription Pricing Packet"
 run_read_only scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet

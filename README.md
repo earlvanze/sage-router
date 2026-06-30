@@ -729,8 +729,8 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30
 
 For a single no-secret operator handoff that bundles the live funnel snapshot,
 setup-copy activation packet, activation approval packet, founder-sales next-revenue packet,
-Cloudflare BIC reliability packet, managed-provider readiness packet, one-subscription
-pricing packet, provider outreach packet, provider reply triage packet, and launch
+Cloudflare BIC reliability packet, managed-provider readiness packet, provider terms approval packet,
+one-subscription pricing packet, provider outreach packet, provider reply triage packet, and launch
 readiness check, run:
 
 ```bash
