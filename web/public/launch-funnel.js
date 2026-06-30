@@ -2252,6 +2252,30 @@ async function copyManagedAccessTermsPacket(button) {
   }
 }
 
+async function copyManagedAccessContactCapturePacket(button) {
+  const text = button.getAttribute('data-copy-managed-contact-capture') || '';
+  const original = button.textContent;
+  const conversion = lastFunnelData?.managedAccessDemandConversion || {};
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    trackOperatorFunnelEvent('operator_managed_access_packet_copied', {
+      state: 'managed_access_contact_capture_packet_copied',
+      resultCount: asNumber(conversion.contactableLeadGap),
+      snippet: 'managed-access-contact-capture-packet',
+    });
+    setStatus('Copied no-secret contact-capture packet. Share the managed-access review CTA; this does not enable resale or send email.', 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Managed-access contact-capture packet copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
 async function copyManagedAccessCommand(button) {
   const text = managedAccessCommand(button, lastFunnelData || {});
   const kind = button.getAttribute('data-copy-managed-command') || 'dry-run';
@@ -2596,6 +2620,28 @@ function hasManagedAccessConversionSignal(conversion = {}) {
     || Boolean(conversion.status);
 }
 
+function managedAccessContactCapturePacketText(conversion = {}) {
+  const intent = conversion.dominantIntent?.bucket || 'one-subscription';
+  const commercial = conversion.dominantCommercialPreference?.bucket || 'one-subscription';
+  const provider = conversion.dominantTargetProviderFamily?.bucket || 'mixed-frontier';
+  const ctaPath = conversion.ctaPath || '/managed-access?intent=one-subscription';
+  return [
+    'Sage Router one-subscription contact-capture packet',
+    'Boundary: no prompts, provider credentials, OAuth tokens, generated API keys, private keys, customer data, provider costs, authorization references, or raw provider responses.',
+    '',
+    `Current status: ${conversion.status || 'unknown'}; priority=${conversion.priority || 'monitor'}.`,
+    `Anonymous signals: ${integer(conversion.anonymousSignals)}; contactable review signals: ${integer(conversion.waitlistSignals)}; contactable lead gap: ${integer(conversion.contactableLeadGap)}.`,
+    `Dominant intent: ${intent}; commercial preference: ${commercial}; target provider family: ${provider}.`,
+    '',
+    `Contact-capture CTA: ${ctaPath}`,
+    '',
+    conversion.action || 'Convert anonymous one-subscription managed-access demand into contactable private-beta review requests before enabling managed provider resale.',
+    conversion.successMetric || 'Success metric: managedAccessBetaInterest or managed_access_quick_request_received increases without enabling managed provider resale.',
+    '',
+    'Managed provider resale remains disabled until provider authorization, provider terms acknowledgment, authorized provider allowlist, private cost model, positive unit economics, quotas, audit events, and acceptable-use controls pass.',
+  ].join('\n') + '\n';
+}
+
 function renderManagedAccessConversion(conversion = {}) {
   if (!hasManagedAccessConversionSignal(conversion)) return '';
   const status = conversion.status || 'no_current_demand';
@@ -2604,6 +2650,7 @@ function renderManagedAccessConversion(conversion = {}) {
   const dominantIntent = conversion.dominantIntent?.bucket || 'unknown';
   const dominantProvider = conversion.dominantTargetProviderFamily?.bucket || 'unknown';
   const statusClass = status === 'contact_capture_gap' ? 'warn' : (status === 'contact_capture_started' ? 'good' : '');
+  const contactCapturePacket = managedAccessContactCapturePacketText(conversion);
   return `<div>
     <h3>Managed-access conversion</h3>
     <table>
@@ -2617,7 +2664,10 @@ function renderManagedAccessConversion(conversion = {}) {
       </tbody>
     </table>
     <p class="muted">${esc(conversion.action || 'Monitor managed-access demand before changing managed provider resale controls.')}</p>
-    <p><a class="btn secondary" href="${esc(ctaPath)}" target="_blank" rel="noopener">Open contact-capture CTA</a></p>
+    <div class="actions">
+      <button class="btn secondary" type="button" data-copy-managed-contact-capture="${esc(contactCapturePacket)}">Copy contact-capture packet</button>
+      <a class="btn secondary" href="${esc(ctaPath)}" target="_blank" rel="noopener">Open contact-capture CTA</a>
+    </div>
   </div>`;
 }
 
@@ -3532,6 +3582,11 @@ function handleFollowUpCopyClick(event) {
   const managedAccessTermsPacketButton = event.target.closest('[data-copy-managed-terms-packet]');
   if (managedAccessTermsPacketButton) {
     copyManagedAccessTermsPacket(managedAccessTermsPacketButton);
+    return;
+  }
+  const managedAccessContactCaptureButton = event.target.closest('[data-copy-managed-contact-capture]');
+  if (managedAccessContactCaptureButton) {
+    copyManagedAccessContactCapturePacket(managedAccessContactCaptureButton);
     return;
   }
   const managedAccessCommandButton = event.target.closest('[data-copy-managed-command]');
