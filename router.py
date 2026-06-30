@@ -7240,6 +7240,9 @@ FOUNDER_SALES_OUTREACH_COPY_EVENTS = {
 MANAGED_ACCESS_PACKET_COPY_EVENTS = {
     'managed_access_review_packet_copied',
 }
+PROVIDER_AUTHORIZATION_OUTREACH_COPY_EVENTS = {
+    'status_managed_provider_outreach_copied',
+}
 ACTIVATION_APPROVAL_PACKET_COPY_EVENTS = {
     'status_activation_approval_packet_copied',
 }
@@ -9348,6 +9351,8 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'founderSalesOutreachCopiesBySnippet': {},
         'managedAccessPacketCopies': 0,
         'managedAccessPacketCopiesBySnippet': {},
+        'providerAuthorizationOutreachCopies': 0,
+        'providerAuthorizationOutreachCopiesBySnippet': {},
         'activationApprovalPacketCopies': 0,
         'activationApprovalPacketCopiesBySnippet': {},
         'operatorFollowUpCopies': 0,
@@ -9454,6 +9459,10 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             metrics['managedAccessPacketCopies'] += 1
             snippet = str(metadata.get('snippet') or metadata.get('state') or 'managed-access-review-packet').strip().lower()[:80] or 'managed-access-review-packet'
             metrics['managedAccessPacketCopiesBySnippet'][snippet] = metrics['managedAccessPacketCopiesBySnippet'].get(snippet, 0) + 1
+        if event in PROVIDER_AUTHORIZATION_OUTREACH_COPY_EVENTS:
+            metrics['providerAuthorizationOutreachCopies'] += 1
+            snippet = str(metadata.get('snippet') or metadata.get('state') or 'provider-authorization-outreach').strip().lower()[:80] or 'provider-authorization-outreach'
+            metrics['providerAuthorizationOutreachCopiesBySnippet'][snippet] = metrics['providerAuthorizationOutreachCopiesBySnippet'].get(snippet, 0) + 1
         if event in ACTIVATION_APPROVAL_PACKET_COPY_EVENTS:
             metrics['activationApprovalPacketCopies'] += 1
             snippet = str(metadata.get('snippet') or metadata.get('state') or 'activation-approval-packet').strip().lower()[:80] or 'activation-approval-packet'
@@ -9542,6 +9551,8 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'founderSalesOutreachCopiesBySnippet': {},
             'managedAccessPacketCopies': 0,
             'managedAccessPacketCopiesBySnippet': {},
+            'providerAuthorizationOutreachCopies': 0,
+            'providerAuthorizationOutreachCopiesBySnippet': {},
             'activationApprovalPacketCopies': 0,
             'activationApprovalPacketCopiesBySnippet': {},
         }.items():

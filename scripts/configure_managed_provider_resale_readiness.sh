@@ -18,6 +18,7 @@ load_local_env_file() {
       SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT|\
       SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED|\
       SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC|\
+      SAGEROUTER_APP_BASE_URL|\
       SAGEROUTER_RUN_READINESS)
         ;;
       *)
@@ -47,6 +48,7 @@ MIN_MARGIN="${SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT:-35}"
 REQUESTED="${SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED:-1}"
 ENABLE_PUBLIC="${SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC:-0}"
 RUN_READINESS="${SAGEROUTER_RUN_READINESS:-1}"
+APP_BASE="${SAGEROUTER_APP_BASE_URL:-https://app.sagerouter.dev}"
 MODE="apply"
 RESALE_ELIGIBLE_PROVIDER_FAMILIES="ollama openai anthropic"
 DEFAULT_RESALE_ALLOWED_PROVIDERS="ollama,openai,anthropic"
@@ -56,7 +58,7 @@ AUTHORIZATION_LEDGER_TEMPLATE="${ROOT}/docs/launch/execution/provider-authorizat
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--authorization-ledger-template|--provider-outreach-packet|--provider-reply-triage-packet|--terms-approval-packet|--one-subscription-pricing-packet|--stage-public-controls|--unit-economics]
+Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--authorization-ledger-template|--provider-outreach-packet|--record-provider-outreach|--provider-reply-triage-packet|--terms-approval-packet|--one-subscription-pricing-packet|--stage-public-controls|--unit-economics]
 
 Stage Sage Router managed provider-access readiness on Cloud Run.
 
@@ -100,6 +102,13 @@ Options:
                            Print copyable, no-secret provider-facing outreach
                            requests for Ollama, OpenAI, and Anthropic managed
                            access authorization. It does not send email.
+  --record-provider-outreach
+                           Print the provider outreach packet and record one
+                           aggregate status_managed_provider_outreach_copied
+                           event for the operator terminal handoff. Run only
+                           after an operator actually uses or shares the packet;
+                           this does not send email, acknowledge terms, stage
+                           provider evidence, write costs, or enable resale.
   --provider-reply-triage-packet
                            Print a no-secret provider-reply triage matrix for
                            classifying written replies before terms
@@ -157,6 +166,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --provider-outreach-packet)
       MODE="provider-outreach-packet"
+      shift
+      ;;
+    --record-provider-outreach)
+      MODE="record-provider-outreach"
       shift
       ;;
     --provider-reply-triage-packet)
@@ -642,6 +655,13 @@ managed_provider_outreach_packet() {
   printf -- '- Run: SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS=REVIEWED_PRIVATE_COST scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n'
   printf -- '- Keep SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC=0 until every readiness control passes.\n\n'
 
+  if [[ "$MODE" == "record-provider-outreach" ]]; then
+    printf 'Recording boundary: this terminal handoff records one aggregate status_managed_provider_outreach_copied event with snippet operator-provider-outreach-packet after an operator actually uses or shares the outreach packet. It still does not send provider email, acknowledge terms, stage authorization evidence, write provider costs, deploy Cloud Run, or enable managed resale.\n'
+  else
+    printf 'Recording command: scripts/configure_managed_provider_resale_readiness.sh --record-provider-outreach\n'
+    printf 'Recording boundary: run only after an operator actually uses or shares this packet; it records one aggregate provider outreach handoff and still does not send email, acknowledge terms, write secrets, stage costs, or enable managed resale.\n'
+  fi
+  printf '\n'
   printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false; sendsEmail=false.\n'
 }
 
@@ -996,8 +1016,42 @@ if [[ "$MODE" == "authorization-ledger-template" ]]; then
   exit 0
 fi
 
-if [[ "$MODE" == "provider-outreach-packet" ]]; then
+if [[ "$MODE" == "provider-outreach-packet" || "$MODE" == "record-provider-outreach" ]]; then
   managed_provider_outreach_packet
+  if [[ "$MODE" == "record-provider-outreach" ]]; then
+    require_cmd jq
+    require_cmd curl
+    payload="$(jq -n \
+      --arg sourcePage "${APP_BASE%/}/launch-funnel.html#managed-provider-readiness" \
+      --arg target "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=provider_outreach&utm_campaign=managed-provider-authorization" \
+      '{
+        event: "status_managed_provider_outreach_copied",
+        plan: "max",
+        sourcePage: $sourcePage,
+        target: $target,
+        metadata: {
+          source: "operator-managed-provider-cli",
+          sourceSurface: "launch-funnel",
+          button: "provider-outreach-packet-cli",
+          state: "operator_provider_outreach_copied",
+          snippet: "operator-provider-outreach-packet",
+          providerFamilies: "ollama,openai,anthropic",
+          resultCount: 3,
+          utmSource: "operator",
+          utmMedium: "provider_outreach",
+          utmCampaign: "managed-provider-authorization"
+        }
+      }')"
+
+    curl -fsS -X POST "${APP_BASE%/}/api/funnel-event" \
+      -H "Origin: ${APP_BASE%/}" \
+      -H "Content-Type: application/json" \
+      -H "User-Agent: SageRouterManagedProviderCLI/1.0" \
+      --data "$payload" \
+      >/dev/null
+
+    printf '\nRecorded provider outreach handoff event status_managed_provider_outreach_copied with snippet operator-provider-outreach-packet from SageRouterManagedProviderCLI/1.0.\n'
+  fi
   exit 0
 fi
 
