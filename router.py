@@ -7234,6 +7234,10 @@ KEY_RECOVERY_VIEW_EVENTS = {
     'status_key_recovery_clicked',
     'support_key_recovery_clicked',
 }
+KEY_RECOVERY_HANDOFF_DIAGNOSTIC_EVENTS = {
+    'login_key_recovery_account_setup_scheduled',
+    'login_key_recovery_account_setup_paused',
+}
 KEY_CREATE_ATTEMPT_EVENTS = {
     'account_api_key_create_clicked',
     'account_auto_key_create_started',
@@ -7962,6 +7966,7 @@ def launch_operator_execution_packet(next_best_action, activation_follow_ups):
             'copyEvents': sorted(OPERATOR_FOLLOWUP_COPY_EVENTS),
             'workedKindPattern': '<segment>_marked_worked',
             'recoveryViewEvents': sorted(KEY_RECOVERY_VIEW_EVENTS),
+            'handoffDiagnosticEvents': sorted(KEY_RECOVERY_HANDOFF_DIAGNOSTIC_EVENTS),
             'keyCreateAttemptEvents': sorted(KEY_CREATE_ATTEMPT_EVENTS),
             'keyCreateSuccessEvents': sorted(KEY_CREATE_SUCCESS_TELEMETRY_EVENTS),
             'keyCreateFailureEvents': sorted(KEY_CREATE_FAILURE_EVENTS),

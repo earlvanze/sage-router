@@ -1547,7 +1547,9 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("account_signup_failed") != null) and
     ((.allowedEvents // []) | index("account_magic_link_failed") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_shown") != null) and
+    ((.allowedEvents // []) | index("login_key_recovery_account_setup_scheduled") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_account_setup_auto_redirected") != null) and
+    ((.allowedEvents // []) | index("login_key_recovery_account_setup_paused") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_clicked") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_magic_link_requested") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_magic_link_sent") != null) and

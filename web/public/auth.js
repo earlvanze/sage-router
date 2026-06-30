@@ -56,8 +56,8 @@ function accountActivationUrl() {
   return url.toString();
 }
 
-function openAccountActivation() {
-  window.location.assign(accountActivationUrl());
+function openAccountActivation(target = accountActivationUrl()) {
+  window.location.assign(target);
 }
 
 function scheduleKeyRecoveryAccountHandoff() {
@@ -66,6 +66,11 @@ function scheduleKeyRecoveryAccountHandoff() {
   const target = accountActivationUrl();
   rememberKeyRecoveryAccountHandoff(target, {
     button: 'auto_account_setup_handoff',
+    state: keyRecoveryLandingState(),
+  });
+  trackLoginFunnelEvent('login_key_recovery_account_setup_scheduled', {
+    button: 'auto_account_setup_handoff',
+    target,
     state: keyRecoveryLandingState(),
   });
   set('auth-status', 'Enter the same email used at signup. If you do not start recovery here, account setup will open as a fallback.');
@@ -81,6 +86,11 @@ function scheduleKeyRecoveryAccountHandoff() {
     window.clearInterval(countdown);
     if (keyRecoveryUserInteracted || keyRecoverySessionRedirecting) {
       setKeyRecoveryHandoffStatus('Automatic account setup paused while you use same-email recovery.');
+      trackLoginFunnelEvent('login_key_recovery_account_setup_paused', {
+        button: 'auto_account_setup_handoff',
+        target,
+        state: keyRecoveryLandingState(),
+      });
       return;
     }
     setKeyRecoveryHandoffStatus('Opening API key setup now...');
@@ -409,19 +419,30 @@ async function passwordSignup() { set('auth-status', 'Creating account...'); con
 async function magicLogin() { set('auth-status', 'Sending magic link...'); const email = $('email')?.value.trim() || $('login-key-recovery-email')?.value.trim(); if (!email) { set('auth-status', 'Enter your email first.'); return; } await sendSameEmailSetupLink(email, { button: 'magic_login', statusId: 'auth-status', state: 'email' }); }
 async function walletLogin() { try { set('wallet-status', 'Connecting wallet...'); trackLoginFunnelEvent('login_wallet_clicked', { button: 'wallet_login', target: '/login.html', state: 'algorand' }); if (window.algorand?.enable) { const result = await window.algorand.enable({ genesisID: 'mainnet-v1.0' }); const account = result?.accounts?.[0]?.address || result?.accounts?.[0]; if (!account) throw new Error('No wallet account returned.'); localStorage.setItem('sage_wallet_address', account); trackLoginFunnelEvent('login_wallet_connected', { button: 'wallet_login', target: '/login.html', state: 'algorand' }); set('wallet-status', `Wallet connected: ${account.slice(0, 8)}…${account.slice(-6)}`); return; } throw new Error('Install or unlock an Algorand wallet extension, then try again.'); } catch (error) { set('wallet-status', error.message || 'Wallet connection failed.'); } }
 document.querySelectorAll('[data-oauth]').forEach((button) => button.addEventListener('click', () => { if (!button.disabled) oauthLogin(button.dataset.oauth); }));
-document.querySelectorAll('[data-key-recovery]').forEach((link) => link.addEventListener('click', () => {
+document.querySelectorAll('[data-key-recovery]').forEach((link) => link.addEventListener('click', async (event) => {
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+  event.preventDefault();
   markKeyRecoveryUserInteraction();
   const target = link.getAttribute('href') || ACCOUNT_ACTIVATION_PATH;
-  trackLoginFunnelEvent('login_key_recovery_clicked', {
-    button: link.textContent.trim() || 'Finish setup key',
-    target,
+  rememberKeyRecoveryAccountHandoff(target, {
+    button: 'manual_account_setup_handoff',
     state: keyRecoveryLandingState(),
   });
-  trackLoginFunnelEvent('login_key_recovery_account_setup_clicked', {
-    button: link.textContent.trim() || 'Open API key setup',
-    target,
-    state: keyRecoveryLandingState(),
-  });
+  setKeyRecoveryHandoffStatus('Opening API key setup now...');
+  set('auth-status', 'Opening API key setup now...');
+  await Promise.all([
+    trackLoginFunnelEventBeforeNavigation('login_key_recovery_clicked', {
+      button: link.textContent.trim() || 'Finish setup key',
+      target,
+      state: keyRecoveryLandingState(),
+    }, 500),
+    trackLoginFunnelEventBeforeNavigation('login_key_recovery_account_setup_clicked', {
+      button: link.textContent.trim() || 'Open API key setup',
+      target,
+      state: keyRecoveryLandingState(),
+    }, 500),
+  ]);
+  openAccountActivation(target);
 }));
 $('login-key-recovery-email-focus')?.addEventListener('click', () => {
   markKeyRecoveryUserInteraction();
