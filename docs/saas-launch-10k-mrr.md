@@ -281,6 +281,12 @@ flag.
   `marketingIntent.founderSalesOutreachCopiesBySnippet` so founder-led
   outreach is visible without exposing conversation text, customer data, or
   prospect identities.
+- Keep `/managed-access` as the one-subscription qualification path with
+  copyable no-secret review packets, a provider authorization request packet,
+  Max/BYOK fallback setup, and live readiness guardrails. The provider packet
+  must not enable resale, acknowledge terms, expose provider costs, print
+  authorization references, or claim OpenRouter is part of the managed
+  subscription offer.
 - Keep `/docs/codex` as the dedicated Codex CLI path with hosted, local port
   `8790`, and Tailnet examples using `wire_api = "responses"` and
   `sage-router/frontier`.

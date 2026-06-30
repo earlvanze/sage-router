@@ -51,10 +51,11 @@
       </form>
       <div id="managed-access-review-packet" class="packetPanel">
         <strong>Need to share internally first?</strong>
-        <p>Copy a no-secret one-subscription review packet with the current qualification buckets, provider-authorization boundary, and Max/BYOK fallback, or open it as a local email draft.</p>
+        <p>Copy a no-secret one-subscription review packet with the current qualification buckets, provider-authorization boundary, and Max/BYOK fallback, or copy the provider authorization request needed before managed access can launch.</p>
         <div class="packetActions">
           <button id="managed-access-copy-review-packet" type="button">Copy one-subscription review packet</button>
           <button id="managed-access-email-review-packet" class="secondary" type="button">Copy and open email draft</button>
+          <button id="managed-access-copy-provider-authorization" class="secondary" type="button">Copy provider authorization request</button>
           <button id="managed-access-copy-max-byok-setup" class="secondary" type="button">Copy Max BYOK setup</button>
         </div>
         <p id="managed-access-packet-status" class="packetStatus" role="status" aria-live="polite"></p>
@@ -495,6 +496,24 @@
       return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(managedAccessReviewPacketText())}`;
     }
 
+    function providerAuthorizationRequestText() {
+      return [
+        'Sage Router managed access provider authorization request',
+        '',
+        'Sage Router is preparing a private-beta managed access option for customers who want one Sage Router subscription plus quota-bound model routing. Before enabling any managed provider access, Sage Router needs written provider authorization, provider terms acknowledgment, an authorized provider-family allowlist, a private cost model, positive unit economics, quotas, durable audit events, abuse controls, and acceptable-use enforcement.',
+        '',
+        'Please confirm whether Sage Router may include the requested provider family in this managed-access pilot, and identify any required reseller, marketplace, service-provider, enterprise, customer-terms, usage-cap, model-exclusion, compliance, abuse, termination, or data-processing requirements.',
+        '',
+        'Provider families under review: Ollama/Ollama Cloud, OpenAI, and Anthropic. OpenRouter and BYOK-compatible endpoints remain supported as customer-authorized BYOK routes unless separate managed-access authorization explicitly promotes them later.',
+        '',
+        'Commercial details requested privately: allowed account type, billing relationship, pass-through customer terms, audit/logging expectations, rate/capacity limits, suspension process, and private commercial cost schedule or billing model.',
+        '',
+        'Boundary: this request does not enable public managed resale, acknowledge terms, publish provider costs, disclose authorization references, write secrets, deploy runtime changes, or send customer email.',
+        '',
+        'Do not paste provider agreements, cost schedules, provider account IDs, provider credentials, OAuth tokens, generated API keys, customer data, prompts, or raw provider responses into public launch pages, PRs, support channels, or outbound marketing.',
+      ].join('\n');
+    }
+
     function trackManagedAccessFunnelEvent(eventName, extra = {}) {
       const params = new URLSearchParams(window.location.search);
       const sourcePage = `${window.location.origin}${window.location.pathname}`;
@@ -515,6 +534,7 @@
           utmCampaign: attributionValue(params.get('utm_campaign')),
           referrerHost: attributionValue(referrerHost),
           landingPath: attributionValue(window.location.pathname),
+          snippet: extra.snippet || '',
         },
       });
       const blob = new Blob([body], { type: 'application/json' });
@@ -716,6 +736,7 @@
         trackManagedAccessFunnelEvent('managed_access_review_packet_copied', {
           state: quickReviewIntent(),
           target: '#managed-access-review-packet',
+          snippet: 'managed-access-one-subscription-review-packet',
         });
       } catch (_error) {
         button.textContent = 'Copy failed';
@@ -735,6 +756,31 @@
     document.getElementById('managed-access-email-review-packet')?.addEventListener('click', async (event) => {
       await copyManagedAccessReviewPacket(event.currentTarget, 'Copied packet and opened your email draft.');
       window.location.href = managedAccessReviewMailtoUrl();
+    });
+
+    document.getElementById('managed-access-copy-provider-authorization')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Copying...';
+      try {
+        await writeClipboardText(providerAuthorizationRequestText());
+        button.textContent = 'Copied';
+        if (packetStatus) packetStatus.textContent = 'Copied no-secret provider authorization request. Store provider replies only in the private system of record.';
+        trackManagedAccessFunnelEvent('managed_access_review_packet_copied', {
+          state: 'provider-authorization-request',
+          target: '#managed-access-review-packet',
+          snippet: 'managed-access-provider-authorization-request',
+        });
+      } catch (_error) {
+        button.textContent = 'Copy failed';
+        if (packetStatus) packetStatus.textContent = 'Copy failed. Use the provider authorization outreach doc without sending secrets.';
+      } finally {
+        window.setTimeout(() => {
+          button.disabled = false;
+          button.textContent = original;
+        }, 1800);
+      }
     });
 
     document.getElementById('managed-access-copy-max-byok-setup')?.addEventListener('click', async (event) => {

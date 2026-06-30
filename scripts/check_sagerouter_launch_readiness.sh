@@ -3801,11 +3801,20 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-email-review-packet" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-review-packet-email"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-copy-provider-authorization" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-provider-authorization-copy"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_review_packet_copied" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-review-packet-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router one-subscription managed-access review" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-review-packet-copy-text"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router managed access provider authorization request" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-provider-authorization-copy-text"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-provider-authorization-request" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-provider-authorization-snippet"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Do not submit prompts" /tmp/sage-router-readiness-body; then
     page_code="200:missing-no-secrets-boundary"
