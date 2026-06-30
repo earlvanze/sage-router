@@ -382,6 +382,7 @@
       const intent = attributionValue(button.dataset.quickManagedIntent || 'one-subscription');
       applyRequestedIntent(intent);
       quickSubmit.textContent = quickReviewSubmitLabel();
+      markQuickFormStarted(intent, '#managed-access-quick-form');
       trackManagedAccessFunnelEvent('managed_access_interest_clicked', {
         state: intent,
         target: '#managed-access-quick-form',
@@ -615,6 +616,11 @@
 
     let formStarted = false;
     let quickFormStarted = false;
+    function markQuickFormStarted(state = quickReviewIntent(), target = '#managed-access-quick-form') {
+      if (quickFormStarted) return;
+      quickFormStarted = true;
+      trackManagedAccessFunnelEvent('managed_access_quick_form_started', { state, target });
+    }
     form.addEventListener('input', () => {
       if (formStarted) return;
       formStarted = true;
@@ -626,20 +632,10 @@
       trackManagedAccessFunnelEvent('managed_access_form_started', { state: 'started' });
     });
     quickForm.addEventListener('input', () => {
-      if (quickFormStarted) return;
-      quickFormStarted = true;
-      trackManagedAccessFunnelEvent('managed_access_quick_form_started', {
-        state: quickReviewIntent(),
-        target: '#managed-access-quick-form',
-      });
+      markQuickFormStarted();
     });
     quickForm.addEventListener('change', () => {
-      if (quickFormStarted) return;
-      quickFormStarted = true;
-      trackManagedAccessFunnelEvent('managed_access_quick_form_started', {
-        state: quickReviewIntent(),
-        target: '#managed-access-quick-form',
-      });
+      markQuickFormStarted();
     });
 
     form.addEventListener('submit', async (event) => {
@@ -677,6 +673,7 @@
 
     quickForm.addEventListener('submit', async (event) => {
       event.preventDefault();
+      markQuickFormStarted(quickReviewIntent(), '#managed-access-quick-form-submit');
       const email = String(new FormData(quickForm).get('email') || '').trim();
       if (!email) {
         trackManagedAccessFunnelEvent('managed_access_quick_request_validation_failed', {
@@ -747,6 +744,7 @@
     quickReviewKind?.addEventListener('change', () => {
       applyRequestedIntent(quickReviewIntent());
       quickSubmit.textContent = quickReviewSubmitLabel();
+      markQuickFormStarted(quickReviewIntent(), '#quick-review-kind');
       trackManagedAccessFunnelEvent('managed_access_interest_clicked', {
         state: quickReviewIntent(),
         target: '#managed-access-quick-form',
