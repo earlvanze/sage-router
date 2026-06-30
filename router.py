@@ -2701,6 +2701,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
     setup_command = (
         "SAGEROUTER_PROVIDER_RESALE_TERMS_URL='https://sagerouter.dev/provider-resale-terms' \\\n"
         "SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL='https://sagerouter.dev/margin-policy' \\\n"
+        "SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED='1' \\\n"
         "SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='0' \\\n"
         "SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF='PRIVATE_PROVIDER_AUTH_REF' \\\n"
         "SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS='ollama,openai,anthropic' \\\n"
@@ -2712,6 +2713,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
     stage_public_controls_command = (
         "SAGEROUTER_PROVIDER_RESALE_TERMS_URL='https://sagerouter.dev/provider-resale-terms' \\\n"
         "SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL='https://sagerouter.dev/margin-policy' \\\n"
+        "SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED='1' \\\n"
         "SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='0' \\\n"
         "SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS='ollama,openai,anthropic' \\\n"
         "SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT='35' \\\n"
@@ -2761,6 +2763,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
         'requiredEnv': [] if enabled else [
             'SAGEROUTER_PROVIDER_RESALE_TERMS_URL',
             'SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL',
+            'SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED',
             'SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED',
             'SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF',
             'SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS',
@@ -2996,7 +2999,11 @@ def public_launch_metadata():
     api_base_url = API_BASE_URL or 'https://api.sagerouter.dev'
     launch = json.loads(json.dumps(PUBLIC_LAUNCH_POSITIONING))
     managed_provider_access = launch.get('managedProviderAccess') or {}
-    managed_provider_resale_enabled = str(os.environ.get('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED', '')).strip().lower() in {'1', 'true', 'yes', 'on'}
+    managed_provider_resale_enable_requested = str(os.environ.get('SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED', '')).strip().lower() in {'1', 'true', 'yes', 'on'}
+    managed_provider_resale_review_requested = (
+        str(os.environ.get('SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED', '')).strip().lower() in {'1', 'true', 'yes', 'on'}
+        or managed_provider_resale_enable_requested
+    )
     provider_terms_url = os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_URL', '').strip()
     margin_policy_url = os.environ.get('SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL', '').strip()
     provider_terms_acknowledged = str(os.environ.get('SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED', '')).strip().lower() in {'1', 'true', 'yes', 'on'}
@@ -3085,10 +3092,10 @@ def public_launch_metadata():
             'status': status,
             'missingControls': sorted(set(family_missing_controls)),
         })
-    if managed_provider_resale_enabled:
+    if managed_provider_resale_review_requested:
         managed_provider_access['requested'] = True
         managed_provider_access['readinessSatisfied'] = managed_provider_ready
-        if managed_provider_ready:
+        if managed_provider_resale_enable_requested and managed_provider_ready:
             managed_provider_access['enabled'] = True
             managed_provider_access['status'] = 'ready_for_private_beta'
         else:
