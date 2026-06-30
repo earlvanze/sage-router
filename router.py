@@ -7686,6 +7686,13 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
         recovery_dropoff = recovery_view_dropoff or recovery_handoff_dropoff
         verification_counts = activation_follow_ups.get('countsByEmailVerification') if isinstance(activation_follow_ups, dict) else {}
         delivery_counts = launch_activation_delivery_counts(activation_follow_ups, verification_counts, no_key_total)
+        sendable_queued = int(delivery_counts.get('sendableQueued') or 0)
+        activation_send_ready_for_approval = (
+            recovery_view_dropoff
+            and sendable_queued > 0
+            and operator_follow_up_send_dry_runs > 0
+            and operator_follow_up_sends <= 0
+        )
         recommended_segments = [
             segment for segment in ('verified', 'unverified', 'missing_auth_user', 'missing_user_id', 'unavailable', 'not_required')
             if int((verification_counts or {}).get(segment) or 0) > 0
@@ -7723,8 +7730,12 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
             execution_checklist = [
                 {
                     'step': 1,
-                    'segment': 'recovery_dropoff',
-                    'action': 'Run bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff to classify the aggregate stage and include the live no-persistence handoff smoke.',
+                    'segment': 'approval_packet' if activation_send_ready_for_approval else 'recovery_dropoff',
+                    'action': (
+                        'Run bash scripts/summarize_sagerouter_launch_funnel.sh --approval-packet --verify-recovery --verify-auth-repair so the approval decision includes the live no-persistence recovery handoff smoke before any real send.'
+                        if activation_send_ready_for_approval
+                        else 'Run bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff to classify the aggregate stage and include the live no-persistence handoff smoke.'
+                    ),
                     'successMetric': 'The diagnosis names verified_handoff_waiting_for_fresh_traffic after the smoke probe accepts setup_key_recovery_auto_account_redirected, login_key_recovery_account_setup_auto_redirected, and account_setup_handoff_viewed without storing emails or generated keys.',
                 },
                 {
@@ -7742,7 +7753,11 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 {
                     'step': 4,
                     'segment': 'operator_outreach',
-                    'action': 'After the dual smoke probe passes, wait for new traffic or use the approval packet before any real verified/unverified activation send.',
+                    'action': (
+                        'If the approval packet reports verified_handoff_waiting_for_fresh_traffic, the next blocker is explicit operator approval or fresh recovery traffic, not a recovery-page code fix.'
+                        if activation_send_ready_for_approval
+                        else 'After the dual smoke probe passes, wait for new traffic or use the approval packet before any real verified/unverified activation send.'
+                    ),
                     'successMetric': 'operatorFollowUpSends or operatorFollowUpCopies increases before more keyRecoveryViews.',
                 },
             ]
@@ -7770,7 +7785,11 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 (
                     'Recovery handoffs are reaching account setup but no key-create attempts are starting. Verify signed-in start=create_key auto-create before sending more activation traffic.'
                     if recovery_handoff_dropoff
-                    else 'Recovery pages are getting views but no account handoffs or key-create attempts. The public recovery page now leads with Email same-email setup link; run bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff and expect verified_handoff_waiting_for_fresh_traffic when the no-persistence smoke passes, then watch for setup_key_recovery_magic_link_requested/sent before key creation, or use the approval packet before any real activation send.'
+                    else (
+                        'Recovery pages have views but no account handoffs or key-create attempts, while sendable follow-up dry runs are already covered. Run the approval packet with --verify-recovery; if it reports verified_handoff_waiting_for_fresh_traffic, the next blocker is explicit operator approval or fresh recovery traffic, not a recovery-page code fix.'
+                        if activation_send_ready_for_approval
+                        else 'Recovery pages are getting views but no account handoffs or key-create attempts. The public recovery page now leads with Email same-email setup link; run bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff and expect verified_handoff_waiting_for_fresh_traffic when the no-persistence smoke passes, then watch for setup_key_recovery_magic_link_requested/sent before key creation, or use the approval packet before any real activation send.'
+                    )
                 )
                 if recovery_dropoff
                 else (
@@ -7822,6 +7841,8 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 'recoveryHandoffDropoff': recovery_handoff_dropoff,
                 'recoveryVerifierCommand': 'bash scripts/check_setup_key_recovery_handoff.sh',
                 'recoveryDiagnosticCommand': 'bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff',
+                'activationApprovalPacketCommand': 'bash scripts/summarize_sagerouter_launch_funnel.sh --approval-packet --verify-recovery --verify-auth-repair',
+                'activationSendReadyForApproval': activation_send_ready_for_approval,
                 'recoveryVerifierSmokeEvents': [
                     'setup_key_recovery_auto_account_redirected',
                     'login_key_recovery_account_setup_auto_redirected',
