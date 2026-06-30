@@ -58,7 +58,7 @@ AUTHORIZATION_LEDGER_TEMPLATE="${ROOT}/docs/launch/execution/provider-authorizat
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--authorization-ledger-template|--provider-outreach-packet|--record-provider-outreach|--provider-reply-triage-packet|--terms-approval-packet|--one-subscription-pricing-packet|--stage-public-controls|--unit-economics]
+Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--authorization-ledger-template|--provider-outreach-packet|--record-provider-outreach|--provider-reply-triage-packet|--terms-approval-packet|--record-terms-review|--one-subscription-pricing-packet|--stage-public-controls|--unit-economics]
 
 Stage Sage Router managed provider-access readiness on Cloud Run.
 
@@ -117,6 +117,13 @@ Options:
                            review packet. It separates the terms decision from
                            the private cost model and never prints provider
                            authorization reference values.
+  --record-terms-review
+                           Print the provider-terms approval packet and record
+                           one aggregate status_managed_provider_terms_review_copied
+                           event for the operator terminal review. Run only
+                           after an operator actually reviews the packet; this
+                           does not acknowledge terms, stage provider evidence,
+                           write costs, deploy Cloud Run, or enable resale.
   --one-subscription-pricing-packet
                            Print the no-secret managed-access pricing packet
                            for one-subscription review. It shows only public
@@ -178,6 +185,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --terms-approval-packet)
       MODE="terms-approval-packet"
+      shift
+      ;;
+    --record-terms-review)
+      MODE="record-terms-review"
       shift
       ;;
     --one-subscription-pricing-packet)
@@ -789,6 +800,13 @@ managed_provider_terms_approval_packet() {
   printf -- '- Then run the secret-safe private cost preflight:\n'
   printf "  SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n\n"
 
+  if [[ "$MODE" == "record-terms-review" ]]; then
+    printf 'Recording boundary: this terminal review records one aggregate status_managed_provider_terms_review_copied event with snippet operator-provider-terms-review-packet after an operator actually reviews the terms packet. It still does not acknowledge terms, stage authorization evidence, write provider costs, deploy Cloud Run, or enable managed resale.\n'
+  else
+    printf 'Recording command: scripts/configure_managed_provider_resale_readiness.sh --record-terms-review\n'
+    printf 'Recording boundary: run only after an operator actually reviews this packet; it records one aggregate provider-terms review and still does not acknowledge terms, stage authorization evidence, write costs, deploy Cloud Run, or enable managed resale.\n'
+  fi
+  printf '\n'
   printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false.\n'
 }
 
@@ -1060,8 +1078,42 @@ if [[ "$MODE" == "provider-reply-triage-packet" ]]; then
   exit 0
 fi
 
-if [[ "$MODE" == "terms-approval-packet" ]]; then
+if [[ "$MODE" == "terms-approval-packet" || "$MODE" == "record-terms-review" ]]; then
   managed_provider_terms_approval_packet
+  if [[ "$MODE" == "record-terms-review" ]]; then
+    require_cmd jq
+    require_cmd curl
+    payload="$(jq -n \
+      --arg sourcePage "${APP_BASE%/}/launch-funnel.html#managed-provider-readiness" \
+      --arg target "https://sagerouter.dev/provider-resale-terms?utm_source=operator&utm_medium=terms_review&utm_campaign=managed-provider-terms" \
+      '{
+        event: "status_managed_provider_terms_review_copied",
+        plan: "max",
+        sourcePage: $sourcePage,
+        target: $target,
+        metadata: {
+          source: "operator-managed-provider-cli",
+          sourceSurface: "launch-funnel",
+          button: "provider-terms-review-cli",
+          state: "operator_provider_terms_reviewed",
+          snippet: "operator-provider-terms-review-packet",
+          providerFamilies: "ollama,openai,anthropic",
+          resultCount: 3,
+          utmSource: "operator",
+          utmMedium: "terms_review",
+          utmCampaign: "managed-provider-terms"
+        }
+      }')"
+
+    curl -fsS -X POST "${APP_BASE%/}/api/funnel-event" \
+      -H "Origin: ${APP_BASE%/}" \
+      -H "Content-Type: application/json" \
+      -H "User-Agent: SageRouterManagedProviderCLI/1.0" \
+      --data "$payload" \
+      >/dev/null
+
+    printf '\nRecorded provider terms review event status_managed_provider_terms_review_copied with snippet operator-provider-terms-review-packet from SageRouterManagedProviderCLI/1.0.\n'
+  fi
   exit 0
 fi
 
