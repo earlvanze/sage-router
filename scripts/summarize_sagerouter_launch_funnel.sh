@@ -882,6 +882,32 @@ if [[ "$RAW_JSON" == "1" ]]; then
     managedAccessDemand: (.managedAccessDemand // {}),
     anonymousManagedAccessDemand: (.anonymousManagedAccessDemand // {}),
     waitlistManagedAccessDemand: (.waitlistManagedAccessDemand // {}),
+    managedAccessDemandConversion: (.managedAccessDemandConversion // {
+      status: (
+        if ((.stages.anonymousManagedAccessInterest // 0) > 0 and (.stages.managedAccessBetaInterest // 0) <= 0) then "contact_capture_gap"
+        elif ((.stages.anonymousManagedAccessInterest // 0) > 0 or (.stages.managedAccessBetaInterest // 0) > 0) then "contact_capture_started"
+        else "no_current_demand" end
+      ),
+      priority: (
+        if ((.stages.anonymousManagedAccessInterest // 0) > 0 and (.stages.managedAccessBetaInterest // 0) <= 0) then "fix_now"
+        elif ((.stages.anonymousManagedAccessInterest // 0) > 0 or (.stages.managedAccessBetaInterest // 0) > 0) then "next"
+        else "monitor" end
+      ),
+      anonymousSignals: (.stages.anonymousManagedAccessInterest // 0),
+      waitlistSignals: (.stages.managedAccessBetaInterest // 0),
+      contactableLeadGap: ([((.stages.anonymousManagedAccessInterest // 0) - (.stages.managedAccessBetaInterest // 0)), 0] | max),
+      ctaPath: "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review",
+      action: "Convert anonymous one-subscription managed-access demand into contactable private-beta review requests before enabling managed provider resale.",
+      successMetric: "managedAccessBetaInterest or managed_access_quick_request_received increases without enabling managed provider resale.",
+      managedResaleEnabled: false,
+      privacy: {
+        containsEmails: false,
+        containsCustomerIds: false,
+        containsProviderCredentials: false,
+        containsActualProviderCosts: false,
+        aggregateOnly: true
+      }
+    }),
     marketingIntent: (
       (.marketingIntent // {}) as $marketing
       | {
@@ -1075,6 +1101,20 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
   | ($marketing.events // {}) as $events
   | ($root.managedProviderReadiness // $root.pricing.publicLaunch.managedProviderAccess // {}) as $managed
   | ($root.managedAccessDemand // {}) as $managedDemand
+  | ($root.managedAccessDemandConversion // {
+      status: (
+        if (($stages.anonymousManagedAccessInterest // 0) > 0 and ($stages.managedAccessBetaInterest // 0) <= 0) then "contact_capture_gap"
+        elif (($stages.anonymousManagedAccessInterest // 0) > 0 or ($stages.managedAccessBetaInterest // 0) > 0) then "contact_capture_started"
+        else "no_current_demand" end
+      ),
+      priority: (
+        if (($stages.anonymousManagedAccessInterest // 0) > 0 and ($stages.managedAccessBetaInterest // 0) <= 0) then "fix_now"
+        elif (($stages.anonymousManagedAccessInterest // 0) > 0 or ($stages.managedAccessBetaInterest // 0) > 0) then "next"
+        else "monitor" end
+      ),
+      contactableLeadGap: ([ (($stages.anonymousManagedAccessInterest // 0) - ($stages.managedAccessBetaInterest // 0)), 0 ] | max),
+      ctaPath: "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review"
+    }) as $managedConversion
   | ($root.activationFollowUps // {}) as $followups
   | ($root.operatorExecutionPacket // {}) as $packet
   | ($root.activationApprovalReadiness // {}) as $approval
@@ -1103,6 +1143,7 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
       "- Recovery auth starts: magic=\(n($events.login_key_recovery_magic_link_requested) + n($events.setup_key_recovery_magic_link_requested)), password=\(n($events.login_key_recovery_password_submitted)), oauth=\(n($events.login_key_recovery_oauth_clicked))",
       "- Key-first recovery: setupClicks=\(n($events.login_key_recovery_account_setup_clicked) + n($events.setup_key_recovery_account_clicked) + n($events.setup_key_recovery_next_account_clicked)); scheduled=\(n($followups.keyRecoveryHandoffScheduled)); redirects=\(n($followups.keyFirstRedirects)); paused=\(n($followups.keyRecoveryHandoffPaused)); recoveryViews=\(n($followups.keyRecoveryViews)); keyCreateAttempts=\(n($followups.keyCreateAttempts)); keyCreateSuccesses=\(n($followups.keyCreateSuccesses)); noKeyCreateClicks=\(n($events.account_no_key_setup_create_clicked))",
       "- Managed-access demand: anonymousSignals=\(n($stages.anonymousManagedAccessInterest)); waitlistSignals=\(n($stages.managedAccessBetaInterest)); legacyClicks=\(n($events.managed_access_interest_clicked)); quickStarted=\(n($events.managed_access_quick_form_started)); quickValidationFailed=\(n($events.managed_access_quick_request_validation_failed)); quickSubmitted=\(n($events.managed_access_quick_request_submitted)); quickReceived=\(n($events.managed_access_quick_request_received))",
+      "- Managed-access conversion: status=\($managedConversion.status // "unknown"); priority=\($managedConversion.priority // "monitor"); contactableLeadGap=\(n($managedConversion.contactableLeadGap)); cta=\($managedConversion.ctaPath // "https://sagerouter.dev/managed-access")",
       "- Managed-access provider buckets: \(buckets($managedDemand.targetProviderFamily))",
       "- Managed-access commercial buckets: \(buckets($managedDemand.commercialPreference))",
       "- Managed-access intent buckets: \(buckets($managedDemand.intent))",
