@@ -426,7 +426,7 @@ check_api_client_user_agent_gate() {
 }
 
 check_public_router_profile_contract() {
-  local responses_body stream_body responses_ok responses_status responses_model responses_prefix responses_text stream_ok stream_status stream_model stream_prefix stream_text stream_events smoke_key
+  local responses_body stream_body responses_ok responses_status responses_model responses_prefix responses_raw_stream responses_text stream_ok stream_status stream_model stream_prefix stream_raw_stream stream_text stream_events smoke_key
   smoke_key="${SAGEROUTER_SMOKE_API_KEY:-${SAGE_ROUTER_CLIENT_API_KEY:-${SAGE_ROUTER_API_KEY:-}}}"
   if [[ -z "$smoke_key" && ( -z "$SUPABASE_SERVICE_ROLE_KEY" || -z "${SAGE_ROUTER_API_KEY_HASH_PEPPER:-${SAGE_ROUTER_SIGNING_SECRET:-}}" ) ]]; then
     warn "No smoke API key and Supabase generated-key credentials incomplete; skipped live generated-key router-profile contract smoke"
@@ -466,11 +466,13 @@ check_public_router_profile_contract() {
   responses_status="$(jq -r '.status // empty' "$responses_body" 2>/dev/null || true)"
   responses_model="$(jq -r '.headerModel // .bodyModel // empty' "$responses_body" 2>/dev/null || true)"
   responses_prefix="$(jq -r '.prefixLeak // true' "$responses_body" 2>/dev/null || true)"
+  responses_raw_stream="$(jq -r '.rawProviderStreamLeak // false' "$responses_body" 2>/dev/null || true)"
   responses_text="$(jq -r '.visibleText // empty' "$responses_body" 2>/dev/null | head -c 120 || true)"
   stream_ok="$(jq -r '.profileContractOk // false' "$stream_body" 2>/dev/null || true)"
   stream_status="$(jq -r '.status // empty' "$stream_body" 2>/dev/null || true)"
   stream_model="$(jq -r '.headerModel // empty' "$stream_body" 2>/dev/null || true)"
   stream_prefix="$(jq -r '.prefixLeak // true' "$stream_body" 2>/dev/null || true)"
+  stream_raw_stream="$(jq -r '.rawProviderStreamLeak // false' "$stream_body" 2>/dev/null || true)"
   stream_text="$(jq -r '.visibleText // empty' "$stream_body" 2>/dev/null | head -c 120 || true)"
   stream_events="$(jq -r '(.streamEvents // []) | join(",")' "$stream_body" 2>/dev/null | head -c 180 || true)"
   rm -f "$responses_body" "$stream_body"
@@ -478,7 +480,7 @@ check_public_router_profile_contract() {
   if [[ "$responses_ok" == "true" && "$stream_ok" == "true" ]]; then
     pass "public generated-key Responses profile contract is clean for buffered and streaming Codex/OpenClaw calls"
   else
-    fail "public Responses profile contract failed: responses status=${responses_status:-missing} model=${responses_model:-missing} prefixLeak=${responses_prefix:-missing} text=${responses_text:-empty}; stream status=${stream_status:-missing} model=${stream_model:-missing} prefixLeak=${stream_prefix:-missing} text=${stream_text:-empty} events=${stream_events:-missing}"
+    fail "public Responses profile contract failed: responses status=${responses_status:-missing} model=${responses_model:-missing} prefixLeak=${responses_prefix:-missing} rawProviderStreamLeak=${responses_raw_stream:-missing} text=${responses_text:-empty}; stream status=${stream_status:-missing} model=${stream_model:-missing} prefixLeak=${stream_prefix:-missing} rawProviderStreamLeak=${stream_raw_stream:-missing} text=${stream_text:-empty} events=${stream_events:-missing}"
   fi
 }
 

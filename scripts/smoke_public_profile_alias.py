@@ -4,12 +4,15 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
+
+MODEL_PREFIX_RE = re.compile(r"^\s*\[(?:[A-Za-z0-9_.-]+/[^\]\s]+|tool calls omitted)\]", re.IGNORECASE)
 
 
 def read_env_file(path):
@@ -121,7 +124,7 @@ def request_responses_stream(api_base, raw_key, model):
                 value = payload.get(key)
                 if isinstance(value, str) and value:
                     target.append(value)
-                    if value.lstrip().startswith("["):
+                    if has_model_prefix_leak(value):
                         prefix_lines.append(value[:160])
         return {
             "status": resp.status,
@@ -146,6 +149,28 @@ def visible_text_from_payload(payload, mode):
         if isinstance(message, dict):
             return message.get("content") or ""
     return ""
+
+
+def has_model_prefix_leak(text):
+    return bool(isinstance(text, str) and MODEL_PREFIX_RE.search(text))
+
+
+def has_raw_provider_stream_leak(text):
+    if not isinstance(text, str):
+        return False
+    stripped = text.strip()
+    if not stripped.startswith("["):
+        return False
+    try:
+        parsed = json.loads(stripped)
+    except Exception:
+        return False
+    if not isinstance(parsed, list) or not parsed:
+        return False
+    object_items = [item for item in parsed if isinstance(item, dict)]
+    if not object_items:
+        return False
+    return any("token" in item or "done" in item or "response" in item for item in object_items)
 
 
 def main():
@@ -245,7 +270,8 @@ def main():
     headers = result.get("headers") if isinstance(result.get("headers"), dict) else {}
     visible_text = visible_text_from_payload(payload, args.mode)
     prefix_lines = payload.get("streamPrefixLines") if args.mode == "responses-stream" else []
-    prefix_leak = visible_text.lstrip().startswith("[") or bool(prefix_lines)
+    prefix_leak = has_model_prefix_leak(visible_text) or bool(prefix_lines)
+    raw_provider_stream_leak = has_raw_provider_stream_leak(visible_text)
     body_model = payload.get("model")
     profile_contract_ok = (
         result.get("status") == 200
@@ -253,6 +279,7 @@ def main():
         and headers.get("x-sage-router-model") == args.model
         and (args.mode == "responses-stream" or body_model == args.model)
         and not prefix_leak
+        and not raw_provider_stream_leak
     )
     print(json.dumps({
         "mode": args.mode,
@@ -261,6 +288,7 @@ def main():
         "bodyUpstreamModel": payload.get("upstream_model"),
         "visibleText": visible_text[:300],
         "prefixLeak": prefix_leak,
+        "rawProviderStreamLeak": raw_provider_stream_leak,
         "streamEvents": payload.get("streamEvents"),
         "streamPrefixLines": prefix_lines,
         "profileContractOk": profile_contract_ok,

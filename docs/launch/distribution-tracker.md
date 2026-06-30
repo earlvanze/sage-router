@@ -22,12 +22,12 @@ readiness guard enables it.
 Refresh this section from live aggregate telemetry with:
 
 ```bash
-scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-section
+scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tracker
 ```
 
 - Window: last 30 days
-- Generated at epoch: 1782802242
-- Marketing intent events: 401
+- Generated at epoch: 1782819987
+- Marketing intent events: 410
 - Setup snippet copies: 0
 - Founder-sales outreach copies: 0
 - Founder-sales outreach snippets: none
@@ -49,10 +49,10 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 
 - Metric: signupToGeneratedKey
 - Priority: fix_now
-- Owner/surface: Activation / setup-key recovery
-- Action: Recovery handoff is verified with no persistence; the next blocker is explicit operator approval for the next sendable follow-up or fresh recovery traffic, not recovery-page code.
-- Success metric: setup_key_recovery_magic_link_requested/sent increases, then keyCreateAttempts and generated-key customers increase.
-- CTA: `https://sagerouter.dev/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation`
+- Owner/surface: Activation / launch funnel
+- Action: Real activation sends are approval-gated and setup-copy activation is still zero. Copy the first-request setup bundle from the Do Next dock now; it moves a no-secret setup-copy KPI without sending email, exposing a real key, or changing billing/provider resale.
+- Success metric: status_first_request_setup_copied increases with snippet operator-first-request-setup, then first routed request and generated-key conversion can be measured.
+- CTA: https://app.sagerouter.dev/launch-funnel.html#next-best-action-dock
 
 ### Activation Queue
 
@@ -74,29 +74,28 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 
 ### Activation Approval Handoff
 
-- Packet command: `scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet --verify-recovery --verify-auth-repair`
-- Review worksheet: `docs/launch/execution/activation-approval-review.md`
+- Packet command: scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet --verify-recovery --verify-auth-repair
+- Review worksheet: docs/launch/execution/activation-approval-review.md
 - Approval decision: approval_required for next segment verified; blocker=explicit_operator_approval_required.
-- Default snapshot policy: no send command is printed in this default snapshot. Real activation sends still require explicit operator approval and typed `SEND_ACTIVATION_FOLLOWUPS` confirmation.
+- Default snapshot policy: No send command is printed in this default snapshot. Real activation sends still require explicit operator approval and typed SEND_ACTIVATION_FOLLOWUPS confirmation.
 - Safe review: the approval packet is no-secret and excludes emails, customer IDs, generated keys, prompts, OAuth tokens, provider credentials, and raw responses.
 
 ### Verified Recovery Diagnosis
 
-- Command: `bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff`
-- Result: `verified_handoff_waiting_for_fresh_traffic`
+- Command: bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff
+- Result: verified_handoff_waiting_for_fresh_traffic
+- Interpretation: Recovery handoff is verified with no persistence; the remaining activation work is fresh setup-copy traffic or explicit operator approval for real follow-up sends.
 - Evidence: checked=true; passed=true; noPersistence=true; recoveryViews=8; accountHandoffs=0; keyCreateAttempts=0; keyCreateSuccesses=0.
-- Next action: Copy the no-secret first-request setup bundle from `https://app.sagerouter.dev/launch-funnel.html#next-best-action-dock` before any real activation send; this records `status_first_request_setup_copied` with snippet `operator-first-request-setup` and does not send email or expose a real key.
+- Next action: Copy the no-secret first-request setup bundle from https://app.sagerouter.dev/launch-funnel.html#next-best-action-dock before any real activation send; this records status_first_request_setup_copied with snippet operator-first-request-setup and does not send email or expose a real key.
 
 ### Top Acquisition Actions
-
-- attributionChannel/sagerouter: 313 clicks - Cross-link internal Sage Router pages toward the current lowest-performing activation step.
-- sourceSurface/article: 117 clicks - Turn long-form local-first routing readers into quickstart, Codex setup, and gateway comparison CTAs.
-- sourceSurface/landing: 111 clicks - Keep the homepage focused on account creation, pricing, model catalog, and migration CTAs.
+- attributionChannel/sagerouter: 318 clicks - Cross-link internal Sage Router pages toward the current lowest-performing activation step.
+- sourceSurface/article: 120 clicks - Turn long-form local-first routing readers into quickstart, Codex setup, and gateway comparison CTAs.
+- sourceSurface/landing: 116 clicks - Keep the homepage focused on account creation, pricing, model catalog, and migration CTAs.
+- attributionChannel/reddit: 41 clicks - Package comparison, migration, and reliability proof for Reddit-style evaluation threads.
 - sourceSurface/account: 39 clicks - Reduce signed-in friction from plan selection to generated key and first routed request.
-- attributionChannel/reddit: 37 clicks - Package comparison, migration, and reliability proof for Reddit-style evaluation threads.
 
 ### Revenue Gap
-
 - pro: 198 customers, $5940 remaining MRR - Convert active generated-key users into Pro with frontier profile, analytics, and fallback proof.
 - max: 50 customers, $3600 remaining MRR - Book founder-led Max demos for automation/team users and attach private deployment support.
 - lite: 100 customers, $600 remaining MRR - Use low-friction Lite checkout from pricing, calculator, and quickstart entry points.
@@ -104,7 +103,7 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 ### Founder Sales Fallback
 
 - Use when: activation sends are approval-gated or provider resale is waiting on terms/evidence, but founder-led Lite/Pro/Max conversations can still move.
-- Kit: `https://sagerouter.dev/founder-sales-kit?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch`
+- Kit: https://sagerouter.dev/founder-sales-kit?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch
 - Outreach copies recorded: 0; snippets: none
 - Managed-access packet copies recorded: 0; snippets: none
 - Primary revenue motion: pro needs 198 customers and $5940 remaining MRR; Convert active generated-key users into Pro with frontier profile, analytics, and fallback proof.
@@ -114,8 +113,8 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 
 ### Managed Access Readiness
 
-- Enabled/requested/ready: false / false / false
-- Status: disabled_pending_provider_terms
+- Enabled/requested/ready: false / true / false
+- Status: requires_readiness_verification
 - Missing controls: provider_terms_acknowledgment, provider_authorization_evidence, provider_cost_model, positive_unit_economics
 - Next managed actions: fix_now:provider_terms_acknowledgment, next:provider_authorization_evidence, next:provider_cost_model
 - Allowed provider families: ollama, openai, anthropic
@@ -124,16 +123,20 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 - Terms acknowledged: false
 - Authorization evidence configured: false
 - Cost model configured: false; unit economics satisfied: false
-- Public-control staging command: `scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls`
-- Provider outreach packet: `scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet`
-- Terms approval packet: `scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet`
-- Terms approval worksheet: `docs/launch/execution/provider-terms-approval-review.md`
-- Authorization evidence packet: `scripts/configure_managed_provider_resale_readiness.sh --authorization-packet`
-- Provider reply triage packet: `scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet`
-- Authorization ledger template: `scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template`
-- One-subscription pricing packet: `scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet`
-- One-subscription pricing review: `docs/launch/execution/one-subscription-pricing-review.md`
-- Unit-economics preflight: `SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics`
+- Public-control staging command: SAGEROUTER_PROVIDER_RESALE_TERMS_URL='https://sagerouter.dev/provider-resale-terms' \
+SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL='https://sagerouter.dev/margin-policy' \
+SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED='1' \
+SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED='0' \
+SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS='ollama,openai,anthropic' \
+SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT='35' \
+SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLE_PUBLIC='0' \
+scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
+- Provider outreach packet: scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet
+- Authorization evidence packet: scripts/configure_managed_provider_resale_readiness.sh --authorization-packet
+- Authorization ledger template: scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template
+- One-subscription pricing packet: scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet
+- One-subscription pricing review: docs/launch/execution/one-subscription-pricing-review.md
+- Unit-economics preflight: SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics
 - Managed-access beta interest: 0; anonymous interest: 4; target-provider buckets: mixed-frontier=4; commercial buckets: one-subscription=4; intent buckets: one-subscription=4
 
 ### Privacy
