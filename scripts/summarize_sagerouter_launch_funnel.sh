@@ -684,6 +684,41 @@ if [[ "$RAW_JSON" == "1" ]]; then
     managedAccessDemand: (.managedAccessDemand // {}),
     anonymousManagedAccessDemand: (.anonymousManagedAccessDemand // {}),
     waitlistManagedAccessDemand: (.waitlistManagedAccessDemand // {}),
+    marketingIntent: (
+      (.marketingIntent // {}) as $marketing
+      | {
+        total: ($marketing.total // .stages.marketingIntentEvents // 0),
+        events: ($marketing.events // {}),
+        plans: ($marketing.plans // {}),
+        sourceSurfaces: ($marketing.sourceSurfaces // {}),
+        attributionChannels: ($marketing.attributionChannels // {}),
+        setupSnippetCopies: ($marketing.setupSnippetCopies // .stages.setupSnippetCopies // 0),
+        setupSnippetCopiesBySnippet: ($marketing.setupSnippetCopiesBySnippet // {}),
+        founderSalesOutreachCopies: ($marketing.founderSalesOutreachCopies // 0),
+        founderSalesOutreachCopiesBySnippet: ($marketing.founderSalesOutreachCopiesBySnippet // {}),
+        managedAccessPacketCopies: ($marketing.managedAccessPacketCopies // 0),
+        managedAccessPacketCopiesBySnippet: ($marketing.managedAccessPacketCopiesBySnippet // {}),
+        operatorFollowUpCopies: ($marketing.operatorFollowUpCopies // 0),
+        operatorFollowUpCopiesByKind: ($marketing.operatorFollowUpCopiesByKind // {}),
+        operatorFollowUpWorked: ($marketing.operatorFollowUpWorked // 0),
+        operatorFollowUpWorkedByKind: ($marketing.operatorFollowUpWorkedByKind // {}),
+        keyFirstRedirects: ($marketing.keyFirstRedirects // 0),
+        keyFirstRedirectsByState: ($marketing.keyFirstRedirectsByState // {}),
+        keyRecoveryViews: ($marketing.keyRecoveryViews // 0),
+        keyRecoveryViewsByState: ($marketing.keyRecoveryViewsByState // {}),
+        keyCreateAttempts: ($marketing.keyCreateAttempts // 0),
+        keyCreateAttemptsByState: ($marketing.keyCreateAttemptsByState // {}),
+        keyCreateSuccesses: ($marketing.keyCreateSuccesses // 0),
+        keyCreateSuccessesByState: ($marketing.keyCreateSuccessesByState // {}),
+        privacy: {
+          containsEmails: false,
+          containsCustomerIds: false,
+          containsApiKeys: false,
+          containsProviderCredentials: false,
+          aggregateOnly: true
+        }
+      }
+    ),
     managedProviderReadiness: (
       (
         .managedProviderReadiness
