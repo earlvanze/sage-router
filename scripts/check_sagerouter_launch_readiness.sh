@@ -3912,6 +3912,9 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-copy-review-packet" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-review-packet-copy"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-copy-first-review-packet" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-first-viewport-review-packet-copy"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-email-review-packet" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-review-packet-email"
   fi
@@ -3923,6 +3926,12 @@ check_marketing_managed_access_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router one-subscription managed-access review" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-review-packet-copy-text"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-first-viewport-one-subscription-packet" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-first-viewport-review-packet-snippet"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "one-subscription review packet, not a public entitlement" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-entitlement-boundary"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router managed access provider authorization request" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-provider-authorization-copy-text"

@@ -62,6 +62,7 @@
       </div>
       <div class="actions">
         <a class="button primary" href="#apply">Request review</a>
+        <button id="managed-access-copy-first-review-packet" type="button">Copy buyer review packet</button>
         <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=max&start=create_key&utm_source=managed-access&utm_medium=max-byok&utm_campaign=sage-router-launch" data-managed-access-event="managed_access_interest_clicked" data-managed-access-state="max-byok-setup" data-managed-access-target="https://app.sagerouter.dev/account.html?plan=max&start=create_key">Start Max with BYOK</a>
         <a class="button secondary" href="/provider-resale-terms">Provider terms</a>
         <a class="button secondary" href="/margin-policy">Margin policy</a>
@@ -456,6 +457,7 @@
         'Sage Router one-subscription managed-access review',
         '',
         'Request: review Sage Router as one subscription for hosted routing, quotas, failover, and Max implementation support.',
+        'Review boundary: this is a one-subscription review packet, not a public entitlement or enabled managed-provider resale offer.',
         `Intent: ${intent}`,
         `Provider access posture: ${buckets.providerAccess || 'needs-managed-access'}`,
         `Target provider family: ${buckets.targetProviderFamily || 'mixed-frontier'}`,
@@ -750,7 +752,12 @@
         target: '#managed-access-quick-form',
       });
     });
-    async function copyManagedAccessReviewPacket(button, successMessage) {
+    async function copyManagedAccessReviewPacket(
+      button,
+      successMessage,
+      snippet = 'managed-access-one-subscription-review-packet',
+      target = '#managed-access-review-packet'
+    ) {
       const original = button.textContent;
       button.disabled = true;
       button.textContent = 'Copying...';
@@ -760,8 +767,8 @@
         if (packetStatus) packetStatus.textContent = successMessage;
         trackManagedAccessFunnelEvent('managed_access_review_packet_copied', {
           state: quickReviewIntent(),
-          target: '#managed-access-review-packet',
-          snippet: 'managed-access-one-subscription-review-packet',
+          target,
+          snippet,
         });
       } catch (_error) {
         button.textContent = 'Copy failed';
@@ -773,6 +780,15 @@
         }, 1800);
       }
     }
+
+    document.getElementById('managed-access-copy-first-review-packet')?.addEventListener('click', async (event) => {
+      await copyManagedAccessReviewPacket(
+        event.currentTarget,
+        'Copied buyer review packet. It is for internal review only; managed resale remains gated.',
+        'managed-access-first-viewport-one-subscription-packet',
+        '#managed-access-copy-first-review-packet'
+      );
+    });
 
     document.getElementById('managed-access-copy-review-packet')?.addEventListener('click', async (event) => {
       await copyManagedAccessReviewPacket(event.currentTarget, 'Copied no-secret one-subscription review packet.');
