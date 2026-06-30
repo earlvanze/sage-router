@@ -4295,6 +4295,15 @@ check_marketing_setup_key_recovery_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_auto_account_redirected" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-auto-account-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_account_setup_scheduled" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-auto-account-scheduled"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_account_setup_paused" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-auto-account-paused"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "SETUP_RECOVERY_DEFAULT_HANDOFF_DELAY_MS" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-default-handoff-delay"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "operator-auto-account-setup" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-auto-account-operator"
   fi
