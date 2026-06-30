@@ -1307,6 +1307,7 @@ function managedAccessApprovalPacketText(data = {}) {
   const oneSubscription = managed.oneSubscriptionReadiness || {};
   const unitEconomics = managed.unitEconomics || {};
   const actions = Array.isArray(managed.nextActions) ? managed.nextActions : [];
+  const onboardingSequence = Array.isArray(managed.onboardingSequence) ? managed.onboardingSequence : [];
   const plans = Array.isArray(unitEconomics.evaluatedPlans) ? unitEconomics.evaluatedPlans : [];
   const guardrails = Array.isArray(managed.pricingGuardrails)
     ? managed.pricingGuardrails
@@ -1330,6 +1331,9 @@ function managedAccessApprovalPacketText(data = {}) {
   const actionLines = actions.length
     ? actions.map(action => `- ${action.priority || 'next'}:${action.id || 'managed_access'} - ${action.title || 'Review managed-access controls'}; action=${action.action || 'Review the next missing control.'}; success=${action.successMetric || 'Remove one managed-access blocker.'}; requiredEnv=${safeList(action.requiredEnv).join(', ') || 'none'}`)
     : ['- Review managed provider resale controls before enabling public one-subscription access.'];
+  const onboardingLines = onboardingSequence.length
+    ? onboardingSequence.map((step, index) => `- ${index + 1}. ${step.id || 'managed_access_step'}: ${step.title || 'Review managed access'}; status=${step.status || 'required'}; action=${step.operatorAction || 'Review this step.'}; success=${step.successMetric || 'Advance managed-access onboarding.'}`)
+    : ['- 1. collect_provider_authorization: collect provider authorization evidence before enablement.'];
   return [
     'Sage Router managed-access approval packet',
     'Boundary: no provider credentials, no authorization-reference values, no actual provider costs, no prompts, no raw provider responses, no generated API keys, and no customer data.',
@@ -1351,6 +1355,9 @@ function managedAccessApprovalPacketText(data = {}) {
     '',
     'Next actions',
     ...actionLines,
+    '',
+    'Onboarding sequence',
+    ...onboardingLines,
     '',
     'Unit-economics public thresholds',
     ...planLines,
@@ -1398,6 +1405,7 @@ function renderManagedAccessReadiness(data = {}) {
   const oneSubscription = managed.oneSubscriptionReadiness || {};
   const unitEconomics = managed.unitEconomics || {};
   const actions = Array.isArray(managed.nextActions) ? managed.nextActions : [];
+  const onboardingSequence = Array.isArray(managed.onboardingSequence) ? managed.onboardingSequence : [];
   const missingControls = safeList(managed.missingControls);
   const plans = Array.isArray(unitEconomics.evaluatedPlans) ? unitEconomics.evaluatedPlans : [];
   const guardrails = Array.isArray(managed.pricingGuardrails)
@@ -1425,6 +1433,15 @@ function renderManagedAccessReadiness(data = {}) {
       <td>${esc(action.successMetric || '')}</td>
     </tr>`).join('')
     : '<tr><td colspan="4">No managed-access next actions returned.</td></tr>';
+  const onboardingRows = onboardingSequence.length
+    ? onboardingSequence.map((step, index) => `<tr>
+      <td>${integer(index + 1)}</td>
+      <td><span class="pill ${step.status === 'complete' ? 'good' : (step.status === 'hold' ? 'warn' : 'bad')}">${esc(step.status || 'required')}</span></td>
+      <td>${esc(step.title || step.id || 'Review managed access')}</td>
+      <td>${esc(step.operatorAction || '')}</td>
+      <td>${esc(step.successMetric || '')}</td>
+    </tr>`).join('')
+    : '<tr><td colspan="5">No managed-access onboarding sequence returned.</td></tr>';
   target.innerHTML = `<div class="metricList">
     <div class="metric"><span>Status</span><strong><span class="pill ${statusTone}">${esc(managed.status || (managed.enabled ? 'enabled' : 'gated'))}</span></strong></div>
     <div class="metric"><span>Public enable</span><strong>${managed.enabled ? 'enabled' : 'disabled'} · requested=${managed.requested === true}</strong></div>
@@ -1466,6 +1483,10 @@ function renderManagedAccessReadiness(data = {}) {
   <div class="tableWrap" style="margin-top:14px"><table>
     <thead><tr><th>Priority</th><th>Task</th><th>Action</th><th>Success</th></tr></thead>
     <tbody>${actionRows}</tbody>
+  </table></div>
+  <div class="tableWrap" style="margin-top:14px"><table>
+    <thead><tr><th>Step</th><th>Status</th><th>Task</th><th>Operator action</th><th>Success</th></tr></thead>
+    <tbody>${onboardingRows}</tbody>
   </table></div>
   <div class="tableWrap" style="margin-top:14px"><table>
     <thead><tr><th>Plan</th><th>Revenue cents/1k</th><th>Max safe cost cents/1k</th><th>Min margin</th><th>Private cost check</th><th>Guardrail</th></tr></thead>

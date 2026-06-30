@@ -365,6 +365,8 @@ function renderLaunchReadiness(pricing = {}, health = {}) {
   const managedSetup = managed.readinessSetup || {};
   const managedActions = Array.isArray(managed.nextActions) ? managed.nextActions : [];
   const topManagedAction = managedActions[0] || {};
+  const managedOnboarding = Array.isArray(managed.onboardingSequence) ? managed.onboardingSequence : [];
+  const topManagedOnboarding = managedOnboarding.find(step => step && step.status !== 'complete') || managedOnboarding[0] || {};
   const configuredPlans = Array.isArray(stripe.configuredPlans) ? stripe.configuredPlans : [];
   const missingManagedControls = Array.isArray(managed.missingControls) ? managed.missingControls : [];
   const requiredActivationEnv = Array.isArray(activation.requiredEnv) ? activation.requiredEnv : [];
@@ -525,7 +527,7 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
       state: managed.enabled ? 'good' : 'warn',
       meta: managed.enabled
         ? 'Provider resale guardrails report readiness satisfied; keep authorization evidence current.'
-        : `${topManagedAction.action || 'Run the dry-run before staging provider terms, allowlist, private cost model, and margin controls.'} OpenRouter remains BYOK-only unless separate authorization is added.`,
+        : `${topManagedAction.action || 'Run the dry-run before staging provider terms, allowlist, private cost model, and margin controls.'} Onboarding step: ${topManagedOnboarding.title || 'collect provider authorization evidence'}. OpenRouter remains BYOK-only unless separate authorization is added.`,
       command: managed.enabled ? (managedSetup.enableCommandTemplate || managedDryRun) : managedDryRun,
       copyEvent: 'status_managed_resale_dry_run_copied',
     },
