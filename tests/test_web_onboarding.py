@@ -2995,6 +2995,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("does not approve, copy, repair, or send", readme)
         self.assertIn("activation outreach", readme)
         self.assertIn("Pre-send recovery proof:", summary_script)
+        self.assertIn("the next blocker is explicit operator approval for segment", summary_script)
+        self.assertIn("not recovery-page code", summary_script)
         self.assertIn("Verification result: stage=", summary_script)
         self.assertIn("verified_handoff_waiting_for_fresh_traffic", summary_script)
         self.assertIn("Approval checklist:", summary_script)

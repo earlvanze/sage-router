@@ -287,7 +287,7 @@ if [[ "$APPROVAL_PACKET" == "1" ]]; then
         "Next actions: \((($approval.nextActions // []) | map((.priority // "next") + ":" + (.id // "review")) | join(", ")) // "monitor_activation_queue").",
         "",
         "Pre-send recovery proof:",
-        "- Current bottleneck: \($next_action.metric // "unknown") — \($next_action.action // "Review the live launch funnel before approving any activation send.")",
+        "- Current bottleneck: \($next_action.metric // "unknown") — \(if (($recovery_proof.stage // "") == "verified_handoff_waiting_for_fresh_traffic" and ($approval.status // "") == "approval_required") then "Recovery handoff is verified with no persistence; the next blocker is explicit operator approval for segment \"\($next_segment)\" or fresh recovery traffic, not recovery-page code." else ($next_action.action // "Review the live launch funnel before approving any activation send.") end)",
         "- Verification command: \($next_action.evidence.recoveryDiagnosticCommand // "bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff")",
         "- Verification result: stage=\($recovery_proof.stage // "not_run"); checked=\($recovery_proof.handoffSmoke.checked // false); passed=\($recovery_proof.handoffSmoke.passed // false); noPersistence=\($recovery_proof.handoffSmoke.noPersistence // true).",
         "- Approval boundary: if the verification command does not report verified_handoff_waiting_for_fresh_traffic, hold real activation sends and inspect the recovery path first.",
