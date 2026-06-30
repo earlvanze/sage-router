@@ -115,6 +115,23 @@ $('status-copy-first-request-setup')?.addEventListener('click', async () => {
     if (status) status.textContent = 'Copy failed. Select the setup bundle manually.';
   }
 });
+
+$('status-copy-one-subscription-review-packet')?.addEventListener('click', async () => {
+  const block = $('status-one-subscription-review-packet');
+  const status = $('status-founder-pro-status');
+  try {
+    await writeClipboardText(block?.textContent.trim() || '');
+    if (status) status.textContent = 'Copied no-secret one-subscription review packet.';
+    trackStatusFunnelEvent('managed_access_review_packet_copied', {
+      target: 'status-revenue-action',
+      button: 'Copy review packet',
+      state: 'status-one-subscription-review',
+      snippet: 'status-one-subscription-review-packet',
+    });
+  } catch (_error) {
+    if (status) status.textContent = 'Copy failed. Select the review packet manually.';
+  }
+});
 const originKind = (url = '') => {
   if (url && typeof url === 'object') return url.originKind || originKind(url.url || url.label || url.id || '');
   const name = host(url).toLowerCase();
