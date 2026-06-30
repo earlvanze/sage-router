@@ -999,6 +999,26 @@ only assistant-visible replay fields with:
 python3 scripts/sanitize_codex_session_prefix_replay.py --in-place ~/.codex/sessions/YYYY/MM/DD/rollout-...jsonl
 ```
 
+On the Cyber Docker Desktop stack, Sage Router can also run through a
+bind-mounted Cyber Gateway override at
+`/mnt/c/Users/digit/Dropbox/Projects/cyber-gateway/overrides/sage-router/router.py`.
+After changing router sanitizer or proxy code, check that mounted runtime files
+have the required replay-sanitizer markers before blaming Codex/OpenClaw history:
+
+```bash
+python3 scripts/check_runtime_override_parity.py
+```
+
+Use `--strict` when you need byte-for-byte equality with this repo. If the
+report shows an existing stale override and you intentionally want the runtime
+mount to match this repo, replace it with a timestamped backup:
+
+```bash
+python3 scripts/check_runtime_override_parity.py --strict
+python3 scripts/check_runtime_override_parity.py --sync
+docker restart cyber_sage_router
+```
+
 ## Supported API Formats
 
 | Endpoint | Format | Used By |
