@@ -3891,6 +3891,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("collect_provider_authorization", readiness)
         self.assertIn("review_terms_and_public_controls", readiness)
         self.assertIn("verify_private_unit_economics", readiness)
+        self.assertIn("--private-cost-model-template", readiness)
+        self.assertIn("reviewCommand", readiness)
         self.assertIn("final_private_beta_enablement_review", readiness)
         self.assertIn("onboarding sequence", readiness)
         self.assertIn("byok_supported_not_managed_resale", readiness)

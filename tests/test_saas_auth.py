@@ -1521,6 +1521,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(all(not step['privacy']['containsSecrets'] for step in managed['onboardingSequence']))
         self.assertIn('--provider-outreach-packet', managed['onboardingSequence'][0]['primaryCommand'])
         self.assertIn('--unit-economics', managed['onboardingSequence'][2]['primaryCommand'])
+        self.assertIn('--private-cost-model-template', managed['onboardingSequence'][2]['secondaryCommand'])
+        self.assertIn('--one-subscription-pricing-packet', managed['onboardingSequence'][2]['reviewCommand'])
         self.assertFalse(managed['providerAuthorizationEvidenceConfigured'])
         self.assertEqual(
             'SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF',
