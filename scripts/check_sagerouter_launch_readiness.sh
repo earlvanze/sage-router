@@ -4240,6 +4240,12 @@ check_marketing_setup_key_recovery_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_account_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-account-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html?plan=pro&start=create_key" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-canonical-account-handoff"
+  fi
+  if [[ "$page_code" == "200" ]] && grep -q "https://app.sagerouter.dev/account?plan=pro&start=create_key" /tmp/sage-router-readiness-body; then
+    page_code="200:noncanonical-setup-key-recovery-account-handoff"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Open account setup next" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-next-account-cta"
   fi
