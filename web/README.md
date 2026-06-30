@@ -121,12 +121,13 @@ notes, integration updates, private deployment help, and future managed-provider
 beta interest.
 The public status page doubles as a no-secret operator launch-actions surface:
 it exposes a first-screen no-secret founder-sales Pro reply, a hosted setup bundle,
-and copies
+the no-secret signup-to-key activation approval packet, and copies
 activation-email preflight, managed-provider resale dry-run/staging,
 first-request setup, and Cloudflare BIC verification commands from safe public
 metadata without exposing provider credentials, private costs, customer data, or
 tokens. The founder-sales copy records `outreach_snippet_copied`; the setup copy
-records `status_first_request_setup_copied`, and the
+records `status_first_request_setup_copied`; the activation approval copy records
+`status_activation_approval_packet_copied`, and the
 Cloudflare BIC copy includes the `docs/cloudflare-api-bic-skip.md`
 runbook path, required Zone/Rulesets token permissions, host-scoped
 `http.host eq "api.sagerouter.dev"` expression, and scope warning for the API

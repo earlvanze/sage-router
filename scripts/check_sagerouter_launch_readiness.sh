@@ -1256,6 +1256,12 @@ check_hosted_onboarding_pages() {
   if [[ "$status_code" == "200" ]] && ! grep -q "status-copy-one-subscription-review-packet" /tmp/sage-router-readiness-body; then
     status_code="200:missing-status-one-subscription-review-packet-copy"
   fi
+  if [[ "$status_code" == "200" ]] && ! grep -q "status-activation-approval-packet" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-activation-approval-packet"
+  fi
+  if [[ "$status_code" == "200" ]] && ! grep -q "status-copy-activation-approval-packet" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-activation-approval-packet-copy"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   status_js_code="$(http_code_follow "${APP_BASE%/}/status.js")"
@@ -1297,6 +1303,12 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$status_js_code" == "200" ]] && ! grep -q "status-one-subscription-review-packet" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-one-subscription-review-packet-snippet"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "status_activation_approval_packet_copied" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-activation-approval-packet-funnel"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "status-activation-approval-packet" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-activation-approval-packet-snippet"
   fi
   if [[ "$status_js_code" == "200" ]] && ! grep -q "Browser Integrity Check" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-bic-guidance"

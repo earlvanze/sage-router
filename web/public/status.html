@@ -129,10 +129,30 @@ Immediate fallback: create a Max BYOK setup key at https://app.sagerouter.dev/ac
 
 Do not paste prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, or customer data.</pre>
       </details>
+      <details>
+        <summary>Preview the signup-to-key approval packet</summary>
+        <pre id="status-activation-approval-packet" class="commandText">Sage Router signup-to-key activation approval
+
+Use when no-key signup follow-ups are queued but real sends still need explicit operator approval.
+
+Refresh the no-secret aggregate packet:
+scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet --verify-recovery --verify-auth-repair
+
+Review worksheet:
+docs/launch/execution/activation-approval-review.md
+
+Approval boundary:
+- This packet does not send email, trigger recovery links, write customer records, repair auth links, deploy infrastructure, or change billing state.
+- Real sends require a fresh approvalPacketIssuedAt from the current packet, private operator auth, trusted Sage Router origin, and sendConfirmation=SEND_ACTIVATION_FOLLOWUPS.
+- Review-only missing_auth_user rows stay excluded until auth repair or explicit exclusion is reviewed.
+
+Do not paste emails, customer IDs, generated keys, key hashes, prompts, OAuth tokens, provider credentials, raw campaign URLs, raw provider responses, or private funnel rows.</pre>
+      </details>
       <div class="actions">
         <button id="status-copy-founder-pro-reply" class="btn" type="button">Copy Pro reply</button>
         <button id="status-copy-first-request-setup" class="btn" type="button">Copy setup bundle</button>
         <button id="status-copy-one-subscription-review-packet" class="btn" type="button">Copy review packet</button>
+        <button id="status-copy-activation-approval-packet" class="btn" type="button">Copy approval packet</button>
         <a id="status-create-api-key-link" class="btn secondary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=status&utm_medium=setup-copy&utm_campaign=sage-router-launch&utm_content=status-revenue-panel" data-status-event="content_article_key_activation_clicked" data-status-state="status-create-api-key">Create API key</a>
         <a id="status-founder-sales-kit-link" class="btn secondary" href="https://sagerouter.dev/founder-sales-kit?utm_source=status&utm_medium=founder-sales&utm_campaign=sage-router-launch&utm_content=status-revenue-panel" data-status-event="content_article_launch_plan_clicked" data-status-state="status-founder-sales-kit">Founder sales kit</a>
         <a id="status-one-subscription-review-link" class="btn secondary" href="/managed-access?intent=one-subscription&utm_source=status&utm_medium=founder-sales&utm_campaign=sage-router-launch&utm_content=status-revenue-panel" data-status-event="content_article_managed_access_clicked" data-status-state="status-one-subscription-review">One-subscription review</a>

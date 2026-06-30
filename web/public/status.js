@@ -132,6 +132,23 @@ $('status-copy-one-subscription-review-packet')?.addEventListener('click', async
     if (status) status.textContent = 'Copy failed. Select the review packet manually.';
   }
 });
+
+$('status-copy-activation-approval-packet')?.addEventListener('click', async () => {
+  const block = $('status-activation-approval-packet');
+  const status = $('status-founder-pro-status');
+  try {
+    await writeClipboardText(block?.textContent.trim() || '');
+    if (status) status.textContent = 'Copied no-secret signup-to-key approval packet.';
+    trackStatusFunnelEvent('status_activation_approval_packet_copied', {
+      target: 'status-revenue-action',
+      button: 'Copy approval packet',
+      state: 'status-activation-approval',
+      snippet: 'status-activation-approval-packet',
+    });
+  } catch (_error) {
+    if (status) status.textContent = 'Copy failed. Select the approval packet manually.';
+  }
+});
 const originKind = (url = '') => {
   if (url && typeof url === 'object') return url.originKind || originKind(url.url || url.label || url.id || '');
   const name = host(url).toLowerCase();
