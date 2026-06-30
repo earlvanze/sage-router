@@ -142,7 +142,9 @@ bounded JSON subset suitable for automation; `revenue`, `bottleneck`, and
 `nextActions` mirror the human `$10k MRR` snapshot and top conversion move,
 while `activationQueue` is the stable field for no-key follow-up counts,
 sendable/review-only segments, dry-run coverage, sent-recipient counts, and
-approval-required state. The
+approval-required state. `activationApprovalReadiness.decisionLines` exposes
+the no-secret approve/hold review text for agents without requiring packet-text
+parsing. The
 approval packet exposes `approvalPacketIssuedAt`, `approvalPacketExpiresAt`,
 and `approvalPacketValidSeconds`; real activation sends must include a fresh
 `approvalPacketIssuedAt` in addition to `SEND_ACTIVATION_FOLLOWUPS`, so stale
