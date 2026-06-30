@@ -824,9 +824,11 @@ worksheet from the live no-secret packet with
 `scripts/update_activation_approval_review.sh --days 30 --write` so the
 reviewer sees the current recovery proof, auth-repair dry run, next segment,
 and packet freshness window. The packet includes the next segment dry-run
-command, the typed-confirmation send command template, and the same
+command, explicit `APPROVE_ACTIVATION_FOLLOWUP` / `HOLD_ACTIVATION_FOLLOWUP`
+decision lines, the typed-confirmation send command template, and the same
 server-derived approval decision checklist used by the dashboard, but it
-remains read-only: it does not approve, copy, repair, or send activation
+remains read-only: the decision lines are operator-review text only and the
+packet does not approve, copy, repair, or send activation
 outreach, and the printed command still requires `SAGE_ROUTER_API_KEY` plus
 `sendConfirmation=SEND_ACTIVATION_FOLLOWUPS`. The default snapshot also prints a
 compact approval handoff with the packet command, current approval decision, and
