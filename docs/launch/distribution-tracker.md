@@ -26,11 +26,16 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 ```
 
 - Window: last 30 days
-- Generated at epoch: 1782761402
-- Marketing intent events: 400
+- Generated at epoch: 1782802242
+- Marketing intent events: 401
 - Setup snippet copies: 0
+- Founder-sales outreach copies: 0
+- Founder-sales outreach snippets: none
+- Managed-access packet copies: 0
+- Managed-access packet snippets: none
 - Recovery auth starts: magic=0, password=0, oauth=0
-- Managed-access demand: anonymousSignals=4; waitlistSignals=0; legacyClicks=0; quickSubmitted=0; quickReceived=0
+- Key-first recovery: setupClicks=0; redirects=0; recoveryViews=8; keyCreateAttempts=0; keyCreateSuccesses=0; noKeyCreateClicks=0
+- Managed-access demand: anonymousSignals=4; waitlistSignals=0; legacyClicks=0; quickStarted=0; quickValidationFailed=0; quickSubmitted=0; quickReceived=0
 - Managed-access provider buckets: mixed-frontier=4
 - Managed-access commercial buckets: one-subscription=4
 - Managed-access intent buckets: one-subscription=4
@@ -45,8 +50,8 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 - Metric: signupToGeneratedKey
 - Priority: fix_now
 - Owner/surface: Activation / setup-key recovery
-- Action: Recovery pages are getting views but no account handoffs or key-create attempts. Run `bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff` to fold the live no-persistence handoff smoke into the diagnosis; if it reports `verified_handoff_waiting_for_fresh_traffic`, wait for fresh real recovery traffic or use the approval packet before any real activation send.
-- Success metric: Move no-key signups into generated-key accounts, then first routed request.
+- Action: Recovery handoff is verified with no persistence; the next blocker is explicit operator approval for the next sendable follow-up or fresh recovery traffic, not recovery-page code.
+- Success metric: setup_key_recovery_magic_link_requested/sent increases, then keyCreateAttempts and generated-key customers increase.
 - CTA: `https://sagerouter.dev/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation`
 
 ### Activation Queue
@@ -79,14 +84,14 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 
 - Command: `bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff`
 - Result: `verified_handoff_waiting_for_fresh_traffic`
-- Evidence: live setup-key recovery handoff smoke passed with no persistence; recovery views exist, but account handoffs, key-create attempts, and key-create successes are still zero.
-- Next action: wait for fresh real recovery traffic or run the no-secret approval packet before any real activation send.
+- Evidence: checked=true; passed=true; noPersistence=true; recoveryViews=8; accountHandoffs=0; keyCreateAttempts=0; keyCreateSuccesses=0.
+- Next action: Use the no-secret approval packet for the next sendable activation follow-up or wait for fresh real recovery traffic.
 
 ### Top Acquisition Actions
 
-- attributionChannel/sagerouter: 312 clicks - Cross-link internal Sage Router pages toward the current lowest-performing activation step.
+- attributionChannel/sagerouter: 313 clicks - Cross-link internal Sage Router pages toward the current lowest-performing activation step.
 - sourceSurface/article: 117 clicks - Turn long-form local-first routing readers into quickstart, Codex setup, and gateway comparison CTAs.
-- sourceSurface/landing: 110 clicks - Keep the homepage focused on account creation, pricing, model catalog, and migration CTAs.
+- sourceSurface/landing: 111 clicks - Keep the homepage focused on account creation, pricing, model catalog, and migration CTAs.
 - sourceSurface/account: 39 clicks - Reduce signed-in friction from plan selection to generated key and first routed request.
 - attributionChannel/reddit: 37 clicks - Package comparison, migration, and reliability proof for Reddit-style evaluation threads.
 
@@ -98,9 +103,12 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --distribution-tracker-s
 
 ### Founder Sales Fallback
 
-- Use when: activation sends are approval-gated or provider resale is waiting on terms/evidence, but founder-led Pro/Max conversations can still move.
+- Use when: activation sends are approval-gated or provider resale is waiting on terms/evidence, but founder-led Lite/Pro/Max conversations can still move.
 - Kit: `https://sagerouter.dev/founder-sales-kit?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch`
-- Primary revenue motion: pro needs 198 customers and $5940 remaining MRR; convert active generated-key users into Pro with frontier profile, analytics, and fallback proof.
+- Outreach copies recorded: 0; snippets: none
+- Managed-access packet copies recorded: 0; snippets: none
+- Primary revenue motion: pro needs 198 customers and $5940 remaining MRR; Convert active generated-key users into Pro with frontier profile, analytics, and fallback proof.
+- Lite pilot motion: 100 Lite customers and $600 remaining MRR; use the Lite pilot snippet for one-agent evaluations and low-friction hosted key trials.
 - Max review motion: 50 Max customers and $3600 remaining MRR; use the Max implementation snippet for teams with production agents, Tailnet/local routing, or gateway migration pain.
 - Safety rule: use one no-secret snippet per warm conversation; do not paste prompts, provider credentials, generated keys, customer data, private funnel rows, OAuth tokens, or raw provider responses.
 

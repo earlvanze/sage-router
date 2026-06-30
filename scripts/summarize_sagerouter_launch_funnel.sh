@@ -168,6 +168,11 @@ printf '{"stage":"not_run","handoffSmoke":{"checked":false,"passed":false,"noPer
 if [[ "$APPROVAL_PACKET" == "1" && "$VERIFY_RECOVERY" == "1" ]]; then
   bash scripts/diagnose_setup_key_recovery_dropoff.sh --days "$DAYS" --verify-handoff --json > "$recovery_tmp"
 fi
+if [[ "$APPROVAL_PACKET" != "1" && "$RAW_JSON" != "1" ]]; then
+  if ! bash scripts/diagnose_setup_key_recovery_dropoff.sh --days "$DAYS" --verify-handoff --json > "$recovery_tmp"; then
+    printf '{"stage":"failed","handoffSmoke":{"checked":true,"passed":false,"noPersistence":true},"privacy":{"aggregateOnly":true}}\n' > "$recovery_tmp"
+  fi
+fi
 
 printf '{"stage":"not_run","checked":false,"passed":false,"dryRun":true,"privacy":{"aggregateOnly":true}}\n' > "$auth_repair_tmp"
 if [[ "$APPROVAL_PACKET" == "1" && "$VERIFY_AUTH_REPAIR" == "1" ]]; then
@@ -544,7 +549,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
   exit 0
 fi
 
-jq -r --arg days "$DAYS" '
+jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
   def n($v): ($v // 0);
   def pct($v): if $v == null then "n/a" else (($v * 10000 | round) / 100 | tostring) + "%" end;
   def money($v): "$" + ((n($v) | tostring));
@@ -554,6 +559,7 @@ jq -r --arg days "$DAYS" '
     | if ($rows | length) > 0 then ($rows | join(", ")) else "none" end;
 
   . as $root
+  | (($recoveryProof[0] // {})) as $recovery_proof
   | ($root.stages // {}) as $stages
   | ($root.rates // {}) as $rates
   | ($root.mrr // {}) as $mrr
@@ -596,7 +602,7 @@ jq -r --arg days "$DAYS" '
       "- Metric: \($action.metric // "unknown")",
       "- Priority: \($action.priority // "unknown")",
       "- Owner/surface: \($action.owner // "unknown") / \($action.surface // "unknown")",
-      "- Action: \($action.action // "Review the live launch funnel.")",
+      "- Action: \(if (($recovery_proof.stage // "") == "verified_handoff_waiting_for_fresh_traffic" and ($approval.status // "") == "approval_required") then "Recovery handoff is verified with no persistence; the next blocker is explicit operator approval for the next sendable follow-up or fresh recovery traffic, not recovery-page code." else ($action.action // "Review the live launch funnel.") end)",
       "- Success metric: \($action.successMetric // "Improve the next funnel stage.")",
       "- CTA: \($action.ctaPath // "https://app.sagerouter.dev/launch-funnel.html")",
       "",
@@ -625,6 +631,13 @@ jq -r --arg days "$DAYS" '
       "- Approval decision: \($approval.status // "unknown") for next segment \($packet.sendTelemetry.nextSendSegment // "all"); blocker=\($approval.blockedReason // "none").",
       "- Default snapshot policy: No send command is printed in this default snapshot. Real activation sends still require explicit operator approval and typed SEND_ACTIVATION_FOLLOWUPS confirmation.",
       "- Safe review: the approval packet is no-secret and excludes emails, customer IDs, generated keys, prompts, OAuth tokens, provider credentials, and raw responses.",
+      "",
+      "## Verified Recovery Diagnosis",
+      "",
+      "- Command: bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff",
+      "- Result: \($recovery_proof.stage // "not_run")",
+      "- Evidence: checked=\($recovery_proof.handoffSmoke.checked // false); passed=\($recovery_proof.handoffSmoke.passed // false); noPersistence=\($recovery_proof.handoffSmoke.noPersistence // true); recoveryViews=\(n($followups.keyRecoveryViews)); accountHandoffs=\(n($followups.keyFirstRedirects)); keyCreateAttempts=\(n($followups.keyCreateAttempts)); keyCreateSuccesses=\(n($followups.keyCreateSuccesses)).",
+      "- Next action: \(if (($recovery_proof.stage // "") == "verified_handoff_waiting_for_fresh_traffic") then "Use the no-secret approval packet for the next sendable activation follow-up or wait for fresh real recovery traffic." elif (($recovery_proof.stage // "") == "failed") then "Hold real activation sends and inspect the recovery handoff smoke failure." else "Follow the recovery diagnosis before approving any real activation send." end)",
       "",
       "## Top Acquisition Actions",
       (
