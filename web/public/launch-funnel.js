@@ -1317,6 +1317,29 @@ function founderSalesNextOutreachText(data = {}) {
   ].join('\n');
 }
 
+function firstRequestSetupBundleText(data = {}) {
+  const followUps = data.activationFollowUps || {};
+  const plan = followUps.suggestedPlan || 'pro';
+  const content = encodeURIComponent('operator-first-request-setup');
+  const accountUrl = `${APP_BASE.replace(/\/$/, '')}/account.html?plan=${encodeURIComponent(plan)}&start=create_key&utm_source=operator&utm_medium=launch_funnel&utm_campaign=sage-router-launch&utm_content=${content}`;
+  return [
+    '# Sage Router hosted setup',
+    '# 1. Create your generated setup key:',
+    `# ${accountUrl}`,
+    '# 2. Replace the placeholder below with the one-time sk_sage key.',
+    '',
+    'export OPENAI_BASE_URL=https://api.sagerouter.dev/v1',
+    'export OPENAI_API_KEY=sk_sage_your_key_here',
+    'export SAGE_ROUTER_MODEL=sage-router/frontier',
+    '',
+    'curl "$OPENAI_BASE_URL/models" \\',
+    '  -H "Authorization: Bearer $OPENAI_API_KEY"',
+    '',
+    '# Then run your first chat/completions request with sage-router/frontier.',
+    '# Boundary: do not paste real API keys, provider credentials, prompts, OAuth tokens, or customer data into public channels.',
+  ].join('\n');
+}
+
 function managedAccessApprovalPacketText(data = {}) {
   const managed = managedProviderReadiness(data);
   const setup = managed.readinessSetup || {};
@@ -1755,6 +1778,8 @@ function renderNextBestActionDock(data = {}) {
   const approvalButton = noKeyCount > 0
     ? `<button class="btn secondary" type="button" data-copy-activation-approval-packet="${esc(approvalPacketText)}" data-followup-count="${integer(activationDelivery.sendableQueued)}">Copy approval packet</button>`
     : '';
+  const setupBundleText = firstRequestSetupBundleText(data);
+  const setupButton = `<button class="btn secondary" type="button" data-copy-operator-setup-bundle="${esc(setupBundleText)}" data-followup-plan="${esc(followUps.suggestedPlan || 'pro')}">Copy first-request setup</button>`;
   const checklist = Array.isArray(action.executionChecklist) && action.executionChecklist.length
     ? `<ol class="muted" style="margin:10px 0 0 20px">${action.executionChecklist.slice(0, 5).map(item => `<li><strong>${esc(item.action || '')}</strong><br><span>${esc(item.successMetric || '')}</span></li>`).join('')}</ol>`
     : '';
@@ -1773,7 +1798,7 @@ function renderNextBestActionDock(data = {}) {
   <p><strong>${esc(action.action || followUps.recommendedOperatorAction || 'Review the current launch funnel bottleneck.')}</strong></p>
   <p class="muted">Success metric: ${esc(action.successMetric || followUps.successMetric || 'Improve the next funnel stage.')} ${activationSend.sendApprovalRequired ? `Dry-run verified=${activationSend.dryRunVerified ? 'yes' : 'no'}; real send still needs explicit operator approval.` : ''}</p>${checklist}
   ${renderActivationNextSendStep(data, { compact: true })}
-  <div class="actions">${queueButton}<a class="btn secondary" href="${esc(actionHref)}">Open recommended surface</a>${approvalButton}${mailtoButton}${copyButton}<span class="status">Use the queue buttons to record only segment/count telemetry after real outreach.</span></div>${segmentDraftDock}`;
+  <div class="actions">${queueButton}<a class="btn secondary" href="${esc(actionHref)}">Open recommended surface</a>${setupButton}${approvalButton}${mailtoButton}${copyButton}<span class="status">Use the queue buttons to record only segment/count telemetry after real outreach.</span></div>${segmentDraftDock}`;
 }
 
 async function writeClipboard(value) {
@@ -2199,6 +2224,30 @@ async function copyFounderSalesNextOutreach(button) {
   } catch (error) {
     button.textContent = 'Copy failed';
     setStatus(`Founder-sales next outreach copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyOperatorSetupBundle(button) {
+  const text = button.getAttribute('data-copy-operator-setup-bundle') || '';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    trackOperatorFunnelEvent('status_first_request_setup_copied', {
+      plan: button.getAttribute('data-followup-plan') || 'pro',
+      state: 'operator_first_request_setup_copied',
+      snippet: 'operator-first-request-setup',
+      target: `${APP_BASE.replace(/\/$/, '')}/account.html`,
+    });
+    setStatus('Copied placeholder first-request setup bundle. This counts toward setup-copy activation without exposing a real key.', 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`First-request setup copy failed: ${error.message}`, 'bad');
   } finally {
     setTimeout(() => {
       button.textContent = original;
@@ -3328,6 +3377,11 @@ function handleFollowUpCopyClick(event) {
   const founderSalesNextButton = event.target.closest('[data-copy-founder-sales-next]');
   if (founderSalesNextButton) {
     copyFounderSalesNextOutreach(founderSalesNextButton);
+    return;
+  }
+  const operatorSetupBundleButton = event.target.closest('[data-copy-operator-setup-bundle]');
+  if (operatorSetupBundleButton) {
+    copyOperatorSetupBundle(operatorSetupBundleButton);
     return;
   }
   const primaryUrlButton = event.target.closest('[data-copy-primary-followup-url]');
