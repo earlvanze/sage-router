@@ -7684,6 +7684,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
     generated_keys = int(stages.get('customersWithGeneratedApiKeys') or stages.get('generatedApiKeys') or 0)
     first_requests = int(stages.get('customersWithFirstRoutedRequest') or stages.get('firstRoutedRequest') or 0)
     paid_customers = int(stages.get('paidCustomers') or 0)
+    setup_snippet_copies = int(stages.get('setupSnippetCopies') or 0)
     signup_to_key_rate = rates.get('signupToGeneratedKey')
     signup_to_key_below_target = signup_to_key_rate is None or float(signup_to_key_rate or 0) < float(LAUNCH_CONVERSION_TARGETS['signupToGeneratedKey']['targetRate'])
     if no_key_total > 0 and signup_to_key_below_target:
@@ -7700,6 +7701,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
             and operator_follow_up_send_dry_runs > 0
             and operator_follow_up_sends <= 0
         )
+        non_gated_setup_copy_fallback = activation_send_ready_for_approval and setup_snippet_copies <= 0
         recommended_segments = [
             segment for segment in ('verified', 'unverified', 'missing_auth_user', 'missing_user_id', 'unavailable', 'not_required')
             if int((verification_counts or {}).get(segment) or 0) > 0
@@ -7773,11 +7775,18 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
             'priority': 'fix_now',
             'owner': 'Activation',
             'surface': (
+                'launch funnel'
+                if non_gated_setup_copy_fallback
+                else (
                 'account setup'
                 if recovery_handoff_dropoff
                 else ('setup-key recovery' if recovery_view_dropoff else ('launch funnel' if outreach_not_worked else 'account'))
+                )
             ),
             'ctaPath': (
+                f'{APP_BASE_URL.rstrip("/")}/launch-funnel.html#next-best-action-dock'
+                if non_gated_setup_copy_fallback
+                else (
                 launch_activation_follow_up_url(activation_follow_ups.get('suggestedPlan') or 'pro', auth='github')
                 if recovery_handoff_dropoff
                 else (activation_follow_ups.get('primaryCtaUrl') or launch_setup_key_recovery_url(activation_follow_ups.get('suggestedPlan') or 'pro'))
@@ -7787,8 +7796,12 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 if outreach_not_worked
                 else activation_follow_ups.get('primaryCtaUrl') or launch_activation_follow_up_url(activation_follow_ups.get('suggestedPlan') or 'pro')
                 )
+                )
             ),
             'action': (
+                'Real activation sends are approval-gated and setup-copy activation is still zero. Copy the first-request setup bundle from the Do Next dock now; it moves a no-secret setup-copy KPI without sending email, exposing a real key, or changing billing/provider resale.'
+                if non_gated_setup_copy_fallback
+                else (
                 (
                     'Recovery handoffs are reaching account setup but no key-create attempts are starting. Verify signed-in start=create_key auto-create before sending more activation traffic.'
                     if recovery_handoff_dropoff
@@ -7804,16 +7817,22 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 if outreach_not_worked
                 else activation_follow_ups.get('recommendedOperatorAction') or 'Send the generated-key-first recovery link to no-key signups.'
                 )
+                )
             ),
             'executionChecklist': execution_checklist,
             'successMetric': (
+                'status_first_request_setup_copied increases with snippet operator-first-request-setup, then first routed request and generated-key conversion can be measured.'
+                if non_gated_setup_copy_fallback
+                else (
                 'setup_key_recovery_magic_link_requested/sent increases, then keyCreateAttempts and generated-key customers increase.'
                 if recovery_view_dropoff
                 else activation_follow_ups.get('successMetric') or 'Move no-key signups into generated-key accounts, then first routed request.'
+                )
             ),
             'evidence': {
                 'signups': signups,
                 'generatedKeyCustomers': generated_keys,
+                'setupSnippetCopies': setup_snippet_copies,
                 'noKeyFollowUpsQueued': no_key_total,
                 'sendableQueued': delivery_counts.get('sendableQueued', 0),
                 'reviewOnlyQueued': delivery_counts.get('reviewOnlyQueued', 0),
@@ -7850,6 +7869,9 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 'recoveryDiagnosticCommand': 'bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff',
                 'activationApprovalPacketCommand': 'bash scripts/summarize_sagerouter_launch_funnel.sh --approval-packet --verify-recovery --verify-auth-repair',
                 'activationSendReadyForApproval': activation_send_ready_for_approval,
+                'nonGatedSetupCopyFallback': non_gated_setup_copy_fallback,
+                'setupCopyEvent': 'status_first_request_setup_copied',
+                'setupCopySnippet': 'operator-first-request-setup',
                 'recoveryVerifierSmokeEvents': [
                     'setup_key_recovery_auto_account_redirected',
                     'login_key_recovery_account_setup_auto_redirected',
