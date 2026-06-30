@@ -246,6 +246,18 @@
         font-size: 13px;
         margin: 8px 0 0;
       }
+      .recoveryPrimaryHandoff {
+        display: grid;
+        gap: 8px;
+        margin: 12px 0;
+      }
+      .recoveryPrimaryHandoff .btn {
+        width: 100%;
+      }
+      .recoveryPrimaryHandoff span {
+        margin: 0;
+        font-size: 13px;
+      }
       .actions {
         display: flex;
         gap: 12px;
@@ -364,12 +376,23 @@
               <li>The magic link opens <code>start=create_key</code> and creates the setup key before checkout.</li>
               <li>Copy setup first; billing only unlocks routing after the key exists.</li>
             </ul>
+            <div class="recoveryPrimaryHandoff">
+              <a
+                id="login-key-recovery-primary-handoff"
+                class="btn"
+                href="/account.html?plan=pro&start=create_key&utm_source=login&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=login-key-recovery&source_surface=recovery&next=generated-key"
+                data-key-recovery="true"
+                data-key-recovery-button="primary_account_setup_handoff"
+                >Open API key setup now</a
+              >
+              <span>Already signed in or returning from a magic link? Go straight to generated-key setup.</span>
+            </div>
             <form id="login-key-recovery-email-form" class="recoveryEmailForm">
               <input id="login-key-recovery-email" type="email" autocomplete="email" inputmode="email" placeholder="same email used at signup" required />
               <button id="login-key-recovery-email-submit" class="btn" type="submit">Email setup key link</button>
             </form>
             <p id="login-key-recovery-email-status" class="recoveryEmailStatus" role="status" aria-live="polite">This sends only a Supabase recovery link; no provider key or generated key is emailed.</p>
-            <p id="login-key-recovery-handoff-status" class="recoveryEmailStatus" role="status" aria-live="polite">If you do nothing, account setup opens automatically after about two seconds.</p>
+            <p id="login-key-recovery-handoff-status" class="recoveryEmailStatus" role="status" aria-live="polite">If you do nothing, account setup opens automatically after about one second.</p>
             <div class="actions recoveryActions">
               <a
                 id="login-key-recovery"

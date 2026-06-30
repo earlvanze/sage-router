@@ -92,6 +92,9 @@ grep -q 'href="/account.html?plan=pro&start=create_key' "$tmp_body" || fail 'log
 if grep -q 'href="/account?plan=pro&start=create_key' "$tmp_body"; then
   fail 'login recovery page still uses non-canonical account handoff'
 fi
+grep -q 'login-key-recovery-primary-handoff' "$tmp_body" || fail 'login recovery page missing primary account setup handoff'
+grep -q 'primary_account_setup_handoff' "$tmp_body" || fail 'login recovery page missing primary handoff telemetry label'
+grep -q 'account setup opens automatically after about one second' "$tmp_body" || fail 'login recovery page missing fast auto-handoff copy'
 
 auth_js_code="$(http_get "$auth_js_target")"
 if [[ "$auth_js_code" != "200" ]]; then
@@ -101,6 +104,7 @@ grep -q "ACCOUNT_ACTIVATION_PATH = '/account.html?plan=pro&start=create_key" "$t
 if grep -q "ACCOUNT_ACTIVATION_PATH = '/account?plan=pro&start=create_key" "$tmp_body"; then
   fail 'auth.js still uses non-canonical account activation path'
 fi
+grep -q 'KEY_RECOVERY_ACCOUNT_HANDOFF_DELAY_MS = 1000' "$tmp_body" || fail 'auth.js does not use fast key-recovery auto handoff'
 pass 'login recovery page and auth.js use canonical account.html handoffs'
 
 endpoint_code="$(http_get "$FUNNEL_ENDPOINT")"

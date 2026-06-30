@@ -1009,6 +1009,15 @@ check_hosted_onboarding_pages() {
   if [[ "$login_code" == "200" ]] && ! grep -q "login-key-recovery-email-form" /tmp/sage-router-readiness-body; then
     login_code="200:missing-login-key-recovery-email-form"
   fi
+  if [[ "$login_code" == "200" ]] && ! grep -q "login-key-recovery-primary-handoff" /tmp/sage-router-readiness-body; then
+    login_code="200:missing-login-key-recovery-primary-handoff"
+  fi
+  if [[ "$login_code" == "200" ]] && ! grep -q "primary_account_setup_handoff" /tmp/sage-router-readiness-body; then
+    login_code="200:missing-login-key-recovery-primary-handoff-telemetry"
+  fi
+  if [[ "$login_code" == "200" ]] && ! grep -q "account setup opens automatically after about one second" /tmp/sage-router-readiness-body; then
+    login_code="200:missing-login-key-recovery-fast-auto-handoff-copy"
+  fi
   if [[ "$login_code" == "200" ]] && ! grep -q "Email setup key link" /tmp/sage-router-readiness-body; then
     login_code="200:missing-login-key-recovery-email-submit"
   fi
