@@ -295,7 +295,8 @@ boundaries for the `$10k MRR` campaign.
 `https://sagerouter.dev/founder-sales-kit` gives the operator first-viewport
 `Copy next Pro reply` and `Copy 60-second setup bundle` actions plus copyable
 no-secret direct outreach for Lite pilots, Pro activation, Max implementation review,
-one-subscription managed-access review, gateway migration replies, and
+one-subscription managed-access review, gateway migration replies, OpenRouter
+migration replies, and
 calculator follow-up with measured
 `utm_source=founder-sales` links for the same `$10k MRR` campaign. Those copy
 actions roll into `/analytics/funnel.marketingIntent.founderSalesOutreachCopies`,

@@ -42,7 +42,7 @@
   <header class="wrap">
     <p class="eyebrow">Founder sales kit</p>
     <h1>Turn high-intent routing conversations into Lite, Pro, and Max activation.</h1>
-    <p class="lead">Use these no-secret snippets for direct founder-sales follow-up. Every link uses measured founder-sales attribution, keeps provider-custody boundaries explicit, and routes prospects toward Lite pilots, generated-key activation, Max implementation review, or calculator qualification.</p>
+    <p class="lead">Use these no-secret snippets for direct founder-sales follow-up. Every link uses measured founder-sales attribution, keeps provider-custody boundaries explicit, and routes prospects toward Lite pilots, generated-key activation, OpenRouter migration, Max implementation review, or calculator qualification.</p>
     <div class="actions">
       <a class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-api-key" data-founder-event="content_article_key_activation_clicked" data-founder-button="hero-api-key">Create API key</a>
       <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=lite&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-lite-pilot" data-founder-event="content_article_key_activation_clicked" data-founder-button="hero-lite-pilot">Start Lite pilot</a>
@@ -63,6 +63,10 @@ https://sagerouter.dev/quickstart?utm_source=founder-sales&utm_medium=direct&utm
       <details>
         <summary>Preview the setup bundle</summary>
         <pre id="founder-hero-setup-bundle" class="codebox"># Sage Router hosted setup
+# 1. Create your generated key:
+# https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=hero-setup-bundle
+# 2. Replace the placeholder below with the one-time sk_sage key.
+
 export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
 export OPENAI_API_KEY=sk_sage_your_key_here
 export SAGE_ROUTER_MODEL=sage-router/frontier
@@ -212,6 +216,33 @@ https://sagerouter.dev/compare/openrouter?utm_source=founder-sales&utm_medium=di
           <li>Prospect compares model gateways, OpenRouter, LiteLLM, or internal proxy glue.</li>
           <li>Goal is migration-guide traffic, comparison clicks, and generated-key setup.</li>
           <li>Success signal is gateway page view, OpenRouter comparison click, or Pro checkout intent.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="two">
+      <article class="panel">
+        <h2>Copyable OpenRouter migration reply</h2>
+        <pre id="founder-openrouter-reply" class="codebox">If OpenRouter is working for broad remote catalog access, keep it available. The Sage Router migration is about adding a policy layer around your own authorized routes, local/Tailnet models, generated Sage keys, quotas, and health-aware failover.
+
+Start with the OpenRouter comparison and copy the 60-second migration setup:
+https://sagerouter.dev/compare/openrouter?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=openrouter-migration-reply
+
+Create the generated Sage Router key:
+https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=openrouter-migration-reply
+
+Boundary: OpenRouter can remain a BYOK/OpenAI-compatible provider route behind Sage Router. Sage Router is not selling bundled OpenRouter resale or claiming marketplace replacement breadth.</pre>
+        <div class="copyRow">
+          <button id="copy-founder-openrouter-reply" class="copyButton" type="button">Copy OpenRouter migration reply</button>
+          <span id="copy-founder-openrouter-status" class="copyStatus" role="status" aria-live="polite"></span>
+        </div>
+      </article>
+      <aside class="panel soft">
+        <h2>When to use it</h2>
+        <ul class="list">
+          <li>Prospect compares Sage Router with OpenRouter, LiteLLM, or a hosted model marketplace.</li>
+          <li>Goal is a low-friction Pro key setup while preserving OpenRouter as an optional authorized route.</li>
+          <li>Success signal is OpenRouter comparison traffic, setup-copy telemetry, generated key creation, or a Max review request.</li>
         </ul>
       </aside>
     </section>
@@ -378,6 +409,9 @@ https://sagerouter.dev/margin-policy?utm_source=founder-sales&utm_medium=direct&
     });
     document.getElementById('copy-founder-gateway-reply')?.addEventListener('click', () => {
       copyBlock('founder-gateway-reply', 'copy-founder-gateway-status', 'Copied migration reply.', 'founder-gateway-reply');
+    });
+    document.getElementById('copy-founder-openrouter-reply')?.addEventListener('click', () => {
+      copyBlock('founder-openrouter-reply', 'copy-founder-openrouter-status', 'Copied OpenRouter migration reply.', 'founder-openrouter-reply');
     });
     document.getElementById('copy-founder-calculator-followup')?.addEventListener('click', () => {
       copyBlock('founder-calculator-followup', 'copy-founder-calculator-status', 'Copied calculator follow-up.', 'founder-calculator-followup');

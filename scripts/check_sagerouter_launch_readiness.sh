@@ -3627,6 +3627,15 @@ check_marketing_founder_sales_kit_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-gateway-reply" /tmp/sage-router-readiness-body; then
     page_code="200:missing-copy-founder-gateway-reply"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Copyable OpenRouter migration reply" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-openrouter-migration-reply-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-openrouter-reply" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-founder-openrouter-reply"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "OpenRouter can remain a BYOK/OpenAI-compatible provider route" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-founder-openrouter-byok-boundary"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Copyable calculator follow-up" /tmp/sage-router-readiness-body; then
     page_code="200:missing-calculator-followup-copy"
   fi
