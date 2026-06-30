@@ -741,8 +741,11 @@ and privacy fields. Use its output to update
 `docs/launch/distribution-tracker.md` before broad community posting or
 activation outreach. Pass `--distribution-tracker-section` to print the
 ready-to-paste live tracker section with the same no-secret aggregate boundary.
-When the snapshot reports setup-key recovery views but no account handoffs or
-key-create attempts, first classify the aggregate dropoff stage:
+The default snapshot also runs the no-persistence setup-key recovery handoff
+diagnosis and prints a `Verified Recovery Diagnosis` section, so the operator
+can see whether the current blocker is recovery-page code, fresh traffic, or
+explicit activation-send approval. When you need the standalone aggregate
+dropoff classifier, run:
 
 ```bash
 bash scripts/diagnose_setup_key_recovery_dropoff.sh
