@@ -612,6 +612,7 @@
     });
 
     let formStarted = false;
+    let quickFormStarted = false;
     form.addEventListener('input', () => {
       if (formStarted) return;
       formStarted = true;
@@ -621,6 +622,22 @@
       if (formStarted) return;
       formStarted = true;
       trackManagedAccessFunnelEvent('managed_access_form_started', { state: 'started' });
+    });
+    quickForm.addEventListener('input', () => {
+      if (quickFormStarted) return;
+      quickFormStarted = true;
+      trackManagedAccessFunnelEvent('managed_access_quick_form_started', {
+        state: quickReviewIntent(),
+        target: '#managed-access-quick-form',
+      });
+    });
+    quickForm.addEventListener('change', () => {
+      if (quickFormStarted) return;
+      quickFormStarted = true;
+      trackManagedAccessFunnelEvent('managed_access_quick_form_started', {
+        state: quickReviewIntent(),
+        target: '#managed-access-quick-form',
+      });
     });
 
     form.addEventListener('submit', async (event) => {
@@ -660,10 +677,18 @@
       event.preventDefault();
       const email = String(new FormData(quickForm).get('email') || '').trim();
       if (!email) {
+        trackManagedAccessFunnelEvent('managed_access_quick_request_validation_failed', {
+          state: quickReviewIntent(),
+          target: '#managed-access-quick-form',
+        });
         setQuickStatus('Enter a work email to request review.');
         return;
       }
       if (turnstileState.required && !turnstileState.token) {
+        trackManagedAccessFunnelEvent('managed_access_quick_request_validation_failed', {
+          state: quickReviewIntent(),
+          target: '#managed-access-quick-form',
+        });
         quickTurnstileSlot?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setQuickStatus('Complete verification here, then request review. Your email stays in the fast form.');
         setStatus('The fast review form now includes verification; submit there after the check completes.');

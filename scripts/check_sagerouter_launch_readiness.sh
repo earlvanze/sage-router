@@ -1570,9 +1570,11 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("outreach_snippet_copied") != null) and
     ((.allowedEvents // []) | index("content_article_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_oauth_failed") != null) and
+    ((.allowedEvents // []) | index("managed_access_quick_form_started") != null) and
     ((.allowedEvents // []) | index("managed_access_quick_request_submitted") != null) and
     ((.allowedEvents // []) | index("managed_access_quick_request_received") != null) and
     ((.allowedEvents // []) | index("managed_access_quick_request_failed") != null) and
+    ((.allowedEvents // []) | index("managed_access_quick_request_validation_failed") != null) and
     ((.allowedEvents // []) | index("managed_access_review_packet_copied") != null) and
     ((.allowedEvents // []) | index("content_article_ollama_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_pricing_clicked") != null) and
@@ -3885,6 +3887,9 @@ check_marketing_managed_access_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "data-quick-managed-intent=\"one-subscription\"" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-quick-intent"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_form_started" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quick-review-start-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_request_received" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quick-review-funnel"

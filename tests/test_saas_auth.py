@@ -3234,6 +3234,22 @@ class SaaSAuthTests(unittest.TestCase):
                     },
                 },
                 {
+                    'event': 'managed_access_quick_form_started',
+                    'plan': 'max',
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'source_page': 'https://sagerouter.dev/managed-access',
+                    'metadata': {
+                        'source': 'managed-access',
+                        'state': 'one-subscription',
+                        'snippet': 'managed-access-provider-authorization-request',
+                        'commercialPreference': 'one-subscription',
+                        'targetProviderFamily': 'mixed-frontier',
+                        'supportNeed': 'managed-provider-review',
+                        'targetLaunchWindow': 'this-month',
+                        'intent': 'one-subscription',
+                    },
+                },
+                {
                     'event': 'managed_access_review_packet_copied',
                     'plan': 'max',
                     'created_at': '2026-06-19T00:00:00Z',
@@ -3255,16 +3271,16 @@ class SaaSAuthTests(unittest.TestCase):
 
         metrics, error = router.read_launch_marketing_funnel_counts(0)
         self.assertIsNone(error)
-        self.assertEqual(5, metrics['total'])
-        self.assertEqual(4, metrics['managedAccessAnonymousInterest'])
-        self.assertEqual(4, metrics['managedAccessDemand']['targetProviderFamily']['mixed-frontier'])
-        self.assertEqual(3, metrics['managedAccessDemand']['commercialPreference']['one-subscription'])
+        self.assertEqual(6, metrics['total'])
+        self.assertEqual(5, metrics['managedAccessAnonymousInterest'])
+        self.assertEqual(5, metrics['managedAccessDemand']['targetProviderFamily']['mixed-frontier'])
+        self.assertEqual(4, metrics['managedAccessDemand']['commercialPreference']['one-subscription'])
         self.assertEqual(1, metrics['managedAccessDemand']['commercialPreference']['private-contract'])
-        self.assertEqual(3, metrics['managedAccessDemand']['supportNeed']['managed-provider-review'])
+        self.assertEqual(4, metrics['managedAccessDemand']['supportNeed']['managed-provider-review'])
         self.assertEqual(1, metrics['managedAccessDemand']['supportNeed']['implementation-support'])
         self.assertEqual(2, metrics['managedAccessDemand']['targetLaunchWindow']['exploring'])
-        self.assertEqual(2, metrics['managedAccessDemand']['targetLaunchWindow']['this-month'])
-        self.assertEqual(3, metrics['managedAccessDemand']['intent']['one-subscription'])
+        self.assertEqual(3, metrics['managedAccessDemand']['targetLaunchWindow']['this-month'])
+        self.assertEqual(4, metrics['managedAccessDemand']['intent']['one-subscription'])
         self.assertEqual(1, metrics['managedAccessDemand']['intent']['max-implementation'])
         self.assertEqual(1, metrics['managedAccessPacketCopies'])
         self.assertEqual(1, metrics['managedAccessPacketCopiesBySnippet']['managed-access-provider-authorization-request'])
