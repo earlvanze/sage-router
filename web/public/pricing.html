@@ -261,8 +261,10 @@
           </ul>
           <div class="actions">
             <a class="button primary" href="/managed-access?intent=one-subscription&utm_source=pricing&utm_medium=private-beta&utm_campaign=sage-router-launch">Request one-subscription review</a>
+            <button id="pricing-copy-managed-access-review-packet" class="button secondary" type="button">Copy review packet</button>
             <a class="button secondary" data-pricing-setup-next="max" href="https://app.sagerouter.dev/account.html?plan=max&start=create_key&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=max-byok-key-first">Create Max BYOK key first</a>
           </div>
+          <p id="pricing-managed-access-copy-status" class="managedQuickStatus" role="status" aria-live="polite"></p>
           <form id="pricing-managed-access-quick-form" class="managedQuickForm">
             <label for="pricing-managed-access-email">Fast one-subscription review from pricing</label>
             <input id="pricing-managed-access-email" name="email" type="email" autocomplete="email" placeholder="you@company.com" required>
@@ -716,6 +718,60 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
       };
     }
 
+    function pricingManagedAccessReviewPacketText() {
+      const payload = pricingManagedAccessPayload('');
+      return [
+        'Sage Router one-subscription managed-access review',
+        '',
+        'Request: review Sage Router as one subscription for hosted routing, quotas, failover, and Max implementation support.',
+        'Review boundary: this is a one-subscription review packet, not a public entitlement or enabled managed-provider resale offer.',
+        `Intent: ${payload.intent}`,
+        `Provider access posture: ${payload.providerAccess}`,
+        `Target provider family: ${payload.targetProviderFamily}`,
+        `Commercial preference: ${payload.commercialPreference}`,
+        `Support need: ${payload.supportNeed}`,
+        `Target launch window: ${payload.targetLaunchWindow}`,
+        '',
+        'Boundary: managed provider access is disabled until provider authorization, provider terms acknowledgment, an authorized provider allowlist, a private cost model, positive unit economics, quotas, audit events, and acceptable-use controls pass.',
+        'Immediate fallback: start Max with BYOK at https://app.sagerouter.dev/account.html?plan=max&start=create_key&utm_source=pricing&utm_medium=review-packet&utm_campaign=sage-router-launch',
+        'Review URL: https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=pricing-review-packet&utm_medium=shared&utm_campaign=sage-router-launch',
+        '',
+        'Do not paste prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, or customer data.',
+      ].join('\n');
+    }
+
+    async function copyPricingManagedAccessReviewPacket(event) {
+      const button = event.currentTarget;
+      const status = document.getElementById('pricing-managed-access-copy-status');
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Copying...';
+      try {
+        await writeClipboardText(pricingManagedAccessReviewPacketText());
+        trackPricingFunnelEvent('managed_access_review_packet_copied', {
+          plan: 'max',
+          button: 'Copy review packet',
+          state: 'pricing-managed-access-review-packet',
+          interest: 'managed-access',
+          intent: pricingManagedAccessPayload('').intent,
+          providerAccess: pricingManagedAccessPayload('').providerAccess,
+          targetProviderFamily: 'mixed-frontier',
+          commercialPreference: pricingManagedAccessPayload('').commercialPreference,
+          supportNeed: pricingManagedAccessPayload('').supportNeed,
+          targetLaunchWindow: 'this-month',
+          snippet: 'pricing-one-subscription-review-packet'
+        });
+        if (status) status.textContent = 'Copied no-secret review packet. Use it for internal buyer review; managed resale remains gated.';
+      } catch {
+        if (status) status.textContent = 'Copy failed. Open the managed-access review form without sending secrets.';
+      } finally {
+        window.setTimeout(() => {
+          button.disabled = false;
+          button.textContent = original;
+        }, 1600);
+      }
+    }
+
     async function submitPricingManagedAccessReview(event) {
       event.preventDefault();
       const form = event.currentTarget;
@@ -772,6 +828,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
     trackPricingFunnelEvent('pricing_viewed', { state: 'page-view' });
     loadPricingAuthSettings();
     document.getElementById('pricing-copy-setup')?.addEventListener('click', copyPricingSetupBundle);
+    document.getElementById('pricing-copy-managed-access-review-packet')?.addEventListener('click', copyPricingManagedAccessReviewPacket);
     document.getElementById('pricing-managed-access-quick-form')?.addEventListener('submit', submitPricingManagedAccessReview);
 
     async function pricingOauthLogin(event) {
