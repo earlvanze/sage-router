@@ -44,6 +44,12 @@
         <p class="eyebrow">Setup-key recovery</p>
         <h1>Finish the generated API key for your signup.</h1>
         <p class="lead">If Sage Router returned a 401 or you signed up without an <code>sk_sage_*</code> key, use the same email or GitHub identity, create the generated setup key, then verify <code>/v1/models</code> before wiring Codex or another agent.</p>
+        <form class="emailStart" id="setup-key-recovery-email-form">
+          <label for="setup-key-recovery-email">Email yourself the same-email setup link</label>
+          <input id="setup-key-recovery-email" type="email" name="email" autocomplete="email" inputmode="email" placeholder="you@company.com" required />
+          <button id="setup-key-recovery-email-submit" class="button primary" type="submit">Email setup key link</button>
+          <p class="emailStartStatus" id="setup-key-recovery-email-status" role="status" aria-live="polite">Use the email from your signup so the account page can create the missing generated key.</p>
+        </form>
         <div class="actions">
           <button id="setup-key-recovery-email-focus" class="button primary" type="button">Email same-email setup link</button>
           <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=recovery&next=generated-key" data-setup-recovery-event="setup_key_recovery_account_clicked" data-setup-recovery-button="open-account-setup-primary">Open API key setup if signed in</a>
@@ -56,12 +62,6 @@
         </div>
         <p id="setup-key-recovery-copy-status" class="copyStatus" role="status" aria-live="polite"></p>
         <p class="note">Start with the same-email setup link when you are not already signed in. No provider key or credit card is required before the generated setup key exists; hosted routing can still stay blocked until the account is active, trialing, or manually enabled.</p>
-        <form class="emailStart" id="setup-key-recovery-email-form">
-          <label for="setup-key-recovery-email">Email yourself the same-email setup link</label>
-          <input id="setup-key-recovery-email" type="email" name="email" autocomplete="email" inputmode="email" placeholder="you@company.com" required />
-          <button id="setup-key-recovery-email-submit" class="button primary" type="submit">Email setup key link</button>
-          <p class="emailStartStatus" id="setup-key-recovery-email-status" role="status" aria-live="polite">Use the email from your signup so the account page can create the missing generated key.</p>
-        </form>
         <div class="nextStepPanel" id="setup-key-recovery-next-panel">
           <strong>Next: open account setup after the email link</strong>
           <p>After you open the magic link from the same email, use this account setup page to create the generated <code>sk_sage_*</code> key before checkout.</p>
