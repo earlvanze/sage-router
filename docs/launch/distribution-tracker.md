@@ -26,8 +26,8 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 ```
 
 - Window: last 30 days
-- Generated at epoch: 1782837327
-- Marketing intent events: 411
+- Generated at epoch: 1782843508
+- Marketing intent events: 414
 - Setup snippet copies: 1
 - Founder-sales outreach copies: 0
 - Founder-sales outreach snippets: none
@@ -35,12 +35,12 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 - Managed-access packet snippets: none
 - Provider authorization outreach copies: 0
 - Provider authorization outreach snippets: none
-- Provider authorization review copies: 0
-- Provider authorization review snippets: none
-- Provider terms review copies: 0
-- Provider terms review snippets: none
-- Activation approval packet reviews: 0
-- Activation approval packet snippets: none
+- Provider authorization review copies: 1
+- Provider authorization review snippets: operator-provider-authorization-review-packet=1
+- Provider terms review copies: 1
+- Provider terms review snippets: operator-provider-terms-review-packet=1
+- Activation approval packet reviews: 1
+- Activation approval packet snippets: operator-activation-approval-packet=1
 - Recovery auth starts: magic=0, password=0, oauth=0
 - Key-first recovery: setupClicks=0; scheduled=0; redirects=0; paused=0; recoveryViews=8; keyCreateAttempts=0; keyCreateSuccesses=0; noKeyCreateClicks=0
 - Managed-access demand: anonymousSignals=4; waitlistSignals=0; legacyClicks=0; quickStarted=0; quickValidationFailed=0; quickSubmitted=0; quickReceived=0
