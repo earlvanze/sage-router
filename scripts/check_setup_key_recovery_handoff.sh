@@ -56,7 +56,7 @@ post_smoke_event() {
 }
 
 page_url="${MARKETING_BASE%/}/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation&smoke=1"
-account_target="${APP_BASE%/}/account?plan=pro&start=create_key&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=operator_activation&next=generated-key"
+account_target="${APP_BASE%/}/account.html?plan=pro&start=create_key&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=operator_activation&next=generated-key"
 login_target="${APP_BASE%/}/login.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email"
 
 page_code="$(http_get "$page_url")"
@@ -77,6 +77,10 @@ grep -q "utmSource === 'api-auth' && utmCampaign === 'signup_to_key_recovery'" "
 grep -q "if (sourceSurface) target.searchParams.set('source_surface', sourceSurface)" "$tmp_body" || fail 'setup-key recovery page does not preserve source_surface'
 grep -q "if (setup) target.searchParams.set('setup', setup)" "$tmp_body" || fail 'setup-key recovery page does not preserve setup source'
 grep -q 'target.searchParams.set('\''next'\'', '\''generated-key'\'')' "$tmp_body" || fail 'setup-key recovery page does not preserve generated-key next step'
+grep -q 'https://app.sagerouter.dev/account.html?plan=pro&start=create_key' "$tmp_body" || fail 'setup-key recovery page does not use canonical account.html handoff'
+if grep -q 'https://app.sagerouter.dev/account?plan=pro&start=create_key' "$tmp_body"; then
+  fail 'setup-key recovery page still uses non-canonical account handoff'
+fi
 pass 'setup-key recovery page exposes operator handoff controls and attribution preservation'
 
 endpoint_code="$(http_get "$FUNNEL_ENDPOINT")"
@@ -107,20 +111,20 @@ post_smoke_event \
   'setup_key_recovery_auto_account_redirected' \
   "$MARKETING_BASE" \
   "${MARKETING_BASE%/}/setup-key-recovery?utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&smoke=1" \
-  "${APP_BASE%/}/account?plan=pro&start=create_key&utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=api-auth&next=generated-key" \
+  "${APP_BASE%/}/account.html?plan=pro&start=create_key&utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=api-auth&next=generated-key" \
   'api-auth'
 
 post_smoke_event \
   'login_key_recovery_account_setup_auto_redirected' \
   "$APP_BASE" \
   "${APP_BASE%/}/login.html?start=create_key&smoke=1" \
-  "${APP_BASE%/}/account?start=create_key" \
+  "${APP_BASE%/}/account.html?start=create_key" \
   'smoke'
 
 post_smoke_event \
   'account_setup_handoff_viewed' \
   "$APP_BASE" \
-  "${APP_BASE%/}/account?start=create_key&setup=login-key-recovery&source_surface=recovery&next=generated-key&smoke=1" \
+  "${APP_BASE%/}/account.html?start=create_key&setup=login-key-recovery&source_surface=recovery&next=generated-key&smoke=1" \
   '#intent-email' \
   'smoke'
 
