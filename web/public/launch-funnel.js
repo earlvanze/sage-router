@@ -2269,6 +2269,7 @@ function managedAccessPulse(marketingIntent = {}) {
   const events = marketingIntent.events || {};
   return [
     ['Anonymous intent clicks', events.managed_access_interest_clicked],
+    ['Packet copies', marketingIntent.managedAccessPacketCopies],
     ['Quick review submitted', events.managed_access_quick_request_submitted],
     ['Quick review received', events.managed_access_quick_request_received],
     ['Full form started', events.managed_access_form_started],
@@ -2355,6 +2356,8 @@ function renderMarketingIntent(marketingIntent = {}) {
   const setupCopyCount = asNumber(marketingIntent.setupSnippetCopies);
   const founderSalesRows = sortedEntries(marketingIntent.founderSalesOutreachCopiesBySnippet);
   const founderSalesCopyCount = asNumber(marketingIntent.founderSalesOutreachCopies);
+  const managedAccessPacketRows = sortedEntries(marketingIntent.managedAccessPacketCopiesBySnippet);
+  const managedAccessPacketCopyCount = asNumber(marketingIntent.managedAccessPacketCopies);
   const setupBlock = setupCopyCount || setupRows.length ? `<div>
     <h3>Setup copies</h3>
     <table>
@@ -2370,6 +2373,15 @@ function renderMarketingIntent(marketingIntent = {}) {
       <thead><tr><th>Snippet</th><th>Copies</th></tr></thead>
       <tbody><tr><td><span class="pill">Total outreach copies</span></td><td>${integer(founderSalesCopyCount)}</td></tr>${
         founderSalesRows.map(([name, count]) => `<tr><td><span class="pill">${esc(demandLabel(name))}</span></td><td>${integer(count)}</td></tr>`).join('')
+      }</tbody>
+    </table>
+  </div>` : '';
+  const managedAccessPacketBlock = managedAccessPacketCopyCount || managedAccessPacketRows.length ? `<div>
+    <h3>Managed-access packets</h3>
+    <table>
+      <thead><tr><th>Snippet</th><th>Copies</th></tr></thead>
+      <tbody><tr><td><span class="pill">Total packet copies</span></td><td>${integer(managedAccessPacketCopyCount)}</td></tr>${
+        managedAccessPacketRows.map(([name, count]) => `<tr><td><span class="pill">${esc(demandLabel(name))}</span></td><td>${integer(count)}</td></tr>`).join('')
       }</tbody>
     </table>
   </div>` : '';
@@ -2391,7 +2403,7 @@ function renderMarketingIntent(marketingIntent = {}) {
     </table>
   </div>` : '';
   const recoveryAuthBlock = renderRecoveryAuthPulse(marketingIntent);
-  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length && !modelFamilyRows.length && !modelQueryRows.length && !setupBlock && !founderSalesBlock && !checkoutBlock && !hasRecoveryAuthPulseSignal(marketingIntent)) {
+  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length && !modelFamilyRows.length && !modelQueryRows.length && !setupBlock && !founderSalesBlock && !managedAccessPacketBlock && !checkoutBlock && !hasRecoveryAuthPulseSignal(marketingIntent)) {
     $('marketing-intent-breakdown').innerHTML = '<div class="empty">No anonymous marketing CTA intent events in this window.</div>';
     return;
   }
@@ -2414,7 +2426,7 @@ function renderMarketingIntent(marketingIntent = {}) {
     renderDemandTable('Model catalog families', modelFamilyRows, 'No model catalog family demand returned.')
   }${
     renderDemandTable('Catalog search buckets', modelQueryRows, 'No model catalog search demand returned.')
-  }${setupBlock}${founderSalesBlock}${checkoutBlock}</div>`;
+  }${setupBlock}${founderSalesBlock}${managedAccessPacketBlock}${checkoutBlock}</div>`;
 }
 
 function renderAuthProviderState(authState = {}) {

@@ -116,6 +116,11 @@ Founder-sales kit copy actions are also aggregated as
 `marketingIntent.founderSalesOutreachCopiesBySnippet`, keeping direct outreach
 visible in the dashboard and CLI snapshot without storing conversation text or
 prospect identities.
+Managed-access review and provider-authorization packet copies are aggregated
+as `marketingIntent.managedAccessPacketCopies` and
+`marketingIntent.managedAccessPacketCopiesBySnippet`, keeping provider
+authorization work visible separately from anonymous managed-access demand
+clicks.
 The same dashboard includes an operational readiness panel backed only by
 public `/edge/health` and `/pricing` metadata. It keeps live edge health,
 customer API-key enforcement, Stripe checkout/portal readiness, and

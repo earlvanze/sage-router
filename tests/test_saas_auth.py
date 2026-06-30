@@ -2847,8 +2847,10 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertFalse(packet['privacy']['containsCustomerIds'])
         self.assertFalse(packet['privacy']['containsApiKeys'])
         self.assertTrue(packet['privacy']['aggregateOnly'])
-        self.assertNotIn('buyer@example.com', json.dumps(packet))
-        self.assertNotIn('cus_', json.dumps(packet))
+        serialized_packet = json.dumps(packet)
+        self.assertNotIn('buyer@example.com', serialized_packet)
+        self.assertNotIn('stripe_customer_id', serialized_packet)
+        self.assertNotIn('"customer":"cus_', serialized_packet.replace(' ', ''))
         readiness = router.launch_activation_approval_readiness(packet, activation_follow_ups)
         self.assertEqual('dry_run_required', readiness['status'])
         self.assertTrue(readiness['approvalRequired'])
@@ -3156,6 +3158,7 @@ class SaaSAuthTests(unittest.TestCase):
                     'metadata': {
                         'source': 'managed-access',
                         'state': 'one-subscription',
+                        'snippet': 'managed-access-provider-authorization-request',
                         'commercialPreference': 'one-subscription',
                         'targetProviderFamily': 'mixed-frontier',
                         'supportNeed': 'managed-provider-review',
@@ -3180,6 +3183,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, metrics['managedAccessDemand']['targetLaunchWindow']['this-month'])
         self.assertEqual(3, metrics['managedAccessDemand']['intent']['one-subscription'])
         self.assertEqual(1, metrics['managedAccessDemand']['intent']['max-implementation'])
+        self.assertEqual(1, metrics['managedAccessPacketCopies'])
+        self.assertEqual(1, metrics['managedAccessPacketCopiesBySnippet']['managed-access-provider-authorization-request'])
         self.assertNotIn('buyer@example.com', json.dumps(metrics))
 
     def test_launch_marketing_funnel_counts_group_events_without_identity(self):

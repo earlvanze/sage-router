@@ -7149,6 +7149,9 @@ SETUP_SNIPPET_COPY_EVENTS = {
 FOUNDER_SALES_OUTREACH_COPY_EVENTS = {
     'outreach_snippet_copied',
 }
+MANAGED_ACCESS_PACKET_COPY_EVENTS = {
+    'managed_access_review_packet_copied',
+}
 OPERATOR_FOLLOWUP_COPY_EVENTS = {
     'operator_no_key_followup_copied',
     'operator_no_key_followup_batch_copied',
@@ -9183,6 +9186,8 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'setupSnippetCopiesBySnippet': {},
         'founderSalesOutreachCopies': 0,
         'founderSalesOutreachCopiesBySnippet': {},
+        'managedAccessPacketCopies': 0,
+        'managedAccessPacketCopiesBySnippet': {},
         'operatorFollowUpCopies': 0,
         'operatorFollowUpCopiesByKind': {},
         'operatorFollowUpWorked': 0,
@@ -9283,6 +9288,10 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             metrics['founderSalesOutreachCopies'] += 1
             snippet = str(metadata.get('snippet') or 'unknown').strip().lower()[:80] or 'unknown'
             metrics['founderSalesOutreachCopiesBySnippet'][snippet] = metrics['founderSalesOutreachCopiesBySnippet'].get(snippet, 0) + 1
+        if event in MANAGED_ACCESS_PACKET_COPY_EVENTS:
+            metrics['managedAccessPacketCopies'] += 1
+            snippet = str(metadata.get('snippet') or metadata.get('state') or 'managed-access-review-packet').strip().lower()[:80] or 'managed-access-review-packet'
+            metrics['managedAccessPacketCopiesBySnippet'][snippet] = metrics['managedAccessPacketCopiesBySnippet'].get(snippet, 0) + 1
         if event in OPERATOR_FOLLOWUP_COPY_EVENTS:
             metrics['operatorFollowUpCopies'] += 1
             kind = str(metadata.get('state') or event).strip().lower()[:80] or event
@@ -9365,6 +9374,8 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'managedAccessDemand': new_managed_access_demand_metrics(),
             'founderSalesOutreachCopies': 0,
             'founderSalesOutreachCopiesBySnippet': {},
+            'managedAccessPacketCopies': 0,
+            'managedAccessPacketCopiesBySnippet': {},
         }.items():
             marketing_metrics.setdefault(key, default)
         marketing_metrics = {

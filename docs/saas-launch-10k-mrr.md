@@ -456,7 +456,11 @@ flag.
   `managed_access_review_packet_copied`, plus a Max/BYOK setup bundle measured
   as `quickstart_snippet_copied` with `managed-access-max-byok-setup`, so
   one-subscription, implementation, and immediate key-first Max fallback demand
-  are visible before full contact submission. Use
+  are visible before full contact submission. The launch funnel also rolls
+  managed-access review and provider-authorization packet copies into
+  `marketingIntent.managedAccessPacketCopies` and
+  `marketingIntent.managedAccessPacketCopiesBySnippet`, so authorization
+  outreach progress stays visible separately from anonymous demand clicks. Use
   `managedAccessDemand.targetProviderFamily`,
   `managedAccessDemand.commercialPreference`, `managedAccessDemand.supportNeed`,
   `managedAccessDemand.targetLaunchWindow`, and `managedAccessDemand.intent` to
