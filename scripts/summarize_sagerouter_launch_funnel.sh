@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--founder-sales-packet] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section]
+Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--founder-sales-packet] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section] [--update-distribution-tracker]
 
 Fetch the operator-only /analytics/funnel endpoint and print a privacy-safe
 launch snapshot. The script never prints operator tokens, emails, generated API
@@ -25,10 +25,16 @@ Options:
   --distribution-tracker-section
                       Print a docs/launch/distribution-tracker.md-ready
                       live snapshot section.
+  --update-distribution-tracker
+                      Replace only the Current live snapshot section in
+                      docs/launch/distribution-tracker.md with fresh
+                      aggregate telemetry.
 
 Environment:
   SAGEROUTER_SECRET_ENV_FILE       Optional env file to source first
   SAGEROUTER_API_BASE_URL          Defaults to https://api.sagerouter.dev
+  SAGEROUTER_DISTRIBUTION_TRACKER_PATH
+                                  Defaults to docs/launch/distribution-tracker.md
   SAGE_ROUTER_ANALYTICS_TOKEN      Preferred read-only funnel token
   SAGE_ROUTER_OPERATOR_TOKEN       Fallback operator token
   SAGE_ROUTER_API_KEY              Final fallback admin token
@@ -71,6 +77,7 @@ FOUNDER_SALES_PACKET=0
 VERIFY_RECOVERY=0
 VERIFY_AUTH_REPAIR=0
 TRACKER_SECTION=0
+UPDATE_TRACKER=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --days)
@@ -105,6 +112,10 @@ while [[ $# -gt 0 ]]; do
       TRACKER_SECTION=1
       shift
       ;;
+    --update-distribution-tracker)
+      UPDATE_TRACKER=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -117,8 +128,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if (( RAW_JSON + APPROVAL_PACKET + FOUNDER_SALES_PACKET + TRACKER_SECTION > 1 )); then
-  printf '%s\n' '--json, --approval-packet, --founder-sales-packet, and --distribution-tracker-section cannot be combined' >&2
+if (( RAW_JSON + APPROVAL_PACKET + FOUNDER_SALES_PACKET + TRACKER_SECTION + UPDATE_TRACKER > 1 )); then
+  printf '%s\n' '--json, --approval-packet, --founder-sales-packet, --distribution-tracker-section, and --update-distribution-tracker cannot be combined' >&2
   exit 2
 fi
 if [[ "$VERIFY_RECOVERY" == "1" && "$APPROVAL_PACKET" != "1" ]]; then
@@ -140,16 +151,96 @@ require_tool jq
 
 if [[ "$TRACKER_SECTION" == "1" ]]; then
   require_tool awk
+  cat <<EOF
+## Current live snapshot
+
+Refresh this section from live aggregate telemetry with:
+
+\`\`\`bash
+scripts/summarize_sagerouter_launch_funnel.sh --days ${DAYS} --update-distribution-tracker
+\`\`\`
+
+EOF
   "$0" --days "$DAYS" | awk '
-    NR == 1 {
-      print "## Current live snapshot"
-      next
-    }
+    NR == 1 { next }
+    NR == 2 && $0 == "" { next }
     /^## / {
       sub(/^## /, "### ")
     }
     { print }
   '
+  cat <<'EOF'
+
+Prioritize the no-key activation queue before broad public posting: moving the
+two sendable signups into generated-key accounts should raise the conversion
+rate faster than buying or posting into more top-of-funnel traffic. After that,
+scale Reddit reliability/comparison posts and GitHub README/docs traffic because
+those are the strongest external signals currently visible.
+
+For a single read-only launch packet before operator review, run
+`scripts/summarize_sagerouter_launch_operator_handoff.sh --days 30
+--skip-readiness` to bundle the live funnel snapshot, activation approval
+packet, founder-sales next-revenue packet, Cloudflare BIC reliability packet,
+managed-provider readiness packet, one-subscription pricing packet, provider
+outreach packet, and provider reply triage packet without approving sends, sending email, mutating
+Cloudflare, deploying, enabling managed resale, or printing secrets. Omit
+`--skip-readiness` when the operator packet should include the full launch
+readiness probe.
+
+EOF
+  exit 0
+fi
+
+if [[ "$UPDATE_TRACKER" == "1" ]]; then
+  require_tool awk
+  TRACKER_PATH="${SAGEROUTER_DISTRIBUTION_TRACKER_PATH:-docs/launch/distribution-tracker.md}"
+  if [[ ! -f "$TRACKER_PATH" ]]; then
+    printf 'Missing distribution tracker: %s\n' "$TRACKER_PATH" >&2
+    exit 2
+  fi
+
+  section_tmp="$(mktemp)"
+  doc_tmp="$(mktemp)"
+  cleanup_update_tracker() {
+    rm -f "$section_tmp" "$doc_tmp"
+  }
+  trap cleanup_update_tracker EXIT
+
+  "$0" --days "$DAYS" --distribution-tracker-section > "$section_tmp"
+  awk -v section_path="$section_tmp" '
+    BEGIN {
+      while ((getline line < section_path) > 0) {
+        section = section line ORS
+      }
+      close(section_path)
+      replaced = 0
+      skipping = 0
+    }
+    $0 == "## Current live snapshot" {
+      printf "%s", section
+      replaced = 1
+      skipping = 1
+      next
+    }
+    skipping && $0 == "## Posting queue" {
+      skipping = 0
+      print
+      next
+    }
+    !skipping {
+      print
+    }
+    END {
+      if (replaced != 1 || skipping != 0) {
+        exit 3
+      }
+    }
+  ' "$TRACKER_PATH" > "$doc_tmp" || {
+    printf 'Failed to update Current live snapshot in %s\n' "$TRACKER_PATH" >&2
+    exit 3
+  }
+  mv "$doc_tmp" "$TRACKER_PATH"
+  printf 'Updated %s Current live snapshot from live aggregate telemetry.\n' "$TRACKER_PATH"
   exit 0
 fi
 
@@ -709,6 +800,7 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
       "",
       "- Command: bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff",
       "- Result: \($recovery_proof.stage // "not_run")",
+      "- Interpretation: \(if (($recovery_proof.stage // "") == "verified_handoff_waiting_for_fresh_traffic") then "Recovery handoff is verified with no persistence; the remaining activation work is fresh setup-copy traffic or explicit operator approval for real follow-up sends." elif (($recovery_proof.stage // "") == "failed") then "Recovery handoff verification failed; hold real activation sends and inspect setup-key recovery." else "Recovery handoff verification has not produced a final send-ready diagnosis yet." end)",
       "- Evidence: checked=\($recovery_proof.handoffSmoke.checked // false); passed=\($recovery_proof.handoffSmoke.passed // false); noPersistence=\($recovery_proof.handoffSmoke.noPersistence // true); recoveryViews=\(n($followups.keyRecoveryViews)); accountHandoffs=\(n($followups.keyFirstRedirects)); keyCreateAttempts=\(n($followups.keyCreateAttempts)); keyCreateSuccesses=\(n($followups.keyCreateSuccesses)).",
       "- Next action: \(if (($action.evidence.nonGatedSetupCopyFallback // false) == true) then "Copy the no-secret first-request setup bundle from https://app.sagerouter.dev/launch-funnel.html#next-best-action-dock before any real activation send; this records status_first_request_setup_copied with snippet operator-first-request-setup and does not send email or expose a real key." elif (($recovery_proof.stage // "") == "verified_handoff_waiting_for_fresh_traffic") then "Use the no-secret approval packet for the next sendable activation follow-up or wait for fresh real recovery traffic." elif (($recovery_proof.stage // "") == "failed") then "Hold real activation sends and inspect the recovery handoff smoke failure." else "Follow the recovery diagnosis before approving any real activation send." end)",
       "",
