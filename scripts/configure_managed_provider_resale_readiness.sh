@@ -829,11 +829,49 @@ managed_provider_one_subscription_pricing_packet() {
   ' "$body"
   printf '\n'
 
+  printf 'Public managed-access offer ladder:\n'
+  jq -nr --argjson min_margin "$min_margin" '
+    [
+      {
+        id: "managed-access-pilot",
+        label: "Managed Access Pilot",
+        monthlyPriceUsd: 10,
+        monthlyManagedRequests: 10000,
+        recommendedUse: "small private-beta trial before bundling managed provider access into fixed plans"
+      },
+      {
+        id: "managed-access-pro-add-on",
+        label: "Managed Access Pro Add-on",
+        monthlyPriceUsd: 30,
+        monthlyManagedRequests: 25000,
+        recommendedUse: "paid Pro/Max add-on when fixed-plan included quota fails private cost review"
+      },
+      {
+        id: "managed-access-max-contract-floor",
+        label: "Managed Access Max Contract Floor",
+        monthlyPriceUsd: 100,
+        monthlyManagedRequests: 75000,
+        recommendedUse: "private Max contract floor for buyers who need bundled managed provider access"
+      }
+    ]
+    | map(. + {
+        revenueCentsPer1k: (((.monthlyPriceUsd * 100) / (.monthlyManagedRequests / 1000)) * 10000 | round / 10000),
+        maxSafeProviderCostCentsPer1k: (((.monthlyPriceUsd * 100) / (.monthlyManagedRequests / 1000)) * (1 - ($min_margin / 100)) * 10000 | round / 10000),
+        privateCostStatus: "not_printed",
+        privacy: "public_threshold_only"
+      })
+    | sort_by(.maxSafeProviderCostCentsPer1k) | reverse
+    | .[]
+    | "- \(.id): price=$\(.monthlyPriceUsd)/mo; includedManagedRequests=\(.monthlyManagedRequests); revenueCentsPer1k=\(.revenueCentsPer1k); maxSafeProviderCostCentsPer1k=\(.maxSafeProviderCostCentsPer1k); privateCostStatus=\(.privateCostStatus); use=\(.recommendedUse)"
+  '
+  printf '\n'
+
   printf 'Packaging decision for one-subscription beta:\n'
   printf -- '- Keep BYOK/OpenRouter-compatible routing sellable in Lite/Pro/Max as customer-authorized routing infrastructure.\n'
   printf -- '- Keep public managed provider resale disabled until provider terms, authorization evidence, cost model, and positive unit economics all pass.\n'
   printf -- '- Treat %s as the binding fixed-plan constraint because it has the lowest public max-safe provider-cost threshold.\n' "$binding_plan"
-  printf -- '- If a private provider-cost candidate is above any plan threshold, exclude that plan from managed access, lower included managed-access quota, add a managed-access surcharge, or move the buyer to a private Max contract.\n'
+  printf -- '- If a private provider-cost candidate is above any fixed-plan threshold, exclude that plan from managed access, lower included managed-access quota, add a managed-access surcharge from the public offer ladder, or move the buyer to a private Max contract.\n'
+  printf -- '- Treat the add-on ladder as review packaging only; it does not change Stripe prices or create a public entitlement until provider authorization, terms, cost model, and operator approval pass.\n'
   printf -- '- Do not publish actual provider costs, exact gross-margin calculations, or derived required private prices in launch pages, PRs, logs, or support channels.\n\n'
 
   printf 'Review URLs:\n'

@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import sys
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
 
@@ -42,6 +43,31 @@ logging.basicConfig(level=logging.ERROR)
 import router  # noqa: E402
 
 
+MANAGED_ACCESS_ADD_ON_OFFERS = [
+    {
+        'id': 'managed-access-pilot',
+        'label': 'Managed Access Pilot',
+        'monthlyPriceUsd': 10.0,
+        'monthlyManagedRequests': 10000,
+        'recommendedUse': 'small private-beta trial before bundling managed provider access into fixed plans',
+    },
+    {
+        'id': 'managed-access-pro-add-on',
+        'label': 'Managed Access Pro Add-on',
+        'monthlyPriceUsd': 30.0,
+        'monthlyManagedRequests': 25000,
+        'recommendedUse': 'paid Pro/Max add-on when fixed-plan included quota fails private cost review',
+    },
+    {
+        'id': 'managed-access-max-contract-floor',
+        'label': 'Managed Access Max Contract Floor',
+        'monthlyPriceUsd': 100.0,
+        'monthlyManagedRequests': 75000,
+        'recommendedUse': 'private Max contract floor for buyers who need bundled managed provider access',
+    },
+]
+
+
 def parse_margin(raw):
     try:
         return max(0, int(float(str(raw or '').strip() or '35')))
@@ -71,11 +97,75 @@ def offer_guardrail(row, failed_plans):
     }
 
 
-def public_safe_preflight(minimum_margin_percent):
-    economics = router.managed_provider_unit_economics(
-        router.parse_provider_resale_cost_cents_per_thousand_requests(),
-        minimum_margin_percent,
+def cents_per_thousand(monthly_price_usd, monthly_requests):
+    if not monthly_requests:
+        return 0.0
+    value = (Decimal(str(monthly_price_usd)) * Decimal('100')) / (
+        Decimal(str(monthly_requests)) / Decimal('1000')
     )
+    return float(value.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP))
+
+
+def max_safe_cost(revenue_cents_per_thousand, minimum_margin_percent):
+    margin = Decimal(str(minimum_margin_percent)) / Decimal('100')
+    multiplier = max(Decimal('0'), Decimal('1') - margin)
+    value = Decimal(str(revenue_cents_per_thousand)) * multiplier
+    return float(value.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP))
+
+
+def max_safe_cost_for_offer(monthly_price_usd, monthly_requests, minimum_margin_percent):
+    if not monthly_requests:
+        return 0.0
+    revenue = (Decimal(str(monthly_price_usd)) * Decimal('100')) / (
+        Decimal(str(monthly_requests)) / Decimal('1000')
+    )
+    margin = Decimal(str(minimum_margin_percent)) / Decimal('100')
+    multiplier = max(Decimal('0'), Decimal('1') - margin)
+    value = revenue * multiplier
+    return float(value.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP))
+
+
+def managed_access_add_on_guardrails(candidate_cost, minimum_margin_percent):
+    rows = []
+    candidate_configured = candidate_cost is not None
+    for offer in MANAGED_ACCESS_ADD_ON_OFFERS:
+        revenue = cents_per_thousand(
+            offer['monthlyPriceUsd'],
+            offer['monthlyManagedRequests'],
+        )
+        threshold = max_safe_cost_for_offer(
+            offer['monthlyPriceUsd'],
+            offer['monthlyManagedRequests'],
+            minimum_margin_percent,
+        )
+        candidate_passes = bool(candidate_configured and float(candidate_cost) <= threshold)
+        rows.append({
+            'id': offer['id'],
+            'label': offer['label'],
+            'monthlyPriceUsd': offer['monthlyPriceUsd'],
+            'monthlyManagedRequests': offer['monthlyManagedRequests'],
+            'revenueCentsPerThousandRequests': revenue,
+            'maximumProviderCostCentsPerThousandRequests': threshold,
+            'minimumGrossMarginPercent': minimum_margin_percent,
+            'candidatePasses': candidate_passes,
+            'guidance': (
+                'eligible_private_beta_offer_if_authorization_and_terms_pass'
+                if candidate_passes
+                else 'review_private_cost_before_offering_managed_access'
+            ),
+            'recommendedUse': offer['recommendedUse'],
+            'privacy': 'public_threshold_only',
+        })
+    rows.sort(
+        key=lambda row: float(row.get('maximumProviderCostCentsPerThousandRequests') or 0),
+        reverse=True,
+    )
+    return rows
+
+
+def public_safe_preflight(minimum_margin_percent):
+    candidate_cost = router.parse_provider_resale_cost_cents_per_thousand_requests()
+    economics = router.managed_provider_unit_economics(candidate_cost, minimum_margin_percent)
     rows = []
     source_rows = economics.get('evaluatedPlans') or []
     ranked_rows = sorted(
@@ -102,6 +192,7 @@ def public_safe_preflight(minimum_margin_percent):
         })
     failed = [row['plan'] for row in rows if not row.get('meetsMinimumGrossMargin')]
     pricing_guardrails = [offer_guardrail(row, failed) for row in rows]
+    add_on_guardrails = managed_access_add_on_guardrails(candidate_cost, minimum_margin_percent)
     binding = min(
         rows,
         key=lambda row: float(row.get('maximumProviderCostCentsPerThousandRequests') or 0),
@@ -131,6 +222,15 @@ def public_safe_preflight(minimum_margin_percent):
                     "for public threshold-only plan guidance."
                 ),
                 'privacy': 'does_not_print_private_cost_or_required_private_price',
+            },
+            {
+                'kind': 'review_managed_access_add_on',
+                'message': (
+                    "Use managedAccessAddOnGuardrails to test a separate managed-access "
+                    "pilot/add-on/private-contract offer before bundling managed provider "
+                    "access into all fixed public plans."
+                ),
+                'privacy': 'public_threshold_only',
             },
             {
                 'kind': 'keep_public_resale_disabled',
@@ -167,6 +267,11 @@ def public_safe_preflight(minimum_margin_percent):
         'failedPlans': failed,
         'bindingPlan': binding.get('plan') if binding else None,
         'pricingGuardrails': pricing_guardrails,
+        'managedAccessAddOnGuardrails': add_on_guardrails,
+        'firstPassingManagedAccessOffer': next(
+            (row['id'] for row in add_on_guardrails if row.get('candidatePasses')),
+            None,
+        ),
         'recommendedActions': recommendations,
         'satisfied': bool(economics.get('satisfied')),
         'privacy': {
@@ -211,6 +316,19 @@ def print_text(report):
             f"candidatePasses={'true' if row['candidatePasses'] else 'false'} "
             f"guidance={row['guidance']}"
         )
+    print('managedAccessAddOnGuardrails:')
+    for row in report.get('managedAccessAddOnGuardrails') or []:
+        print(
+            f"- {row['id']}: "
+            f"priceUsd={row['monthlyPriceUsd']} "
+            f"includedManagedRequests={row['monthlyManagedRequests']} "
+            f"revenueCentsPer1k={row['revenueCentsPerThousandRequests']} "
+            f"maxSafeProviderCostCentsPer1k={row['maximumProviderCostCentsPerThousandRequests']} "
+            f"candidatePasses={'true' if row['candidatePasses'] else 'false'} "
+            f"guidance={row['guidance']}"
+        )
+    if report.get('firstPassingManagedAccessOffer'):
+        print(f"firstPassingManagedAccessOffer={report['firstPassingManagedAccessOffer']}")
     print('recommendedActions:')
     for action in report.get('recommendedActions') or []:
         plans = action.get('plans')
