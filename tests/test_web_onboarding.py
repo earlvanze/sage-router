@@ -3061,6 +3061,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("Founder-sales outreach snippets", summary_script)
         self.assertIn("Outreach copies recorded", summary_script)
         self.assertIn("docs/launch/distribution-tracker.md-ready", summary_script)
+        self.assertIn("provider terms approval packet", summary_script)
+        self.assertIn("acknowledging provider terms", summary_script)
         self.assertIn("Activation Approval Handoff", summary_script)
         self.assertIn("--approval-packet --verify-recovery --verify-auth-repair", summary_script)
         self.assertIn("--record-activation-approval-review --verify-recovery --verify-auth-repair", summary_script)
