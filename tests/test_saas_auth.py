@@ -2754,6 +2754,7 @@ class SaaSAuthTests(unittest.TestCase):
             'customersWithGeneratedApiKeys': 1,
             'customersWithFirstRoutedRequest': 1,
             'paidCustomers': 2,
+            'setupSnippetCopies': 1,
         }
         rates = {'signupToGeneratedKey': 0.25}
         activation_follow_ups = {
@@ -2842,6 +2843,62 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertFalse(needs_diagnostic['evidence']['activationSendReadyForApproval'])
         self.assertIn('bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff', needs_diagnostic['action'])
         self.assertEqual('recovery_dropoff', needs_diagnostic['executionChecklist'][0]['segment'])
+
+    def test_next_best_action_uses_setup_copy_when_send_approval_is_gated(self):
+        stages = {
+            'signups': 4,
+            'customersWithGeneratedApiKeys': 1,
+            'customersWithFirstRoutedRequest': 1,
+            'paidCustomers': 2,
+            'setupSnippetCopies': 0,
+        }
+        rates = {'signupToGeneratedKey': 0.25}
+        activation_follow_ups = {
+            'total': 4,
+            'windowedNewSignups': 4,
+            'operatorFollowUpCopies': 0,
+            'operatorFollowUpWorked': 0,
+            'operatorFollowUpSendDryRuns': 3,
+            'keyRecoveryViews': 8,
+            'keyRecoveryViewsByState': {'login_create_key': 8},
+            'keyCreateAttempts': 0,
+            'keyCreateSuccesses': 0,
+            'countsByEmailVerification': {
+                'verified': 1,
+                'unverified': 1,
+                'missing_auth_user': 2,
+            },
+            'suggestedPlan': 'pro',
+            'primaryCtaUrl': 'https://sagerouter.dev/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation',
+            'privacy': {
+                'containsEmails': False,
+                'containsCustomerIds': False,
+                'containsApiKeys': False,
+                'containsProviderCredentials': False,
+            },
+        }
+
+        action = router.launch_next_best_action(
+            stages,
+            rates,
+            {'estimatedCurrentMrrUsd': 60, 'targetMrrUsd': 10000},
+            activation_follow_ups,
+            [],
+        )
+
+        self.assertEqual('signupToGeneratedKey', action['metric'])
+        self.assertEqual('launch funnel', action['surface'])
+        self.assertIn('/launch-funnel.html#next-best-action-dock', action['ctaPath'])
+        self.assertIn('Real activation sends are approval-gated', action['action'])
+        self.assertIn('Copy the first-request setup bundle', action['action'])
+        self.assertIn('without sending email', action['action'])
+        self.assertIn('status_first_request_setup_copied', action['successMetric'])
+        self.assertEqual(0, action['evidence']['setupSnippetCopies'])
+        self.assertTrue(action['evidence']['activationSendReadyForApproval'])
+        self.assertTrue(action['evidence']['nonGatedSetupCopyFallback'])
+        self.assertEqual('status_first_request_setup_copied', action['evidence']['setupCopyEvent'])
+        self.assertEqual('operator-first-request-setup', action['evidence']['setupCopySnippet'])
+        self.assertFalse(action['privacy']['containsEmails'])
 
     def test_next_best_action_flags_account_handoff_without_key_attempts(self):
         stages = {
