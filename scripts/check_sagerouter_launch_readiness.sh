@@ -4079,6 +4079,12 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-quick-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quick-review-form"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-start-review" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-start-review"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "first-screen-start-review" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-start-review-funnel"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "data-quick-managed-intent=\"one-subscription\"" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-quick-intent"
   fi

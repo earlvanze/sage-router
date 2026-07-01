@@ -491,7 +491,11 @@ flag.
   and managed-access traffic without logging email values in marketing events.
   `/analytics/funnel` and the CLI summarizer expose that as
   `managedAccessDropoff` with aggregate presentation/focus/start/submit/received
-  counts, rates, status, and next action for operator follow-up.
+  counts, rates, status, and next action for operator follow-up. If the status
+  is `presented_not_engaged`, the managed-access page should keep the
+  first-screen `Start 30-second review` control live so a deliberate buyer click
+  focuses the work-email field and records `first-screen-start-review` without
+  enabling provider resale.
 - Keep `/api/waitlist` guarded before Supabase inserts: browser-originating
   writes must come from Sage Router production hosts, Pages previews, local
   development, or exact origins configured with
