@@ -517,6 +517,57 @@ function LandingKeyRecovery() {
 
 function ManagedAccessReviewPrompt() {
   const [status, setStatus] = useState('');
+  const [email, setEmail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const widgetRef = useRef(null);
+  const widgetIdRef = useRef(null);
+  const [turnstile, setTurnstile] = useState({ required: false, siteKey: '', token: '' });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/waitlist')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.turnstileRequired && data?.turnstileSiteKey) {
+          setTurnstile({ required: true, siteKey: data.turnstileSiteKey, token: '' });
+        } else if (!cancelled && data?.turnstileRequired) {
+          setStatus('Verification is temporarily unavailable. Use the managed-access page or copy the review packet.');
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!turnstile.required || !turnstile.siteKey || !widgetRef.current || widgetIdRef.current) return;
+    let cancelled = false;
+    loadTurnstileScript()
+      .then((api) => {
+        if (cancelled || !api || !widgetRef.current || widgetIdRef.current) return;
+        widgetIdRef.current = api.render(widgetRef.current, {
+          sitekey: turnstile.siteKey,
+          callback: (token) => setTurnstile((current) => ({ ...current, token })),
+          'expired-callback': () => setTurnstile((current) => ({ ...current, token: '' })),
+          'error-callback': () => {
+            setTurnstile((current) => ({ ...current, token: '' }));
+            setStatus('Verification failed. Use the managed-access page or copy the review packet.');
+          },
+        });
+      })
+      .catch(() => setStatus('Verification could not load. Use the managed-access page or copy the review packet.'));
+    return () => {
+      cancelled = true;
+    };
+  }, [turnstile.required, turnstile.siteKey]);
+
+  const resetTurnstile = () => {
+    if (widgetIdRef.current && window.turnstile) {
+      window.turnstile.reset(widgetIdRef.current);
+    }
+    setTurnstile((current) => ({ ...current, token: '' }));
+  };
 
   const copyReviewPacket = async () => {
     try {
@@ -537,12 +588,122 @@ function ManagedAccessReviewPrompt() {
     }
   };
 
+  const submitManagedAccessReview = async (event) => {
+    event.preventDefault();
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      trackLandingFunnelEvent('managed_access_quick_request_validation_failed', {
+        plan: 'max',
+        target: '#homepage-managed-access-review-form',
+        button: 'Homepage one-subscription email',
+        state: 'hero-managed-access-email-missing',
+        intent: 'one-subscription',
+        commercialPreference: 'one-subscription',
+        supportNeed: 'managed-provider-review',
+      });
+      setStatus('Enter a work email for the private-beta review request.');
+      return;
+    }
+    if (turnstile.required && !turnstile.token) {
+      trackLandingFunnelEvent('managed_access_quick_request_validation_failed', {
+        plan: 'max',
+        target: '#homepage-managed-access-review-form',
+        button: 'Homepage one-subscription email',
+        state: 'hero-managed-access-turnstile-missing',
+        intent: 'one-subscription',
+        commercialPreference: 'one-subscription',
+        supportNeed: 'managed-provider-review',
+      });
+      setStatus('Complete verification first. This stores only contact plus qualification buckets.');
+      return;
+    }
+    setSubmitting(true);
+    setStatus('Requesting one-subscription review...');
+    trackLandingFunnelEvent('managed_access_quick_request_submitted', {
+      plan: 'max',
+      target: '#homepage-managed-access-review-form',
+      button: 'Homepage one-subscription email',
+      state: 'hero-managed-access-quick-form',
+      intent: 'one-subscription',
+      commercialPreference: 'one-subscription',
+      supportNeed: 'managed-provider-review',
+    });
+    try {
+      const response = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'omit',
+        body: JSON.stringify({
+          email: trimmedEmail,
+          interest: 'managed-access',
+          intent: 'one-subscription',
+          deployment: 'hybrid',
+          monthlyVolume: '200k-1m',
+          providerAccess: 'needs-managed-access',
+          targetProviderFamily: 'mixed-frontier',
+          commercialPreference: 'one-subscription',
+          supportNeed: 'managed-provider-review',
+          targetLaunchWindow: 'this-month',
+          sourcePage: `${window.location.origin}${window.location.pathname}`,
+          turnstileToken: turnstile.token,
+        }),
+      });
+      if (!response.ok) throw new Error('managed_access_review_failed');
+      trackLandingFunnelEvent('managed_access_quick_request_received', {
+        plan: 'max',
+        target: '#homepage-managed-access-review-form',
+        button: 'Homepage one-subscription email',
+        state: 'hero-managed-access-quick-form',
+        intent: 'one-subscription',
+        commercialPreference: 'one-subscription',
+        supportNeed: 'managed-provider-review',
+      });
+      setEmail('');
+      resetTurnstile();
+      setStatus('Review request received. Use Max with BYOK while one-subscription access stays gated.');
+    } catch {
+      resetTurnstile();
+      trackLandingFunnelEvent('managed_access_quick_request_failed', {
+        plan: 'max',
+        target: '#homepage-managed-access-review-form',
+        button: 'Homepage one-subscription email',
+        state: 'hero-managed-access-quick-form',
+        intent: 'one-subscription',
+        commercialPreference: 'one-subscription',
+        supportNeed: 'managed-provider-review',
+      });
+      setStatus('Could not submit here. Open managed-access review or copy the packet; do not send secrets.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="managedAccessPrompt" aria-label="One-subscription private beta review">
       <div>
         <strong>Need one subscription instead of BYOK?</strong>
         <span>Request private-beta review. Hosted managed provider access still waits for provider authorization, terms, cost controls, and margin checks.</span>
       </div>
+      <form id="homepage-managed-access-review-form" className="managedAccessInlineForm" onSubmit={submitManagedAccessReview}>
+        <input
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          onFocus={() => trackLandingFunnelEvent('managed_access_quick_form_focused', {
+            plan: 'max',
+            target: '#homepage-managed-access-review-form',
+            button: 'Homepage one-subscription email',
+            state: 'hero-managed-access-quick-form',
+            intent: 'one-subscription',
+            commercialPreference: 'one-subscription',
+            supportNeed: 'managed-provider-review',
+          })}
+          placeholder="work email"
+          aria-label="Work email for one-subscription review"
+        />
+        <button type="submit" disabled={submitting}>{submitting ? 'Requesting...' : 'Request review'}</button>
+        {turnstile.required && <div className="turnstileSlot managedAccessTurnstile" ref={widgetRef} />}
+      </form>
       <a href={MANAGED_ONE_SUBSCRIPTION_URL} onClick={() => trackManagedAccessReviewClick({
         target: MANAGED_ONE_SUBSCRIPTION_URL,
         button: 'Hero one-subscription review',

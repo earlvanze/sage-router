@@ -79,7 +79,7 @@ h3 { font-size: 21px; line-height: 1.2; letter-spacing: -0.035em; margin-bottom:
 .landingKeyRecovery span { display: inline-flex; align-items: center; gap: 4px; }
 .landingKeyRecovery code { color: #ffe6a0; }
 .landingKeyRecovery a { color: #04150d; background: var(--amber); border-radius: 999px; padding: 8px 13px; font-weight: 900; }
-.managedAccessPrompt { display: grid; grid-template-columns: minmax(220px, 1fr) auto auto auto; gap: 10px; align-items: center; max-width: 860px; margin: 0 0 18px; padding: 14px; border: 1px solid rgba(159,199,255,.24); border-radius: 22px; background: rgba(12,27,45,.68); box-shadow: 0 18px 60px rgba(0,0,0,.16); }
+.managedAccessPrompt { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(260px, .9fr) auto auto auto; gap: 10px; align-items: center; max-width: 1040px; margin: 0 0 18px; padding: 14px; border: 1px solid rgba(159,199,255,.24); border-radius: 22px; background: rgba(12,27,45,.68); box-shadow: 0 18px 60px rgba(0,0,0,.16); }
 .managedAccessPrompt strong, .managedAccessPrompt span { display: block; }
 .managedAccessPrompt strong { color: var(--text); font-size: 15px; margin-bottom: 3px; }
 .managedAccessPrompt span { color: var(--muted); font-size: 13px; line-height: 1.4; }
@@ -87,6 +87,12 @@ h3 { font-size: 21px; line-height: 1.2; letter-spacing: -0.035em; margin-bottom:
 .managedAccessPrompt a:first-of-type { color: #04150d; border-color: transparent; background: #9fc7ff; }
 .managedAccessPrompt button { cursor: pointer; }
 .managedAccessPrompt .managedAccessCopyStatus { grid-column: 1 / -1; min-height: 18px; color: var(--brand); font-size: 13px; }
+.managedAccessInlineForm { display: grid; grid-template-columns: minmax(120px, 1fr) auto; gap: 8px; align-items: center; }
+.managedAccessInlineForm input { min-width: 0; height: 40px; border-radius: 999px; border: 1px solid rgba(159,199,255,.28); background: rgba(255,255,255,.06); color: var(--text); padding: 0 14px; font: inherit; }
+.managedAccessInlineForm input:focus { outline: 2px solid rgba(159,199,255,.4); outline-offset: 2px; }
+.managedAccessInlineForm button { color: #04150d; border-color: transparent; background: #9fc7ff; }
+.managedAccessInlineForm button:disabled { opacity: .72; cursor: wait; }
+.managedAccessTurnstile { grid-column: 1 / -1; }
 .heroSetupCopyWrap { display: grid; gap: 10px; margin: 0 0 16px; max-width: 720px; }
 .heroSetupCopy { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0; }
 .heroSetupCopy .setupBundleButton { border: 0; background: linear-gradient(135deg, var(--brand), var(--brand-strong)); color: #04150d; cursor: pointer; box-shadow: 0 16px 48px rgba(80,216,145,.24); }
@@ -155,7 +161,8 @@ footer span { margin-right: auto; }
   .heroEmailStart .heroOauthButton { width: 100%; min-width: 0; }
   .landingKeyRecovery { border-radius: 20px; align-items: stretch; }
   .landingKeyRecovery a { width: 100%; text-align: center; }
-  .managedAccessPrompt a { width: 100%; }
+  .managedAccessPrompt a, .managedAccessInlineForm, .managedAccessInlineForm button { width: 100%; }
+  .managedAccessInlineForm { grid-template-columns: 1fr; }
   pre { padding: 22px; }
 }
 .docsGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }

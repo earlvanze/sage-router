@@ -1961,6 +1961,24 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_review_packet_copied" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-managed-access-review-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "homepage-managed-access-review-form" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-inline-form"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managedAccessInlineForm" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-inline-form-style"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_form_focused" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-inline-focus-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_request_submitted" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-inline-submit-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "providerAccess.*needs-managed-access" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-inline-provider-boundary"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "targetProviderFamily.*mixed-frontier" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-inline-provider-family"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Choose your route path" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-route-paths"
   fi

@@ -447,12 +447,14 @@ flag.
   create/status responses must use the bounded public intent shape and avoid
   echoing arbitrary customer notes or support text.
 - Capture managed-access beta and Max implementation demand through the
-  homepage/sticky review CTAs, the waitlist `interest` metadata path from
-  `/managed-access`, and the one-field pricing-page review request, then watch
+  homepage/sticky review CTAs, the homepage one-field one-subscription review
+  form, the waitlist `interest` metadata path from `/managed-access`, and the
+  one-field pricing-page review request, then watch
   `managedAccessBetaInterest` plus `managedAccessShareOfWaitlist` in
   `/analytics/funnel`; the page also emits anonymous managed-access page-view,
   form-start, submit, and received events with only allowlisted qualification
-  buckets, while homepage CTAs emit `managed_access_interest_clicked` and
+  buckets, while homepage CTAs emit `managed_access_interest_clicked`, the
+  homepage inline form emits `managed_access_quick_request_*`, and
   pricing emits `managed_access_quick_request_*` events for buyer-intent
   traffic. The `/managed-access` page also provides a copyable no-secret
   one-subscription review packet and email-draft share path with
