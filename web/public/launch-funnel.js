@@ -1157,7 +1157,7 @@ function buildLaunchBrief(data = {}) {
     'Managed-access demand',
     `- Beta interest: ${integer(stages.managedAccessBetaInterest)}; waitlist share: ${percent(rates.managedAccessShareOfWaitlist)}`,
     `- Conversion status: ${managedAccessConversion.status || 'unknown'}; priority=${managedAccessConversion.priority || 'monitor'}; anonymous=${integer(managedAccessConversion.anonymousSignals)}; contactable=${integer(managedAccessConversion.waitlistSignals)}; lead gap=${integer(managedAccessConversion.contactableLeadGap)}; CTA=${managedAccessConversion.ctaPath || '/managed-access'}`,
-    `- Anonymous interest clicks: ${integer(managedAccessEvents.managed_access_interest_clicked)}; quick requests submitted: ${integer(managedAccessEvents.managed_access_quick_request_submitted)}; quick requests received: ${integer(managedAccessEvents.managed_access_quick_request_received)}`,
+    `- Anonymous interest clicks: ${integer(managedAccessEvents.managed_access_interest_clicked)}; fast form focused: ${integer(managedAccessEvents.managed_access_quick_form_focused)}; email drafts opened: ${integer(managedAccessEvents.managed_access_contact_draft_opened)}; quick requests submitted: ${integer(managedAccessEvents.managed_access_quick_request_submitted)}; quick requests received: ${integer(managedAccessEvents.managed_access_quick_request_received)}`,
     `- Target-provider buckets: ${sortedEntries(managedAccessDemand.targetProviderFamily).slice(0, 4).map(([name, count]) => `${demandLabel(name)} ${integer(count)}`).join(', ') || 'none'}`,
     `- Commercial buckets: ${sortedEntries(managedAccessDemand.commercialPreference).slice(0, 4).map(([name, count]) => `${demandLabel(name)} ${integer(count)}`).join(', ') || 'none'}`,
     '',
@@ -2602,6 +2602,8 @@ function managedAccessPulse(marketingIntent = {}) {
   return [
     ['Anonymous intent clicks', events.managed_access_interest_clicked],
     ['Packet copies', marketingIntent.managedAccessPacketCopies],
+    ['Fast form focused', events.managed_access_quick_form_focused],
+    ['Email draft opened', events.managed_access_contact_draft_opened],
     ['Quick review submitted', events.managed_access_quick_request_submitted],
     ['Quick review received', events.managed_access_quick_request_received],
     ['Full form started', events.managed_access_form_started],
