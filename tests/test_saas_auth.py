@@ -2105,7 +2105,7 @@ class SaaSAuthTests(unittest.TestCase):
             },
         }, None)
         router.read_launch_marketing_funnel_counts = lambda _since, limit=10000: ({
-            'total': 30,
+            'total': 31,
             'events': {
                 'landing_account_clicked': 1,
                 'landing_key_first_direct_clicked': 1,
@@ -2127,6 +2127,7 @@ class SaaSAuthTests(unittest.TestCase):
                 'account_snippet_copied': 1,
                 'quickstart_snippet_copied': 1,
                 'outreach_snippet_copied': 1,
+                'outreach_email_draft_opened': 1,
                 'account_usage_upgrade_clicked': 1,
                 'calculator_checkout_clicked': 2,
                 'calculator_checkout_unavailable': 1,
@@ -2156,14 +2157,14 @@ class SaaSAuthTests(unittest.TestCase):
                 'pricing': 2,
                 'model-catalog': 4,
                 'compare-gateways': 2,
-                'founder-sales': 1,
+                'founder-sales': 2,
                 'account': 1,
                 'login': 1,
             },
             'attributionChannels': {
                 'github': 2,
                 'model-gateway': 1,
-                'direct': 2,
+                'direct': 3,
             },
             'authProviderState': {
                 'total': 2,
@@ -2204,9 +2205,10 @@ class SaaSAuthTests(unittest.TestCase):
                 'codex-cli': 1,
                 'quickstart-curl': 1,
             },
-            'founderSalesOutreachCopies': 1,
+            'founderSalesOutreachCopies': 2,
             'founderSalesOutreachCopiesBySnippet': {
                 'founder-one-subscription-reply': 1,
+                'founder-recommended-first-reply-email-draft': 1,
             },
             'keyFirstRedirects': 10,
             'keyFirstRedirectsByState': {
@@ -2278,7 +2280,7 @@ class SaaSAuthTests(unittest.TestCase):
         snapshot = router.build_launch_funnel_snapshot(30 * 24 * 3600)
 
         self.assertEqual(3, snapshot['stages']['waitlistLeads'])
-        self.assertEqual(30, snapshot['stages']['marketingIntentEvents'])
+        self.assertEqual(31, snapshot['stages']['marketingIntentEvents'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['landing_account_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['landing_key_first_direct_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['model_catalog_viewed'])
@@ -2316,11 +2318,13 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, snapshot['marketingIntent']['events']['account_snippet_copied'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['quickstart_snippet_copied'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['outreach_snippet_copied'])
+        self.assertEqual(1, snapshot['marketingIntent']['events']['outreach_email_draft_opened'])
         self.assertEqual(2, snapshot['marketingIntent']['setupSnippetCopies'])
         self.assertEqual(1, snapshot['marketingIntent']['setupSnippetCopiesBySnippet']['codex-cli'])
         self.assertEqual(1, snapshot['marketingIntent']['setupSnippetCopiesBySnippet']['quickstart-curl'])
-        self.assertEqual(1, snapshot['marketingIntent']['founderSalesOutreachCopies'])
+        self.assertEqual(2, snapshot['marketingIntent']['founderSalesOutreachCopies'])
         self.assertEqual(1, snapshot['marketingIntent']['founderSalesOutreachCopiesBySnippet']['founder-one-subscription-reply'])
+        self.assertEqual(1, snapshot['marketingIntent']['founderSalesOutreachCopiesBySnippet']['founder-recommended-first-reply-email-draft'])
         self.assertEqual(2, snapshot['marketingIntent']['events']['calculator_checkout_clicked'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['calculator_checkout_unavailable'])
         self.assertEqual(1, snapshot['marketingIntent']['events']['account_checkout_failed'])
@@ -2351,7 +2355,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(4, snapshot['marketingIntent']['plans']['pro'])
         self.assertEqual(1, snapshot['marketingIntent']['sourceSurfaces']['landing'])
         self.assertEqual(1, snapshot['marketingIntent']['sourceSurfaces']['launch-plan'])
-        self.assertEqual(1, snapshot['marketingIntent']['sourceSurfaces']['founder-sales'])
+        self.assertEqual(2, snapshot['marketingIntent']['sourceSurfaces']['founder-sales'])
         self.assertEqual(2, snapshot['marketingIntent']['sourceSurfaces']['pricing'])
         self.assertEqual(4, snapshot['marketingIntent']['sourceSurfaces']['model-catalog'])
         self.assertEqual(2, snapshot['marketingIntent']['sourceSurfaces']['compare-gateways'])
@@ -3928,6 +3932,15 @@ class SaaSAuthTests(unittest.TestCase):
                     },
                 },
                 {
+                    'event': 'outreach_email_draft_opened',
+                    'plan': None,
+                    'created_at': '2026-06-19T00:00:00Z',
+                    'metadata': {
+                        'source': 'founder-sales',
+                        'snippet': 'founder-recommended-first-reply-email-draft',
+                    },
+                },
+                {
                     'event': 'status_activation_approval_packet_copied',
                     'plan': 'pro',
                     'created_at': '2026-06-19T00:00:00Z',
@@ -4295,7 +4308,7 @@ class SaaSAuthTests(unittest.TestCase):
         metrics, error = router.read_launch_marketing_funnel_counts(0)
 
         self.assertIsNone(error)
-        self.assertEqual(69, metrics['total'])
+        self.assertEqual(70, metrics['total'])
         self.assertEqual(1, metrics['events']['landing_account_clicked'])
         self.assertEqual(1, metrics['events']['landing_key_first_direct_clicked'])
         self.assertEqual(1, metrics['events']['landing_key_recovery_clicked'])
@@ -4336,6 +4349,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['events']['account_snippet_copied'])
         self.assertEqual(1, metrics['events']['quickstart_snippet_copied'])
         self.assertEqual(1, metrics['events']['outreach_snippet_copied'])
+        self.assertEqual(1, metrics['events']['outreach_email_draft_opened'])
         self.assertEqual(1, metrics['events']['status_activation_approval_packet_copied'])
         self.assertEqual(1, metrics['events']['status_managed_provider_outreach_copied'])
         self.assertEqual(1, metrics['events']['status_managed_provider_authorization_review_copied'])
@@ -4350,8 +4364,9 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, metrics['setupSnippetCopies'])
         self.assertEqual(1, metrics['setupSnippetCopiesBySnippet']['codex-cli'])
         self.assertEqual(1, metrics['setupSnippetCopiesBySnippet']['quickstart-curl'])
-        self.assertEqual(1, metrics['founderSalesOutreachCopies'])
+        self.assertEqual(2, metrics['founderSalesOutreachCopies'])
         self.assertEqual(1, metrics['founderSalesOutreachCopiesBySnippet']['founder-one-subscription-reply'])
+        self.assertEqual(1, metrics['founderSalesOutreachCopiesBySnippet']['founder-recommended-first-reply-email-draft'])
         self.assertEqual(1, metrics['activationApprovalPacketCopies'])
         self.assertEqual(1, metrics['activationApprovalPacketCopiesBySnippet']['operator-activation-approval-packet'])
         self.assertEqual(1, metrics['providerAuthorizationOutreachCopies'])
@@ -4436,7 +4451,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(3, metrics['plans']['max'])
         self.assertEqual(4, metrics['sourceSurfaces']['landing'])
         self.assertEqual(12, metrics['sourceSurfaces']['launch-plan'])
-        self.assertEqual(1, metrics['sourceSurfaces']['founder-sales'])
+        self.assertEqual(2, metrics['sourceSurfaces']['founder-sales'])
         self.assertEqual(2, metrics['sourceSurfaces']['model-routing-calculator'])
         self.assertEqual(5, metrics['sourceSurfaces']['model-catalog'])
         self.assertEqual(3, metrics['sourceSurfaces']['compare-gateways'])
@@ -4458,7 +4473,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, metrics['attributionChannels']['newsletter'])
         self.assertEqual(2, metrics['attributionChannels']['google'])
         self.assertEqual(1, metrics['attributionChannels']['discord'])
-        self.assertEqual(58, metrics['attributionChannels']['direct'])
+        self.assertEqual(59, metrics['attributionChannels']['direct'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['all'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['ollama'])
         self.assertEqual(1, metrics['modelCatalogDemand']['modelFamily']['openai-codex'])

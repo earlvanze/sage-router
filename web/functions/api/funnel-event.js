@@ -146,6 +146,7 @@ const ALLOWED_EVENTS = new Set([
   'content_article_checkout_clicked',
   'content_article_snippet_copied',
   'outreach_snippet_copied',
+  'outreach_email_draft_opened',
   'content_article_magic_link_requested',
   'content_article_magic_link_sent',
   'content_article_magic_link_failed',

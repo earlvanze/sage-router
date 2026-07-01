@@ -7332,6 +7332,7 @@ SETUP_SNIPPET_COPY_EVENTS = {
 }
 FOUNDER_SALES_OUTREACH_COPY_EVENTS = {
     'outreach_snippet_copied',
+    'outreach_email_draft_opened',
 }
 MANAGED_ACCESS_PACKET_COPY_EVENTS = {
     'managed_access_review_packet_copied',

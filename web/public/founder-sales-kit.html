@@ -67,6 +67,7 @@ https://sagerouter.dev/managed-access?intent=max-implementation&utm_source=found
 Boundary: Sage Router is routing, generated-key, quota, analytics, and reliability infrastructure for provider/local access you are authorized to use. One-subscription managed access is review-only until provider authorization, terms, cost model, margin checks, quotas, audit, and acceptable-use controls pass.</pre>
       <div class="copyRow">
         <button id="copy-founder-recommended-first-reply" class="copyButton" type="button">Copy recommended first reply</button>
+        <button id="email-founder-recommended-first-reply" class="copyButton" type="button">Open email draft</button>
         <span id="copy-founder-recommended-status" class="copyStatus" role="status" aria-live="polite"></span>
       </div>
       <pre id="founder-next-revenue-packet" class="codebox">Sage Router may fit your agent/model routing work if you want one OpenAI-compatible endpoint with health-aware fallback, generated Sage keys, and route profiles for frontier/local/coding traffic.
@@ -87,6 +88,7 @@ https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=founder
 Boundary: Sage Router is routing, generated-key, quota, analytics, and reliability infrastructure for provider/local access you are authorized to use. Public managed-provider access remains gated behind provider authorization, terms, cost model, unit economics, quotas, and acceptable-use controls.</pre>
       <div class="copyRow">
         <button id="copy-founder-next-revenue-packet" class="copyButton" type="button">Copy next revenue packet</button>
+        <button id="email-founder-next-revenue-packet" class="copyButton" type="button">Open email draft</button>
         <span id="copy-founder-next-revenue-status" class="copyStatus" role="status" aria-live="polite"></span>
       </div>
       <pre id="founder-hero-pro-reply" class="codebox">Sage Router may fit your agent routing work if you want one OpenAI-compatible endpoint with health-aware fallback, model routing, and hosted generated keys.
@@ -424,12 +426,37 @@ https://sagerouter.dev/margin-policy?utm_source=founder-sales&utm_medium=direct&
       }
     }
 
+    function emailSubjectForSnippet(snippet) {
+      if (snippet === 'founder-next-revenue-packet-email-draft') return 'Sage Router routing and failover setup';
+      return 'Sage Router model routing setup';
+    }
+
+    function openEmailDraft(blockId, statusId, successText, snippet) {
+      const block = document.getElementById(blockId);
+      const status = document.getElementById(statusId);
+      if (!block) return;
+      const body = block.textContent.trim();
+      const subject = emailSubjectForSnippet(snippet);
+      trackFounderSalesEvent('outreach_email_draft_opened', {
+        button: blockId,
+        snippet
+      });
+      if (status) status.textContent = successText;
+      window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    }
+
     trackFounderSalesEvent('content_article_viewed', { button: 'page-view' });
     document.getElementById('copy-founder-recommended-first-reply')?.addEventListener('click', () => {
       copyBlock('founder-recommended-first-reply', 'copy-founder-recommended-status', 'Copied recommended first reply.', 'founder-recommended-first-reply');
     });
+    document.getElementById('email-founder-recommended-first-reply')?.addEventListener('click', () => {
+      openEmailDraft('founder-recommended-first-reply', 'copy-founder-recommended-status', 'Opened no-secret email draft.', 'founder-recommended-first-reply-email-draft');
+    });
     document.getElementById('copy-founder-next-revenue-packet')?.addEventListener('click', () => {
       copyBlock('founder-next-revenue-packet', 'copy-founder-next-revenue-status', 'Copied next revenue packet.', 'founder-next-revenue-packet');
+    });
+    document.getElementById('email-founder-next-revenue-packet')?.addEventListener('click', () => {
+      openEmailDraft('founder-next-revenue-packet', 'copy-founder-next-revenue-status', 'Opened no-secret revenue email draft.', 'founder-next-revenue-packet-email-draft');
     });
     document.getElementById('copy-founder-hero-pro-reply')?.addEventListener('click', () => {
       copyBlock('founder-hero-pro-reply', 'copy-founder-hero-status', 'Copied next Pro reply.', 'founder-hero-pro-reply');
