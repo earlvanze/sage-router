@@ -1194,6 +1194,37 @@ if [[ "$RAW_JSON" == "1" ]]; then
         }
       else $row end
     );
+  def managed_provider_mutating_control($id):
+    ([
+      "provider_resale_terms",
+      "provider_terms_acknowledgment",
+      "provider_authorization_evidence",
+      "authorized_provider_allowlist",
+      "margin_policy",
+      "provider_cost_model",
+      "minimum_gross_margin"
+    ] | index($id)) != null;
+  def managed_provider_action_rows($managed):
+    ($managed.enabled // false) as $enabled
+    | ($managed.nextActions // []) | map(
+      . as $row
+      | ($row.id // "") as $id
+      | $row + {
+        managedResaleEnabled: ($row.managedResaleEnabled // $enabled),
+        sendsEmail: ($row.sendsEmail // false),
+        mutatesRuntime: ($row.mutatesRuntime // managed_provider_mutating_control($id)),
+        secretFree: true,
+        publicSafe: true,
+        privacy: ({
+          containsSecrets: false,
+          containsProviderCredentials: false,
+          containsActualProviderCosts: false,
+          containsAuthorizationReference: false,
+          containsPrompts: false,
+          containsRawProviderResponses: false
+        } + ($row.privacy // {}))
+      }
+    );
   {
     generatedAt,
     stages,
@@ -1220,7 +1251,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
       [bottleneck_action(.)]
       + activation_action_rows(.)
       + [managed_access_conversion_action(.)]
-      + ((.managedProviderReadiness.nextActions // .pricing.publicLaunch.managedProviderAccess.nextActions // []) | map(. + {surface: "Managed provider access"}))
+      + (managed_provider_action_rows((.managedProviderReadiness // .pricing.publicLaunch.managedProviderAccess // {})) | map(. + {surface: "Managed provider access"}))
     )[0:8],
     activationFollowUps: (
       .activationFollowUps
@@ -1383,6 +1414,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
             }
           })) end
         )
+      | .nextActions = managed_provider_action_rows(.)
     ),
     activationQueue: {
       total: (
