@@ -9,6 +9,7 @@ PAGES_PRODUCTION_BRANCH="${SAGEROUTER_CLOUDFLARE_PAGES_PRODUCTION_BRANCH:-main}"
 DEPLOY_PAGES="${SAGEROUTER_DEPLOY_PAGES:-1}"
 DEPLOY_CLOUD_RUN="${SAGEROUTER_DEPLOY_CLOUD_RUN:-0}"
 RUN_READINESS="${SAGEROUTER_DEPLOY_RUN_READINESS:-1}"
+REQUIRE_ALL_EDGE_UPSTREAMS="${SAGEROUTER_DEPLOY_REQUIRE_ALL_EDGE_UPSTREAMS:-1}"
 GHCR_IMAGE_DIGEST="${GHCR_IMAGE_DIGEST:-${SAGEROUTER_GHCR_IMAGE_DIGEST:-}}"
 API_BASE="${SAGEROUTER_API_BASE_URL:-https://api.sagerouter.dev}"
 POST_DEPLOY_WARMUP_ATTEMPTS="${SAGEROUTER_POST_DEPLOY_WARMUP_ATTEMPTS:-18}"
@@ -182,6 +183,10 @@ fi
 if [[ "$RUN_READINESS" != "0" ]]; then
   if [[ "$CLOUD_RUN_DEPLOYED" == "1" ]]; then
     wait_for_public_edge_after_cloud_run_deploy
+  fi
+  if [[ -z "${SAGEROUTER_MIN_HEALTHY_UPSTREAMS:-}" && "$REQUIRE_ALL_EDGE_UPSTREAMS" != "0" && "$API_BASE" == "https://api.sagerouter.dev" ]]; then
+    export SAGEROUTER_MIN_HEALTHY_UPSTREAMS=all
+    printf 'Requiring all configured public edge upstreams healthy for production deploy readiness. Set SAGEROUTER_DEPLOY_REQUIRE_ALL_EDGE_UPSTREAMS=0 or SAGEROUTER_MIN_HEALTHY_UPSTREAMS=N to override.\n' >&2
   fi
   "$ROOT/scripts/check_sagerouter_launch_readiness.sh"
 else

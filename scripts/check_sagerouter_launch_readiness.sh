@@ -275,8 +275,8 @@ PY
 check_edge_health() {
   local body
   body="$(curl -fsS "${API_BASE%/}/edge/health")"
-  local status auth_mode selected health_urls_redacted rate_limit_enabled auth_attempt_rate_limit_enabled auth_attempt_rate_limit quota_enabled api_key_auth_cache api_key_auth_cache_zero cors_wildcard_blocked cors_explicit_origin_required cors_allowed_origins_count failover_ok model_modalities_shared model_modalities_rpc healthy_upstream_count unhealthy_summary
-  local retry_attempts retry_delay attempt recovered_after_retry
+  local status auth_mode selected health_urls_redacted rate_limit_enabled auth_attempt_rate_limit_enabled auth_attempt_rate_limit quota_enabled api_key_auth_cache api_key_auth_cache_zero cors_wildcard_blocked cors_explicit_origin_required cors_allowed_origins_count failover_ok model_modalities_shared model_modalities_rpc healthy_upstream_count upstream_total_count unhealthy_summary
+  local retry_attempts retry_delay attempt recovered_after_retry required_healthy_upstreams required_healthy_label
   parse_edge_health_body() {
     status="$(printf '%s' "$body" | jq -r '.status // empty')"
     auth_mode="$(printf '%s' "$body" | jq -r '.authMode // empty')"
@@ -303,22 +303,42 @@ check_edge_health() {
     model_modalities_shared="$(printf '%s' "$body" | jq -r '.modelModalities.sharedEnabled // false')"
     model_modalities_rpc="$(printf '%s' "$body" | jq -r '.modelModalities.rpcConfigured // false')"
     healthy_upstream_count="$(printf '%s' "$body" | jq -r '.failover.healthyUpstreamCount // ([.upstreams[]? | select(.healthy == true)] | length)')"
+    upstream_total_count="$(printf '%s' "$body" | jq -r '[.upstreams[]?] | length')"
     unhealthy_summary="$(printf '%s' "$body" | jq -r '[.upstreams[]? | select(.healthy != true) | "\(.id // "unknown"):\(.last_error // "unhealthy")"] | join(",")')"
   }
   parse_edge_health_body
+  required_healthy_upstreams=""
+  required_healthy_label=""
+  if [[ "$MIN_HEALTHY_UPSTREAMS" == "all" ]]; then
+    if [[ "$upstream_total_count" =~ ^[0-9]+$ && "$upstream_total_count" -gt 0 ]]; then
+      required_healthy_upstreams="$upstream_total_count"
+      required_healthy_label="all configured upstreams (${upstream_total_count})"
+    else
+      fail "SAGEROUTER_MIN_HEALTHY_UPSTREAMS=all requires /edge/health to expose at least one configured upstream"
+    fi
+  elif [[ "$MIN_HEALTHY_UPSTREAMS" =~ ^[0-9]+$ && "$MIN_HEALTHY_UPSTREAMS" -gt 0 ]]; then
+    required_healthy_upstreams="$MIN_HEALTHY_UPSTREAMS"
+    required_healthy_label="$MIN_HEALTHY_UPSTREAMS"
+  elif [[ -n "$MIN_HEALTHY_UPSTREAMS" && "$MIN_HEALTHY_UPSTREAMS" != "0" ]]; then
+    fail "SAGEROUTER_MIN_HEALTHY_UPSTREAMS must be a positive integer, all, or 0, got ${MIN_HEALTHY_UPSTREAMS}"
+  fi
   retry_attempts="$EDGE_HEALTH_RETRY_ATTEMPTS"
   retry_delay="$EDGE_HEALTH_RETRY_DELAY_SECONDS"
   recovered_after_retry=""
-  if [[ "$MIN_HEALTHY_UPSTREAMS" =~ ^[0-9]+$ && "$MIN_HEALTHY_UPSTREAMS" -gt 0 && "$retry_attempts" =~ ^[0-9]+$ && "$retry_attempts" -gt 1 ]]; then
+  if [[ "$required_healthy_upstreams" =~ ^[0-9]+$ && "$required_healthy_upstreams" -gt 0 && "$retry_attempts" =~ ^[0-9]+$ && "$retry_attempts" -gt 1 ]]; then
     attempt=1
-    while [[ "$healthy_upstream_count" =~ ^[0-9]+$ && "$healthy_upstream_count" -lt "$MIN_HEALTHY_UPSTREAMS" && "$attempt" -lt "$retry_attempts" ]]; do
+    while [[ "$healthy_upstream_count" =~ ^[0-9]+$ && "$healthy_upstream_count" -lt "$required_healthy_upstreams" && "$attempt" -lt "$retry_attempts" ]]; do
       attempt=$((attempt + 1))
       if [[ "$retry_delay" =~ ^[0-9]+$ && "$retry_delay" -gt 0 ]]; then
         sleep "$retry_delay"
       fi
       body="$(curl -fsS "${API_BASE%/}/edge/health")"
       parse_edge_health_body
-      if [[ "$healthy_upstream_count" =~ ^[0-9]+$ && "$healthy_upstream_count" -ge "$MIN_HEALTHY_UPSTREAMS" ]]; then
+      if [[ "$MIN_HEALTHY_UPSTREAMS" == "all" && "$upstream_total_count" =~ ^[0-9]+$ && "$upstream_total_count" -gt 0 ]]; then
+        required_healthy_upstreams="$upstream_total_count"
+        required_healthy_label="all configured upstreams (${upstream_total_count})"
+      fi
+      if [[ "$healthy_upstream_count" =~ ^[0-9]+$ && "$healthy_upstream_count" -ge "$required_healthy_upstreams" ]]; then
         recovered_after_retry=" after ${attempt} attempts"
       fi
     done
@@ -328,14 +348,12 @@ check_edge_health() {
   else
     fail "edge health unexpected: status=${status:-missing} authMode=${auth_mode:-missing} selected=${selected:-missing} healthUrlsRedacted=${health_urls_redacted:-missing} rateLimit=${rate_limit_enabled:-missing} authAttemptRateLimit=${auth_attempt_rate_limit_enabled:-missing}/${auth_attempt_rate_limit:-missing} quota=${quota_enabled:-missing} apiKeyAuthCache=${api_key_auth_cache:-missing} corsWildcardBlocked=${cors_wildcard_blocked:-missing} corsExplicitOrigin=${cors_explicit_origin_required:-missing} corsAllowedOrigins=${cors_allowed_origins_count:-missing} failover=${failover_ok:-missing} healthyUpstreams=${healthy_upstream_count:-missing} unhealthy=${unhealthy_summary:-none} modelModalities=${model_modalities_shared:-missing}/${model_modalities_rpc:-missing}"
   fi
-  if [[ "$MIN_HEALTHY_UPSTREAMS" =~ ^[0-9]+$ && "$MIN_HEALTHY_UPSTREAMS" -gt 0 ]]; then
-    if [[ "$healthy_upstream_count" -ge "$MIN_HEALTHY_UPSTREAMS" ]]; then
-      pass "edge healthy upstream count ${healthy_upstream_count} meets expected minimum ${MIN_HEALTHY_UPSTREAMS}${recovered_after_retry}"
+  if [[ "$required_healthy_upstreams" =~ ^[0-9]+$ && "$required_healthy_upstreams" -gt 0 ]]; then
+    if [[ "$healthy_upstream_count" =~ ^[0-9]+$ && "$healthy_upstream_count" -ge "$required_healthy_upstreams" ]]; then
+      pass "edge healthy upstream count ${healthy_upstream_count} meets expected minimum ${required_healthy_label}${recovered_after_retry}"
     else
-      fail "edge healthy upstream count ${healthy_upstream_count:-missing} is below expected minimum ${MIN_HEALTHY_UPSTREAMS} after ${retry_attempts} attempt(s); unhealthy=${unhealthy_summary:-none}"
+      fail "edge healthy upstream count ${healthy_upstream_count:-missing} is below expected minimum ${required_healthy_label} after ${retry_attempts} attempt(s); unhealthy=${unhealthy_summary:-none}"
     fi
-  elif [[ -n "$MIN_HEALTHY_UPSTREAMS" && "$MIN_HEALTHY_UPSTREAMS" != "0" ]]; then
-    fail "SAGEROUTER_MIN_HEALTHY_UPSTREAMS must be a positive integer or 0, got ${MIN_HEALTHY_UPSTREAMS}"
   fi
 }
 
