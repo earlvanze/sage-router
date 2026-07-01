@@ -7317,6 +7317,7 @@ KEY_RECOVERY_VIEW_EVENTS = {
     'billing_account_clicked',
     'api_reference_key_recovery_clicked',
     'api_troubleshooting_key_recovery_clicked',
+    'api_troubleshooting_codex_docs_clicked',
     'api_troubleshooting_managed_access_clicked',
     'landing_key_recovery_clicked',
     'model_catalog_key_recovery_clicked',
@@ -11780,6 +11781,42 @@ def model_api_auth_setup_snippet():
     )
 
 
+def model_api_auth_codex_profile():
+    api_base_url = API_BASE_URL or 'https://api.sagerouter.dev'
+    return {
+        'configPath': '~/.codex/config.toml',
+        'providerName': 'sage-router-hosted',
+        'profileName': 'sage-router-frontier',
+        'baseUrl': f"{api_base_url.rstrip('/')}/v1/",
+        'envKey': 'OPENAI_API_KEY',
+        'wireApi': 'responses',
+        'model': 'sage-router/frontier',
+        'runCommand': 'codex --profile sage-router-frontier',
+    }
+
+
+def model_api_auth_codex_setup_snippet():
+    profile = model_api_auth_codex_profile()
+    return (
+        '# Sage Router hosted Codex setup\n'
+        'export OPENAI_API_KEY=sk_sage_REPLACE_WITH_GENERATED_KEY\n'
+        'mkdir -p ~/.codex\n'
+        "cat >> ~/.codex/config.toml <<'TOML'\n"
+        f"[model_providers.{profile['providerName']}]\n"
+        'name = "Sage Router Hosted"\n'
+        f"base_url = \"{profile['baseUrl']}\"\n"
+        f"env_key = \"{profile['envKey']}\"\n"
+        f"wire_api = \"{profile['wireApi']}\"\n"
+        '\n'
+        f"[profiles.{profile['profileName']}]\n"
+        f"model_provider = \"{profile['providerName']}\"\n"
+        f"model = \"{profile['model']}\"\n"
+        'TOML\n'
+        '\n'
+        f"{profile['runCommand']}"
+    )
+
+
 def model_api_auth_error_payload():
     api_base_url = API_BASE_URL or 'https://api.sagerouter.dev'
     key_recovery_url = (
@@ -11796,6 +11833,8 @@ def model_api_auth_error_payload():
         'openaiBaseUrl': f"{api_base_url.rstrip('/')}/v1",
         'apiKeyPrefix': API_KEY_PREFIX,
         'setupSnippet': model_api_auth_setup_snippet(),
+        'codexProfile': model_api_auth_codex_profile(),
+        'codexSetupSnippet': model_api_auth_codex_setup_snippet(),
     }
 
 
