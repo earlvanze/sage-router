@@ -344,6 +344,15 @@ function accountPageUrlWithPlan(plan = selectedPlan, options = {}) {
   return url.toString();
 }
 
+function hostedAccountAuthCallbackUrl(plan = selectedPlan, options = {}) {
+  const url = new URL(accountPageUrlWithPlan(plan, options));
+  const localHosts = new Set(['localhost', '127.0.0.1']);
+  if (!localHosts.has(url.hostname) && url.pathname === '/account.html') {
+    url.pathname = '/account';
+  }
+  return url.toString();
+}
+
 let supportContextState = {
   plan: selectedPlan,
   status: 'signed_out',
@@ -1465,7 +1474,7 @@ async function oauthLogin(provider, options = {}) {
   setAuthStatus(`Opening ${provider} sign-in...`, mirrorIntent);
   rememberOnboardingContext(onboardingContext({ authMethod: provider }));
   trackAccountFunnelEvent('account_oauth_clicked', { button, target: '/auth/v1/authorize', state: provider });
-  const redirectTo = accountPageUrlWithPlan();
+  const redirectTo = hostedAccountAuthCallbackUrl();
   const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo } });
   if (error) {
     trackAccountFunnelEvent('account_oauth_failed', { button, target: '/auth/v1/authorize', state: provider });
@@ -1551,7 +1560,7 @@ async function passwordSignup() {
   const { data, error } = await sb.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: accountPageUrlWithPlan(metadata.selected_plan), data: metadata },
+    options: { emailRedirectTo: hostedAccountAuthCallbackUrl(metadata.selected_plan), data: metadata },
   });
   if (error) {
     trackAccountFunnelEvent('account_signup_failed', { button: 'password_signup', target: '/auth/v1/signup', state: 'password' });
@@ -1578,7 +1587,7 @@ async function magicLogin(options = {}) {
   trackAccountFunnelEvent('account_magic_link_requested', { button, target: '/auth/v1/otp', state: 'email' });
   const metadata = onboardingContext({ authMethod: 'magic_link' });
   rememberOnboardingContext(metadata);
-  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: accountPageUrlWithPlan(metadata.selected_plan), data: metadata } });
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: hostedAccountAuthCallbackUrl(metadata.selected_plan), data: metadata } });
   setAuthStatus(error ? error.message : 'Magic link sent. Check your email.', preferIntent);
   if (error) {
     trackAccountFunnelEvent('account_magic_link_failed', { button, target: '/auth/v1/otp', state: 'email' });
@@ -1677,7 +1686,7 @@ async function resendVerificationEmail() {
     const { error } = await sb.auth.resend({
       type: 'signup',
       email: verificationEmail,
-      options: { emailRedirectTo: accountPageUrlWithPlan() },
+      options: { emailRedirectTo: hostedAccountAuthCallbackUrl() },
     });
     if (error) {
       set('email-verification-status', error.message);
