@@ -871,9 +871,14 @@ Use the public deploy helper to avoid branch/digest drift between the static
 site and hosted API:
 
 ```bash
-set -a; source /home/digit/.openclaw/.env; set +a
 scripts/deploy_sagerouter_public.sh
 ```
+
+The helper silently loads only its whitelisted deploy variables from
+`SAGEROUTER_SECRET_ENV_FILE` or `/home/digit/.openclaw/.env` when they are not
+already exported, so Cloudflare Pages and Cloud Run deploys do not depend on
+the caller remembering `set -a`. Explicit shell environment values still win,
+and secret values are never printed.
 
 The helper builds Cloudflare Pages from a clean temporary copy so local
 `node_modules` or Dropbox permissions cannot affect the production build, then
