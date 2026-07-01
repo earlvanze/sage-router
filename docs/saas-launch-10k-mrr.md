@@ -506,8 +506,11 @@ flag.
   and managed-access traffic without logging email values in marketing events.
   `/analytics/funnel` and the CLI summarizer expose that as
   `managedAccessDropoff` with aggregate presentation/focus/start/submit/received
-  counts, rates, status, and next action for operator follow-up. If the status
-  is `presented_not_engaged`, the managed-access page should keep the
+  counts, rates, status, and next action for operator follow-up. The private
+  launch funnel promotes the same gap into a first-screen managed-access
+  contact-capture handoff, so an operator can copy the no-secret review packet
+  or open the `/managed-access` fast-form CTA before enabling resale. If the
+  status is `presented_not_engaged`, the managed-access page should keep the
   first-screen `Start 30-second review` control and contact-decision panel live
   so a deliberate buyer click focuses the work-email field, copies the
   no-secret contact request, or opens the email draft without enabling provider

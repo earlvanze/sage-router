@@ -1572,6 +1572,58 @@ function renderFounderSalesPromotionBanner(data = {}) {
   </div>`;
 }
 
+function managedAccessContactCaptureCta(conversion = {}) {
+  const rawPath = conversion.ctaPath
+    || '/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review#managed-access-quick-form';
+  if (/^https?:\/\//i.test(rawPath)) return rawPath;
+  return `${MARKETING_BASE}${rawPath.startsWith('/') ? rawPath : `/${rawPath}`}`;
+}
+
+function shouldShowManagedAccessContactPromotionBanner(data = {}) {
+  const conversion = data.managedAccessDemandConversion || {};
+  const dropoff = data.managedAccessDropoff || {};
+  const managed = managedProviderReadiness(data);
+  if (managed.enabled === true) return false;
+  const anonymousSignals = asNumber(conversion.anonymousSignals ?? data.managedAccessDemand?.anonymousSignals);
+  const contactableSignals = asNumber(conversion.waitlistSignals ?? conversion.contactableSignals);
+  const contactableGap = asNumber(conversion.contactableLeadGap);
+  return String(conversion.status || '') === 'contact_capture_gap'
+    || contactableGap > 0
+    || (anonymousSignals > 0 && contactableSignals === 0)
+    || String(dropoff.status || '') === 'presented_not_engaged';
+}
+
+function renderManagedAccessContactPromotionBanner(data = {}) {
+  const target = $('managed-access-contact-promotion-banner');
+  if (!target) return;
+  if (!shouldShowManagedAccessContactPromotionBanner(data)) {
+    target.classList.add('hidden');
+    target.innerHTML = '<div class="empty">Managed-access contact capture is either already moving or has no current anonymous demand gap.</div>';
+    return;
+  }
+  const conversion = data.managedAccessDemandConversion || {};
+  const dropoff = data.managedAccessDropoff || {};
+  const counts = dropoff.counts || {};
+  const contactCapturePacket = managedAccessContactCapturePacketText(conversion);
+  const ctaUrl = managedAccessContactCaptureCta(conversion);
+  target.classList.remove('hidden');
+  target.innerHTML = `<div class="metricList">
+    <div class="metric"><span>Live contact gap</span><strong><span class="pill warn">Managed access</span></strong></div>
+    <div class="metric"><span>Anonymous demand</span><strong>${integer(conversion.anonymousSignals)}</strong></div>
+    <div class="metric"><span>Contactable leads</span><strong>${integer(conversion.waitlistSignals)}</strong></div>
+    <div class="metric"><span>Lead gap</span><strong>${integer(conversion.contactableLeadGap)}</strong></div>
+    <div class="metric"><span>Fast form</span><strong>${integer(counts.quickFormPresented)} shown · ${integer(counts.quickRequestsReceived)} received</strong></div>
+  </div>
+  <p><strong>Anonymous one-subscription demand has not become contactable.</strong></p>
+  <p class="muted">Copy the no-secret contact-capture packet or open the managed-access fast form while provider resale stays disabled. Copying here records <code>operator_managed_access_packet_copied</code> with snippet <code>managed-access-contact-capture-packet</code>; it does not send email, expose customer data, acknowledge provider terms, stage private costs, or enable managed resale.</p>
+  <div class="actions">
+    <button class="btn" type="button" data-copy-managed-contact-capture="${esc(contactCapturePacket)}" data-managed-access-promotion="first-screen">Copy contact-capture packet now</button>
+    <a class="btn secondary" href="${esc(ctaUrl)}" target="_blank" rel="noopener noreferrer">Open contact-capture CTA</a>
+    <a class="btn secondary" href="#managed-access-demand-breakdown">Review demand panel</a>
+    <span class="status">First-screen managed-access handoff: turn anonymous demand into review requests before resale authorization work continues.</span>
+  </div>`;
+}
+
 function managedAccessApprovalPacketText(data = {}) {
   const managed = managedProviderReadiness(data);
   const setup = managed.readinessSetup || {};
@@ -3196,6 +3248,7 @@ function renderFunnel(data) {
   renderActivationApprovalHandoffBanner(data);
   renderFounderSalesFallback(data);
   renderFounderSalesPromotionBanner(data);
+  renderManagedAccessContactPromotionBanner(data);
   renderNextBestActionDock(data);
   renderLaunchBrief(data);
   renderManagedAccessReadiness(data);
@@ -3941,6 +3994,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('setup-copy-fallback-banner')?.addEventListener('click', handleFollowUpCopyClick);
   $('activation-approval-handoff-banner')?.addEventListener('click', handleFollowUpCopyClick);
   $('founder-sales-promotion-banner')?.addEventListener('click', handleFollowUpCopyClick);
+  $('managed-access-contact-promotion-banner')?.addEventListener('click', handleFollowUpCopyClick);
   $('next-best-action-dock').addEventListener('click', handleFollowUpCopyClick);
   $('operator-execution-packet')?.addEventListener('click', handleFollowUpCopyClick);
   $('managed-access-readiness')?.addEventListener('click', handleFollowUpCopyClick);

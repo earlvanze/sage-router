@@ -1242,6 +1242,9 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "founder-sales-promotion-banner" /tmp/sage-router-readiness-body; then
     launch_funnel_code="200:missing-founder-sales-promotion-banner"
   fi
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "managed-access-contact-promotion-banner" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:missing-managed-access-contact-promotion-banner"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   launch_funnel_js_code="$(http_code_follow "${APP_BASE%/}/launch-funnel.js")"
@@ -1292,6 +1295,18 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "founderSalesOutreachCopies" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-founder-sales-promotion-metric"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderManagedAccessContactPromotionBanner" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-contact-promotion-render"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "Anonymous one-subscription demand has not become contactable" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-contact-promotion-copy"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "data-managed-access-promotion" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-contact-promotion-actions"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "operator_managed_access_packet_copied" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-contact-promotion-funnel"
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderReviewFlags" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-customer-review-flags"
