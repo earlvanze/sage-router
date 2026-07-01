@@ -1299,6 +1299,12 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "data-founder-sales-promotion" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-founder-sales-promotion-actions"
   fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "data-email-founder-sales-recommended" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-founder-sales-promotion-email-draft"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "operator-founder-recommended-first-reply-email-draft" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-founder-sales-promotion-email-snippet"
+  fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "founderSalesOutreachCopies" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-founder-sales-promotion-metric"
   fi

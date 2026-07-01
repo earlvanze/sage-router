@@ -318,9 +318,9 @@ and email-draft actions roll into `/analytics/funnel.marketingIntent.founderSale
 `founderSalesOutreachCopiesBySnippet`, and setup-copy activation metrics. The private launch-funnel dashboard
 also promotes a first-screen founder-sales fallback banner when activation or
 managed-resale work is gated and founder-sales outreach copies are still zero,
-then renders a recommended first reply plus a one-click next outreach snippet
-from the current aggregate MRR gap; copying either emits the same
-`outreach_snippet_copied` funnel event without
+then renders a recommended first reply, no-secret email draft, plus a one-click next outreach snippet
+from the current aggregate MRR gap; copying emits `outreach_snippet_copied` and opening the draft emits
+`outreach_email_draft_opened` without
 including customer identities, private funnel rows, prompts, generated keys, or
 provider credentials. The terminal handoff can also print the same no-secret
 founder-sales packet with a short recommended first reply plus the next-revenue handoff:

@@ -1431,6 +1431,20 @@ function founderSalesRecommendedFirstReplyText(data = {}) {
   ].join('\n');
 }
 
+function founderSalesRecommendedEmailDraftUrl(data = {}) {
+  const revenueActions = planRevenueActions(data);
+  const topRevenue = revenueActions.slice().sort((left, right) =>
+    asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
+  )[0] || {};
+  const rawPlan = String(topRevenue.plan || 'pro').toLowerCase();
+  const plan = ['lite', 'pro', 'max'].includes(rawPlan) ? rawPlan : 'pro';
+  const params = new URLSearchParams({
+    subject: `Sage Router ${plan.toUpperCase()} routing setup`,
+    body: founderSalesRecommendedFirstReplyText(data),
+  });
+  return `mailto:?${params.toString()}`;
+}
+
 function firstRequestSetupBundleText(data = {}) {
   const followUps = data.activationFollowUps || {};
   const plan = followUps.suggestedPlan || 'pro';
@@ -1560,6 +1574,7 @@ function renderFounderSalesPromotionBanner(data = {}) {
   const mrrGap = asNumber(topRevenue.remainingMrrToTargetUsd);
   const customerGap = asNumber(topRevenue.customerGap);
   const managedControls = safeList(managed.missingControls).slice(0, 3).join(', ') || 'none reported';
+  const emailDraftUrl = founderSalesRecommendedEmailDraftUrl(data);
   target.classList.remove('hidden');
   target.innerHTML = `<div class="metricList">
     <div class="metric"><span>Live fallback</span><strong><span class="pill warn">Founder-sales outreach</span></strong></div>
@@ -1568,9 +1583,10 @@ function renderFounderSalesPromotionBanner(data = {}) {
     <div class="metric"><span>Managed gate</span><strong>${esc(managed.status || 'gated')} · ${esc(managedControls)}</strong></div>
   </div>
   <p><strong>Founder-sales fallback has zero recorded copies.</strong></p>
-  <p class="muted">Use this while activation sends wait for explicit approval or one-subscription managed access waits for terms, authorization, private cost, and unit-economics review. Copying here records the existing <code>outreach_snippet_copied</code> event only; it does not send email, expose customers, approve activation sends, or enable managed resale.</p>
+  <p class="muted">Use this while activation sends wait for explicit approval or one-subscription managed access waits for terms, authorization, private cost, and unit-economics review. Copying or opening a draft here records founder-sales handoff telemetry only; it does not send email, expose customers, approve activation sends, or enable managed resale.</p>
   <div class="actions">
     <button class="btn" type="button" data-copy-founder-sales-recommended="1" data-founder-sales-promotion="first-screen">Copy recommended first reply now</button>
+    <a class="btn secondary" href="${esc(emailDraftUrl)}" data-email-founder-sales-recommended="first-screen" data-founder-sales-promotion="first-screen">Open no-secret email draft</a>
     <button class="btn secondary" type="button" data-copy-founder-sales-next="1" data-founder-sales-promotion="first-screen">Copy next outreach</button>
     <a class="btn secondary" href="${esc(FOUNDER_SALES_KIT_URL)}" target="_blank" rel="noopener noreferrer">Open founder-sales kit</a>
     <a class="btn secondary" href="#founder-sales-fallback">Review fallback panel</a>
@@ -2642,6 +2658,23 @@ async function copyFounderSalesRecommendedFirstReply(button) {
       button.textContent = original;
     }, 1500);
   }
+}
+
+function trackFounderSalesRecommendedEmailDraft(link) {
+  const revenueActions = planRevenueActions(lastFunnelData || {});
+  const topRevenue = revenueActions.slice().sort((left, right) =>
+    asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
+  )[0] || {};
+  const plan = String(topRevenue.plan || 'pro').toLowerCase();
+  trackOperatorFunnelEvent('outreach_email_draft_opened', {
+    plan: ['lite', 'pro', 'max'].includes(plan) ? plan : 'pro',
+    state: 'operator_recommended_first_reply_email_draft_opened',
+    resultCount: asNumber(topRevenue.customerGap || 1),
+    snippet: 'operator-founder-recommended-first-reply-email-draft',
+    target: FOUNDER_SALES_KIT_URL,
+  });
+  setStatus('Opened no-secret founder-sales email draft. This counts toward founder-sales outreach copies without sending email.', 'good');
+  if (link) link.setAttribute('data-founder-sales-draft-opened', '1');
 }
 
 async function copyOperatorSetupBundle(button) {
@@ -3936,6 +3969,11 @@ function handleFollowUpCopyClick(event) {
   const founderSalesRecommendedButton = event.target.closest('[data-copy-founder-sales-recommended]');
   if (founderSalesRecommendedButton) {
     copyFounderSalesRecommendedFirstReply(founderSalesRecommendedButton);
+    return;
+  }
+  const founderSalesRecommendedEmailLink = event.target.closest('[data-email-founder-sales-recommended]');
+  if (founderSalesRecommendedEmailLink) {
+    trackFounderSalesRecommendedEmailDraft(founderSalesRecommendedEmailLink);
     return;
   }
   const operatorSetupBundleButton = event.target.closest('[data-copy-operator-setup-bundle]');
