@@ -7698,6 +7698,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
     operator_follow_up_sent_recipients = int(activation_follow_ups.get('operatorFollowUpSentRecipients') or 0)
     operator_follow_up_send_failure_recipients = int(activation_follow_ups.get('operatorFollowUpSendFailureRecipients') or 0)
     activation_approval_packet_copies = int(activation_follow_ups.get('activationApprovalPacketCopies') or 0)
+    activation_approval_decision_copies = int(activation_follow_ups.get('activationApprovalDecisionCopies') or 0)
     key_first_redirects = int(activation_follow_ups.get('keyFirstRedirects') or 0)
     key_recovery_views = int(activation_follow_ups.get('keyRecoveryViews') or 0)
     key_create_attempts = int(activation_follow_ups.get('keyCreateAttempts') or 0)
@@ -7901,6 +7902,8 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 'operatorFollowUpSendFailureRecipients': operator_follow_up_send_failure_recipients,
                 'activationApprovalPacketCopies': activation_approval_packet_copies,
                 'activationApprovalPacketCopiesBySnippet': activation_follow_ups.get('activationApprovalPacketCopiesBySnippet') or {},
+                'activationApprovalDecisionCopies': activation_approval_decision_copies,
+                'activationApprovalDecisionCopiesBySnippet': activation_follow_ups.get('activationApprovalDecisionCopiesBySnippet') or {},
                 'approvalPacketAlreadyReviewed': approval_packet_already_reviewed,
                 'keyFirstRedirects': key_first_redirects,
                 'keyFirstRedirectsByState': activation_follow_ups.get('keyFirstRedirectsByState') or {},
@@ -9501,6 +9504,8 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'providerTermsReviewCopiesBySnippet': {},
         'activationApprovalPacketCopies': 0,
         'activationApprovalPacketCopiesBySnippet': {},
+        'activationApprovalDecisionCopies': 0,
+        'activationApprovalDecisionCopiesBySnippet': {},
         'operatorFollowUpCopies': 0,
         'operatorFollowUpCopiesByKind': {},
         'operatorFollowUpWorked': 0,
@@ -9625,6 +9630,11 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             metrics['activationApprovalPacketCopies'] += 1
             snippet = str(metadata.get('snippet') or metadata.get('state') or 'activation-approval-packet').strip().lower()[:80] or 'activation-approval-packet'
             metrics['activationApprovalPacketCopiesBySnippet'][snippet] = metrics['activationApprovalPacketCopiesBySnippet'].get(snippet, 0) + 1
+        if event == 'operator_execution_packet_copied':
+            snippet = str(metadata.get('snippet') or metadata.get('state') or '').strip().lower()[:80]
+            if snippet.startswith('activation-approval-') and snippet.endswith('-decision'):
+                metrics['activationApprovalDecisionCopies'] += 1
+                metrics['activationApprovalDecisionCopiesBySnippet'][snippet] = metrics['activationApprovalDecisionCopiesBySnippet'].get(snippet, 0) + 1
         if event in OPERATOR_FOLLOWUP_COPY_EVENTS:
             metrics['operatorFollowUpCopies'] += 1
             kind = str(metadata.get('state') or event).strip().lower()[:80] or event
@@ -9729,6 +9739,8 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'providerTermsReviewCopiesBySnippet': {},
             'activationApprovalPacketCopies': 0,
             'activationApprovalPacketCopiesBySnippet': {},
+            'activationApprovalDecisionCopies': 0,
+            'activationApprovalDecisionCopiesBySnippet': {},
         }.items():
             marketing_metrics.setdefault(key, default)
         marketing_metrics = {
@@ -9887,6 +9899,8 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'operatorFollowUpSendFailureRecipients': int(marketing_metrics.get('operatorFollowUpSendFailureRecipients') or 0),
             'activationApprovalPacketCopies': int(marketing_metrics.get('activationApprovalPacketCopies') or 0),
             'activationApprovalPacketCopiesBySnippet': marketing_metrics.get('activationApprovalPacketCopiesBySnippet') or {},
+            'activationApprovalDecisionCopies': int(marketing_metrics.get('activationApprovalDecisionCopies') or 0),
+            'activationApprovalDecisionCopiesBySnippet': marketing_metrics.get('activationApprovalDecisionCopiesBySnippet') or {},
             'keyFirstRedirects': int(marketing_metrics.get('keyFirstRedirects') or 0),
             'keyFirstRedirectsByState': marketing_metrics.get('keyFirstRedirectsByState') or {},
             'keyRecoveryHandoffScheduled': int(marketing_metrics.get('keyRecoveryHandoffScheduled') or 0),

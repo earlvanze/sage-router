@@ -2813,6 +2813,8 @@ function renderMarketingIntent(marketingIntent = {}) {
   const founderSalesCopyCount = asNumber(marketingIntent.founderSalesOutreachCopies);
   const managedAccessPacketRows = sortedEntries(marketingIntent.managedAccessPacketCopiesBySnippet);
   const managedAccessPacketCopyCount = asNumber(marketingIntent.managedAccessPacketCopies);
+  const activationApprovalDecisionRows = sortedEntries(marketingIntent.activationApprovalDecisionCopiesBySnippet);
+  const activationApprovalDecisionCopyCount = asNumber(marketingIntent.activationApprovalDecisionCopies);
   const setupBlock = setupCopyCount || setupRows.length ? `<div>
     <h3>Setup copies</h3>
     <table>
@@ -2840,6 +2842,15 @@ function renderMarketingIntent(marketingIntent = {}) {
       }</tbody>
     </table>
   </div>` : '';
+  const activationApprovalDecisionBlock = activationApprovalDecisionCopyCount || activationApprovalDecisionRows.length ? `<div>
+    <h3>Activation approval decisions</h3>
+    <table>
+      <thead><tr><th>Decision</th><th>Copies</th></tr></thead>
+      <tbody><tr><td><span class="pill">Total decision copies</span></td><td>${integer(activationApprovalDecisionCopyCount)}</td></tr>${
+        activationApprovalDecisionRows.map(([name, count]) => `<tr><td><span class="pill">${esc(demandLabel(name))}</span></td><td>${integer(count)}</td></tr>`).join('')
+      }</tbody>
+    </table>
+  </div>` : '';
   const checkoutFriction = marketingIntent.checkoutFriction || {};
   const hasCheckoutFriction = asNumber(checkoutFriction.totalCheckoutIntent) > 0 || asNumber(checkoutFriction.unavailableEvents) > 0;
   const checkoutRows = hasCheckoutFriction ? [
@@ -2858,7 +2869,7 @@ function renderMarketingIntent(marketingIntent = {}) {
     </table>
   </div>` : '';
   const recoveryAuthBlock = renderRecoveryAuthPulse(marketingIntent);
-  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length && !modelFamilyRows.length && !modelQueryRows.length && !setupBlock && !founderSalesBlock && !managedAccessPacketBlock && !checkoutBlock && !hasRecoveryAuthPulseSignal(marketingIntent)) {
+  if (!eventRows.length && !planRows.length && !surfaceRows.length && !channelRows.length && !modelFamilyRows.length && !modelQueryRows.length && !setupBlock && !founderSalesBlock && !managedAccessPacketBlock && !activationApprovalDecisionBlock && !checkoutBlock && !hasRecoveryAuthPulseSignal(marketingIntent)) {
     $('marketing-intent-breakdown').innerHTML = '<div class="empty">No anonymous marketing CTA intent events in this window.</div>';
     return;
   }
@@ -2881,7 +2892,7 @@ function renderMarketingIntent(marketingIntent = {}) {
     renderDemandTable('Model catalog families', modelFamilyRows, 'No model catalog family demand returned.')
   }${
     renderDemandTable('Catalog search buckets', modelQueryRows, 'No model catalog search demand returned.')
-  }${setupBlock}${founderSalesBlock}${managedAccessPacketBlock}${checkoutBlock}</div>`;
+  }${setupBlock}${founderSalesBlock}${managedAccessPacketBlock}${activationApprovalDecisionBlock}${checkoutBlock}</div>`;
 }
 
 function renderAuthProviderState(authState = {}) {
