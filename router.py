@@ -8894,15 +8894,17 @@ def managed_access_top_bucket(metrics, group):
     return {'bucket': rows[0][0], 'count': rows[0][1]}
 
 
-def managed_access_demand_conversion(waitlist_demand, anonymous_demand):
+def managed_access_demand_conversion(waitlist_demand, anonymous_demand, quick_received_signals=0):
     waitlist_signals = managed_access_demand_total(waitlist_demand)
     anonymous_signals = managed_access_demand_total(anonymous_demand)
-    contactable_gap = max(0, anonymous_signals - waitlist_signals)
+    quick_received_signals = max(0, int(quick_received_signals or 0))
+    contactable_signals = max(waitlist_signals, quick_received_signals)
+    contactable_gap = max(0, anonymous_signals - contactable_signals)
     status = (
         'contact_capture_gap'
-        if anonymous_signals > 0 and waitlist_signals <= 0
+        if anonymous_signals > 0 and contactable_signals <= 0
         else 'contact_capture_started'
-        if anonymous_signals > 0 or waitlist_signals > 0
+        if anonymous_signals > 0 or contactable_signals > 0
         else 'no_current_demand'
     )
     priority = 'fix_now' if status == 'contact_capture_gap' else ('next' if status == 'contact_capture_started' else 'monitor')
@@ -8921,6 +8923,8 @@ def managed_access_demand_conversion(waitlist_demand, anonymous_demand):
         'priority': priority,
         'anonymousSignals': anonymous_signals,
         'waitlistSignals': waitlist_signals,
+        'quickReceivedSignals': quick_received_signals,
+        'contactableSignals': contactable_signals,
         'contactableLeadGap': contactable_gap,
         'dominantIntent': intent,
         'dominantCommercialPreference': commercial,
@@ -9898,6 +9902,9 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
     managed_access_conversion = managed_access_demand_conversion(
         waitlist_managed_access_demand,
         anonymous_managed_access_demand,
+        (marketing_metrics.get('events') or {}).get('managed_access_quick_request_received', 0)
+        if isinstance(marketing_metrics, dict)
+        else 0,
     )
     managed_access_interest = waitlist_interest.get('managedAccess', 0) if isinstance(waitlist_interest, dict) else None
     anonymous_managed_access_interest = marketing_metrics.get('managedAccessAnonymousInterest', 0) if isinstance(marketing_metrics, dict) else None

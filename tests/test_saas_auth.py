@@ -3552,6 +3552,8 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('fix_now', conversion['priority'])
         self.assertEqual(2, conversion['anonymousSignals'])
         self.assertEqual(0, conversion['waitlistSignals'])
+        self.assertEqual(0, conversion['quickReceivedSignals'])
+        self.assertEqual(0, conversion['contactableSignals'])
         self.assertEqual(2, conversion['contactableLeadGap'])
         self.assertEqual('one-subscription', conversion['dominantIntent']['bucket'])
         self.assertEqual('mixed-frontier', conversion['dominantTargetProviderFamily']['bucket'])
@@ -3559,6 +3561,40 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('one-subscription', conversion['action'])
         self.assertFalse(conversion['managedResaleEnabled'])
         self.assertFalse(conversion['privacy']['containsProviderCredentials'])
+        self.assertTrue(conversion['privacy']['aggregateOnly'])
+
+    def test_managed_access_conversion_counts_quick_receipts_as_contactable_proof(self):
+        anonymous = router.new_managed_access_demand_metrics()
+        router.managed_access_demand_metrics_add(anonymous, {
+            'targetProviderFamily': 'mixed-frontier',
+            'commercialPreference': 'one-subscription',
+            'supportNeed': 'managed-provider-review',
+            'targetLaunchWindow': 'this-month',
+            'intent': 'one-subscription',
+        })
+        router.managed_access_demand_metrics_add(anonymous, {
+            'targetProviderFamily': 'mixed-frontier',
+            'commercialPreference': 'one-subscription',
+            'supportNeed': 'managed-provider-review',
+            'targetLaunchWindow': 'this-month',
+            'intent': 'one-subscription',
+        })
+
+        conversion = router.managed_access_demand_conversion(
+            router.new_managed_access_demand_metrics(),
+            anonymous,
+            quick_received_signals=1,
+        )
+
+        self.assertEqual('contact_capture_started', conversion['status'])
+        self.assertEqual('next', conversion['priority'])
+        self.assertEqual(2, conversion['anonymousSignals'])
+        self.assertEqual(0, conversion['waitlistSignals'])
+        self.assertEqual(1, conversion['quickReceivedSignals'])
+        self.assertEqual(1, conversion['contactableSignals'])
+        self.assertEqual(1, conversion['contactableLeadGap'])
+        self.assertFalse(conversion['managedResaleEnabled'])
+        self.assertFalse(conversion['privacy']['containsEmails'])
         self.assertTrue(conversion['privacy']['aggregateOnly'])
 
     def test_launch_marketing_funnel_counts_group_events_without_identity(self):

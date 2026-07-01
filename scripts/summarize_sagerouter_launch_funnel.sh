@@ -493,20 +493,24 @@ if [[ "$MANAGED_ACCESS_DROPOFF_PACKET" == "1" ]]; then
     | ($root.marketingIntent // {}) as $marketing
     | ($marketing.events // {}) as $events
     | ($root.managedAccessDemand // {}) as $managed_demand
+    | ($events.managed_access_quick_request_received // 0) as $quick_received
+    | ([($stages.managedAccessBetaInterest // 0), $quick_received] | max) as $contactable
     | ($root.managedAccessDemandConversion // {
         status: (
-          if (($stages.anonymousManagedAccessInterest // 0) > 0 and ($stages.managedAccessBetaInterest // 0) <= 0) then "contact_capture_gap"
-          elif (($stages.anonymousManagedAccessInterest // 0) > 0 or ($stages.managedAccessBetaInterest // 0) > 0) then "contact_capture_started"
+          if (($stages.anonymousManagedAccessInterest // 0) > 0 and $contactable <= 0) then "contact_capture_gap"
+          elif (($stages.anonymousManagedAccessInterest // 0) > 0 or $contactable > 0) then "contact_capture_started"
           else "no_current_demand" end
         ),
         priority: (
-          if (($stages.anonymousManagedAccessInterest // 0) > 0 and ($stages.managedAccessBetaInterest // 0) <= 0) then "fix_now"
-          elif (($stages.anonymousManagedAccessInterest // 0) > 0 or ($stages.managedAccessBetaInterest // 0) > 0) then "next"
+          if (($stages.anonymousManagedAccessInterest // 0) > 0 and $contactable <= 0) then "fix_now"
+          elif (($stages.anonymousManagedAccessInterest // 0) > 0 or $contactable > 0) then "next"
           else "monitor" end
         ),
         anonymousSignals: ($stages.anonymousManagedAccessInterest // 0),
         waitlistSignals: ($stages.managedAccessBetaInterest // 0),
-        contactableLeadGap: ([ (($stages.anonymousManagedAccessInterest // 0) - ($stages.managedAccessBetaInterest // 0)), 0 ] | max),
+        quickReceivedSignals: $quick_received,
+        contactableSignals: $contactable,
+        contactableLeadGap: ([ (($stages.anonymousManagedAccessInterest // 0) - $contactable), 0 ] | max),
         ctaPath: "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review#managed-access-quick-form",
         action: "Convert anonymous one-subscription managed-access demand into contactable private-beta review requests before enabling managed provider resale.",
         successMetric: "managedAccessBetaInterest or managed_access_quick_request_received increases without enabling managed provider resale.",
@@ -525,7 +529,9 @@ if [[ "$MANAGED_ACCESS_DROPOFF_PACKET" == "1" ]]; then
     | ($marketing.managedAccessPacketCopies // 0) as $packet_copies
     | ($conversion.anonymousSignals // $stages.anonymousManagedAccessInterest // 0) as $anonymous
     | ($conversion.waitlistSignals // $stages.managedAccessBetaInterest // 0) as $waitlist
-    | ($conversion.contactableLeadGap // ([($anonymous - $waitlist), 0] | max)) as $gap
+    | ($conversion.quickReceivedSignals // $received) as $quick_received_signals
+    | ($conversion.contactableSignals // ([ $waitlist, $quick_received_signals ] | max)) as $contactable
+    | ($conversion.contactableLeadGap // ([($anonymous - $contactable), 0] | max)) as $gap
     | (
         if ($anonymous <= 0 and $waitlist <= 0 and $packet_copies <= 0) then
           "No current managed-access demand signal is visible; drive qualified one-subscription/Max traffic before changing resale controls."
@@ -554,7 +560,7 @@ if [[ "$MANAGED_ACCESS_DROPOFF_PACKET" == "1" ]]; then
         "",
         "Window: last \($days) days",
         "Conversion: status=\($conversion.status // "unknown"); priority=\($conversion.priority // "monitor"); managedResaleEnabled=\($conversion.managedResaleEnabled // false).",
-        "Demand: anonymousSignals=\(n($anonymous)); waitlistSignals=\(n($waitlist)); contactableLeadGap=\(n($gap)); reviewPacketCopies=\(n($packet_copies)); legacyClicks=\(n($legacy_clicks)).",
+        "Demand: anonymousSignals=\(n($anonymous)); waitlistSignals=\(n($waitlist)); quickReceivedSignals=\(n($quick_received_signals)); contactableSignals=\(n($contactable)); contactableLeadGap=\(n($gap)); reviewPacketCopies=\(n($packet_copies)); legacyClicks=\(n($legacy_clicks)).",
         "Fast funnel: quickPresented=\(n($presented)); contactCaptureLanded=\(n($landed)); quickFocused=\(n($focused)); contactPackets=\(n($contact_packets)); emailDrafts=\(n($drafts)); quickStarted=\(n($started)); quickValidationFailed=\(n($validation_failed)); quickSubmitted=\(n($submitted)); quickReceived=\(n($received)).",
         "Buckets: providers=\(buckets($managed_demand.targetProviderFamily)); commercial=\(buckets($managed_demand.commercialPreference)); intents=\(buckets($managed_demand.intent)).",
         "",
@@ -1053,20 +1059,25 @@ if [[ "$RAW_JSON" == "1" ]]; then
         }
       };
   def managed_access_conversion_defaults($root):
+    ($root.marketingIntent.events.managed_access_quick_request_received // 0) as $quick_received
+    | ([($root.stages.managedAccessBetaInterest // 0), $quick_received] | max) as $contactable
+    |
     {
       status: (
-        if (($root.stages.anonymousManagedAccessInterest // 0) > 0 and ($root.stages.managedAccessBetaInterest // 0) <= 0) then "contact_capture_gap"
-        elif (($root.stages.anonymousManagedAccessInterest // 0) > 0 or ($root.stages.managedAccessBetaInterest // 0) > 0) then "contact_capture_started"
+        if (($root.stages.anonymousManagedAccessInterest // 0) > 0 and $contactable <= 0) then "contact_capture_gap"
+        elif (($root.stages.anonymousManagedAccessInterest // 0) > 0 or $contactable > 0) then "contact_capture_started"
         else "no_current_demand" end
       ),
       priority: (
-        if (($root.stages.anonymousManagedAccessInterest // 0) > 0 and ($root.stages.managedAccessBetaInterest // 0) <= 0) then "fix_now"
-        elif (($root.stages.anonymousManagedAccessInterest // 0) > 0 or ($root.stages.managedAccessBetaInterest // 0) > 0) then "next"
+        if (($root.stages.anonymousManagedAccessInterest // 0) > 0 and $contactable <= 0) then "fix_now"
+        elif (($root.stages.anonymousManagedAccessInterest // 0) > 0 or $contactable > 0) then "next"
         else "monitor" end
       ),
       anonymousSignals: ($root.stages.anonymousManagedAccessInterest // 0),
       waitlistSignals: ($root.stages.managedAccessBetaInterest // 0),
-      contactableLeadGap: ([ (($root.stages.anonymousManagedAccessInterest // 0) - ($root.stages.managedAccessBetaInterest // 0)), 0 ] | max),
+      quickReceivedSignals: $quick_received,
+      contactableSignals: $contactable,
+      contactableLeadGap: ([ (($root.stages.anonymousManagedAccessInterest // 0) - $contactable), 0 ] | max),
       ctaPath: "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review#managed-access-quick-form",
       action: "Convert anonymous one-subscription managed-access demand into contactable private-beta review requests before enabling managed provider resale.",
       successMetric: "managedAccessBetaInterest or managed_access_quick_request_received increases without enabling managed provider resale.",
@@ -1557,18 +1568,24 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
   | ($marketing.events // {}) as $events
   | ($root.managedProviderReadiness // $root.pricing.publicLaunch.managedProviderAccess // {}) as $managed
   | ($root.managedAccessDemand // {}) as $managedDemand
+  | ($events.managed_access_quick_request_received // 0) as $quick_received
+  | ([($stages.managedAccessBetaInterest // 0), $quick_received] | max) as $contactable
   | ($root.managedAccessDemandConversion // {
       status: (
-        if (($stages.anonymousManagedAccessInterest // 0) > 0 and ($stages.managedAccessBetaInterest // 0) <= 0) then "contact_capture_gap"
-        elif (($stages.anonymousManagedAccessInterest // 0) > 0 or ($stages.managedAccessBetaInterest // 0) > 0) then "contact_capture_started"
+        if (($stages.anonymousManagedAccessInterest // 0) > 0 and $contactable <= 0) then "contact_capture_gap"
+        elif (($stages.anonymousManagedAccessInterest // 0) > 0 or $contactable > 0) then "contact_capture_started"
         else "no_current_demand" end
       ),
       priority: (
-        if (($stages.anonymousManagedAccessInterest // 0) > 0 and ($stages.managedAccessBetaInterest // 0) <= 0) then "fix_now"
-        elif (($stages.anonymousManagedAccessInterest // 0) > 0 or ($stages.managedAccessBetaInterest // 0) > 0) then "next"
+        if (($stages.anonymousManagedAccessInterest // 0) > 0 and $contactable <= 0) then "fix_now"
+        elif (($stages.anonymousManagedAccessInterest // 0) > 0 or $contactable > 0) then "next"
         else "monitor" end
       ),
-      contactableLeadGap: ([ (($stages.anonymousManagedAccessInterest // 0) - ($stages.managedAccessBetaInterest // 0)), 0 ] | max),
+      anonymousSignals: ($stages.anonymousManagedAccessInterest // 0),
+      waitlistSignals: ($stages.managedAccessBetaInterest // 0),
+      quickReceivedSignals: $quick_received,
+      contactableSignals: $contactable,
+      contactableLeadGap: ([ (($stages.anonymousManagedAccessInterest // 0) - $contactable), 0 ] | max),
       ctaPath: "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review#managed-access-quick-form"
     }) as $managedConversion
   | ($root.activationFollowUps // {}) as $followups
@@ -1602,7 +1619,7 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
       "- Recovery auth starts: magic=\(n($events.login_key_recovery_magic_link_requested) + n($events.setup_key_recovery_magic_link_requested)), password=\(n($events.login_key_recovery_password_submitted)), oauth=\(n($events.login_key_recovery_oauth_clicked))",
       "- Key-first recovery: setupClicks=\(n($events.login_key_recovery_account_setup_clicked) + n($events.setup_key_recovery_account_clicked) + n($events.setup_key_recovery_next_account_clicked)); scheduled=\(n($followups.keyRecoveryHandoffScheduled)); redirects=\(n($followups.keyFirstRedirects)); paused=\(n($followups.keyRecoveryHandoffPaused)); recoveryViews=\(n($followups.keyRecoveryViews)); keyCreateAttempts=\(n($followups.keyCreateAttempts)); keyCreateSuccesses=\(n($followups.keyCreateSuccesses)); noKeyCreateClicks=\(n($events.account_no_key_setup_create_clicked))",
       "- Managed-access demand: anonymousSignals=\(n($stages.anonymousManagedAccessInterest)); waitlistSignals=\(n($stages.managedAccessBetaInterest)); legacyClicks=\(n($events.managed_access_interest_clicked)); contactCaptureLanded=\(n($events.managed_access_contact_capture_landed)); quickPresented=\(n($events.managed_access_quick_form_presented)); quickFocused=\(n($events.managed_access_quick_form_focused)); contactPackets=\(n($events.managed_access_contact_packet_copied)); emailDrafts=\(n($events.managed_access_contact_draft_opened)); quickStarted=\(n($events.managed_access_quick_form_started)); quickValidationFailed=\(n($events.managed_access_quick_request_validation_failed)); quickSubmitted=\(n($events.managed_access_quick_request_submitted)); quickReceived=\(n($events.managed_access_quick_request_received))",
-      "- Managed-access conversion: status=\($managedConversion.status // "unknown"); priority=\($managedConversion.priority // "monitor"); contactableLeadGap=\(n($managedConversion.contactableLeadGap)); cta=\($managedConversion.ctaPath // "https://sagerouter.dev/managed-access")",
+      "- Managed-access conversion: status=\($managedConversion.status // "unknown"); priority=\($managedConversion.priority // "monitor"); contactableSignals=\(n($managedConversion.contactableSignals)); quickReceivedSignals=\(n($managedConversion.quickReceivedSignals)); contactableLeadGap=\(n($managedConversion.contactableLeadGap)); cta=\($managedConversion.ctaPath // "https://sagerouter.dev/managed-access")",
       "- Managed-access provider buckets: \(buckets($managedDemand.targetProviderFamily))",
       "- Managed-access commercial buckets: \(buckets($managedDemand.commercialPreference))",
       "- Managed-access intent buckets: \(buckets($managedDemand.intent))",

@@ -3410,6 +3410,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("Managed-access conversion:", summary_script)
         self.assertIn("managed_access_contact_capture", summary_script)
         self.assertIn("#managed-access-quick-form", summary_script)
+        self.assertIn("quickReceivedSignals", summary_script)
+        self.assertIn("contactableSignals", summary_script)
         self.assertIn("Sage Router managed-access drop-off packet", summary_script)
         self.assertIn("Fast funnel: quickPresented=", summary_script)
         self.assertIn("contactCaptureLanded=", summary_script)
