@@ -123,7 +123,7 @@ deploy_cloud_run() {
 
   printf 'Deploying Cloud Run from GHCR digest %s\n' "$GHCR_IMAGE_DIGEST" >&2
   DEPLOY_FROM_GHCR_REMOTE=1 GHCR_IMAGE_DIGEST="$GHCR_IMAGE_DIGEST" \
-    "$ROOT/deploy/gcp/cloudrun-deploy.sh"
+    bash "$ROOT/deploy/gcp/cloudrun-deploy.sh"
   CLOUD_RUN_DEPLOYED=1
 }
 
