@@ -168,10 +168,11 @@ those are the strongest external signals currently visible.
 For a single read-only launch packet before operator review, run
 `scripts/summarize_sagerouter_launch_operator_handoff.sh --days 30
 --skip-readiness` to bundle the live funnel snapshot, setup-copy activation packet,
-activation approval packet, founder-sales next-revenue packet, Cloudflare BIC
-reliability packet, managed-provider readiness packet, provider terms approval packet,
-one-subscription pricing packet, provider outreach packet, and provider reply triage packet
-without approving sends, sending email, mutating Cloudflare,
+activation approval packet, founder-sales next-revenue packet, managed-access
+drop-off packet, Cloudflare BIC reliability packet, managed-provider readiness packet,
+provider terms approval packet, one-subscription pricing packet, provider outreach
+packet, and provider reply triage packet without approving sends, sending email, mutating
+Cloudflare,
 deploying, acknowledging provider terms, enabling managed resale, or printing
 secrets. Omit `--skip-readiness` when the operator packet should include the
 full launch readiness probe.
