@@ -1101,6 +1101,8 @@ if [[ "$RAW_JSON" == "1" ]]; then
         title: ($action.title // "Resolve current launch bottleneck"),
         secretFree: true,
         publicSafe: true,
+        mutatesRuntime: false,
+        sendsEmail: false,
         privacy: ($action.privacy // {
           containsEmails: false,
           containsCustomerIds: false,
@@ -1110,6 +1112,74 @@ if [[ "$RAW_JSON" == "1" ]]; then
         })
       }
       end;
+  def activation_action_rows($root):
+    ($root | activation_approval_readiness) as $approval
+    | activation_decision_handoff($root) as $handoff
+    | ($root.operatorExecutionPacket.authRepair // $approval.authRepair // {}) as $repair
+    | ($approval.nextActions // []) | map(
+      . as $row
+      | if (($row.id // "") == "approve_activation_followups") then
+        $row + {
+          title: "Record activation approval decision",
+          surface: "Activation approval",
+          ctaPath: "https://app.sagerouter.dev/launch-funnel.html#next-best-action-dock",
+          action: ($handoff.action // "Copy either the approve or hold decision line after reviewing the no-secret packet; this records the human handoff only."),
+          successMetric: ($handoff.successMetric // "activationApprovalDecisionCopies increases without operatorFollowUpSends unless a separate explicit send is approved."),
+          secretFree: true,
+          publicSafe: true,
+          mutatesRuntime: false,
+          sendsEmail: false,
+          privacy: ($handoff.privacy // {
+            containsEmails: false,
+            containsCustomerIds: false,
+            containsApiKeys: false,
+            containsProviderCredentials: false,
+            containsProviderResponses: false,
+            aggregateOnly: true
+          })
+        }
+      elif (($row.id // "") == "dry_run_activation_followups") then
+        $row + {
+          title: "Verify activation dry-run coverage",
+          surface: "Activation approval",
+          ctaPath: "https://app.sagerouter.dev/launch-funnel.html#no-key-followups:segments",
+          action: "Run or copy the dry-run command for sendable activation follow-up segments before any real send approval.",
+          successMetric: "operatorFollowUpSendDryRuns and dryRunCoveredSegments cover every sendable segment without sending email.",
+          secretFree: true,
+          publicSafe: true,
+          mutatesRuntime: false,
+          sendsEmail: false,
+          privacy: {
+            containsEmails: false,
+            containsCustomerIds: false,
+            containsApiKeys: false,
+            containsProviderCredentials: false,
+            containsProviderResponses: false,
+            aggregateOnly: true
+          }
+        }
+      elif (($row.id // "") == "review_auth_repair_segments") then
+        $row + {
+          title: "Review auth-repair segments",
+          surface: "Activation approval",
+          ctaPath: "https://app.sagerouter.dev/launch-funnel.html#no-key-followups:segments",
+          action: ($repair.operatorAction // "Review auth-repair segments separately and keep unresolved rows excluded from activation sends."),
+          successMetric: ($repair.successMetric // "review-only queued signups are repaired or excluded from sendable outreach."),
+          secretFree: true,
+          publicSafe: true,
+          mutatesRuntime: false,
+          sendsEmail: false,
+          privacy: ($repair.privacy // {
+            containsEmails: false,
+            containsCustomerIds: false,
+            containsApiKeys: false,
+            containsProviderCredentials: false,
+            containsProviderResponses: false,
+            aggregateOnly: true
+          })
+        }
+      else $row end
+    );
   {
     generatedAt,
     stages,
@@ -1134,7 +1204,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
     bottleneck: (.nextBestAction // {}),
     nextActions: (
       [bottleneck_action(.)]
-      + ((.activationApprovalReadiness.nextActions // []) | map(. + {surface: "Activation approval"}))
+      + activation_action_rows(.)
       + [managed_access_conversion_action(.)]
       + ((.managedProviderReadiness.nextActions // .pricing.publicLaunch.managedProviderAccess.nextActions // []) | map(. + {surface: "Managed provider access"}))
     )[0:8],
