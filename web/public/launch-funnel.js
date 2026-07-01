@@ -937,6 +937,29 @@ function renderActivationApprovalChecklist(data = {}) {
   </div>`;
 }
 
+function renderActivationApprovalDecisionControls(data = {}, { compact = false } = {}) {
+  const approvalReadiness = activationApprovalReadiness(data);
+  const activationSend = activationSendTelemetry(data);
+  const decisionLines = activationApprovalDecisionLines(data);
+  if (!decisionLines.length) return '';
+  const approveLine = decisionLines.find(line => String(line).startsWith('APPROVE_ACTIVATION_FOLLOWUP')) || '';
+  const holdLine = decisionLines.find(line => String(line).startsWith('HOLD_ACTIVATION_FOLLOWUP')) || '';
+  const nextSegment = approvalReadiness.nextSendSegment || activationSend.nextSendSegment || 'all';
+  const sendable = activationDeliveryCounts(data).sendableQueued;
+  const freshness = approvalReadiness.approvalPacketExpiresAt
+    ? ` Packet expires ${formatDate(approvalReadiness.approvalPacketExpiresAt)}; refresh before copying an old decision.`
+    : ' Refresh the approval packet before copying a real decision.';
+  const buttons = [
+    approveLine ? `<button class="btn secondary small" type="button" data-copy-activation-approval-decision="${esc(approveLine)}" data-activation-decision-kind="approve" data-followup-segment="${esc(nextSegment)}" data-followup-count="${integer(sendable)}">Copy approve decision</button>` : '',
+    holdLine ? `<button class="btn secondary small" type="button" data-copy-activation-approval-decision="${esc(holdLine)}" data-activation-decision-kind="hold" data-followup-segment="${esc(nextSegment)}" data-followup-count="${integer(sendable)}">Copy hold decision</button>` : '',
+  ].filter(Boolean).join('');
+  return `<div class="empty warn">
+    <strong>${compact ? 'Approval decision' : 'Activation approval decision record'}:</strong> Copy one line only after reviewing the no-secret packet for segment <code>${esc(nextSegment)}</code>.
+    <p class="muted">This records the human approval/hold text for audit handoff only; it does not send email, mutate queued follow-ups, expose emails, or bypass the typed confirmation gate.${esc(freshness)}</p>
+    <div class="actions">${buttons}<span class="status">Real sends still require the private operator token, fresh <code>approvalPacketIssuedAt</code>, browser confirmation, and <code>${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code>.</span></div>
+  </div>`;
+}
+
 function renderActivationNextSendStep(data = {}, { compact = false } = {}) {
   const packet = data.operatorExecutionPacket || {};
   const emailReadiness = packet.emailReadiness || data.activationFollowUps?.emailReadiness || {};
@@ -1804,6 +1827,7 @@ function renderOperatorExecutionPacket(data = {}) {
   </div>
   <p class="muted">${esc(authPosture.action)} Approval readiness is ${esc(approvalReadiness.status || 'unknown')}${approvalReadiness.blockedReason ? ` (${esc(approvalReadiness.blockedReason)})` : ''}. ${esc(activationDeliveryMeta(emailReadiness))} ${activationSend.sendApprovalRequired ? `Dry-run is ${activationSend.dryRunVerified ? 'verified' : 'not complete'} for ${integer(activationSend.dryRunRecipients)} unique sendable recipient(s); covered segments: ${activationSend.dryRunCoveredSegments.join(', ') || 'none'}; wait for explicit operator approval before real send.` : esc(emailReadiness.operatorAction || 'Dry-run activation follow-up sending before real outreach.')} ${esc(managedSetup.operatorAction || 'Keep managed provider access disabled until resale controls pass.')}</p>
   ${approvalChecklist}
+  ${renderActivationApprovalDecisionControls(data)}
   ${renderActivationAuthRepair(data)}
   ${renderActivationNextSendStep(data)}
   <div class="actions">
@@ -1878,6 +1902,9 @@ function renderNextBestActionDock(data = {}) {
   const approvalButton = noKeyCount > 0
     ? `<button class="btn secondary" type="button" data-copy-activation-approval-packet="${esc(approvalPacketText)}" data-followup-count="${integer(activationDelivery.sendableQueued)}">Copy approval packet</button>`
     : '';
+  const approvalDecisionControls = noKeyCount > 0
+    ? renderActivationApprovalDecisionControls(data, { compact: true })
+    : '';
   const setupBundleText = firstRequestSetupBundleText(data);
   const setupButton = `<button class="btn ${setupCopyFallback ? '' : 'secondary'}" type="button" data-copy-operator-setup-bundle="${esc(setupBundleText)}" data-followup-plan="${esc(followUps.suggestedPlan || 'pro')}">${setupCopyFallback ? 'Copy first-request setup now' : 'Copy first-request setup'}</button>`;
   const recommendedSurfaceButton = setupCopyFallback && String(actionHref).includes('#next-best-action-dock')
@@ -1906,6 +1933,7 @@ function renderNextBestActionDock(data = {}) {
   </div>
   <p><strong>${esc(action.action || followUps.recommendedOperatorAction || 'Review the current launch funnel bottleneck.')}</strong></p>
   <p class="muted">Success metric: ${esc(action.successMetric || followUps.successMetric || 'Improve the next funnel stage.')} ${activationSend.sendApprovalRequired ? `Dry-run verified=${activationSend.dryRunVerified ? 'yes' : 'no'}; real send still needs explicit operator approval.` : ''}</p>${checklist}
+  ${approvalDecisionControls}
   ${renderActivationNextSendStep(data, { compact: true })}
   <div class="actions">${dockActions}<span class="status">${actionStatus}</span></div>${segmentDraftDock}`;
 }
@@ -2158,6 +2186,31 @@ async function copyActivationApprovalPacket(button) {
   } catch (error) {
     button.textContent = 'Copy failed';
     setStatus(`Activation approval packet copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyActivationApprovalDecision(button) {
+  const text = button.getAttribute('data-copy-activation-approval-decision') || '';
+  const kind = button.getAttribute('data-activation-decision-kind') || 'decision';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    trackOperatorFunnelEvent('operator_execution_packet_copied', {
+      state: `activation_approval_${kind}_decision_copied`,
+      resultCount: Number(button.getAttribute('data-followup-count') || 0),
+      snippet: `activation-approval-${kind}-decision`,
+      segment: button.getAttribute('data-followup-segment') || 'all',
+    });
+    setStatus(`Copied activation ${kind} decision record. This does not send email or mutate queued follow-ups.`, kind === 'approve' ? 'warn' : 'good');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Activation approval decision copy failed: ${error.message}`, 'bad');
   } finally {
     setTimeout(() => {
       button.textContent = original;
@@ -3573,6 +3626,11 @@ function handleFollowUpCopyClick(event) {
   const activationApprovalPacketButton = event.target.closest('[data-copy-activation-approval-packet]');
   if (activationApprovalPacketButton) {
     copyActivationApprovalPacket(activationApprovalPacketButton);
+    return;
+  }
+  const activationApprovalDecisionButton = event.target.closest('[data-copy-activation-approval-decision]');
+  if (activationApprovalDecisionButton) {
+    copyActivationApprovalDecision(activationApprovalDecisionButton);
     return;
   }
   const authRepairCommandButton = event.target.closest('[data-copy-auth-repair-command]');
