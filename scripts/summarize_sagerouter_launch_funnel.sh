@@ -1088,6 +1088,28 @@ if [[ "$RAW_JSON" == "1" ]]; then
           aggregateOnly: true
         })
       } end;
+  def bottleneck_action($root):
+    ($root.nextBestAction // {}) as $action
+    | if (($action.metric // "") == "") then empty else
+      $action + {
+        id: (
+          $action.id
+          // if (($action.metric // "") == "signupToGeneratedKey") then "resolve_signup_to_generated_key_bottleneck"
+             else "resolve_launch_funnel_bottleneck"
+             end
+        ),
+        title: ($action.title // "Resolve current launch bottleneck"),
+        secretFree: true,
+        publicSafe: true,
+        privacy: ($action.privacy // {
+          containsEmails: false,
+          containsCustomerIds: false,
+          containsApiKeys: false,
+          containsProviderCredentials: false,
+          aggregateOnly: true
+        })
+      }
+      end;
   {
     generatedAt,
     stages,
@@ -1111,9 +1133,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
     },
     bottleneck: (.nextBestAction // {}),
     nextActions: (
-      [
-        if ((.nextBestAction.metric // "") != "") then .nextBestAction else empty end
-      ]
+      [bottleneck_action(.)]
       + ((.activationApprovalReadiness.nextActions // []) | map(. + {surface: "Activation approval"}))
       + [managed_access_conversion_action(.)]
       + ((.managedProviderReadiness.nextActions // .pricing.publicLaunch.managedProviderAccess.nextActions // []) | map(. + {surface: "Managed provider access"}))
