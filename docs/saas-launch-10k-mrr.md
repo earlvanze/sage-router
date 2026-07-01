@@ -162,10 +162,12 @@ flag.
   recovery CTAs, and operator signup-to-key follow-up drafts, with the direct
   API-auth recovery handoff auto-opening account setup when `utm_source=api-auth`
   plus `signup_to_key_recovery` are present, the same-email setup-link form
-  retained, app login retained as fallback, direct GitHub same-OAuth account
-  return, generated-key-before-checkout setup, and placeholder setup-copy
-  telemetry. Operator packets should use it as the primary CTA while retaining
-  app-hosted same-email/password and GitHub/OAuth fallbacks. It may route
+  retained, a first-screen signed-in fast path for recovery visitors who can
+  already open account setup, app login retained as fallback, direct GitHub
+  same-OAuth account return, generated-key-before-checkout setup, and
+  placeholder setup-copy telemetry. Operator packets should use it as the
+  primary CTA while retaining app-hosted same-email/password and GitHub/OAuth
+  fallbacks. It may route
   one-subscription interest to managed-access beta review, but public managed
   provider access stays disabled until provider terms, authorization evidence,
   allowlist, cost model, and

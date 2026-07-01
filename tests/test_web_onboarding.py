@@ -5827,6 +5827,15 @@ class HostedOnboardingTests(unittest.TestCase):
         router = self.read_text("router.py")
         handoff_script = self.read_text("scripts", "check_setup_key_recovery_handoff.sh")
         dropoff_script = self.read_text("scripts", "diagnose_setup_key_recovery_dropoff.sh")
+        for script_name in (
+            "check_setup_key_recovery_handoff.sh",
+            "diagnose_setup_key_recovery_dropoff.sh",
+            "update_activation_approval_review.sh",
+        ):
+            self.assertTrue(
+                (ROOT / "scripts" / script_name).stat().st_mode & 0o111,
+                f"{script_name} should be executable for operator runbooks",
+            )
 
         self.assertIn("Finish Sage Router Setup Key", page)
         self.assertIn("setup-key recovery", page)
@@ -5837,8 +5846,17 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("Start with the same-email setup link", page)
         self.assertIn("Email same-email setup link", page)
         self.assertIn("Open API key setup if signed in", page)
+        self.assertIn("Already signed in? Go straight to API key setup.", page)
+        self.assertIn("The live recovery funnel shows people viewing this page but not reaching account setup.", page)
+        self.assertIn('id="setup-key-recovery-fast-account"', page)
+        self.assertIn('data-setup-recovery-button="signed-in-fast-account-setup"', page)
+        self.assertIn("Open API key setup now", page)
+        self.assertIn('id="setup-key-recovery-copy-fast-account-link"', page)
+        self.assertIn("setup_key_recovery_fast_account_clicked", page)
+        self.assertIn("setup_key_recovery_fast_account_link_copied", page)
         self.assertLess(page.index('id="setup-key-recovery-email-form"'), page.index('<div class="actions">'))
         self.assertLess(page.index('id="setup-key-recovery-email-submit"'), page.index('data-setup-recovery-button="open-account-setup-primary"'))
+        self.assertLess(page.index('id="setup-key-recovery-signed-in-fast-path"'), page.index('<div class="actions">'))
         self.assertIn("function focusSetupRecoveryEmail", page)
         self.assertIn("setup_key_recovery_email_form_clicked", page)
         self.assertIn("function shouldAutoOpenSetupRecoveryAccount", page)
@@ -5851,6 +5869,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("if (plan) target.searchParams.set('plan', plan)", page)
         self.assertIn("if (auth) target.searchParams.set('auth', auth)", page)
         self.assertIn("if (link) link.setAttribute('href', emailTarget)", page)
+        self.assertIn("document.getElementById('setup-key-recovery-fast-account')", page)
         self.assertIn("applySetupRecoveryAccountLinks();", page)
         self.assertLess(page.index("applySetupRecoveryAccountLinks();"), page.index("scheduleSetupRecoveryAccountAutoOpen();"))
         self.assertIn("function setupRecoveryAutoOpenState", page)
@@ -5900,11 +5919,14 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("setup_key_recovery_viewed", page)
         self.assertIn("setup_key_recovery_same_email_clicked", page)
         self.assertIn("setup_key_recovery_account_clicked", page)
+        self.assertIn("setup_key_recovery_fast_account_clicked", page)
+        self.assertIn("setup_key_recovery_fast_account_link_copied", page)
         self.assertIn("Open account setup next", page)
         self.assertIn('id="setup-key-recovery-next-account"', page)
         self.assertIn("setup_key_recovery_next_account_clicked", page)
         self.assertIn("setup_key_recovery_next_panel_shown", page)
         self.assertIn("setup_key_recovery_account_link_copied", page)
+        self.assertIn("Copied signed-in account setup link.", page)
         self.assertIn("await writeClipboardText(targetUrl)", page)
         self.assertIn("Copy account setup link", page)
         self.assertIn("setup_key_recovery_magic_link_requested", page)
@@ -5998,6 +6020,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("setup_key_recovery_next_account_clicked", function_js)
         self.assertIn("setup_key_recovery_next_panel_shown", function_js)
         self.assertIn("setup_key_recovery_account_link_copied", function_js)
+        self.assertIn("setup_key_recovery_fast_account_clicked", function_js)
+        self.assertIn("setup_key_recovery_fast_account_link_copied", function_js)
         self.assertIn("setup_key_recovery_oauth_clicked", function_js)
         self.assertIn("setup_key_recovery_oauth_failed", function_js)
         self.assertIn("setup_key_recovery_setup_copied", function_js)
@@ -6016,6 +6040,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("'setup_key_recovery_next_account_clicked'", router)
         self.assertIn("'setup_key_recovery_next_panel_shown'", router)
         self.assertIn("'setup_key_recovery_account_link_copied'", router)
+        self.assertIn("'setup_key_recovery_fast_account_clicked'", router)
+        self.assertIn("'setup_key_recovery_fast_account_link_copied'", router)
         self.assertIn("'setup_key_recovery_managed_access_clicked'", router)
         self.assertIn("'setup_key_recovery_viewed'", router)
         self.assertIn("first-panel `Open API key setup now` handoff", self.read_text("web", "README.md"))

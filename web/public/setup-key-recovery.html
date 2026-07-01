@@ -20,6 +20,9 @@
     .nextStepPanel p{margin:0;color:var(--muted)}
     .nextStepActions{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px}
     .nextStepStatus{min-height:22px;margin:12px 0 0;color:var(--brand);font-size:14px}
+    .signedInFastPath{max-width:760px;margin-top:18px;padding:18px;border:1px solid rgba(141,240,178,.32);border-radius:8px;background:rgba(141,240,178,.08)}
+    .signedInFastPath strong{display:block;margin-bottom:6px;font-size:16px}
+    .signedInFastPath p{margin:0;color:var(--muted)}
     @media(max-width:920px){.nextStepActions .button{width:100%}}
   </style>
 </head>
@@ -50,6 +53,15 @@
           <button id="setup-key-recovery-email-submit" class="button primary" type="submit">Email setup key link</button>
           <p class="emailStartStatus" id="setup-key-recovery-email-status" role="status" aria-live="polite">Use the email from your signup so the account page can create the missing generated key.</p>
         </form>
+        <div class="signedInFastPath" id="setup-key-recovery-signed-in-fast-path">
+          <strong>Already signed in? Go straight to API key setup.</strong>
+          <p>The live recovery funnel shows people viewing this page but not reaching account setup. If your app session is already active, open the generated-key page now.</p>
+          <div class="nextStepActions">
+            <a id="setup-key-recovery-fast-account" class="button primary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=recovery&next=generated-key" data-setup-recovery-event="setup_key_recovery_fast_account_clicked" data-setup-recovery-button="signed-in-fast-account-setup">Open API key setup now</a>
+            <button id="setup-key-recovery-copy-fast-account-link" class="button secondary" type="button">Copy account setup link</button>
+          </div>
+          <p id="setup-key-recovery-fast-status" class="nextStepStatus" role="status" aria-live="polite"></p>
+        </div>
         <div class="actions">
           <button id="setup-key-recovery-email-focus" class="button primary" type="button">Email same-email setup link</button>
           <a class="button secondary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=recovery&next=generated-key" data-setup-recovery-event="setup_key_recovery_account_clicked" data-setup-recovery-button="open-account-setup-primary">Open API key setup if signed in</a>
@@ -293,6 +305,7 @@ curl -i "$OPENAI_BASE_URL/models" \
       const emailTarget = setupRecoveryAccountUrl();
       const githubTarget = setupRecoveryAccountUrl({ auth: 'github' });
       [
+        document.getElementById('setup-key-recovery-fast-account'),
         document.querySelector('[data-setup-recovery-button="open-account-setup-primary"]'),
         document.getElementById('setup-key-recovery-next-account'),
       ].forEach((link) => {
@@ -542,6 +555,31 @@ curl -i "$OPENAI_BASE_URL/models" \
       } catch {
         button.textContent = 'Copy failed';
         status.textContent = 'Copy failed. Use the account setup button instead.';
+      } finally {
+        setTimeout(() => {
+          button.textContent = original;
+        }, 1800);
+      }
+    });
+
+    document.getElementById('setup-key-recovery-copy-fast-account-link')?.addEventListener('click', async () => {
+      markSetupRecoveryUserInteraction('copy-fast-account-setup-link');
+      const button = document.getElementById('setup-key-recovery-copy-fast-account-link');
+      const status = document.getElementById('setup-key-recovery-fast-status');
+      const targetUrl = setupRecoveryAccountUrl();
+      const original = button.textContent;
+      try {
+        await writeClipboardText(targetUrl);
+        button.textContent = 'Copied';
+        status.textContent = 'Copied signed-in account setup link.';
+        trackSetupRecoveryEvent('setup_key_recovery_fast_account_link_copied', {
+          button: 'copy-fast-account-setup-link',
+          state: 'copied',
+          target: targetUrl,
+        });
+      } catch {
+        button.textContent = 'Copy failed';
+        status.textContent = 'Copy failed. Use Open API key setup now instead.';
       } finally {
         setTimeout(() => {
           button.textContent = original;

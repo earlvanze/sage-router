@@ -71,7 +71,11 @@ grep -q 'operator-auto-account-setup' "$tmp_body" || fail 'setup-key recovery pa
 grep -q 'api-auth-auto-account-setup' "$tmp_body" || fail 'setup-key recovery page missing API-auth auto-account handoff'
 grep -q 'recovery-auto-account-setup' "$tmp_body" || fail 'setup-key recovery page missing recovery auto-account handoff'
 grep -q 'setup_key_recovery_auto_account_redirected' "$tmp_body" || fail 'setup-key recovery page missing auto-account telemetry'
+grep -q 'setup_key_recovery_fast_account_clicked' "$tmp_body" || fail 'setup-key recovery page missing fast-account telemetry'
+grep -q 'setup_key_recovery_fast_account_link_copied' "$tmp_body" || fail 'setup-key recovery page missing fast-account copy telemetry'
 grep -q 'setup_key_recovery_next_account_clicked' "$tmp_body" || fail 'setup-key recovery page missing next-account telemetry'
+grep -q 'Already signed in? Go straight to API key setup.' "$tmp_body" || fail 'setup-key recovery page missing signed-in fast path'
+grep -q 'id="setup-key-recovery-fast-account"' "$tmp_body" || fail 'setup-key recovery page missing signed-in fast account link'
 grep -q "sourceSurface === 'recovery'" "$tmp_body" || fail 'setup-key recovery page does not auto-open recovery source_surface traffic'
 grep -q "setup === 'login-key-recovery'" "$tmp_body" || fail 'setup-key recovery page does not auto-open login-key-recovery traffic'
 grep -q "utmSource === 'api-auth' && utmCampaign === 'signup_to_key_recovery'" "$tmp_body" || fail 'setup-key recovery page does not auto-open API-auth recovery traffic'
@@ -111,7 +115,7 @@ endpoint_code="$(http_get "$FUNNEL_ENDPOINT")"
 if [[ "$endpoint_code" != "200" ]]; then
   fail "funnel endpoint returned HTTP ${endpoint_code}"
 fi
-for event in setup_key_recovery_auto_account_redirected login_key_recovery_account_setup_auto_redirected account_setup_handoff_viewed; do
+for event in setup_key_recovery_auto_account_redirected setup_key_recovery_fast_account_clicked setup_key_recovery_fast_account_link_copied login_key_recovery_account_setup_auto_redirected account_setup_handoff_viewed; do
   jq -e --arg event "$event" '(.allowedEvents // []) | index($event) != null' "$tmp_body" >/dev/null \
     || fail "funnel endpoint missing allowed event ${event}"
 done
@@ -137,6 +141,20 @@ post_smoke_event \
   "${MARKETING_BASE%/}/setup-key-recovery?utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&smoke=1" \
   "${APP_BASE%/}/account.html?plan=pro&start=create_key&utm_source=api-auth&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=api-auth&next=generated-key" \
   'api-auth'
+
+post_smoke_event \
+  'setup_key_recovery_fast_account_clicked' \
+  "$MARKETING_BASE" \
+  "$page_url" \
+  "$account_target" \
+  'signed-in-fast-account-setup'
+
+post_smoke_event \
+  'setup_key_recovery_fast_account_link_copied' \
+  "$MARKETING_BASE" \
+  "$page_url" \
+  "$account_target" \
+  'copy-fast-account-setup-link'
 
 post_smoke_event \
   'login_key_recovery_account_setup_auto_redirected' \

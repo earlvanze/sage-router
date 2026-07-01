@@ -1798,6 +1798,8 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("setup_key_recovery_email_form_clicked") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_auto_account_redirected") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_account_clicked") != null) and
+    ((.allowedEvents // []) | index("setup_key_recovery_fast_account_clicked") != null) and
+    ((.allowedEvents // []) | index("setup_key_recovery_fast_account_link_copied") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_next_account_clicked") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_next_panel_shown") != null) and
     ((.allowedEvents // []) | index("setup_key_recovery_account_link_copied") != null) and
@@ -4537,6 +4539,18 @@ check_marketing_setup_key_recovery_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_account_clicked" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-account-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Already signed in? Go straight to API key setup." /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-fast-account-panel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q 'id="setup-key-recovery-fast-account"' /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-fast-account-link"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_fast_account_clicked" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-fast-account-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "setup_key_recovery_fast_account_link_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-setup-key-recovery-fast-account-copy-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "https://app.sagerouter.dev/account.html?plan=pro&start=create_key" /tmp/sage-router-readiness-body; then
     page_code="200:missing-setup-key-recovery-canonical-account-handoff"

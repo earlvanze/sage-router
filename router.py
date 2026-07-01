@@ -7335,6 +7335,7 @@ KEY_FIRST_REDIRECT_EVENTS = {
     'pricing_key_activation_clicked',
     'setup_key_recovery_auto_account_redirected',
     'setup_key_recovery_account_clicked',
+    'setup_key_recovery_fast_account_clicked',
     'setup_key_recovery_next_account_clicked',
     'setup_key_recovery_oauth_clicked',
 }
@@ -7365,6 +7366,8 @@ KEY_RECOVERY_VIEW_EVENTS = {
     'setup_key_recovery_account_clicked',
     'setup_key_recovery_account_link_copied',
     'setup_key_recovery_email_form_clicked',
+    'setup_key_recovery_fast_account_clicked',
+    'setup_key_recovery_fast_account_link_copied',
     'setup_key_recovery_managed_access_clicked',
     'setup_key_recovery_magic_link_failed',
     'setup_key_recovery_magic_link_requested',
