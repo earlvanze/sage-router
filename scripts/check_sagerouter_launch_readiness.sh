@@ -1437,6 +1437,18 @@ check_hosted_onboarding_pages() {
   if [[ "$status_code" == "200" ]] && ! grep -q "status-copy-activation-review-record" /tmp/sage-router-readiness-body; then
     status_code="200:missing-status-activation-review-record-copy"
   fi
+  if [[ "$status_code" == "200" ]] && ! grep -q "status-activation-approve-decision" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-activation-approve-decision"
+  fi
+  if [[ "$status_code" == "200" ]] && ! grep -q "status-copy-activation-approve-decision" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-activation-approve-decision-copy"
+  fi
+  if [[ "$status_code" == "200" ]] && ! grep -q "status-activation-hold-decision" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-activation-hold-decision"
+  fi
+  if [[ "$status_code" == "200" ]] && ! grep -q "status-copy-activation-hold-decision" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-activation-hold-decision-copy"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   status_js_code="$(http_code_follow "${APP_BASE%/}/status.js")"
@@ -1496,6 +1508,18 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$status_js_code" == "200" ]] && ! grep -q "snippet: 'status-activation-review-record'" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-activation-review-record-snippet"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "updateStatusActivationApprovalDecisionLines" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-activation-decision-live-render"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "operator_execution_packet_copied" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-activation-decision-funnel"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "activation-approval-approve-decision" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-activation-approve-decision-snippet"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "activation-approval-hold-decision" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-activation-hold-decision-snippet"
   fi
   if [[ "$status_js_code" == "200" ]] && ! grep -q "status_managed_provider_authorization_review_copied" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-managed-authorization-review-record-funnel"

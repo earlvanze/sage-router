@@ -35,6 +35,8 @@ function trackStatusFunnelEvent(event, data = {}) {
       button: data.button || null,
       state: data.state || null,
       snippet: data.snippet || null,
+      segment: data.segment || null,
+      resultCount: data.resultCount || null,
       utmSource: params.get('utm_source') || params.get('utmSource') || null,
       utmMedium: params.get('utm_medium') || params.get('utmMedium') || null,
       utmCampaign: params.get('utm_campaign') || params.get('utmCampaign') || null,
@@ -150,6 +152,38 @@ $('status-copy-one-subscription-review-packet')?.addEventListener('click', async
   }
 });
 
+function updateStatusActivationApprovalDecisionLines(pricing = {}) {
+  const readiness = pricing.activationApprovalReadiness || pricing.publicLaunch?.activationApprovalReadiness || {};
+  const lines = Array.isArray(readiness.decisionLines) ? readiness.decisionLines : [];
+  const approve = lines.find(row => String(row?.value || '').startsWith('APPROVE_ACTIVATION_FOLLOWUP'))?.value || '';
+  const hold = lines.find(row => String(row?.value || '').startsWith('HOLD_ACTIVATION_FOLLOWUP'))?.value || '';
+  if (approve) set('status-activation-approve-decision', approve);
+  if (hold) set('status-activation-hold-decision', hold);
+}
+
+async function copyStatusActivationApprovalDecision(kind) {
+  const block = $(`status-activation-${kind}-decision`);
+  const status = $('status-founder-pro-status');
+  const text = block?.textContent.trim() || '';
+  if (!text) return;
+  const snippet = kind === 'approve' ? 'activation-approval-approve-decision' : 'activation-approval-hold-decision';
+  const state = kind === 'approve' ? 'activation_approval_approve_decision_copied' : 'activation_approval_hold_decision_copied';
+  try {
+    await writeClipboardText(text);
+    if (status) status.textContent = `Copied activation ${kind} decision record. This does not send email or mutate queued follow-ups.`;
+    trackStatusFunnelEvent('operator_execution_packet_copied', {
+      target: 'status-revenue-action',
+      button: `Copy ${kind} decision`,
+      state,
+      snippet,
+      segment: (text.match(/segment="([^"]+)"/) || [])[1] || 'verified',
+      resultCount: 1,
+    });
+  } catch (_error) {
+    if (status) status.textContent = `Copy failed. Select the ${kind} decision manually.`;
+  }
+}
+
 $('status-copy-activation-approval-packet')?.addEventListener('click', async () => {
   const block = $('status-activation-approval-packet');
   const status = $('status-founder-pro-status');
@@ -199,6 +233,14 @@ $('status-copy-activation-review-record')?.addEventListener('click', async () =>
   } catch (_error) {
     if (status) status.textContent = 'Copy failed. Select the review recording command manually.';
   }
+});
+
+$('status-copy-activation-approve-decision')?.addEventListener('click', () => {
+  copyStatusActivationApprovalDecision('approve');
+});
+
+$('status-copy-activation-hold-decision')?.addEventListener('click', () => {
+  copyStatusActivationApprovalDecision('hold');
 });
 const originKind = (url = '') => {
   if (url && typeof url === 'object') return url.originKind || originKind(url.url || url.label || url.id || '');
@@ -806,6 +848,7 @@ async function refreshStatus() {
       fetchJson('/pricing').catch(() => ({})),
     ]);
     if (pricing.apiBaseUrl) sageRouterUrl = pricing.apiBaseUrl;
+    updateStatusActivationApprovalDecisionLines(pricing);
     const selectedRow = renderUpstreams(health);
     renderPlans(pricing);
     renderReliabilityEvidence(health);

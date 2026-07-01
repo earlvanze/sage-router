@@ -3231,8 +3231,58 @@ def public_launch_metadata():
         'apiKeyPrefix': API_KEY_PREFIX,
         'maxActiveApiKeysPerCustomer': MAX_ACTIVE_API_KEYS_PER_CUSTOMER,
         'activationEmailReadiness': public_activation_email_readiness(),
+        'activationApprovalReadiness': public_activation_approval_readiness(),
         'recommendedModel': 'sage-router/frontier',
         'publicLaunch': launch,
+    }
+
+
+def public_activation_approval_readiness():
+    email_readiness = activation_email_readiness()
+    issued_at = int(email_readiness.get('approvalPacketIssuedAt') or now_epoch())
+    valid_seconds = int(email_readiness.get('approvalPacketValidSeconds') or ACTIVATION_APPROVAL_PACKET_VALID_SECONDS)
+    expires_at = int(email_readiness.get('approvalPacketExpiresAt') or (issued_at + valid_seconds))
+    segment = os.environ.get('SAGEROUTER_ACTIVATION_APPROVAL_DEFAULT_SEGMENT', 'verified').strip().lower() or 'verified'
+    if not re.fullmatch(r'[a-z0-9_-]{1,48}', segment):
+        segment = 'verified'
+    return {
+        'status': 'approval_packet_required',
+        'approvalRequired': True,
+        'nextSendSegment': segment,
+        'approvalPacketIssuedAt': issued_at,
+        'approvalPacketExpiresAt': expires_at,
+        'approvalPacketValidSeconds': valid_seconds,
+        'approvalPacketRequiredForRealSend': True,
+        'decisionLines': [
+            {
+                'id': 'approve_after_review',
+                'label': 'Approve after review',
+                'value': f'APPROVE_ACTIVATION_FOLLOWUP segment="{segment}" issuedAt={issued_at} expiresAt={expires_at}',
+                'mutatesRuntime': False,
+                'sendsEmail': False,
+            },
+            {
+                'id': 'hold',
+                'label': 'Hold',
+                'value': f'HOLD_ACTIVATION_FOLLOWUP segment="{segment}" reason="<reason>"',
+                'mutatesRuntime': False,
+                'sendsEmail': False,
+            },
+        ],
+        'reviewCommand': 'scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet --verify-recovery --verify-auth-repair',
+        'recordReviewCommand': 'scripts/summarize_sagerouter_launch_funnel.sh --days 30 --record-activation-approval-review --verify-recovery --verify-auth-repair',
+        'mutatesRuntime': False,
+        'sendsEmail': False,
+        'publicSafe': True,
+        'privacy': {
+            'containsEmails': False,
+            'containsCustomerIds': False,
+            'containsApiKeys': False,
+            'containsProviderCredentials': False,
+            'containsPrompts': False,
+            'containsOAuthTokens': False,
+            'aggregateOnly': True,
+        },
     }
 
 
