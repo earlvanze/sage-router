@@ -14,6 +14,7 @@ const KEY_RECOVERY_SIGNED_IN_PROMPT_STORAGE_KEY = 'sage_router_key_recovery_sign
 const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
 const KEY_RECOVERY_HANDOFF_STORAGE_KEY = 'sage_router_key_recovery_handoff';
 const ACCOUNT_AUTH_NUDGE_STORAGE_KEY = 'sage_router_account_auth_nudge_dismissed_until';
+const AUTO_KEY_ATTEMPT_TTL_MS = 10 * 60 * 1000;
 const FALLBACK_PLANS = {
   lite: { name: 'Lite', price: '$6/month', limits: { monthlyRequests: 10000, rateLimitPerMinute: 60 }, features: ['agent-native routing', 'API keys', 'usage analytics'] },
   pro: { name: 'Pro', price: '$30/month', limits: { monthlyRequests: 50000, rateLimitPerMinute: 180 }, features: ['frontier routing', 'agentic tool-use preference', 'Fusion synthesis', 'analytics snapshots'] },
@@ -261,15 +262,44 @@ function autoKeyAttemptKey(plan = selectedPlan) {
 
 function hasAutoKeyAttempted(plan = selectedPlan) {
   try {
-    return window.sessionStorage?.getItem(autoKeyAttemptKey(plan)) === '1';
+    const key = autoKeyAttemptKey(plan);
+    const raw = window.sessionStorage?.getItem(key);
+    if (!raw) return false;
+    if (raw === '1') {
+      window.sessionStorage?.removeItem(key);
+      return false;
+    }
+    const parsed = JSON.parse(raw);
+    const attemptedAt = Number(parsed?.attemptedAt || 0);
+    const ageMs = Date.now() - attemptedAt;
+    if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > AUTO_KEY_ATTEMPT_TTL_MS) {
+      window.sessionStorage?.removeItem(key);
+      return false;
+    }
+    return true;
   } catch (_error) {
+    try {
+      window.sessionStorage?.removeItem(autoKeyAttemptKey(plan));
+    } catch (_nestedError) {
+    }
     return false;
   }
 }
 
 function markAutoKeyAttempted(plan = selectedPlan) {
   try {
-    window.sessionStorage?.setItem(autoKeyAttemptKey(plan), '1');
+    window.sessionStorage?.setItem(autoKeyAttemptKey(plan), JSON.stringify({
+      attemptedAt: Date.now(),
+      plan: normalizePlan(plan) || 'unknown',
+      action: pendingStartAction || 'none',
+    }));
+  } catch (_error) {
+  }
+}
+
+function clearAutoKeyAttempted(plan = selectedPlan) {
+  try {
+    window.sessionStorage?.removeItem(autoKeyAttemptKey(plan));
   } catch (_error) {
   }
 }
@@ -1321,6 +1351,7 @@ async function maybeCreateKeyFromIntent({ emailVerified, keyCount } = {}) {
     failureState: fromKeyRecoveryIntent ? 'auto_key_recovery_failed' : 'auto_key_create_failed',
   });
   if (!created) {
+    clearAutoKeyAttempted(selectedPlan);
     set('no-key-setup-status', 'Automatic setup-key creation could not complete. Use Create setup key now, or refresh after checking account status.');
     return false;
   }
