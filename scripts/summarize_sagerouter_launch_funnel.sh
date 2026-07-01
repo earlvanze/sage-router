@@ -983,6 +983,62 @@ if [[ "$RAW_JSON" == "1" ]]; then
           end
         )
       };
+  def activation_decision_handoff($root):
+    ($root | activation_approval_readiness) as $approval
+    | ($root.marketingIntent // {}) as $marketing
+    | ($root.operatorExecutionPacket // {}) as $packet
+    | ($packet.sendTelemetry // {}) as $send
+    | (($approval.decisionLines // []) | map(select((.id // "") == "approve_after_review")) | .[0].value // "") as $approveLine
+    | (($approval.decisionLines // []) | map(select((.id // "") == "hold")) | .[0].value // "") as $holdLine
+    | (($approval.sendableQueued // $packet.sendableQueued // $root.activationFollowUps.sendableQueued // 0) | tonumber) as $sendable
+    | (($marketing.activationApprovalPacketCopies // 0) | tonumber) as $packetCopies
+    | (($marketing.activationApprovalDecisionCopies // 0) | tonumber) as $decisionCopies
+    | (
+      $sendable > 0
+      and (($approval.dryRunVerified // $send.dryRunVerified // false) == true)
+      and (($approval.approvalRequired // $send.sendApprovalRequired // false) == true)
+    ) as $required
+    | {
+        status: (
+          if ($required | not) then "no_pending_decision"
+          elif $decisionCopies > 0 then "decision_recorded"
+          elif $packetCopies > 0 then "decision_required"
+          else "packet_review_required"
+          end
+        ),
+        priority: (
+          if ($required and $decisionCopies == 0) then "fix_now" else "monitor" end
+        ),
+        required: $required,
+        packetReviewed: ($packetCopies > 0),
+        decisionRecorded: ($decisionCopies > 0),
+        packetCopies: $packetCopies,
+        decisionCopies: $decisionCopies,
+        nextSendSegment: ($approval.nextSendSegment // $send.nextSendSegment // "all"),
+        sendableQueued: $sendable,
+        dryRunVerified: (($approval.dryRunVerified // $send.dryRunVerified // false) == true),
+        approvalRequired: (($approval.approvalRequired // $send.sendApprovalRequired // false) == true),
+        approveLine: $approveLine,
+        holdLine: $holdLine,
+        action: (
+          if ($required | not) then "Monitor activation; no approval decision is pending."
+          elif $decisionCopies > 0 then "Decision handoff has been recorded; execute only the approved next step if separately authorized."
+          elif $packetCopies > 0 then "Copy either the approve or hold decision line after reviewing the no-secret packet; this records the human handoff only."
+          else "Copy and review the no-secret approval packet before recording an approve or hold decision."
+          end
+        ),
+        successMetric: "activationApprovalDecisionCopies increases without operatorFollowUpSends unless a separate explicit send is approved.",
+        mutatesRuntime: false,
+        sendsEmail: false,
+        privacy: {
+          containsEmails: false,
+          containsCustomerIds: false,
+          containsApiKeys: false,
+          containsProviderCredentials: false,
+          containsProviderResponses: false,
+          aggregateOnly: true
+        }
+      };
   {
     generatedAt,
     stages,
@@ -1042,6 +1098,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
     ),
     activationApprovalReadiness: activation_approval_readiness,
     activationApproval: activation_approval_readiness,
+    activationApprovalDecisionHandoff: activation_decision_handoff(.),
     managedAccessDemand: (.managedAccessDemand // {}),
     anonymousManagedAccessDemand: (.anonymousManagedAccessDemand // {}),
     waitlistManagedAccessDemand: (.waitlistManagedAccessDemand // {}),
@@ -1255,6 +1312,51 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
   def buckets($v):
     (($v // {}) | to_entries | map(select(.value != 0) | "\(.key)=\(.value)")) as $rows
     | if ($rows | length) > 0 then ($rows | join(", ")) else "none" end;
+  def activation_decision_handoff($root):
+    ($root.activationApprovalReadiness // {}) as $approval
+    | ($root.marketingIntent // {}) as $marketing
+    | ($root.operatorExecutionPacket // {}) as $packet
+    | ($packet.sendTelemetry // {}) as $send
+    | (($approval.nextSendSegment // $send.nextSendSegment // "all")) as $segment
+    | (($approval.approvalPacketIssuedAt // $packet.emailReadiness.approvalPacketIssuedAt // 0)) as $issuedAt
+    | (($approval.approvalPacketExpiresAt // $packet.emailReadiness.approvalPacketExpiresAt // 0)) as $expiresAt
+    | (
+      (($approval.decisionLines // []) | map(select((.id // "") == "approve_after_review")) | .[0].value)
+      // "APPROVE_ACTIVATION_FOLLOWUP segment=\"\($segment)\" issuedAt=\($issuedAt) expiresAt=\($expiresAt)"
+    ) as $approveLine
+    | (
+      (($approval.decisionLines // []) | map(select((.id // "") == "hold")) | .[0].value)
+      // "HOLD_ACTIVATION_FOLLOWUP segment=\"\($segment)\" reason=\"<reason>\""
+    ) as $holdLine
+    | (($approval.sendableQueued // $packet.sendableQueued // $root.activationFollowUps.sendableQueued // 0) | tonumber) as $sendable
+    | (($marketing.activationApprovalPacketCopies // $root.activationFollowUps.activationApprovalPacketCopies // $root.nextBestAction.evidence.activationApprovalPacketCopies // 0) | tonumber) as $packetCopies
+    | (($marketing.activationApprovalDecisionCopies // $root.activationFollowUps.activationApprovalDecisionCopies // $root.nextBestAction.evidence.activationApprovalDecisionCopies // 0) | tonumber) as $decisionCopies
+    | (
+      $sendable > 0
+      and (($approval.dryRunVerified // $send.dryRunVerified // false) == true)
+      and (($approval.approvalRequired // $send.sendApprovalRequired // false) == true)
+    ) as $required
+    | {
+        status: (
+          if ($required | not) then "no_pending_decision"
+          elif $decisionCopies > 0 then "decision_recorded"
+          elif $packetCopies > 0 then "decision_required"
+          else "packet_review_required"
+          end
+        ),
+        priority: (if ($required and $decisionCopies == 0) then "fix_now" else "monitor" end),
+        packetReviewed: ($packetCopies > 0),
+        decisionRecorded: ($decisionCopies > 0),
+        approveLine: $approveLine,
+        holdLine: $holdLine,
+        action: (
+          if ($required | not) then "Monitor activation; no approval decision is pending."
+          elif $decisionCopies > 0 then "Decision handoff has been recorded; execute only the approved next step if separately authorized."
+          elif $packetCopies > 0 then "Copy either the approve or hold decision line after reviewing the no-secret packet; this records the human handoff only."
+          else "Copy and review the no-secret approval packet before recording an approve or hold decision."
+          end
+        )
+      };
 
   . as $root
   | (($recoveryProof[0] // {})) as $recovery_proof
@@ -1283,6 +1385,7 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
   | ($root.activationFollowUps // {}) as $followups
   | ($root.operatorExecutionPacket // {}) as $packet
   | ($root.activationApprovalReadiness // {}) as $approval
+  | activation_decision_handoff($root) as $decisionHandoff
   | (($mrr.planRevenueActions // [])[0] // {}) as $primaryRevenue
   | (($mrr.planRevenueActions // []) | map(select((.plan // "") == "lite")) | .[0] // {}) as $liteRevenue
   | (($mrr.planRevenueActions // []) | map(select((.plan // "") == "max")) | .[0] // {}) as $maxRevenue
@@ -1352,7 +1455,10 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
       "- Packet command: scripts/summarize_sagerouter_launch_funnel.sh --days \($days) --approval-packet --verify-recovery --verify-auth-repair",
       "- Terminal review recording: scripts/summarize_sagerouter_launch_funnel.sh --days \($days) --record-activation-approval-review --verify-recovery --verify-auth-repair after an operator actually reviews the packet.",
       "- Review worksheet: docs/launch/execution/activation-approval-review.md",
+      "- Decision handoff status: \($decisionHandoff.status // "unknown"); priority=\($decisionHandoff.priority // "monitor"); packetReviewed=\($decisionHandoff.packetReviewed // false); decisionRecorded=\($decisionHandoff.decisionRecorded // false).",
+      "- Decision handoff action: \($decisionHandoff.action // "Review the activation approval packet before any real send.")",
       "- Approval decision: \($approval.status // "unknown") for next segment \($packet.sendTelemetry.nextSendSegment // "all"); blocker=\($approval.blockedReason // "none").",
+      "- Decision lines: approve=\($decisionHandoff.approveLine // "unavailable"); hold=\($decisionHandoff.holdLine // "unavailable").",
       "- Decision copy tracking: activationApprovalDecisionCopies counts copied APPROVE_ACTIVATION_FOLLOWUP or HOLD_ACTIVATION_FOLLOWUP handoff lines; it does not send email or approve by itself.",
       "- Default snapshot policy: No send command is printed in this default snapshot. Real activation sends still require explicit operator approval and typed SEND_ACTIVATION_FOLLOWUPS confirmation.",
       "- Safe review: the approval packet is no-secret and excludes emails, customer IDs, generated keys, prompts, OAuth tokens, provider credentials, and raw responses.",
