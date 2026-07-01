@@ -314,7 +314,9 @@ and calculator follow-up with measured
 `utm_source=founder-sales` links for the same `$10k MRR` campaign. Those copy
 actions roll into `/analytics/funnel.marketingIntent.founderSalesOutreachCopies`,
 `founderSalesOutreachCopiesBySnippet`, and setup-copy activation metrics. The private launch-funnel dashboard
-also renders a recommended first reply plus a one-click next outreach snippet
+also promotes a first-screen founder-sales fallback banner when activation or
+managed-resale work is gated and founder-sales outreach copies are still zero,
+then renders a recommended first reply plus a one-click next outreach snippet
 from the current aggregate MRR gap; copying either emits the same
 `outreach_snippet_copied` funnel event without
 including customer identities, private funnel rows, prompts, generated keys, or

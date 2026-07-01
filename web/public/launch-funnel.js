@@ -1519,6 +1519,59 @@ function renderActivationApprovalHandoffBanner(data = {}) {
   <div class="actions"><a class="btn secondary" href="#activation-approval-decision">Review approval controls</a><a class="btn secondary" href="#next-best-action-dock">Review Do Next dock</a><span class="status">Activation approval remains a human decision; this banner only prepares the handoff.</span></div>`;
 }
 
+function shouldShowFounderSalesPromotionBanner(data = {}) {
+  const marketing = data.marketingIntent || {};
+  const founderCopies = asNumber(marketing.founderSalesOutreachCopies);
+  if (founderCopies > 0) return false;
+  const activationSend = activationSendTelemetry(data);
+  const managed = managedProviderReadiness(data);
+  const revenueActions = planRevenueActions(data);
+  const hasRevenueGap = revenueActions.some(row => asNumber(row.customerGap) > 0 || asNumber(row.remainingMrrToTargetUsd) > 0);
+  const managedGated = managed.enabled !== true && (
+    managed.requested === true ||
+    safeList(managed.missingControls).length > 0 ||
+    String(managed.status || '').includes('requires')
+  );
+  return hasRevenueGap && (activationSend.sendApprovalRequired === true || managedGated);
+}
+
+function renderFounderSalesPromotionBanner(data = {}) {
+  const target = $('founder-sales-promotion-banner');
+  if (!target) return;
+  if (!shouldShowFounderSalesPromotionBanner(data)) {
+    target.classList.add('hidden');
+    target.innerHTML = '<div class="empty">Founder-sales fallback has already been worked or is not the active fallback.</div>';
+    return;
+  }
+  const activationSend = activationSendTelemetry(data);
+  const managed = managedProviderReadiness(data);
+  const revenueActions = planRevenueActions(data);
+  const topRevenue = revenueActions.slice().sort((left, right) =>
+    asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
+  )[0] || {};
+  const plan = String(topRevenue.plan || 'pro').toLowerCase();
+  const safePlan = ['lite', 'pro', 'max'].includes(plan) ? plan : 'pro';
+  const mrrGap = asNumber(topRevenue.remainingMrrToTargetUsd);
+  const customerGap = asNumber(topRevenue.customerGap);
+  const managedControls = safeList(managed.missingControls).slice(0, 3).join(', ') || 'none reported';
+  target.classList.remove('hidden');
+  target.innerHTML = `<div class="metricList">
+    <div class="metric"><span>Live fallback</span><strong><span class="pill warn">Founder-sales outreach</span></strong></div>
+    <div class="metric"><span>Top revenue gap</span><strong>${esc(safePlan.toUpperCase())}: ${integer(customerGap)} customers · ${money(mrrGap)}</strong></div>
+    <div class="metric"><span>Activation gate</span><strong>${activationSend.sendApprovalRequired ? 'Approval pending' : 'No pending send'}</strong></div>
+    <div class="metric"><span>Managed gate</span><strong>${esc(managed.status || 'gated')} · ${esc(managedControls)}</strong></div>
+  </div>
+  <p><strong>Founder-sales fallback has zero recorded copies.</strong></p>
+  <p class="muted">Use this while activation sends wait for explicit approval or one-subscription managed access waits for terms, authorization, private cost, and unit-economics review. Copying here records the existing <code>outreach_snippet_copied</code> event only; it does not send email, expose customers, approve activation sends, or enable managed resale.</p>
+  <div class="actions">
+    <button class="btn" type="button" data-copy-founder-sales-recommended="1" data-founder-sales-promotion="first-screen">Copy recommended first reply now</button>
+    <button class="btn secondary" type="button" data-copy-founder-sales-next="1" data-founder-sales-promotion="first-screen">Copy next outreach</button>
+    <a class="btn secondary" href="${esc(FOUNDER_SALES_KIT_URL)}" target="_blank" rel="noopener noreferrer">Open founder-sales kit</a>
+    <a class="btn secondary" href="#founder-sales-fallback">Review fallback panel</a>
+    <span class="status">No-secret direct outreach is the non-blocked revenue motion while gated sends and managed resale wait.</span>
+  </div>`;
+}
+
 function managedAccessApprovalPacketText(data = {}) {
   const managed = managedProviderReadiness(data);
   const setup = managed.readinessSetup || {};
@@ -2450,7 +2503,7 @@ async function copyFounderSalesFallback(button) {
 
 async function copyFounderSalesNextOutreach(button) {
   const snippet = $('founder-sales-next-snippet');
-  const text = snippet?.textContent?.trim() || '';
+  const text = snippet?.textContent?.trim() || founderSalesNextOutreachText(lastFunnelData || {});
   const original = button.textContent;
   if (!text) return;
   try {
@@ -2481,7 +2534,7 @@ async function copyFounderSalesNextOutreach(button) {
 
 async function copyFounderSalesRecommendedFirstReply(button) {
   const snippet = $('founder-sales-recommended-first-reply');
-  const text = snippet?.textContent?.trim() || '';
+  const text = snippet?.textContent?.trim() || founderSalesRecommendedFirstReplyText(lastFunnelData || {});
   const original = button.textContent;
   if (!text) return;
   try {
@@ -3141,9 +3194,10 @@ function renderFunnel(data) {
   renderRevenueActions(planRevenueActions(data));
   renderSetupCopyFallbackBanner(data);
   renderActivationApprovalHandoffBanner(data);
+  renderFounderSalesFallback(data);
+  renderFounderSalesPromotionBanner(data);
   renderNextBestActionDock(data);
   renderLaunchBrief(data);
-  renderFounderSalesFallback(data);
   renderManagedAccessReadiness(data);
   renderOperatorExecutionPacket(data);
   $('dashboard').classList.remove('hidden');
@@ -3886,6 +3940,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('no-key-followups').addEventListener('click', handleFollowUpCopyClick);
   $('setup-copy-fallback-banner')?.addEventListener('click', handleFollowUpCopyClick);
   $('activation-approval-handoff-banner')?.addEventListener('click', handleFollowUpCopyClick);
+  $('founder-sales-promotion-banner')?.addEventListener('click', handleFollowUpCopyClick);
   $('next-best-action-dock').addEventListener('click', handleFollowUpCopyClick);
   $('operator-execution-packet')?.addEventListener('click', handleFollowUpCopyClick);
   $('managed-access-readiness')?.addEventListener('click', handleFollowUpCopyClick);

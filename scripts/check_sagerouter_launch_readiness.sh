@@ -1239,6 +1239,9 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "activation-approval-handoff-banner" /tmp/sage-router-readiness-body; then
     launch_funnel_code="200:missing-activation-approval-handoff-banner"
   fi
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "founder-sales-promotion-banner" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:missing-founder-sales-promotion-banner"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   launch_funnel_js_code="$(http_code_follow "${APP_BASE%/}/launch-funnel.js")"
@@ -1277,6 +1280,18 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "Activation approval remains a human decision" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-activation-approval-human-boundary"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderFounderSalesPromotionBanner" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-founder-sales-promotion-render"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "Founder-sales fallback has zero recorded copies" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-founder-sales-promotion-copy"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "data-founder-sales-promotion" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-founder-sales-promotion-actions"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "founderSalesOutreachCopies" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-founder-sales-promotion-metric"
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderReviewFlags" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-customer-review-flags"

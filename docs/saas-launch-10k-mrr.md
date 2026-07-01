@@ -287,9 +287,11 @@ flag.
   review, gateway migration replies, OpenRouter migration replies, and
   calculator follow-up, with measured `utm_source=founder-sales` links,
   `outreach_snippet_copied` telemetry, and no-secret outreach boundaries. The
-  private launch-funnel dashboard should also render a copyable recommended first reply
-  plus one copyable next outreach snippet from the current aggregate MRR gap,
-  and the status page should expose a founder-sales fallback packet;
+  private launch-funnel dashboard should also promote a first-screen
+  founder-sales fallback banner when activation or managed-resale work is gated
+  and founder-sales copies are still zero, render a copyable recommended first
+  reply, keep the recommended first reply visible, plus one copyable next outreach snippet from the current aggregate MRR
+  gap, and the status page should expose a founder-sales fallback packet;
   those actions emit `outreach_snippet_copied` when copied. Aggregate those copy actions into
   `marketingIntent.founderSalesOutreachCopies` and
   `marketingIntent.founderSalesOutreachCopiesBySnippet` so founder-led
