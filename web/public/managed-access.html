@@ -705,10 +705,10 @@
       trackManagedAccessFunnelEvent('managed_access_quick_form_started', { state, target });
     }
 
-    function markQuickFormFocused(state = quickReviewIntent(), target = '#managed-access-quick-form') {
+    function markQuickFormFocused(state = quickReviewIntent(), target = '#managed-access-quick-form', extra = {}) {
       if (quickFormFocused) return;
       quickFormFocused = true;
-      trackManagedAccessFunnelEvent('managed_access_quick_form_focused', { state, target });
+      trackManagedAccessFunnelEvent('managed_access_quick_form_focused', { state, target, ...extra });
     }
 
     function presentQuickFormFromRequestedIntent() {
@@ -735,6 +735,9 @@
         }
         window.setTimeout(() => {
           quickForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          markQuickFormFocused(state, '#managed-access-quick-form', {
+            snippet: 'contact-capture-auto-focus',
+          });
           document.getElementById('quick-review-email')?.focus({ preventScroll: true });
         }, 250);
       }

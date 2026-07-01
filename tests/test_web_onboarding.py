@@ -3742,6 +3742,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("function markQuickFormStarted", page)
         self.assertIn("function markQuickFormFocused", page)
         self.assertIn("managed_access_quick_form_focused", page)
+        self.assertIn("snippet: 'contact-capture-auto-focus'", page)
+        self.assertIn("markQuickFormFocused(state, '#managed-access-quick-form'", page)
         self.assertIn("quickForm.addEventListener('focusin'", page)
         self.assertIn("markQuickFormStarted(intent, '#managed-access-quick-form')", page)
         self.assertIn("markQuickFormStarted(quickReviewIntent(), '#managed-access-quick-form-submit')", page)
