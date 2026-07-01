@@ -26,7 +26,7 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 ```
 
 - Window: last 30 days
-- Generated at epoch: 1782843508
+- Generated at epoch: 1782875016
 - Marketing intent events: 414
 - Setup snippet copies: 1
 - Founder-sales outreach copies: 0
@@ -43,10 +43,11 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 - Activation approval packet snippets: operator-activation-approval-packet=1
 - Recovery auth starts: magic=0, password=0, oauth=0
 - Key-first recovery: setupClicks=0; scheduled=0; redirects=0; paused=0; recoveryViews=8; keyCreateAttempts=0; keyCreateSuccesses=0; noKeyCreateClicks=0
-- Managed-access demand: anonymousSignals=4; waitlistSignals=0; legacyClicks=0; quickStarted=0; quickValidationFailed=0; quickSubmitted=0; quickReceived=0
-- Managed-access provider buckets: mixed-frontier=4
-- Managed-access commercial buckets: one-subscription=4
-- Managed-access intent buckets: one-subscription=4
+- Managed-access demand: anonymousSignals=5; waitlistSignals=0; legacyClicks=0; contactCaptureLanded=0; quickPresented=1; quickFocused=0; contactPackets=0; emailDrafts=0; quickStarted=0; quickValidationFailed=0; quickSubmitted=0; quickReceived=0
+- Managed-access conversion: status=contact_capture_gap; priority=fix_now; contactableLeadGap=5; cta=https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review#managed-access-quick-form
+- Managed-access provider buckets: mixed-frontier=4, unknown=1
+- Managed-access commercial buckets: one-subscription=4, unknown=1
+- Managed-access intent buckets: one-subscription=4, unknown=1
 - Signups: 4
 - Generated-key customers: 1
 - First-routed-request customers: 1
@@ -57,10 +58,10 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 
 - Metric: signupToGeneratedKey
 - Priority: fix_now
-- Owner/surface: Activation / setup-key recovery
+- Owner/surface: Activation / activation approval
 - Action: Recovery handoff is verified with no persistence; the next blocker is explicit operator approval for the next sendable follow-up or fresh recovery traffic, not recovery-page code.
-- Success metric: setup_key_recovery_magic_link_requested/sent increases, then keyCreateAttempts and generated-key customers increase.
-- CTA: https://sagerouter.dev/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation
+- Success metric: operatorFollowUpSends, operatorFollowUpSentRecipients, or fresh recovery traffic increases without send failures.
+- CTA: https://app.sagerouter.dev/launch-funnel.html#no-key-followups:segments
 
 ### Activation Queue
 
@@ -150,7 +151,7 @@ scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
 - Private cost-model template: scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template
 - One-subscription pricing review: docs/launch/execution/one-subscription-pricing-review.md
 - Unit-economics preflight: SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics
-- Managed-access beta interest: 0; anonymous interest: 4; target-provider buckets: mixed-frontier=4; commercial buckets: one-subscription=4; intent buckets: one-subscription=4
+- Managed-access beta interest: 0; anonymous interest: 5; target-provider buckets: mixed-frontier=4, unknown=1; commercial buckets: one-subscription=4, unknown=1; intent buckets: one-subscription=4, unknown=1
 
 ### Privacy
 
@@ -170,10 +171,11 @@ For a single read-only launch packet before operator review, run
 --skip-readiness` to bundle the live funnel snapshot, setup-copy activation packet,
 activation approval packet, founder-sales next-revenue packet, managed-access
 drop-off packet, Cloudflare BIC reliability packet, managed-provider readiness packet,
-provider terms approval packet, one-subscription pricing packet, provider outreach
-packet, and provider reply triage packet without approving sends, sending email, mutating
-Cloudflare,
-deploying, acknowledging provider terms, enabling managed resale, or printing
+provider terms approval packet, one-subscription pricing packet, Moltbook
+pre-approved channel packet, provider outreach packet, and provider reply
+triage packet without approving sends, sending email, mutating Cloudflare,
+deploying, claiming the Moltbook agent, posting publicly, acknowledging provider
+terms, enabling managed resale, or printing
 secrets. Omit `--skip-readiness` when the operator packet should include the
 full launch readiness probe.
 

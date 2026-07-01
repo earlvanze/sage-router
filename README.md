@@ -742,8 +742,9 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30
 For a single no-secret operator handoff that bundles the live funnel snapshot,
 setup-copy activation packet, activation approval packet, founder-sales next-revenue packet,
 managed-access drop-off packet, Cloudflare BIC reliability packet, managed-provider readiness packet,
-provider terms approval packet, one-subscription pricing packet, provider outreach packet,
-provider reply triage packet, and launch readiness check, run:
+provider terms approval packet, one-subscription pricing packet, Moltbook pre-approved
+channel packet, provider outreach packet, provider reply triage packet, and launch
+readiness check, run:
 
 ```bash
 scripts/summarize_sagerouter_launch_operator_handoff.sh --days 30
@@ -751,8 +752,9 @@ scripts/summarize_sagerouter_launch_operator_handoff.sh --days 30
 
 Add `--skip-readiness` when you need the same read-only handoff without the
 longer live readiness probe. The wrapper does not approve sends, send email,
-repair account links, mutate Cloudflare, write secrets, deploy, acknowledge
-provider terms, enable managed resale, change prices, copy generated keys, or
+repair account links, mutate Cloudflare, write secrets, deploy, claim the
+Moltbook agent, post publicly, acknowledge provider terms, enable managed
+resale, change prices, copy generated keys, or
 print emails, customer IDs, generated API keys, OAuth tokens, provider
 credentials, provider authorization reference values, private provider costs,
 prompts, raw campaign URLs, raw model search text, raw provider responses, or
