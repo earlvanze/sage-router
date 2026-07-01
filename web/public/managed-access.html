@@ -242,6 +242,7 @@
     const quickTurnstileSlot = document.getElementById('quick-turnstile-slot');
     const turnstileSlot = document.getElementById('turnstile-slot');
     const API_BASE = window.SAGE_ROUTER_API_URL || 'https://api.sagerouter.dev';
+    const MANAGED_ACCESS_REVIEW_EMAIL = 'support@sagerouter.dev';
     const turnstileState = { required: false, siteKey: '', token: '', widgetId: null };
 
     function setStatus(message) {
@@ -592,7 +593,7 @@
 
     function managedAccessReviewMailtoUrl() {
       const subject = `Sage Router ${humanize(quickReviewIntent())} review`;
-      return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(managedAccessReviewPacketText())}`;
+      return `mailto:${MANAGED_ACCESS_REVIEW_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(managedAccessReviewPacketText())}`;
     }
 
     function quickReviewMailtoUrl(email = '') {
@@ -613,7 +614,7 @@
         '',
         'Do not paste prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, actual provider costs, or customer data.',
       ].join('\n');
-      return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      return `mailto:${MANAGED_ACCESS_REVIEW_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     }
 
     function quickReviewContactRequestText(email = '') {
@@ -975,15 +976,6 @@
       const original = button.textContent;
       const email = String(new FormData(quickForm).get('email') || '').trim();
       markQuickFormFocused(quickReviewIntent(), '#quick-review-copy-contact');
-      if (!email) {
-        trackManagedAccessFunnelEvent('managed_access_quick_request_validation_failed', {
-          state: quickReviewIntent(),
-          target: '#quick-review-copy-contact',
-        });
-        setQuickStatus('Enter a work email first, then copy the no-secret contact request.');
-        document.getElementById('quick-review-email')?.focus();
-        return;
-      }
       button.disabled = true;
       button.textContent = 'Copying...';
       try {
@@ -994,7 +986,10 @@
           target: '#managed-access-quick-form',
           snippet: 'managed-access-fast-contact-request',
         });
-        setQuickStatus('Copied no-secret contact request. Paste it into your work email or support channel; managed resale remains gated.');
+        setQuickStatus(email
+          ? 'Copied no-secret contact request. Paste it into your work email or support channel; managed resale remains gated.'
+          : 'Copied no-secret contact request with a work-email placeholder. Add your address before sending; managed resale remains gated.'
+        );
       } catch (_error) {
         button.textContent = 'Copy failed';
         setQuickStatus('Copy failed. Use the email draft or full form below without sending secrets.');
