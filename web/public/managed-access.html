@@ -464,10 +464,11 @@
       markIntentQuickPick(intent);
       trackManagedAccessFunnelEvent('managed_access_interest_clicked', {
         state: intent,
-        target: '#apply',
+        target: '#managed-access-quick-form',
+        snippet: 'managed-access-intent-contact-capture',
       });
-      form.querySelector('input[type="email"]')?.focus();
-      setStatus('Intent captured. Add email to request review; do not include secrets.');
+      focusQuickReviewFormForContactCapture(intent, 'intent-quick-pick');
+      setStatus('Intent captured. Add work email in the fast review form; do not include secrets.');
     }
 
     function applyQuickIntentSignal(button) {
@@ -483,7 +484,7 @@
         snippet: 'managed-access-intent-handoff',
       });
       setQuickStatus('Intent captured. Add work email, or use the no-secret intent packet below without sending secrets.');
-      document.getElementById('quick-review-email')?.focus();
+      focusQuickReviewFormForContactCapture(intent, 'quick-intent-handoff');
     }
 
     function applyRequestedIntent(intent = activeIntent) {
@@ -784,6 +785,14 @@
       trackManagedAccessFunnelEvent('managed_access_quick_form_focused', { state, target, ...extra });
     }
 
+    function focusQuickReviewFormForContactCapture(state = quickReviewIntent(), snippet = 'contact-capture-focus') {
+      markContactCaptureLanding(state, '#managed-access-quick-form');
+      showManagedAccessIntentHandoff(state, '#managed-access-quick-form');
+      quickForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      markQuickFormFocused(state, '#managed-access-quick-form', { snippet });
+      document.getElementById('quick-review-email')?.focus({ preventScroll: true });
+    }
+
     function showManagedAccessIntentHandoff(state = quickReviewIntent(), target = '#managed-access-intent-handoff') {
       const handoff = document.getElementById('managed-access-intent-handoff');
       const handoffCopy = document.getElementById('managed-access-intent-handoff-copy');
@@ -811,11 +820,7 @@
         setQuickStatus(quickReviewNextAction(state));
         showManagedAccessIntentHandoff(state, '#managed-access-quick-form');
         window.setTimeout(() => {
-          quickForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          markQuickFormFocused(state, '#managed-access-quick-form', {
-            snippet: 'contact-capture-auto-focus',
-          });
-          document.getElementById('quick-review-email')?.focus({ preventScroll: true });
+          focusQuickReviewFormForContactCapture(state, 'contact-capture-auto-focus');
         }, 250);
       }
     }
