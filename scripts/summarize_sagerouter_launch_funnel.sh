@@ -1039,8 +1039,8 @@ if [[ "$RAW_JSON" == "1" ]]; then
           aggregateOnly: true
         }
       };
-  def managed_access_conversion($root):
-    ($root.managedAccessDemandConversion // {
+  def managed_access_conversion_defaults($root):
+    {
       status: (
         if (($root.stages.anonymousManagedAccessInterest // 0) > 0 and ($root.stages.managedAccessBetaInterest // 0) <= 0) then "contact_capture_gap"
         elif (($root.stages.anonymousManagedAccessInterest // 0) > 0 or ($root.stages.managedAccessBetaInterest // 0) > 0) then "contact_capture_started"
@@ -1058,6 +1058,10 @@ if [[ "$RAW_JSON" == "1" ]]; then
       action: "Convert anonymous one-subscription managed-access demand into contactable private-beta review requests before enabling managed provider resale.",
       successMetric: "managedAccessBetaInterest or managed_access_quick_request_received increases without enabling managed provider resale.",
       managedResaleEnabled: false,
+      secretFree: true,
+      publicSafe: true,
+      mutatesRuntime: false,
+      sendsEmail: false,
       privacy: {
         containsEmails: false,
         containsCustomerIds: false,
@@ -1067,7 +1071,11 @@ if [[ "$RAW_JSON" == "1" ]]; then
         containsProviderResponses: false,
         aggregateOnly: true
       }
-    });
+    };
+  def managed_access_conversion($root):
+    managed_access_conversion_defaults($root) as $defaults
+    | ($defaults + ($root.managedAccessDemandConversion // {}))
+    | .privacy = ($defaults.privacy + (.privacy // {}));
   def managed_access_conversion_action($root):
     managed_access_conversion($root) as $conversion
     | if (($conversion.status // "") == "no_current_demand") then empty else {
