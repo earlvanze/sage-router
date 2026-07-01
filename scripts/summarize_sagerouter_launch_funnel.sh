@@ -1061,8 +1061,10 @@ if [[ "$RAW_JSON" == "1" ]]; then
       privacy: {
         containsEmails: false,
         containsCustomerIds: false,
+        containsApiKeys: false,
         containsProviderCredentials: false,
         containsActualProviderCosts: false,
+        containsProviderResponses: false,
         aggregateOnly: true
       }
     });
@@ -1080,13 +1082,17 @@ if [[ "$RAW_JSON" == "1" ]]; then
         managedResaleEnabled: false,
         secretFree: true,
         publicSafe: true,
-        privacy: ($conversion.privacy // {
+        mutatesRuntime: false,
+        sendsEmail: false,
+        privacy: ({
           containsEmails: false,
           containsCustomerIds: false,
+          containsApiKeys: false,
           containsProviderCredentials: false,
           containsActualProviderCosts: false,
+          containsProviderResponses: false,
           aggregateOnly: true
-        })
+        } + ($conversion.privacy // {}))
       } end;
   def bottleneck_action($root):
     ($root.nextBestAction // {}) as $action
