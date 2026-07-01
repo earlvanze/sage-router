@@ -1645,6 +1645,9 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("outreach_snippet_copied") != null) and
     ((.allowedEvents // []) | index("content_article_oauth_clicked") != null) and
     ((.allowedEvents // []) | index("content_article_oauth_failed") != null) and
+    ((.allowedEvents // []) | index("managed_access_contact_capture_landed") != null) and
+    ((.allowedEvents // []) | index("managed_access_quick_form_presented") != null) and
+    ((.allowedEvents // []) | index("managed_access_quick_form_focused") != null) and
     ((.allowedEvents // []) | index("managed_access_quick_form_started") != null) and
     ((.allowedEvents // []) | index("managed_access_quick_request_submitted") != null) and
     ((.allowedEvents // []) | index("managed_access_quick_request_received") != null) and
