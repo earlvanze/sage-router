@@ -8276,6 +8276,21 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
             'action': 'Monitor signup-to-key recovery and refresh the launch funnel after new signups arrive.',
             'successMetric': 'No pending sendable activation follow-ups remain unworked.',
         })
+    for row in next_actions:
+        row.setdefault('managedResaleEnabled', False)
+        row.setdefault('secretFree', True)
+        row.setdefault('publicSafe', True)
+        row.setdefault('mutatesRuntime', False)
+        row.setdefault('sendsEmail', False)
+        row['privacy'] = {
+            'containsEmails': False,
+            'containsCustomerIds': False,
+            'containsApiKeys': False,
+            'containsProviderCredentials': False,
+            'containsProviderResponses': False,
+            'aggregateOnly': True,
+            **(row.get('privacy') if isinstance(row.get('privacy'), dict) else {}),
+        }
 
     covered_segments = telemetry.get('dryRunCoveredSegments') if isinstance(telemetry.get('dryRunCoveredSegments'), list) else []
     pending_segments = telemetry.get('dryRunPendingSegments') if isinstance(telemetry.get('dryRunPendingSegments'), list) else []
@@ -8396,6 +8411,11 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
         'decisionLines': decision_lines,
         'decisionChecklist': decision_checklist,
         'authRepair': auth_repair or launch_activation_auth_repair_handoff([], activation_follow_ups),
+        'managedResaleEnabled': False,
+        'secretFree': True,
+        'publicSafe': True,
+        'mutatesRuntime': False,
+        'sendsEmail': False,
         'privacy': {
             'containsEmails': False,
             'containsCustomerIds': False,

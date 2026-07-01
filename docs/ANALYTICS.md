@@ -142,8 +142,11 @@ bounded JSON subset suitable for automation; `revenue`, `bottleneck`, and
 `nextActions` mirror the human `$10k MRR` snapshot and top conversion move,
 while `activationQueue` is the stable field for no-key follow-up counts,
 sendable/review-only segments, dry-run coverage, sent-recipient counts, and
-approval-required state. `activationApprovalReadiness.decisionLines` exposes
-the no-secret approve/hold review text for agents without requiring packet-text
+approval-required state. Every `nextActions` row declares `managedResaleEnabled`,
+`sendsEmail`, `mutatesRuntime`, `secretFree`, and `publicSafe` so agents can
+execute safe launch handoffs without mistaking them for managed-provider resale
+authorization. `activationApprovalReadiness.decisionLines` exposes the
+no-secret approve/hold review text for agents without requiring packet-text
 parsing. `managedAccessDemandConversion` summarizes anonymous managed-access
 signals, contactable waitlist review signals, the contactable lead gap, and the
 safe `/managed-access` review CTA without enabling managed provider resale. The

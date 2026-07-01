@@ -968,6 +968,11 @@ if [[ "$RAW_JSON" == "1" ]]; then
         } else empty end
       ]
     ),
+    managedResaleEnabled: false,
+    secretFree: true,
+    publicSafe: true,
+    mutatesRuntime: false,
+    sendsEmail: false,
     privacy: {
       containsEmails: false,
       containsCustomerIds: false,
@@ -977,6 +982,11 @@ if [[ "$RAW_JSON" == "1" ]]; then
     }
     }) as $approval
     | $approval + {
+        managedResaleEnabled: ($approval.managedResaleEnabled // false),
+        secretFree: ($approval.secretFree // true),
+        publicSafe: ($approval.publicSafe // true),
+        mutatesRuntime: ($approval.mutatesRuntime // false),
+        sendsEmail: ($approval.sendsEmail // false),
         decisionLines: (
           if (($approval.decisionLines // []) | length) > 0 then $approval.decisionLines
           else activation_decision_lines($root)
@@ -1028,6 +1038,9 @@ if [[ "$RAW_JSON" == "1" ]]; then
           end
         ),
         successMetric: "activationApprovalDecisionCopies increases without operatorFollowUpSends unless a separate explicit send is approved.",
+        managedResaleEnabled: false,
+        secretFree: true,
+        publicSafe: true,
         mutatesRuntime: false,
         sendsEmail: false,
         privacy: {
@@ -1113,6 +1126,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
              end
         ),
         title: ($action.title // "Resolve current launch bottleneck"),
+        managedResaleEnabled: false,
         secretFree: true,
         publicSafe: true,
         mutatesRuntime: false,
@@ -1139,6 +1153,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
           ctaPath: "https://app.sagerouter.dev/launch-funnel.html#next-best-action-dock",
           action: ($handoff.action // "Copy either the approve or hold decision line after reviewing the no-secret packet; this records the human handoff only."),
           successMetric: ($handoff.successMetric // "activationApprovalDecisionCopies increases without operatorFollowUpSends unless a separate explicit send is approved."),
+          managedResaleEnabled: false,
           secretFree: true,
           publicSafe: true,
           mutatesRuntime: false,
@@ -1159,6 +1174,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
           ctaPath: "https://app.sagerouter.dev/launch-funnel.html#no-key-followups:segments",
           action: "Run or copy the dry-run command for sendable activation follow-up segments before any real send approval.",
           successMetric: "operatorFollowUpSendDryRuns and dryRunCoveredSegments cover every sendable segment without sending email.",
+          managedResaleEnabled: false,
           secretFree: true,
           publicSafe: true,
           mutatesRuntime: false,
@@ -1179,6 +1195,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
           ctaPath: "https://app.sagerouter.dev/launch-funnel.html#no-key-followups:segments",
           action: ($repair.operatorAction // "Review auth-repair segments separately and keep unresolved rows excluded from activation sends."),
           successMetric: ($repair.successMetric // "review-only queued signups are repaired or excluded from sendable outreach."),
+          managedResaleEnabled: false,
           secretFree: true,
           publicSafe: true,
           mutatesRuntime: false,

@@ -822,7 +822,10 @@ data; consume `revenue`, `bottleneck`, and `nextActions` for the current
 no-key follow-up counts, sendable and review-only segments, dry-run coverage,
 sent-recipient counts, and approval-required state, and consume
 `activationApprovalReadiness.decisionLines` for the no-secret approve/hold
-review text. The bounded JSON also exposes `activationApproval` as a
+review text. Every bounded `nextActions` row declares `managedResaleEnabled`,
+`sendsEmail`, `mutatesRuntime`, `secretFree`, and `publicSafe` so automation can
+distinguish safe launch handoffs from provider-resale enablement. The bounded
+JSON also exposes `activationApproval` as a
 backward-compatible alias for the same aggregate-only approval readiness object,
 so operator dashboards and agents can read the approval gate without scraping
 browser copy or sending activation email. Pass `--approval-packet`
