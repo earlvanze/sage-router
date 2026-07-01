@@ -4983,7 +4983,9 @@ check_admin_token() {
     ((.privacy // {}) | .containsEmails == false) and
     ((.mrr // {}) | .targetMrrUsd == 10000) and
     ((.mrr // {}) | has("estimatedCurrentMrrUsd")) and
-    ((.mrr.byPlan // {}) | has("lite") and has("pro") and has("max"))
+    ((.mrr.byPlan // {}) | has("lite") and has("pro") and has("max")) and
+    ((.planRevenueActions // []) | type == "array") and
+    ((.planRevenueActions // []) == (.mrr.planRevenueActions // []))
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"
   rm -f /tmp/sage-router-readiness-body
   customer_base="$(discover_origin_base || true)"

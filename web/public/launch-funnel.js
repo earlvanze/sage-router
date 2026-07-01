@@ -1145,7 +1145,7 @@ function buildLaunchBrief(data = {}) {
   const topManagedAction = managedActions[0] || {};
   const noKeyVerification = activationFollowUps.countsByEmailVerification || {};
   const acquisitionActions = data.acquisitionActions || marketingIntent.acquisitionActions || [];
-  const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+  const revenueActions = planRevenueActions(data);
   const bottleneck = firstAction(data.bottlenecks);
   const conversionAction = firstAction(data.conversionActions);
   const nextBestAction = data.nextBestAction || conversionAction || bottleneck || {};
@@ -1337,11 +1337,16 @@ function managedProviderReadiness(data = {}) {
   return data.pricing?.publicLaunch?.managedProviderAccess || {};
 }
 
-function founderSalesFallbackLines(data = {}) {
+function planRevenueActions(data = {}) {
+  if (Array.isArray(data.planRevenueActions)) return data.planRevenueActions;
   const mrr = data.mrr || {};
+  return Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+}
+
+function founderSalesFallbackLines(data = {}) {
   const activationSend = activationSendTelemetry(data);
   const managed = managedProviderReadiness(data);
-  const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+  const revenueActions = planRevenueActions(data);
   const prioritized = revenueActions.slice().sort((left, right) =>
     asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
   ).slice(0, 3);
@@ -1367,8 +1372,7 @@ function founderSalesFallbackText(data = {}) {
 }
 
 function founderSalesNextOutreachText(data = {}) {
-  const mrr = data.mrr || {};
-  const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+  const revenueActions = planRevenueActions(data);
   const topRevenue = revenueActions.slice().sort((left, right) =>
     asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
   )[0] || {};
@@ -1400,8 +1404,7 @@ function founderSalesNextOutreachText(data = {}) {
 }
 
 function founderSalesRecommendedFirstReplyText(data = {}) {
-  const mrr = data.mrr || {};
-  const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+  const revenueActions = planRevenueActions(data);
   const topRevenue = revenueActions.slice().sort((left, right) =>
     asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
   )[0] || {};
@@ -1721,10 +1724,9 @@ function renderManagedAccessReadiness(data = {}) {
 function renderFounderSalesFallback(data = {}) {
   const target = $('founder-sales-fallback');
   if (!target) return;
-  const mrr = data.mrr || {};
   const activationSend = activationSendTelemetry(data);
   const managed = managedProviderReadiness(data);
-  const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+  const revenueActions = planRevenueActions(data);
   const topRevenue = revenueActions.slice().sort((left, right) =>
     asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
   ).slice(0, 3);
@@ -2386,8 +2388,7 @@ async function copyFounderSalesFallback(button) {
   try {
     await writeClipboard(text);
     button.textContent = 'Copied';
-    const mrr = lastFunnelData?.mrr || {};
-    const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+    const revenueActions = planRevenueActions(lastFunnelData || {});
     const customerGap = revenueActions.reduce((total, row) => total + asNumber(row.customerGap), 0);
     trackOperatorFunnelEvent('outreach_snippet_copied', {
       state: 'founder_sales_fallback_copied',
@@ -2413,8 +2414,7 @@ async function copyFounderSalesNextOutreach(button) {
   try {
     await writeClipboard(text);
     button.textContent = 'Copied';
-    const mrr = lastFunnelData?.mrr || {};
-    const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+    const revenueActions = planRevenueActions(lastFunnelData || {});
     const topRevenue = revenueActions.slice().sort((left, right) =>
       asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
     )[0] || {};
@@ -2445,8 +2445,7 @@ async function copyFounderSalesRecommendedFirstReply(button) {
   try {
     await writeClipboard(text);
     button.textContent = 'Copied';
-    const mrr = lastFunnelData?.mrr || {};
-    const revenueActions = Array.isArray(mrr.planRevenueActions) ? mrr.planRevenueActions : [];
+    const revenueActions = planRevenueActions(lastFunnelData || {});
     const topRevenue = revenueActions.slice().sort((left, right) =>
       asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
     )[0] || {};
@@ -3065,7 +3064,7 @@ function renderFunnel(data) {
   renderAcquisitionActions(data.acquisitionActions || marketingIntent.acquisitionActions || []);
   renderManagedAccessDemand(managedAccessDemand, marketingIntent, managedAccessConversion);
   renderPlanMix(mrr.byPlan || {});
-  renderRevenueActions(mrr.planRevenueActions || []);
+  renderRevenueActions(planRevenueActions(data));
   renderSetupCopyFallbackBanner(data);
   renderNextBestActionDock(data);
   renderLaunchBrief(data);

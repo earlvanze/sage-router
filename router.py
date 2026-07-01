@@ -10116,6 +10116,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'managedAccessDemand': managed_access_demand,
         'managedAccessDemandConversion': managed_access_conversion,
         'mrr': mrr,
+        'planRevenueActions': mrr.get('planRevenueActions') or [],
         'rates': rates,
         **conversion,
         'notes': notes,
