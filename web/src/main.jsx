@@ -189,8 +189,8 @@ const LANDING_SETUP_ACCOUNT_URL = `${ACCOUNT_PAGE_URL}&setup=landing-full-setup-
 const HERO_SETUP_ACCOUNT_URL = `${ACCOUNT_PAGE_URL}&setup=landing-hero-setup-bundle&source_surface=landing`;
 const STICKY_SETUP_ACCOUNT_URL = `${ACCOUNT_PAGE_URL}&setup=landing-sticky-setup-bundle&source_surface=landing`;
 const LANDING_KEY_RECOVERY_URL = 'https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=landing&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email';
-const MANAGED_ONE_SUBSCRIPTION_URL = '/managed-access?intent=one-subscription&utm_source=landing&utm_medium=managed_access&utm_campaign=sage-router-launch&utm_content=one-subscription-review';
-const MANAGED_MAX_IMPLEMENTATION_URL = '/managed-access?intent=max-implementation&utm_source=landing&utm_medium=managed_access&utm_campaign=sage-router-launch&utm_content=max-implementation-review';
+const MANAGED_ONE_SUBSCRIPTION_URL = '/managed-access?intent=one-subscription&utm_source=landing&utm_medium=managed_access&utm_campaign=sage-router-launch&utm_content=one-subscription-review#managed-access-quick-form';
+const MANAGED_MAX_IMPLEMENTATION_URL = '/managed-access?intent=max-implementation&utm_source=landing&utm_medium=managed_access&utm_campaign=sage-router-launch&utm_content=max-implementation-review#managed-access-quick-form';
 const ACTIVATION_NUDGE_STORAGE_KEY = 'sage_router_activation_nudge_dismissed_until';
 const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
@@ -1575,7 +1575,7 @@ fallback: openai/gpt-4.1 → anthropic/sonnet`}</pre>
           <p><a className="inlineLink" href="/coding-agent-model-router">Route Codex, Cursor, Aider, Continue, and OpenHands →</a></p>
           <p><a className="inlineLink" href="/cursor-ai-model-router">Route Cursor through Sage Router →</a></p>
           <p><a className="inlineLink" href="/model-routing-calculator">Estimate routing savings for one workflow →</a></p>
-          <p><a className="inlineLink" href="/managed-access?intent=one-subscription">Request one-subscription review →</a></p>
+          <p><a className="inlineLink" href="/managed-access?intent=one-subscription#managed-access-quick-form">Request one-subscription review →</a></p>
           <p><a className="inlineLink" href="/pricing">See hosted routing pricing and plan limits →</a></p>
         </div>
         <div className="cards">

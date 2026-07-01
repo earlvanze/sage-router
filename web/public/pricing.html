@@ -198,7 +198,7 @@
             <li>Team and private deployment support path</li>
           </ul>
           <a class="button primary" data-pricing-setup-next="max" href="https://app.sagerouter.dev/account.html?plan=max&start=create_key&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch">Create Max key first</a>
-          <a class="button secondary" href="/managed-access?intent=max-implementation&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=max-review">Request Max review</a>
+          <a class="button secondary" href="/managed-access?intent=max-implementation&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=max-review#managed-access-quick-form">Request Max review</a>
           <form class="planEmailForm" data-pricing-plan-email data-plan="max">
             <input type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email for Sage Router Max activation" required>
             <button class="button secondary" type="submit">Email Max setup link</button>
@@ -260,7 +260,7 @@
             <li>Prerequisite boundaries are published as <a href="/provider-resale-terms">provider resale terms</a>, a <a href="/margin-policy">margin policy</a>, and <a href="/acceptable-use">acceptable use</a>.</li>
           </ul>
           <div class="actions">
-            <a class="button primary" href="/managed-access?intent=one-subscription&utm_source=pricing&utm_medium=private-beta&utm_campaign=sage-router-launch">Request one-subscription review</a>
+            <a class="button primary" href="/managed-access?intent=one-subscription&utm_source=pricing&utm_medium=private-beta&utm_campaign=sage-router-launch#managed-access-quick-form">Request one-subscription review</a>
             <button id="pricing-copy-managed-access-review-packet" class="button secondary" type="button">Copy review packet</button>
             <a class="button secondary" data-pricing-setup-next="max" href="https://app.sagerouter.dev/account.html?plan=max&start=create_key&utm_source=pricing&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=max-byok-key-first">Create Max BYOK key first</a>
           </div>
@@ -734,7 +734,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
         '',
         'Boundary: managed provider access is disabled until provider authorization, provider terms acknowledgment, an authorized provider allowlist, a private cost model, positive unit economics, quotas, audit events, and acceptable-use controls pass.',
         'Immediate fallback: start Max with BYOK at https://app.sagerouter.dev/account.html?plan=max&start=create_key&utm_source=pricing&utm_medium=review-packet&utm_campaign=sage-router-launch',
-        'Review URL: https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=pricing-review-packet&utm_medium=shared&utm_campaign=sage-router-launch',
+        'Review URL: https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=pricing-review-packet&utm_medium=shared&utm_campaign=sage-router-launch#managed-access-quick-form',
         '',
         'Do not paste prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, or customer data.',
       ].join('\n');

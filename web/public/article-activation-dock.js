@@ -10,8 +10,8 @@
   const recoveryUrl = `/setup-key-recovery?utm_source=article-dock&utm_medium=recovery&utm_campaign=signup_to_key_recovery&source_surface=article&utm_content=${encodeURIComponent(`${articleSlug}-returning-user`)}`;
   const quickstartUrl = `/quickstart?utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-quickstart`)}`;
   const calculatorUrl = `/model-routing-calculator?utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-calculator`)}`;
-  const managedAccessUrl = `/managed-access?intent=max-implementation&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-max-review`)}`;
-  const oneSubscriptionUrl = `/managed-access?intent=one-subscription&utm_source=article-dock&utm_medium=managed-access&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-one-subscription-review`)}`;
+  const managedAccessUrl = `/managed-access?intent=max-implementation&utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-max-review`)}#managed-access-quick-form`;
+  const oneSubscriptionUrl = `/managed-access?intent=one-subscription&utm_source=article-dock&utm_medium=managed-access&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-one-subscription-review`)}#managed-access-quick-form`;
   const openRouterCompareUrl = `/compare/openrouter?utm_source=article-dock&utm_medium=evaluation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-openrouter`)}`;
   const codexSetupUrl = `/docs/codex?utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-codex`)}`;
   const hostedSetupBundle = `# Sage Router hosted setup

@@ -57,7 +57,7 @@
           <button id="setup-key-recovery-github" class="button secondary" type="button">Continue with GitHub for Pro</button>
           <button id="setup-key-recovery-copy" class="button secondary" type="button">Copy setup bundle</button>
           <a class="button secondary" href="/api-troubleshooting" data-setup-recovery-event="setup_key_recovery_troubleshooting_clicked" data-setup-recovery-button="troubleshooting">Troubleshoot API key</a>
-          <a class="button secondary" href="/managed-access?intent=one-subscription&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery" data-setup-recovery-event="setup_key_recovery_managed_access_clicked" data-setup-recovery-button="one-subscription-beta">Request one-subscription beta</a>
+          <a class="button secondary" href="/managed-access?intent=one-subscription&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery#managed-access-quick-form" data-setup-recovery-event="setup_key_recovery_managed_access_clicked" data-setup-recovery-button="one-subscription-beta">Request one-subscription beta</a>
           <a class="button secondary" href="/support" data-setup-recovery-event="setup_key_recovery_support_clicked" data-setup-recovery-button="support">Support</a>
         </div>
         <p id="setup-key-recovery-copy-status" class="copyStatus" role="status" aria-live="polite"></p>
@@ -134,7 +134,7 @@ curl -i "$OPENAI_BASE_URL/models" \
         <div class="panel">
           <p class="muted">The reliable path today is still generated <code>sk_sage_*</code> keys and authorized provider access. The one-subscription managed-access beta is a review queue for teams that want Sage Router to handle provider access later; activation remains gated on provider authorization, terms acknowledgment, an authorized provider allowlist, a private cost model, and plan-margin checks.</p>
           <div class="actions">
-            <a class="button secondary" href="/managed-access?intent=one-subscription&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery" data-setup-recovery-event="setup_key_recovery_managed_access_clicked" data-setup-recovery-button="one-subscription-panel">Request one-subscription beta</a>
+            <a class="button secondary" href="/managed-access?intent=one-subscription&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery#managed-access-quick-form" data-setup-recovery-event="setup_key_recovery_managed_access_clicked" data-setup-recovery-button="one-subscription-panel">Request one-subscription beta</a>
           </div>
         </div>
       </section>
@@ -144,7 +144,7 @@ curl -i "$OPENAI_BASE_URL/models" \
       <span>Sage Router</span>
       <a href="/quickstart" data-setup-recovery-event="setup_key_recovery_quickstart_clicked" data-setup-recovery-button="footer-quickstart">Quickstart</a>
       <a href="/api-troubleshooting" data-setup-recovery-event="setup_key_recovery_troubleshooting_clicked" data-setup-recovery-button="footer-troubleshooting">Troubleshooting</a>
-      <a href="/managed-access?intent=one-subscription&utm_source=setup-key-recovery&utm_medium=footer&utm_campaign=signup_to_key_recovery" data-setup-recovery-event="setup_key_recovery_managed_access_clicked" data-setup-recovery-button="footer-one-subscription">Managed access beta</a>
+      <a href="/managed-access?intent=one-subscription&utm_source=setup-key-recovery&utm_medium=footer&utm_campaign=signup_to_key_recovery#managed-access-quick-form" data-setup-recovery-event="setup_key_recovery_managed_access_clicked" data-setup-recovery-button="footer-one-subscription">Managed access beta</a>
       <a href="/support" data-setup-recovery-event="setup_key_recovery_support_clicked" data-setup-recovery-button="footer-support">Support</a>
     </footer>
   </div>

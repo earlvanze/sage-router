@@ -1153,7 +1153,7 @@ if [[ "$MODE" == "authorization-packet" || "$MODE" == "record-authorization-revi
     require_cmd curl
     payload="$(jq -n \
       --arg sourcePage "${APP_BASE%/}/launch-funnel.html#managed-provider-readiness" \
-      --arg target "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=authorization_review&utm_campaign=managed-provider-authorization" \
+      --arg target "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=authorization_review&utm_campaign=managed-provider-authorization#managed-access-quick-form" \
       '{
         event: "status_managed_provider_authorization_review_copied",
         plan: "max",
@@ -1197,7 +1197,7 @@ if [[ "$MODE" == "provider-outreach-packet" || "$MODE" == "record-provider-outre
     require_cmd curl
     payload="$(jq -n \
       --arg sourcePage "${APP_BASE%/}/launch-funnel.html#managed-provider-readiness" \
-      --arg target "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=provider_outreach&utm_campaign=managed-provider-authorization" \
+      --arg target "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=provider_outreach&utm_campaign=managed-provider-authorization#managed-access-quick-form" \
       '{
         event: "status_managed_provider_outreach_copied",
         plan: "max",
