@@ -951,7 +951,7 @@ function shouldPromoteActivationApprovalDecision(data = {}) {
     && (packetCopies > 0 || approvalReadiness.status === 'approval_required');
 }
 
-function renderActivationApprovalDecisionControls(data = {}, { compact = false, priority = false } = {}) {
+function renderActivationApprovalDecisionControls(data = {}, { compact = false, priority = false, anchorId = '' } = {}) {
   const approvalReadiness = activationApprovalReadiness(data);
   const activationSend = activationSendTelemetry(data);
   const decisionLines = activationApprovalDecisionLines(data);
@@ -971,7 +971,8 @@ function renderActivationApprovalDecisionControls(data = {}, { compact = false, 
   const priorityCopy = priority
     ? ' This is the current blocking handoff: copy approve or hold after reviewing the packet, before any real activation send.'
     : '';
-  return `<div class="empty ${priority ? 'bad' : 'warn'}">
+  const anchor = anchorId ? ` id="${esc(anchorId)}"` : '';
+  return `<div${anchor} class="empty ${priority ? 'bad' : 'warn'}">
     <strong>${title}:</strong> Copy one line only after reviewing the no-secret packet for segment <code>${esc(nextSegment)}</code>.${priorityCopy}
     <p class="muted">This records the human approval/hold text for audit handoff only; it does not send email, mutate queued follow-ups, expose emails, or bypass the typed confirmation gate.${esc(freshness)}</p>
     <div class="actions">${buttons}<span class="status">Real sends still require the private operator token, fresh <code>approvalPacketIssuedAt</code>, browser confirmation, and <code>${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code>.</span></div>
@@ -1922,7 +1923,7 @@ function renderNextBestActionDock(data = {}) {
     : '';
   const approvalDecisionPriority = shouldPromoteActivationApprovalDecision(data);
   const approvalDecisionControls = noKeyCount > 0
-    ? renderActivationApprovalDecisionControls(data, { compact: true, priority: approvalDecisionPriority })
+    ? renderActivationApprovalDecisionControls(data, { compact: true, priority: approvalDecisionPriority, anchorId: 'activation-approval-decision' })
     : '';
   const setupBundleText = firstRequestSetupBundleText(data);
   const setupButton = `<button class="btn ${setupCopyFallback ? '' : 'secondary'}" type="button" data-copy-operator-setup-bundle="${esc(setupBundleText)}" data-followup-plan="${esc(followUps.suggestedPlan || 'pro')}">${setupCopyFallback ? 'Copy first-request setup now' : 'Copy first-request setup'}</button>`;
@@ -3073,6 +3074,18 @@ function renderFunnel(data) {
   renderOperatorExecutionPacket(data);
   $('dashboard').classList.remove('hidden');
   fetchOperationalReadiness();
+  scrollToLaunchHashTarget();
+}
+
+function scrollToLaunchHashTarget() {
+  const hash = String(window.location.hash || '').replace(/^#/, '');
+  if (!hash) return;
+  const allowed = new Set(['activation-approval-decision', 'next-best-action-dock', 'no-key-followups', 'no-key-followups:segments']);
+  if (!allowed.has(hash)) return;
+  const id = hash.split(':', 1)[0];
+  window.requestAnimationFrame(() => {
+    $(id)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
 }
 
 function renderApiKeys(keys = []) {

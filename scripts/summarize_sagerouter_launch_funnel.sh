@@ -1150,7 +1150,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
         $row + {
           title: "Record activation approval decision",
           surface: "Activation approval",
-          ctaPath: "https://app.sagerouter.dev/launch-funnel.html#next-best-action-dock",
+          ctaPath: "https://app.sagerouter.dev/launch-funnel.html#activation-approval-decision",
           action: ($handoff.action // "Copy either the approve or hold decision line after reviewing the no-secret packet; this records the human handoff only."),
           successMetric: ($handoff.successMetric // "activationApprovalDecisionCopies increases without operatorFollowUpSends unless a separate explicit send is approved."),
           managedResaleEnabled: false,

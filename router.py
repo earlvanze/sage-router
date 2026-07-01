@@ -7864,7 +7864,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 )
             ),
             'ctaPath': (
-                f'{APP_BASE_URL.rstrip("/")}/launch-funnel.html#no-key-followups:segments'
+                f'{APP_BASE_URL.rstrip("/")}/launch-funnel.html#activation-approval-decision'
                 if approval_packet_already_reviewed
                 else
                 f'{APP_BASE_URL.rstrip("/")}/launch-funnel.html#next-best-action-dock'

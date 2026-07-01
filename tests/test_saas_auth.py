@@ -2888,7 +2888,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('explicit operator approval for the next segment', reviewed_packet['action'])
         self.assertNotIn('Run the approval packet with --verify-recovery', reviewed_packet['action'])
         self.assertEqual('activation approval', reviewed_packet['surface'])
-        self.assertIn('/launch-funnel.html#no-key-followups:segments', reviewed_packet['ctaPath'])
+        self.assertIn('/launch-funnel.html#activation-approval-decision', reviewed_packet['ctaPath'])
         self.assertIn('operatorFollowUpSends', reviewed_packet['successMetric'])
         self.assertTrue(reviewed_packet['evidence']['approvalPacketAlreadyReviewed'])
         self.assertEqual(1, reviewed_packet['evidence']['activationApprovalPacketCopies'])
