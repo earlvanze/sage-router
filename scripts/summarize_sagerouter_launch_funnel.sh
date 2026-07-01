@@ -1039,6 +1039,55 @@ if [[ "$RAW_JSON" == "1" ]]; then
           aggregateOnly: true
         }
       };
+  def managed_access_conversion($root):
+    ($root.managedAccessDemandConversion // {
+      status: (
+        if (($root.stages.anonymousManagedAccessInterest // 0) > 0 and ($root.stages.managedAccessBetaInterest // 0) <= 0) then "contact_capture_gap"
+        elif (($root.stages.anonymousManagedAccessInterest // 0) > 0 or ($root.stages.managedAccessBetaInterest // 0) > 0) then "contact_capture_started"
+        else "no_current_demand" end
+      ),
+      priority: (
+        if (($root.stages.anonymousManagedAccessInterest // 0) > 0 and ($root.stages.managedAccessBetaInterest // 0) <= 0) then "fix_now"
+        elif (($root.stages.anonymousManagedAccessInterest // 0) > 0 or ($root.stages.managedAccessBetaInterest // 0) > 0) then "next"
+        else "monitor" end
+      ),
+      anonymousSignals: ($root.stages.anonymousManagedAccessInterest // 0),
+      waitlistSignals: ($root.stages.managedAccessBetaInterest // 0),
+      contactableLeadGap: ([ (($root.stages.anonymousManagedAccessInterest // 0) - ($root.stages.managedAccessBetaInterest // 0)), 0 ] | max),
+      ctaPath: "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review#managed-access-quick-form",
+      action: "Convert anonymous one-subscription managed-access demand into contactable private-beta review requests before enabling managed provider resale.",
+      successMetric: "managedAccessBetaInterest or managed_access_quick_request_received increases without enabling managed provider resale.",
+      managedResaleEnabled: false,
+      privacy: {
+        containsEmails: false,
+        containsCustomerIds: false,
+        containsProviderCredentials: false,
+        containsActualProviderCosts: false,
+        aggregateOnly: true
+      }
+    });
+  def managed_access_conversion_action($root):
+    managed_access_conversion($root) as $conversion
+    | if (($conversion.status // "") == "no_current_demand") then empty else {
+        id: "convert_managed_access_demand",
+        title: "Convert managed-access demand",
+        owner: "Growth",
+        priority: ($conversion.priority // "next"),
+        surface: "Managed access contact capture",
+        ctaPath: ($conversion.ctaPath // "https://sagerouter.dev/managed-access#managed-access-quick-form"),
+        action: ($conversion.action // "Convert managed-access demand into contactable private-beta review requests before enabling managed provider resale."),
+        successMetric: ($conversion.successMetric // "managedAccessBetaInterest or managed_access_quick_request_received increases without enabling managed provider resale."),
+        managedResaleEnabled: false,
+        secretFree: true,
+        publicSafe: true,
+        privacy: ($conversion.privacy // {
+          containsEmails: false,
+          containsCustomerIds: false,
+          containsProviderCredentials: false,
+          containsActualProviderCosts: false,
+          aggregateOnly: true
+        })
+      } end;
   {
     generatedAt,
     stages,
@@ -1066,6 +1115,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
         if ((.nextBestAction.metric // "") != "") then .nextBestAction else empty end
       ]
       + ((.activationApprovalReadiness.nextActions // []) | map(. + {surface: "Activation approval"}))
+      + [managed_access_conversion_action(.)]
       + ((.managedProviderReadiness.nextActions // .pricing.publicLaunch.managedProviderAccess.nextActions // []) | map(. + {surface: "Managed provider access"}))
     )[0:8],
     activationFollowUps: (
@@ -1102,32 +1152,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
     managedAccessDemand: (.managedAccessDemand // {}),
     anonymousManagedAccessDemand: (.anonymousManagedAccessDemand // {}),
     waitlistManagedAccessDemand: (.waitlistManagedAccessDemand // {}),
-    managedAccessDemandConversion: (.managedAccessDemandConversion // {
-      status: (
-        if ((.stages.anonymousManagedAccessInterest // 0) > 0 and (.stages.managedAccessBetaInterest // 0) <= 0) then "contact_capture_gap"
-        elif ((.stages.anonymousManagedAccessInterest // 0) > 0 or (.stages.managedAccessBetaInterest // 0) > 0) then "contact_capture_started"
-        else "no_current_demand" end
-      ),
-      priority: (
-        if ((.stages.anonymousManagedAccessInterest // 0) > 0 and (.stages.managedAccessBetaInterest // 0) <= 0) then "fix_now"
-        elif ((.stages.anonymousManagedAccessInterest // 0) > 0 or (.stages.managedAccessBetaInterest // 0) > 0) then "next"
-        else "monitor" end
-      ),
-      anonymousSignals: (.stages.anonymousManagedAccessInterest // 0),
-      waitlistSignals: (.stages.managedAccessBetaInterest // 0),
-      contactableLeadGap: ([((.stages.anonymousManagedAccessInterest // 0) - (.stages.managedAccessBetaInterest // 0)), 0] | max),
-      ctaPath: "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review#managed-access-quick-form",
-      action: "Convert anonymous one-subscription managed-access demand into contactable private-beta review requests before enabling managed provider resale.",
-      successMetric: "managedAccessBetaInterest or managed_access_quick_request_received increases without enabling managed provider resale.",
-      managedResaleEnabled: false,
-      privacy: {
-        containsEmails: false,
-        containsCustomerIds: false,
-        containsProviderCredentials: false,
-        containsActualProviderCosts: false,
-        aggregateOnly: true
-      }
-    }),
+    managedAccessDemandConversion: managed_access_conversion(.),
     marketingIntent: (
       (.marketingIntent // {}) as $marketing
       | {
