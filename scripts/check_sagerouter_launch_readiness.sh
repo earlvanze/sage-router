@@ -1667,6 +1667,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("managed_access_quick_form_presented") != null) and
     ((.allowedEvents // []) | index("managed_access_quick_form_focused") != null) and
     ((.allowedEvents // []) | index("managed_access_quick_form_started") != null) and
+    ((.allowedEvents // []) | index("managed_access_contact_packet_copied") != null) and
     ((.allowedEvents // []) | index("managed_access_quick_request_submitted") != null) and
     ((.allowedEvents // []) | index("managed_access_quick_request_received") != null) and
     ((.allowedEvents // []) | index("managed_access_quick_request_failed") != null) and
@@ -4015,6 +4016,15 @@ check_marketing_managed_access_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_request_received" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quick-review-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quick-review-copy-contact" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quick-review-contact-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_contact_packet_copied" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quick-review-contact-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router .*private-beta contact request" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-quick-review-contact-copy-text"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-copy-review-packet" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-review-packet-copy"
