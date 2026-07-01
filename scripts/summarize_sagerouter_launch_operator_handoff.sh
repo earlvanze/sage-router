@@ -16,8 +16,8 @@ funnel snapshot, no-secret setup-copy activation packet, activation approval
 packet, Cloudflare BIC reliability packet, founder-sales next-revenue packet,
 managed-access drop-off packet, managed-provider readiness packet, provider
 terms approval packet, one-subscription pricing packet, private cost-model
-template, provider outreach packet, provider reply triage packet, and optional
-launch readiness check.
+template, Moltbook pre-approved channel packet, provider outreach packet,
+provider reply triage packet, and optional launch readiness check.
 
 Boundary: no emails, customer IDs, generated API keys, OAuth tokens, provider
 credentials, provider authorization reference values, private provider costs,
@@ -25,8 +25,9 @@ prompts, raw campaign URLs, raw model search text, raw provider responses, or
 Cloudflare token values are printed.
 
 Effect: read-only; does not approve sends, send email, repair account links,
-mutate Cloudflare, write secrets, deploy, acknowledge provider terms, enable
-managed resale, change prices, or copy generated keys.
+mutate Cloudflare, write secrets, deploy, claim the Moltbook agent, post
+publicly, acknowledge provider terms, enable managed resale, change prices, or
+copy generated keys.
 EOF
 }
 
@@ -76,8 +77,9 @@ prompts, raw campaign URLs, raw model search text, raw provider responses, or
 Cloudflare token values are printed.
 
 Effect: read-only; does not approve sends, send email, repair account links,
-mutate Cloudflare, write secrets, deploy, acknowledge provider terms, enable
-managed resale, change prices, or copy generated keys.
+mutate Cloudflare, write secrets, deploy, claim the Moltbook agent, post
+publicly, acknowledge provider terms, enable managed resale, change prices, or
+copy generated keys.
 EOF
 
 section "Live Funnel Snapshot"
@@ -109,6 +111,9 @@ run_read_only bash scripts/configure_managed_provider_resale_readiness.sh --one-
 
 section "Private Cost-Model Template"
 run_read_only bash scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template
+
+section "Moltbook Pre-Approved Channel Packet"
+run_read_only scripts/summarize_sagerouter_launch_funnel.sh --days "$DAYS" --moltbook-packet
 
 section "Provider Authorization Outreach Packet"
 run_read_only bash scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet
