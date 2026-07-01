@@ -3165,6 +3165,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("aggregateOnly: true", summary_script)
         self.assertIn("Sage Router activation approval packet", summary_script)
         self.assertIn("Sage Router founder-sales next-revenue packet", summary_script)
+        self.assertIn("Copyable recommended first reply", summary_script)
+        self.assertIn("operator-recommended-first-reply", summary_script)
         self.assertIn("Sage Router setup-copy activation packet", summary_script)
         self.assertIn("operator-next-revenue-packet", summary_script)
         self.assertIn("operator-next-${plan}-outreach", summary_script)

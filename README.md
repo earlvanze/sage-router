@@ -316,7 +316,7 @@ from the current aggregate MRR gap; copying either emits the same
 `outreach_snippet_copied` funnel event without
 including customer identities, private funnel rows, prompts, generated keys, or
 provider credentials. The terminal handoff can also print the same no-secret
-founder-sales packet with
+founder-sales packet with a short recommended first reply plus the next-revenue handoff:
 `scripts/summarize_sagerouter_launch_funnel.sh --days 30 --founder-sales-packet`
 when activation sends are approval-gated but warm Pro/Lite/Max outreach can
 still move.
