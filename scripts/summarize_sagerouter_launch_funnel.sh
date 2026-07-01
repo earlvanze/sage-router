@@ -1269,13 +1269,14 @@ if [[ "$RAW_JSON" == "1" ]]; then
     stages,
     rates,
     mrr,
+    planRevenueActions: (.planRevenueActions // .mrr.planRevenueActions // []),
     nextBestAction,
     revenue: {
       currentMrrUsd: (.mrr.estimatedCurrentMrrUsd // 0),
       targetMrrUsd: (.mrr.targetMrrUsd // 10000),
       targetAttainment: (.mrr.targetAttainment // 0),
       byPlan: (.mrr.byPlan // {}),
-      planRevenueActions: (.mrr.planRevenueActions // []),
+      planRevenueActions: (.planRevenueActions // .mrr.planRevenueActions // []),
       assumptions: (.mrr.assumptions // {}),
       privacy: {
         containsEmails: false,

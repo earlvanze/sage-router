@@ -3225,6 +3225,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("--moltbook-packet", summary_script)
         self.assertIn("--distribution-tracker-section", summary_script)
         self.assertIn("revenue: {", summary_script)
+        self.assertIn("planRevenueActions: (.planRevenueActions // .mrr.planRevenueActions // [])", summary_script)
         self.assertIn("currentMrrUsd: (.mrr.estimatedCurrentMrrUsd // 0)", summary_script)
         self.assertIn("bottleneck: (.nextBestAction // {})", summary_script)
         self.assertIn("nextActions: (", summary_script)
