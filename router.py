@@ -9221,6 +9221,85 @@ def launch_acquisition_action(kind, bucket):
     return actions.get(normalized, 'Review this channel for acquisition copy, CTA placement, and checkout friction.')
 
 
+LAUNCH_ACQUISITION_CTA_TEMPLATES = {
+    'sourceSurface': {
+        'pricing': ('marketing', '/pricing', 'operator', 'launch_funnel', 'pricing_checkout_proof'),
+        'model-routing-calculator': ('marketing', '/model-routing-calculator', 'operator', 'launch_funnel', 'calculator_qualification'),
+        'model-catalog': ('marketing', '/models', 'operator', 'launch_funnel', 'model_catalog_demand'),
+        'quickstart': ('marketing', '/quickstart', 'operator', 'launch_funnel', 'first_request_activation'),
+        'compare-gateways': ('marketing', '/compare/model-gateways', 'model-gateway', 'founder', 'launch_gateway_migration'),
+        'managed-access': ('marketing', '/managed-access', 'operator', 'launch_funnel', 'managed_access_beta'),
+        'launch-plan': ('marketing', '/launch-plan', 'operator', 'launch_funnel', 'founder_sales'),
+        'landing': ('marketing', '/', 'operator', 'launch_funnel', 'homepage_activation'),
+        'account': ('app', '/account.html', 'operator', 'launch_funnel', 'account_activation'),
+        'login': ('app', '/login.html', 'operator', 'launch_funnel', 'signup_onboarding'),
+        'billing': ('app', '/billing.html', 'operator', 'launch_funnel', 'billing_recovery'),
+    },
+    'attributionChannel': {
+        'model-gateway': ('marketing', '/compare/model-gateways', 'model-gateway', 'founder', 'launch_gateway_migration'),
+        'github': ('marketing', '/quickstart', 'github', 'readme', 'launch_builder_quickstart'),
+        'google': ('marketing', '/quickstart', 'google', 'search', 'launch_search_router'),
+        'discord': ('marketing', '/support', 'discord', 'community', 'launch_founder_activation'),
+        'reddit': ('marketing', '/compare/model-gateways', 'reddit', 'community', 'launch_comparison_threads'),
+        'newsletter': ('marketing', '/pricing', 'newsletter', 'email', 'launch_subscription_offer'),
+        'docs': ('marketing', '/quickstart', 'docs', 'docs', 'launch_docs_conversion'),
+        'direct': ('marketing', '/', 'direct', 'direct', 'launch_homepage_activation'),
+        'sagerouter': ('marketing', '/pricing', 'sagerouter', 'internal', 'launch_internal_conversion'),
+    },
+}
+
+
+def launch_acquisition_cta_path(kind, bucket):
+    normalized_kind = str(kind or '').strip()
+    normalized_bucket = str(bucket or '').strip().lower()
+    template = LAUNCH_ACQUISITION_CTA_TEMPLATES.get(normalized_kind, {}).get(normalized_bucket)
+    if template:
+        base_kind, path, source, medium, campaign = template
+    else:
+        base_kind = 'marketing'
+        path = '/quickstart'
+        source = normalized_bucket or 'operator'
+        medium = 'launch_funnel' if normalized_kind == 'sourceSurface' else 'referral'
+        campaign = 'launch_' + re.sub(r'[^a-z0-9]+', '_', normalized_bucket or normalized_kind.lower() or 'acquisition').strip('_')
+    base_url = APP_BASE_URL if base_kind == 'app' else MARKETING_BASE_URL
+    url = urllib.parse.urljoin(base_url.rstrip('/') + '/', path.lstrip('/'))
+    params = {
+        'utm_source': source,
+        'utm_medium': medium,
+        'utm_campaign': campaign,
+    }
+    return f'{url}?{urllib.parse.urlencode(params)}'
+
+
+def launch_acquisition_action_row(kind, bucket, clicks, priority, action):
+    return {
+        'kind': kind,
+        'bucket': str(bucket),
+        'clicks': int(clicks or 0),
+        'priority': priority,
+        'owner': 'Growth',
+        'surface': 'Launch acquisition',
+        'title': f'Convert {str(bucket).replace("-", " ")} traffic',
+        'action': action,
+        'ctaPath': launch_acquisition_cta_path(kind, bucket),
+        'successMetric': 'setupSnippetCopies, generated-key customers, first routed requests, paid customers, or managed-access review requests increase without exposing private funnel rows.',
+        'managedResaleEnabled': False,
+        'secretFree': True,
+        'publicSafe': True,
+        'sendsEmail': False,
+        'mutatesRuntime': False,
+        'privacy': {
+            'containsEmails': False,
+            'containsCustomerIds': False,
+            'containsApiKeys': False,
+            'containsProviderCredentials': False,
+            'containsActualProviderCosts': False,
+            'containsProviderResponses': False,
+            'aggregateOnly': True,
+        },
+    }
+
+
 DEFAULT_LAUNCH_ACQUISITION_ACTIONS = (
     {
         'kind': 'attributionChannel',
@@ -9313,23 +9392,23 @@ def launch_acquisition_actions(marketing_metrics):
                 clicks = 0
             if clicks <= 0 or bucket in {'unknown', 'other'}:
                 continue
-            rows.append({
-                'kind': kind,
-                'bucket': str(bucket),
-                'clicks': clicks,
-                'priority': 'scale_existing_signal',
-                'action': launch_acquisition_action(kind, bucket),
-            })
+            rows.append(launch_acquisition_action_row(
+                kind,
+                bucket,
+                clicks,
+                'scale_existing_signal',
+                launch_acquisition_action(kind, bucket),
+            ))
     rows.sort(key=lambda row: (-int(row.get('clicks') or 0), str(row.get('kind') or ''), str(row.get('bucket') or '')))
     if not rows:
         return [
-            {
-                'kind': row['kind'],
-                'bucket': row['bucket'],
-                'clicks': 0,
-                'priority': 'seed_launch_channel',
-                'action': row['action'],
-            }
+            launch_acquisition_action_row(
+                row['kind'],
+                row['bucket'],
+                0,
+                'seed_launch_channel',
+                row['action'],
+            )
             for row in DEFAULT_LAUNCH_ACQUISITION_ACTIONS
         ]
     return rows[:16]
