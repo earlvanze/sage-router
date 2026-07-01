@@ -1100,6 +1100,103 @@ if [[ "$RAW_JSON" == "1" ]]; then
     managed_access_conversion_defaults($root) as $defaults
     | ($defaults + ($root.managedAccessDemandConversion // {}))
     | .privacy = ($defaults.privacy + (.privacy // {}));
+  def managed_access_dropoff($root):
+    ($root.marketingIntent // {}) as $marketing
+    | ($marketing.events // {}) as $events
+    | managed_access_conversion($root) as $conversion
+    | {
+        anonymousIntentClicks: ($events.managed_access_interest_clicked // 0),
+        reviewPacketCopies: ($marketing.managedAccessPacketCopies // 0),
+        contactCaptureLandings: ($events.managed_access_contact_capture_landed // 0),
+        quickFormPresented: ($events.managed_access_quick_form_presented // 0),
+        quickFormFocused: ($events.managed_access_quick_form_focused // 0),
+        quickFormStarted: ($events.managed_access_quick_form_started // 0),
+        contactPacketCopies: ($events.managed_access_contact_packet_copied // 0),
+        emailDraftsOpened: ($events.managed_access_contact_draft_opened // 0),
+        validationFailures: ($events.managed_access_quick_request_validation_failed // 0),
+        quickRequestsSubmitted: ($events.managed_access_quick_request_submitted // 0),
+        quickRequestsReceived: ($events.managed_access_quick_request_received // 0),
+        fullRequestsReceived: ($events.managed_access_request_received // 0)
+      } as $base
+    | ($base + {
+        preContactSignals: (
+          ($base.anonymousIntentClicks // 0)
+          + ($base.reviewPacketCopies // 0)
+          + ($base.contactCaptureLandings // 0)
+          + ($base.quickFormPresented // 0)
+        ),
+        fastPathEngagements: (
+          ($base.quickFormFocused // 0)
+          + ($base.quickFormStarted // 0)
+          + ($base.contactPacketCopies // 0)
+          + ($base.emailDraftsOpened // 0)
+        ),
+        contactableRequests: ([($conversion.waitlistSignals // 0), ($conversion.quickReceivedSignals // 0), ($base.quickRequestsReceived // 0), ($base.fullRequestsReceived // 0)] | max),
+        contactableLeadGap: ([ (($conversion.anonymousSignals // 0) - ([($conversion.waitlistSignals // 0), ($conversion.quickReceivedSignals // 0), ($base.quickRequestsReceived // 0), ($base.fullRequestsReceived // 0)] | max)), 0 ] | max)
+      }) as $counts
+    | (
+        if (($counts.quickRequestsReceived // 0) > 0) then {
+          status: "receiving_requests",
+          priority: "follow_up",
+          action: "Follow up on received managed-access review requests while keeping managed provider resale disabled until controls pass."
+        }
+        elif (($counts.quickRequestsSubmitted // 0) > ($counts.quickRequestsReceived // 0)) then {
+          status: "submit_to_received_gap",
+          priority: "fix_now",
+          action: "Inspect waitlist, Turnstile, and app/API routing because quick requests are submitted but not counted as received."
+        }
+        elif (($counts.validationFailures // 0) > 0 and ($counts.quickRequestsSubmitted // 0) <= 0) then {
+          status: "validation_gap",
+          priority: "fix_now",
+          action: "Reduce one-field form friction and verify validation or Turnstile error copy before driving more traffic."
+        }
+        elif (($counts.fastPathEngagements // 0) > 0) then {
+          status: "engaged_not_submitted",
+          priority: "fix_now",
+          action: "Visitors engage the fast path but do not submit; keep the email-draft/contact-packet fallbacks visible and tighten completion copy."
+        }
+        elif (($counts.contactCaptureLandings // 0) > 0 or ($counts.quickFormPresented // 0) > 0) then {
+          status: "presented_not_engaged",
+          priority: "fix_now",
+          action: "The contact-capture path is visible but not engaged; make the first-screen request-review affordance more direct."
+        }
+        elif (($counts.preContactSignals // 0) > 0 or ($conversion.anonymousSignals // 0) > 0) then {
+          status: "demand_not_routed",
+          priority: "fix_now",
+          action: "Demand exists before contact capture; route high-intent CTAs to the anchored managed-access fast form."
+        }
+        else {
+          status: "no_current_signal",
+          priority: "monitor",
+          action: "No current managed-access drop-off signal is visible; drive qualified one-subscription or Max traffic before changing resale controls."
+        }
+        end
+      ) as $state
+    | $state + {
+        counts: $counts,
+        rates: {
+          presentedToFocused: (if ($counts.quickFormPresented // 0) > 0 then ((($counts.quickFormFocused // 0) / ($counts.quickFormPresented // 1) * 10000 | round) / 10000) else null end),
+          focusedToStarted: (if ($counts.quickFormFocused // 0) > 0 then ((($counts.quickFormStarted // 0) / ($counts.quickFormFocused // 1) * 10000 | round) / 10000) else null end),
+          startedToSubmitted: (if ($counts.quickFormStarted // 0) > 0 then ((($counts.quickRequestsSubmitted // 0) / ($counts.quickFormStarted // 1) * 10000 | round) / 10000) else null end),
+          submittedToReceived: (if ($counts.quickRequestsSubmitted // 0) > 0 then ((($counts.quickRequestsReceived // 0) / ($counts.quickRequestsSubmitted // 1) * 10000 | round) / 10000) else null end),
+          preContactToReceived: (if ($counts.preContactSignals // 0) > 0 then ((($counts.quickRequestsReceived // 0) / ($counts.preContactSignals // 1) * 10000 | round) / 10000) else null end)
+        },
+        successMetric: "managed_access_quick_request_received or managedAccessBetaInterest increases without enabling managed provider resale.",
+        managedResaleEnabled: false,
+        secretFree: true,
+        publicSafe: true,
+        mutatesRuntime: false,
+        sendsEmail: false,
+        privacy: {
+          containsEmails: false,
+          containsCustomerIds: false,
+          containsApiKeys: false,
+          containsProviderCredentials: false,
+          containsActualProviderCosts: false,
+          containsProviderResponses: false,
+          aggregateOnly: true
+        }
+      };
   def managed_access_conversion_action($root):
     managed_access_conversion($root) as $conversion
     | if (($conversion.status // "") == "no_current_demand") then empty else {
@@ -1328,6 +1425,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
     anonymousManagedAccessDemand: (.anonymousManagedAccessDemand // {}),
     waitlistManagedAccessDemand: (.waitlistManagedAccessDemand // {}),
     managedAccessDemandConversion: managed_access_conversion(.),
+    managedAccessDropoff: managed_access_dropoff(.),
     marketingIntent: (
       (.marketingIntent // {}) as $marketing
       | {

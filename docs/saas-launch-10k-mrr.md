@@ -489,6 +489,9 @@ flag.
   and `managed_access_quick_form_started` before submission, so article traffic
   can be measured through the same contact-capture drop-off funnel as pricing
   and managed-access traffic without logging email values in marketing events.
+  `/analytics/funnel` and the CLI summarizer expose that as
+  `managedAccessDropoff` with aggregate presentation/focus/start/submit/received
+  counts, rates, status, and next action for operator follow-up.
 - Keep `/api/waitlist` guarded before Supabase inserts: browser-originating
   writes must come from Sage Router production hosts, Pages previews, local
   development, or exact origins configured with

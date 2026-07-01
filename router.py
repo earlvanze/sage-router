@@ -8949,6 +8949,109 @@ def managed_access_demand_conversion(waitlist_demand, anonymous_demand, quick_re
     }
 
 
+def managed_access_dropoff(marketing_metrics, conversion=None):
+    events = (marketing_metrics or {}).get('events') if isinstance(marketing_metrics, dict) else {}
+    if not isinstance(events, dict):
+        events = {}
+    conversion = conversion if isinstance(conversion, dict) else {}
+    counts = {
+        'anonymousIntentClicks': int(events.get('managed_access_interest_clicked') or 0),
+        'reviewPacketCopies': int((marketing_metrics or {}).get('managedAccessPacketCopies') or 0) if isinstance(marketing_metrics, dict) else 0,
+        'contactCaptureLandings': int(events.get('managed_access_contact_capture_landed') or 0),
+        'quickFormPresented': int(events.get('managed_access_quick_form_presented') or 0),
+        'quickFormFocused': int(events.get('managed_access_quick_form_focused') or 0),
+        'quickFormStarted': int(events.get('managed_access_quick_form_started') or 0),
+        'contactPacketCopies': int(events.get('managed_access_contact_packet_copied') or 0),
+        'emailDraftsOpened': int(events.get('managed_access_contact_draft_opened') or 0),
+        'validationFailures': int(events.get('managed_access_quick_request_validation_failed') or 0),
+        'quickRequestsSubmitted': int(events.get('managed_access_quick_request_submitted') or 0),
+        'quickRequestsReceived': int(events.get('managed_access_quick_request_received') or 0),
+        'fullRequestsReceived': int(events.get('managed_access_request_received') or 0),
+    }
+    counts['preContactSignals'] = (
+        counts['anonymousIntentClicks']
+        + counts['reviewPacketCopies']
+        + counts['contactCaptureLandings']
+        + counts['quickFormPresented']
+    )
+    counts['fastPathEngagements'] = (
+        counts['quickFormFocused']
+        + counts['quickFormStarted']
+        + counts['contactPacketCopies']
+        + counts['emailDraftsOpened']
+    )
+    counts['contactableRequests'] = max(
+        int(conversion.get('waitlistSignals') or 0),
+        int(conversion.get('quickReceivedSignals') or 0),
+        counts['quickRequestsReceived'],
+        counts['fullRequestsReceived'],
+    )
+    counts['contactableLeadGap'] = max(0, int(conversion.get('anonymousSignals') or 0) - counts['contactableRequests'])
+
+    def rate(numerator, denominator):
+        if not denominator:
+            return None
+        return round(float(numerator) / float(denominator), 4)
+
+    if counts['quickRequestsReceived'] > 0:
+        status = 'receiving_requests'
+        priority = 'follow_up'
+        action = 'Follow up on received managed-access review requests while keeping managed provider resale disabled until controls pass.'
+    elif counts['quickRequestsSubmitted'] > counts['quickRequestsReceived']:
+        status = 'submit_to_received_gap'
+        priority = 'fix_now'
+        action = 'Inspect waitlist, Turnstile, and app/API routing because quick requests are submitted but not counted as received.'
+    elif counts['validationFailures'] > 0 and counts['quickRequestsSubmitted'] <= 0:
+        status = 'validation_gap'
+        priority = 'fix_now'
+        action = 'Reduce one-field form friction and verify validation or Turnstile error copy before driving more traffic.'
+    elif counts['fastPathEngagements'] > 0:
+        status = 'engaged_not_submitted'
+        priority = 'fix_now'
+        action = 'Visitors engage the fast path but do not submit; keep the email-draft/contact-packet fallbacks visible and tighten completion copy.'
+    elif counts['contactCaptureLandings'] > 0 or counts['quickFormPresented'] > 0:
+        status = 'presented_not_engaged'
+        priority = 'fix_now'
+        action = 'The contact-capture path is visible but not engaged; make the first-screen request-review affordance more direct.'
+    elif counts['preContactSignals'] > 0 or int(conversion.get('anonymousSignals') or 0) > 0:
+        status = 'demand_not_routed'
+        priority = 'fix_now'
+        action = 'Demand exists before contact capture; route high-intent CTAs to the anchored managed-access fast form.'
+    else:
+        status = 'no_current_signal'
+        priority = 'monitor'
+        action = 'No current managed-access drop-off signal is visible; drive qualified one-subscription or Max traffic before changing resale controls.'
+
+    return {
+        'status': status,
+        'priority': priority,
+        'counts': counts,
+        'rates': {
+            'presentedToFocused': rate(counts['quickFormFocused'], counts['quickFormPresented']),
+            'focusedToStarted': rate(counts['quickFormStarted'], counts['quickFormFocused']),
+            'startedToSubmitted': rate(counts['quickRequestsSubmitted'], counts['quickFormStarted']),
+            'submittedToReceived': rate(counts['quickRequestsReceived'], counts['quickRequestsSubmitted']),
+            'preContactToReceived': rate(counts['quickRequestsReceived'], counts['preContactSignals']),
+        },
+        'action': action,
+        'successMetric': 'managed_access_quick_request_received or managedAccessBetaInterest increases without enabling managed provider resale.',
+        'managedResaleEnabled': False,
+        'secretFree': True,
+        'publicSafe': True,
+        'mutatesRuntime': False,
+        'sendsEmail': False,
+        'privacy': {
+            'containsEmails': False,
+            'containsCustomerIds': False,
+            'containsApiKeys': False,
+            'containsProviderCredentials': False,
+            'containsActualProviderCosts': False,
+            'containsProviderResponses': False,
+            'aggregateOnly': True,
+        },
+    }
+
+
 def marketing_event_is_managed_access(event, metadata):
     if event in MANAGED_ACCESS_MARKETING_EVENTS:
         return True
@@ -9906,6 +10009,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         if isinstance(marketing_metrics, dict)
         else 0,
     )
+    managed_access_dropoff_snapshot = managed_access_dropoff(marketing_metrics, managed_access_conversion)
     managed_access_interest = waitlist_interest.get('managedAccess', 0) if isinstance(waitlist_interest, dict) else None
     anonymous_managed_access_interest = marketing_metrics.get('managedAccessAnonymousInterest', 0) if isinstance(marketing_metrics, dict) else None
     marketing_intent_events = marketing_metrics.get('total', 0) if isinstance(marketing_metrics, dict) else None
@@ -10115,6 +10219,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'anonymousManagedAccessDemand': anonymous_managed_access_demand,
         'managedAccessDemand': managed_access_demand,
         'managedAccessDemandConversion': managed_access_conversion,
+        'managedAccessDropoff': managed_access_dropoff_snapshot,
         'mrr': mrr,
         'planRevenueActions': mrr.get('planRevenueActions') or [],
         'rates': rates,

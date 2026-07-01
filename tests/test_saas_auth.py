@@ -2137,6 +2137,12 @@ class SaaSAuthTests(unittest.TestCase):
                 'launch_plan_checkout_clicked': 1,
                 'pricing_checkout_clicked': 1,
                 'managed_access_interest_clicked': 1,
+                'managed_access_contact_capture_landed': 2,
+                'managed_access_quick_form_presented': 2,
+                'managed_access_quick_form_focused': 1,
+                'managed_access_quick_form_started': 1,
+                'managed_access_quick_request_submitted': 1,
+                'managed_access_quick_request_received': 1,
                 'gateway_compare_checkout_clicked': 1,
                 'auth_provider_state_checked': 2,
             },
@@ -2381,6 +2387,18 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('/managed-access?', snapshot['managedAccessDemandConversion']['ctaPath'])
         self.assertFalse(snapshot['managedAccessDemandConversion']['managedResaleEnabled'])
         self.assertFalse(snapshot['managedAccessDemandConversion']['privacy']['containsEmails'])
+        self.assertEqual('receiving_requests', snapshot['managedAccessDropoff']['status'])
+        self.assertEqual('follow_up', snapshot['managedAccessDropoff']['priority'])
+        self.assertEqual(2, snapshot['managedAccessDropoff']['counts']['contactCaptureLandings'])
+        self.assertEqual(2, snapshot['managedAccessDropoff']['counts']['quickFormPresented'])
+        self.assertEqual(1, snapshot['managedAccessDropoff']['counts']['quickFormFocused'])
+        self.assertEqual(1, snapshot['managedAccessDropoff']['counts']['quickFormStarted'])
+        self.assertEqual(1, snapshot['managedAccessDropoff']['counts']['quickRequestsSubmitted'])
+        self.assertEqual(1, snapshot['managedAccessDropoff']['counts']['quickRequestsReceived'])
+        self.assertEqual(0.5, snapshot['managedAccessDropoff']['rates']['presentedToFocused'])
+        self.assertEqual(1.0, snapshot['managedAccessDropoff']['rates']['submittedToReceived'])
+        self.assertFalse(snapshot['managedAccessDropoff']['managedResaleEnabled'])
+        self.assertFalse(snapshot['managedAccessDropoff']['privacy']['containsEmails'])
         self.assertEqual(0.6667, snapshot['rates']['managedAccessShareOfWaitlist'])
         self.assertEqual(2, snapshot['stages']['signups'])
         self.assertEqual(1, snapshot['stages']['customersWithGeneratedApiKeys'])

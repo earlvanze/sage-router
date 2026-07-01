@@ -1133,6 +1133,7 @@ function buildLaunchBrief(data = {}) {
   const authState = marketingIntent.authProviderState || {};
   const managedAccessDemand = data.managedAccessDemand || {};
   const managedAccessConversion = data.managedAccessDemandConversion || {};
+  const managedAccessDropoff = data.managedAccessDropoff || {};
   const managedAccessEvents = marketingIntent.events || {};
   const activationFollowUps = data.activationFollowUps || {};
   const activationEmailReadiness = activationFollowUps.emailReadiness || {};
@@ -1205,6 +1206,7 @@ function buildLaunchBrief(data = {}) {
     'Managed-access demand',
     `- Beta interest: ${integer(stages.managedAccessBetaInterest)}; waitlist share: ${percent(rates.managedAccessShareOfWaitlist)}`,
     `- Conversion status: ${managedAccessConversion.status || 'unknown'}; priority=${managedAccessConversion.priority || 'monitor'}; anonymous=${integer(managedAccessConversion.anonymousSignals)}; contactable=${integer(managedAccessConversion.waitlistSignals)}; lead gap=${integer(managedAccessConversion.contactableLeadGap)}; CTA=${managedAccessConversion.ctaPath || '/managed-access'}`,
+    `- Drop-off status: ${managedAccessDropoff.status || 'unknown'}; priority=${managedAccessDropoff.priority || 'monitor'}; presented=${integer(managedAccessDropoff.counts?.quickFormPresented)}; focused=${integer(managedAccessDropoff.counts?.quickFormFocused)}; started=${integer(managedAccessDropoff.counts?.quickFormStarted)}; submitted=${integer(managedAccessDropoff.counts?.quickRequestsSubmitted)}; received=${integer(managedAccessDropoff.counts?.quickRequestsReceived)}; action=${managedAccessDropoff.action || 'Monitor managed-access drop-off.'}`,
     `- Anonymous interest clicks: ${integer(managedAccessEvents.managed_access_interest_clicked)}; contact-capture landings: ${integer(managedAccessEvents.managed_access_contact_capture_landed)}; fast form focused: ${integer(managedAccessEvents.managed_access_quick_form_focused)}; contact packets copied: ${integer(managedAccessEvents.managed_access_contact_packet_copied)}; email drafts opened: ${integer(managedAccessEvents.managed_access_contact_draft_opened)}; quick requests submitted: ${integer(managedAccessEvents.managed_access_quick_request_submitted)}; quick requests received: ${integer(managedAccessEvents.managed_access_quick_request_received)}`,
     `- Target-provider buckets: ${sortedEntries(managedAccessDemand.targetProviderFamily).slice(0, 4).map(([name, count]) => `${demandLabel(name)} ${integer(count)}`).join(', ') || 'none'}`,
     `- Commercial buckets: ${sortedEntries(managedAccessDemand.commercialPreference).slice(0, 4).map(([name, count]) => `${demandLabel(name)} ${integer(count)}`).join(', ') || 'none'}`,
@@ -2766,19 +2768,51 @@ function renderManagedAccessPulse(marketingIntent = {}) {
   </div>`;
 }
 
-function renderManagedAccessDemand(demand = {}, marketingIntent = {}, conversion = {}) {
+function hasManagedAccessDropoffSignal(dropoff = {}) {
+  const counts = dropoff.counts || {};
+  return Boolean(dropoff.status)
+    || Object.values(counts).some((count) => asNumber(count) > 0);
+}
+
+function renderManagedAccessDropoff(dropoff = {}) {
+  if (!hasManagedAccessDropoffSignal(dropoff)) return '';
+  const counts = dropoff.counts || {};
+  const rates = dropoff.rates || {};
+  const status = dropoff.status || 'unknown';
+  const priority = dropoff.priority || 'monitor';
+  const statusClass = priority === 'fix_now' ? 'warn' : (status === 'receiving_requests' ? 'good' : '');
+  return `<div>
+    <h3>Managed-access drop-off</h3>
+    <table>
+      <tbody>
+        <tr><td><span class="pill ${statusClass}">${esc(status.replaceAll('_', ' '))}</span></td><td>Priority ${esc(priority.replaceAll('_', ' '))}</td></tr>
+        <tr><td>Pre-contact signals</td><td>${integer(counts.preContactSignals)}</td></tr>
+        <tr><td>Fast-path engagements</td><td>${integer(counts.fastPathEngagements)}</td></tr>
+        <tr><td>Presented -> focused</td><td>${percent(rates.presentedToFocused)}</td></tr>
+        <tr><td>Focused -> started</td><td>${percent(rates.focusedToStarted)}</td></tr>
+        <tr><td>Started -> submitted</td><td>${percent(rates.startedToSubmitted)}</td></tr>
+        <tr><td>Submitted -> received</td><td>${percent(rates.submittedToReceived)}</td></tr>
+        <tr><td>Contactable requests</td><td>${integer(counts.contactableRequests)}</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">${esc(dropoff.action || 'Monitor managed-access contact-capture drop-off.')}</p>
+  </div>`;
+}
+
+function renderManagedAccessDemand(demand = {}, marketingIntent = {}, conversion = {}, dropoff = {}) {
   const targetProviderRows = sortedEntries(demand.targetProviderFamily);
   const commercialRows = sortedEntries(demand.commercialPreference);
   const supportRows = sortedEntries(demand.supportNeed);
   const launchWindowRows = sortedEntries(demand.targetLaunchWindow);
   const intentRows = sortedEntries(demand.intent);
   const conversionBlock = renderManagedAccessConversion(conversion);
+  const dropoffBlock = renderManagedAccessDropoff(dropoff);
   const pulseBlock = renderManagedAccessPulse(marketingIntent);
-  if (!targetProviderRows.length && !commercialRows.length && !supportRows.length && !launchWindowRows.length && !intentRows.length && !hasManagedAccessPulseSignal(marketingIntent) && !conversionBlock) {
+  if (!targetProviderRows.length && !commercialRows.length && !supportRows.length && !launchWindowRows.length && !intentRows.length && !hasManagedAccessPulseSignal(marketingIntent) && !conversionBlock && !dropoffBlock) {
     $('managed-access-demand-breakdown').innerHTML = '<div class="empty">No managed-access qualification buckets returned for this window.</div>';
     return;
   }
-  $('managed-access-demand-breakdown').innerHTML = `<div class="grid2">${conversionBlock}${pulseBlock}${
+  $('managed-access-demand-breakdown').innerHTML = `<div class="grid2">${conversionBlock}${dropoffBlock}${pulseBlock}${
     renderDemandTable('Target provider family', targetProviderRows, 'No target provider demand returned.')
   }${
     renderDemandTable('Commercial preference', commercialRows, 'No commercial preference demand returned.')
@@ -3062,7 +3096,7 @@ function renderFunnel(data) {
   renderMarketingIntent(marketingIntent);
   renderAuthProviderState(marketingIntent.authProviderState || {});
   renderAcquisitionActions(data.acquisitionActions || marketingIntent.acquisitionActions || []);
-  renderManagedAccessDemand(managedAccessDemand, marketingIntent, managedAccessConversion);
+  renderManagedAccessDemand(managedAccessDemand, marketingIntent, managedAccessConversion, data.managedAccessDropoff || {});
   renderPlanMix(mrr.byPlan || {});
   renderRevenueActions(planRevenueActions(data));
   renderSetupCopyFallbackBanner(data);
