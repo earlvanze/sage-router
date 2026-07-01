@@ -726,9 +726,15 @@ function activationSendTelemetry(data = {}) {
 }
 
 function activationSendCommand(emailReadiness = {}, activationSend = {}) {
-  const template = String(emailReadiness.sendCommandTemplate || '').trim();
-  if (!template) return '';
   const segment = String(activationSend.nextSendSegment || 'all').trim() || 'all';
+  const templates = emailReadiness.segmentCommandTemplates || {};
+  const template = String(
+    templates[segment]?.sendCommand ||
+    templates.all?.sendCommand ||
+    emailReadiness.sendCommandTemplate ||
+    ''
+  ).trim();
+  if (!template) return '';
   return template.replace(/"segment"\s*:\s*"[^"]*"/, `"segment":"${segment}"`);
 }
 
@@ -1234,7 +1240,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
     `Activation sender setup: ${emailReadiness.setupScript || 'scripts/configure_activation_email_sender.sh'}`,
     ...(emailReadiness.setupCommand ? ['', 'Setup command template:', emailReadiness.setupCommand] : []),
     ...(emailReadiness.dryRunCommand ? ['', 'Dry-run send command:', emailReadiness.dryRunCommand] : []),
-    ...(emailReadiness.sendCommandTemplate ? ['', 'Real send command template:', emailReadiness.sendCommandTemplate] : []),
+    ...(emailReadiness.sendCommandTemplate ? ['', 'Real send command template (legacy):', emailReadiness.sendCommandTemplate] : []),
     ...(sendCommand ? ['', 'Approval send command for next segment:', sendCommand] : []),
     '',
     `Managed provider access: ${managedReadiness.enabled ? 'enabled' : 'disabled'}; requested=${managedReadiness.requested === true}; status=${managedReadiness.status || 'unknown'}; missingControls=${(managedReadiness.missingControls || []).join(', ') || 'none'}`,
