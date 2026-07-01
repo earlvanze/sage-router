@@ -678,6 +678,7 @@
     let formStarted = false;
     let quickFormStarted = false;
     let quickFormFocused = false;
+    let quickFormPresented = false;
     function markQuickFormStarted(state = quickReviewIntent(), target = '#managed-access-quick-form') {
       if (quickFormStarted) return;
       quickFormStarted = true;
@@ -691,26 +692,30 @@
     }
 
     function presentQuickFormFromRequestedIntent() {
-      if (!requestedIntentParam) return;
       const state = quickReviewIntent();
-      setQuickStatus(quickReviewNextAction(state));
-      const handoff = document.getElementById('managed-access-intent-handoff');
-      const handoffCopy = document.getElementById('managed-access-intent-handoff-copy');
-      if (handoff) {
-        handoff.hidden = false;
-        if (handoffCopy) {
-          handoffCopy.textContent = state === 'one-subscription'
-            ? 'One-subscription intent detected. Copy the no-secret buyer packet for internal review, request review with work email, or use Max with BYOK while managed access remains gated.'
-            : 'Managed-access intent detected. Copy a no-secret packet, request review with work email, or use Max with BYOK while review is pending.';
-        }
+      if (!quickFormPresented) {
+        quickFormPresented = true;
+        trackManagedAccessFunnelEvent('managed_access_quick_form_presented', {
+          state,
+          target: '#managed-access-quick-form',
+        });
       }
-      trackManagedAccessFunnelEvent('managed_access_quick_form_presented', {
-        state,
-        target: '#managed-access-quick-form',
-      });
-      window.setTimeout(() => {
-        document.getElementById('quick-review-email')?.focus();
-      }, 250);
+      if (requestedIntentParam) {
+        setQuickStatus(quickReviewNextAction(state));
+        const handoff = document.getElementById('managed-access-intent-handoff');
+        const handoffCopy = document.getElementById('managed-access-intent-handoff-copy');
+        if (handoff) {
+          handoff.hidden = false;
+          if (handoffCopy) {
+            handoffCopy.textContent = state === 'one-subscription'
+              ? 'One-subscription intent detected. Copy the no-secret buyer packet for internal review, request review with work email, or use Max with BYOK while managed access remains gated.'
+              : 'Managed-access intent detected. Copy a no-secret packet, request review with work email, or use Max with BYOK while review is pending.';
+          }
+        }
+        window.setTimeout(() => {
+          document.getElementById('quick-review-email')?.focus();
+        }, 250);
+      }
     }
     form.addEventListener('input', () => {
       if (formStarted) return;
