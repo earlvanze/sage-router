@@ -130,6 +130,10 @@ direct route from the homepage to the most relevant setup page while recording
 `landing_article_clicked` intent metadata. The waitlist remains secondary for release
 notes, integration updates, private deployment help, and future managed-provider
 beta interest.
+The dedicated `/managed-access` page mirrors that low-friction path with a
+first-screen contact-decision panel that focuses the work-email field or reuses
+the no-secret contact request and email-draft fallbacks, making anonymous
+one-subscription demand actionable without enabling managed-provider resale.
 The public status page doubles as a no-secret operator launch-actions surface:
 it exposes a first-screen no-secret founder-sales Pro reply, a hosted setup bundle,
 the no-secret signup-to-key activation approval packet, and copies

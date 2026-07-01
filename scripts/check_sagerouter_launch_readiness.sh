@@ -4141,6 +4141,18 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "Sage Router .*private-beta contact request" /tmp/sage-router-readiness-body; then
     page_code="200:missing-quick-review-contact-copy-text"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-contact-decision" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-contact-decision"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-contact-decision-focus" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-contact-decision-focus"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickCopyContact?.click()" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-contact-decision-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "quickEmailDraft?.click()" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-contact-decision-email"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-copy-review-packet" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-review-packet-copy"
   fi
