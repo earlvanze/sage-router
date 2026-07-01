@@ -718,6 +718,30 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
       };
     }
 
+    function pricingManagedAccessTelemetry(state = 'pricing-managed-access-quick-form') {
+      const payload = pricingManagedAccessPayload('');
+      return {
+        plan: payload.intent === 'one-subscription' ? 'max' : 'max-byok',
+        button: 'Fast one-subscription review from pricing',
+        state,
+        target: '#pricing-managed-access-quick-form',
+        interest: payload.interest,
+        intent: payload.intent,
+        providerAccess: payload.providerAccess,
+        targetProviderFamily: payload.targetProviderFamily,
+        commercialPreference: payload.commercialPreference,
+        supportNeed: payload.supportNeed,
+        targetLaunchWindow: payload.targetLaunchWindow
+      };
+    }
+
+    function recordPricingManagedAccessPresentation() {
+      if (!document.getElementById('pricing-managed-access-quick-form')) return;
+      const telemetry = pricingManagedAccessTelemetry('pricing-managed-access-quick-form-presented');
+      trackPricingFunnelEvent('managed_access_contact_capture_landed', telemetry);
+      trackPricingFunnelEvent('managed_access_quick_form_presented', telemetry);
+    }
+
     function pricingManagedAccessReviewPacketText() {
       const payload = pricingManagedAccessPayload('');
       return [
@@ -784,18 +808,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
         return;
       }
       const payload = pricingManagedAccessPayload(email);
-      const telemetry = {
-        plan: payload.intent === 'one-subscription' ? 'max' : 'max-byok',
-        button: 'Fast one-subscription review from pricing',
-        state: 'pricing-managed-access-quick-form',
-        interest: payload.interest,
-        intent: payload.intent,
-        providerAccess: payload.providerAccess,
-        targetProviderFamily: payload.targetProviderFamily,
-        commercialPreference: payload.commercialPreference,
-        supportNeed: payload.supportNeed,
-        targetLaunchWindow: payload.targetLaunchWindow
-      };
+      const telemetry = pricingManagedAccessTelemetry();
       try {
         if (button) {
           button.disabled = true;
@@ -826,6 +839,7 @@ curl "$OPENAI_BASE_URL/chat/completions" \\
     }
 
     trackPricingFunnelEvent('pricing_viewed', { state: 'page-view' });
+    recordPricingManagedAccessPresentation();
     loadPricingAuthSettings();
     document.getElementById('pricing-copy-setup')?.addEventListener('click', copyPricingSetupBundle);
     document.getElementById('pricing-copy-managed-access-review-packet')?.addEventListener('click', copyPricingManagedAccessReviewPacket);

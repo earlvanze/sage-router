@@ -3743,6 +3743,12 @@ check_marketing_pricing_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "pricing-managed-access-quick-form" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-managed-access-quick-form"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_contact_capture_landed" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-managed-access-contact-capture"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_form_presented" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-pricing-managed-access-presentation"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Fast one-subscription review from pricing" /tmp/sage-router-readiness-body; then
     page_code="200:missing-pricing-managed-access-review-copy"
   fi
