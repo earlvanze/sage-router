@@ -4183,6 +4183,18 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-contact-decision-focus" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-contact-decision-focus"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-route-nudge" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-route-nudge"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "focusExplicitContactCaptureRoute" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-route-refocus"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "contact-capture-hashchange-focus" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-hashchange-focus"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "contact-capture-pageshow-focus" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-pageshow-focus"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickCopyContact?.click()" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-contact-decision-copy"
   fi

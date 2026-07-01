@@ -37,6 +37,7 @@
         <p>Begin with work email only. Managed provider access stays gated until authorization, terms, cost, quota, and abuse checks pass.</p>
       </div>
       <p id="managed-access-contact-capture-notice" class="contactCaptureNotice" hidden>You are in the 30-second private review path. Add a work email, choose one subscription or Max, and request review without sending secrets.</p>
+      <p id="managed-access-route-nudge" class="contactCaptureNotice" hidden>Operator contact-capture link opened. Add work email, copy the no-secret contact request, or open the email draft; managed provider resale remains gated.</p>
       <form id="managed-access-quick-form" class="quickReviewForm">
         <label for="quick-review-email">Fast one-subscription review request</label>
         <input id="quick-review-email" name="email" type="email" autocomplete="email" placeholder="you@company.com" required />
@@ -256,6 +257,7 @@
     const contactDecisionFocus = document.getElementById('managed-access-contact-focus');
     const contactDecisionCopy = document.getElementById('managed-access-contact-copy');
     const contactDecisionEmail = document.getElementById('managed-access-contact-email');
+    const routeNudge = document.getElementById('managed-access-route-nudge');
     const packetStatus = document.getElementById('managed-access-packet-status');
     const quickTurnstileSlot = document.getElementById('quick-turnstile-slot');
     const turnstileSlot = document.getElementById('turnstile-slot');
@@ -369,7 +371,6 @@
     const pageParams = new URLSearchParams(window.location.search);
     const requestedIntentParam = attributionValue(pageParams.get('intent'));
     const requestedUtmCampaign = attributionValue(pageParams.get('utm_campaign'));
-    const requestedHash = attributionValue(window.location.hash.replace(/^#/, ''));
     const requestedIntent = requestedIntentParam || 'one-subscription';
     let activeIntent = requestedIntent;
     let contactCaptureLanded = false;
@@ -800,9 +801,10 @@
     let quickFormFocused = false;
     let quickFormPresented = false;
     function hasExplicitContactCaptureRoute() {
+      const currentHash = attributionValue(window.location.hash.replace(/^#/, ''));
       return Boolean(
         requestedIntentParam ||
-        requestedHash === 'managed-access-quick-form' ||
+        currentHash === 'managed-access-quick-form' ||
         requestedUtmCampaign === 'managed_access_contact_capture'
       );
     }
@@ -831,12 +833,30 @@
       trackManagedAccessFunnelEvent('managed_access_quick_form_focused', { state, target, ...extra });
     }
 
+    function showContactCaptureRouteNudge(state = quickReviewIntent(), snippet = 'contact-capture-route') {
+      if (!routeNudge) return;
+      routeNudge.hidden = false;
+      routeNudge.dataset.contactCaptureRoute = snippet;
+      routeNudge.textContent = `${humanize(state)} review path is ready. Add work email, copy the no-secret contact request, or open the email draft; managed provider resale remains gated.`;
+    }
+
     function focusQuickReviewFormForContactCapture(state = quickReviewIntent(), snippet = 'contact-capture-focus') {
       markContactCaptureLanding(state, '#managed-access-quick-form');
+      showContactCaptureRouteNudge(state, snippet);
       showManagedAccessIntentHandoff(state, '#managed-access-quick-form');
       quickForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       markQuickFormFocused(state, '#managed-access-quick-form', { snippet });
       document.getElementById('quick-review-email')?.focus({ preventScroll: true });
+    }
+
+    function focusExplicitContactCaptureRoute(snippet = 'contact-capture-route-focus') {
+      if (!hasExplicitContactCaptureRoute()) return;
+      applyRequestedIntent(requestedIntentParam || quickReviewIntent());
+      quickSubmit.textContent = quickReviewSubmitLabel();
+      setQuickStatus(quickReviewNextAction(quickReviewIntent()));
+      window.setTimeout(() => {
+        focusQuickReviewFormForContactCapture(quickReviewIntent(), snippet);
+      }, 100);
     }
 
     function showManagedAccessIntentHandoff(state = quickReviewIntent(), target = '#managed-access-intent-handoff') {
@@ -1195,6 +1215,14 @@
           target: link.dataset.managedAccessTarget || link.getAttribute('href') || '',
         });
       });
+    });
+    window.addEventListener('hashchange', () => {
+      focusExplicitContactCaptureRoute('contact-capture-hashchange-focus');
+    });
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted) {
+        focusExplicitContactCaptureRoute('contact-capture-pageshow-focus');
+      }
     });
 
     applyRequestedIntent();
