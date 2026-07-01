@@ -1869,6 +1869,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("account_key_recovery_auto_create_started") != null) and
     ((.allowedEvents // []) | index("account_key_recovery_auto_create_succeeded") != null) and
     ((.allowedEvents // []) | index("account_key_recovery_auto_create_failed") != null) and
+    ((.allowedEvents // []) | index("account_key_recovery_manual_create_prompt_shown") != null) and
     ((.allowedEvents // []) | index("account_key_recovery_create_failed") != null) and
     ((.allowedEvents // []) | index("account_api_key_create_failed") != null) and
     ((.allowedEvents // []) | index("account_checkout_unavailable") != null) and

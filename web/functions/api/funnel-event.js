@@ -284,6 +284,7 @@ const ALLOWED_EVENTS = new Set([
   'account_key_recovery_auto_create_started',
   'account_key_recovery_auto_create_succeeded',
   'account_key_recovery_auto_create_failed',
+  'account_key_recovery_manual_create_prompt_shown',
   'account_key_recovery_key_created',
   'account_key_recovery_create_failed',
   'account_api_key_revoke_clicked',

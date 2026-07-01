@@ -11,6 +11,7 @@ const AUTO_KEY_ATTEMPT_STORAGE_KEY = 'sage_router_auto_key_attempt';
 const AUTO_OAUTH_ATTEMPT_STORAGE_KEY = 'sage_router_auto_oauth_attempt';
 const KEY_RECOVERY_EMAIL_FOCUS_STORAGE_KEY = 'sage_router_key_recovery_email_focus';
 const KEY_RECOVERY_SIGNED_IN_PROMPT_STORAGE_KEY = 'sage_router_key_recovery_signed_in_prompt';
+const KEY_RECOVERY_MANUAL_CREATE_PROMPT_STORAGE_KEY = 'sage_router_key_recovery_manual_create_prompt';
 const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
 const KEY_RECOVERY_HANDOFF_STORAGE_KEY = 'sage_router_key_recovery_handoff';
 const ACCOUNT_AUTH_NUDGE_STORAGE_KEY = 'sage_router_account_auth_nudge_dismissed_until';
@@ -964,6 +965,19 @@ function renderNoKeySetupPanel() {
   set('no-key-setup-status', activationState.emailVerified
     ? 'Next conversion step: create the setup key, then verify /v1/models.'
     : 'Next conversion step: create the setup key now; email verification can happen after the key exists.');
+  if (recoveryIntent && !hasKeyRecoveryMarker(KEY_RECOVERY_MANUAL_CREATE_PROMPT_STORAGE_KEY)) {
+    markKeyRecoveryMarker(KEY_RECOVERY_MANUAL_CREATE_PROMPT_STORAGE_KEY);
+    window.setTimeout(() => {
+      $('no-key-setup-panel')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+      $('no-key-setup-create')?.focus?.();
+      set('no-key-setup-status', 'Recovery sign-in is complete. Press Create setup key now if automatic key creation has not already shown the sk_sage key.');
+      trackAccountFunnelEvent('account_key_recovery_manual_create_prompt_shown', {
+        button: 'no_key_setup_create',
+        target: '/account/api-keys',
+        state: requestedKeyRecoveryStateFromUrl(),
+      });
+    }, 450);
+  }
 }
 
 function renderPostKeyActivationPanel() {
