@@ -1329,7 +1329,7 @@ function founderSalesNextOutreachText(data = {}) {
   const customerGap = integer(topRevenue.customerGap || 0);
   const mrrGap = money(topRevenue.remainingMrrToTargetUsd || 0);
   const activationUrl = `${APP_BASE.replace(/\/$/, '')}/account.html?plan=${encodeURIComponent(plan)}&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=operator-next-${encodeURIComponent(plan)}-outreach`;
-  const reviewUrl = `${MARKETING_BASE}/managed-access?intent=max-implementation&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=operator-next-${encodeURIComponent(plan)}-outreach`;
+  const reviewUrl = `${MARKETING_BASE}/managed-access?intent=max-implementation&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=operator-next-${encodeURIComponent(plan)}-outreach#managed-access-quick-form`;
   const primaryUrl = plan === 'max' ? reviewUrl : activationUrl;
   const primaryLabel = plan === 'max' ? 'Max implementation review' : `${plan.toUpperCase()} generated-key activation`;
   return [
@@ -1361,7 +1361,7 @@ function founderSalesRecommendedFirstReplyText(data = {}) {
   const plan = ['lite', 'pro', 'max'].includes(rawPlan) ? rawPlan : 'pro';
   const content = `operator-recommended-${encodeURIComponent(plan)}-first-reply`;
   const activationUrl = `${APP_BASE.replace(/\/$/, '')}/account.html?plan=${encodeURIComponent(plan === 'max' ? 'pro' : plan)}&start=create_key&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=${content}`;
-  const reviewUrl = `${MARKETING_BASE}/managed-access?intent=max-implementation&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=${content}`;
+  const reviewUrl = `${MARKETING_BASE}/managed-access?intent=max-implementation&utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=${content}#managed-access-quick-form`;
   const quickstartUrl = `${MARKETING_BASE}/quickstart?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch&utm_content=${content}`;
   const primaryStep = plan === 'max'
     ? `For a team or production workflow, start with Max implementation review:\n${reviewUrl}`
