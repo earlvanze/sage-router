@@ -2219,6 +2219,18 @@ check_marketing_local_first_article_page() {
   if [[ "$dock_code" == "200" ]] && ! grep -q "managed_access_quick_request_received" /tmp/sage-router-readiness-body; then
     dock_code="200:missing-article-managed-access-quick-funnel"
   fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "managed_access_contact_capture_landed" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-managed-access-contact-capture"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "managed_access_quick_form_presented" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-managed-access-presentation"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "managed_access_quick_form_focused" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-managed-access-focus-funnel"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "managed_access_quick_form_started" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-managed-access-start-funnel"
+  fi
   if [[ "$dock_code" == "200" ]] && ! grep -q "Copy setup first" /tmp/sage-router-readiness-body; then
     dock_code="200:missing-article-copy-setup-first"
   fi

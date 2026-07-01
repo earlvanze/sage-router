@@ -144,6 +144,10 @@ curl https://api.sagerouter.dev/v1/models \\
     supportNeed: 'managed-provider-review',
     targetLaunchWindow: 'exploring',
   };
+  let articleManagedAccessContactCaptureRecorded = false;
+  let articleManagedAccessFormPresented = false;
+  let articleManagedAccessFormFocused = false;
+  let articleManagedAccessFormStarted = false;
 
   function makeStartKeyLink(id, label = 'Create API key next', className = 'articleDockPrimary', setup = 'article-direct-key-next') {
     const link = document.createElement('a');
@@ -430,6 +434,46 @@ curl https://api.sagerouter.dev/v1/models \\
     };
   }
 
+  function articleManagedAccessTelemetry(state = 'article-managed-access-quick-form', extra = {}) {
+    return {
+      plan: 'max',
+      button: 'Article one-subscription review form',
+      target: '#article-managed-access-quick-form',
+      state,
+      interest: 'managed-access',
+      ...oneSubscriptionDemand,
+      ...extra,
+    };
+  }
+
+  function recordArticleManagedAccessContactCapture(state = 'article-managed-access-quick-form-presented') {
+    if (articleManagedAccessContactCaptureRecorded) return;
+    articleManagedAccessContactCaptureRecorded = true;
+    track('managed_access_contact_capture_landed', articleManagedAccessTelemetry(state));
+  }
+
+  function recordArticleManagedAccessPresentation() {
+    if (articleManagedAccessFormPresented) return;
+    articleManagedAccessFormPresented = true;
+    const telemetry = articleManagedAccessTelemetry('article-managed-access-quick-form-presented');
+    recordArticleManagedAccessContactCapture(telemetry.state);
+    track('managed_access_quick_form_presented', telemetry);
+  }
+
+  function recordArticleManagedAccessFocus(target = '#article-managed-access-quick-form') {
+    if (articleManagedAccessFormFocused) return;
+    articleManagedAccessFormFocused = true;
+    recordArticleManagedAccessContactCapture('article-managed-access-quick-form-focused');
+    track('managed_access_quick_form_focused', articleManagedAccessTelemetry('article-managed-access-quick-form-focused', { target }));
+  }
+
+  function recordArticleManagedAccessStart(target = '#article-managed-access-quick-form') {
+    if (articleManagedAccessFormStarted) return;
+    articleManagedAccessFormStarted = true;
+    recordArticleManagedAccessContactCapture('article-managed-access-quick-form-started');
+    track('managed_access_quick_form_started', articleManagedAccessTelemetry('article-managed-access-quick-form-started', { target }));
+  }
+
   function makeManagedAccessQuickForm(id) {
     const form = document.createElement('form');
     form.id = id;
@@ -439,6 +483,9 @@ curl https://api.sagerouter.dev/v1/models \\
       <button type="submit">Request one-subscription review</button>
       <small id="${id}-status" class="articleDockEmailStatus" aria-live="polite"></small>
     `;
+    recordArticleManagedAccessPresentation();
+    form.addEventListener('focusin', () => recordArticleManagedAccessFocus(`#${id}`));
+    form.addEventListener('input', () => recordArticleManagedAccessStart(`#${id}`), { once: true });
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const emailInput = form.querySelector('input[type="email"]');
@@ -451,12 +498,8 @@ curl https://api.sagerouter.dev/v1/models \\
         return;
       }
       const payload = articleManagedAccessPayload(email);
-      const telemetry = {
-        plan: 'max',
-        button: 'Article one-subscription review form',
-        state: 'article-managed-access-quick-form',
-        ...oneSubscriptionDemand,
-      };
+      recordArticleManagedAccessStart(`#${id}`);
+      const telemetry = articleManagedAccessTelemetry('article-managed-access-quick-form', { target: `#${id}` });
       button.disabled = true;
       button.textContent = 'Requesting...';
       status.textContent = 'Recording review request...';

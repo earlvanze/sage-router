@@ -483,7 +483,12 @@ flag.
   keys, or customer data. The same inline article offer can now submit a
   one-field one-subscription review request to `/api/waitlist`, turning article
   demand into `managedAccessBetaInterest` while preserving the provider resale
-  gate until authorization, terms, cost, and margin controls pass.
+  gate until authorization, terms, cost, and margin controls pass. The article
+  form records `managed_access_contact_capture_landed`,
+  `managed_access_quick_form_presented`, `managed_access_quick_form_focused`,
+  and `managed_access_quick_form_started` before submission, so article traffic
+  can be measured through the same contact-capture drop-off funnel as pricing
+  and managed-access traffic without logging email values in marketing events.
 - Keep `/api/waitlist` guarded before Supabase inserts: browser-originating
   writes must come from Sage Router production hosts, Pages previews, local
   development, or exact origins configured with
