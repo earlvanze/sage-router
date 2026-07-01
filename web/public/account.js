@@ -256,8 +256,19 @@ function markAutoCheckoutAttempted(plan = selectedPlan) {
   }
 }
 
+function autoKeyAttemptContext() {
+  const parts = [
+    pendingStartAction || 'none',
+    requestedKeyRecoveryStateFromUrl(),
+    requestedSetupSourceFromUrl() || 'no-setup',
+    requestedSourceSurfaceFromUrl() || 'no-surface',
+    attributionValue(new URLSearchParams(window.location.search || '').get('next')) || 'no-next',
+  ];
+  return parts.join(':');
+}
+
 function autoKeyAttemptKey(plan = selectedPlan) {
-  return `${AUTO_KEY_ATTEMPT_STORAGE_KEY}:${normalizePlan(plan) || 'unknown'}`;
+  return `${AUTO_KEY_ATTEMPT_STORAGE_KEY}:${normalizePlan(plan) || 'unknown'}:${autoKeyAttemptContext()}`;
 }
 
 function hasAutoKeyAttempted(plan = selectedPlan) {
@@ -292,6 +303,7 @@ function markAutoKeyAttempted(plan = selectedPlan) {
       attemptedAt: Date.now(),
       plan: normalizePlan(plan) || 'unknown',
       action: pendingStartAction || 'none',
+      context: autoKeyAttemptContext(),
     }));
   } catch (_error) {
   }

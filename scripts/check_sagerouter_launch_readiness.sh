@@ -1628,6 +1628,18 @@ check_hosted_onboarding_pages() {
   if [[ "$account_js_code" == "200" ]] && ! grep -q "AUTO_KEY_ATTEMPT_STORAGE_KEY" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-auto-key-intent-guard"
   fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "function autoKeyAttemptContext" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-auto-key-context-guard"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "requestedSetupSourceFromUrl() || 'no-setup'" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-auto-key-setup-context"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "requestedSourceSurfaceFromUrl() || 'no-surface'" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-auto-key-source-surface-context"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "get('next')) || 'no-next'" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-auto-key-next-context"
+  fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "maybeCreateKeyFromIntent" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-saved-intent-key-create"
   fi

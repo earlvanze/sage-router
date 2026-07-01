@@ -59,6 +59,7 @@ page_url="${MARKETING_BASE%/}/setup-key-recovery?plan=pro&utm_source=operator&ut
 account_target="${APP_BASE%/}/account.html?plan=pro&start=create_key&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&auth=email&setup=setup-key-recovery&source_surface=operator_activation&next=generated-key"
 login_target="${APP_BASE%/}/login.html?plan=pro&start=create_key&utm_source=setup-key-recovery&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email"
 auth_js_target="${APP_BASE%/}/auth.js"
+account_js_target="${APP_BASE%/}/account.js"
 
 page_code="$(http_get "$page_url")"
 if [[ "$page_code" != "200" ]]; then
@@ -110,6 +111,24 @@ if grep -q "ACCOUNT_ACTIVATION_PATH = '/account?plan=pro&start=create_key" "$tmp
 fi
 grep -q 'KEY_RECOVERY_ACCOUNT_HANDOFF_DELAY_MS = 1000' "$tmp_body" || fail 'auth.js does not use fast key-recovery auto handoff'
 pass 'login recovery page and auth.js use canonical account.html handoffs'
+
+account_js_code="$(http_get "$account_js_target")"
+if [[ "$account_js_code" != "200" ]]; then
+  fail "account.js returned HTTP ${account_js_code}"
+fi
+grep -q 'function autoKeyAttemptContext' "$tmp_body" || fail 'account.js missing context-aware auto-key attempt guard'
+grep -q "requestedSetupSourceFromUrl() || 'no-setup'" "$tmp_body" || fail 'account.js auto-key guard does not include setup source'
+grep -q "requestedSourceSurfaceFromUrl() || 'no-surface'" "$tmp_body" || fail 'account.js auto-key guard does not include source surface'
+grep -q "get('next')) || 'no-next'" "$tmp_body" || fail 'account.js auto-key guard does not include next-step context'
+grep -q 'function maybeCreateKeyFromIntent' "$tmp_body" || fail 'account.js missing saved-intent auto key creation'
+grep -q 'account_key_recovery_auto_create_started' "$tmp_body" || fail 'account.js missing key-recovery auto-create started telemetry'
+grep -q 'account_key_recovery_auto_create_succeeded' "$tmp_body" || fail 'account.js missing key-recovery auto-create success telemetry'
+grep -q 'account_key_recovery_auto_create_failed' "$tmp_body" || fail 'account.js missing key-recovery auto-create failure telemetry'
+grep -q 'clearAutoKeyAttempted(selectedPlan)' "$tmp_body" || fail 'account.js does not clear failed auto-key attempts'
+grep -q 'fromKeyRecoveryIntent ? '\''auto_key_recovery_create'\''' "$tmp_body" || fail 'account.js missing key-recovery auto-create button label'
+grep -q 'fromKeyRecoveryIntent ? '\''saved_key_recovery_auto_key'\''' "$tmp_body" || fail 'account.js missing key-recovery auto-create state'
+grep -q 'const autoKeyCreated = await maybeCreateKeyFromIntent' "$tmp_body" || fail 'account.js does not run auto-key creation after refresh'
+pass 'account.js exposes signed-in recovery auto-key creation with context-aware retry guard'
 
 endpoint_code="$(http_get "$FUNNEL_ENDPOINT")"
 if [[ "$endpoint_code" != "200" ]]; then
