@@ -1284,6 +1284,12 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "Activation approval remains a human decision" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-activation-approval-human-boundary"
   fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "Copy approval packet first" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-activation-approval-first-screen-packet-copy"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "data-activation-approval-promotion" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-activation-approval-first-screen-packet-marker"
+  fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderFounderSalesPromotionBanner" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-founder-sales-promotion-render"
   fi

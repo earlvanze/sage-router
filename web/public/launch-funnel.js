@@ -1501,6 +1501,7 @@ function renderActivationApprovalHandoffBanner(data = {}) {
   const activationSend = activationSendTelemetry(data);
   const delivery = activationDeliveryCounts(data);
   const approvalReadiness = activationApprovalReadiness(data);
+  const approvalPacketText = activationApprovalPacketText(data);
   const decisionControls = renderActivationApprovalDecisionControls(data, {
     compact: true,
     priority: true,
@@ -1516,7 +1517,12 @@ function renderActivationApprovalHandoffBanner(data = {}) {
   <p><strong>Copy an approve or hold decision record before any real activation send.</strong></p>
   <p class="muted">This first-screen handoff is no-secret and audit-only. It records the operator decision text for the activation approval step without sending email, mutating queued follow-ups, exposing customer data, or bypassing the typed <code>${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code> gate.</p>
   ${decisionControls || '<div class="empty warn">Refresh the approval packet before copying an approve/hold decision.</div>'}
-  <div class="actions"><a class="btn secondary" href="#activation-approval-decision">Review approval controls</a><a class="btn secondary" href="#next-best-action-dock">Review Do Next dock</a><span class="status">Activation approval remains a human decision; this banner only prepares the handoff.</span></div>`;
+  <div class="actions">
+    <button class="btn" type="button" data-copy-activation-approval-packet="${esc(approvalPacketText)}" data-followup-count="${integer(delivery.sendableQueued)}" data-activation-approval-promotion="first-screen">Copy approval packet first</button>
+    <a class="btn secondary" href="#activation-approval-decision">Review approval controls</a>
+    <a class="btn secondary" href="#next-best-action-dock">Review Do Next dock</a>
+    <span class="status">Activation approval remains a human decision; this banner only prepares the handoff. Copy the no-secret packet before recording approve or hold.</span>
+  </div>`;
 }
 
 function shouldShowFounderSalesPromotionBanner(data = {}) {
