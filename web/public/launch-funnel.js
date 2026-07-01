@@ -1479,6 +1479,46 @@ function renderSetupCopyFallbackBanner(data = {}) {
   <div class="actions"><button class="btn" type="button" data-copy-operator-setup-bundle="${esc(setupBundleText)}" data-followup-plan="${esc(followUps.suggestedPlan || 'pro')}">Copy first-request setup now</button><a class="btn secondary" href="#next-best-action-dock">Review Do Next dock</a><span class="status">First-screen fallback: copy setup, then measure generated-key and first-request movement.</span></div>`;
 }
 
+function shouldShowActivationApprovalHandoffBanner(data = {}) {
+  const action = data.nextBestAction || {};
+  const evidence = action.evidence || {};
+  return String(action.surface || '').toLowerCase() === 'activation approval'
+    || shouldPromoteActivationApprovalDecision(data)
+    || (evidence.activationSendReadyForApproval === true
+      && asNumber(evidence.activationApprovalDecisionCopies ?? data.marketingIntent?.activationApprovalDecisionCopies) === 0);
+}
+
+function renderActivationApprovalHandoffBanner(data = {}) {
+  const target = $('activation-approval-handoff-banner');
+  if (!target) return;
+  if (!shouldShowActivationApprovalHandoffBanner(data)) {
+    target.classList.add('hidden');
+    target.innerHTML = '<div class="empty">No activation approval handoff is active.</div>';
+    return;
+  }
+  const action = data.nextBestAction || {};
+  const evidence = action.evidence || {};
+  const activationSend = activationSendTelemetry(data);
+  const delivery = activationDeliveryCounts(data);
+  const approvalReadiness = activationApprovalReadiness(data);
+  const decisionControls = renderActivationApprovalDecisionControls(data, {
+    compact: true,
+    priority: true,
+  });
+  target.classList.remove('hidden');
+  target.innerHTML = `<div class="metricList">
+    <div class="metric"><span>Live next move</span><strong><span class="pill bad">Activation approval</span></strong></div>
+    <div class="metric"><span>Queued</span><strong>${integer(delivery.sendableQueued)} sendable · ${integer(delivery.reviewOnlyQueued)} review-only</strong></div>
+    <div class="metric"><span>Dry-run</span><strong>${activationSend.dryRunVerified ? 'Verified' : 'Pending'} · ${integer(activationSend.dryRunRecipients)} unique</strong></div>
+    <div class="metric"><span>Decision copies</span><strong>${integer(evidence.activationApprovalDecisionCopies ?? data.marketingIntent?.activationApprovalDecisionCopies)}</strong></div>
+    <div class="metric"><span>Approval packet</span><strong>${formatDate(approvalReadiness.approvalPacketIssuedAt)}</strong></div>
+  </div>
+  <p><strong>Copy an approve or hold decision record before any real activation send.</strong></p>
+  <p class="muted">This first-screen handoff is no-secret and audit-only. It records the operator decision text for the activation approval step without sending email, mutating queued follow-ups, exposing customer data, or bypassing the typed <code>${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code> gate.</p>
+  ${decisionControls || '<div class="empty warn">Refresh the approval packet before copying an approve/hold decision.</div>'}
+  <div class="actions"><a class="btn secondary" href="#activation-approval-decision">Review approval controls</a><a class="btn secondary" href="#next-best-action-dock">Review Do Next dock</a><span class="status">Activation approval remains a human decision; this banner only prepares the handoff.</span></div>`;
+}
+
 function managedAccessApprovalPacketText(data = {}) {
   const managed = managedProviderReadiness(data);
   const setup = managed.readinessSetup || {};
@@ -3100,6 +3140,7 @@ function renderFunnel(data) {
   renderPlanMix(mrr.byPlan || {});
   renderRevenueActions(planRevenueActions(data));
   renderSetupCopyFallbackBanner(data);
+  renderActivationApprovalHandoffBanner(data);
   renderNextBestActionDock(data);
   renderLaunchBrief(data);
   renderFounderSalesFallback(data);
@@ -3844,6 +3885,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('acquisition-actions').addEventListener('click', handleCampaignCopyClick);
   $('no-key-followups').addEventListener('click', handleFollowUpCopyClick);
   $('setup-copy-fallback-banner')?.addEventListener('click', handleFollowUpCopyClick);
+  $('activation-approval-handoff-banner')?.addEventListener('click', handleFollowUpCopyClick);
   $('next-best-action-dock').addEventListener('click', handleFollowUpCopyClick);
   $('operator-execution-packet')?.addEventListener('click', handleFollowUpCopyClick);
   $('managed-access-readiness')?.addEventListener('click', handleFollowUpCopyClick);

@@ -1236,6 +1236,9 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "operator-execution-packet" /tmp/sage-router-readiness-body; then
     launch_funnel_code="200:missing-operator-execution-packet-container"
   fi
+  if [[ "$launch_funnel_code" == "200" ]] && ! grep -q "activation-approval-handoff-banner" /tmp/sage-router-readiness-body; then
+    launch_funnel_code="200:missing-activation-approval-handoff-banner"
+  fi
   rm -f /tmp/sage-router-readiness-body
 
   launch_funnel_js_code="$(http_code_follow "${APP_BASE%/}/launch-funnel.js")"
@@ -1262,6 +1265,18 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "window.prompt" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-activation-followup-send-typed-prompt"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderActivationApprovalHandoffBanner" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-activation-approval-handoff-banner-render"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "APPROVE_ACTIVATION_FOLLOWUP" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-activation-approval-approve-record"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "HOLD_ACTIVATION_FOLLOWUP" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-activation-approval-hold-record"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "Activation approval remains a human decision" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-activation-approval-human-boundary"
   fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderReviewFlags" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-customer-review-flags"
