@@ -18,7 +18,7 @@ load_local_env_file() {
       SAGE_ROUTER_OPERATOR_TOKEN|SAGE_ROUTER_CLIENT_API_KEY|SAGE_ROUTER_CLIENT_API_KEYS|SAGEROUTER_MANAGED_PROVIDER_RESALE_REQUESTED|SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED|\
       SAGEROUTER_PROVIDER_RESALE_TERMS_URL|SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL|\
       SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED|SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS|\
-      SAGEROUTER_MIN_HEALTHY_UPSTREAMS|SAGEROUTER_EDGE_HEALTH_RETRY_ATTEMPTS|SAGEROUTER_EDGE_HEALTH_RETRY_DELAY_SECONDS|\
+      SAGEROUTER_MIN_HEALTHY_UPSTREAMS|SAGEROUTER_EDGE_HEALTH_RETRY_ATTEMPTS|SAGEROUTER_EDGE_HEALTH_RETRY_DELAY_SECONDS|SAGEROUTER_EDGE_HEALTH_STABLE_ATTEMPTS|\
       SAGEROUTER_PUBLIC_API_RETRY_ATTEMPTS|SAGEROUTER_PUBLIC_API_RETRY_DELAY_SECONDS)
         ;;
       *)
@@ -55,6 +55,7 @@ MANAGED_PROVIDER_RESALE_ENABLED="${SAGEROUTER_MANAGED_PROVIDER_RESALE_ENABLED:-0
 MIN_HEALTHY_UPSTREAMS="${SAGEROUTER_MIN_HEALTHY_UPSTREAMS:-0}"
 EDGE_HEALTH_RETRY_ATTEMPTS="${SAGEROUTER_EDGE_HEALTH_RETRY_ATTEMPTS:-3}"
 EDGE_HEALTH_RETRY_DELAY_SECONDS="${SAGEROUTER_EDGE_HEALTH_RETRY_DELAY_SECONDS:-2}"
+EDGE_HEALTH_STABLE_ATTEMPTS="${SAGEROUTER_EDGE_HEALTH_STABLE_ATTEMPTS:-1}"
 PUBLIC_API_RETRY_ATTEMPTS="${SAGEROUTER_PUBLIC_API_RETRY_ATTEMPTS:-4}"
 PUBLIC_API_RETRY_DELAY_SECONDS="${SAGEROUTER_PUBLIC_API_RETRY_DELAY_SECONDS:-3}"
 PROVIDER_RESALE_TERMS_URL="${SAGEROUTER_PROVIDER_RESALE_TERMS_URL:-}"
@@ -276,7 +277,7 @@ check_edge_health() {
   local body
   body="$(curl -fsS "${API_BASE%/}/edge/health")"
   local status auth_mode selected health_urls_redacted rate_limit_enabled auth_attempt_rate_limit_enabled auth_attempt_rate_limit quota_enabled api_key_auth_cache api_key_auth_cache_zero cors_wildcard_blocked cors_explicit_origin_required cors_allowed_origins_count failover_ok model_modalities_shared model_modalities_rpc healthy_upstream_count upstream_total_count unhealthy_summary
-  local retry_attempts retry_delay attempt recovered_after_retry required_healthy_upstreams required_healthy_label
+  local retry_attempts retry_delay stable_attempts stable_required stable_count attempt recovered_after_retry required_healthy_upstreams required_healthy_label
   parse_edge_health_body() {
     status="$(printf '%s' "$body" | jq -r '.status // empty')"
     auth_mode="$(printf '%s' "$body" | jq -r '.authMode // empty')"
@@ -324,23 +325,55 @@ check_edge_health() {
   fi
   retry_attempts="$EDGE_HEALTH_RETRY_ATTEMPTS"
   retry_delay="$EDGE_HEALTH_RETRY_DELAY_SECONDS"
+  stable_attempts="$EDGE_HEALTH_STABLE_ATTEMPTS"
   recovered_after_retry=""
-  if [[ "$required_healthy_upstreams" =~ ^[0-9]+$ && "$required_healthy_upstreams" -gt 0 && "$retry_attempts" =~ ^[0-9]+$ && "$retry_attempts" -gt 1 ]]; then
+  if ! [[ "$retry_attempts" =~ ^[0-9]+$ ]] || [[ "$retry_attempts" -lt 1 ]]; then
+    fail "SAGEROUTER_EDGE_HEALTH_RETRY_ATTEMPTS must be a positive integer, got ${EDGE_HEALTH_RETRY_ATTEMPTS}"
+    retry_attempts=1
+  fi
+  if ! [[ "$retry_delay" =~ ^[0-9]+$ ]]; then
+    fail "SAGEROUTER_EDGE_HEALTH_RETRY_DELAY_SECONDS must be a non-negative integer, got ${EDGE_HEALTH_RETRY_DELAY_SECONDS}"
+    retry_delay=0
+  fi
+  if ! [[ "$stable_attempts" =~ ^[0-9]+$ ]] || [[ "$stable_attempts" -lt 1 ]]; then
+    fail "SAGEROUTER_EDGE_HEALTH_STABLE_ATTEMPTS must be a positive integer, got ${EDGE_HEALTH_STABLE_ATTEMPTS}"
+    stable_attempts=1
+  fi
+  stable_required=1
+  if [[ "$MIN_HEALTHY_UPSTREAMS" == "all" ]]; then
+    stable_required="$stable_attempts"
+  fi
+  stable_count=0
+  if [[ "$required_healthy_upstreams" =~ ^[0-9]+$ && "$required_healthy_upstreams" -gt 0 ]]; then
     attempt=1
-    while [[ "$healthy_upstream_count" =~ ^[0-9]+$ && "$healthy_upstream_count" -lt "$required_healthy_upstreams" && "$attempt" -lt "$retry_attempts" ]]; do
-      attempt=$((attempt + 1))
-      if [[ "$retry_delay" =~ ^[0-9]+$ && "$retry_delay" -gt 0 ]]; then
-        sleep "$retry_delay"
-      fi
-      body="$(curl -fsS "${API_BASE%/}/edge/health")"
-      parse_edge_health_body
+    while [[ "$attempt" -le "$retry_attempts" ]]; do
       if [[ "$MIN_HEALTHY_UPSTREAMS" == "all" && "$upstream_total_count" =~ ^[0-9]+$ && "$upstream_total_count" -gt 0 ]]; then
         required_healthy_upstreams="$upstream_total_count"
         required_healthy_label="all configured upstreams (${upstream_total_count})"
       fi
       if [[ "$healthy_upstream_count" =~ ^[0-9]+$ && "$healthy_upstream_count" -ge "$required_healthy_upstreams" ]]; then
-        recovered_after_retry=" after ${attempt} attempts"
+        stable_count=$((stable_count + 1))
+        if [[ "$stable_count" -ge "$stable_required" ]]; then
+          if [[ "$attempt" -gt 1 ]]; then
+            recovered_after_retry=" after ${attempt} attempts"
+          fi
+          if [[ "$stable_required" -gt 1 ]]; then
+            recovered_after_retry="${recovered_after_retry} with ${stable_count} stable probes"
+          fi
+          break
+        fi
+      else
+        stable_count=0
       fi
+      if [[ "$attempt" -ge "$retry_attempts" ]]; then
+        break
+      fi
+      attempt=$((attempt + 1))
+      if [[ "$retry_delay" -gt 0 ]]; then
+        sleep "$retry_delay"
+      fi
+      body="$(curl -fsS "${API_BASE%/}/edge/health")"
+      parse_edge_health_body
     done
   fi
   if [[ "$status" == "ok" && "$auth_mode" == "supabase" && -n "$selected" && "$health_urls_redacted" == "true" && "$rate_limit_enabled" == "true" && "$auth_attempt_rate_limit_enabled" == "true" && "$auth_attempt_rate_limit" -gt 0 && "$quota_enabled" == "true" && "$api_key_auth_cache_zero" == "true" && "$cors_wildcard_blocked" == "true" && "$cors_explicit_origin_required" == "true" && "$cors_allowed_origins_count" -gt 0 && "$failover_ok" == "true" && "$model_modalities_shared" == "true" && "$model_modalities_rpc" == "true" ]]; then
@@ -349,10 +382,10 @@ check_edge_health() {
     fail "edge health unexpected: status=${status:-missing} authMode=${auth_mode:-missing} selected=${selected:-missing} healthUrlsRedacted=${health_urls_redacted:-missing} rateLimit=${rate_limit_enabled:-missing} authAttemptRateLimit=${auth_attempt_rate_limit_enabled:-missing}/${auth_attempt_rate_limit:-missing} quota=${quota_enabled:-missing} apiKeyAuthCache=${api_key_auth_cache:-missing} corsWildcardBlocked=${cors_wildcard_blocked:-missing} corsExplicitOrigin=${cors_explicit_origin_required:-missing} corsAllowedOrigins=${cors_allowed_origins_count:-missing} failover=${failover_ok:-missing} healthyUpstreams=${healthy_upstream_count:-missing} unhealthy=${unhealthy_summary:-none} modelModalities=${model_modalities_shared:-missing}/${model_modalities_rpc:-missing}"
   fi
   if [[ "$required_healthy_upstreams" =~ ^[0-9]+$ && "$required_healthy_upstreams" -gt 0 ]]; then
-    if [[ "$healthy_upstream_count" =~ ^[0-9]+$ && "$healthy_upstream_count" -ge "$required_healthy_upstreams" ]]; then
+    if [[ "$healthy_upstream_count" =~ ^[0-9]+$ && "$healthy_upstream_count" -ge "$required_healthy_upstreams" && "$stable_count" -ge "$stable_required" ]]; then
       pass "edge healthy upstream count ${healthy_upstream_count} meets expected minimum ${required_healthy_label}${recovered_after_retry}"
     else
-      fail "edge healthy upstream count ${healthy_upstream_count:-missing} is below expected minimum ${required_healthy_label} after ${retry_attempts} attempt(s); unhealthy=${unhealthy_summary:-none}"
+      fail "edge healthy upstream count ${healthy_upstream_count:-missing} is below expected minimum ${required_healthy_label} with ${stable_count}/${stable_required} stable probes after ${retry_attempts} attempt(s); unhealthy=${unhealthy_summary:-none}"
     fi
   fi
 }

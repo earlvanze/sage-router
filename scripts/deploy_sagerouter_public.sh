@@ -186,7 +186,10 @@ if [[ "$RUN_READINESS" != "0" ]]; then
   fi
   if [[ -z "${SAGEROUTER_MIN_HEALTHY_UPSTREAMS:-}" && "$REQUIRE_ALL_EDGE_UPSTREAMS" != "0" && "$API_BASE" == "https://api.sagerouter.dev" ]]; then
     export SAGEROUTER_MIN_HEALTHY_UPSTREAMS=all
-    printf 'Requiring all configured public edge upstreams healthy for production deploy readiness. Set SAGEROUTER_DEPLOY_REQUIRE_ALL_EDGE_UPSTREAMS=0 or SAGEROUTER_MIN_HEALTHY_UPSTREAMS=N to override.\n' >&2
+    export SAGEROUTER_EDGE_HEALTH_RETRY_ATTEMPTS="${SAGEROUTER_EDGE_HEALTH_RETRY_ATTEMPTS:-12}"
+    export SAGEROUTER_EDGE_HEALTH_RETRY_DELAY_SECONDS="${SAGEROUTER_EDGE_HEALTH_RETRY_DELAY_SECONDS:-5}"
+    export SAGEROUTER_EDGE_HEALTH_STABLE_ATTEMPTS="${SAGEROUTER_EDGE_HEALTH_STABLE_ATTEMPTS:-2}"
+    printf 'Requiring all configured public edge upstreams healthy for production deploy readiness with a stable recovery window. Set SAGEROUTER_DEPLOY_REQUIRE_ALL_EDGE_UPSTREAMS=0 or SAGEROUTER_MIN_HEALTHY_UPSTREAMS=N to override.\n' >&2
   fi
   "$ROOT/scripts/check_sagerouter_launch_readiness.sh"
 else
