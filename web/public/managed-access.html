@@ -759,12 +759,16 @@
     let quickFormStarted = false;
     let quickFormFocused = false;
     let quickFormPresented = false;
-    function isContactCaptureLanding() {
+    function hasExplicitContactCaptureRoute() {
       return Boolean(
         requestedIntentParam ||
         requestedHash === 'managed-access-quick-form' ||
         requestedUtmCampaign === 'managed_access_contact_capture'
       );
+    }
+
+    function isContactCaptureLanding() {
+      return Boolean(quickForm || hasExplicitContactCaptureRoute());
     }
 
     function markContactCaptureLanding(state = quickReviewIntent(), target = '#managed-access-quick-form') {
@@ -821,9 +825,11 @@
         markContactCaptureLanding(state, '#managed-access-quick-form');
         setQuickStatus(quickReviewNextAction(state));
         showManagedAccessIntentHandoff(state, '#managed-access-quick-form');
-        window.setTimeout(() => {
-          focusQuickReviewFormForContactCapture(state, 'contact-capture-auto-focus');
-        }, 250);
+        if (hasExplicitContactCaptureRoute()) {
+          window.setTimeout(() => {
+            focusQuickReviewFormForContactCapture(state, 'contact-capture-auto-focus');
+          }, 250);
+        }
       }
     }
     form.addEventListener('input', () => {
