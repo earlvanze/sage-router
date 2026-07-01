@@ -47,6 +47,7 @@
           <a class="button secondary" href="/status">Check status</a>
           <a class="button secondary" href="/quickstart">Read quickstart</a>
           <button id="api-troubleshooting-copy-setup" class="button secondary" type="button">Copy 401 setup snippet</button>
+          <button id="api-troubleshooting-copy-codex" class="button secondary" type="button">Copy Codex 401 profile</button>
           <a class="button secondary" href="/managed-access?intent=one-subscription&utm_source=api-troubleshooting&utm_medium=recovery&utm_campaign=signup_to_key_recovery" data-api-troubleshooting-event="api_troubleshooting_managed_access_clicked" data-api-troubleshooting-state="hero-managed-access">Request one-subscription beta</a>
           <a class="button secondary" href="/support">Support paths</a>
         </div>
@@ -101,8 +102,8 @@
             <tr>
               <td>401</td>
               <td>The key is missing, revoked, inactive, malformed, or not a Sage Router generated key.</td>
-              <td><code>WWW-Authenticate</code>, JSON <code>accountUrl</code>, <code>keyRecoveryUrl</code>, <code>pricingUrl</code>, <code>statusUrl</code>, <code>openaiBaseUrl</code>, <code>apiKeyPrefix</code>, and placeholder <code>setupSnippet</code>.</td>
-              <td>Confirm the client sends <code>Authorization: Bearer sk_sage_...</code>, use <code>keyRecoveryUrl</code> if the signup has no generated setup key yet, copy <code>setupSnippet</code> only after replacing the placeholder key, then test <code>/v1/models</code> from the account page or curl.</td>
+              <td><code>WWW-Authenticate</code>, JSON <code>accountUrl</code>, <code>keyRecoveryUrl</code>, <code>pricingUrl</code>, <code>statusUrl</code>, <code>openaiBaseUrl</code>, <code>apiKeyPrefix</code>, placeholder <code>setupSnippet</code>, and placeholder <code>codexSetupSnippet</code>.</td>
+              <td>Confirm the client sends <code>Authorization: Bearer sk_sage_...</code>, use <code>keyRecoveryUrl</code> if the signup has no generated setup key yet, copy <code>setupSnippet</code> or <code>codexSetupSnippet</code> only after replacing the placeholder key, then test <code>/v1/models</code> from the account page, curl, or <code>codex --profile sage-router-frontier</code>.</td>
             </tr>
             <tr>
               <td>402</td>
@@ -207,6 +208,37 @@ curl "$OPENAI_BASE_URL/models" \
 
       <section class="section grid2">
         <div>
+          <p class="eyebrow">Codex 401 profile</p>
+          <h2>Use the hosted frontier profile after key setup.</h2>
+          <p class="muted">The API 401 payload also returns <code>codexProfile</code> and a placeholder <code>codexSetupSnippet</code> so Codex/OpenClaw users can recover from auth errors without guessing the provider name, profile name, model, or Responses wire API.</p>
+          <div class="actions">
+            <button id="api-troubleshooting-copy-codex-panel" class="button secondary" type="button">Copy Codex 401 profile</button>
+            <a class="button secondary" href="/docs/codex" data-api-troubleshooting-event="api_troubleshooting_codex_docs_clicked" data-api-troubleshooting-state="codex-profile-panel">Codex setup guide</a>
+          </div>
+        </div>
+        <div class="panel">
+          <pre><code id="api-troubleshooting-codex-snippet"># Sage Router hosted Codex setup
+export OPENAI_API_KEY=sk_sage_REPLACE_WITH_GENERATED_KEY
+mkdir -p ~/.codex
+cat >> ~/.codex/config.toml <<'TOML'
+[model_providers.sage-router-hosted]
+name = "Sage Router Hosted"
+base_url = "https://api.sagerouter.dev/v1/"
+env_key = "OPENAI_API_KEY"
+wire_api = "responses"
+
+[profiles.sage-router-frontier]
+model_provider = "sage-router-hosted"
+model = "sage-router/frontier"
+TOML
+
+codex --profile sage-router-frontier</code></pre>
+          <p id="api-troubleshooting-codex-copy-status" class="copyStatus" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section class="section grid2">
+        <div>
           <p class="eyebrow">Support packet</p>
           <h2>Keep only safe diagnostics.</h2>
         </div>
@@ -214,7 +246,7 @@ curl "$OPENAI_BASE_URL/models" \
           <ul>
             <li>Keep HTTP status, timestamp with timezone, route profile, plan, and whether the same key passes the account-page API key test.</li>
             <li>Keep non-secret headers such as <code>WWW-Authenticate</code>, <code>Retry-After</code>, <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code>, <code>X-Quota-Limit</code>, <code>X-Quota-Used</code>, <code>X-Quota-Remaining</code>, and <code>X-Quota-Period</code>.</li>
-            <li>Keep JSON onboarding links such as <code>accountUrl</code>, <code>keyRecoveryUrl</code>, <code>pricingUrl</code>, <code>statusUrl</code>, <code>openaiBaseUrl</code>, the non-secret <code>apiKeyPrefix</code>, and placeholder <code>setupSnippet</code>. Remove full bearer tokens and prompt bodies.</li>
+            <li>Keep JSON onboarding links such as <code>accountUrl</code>, <code>keyRecoveryUrl</code>, <code>pricingUrl</code>, <code>statusUrl</code>, <code>openaiBaseUrl</code>, the non-secret <code>apiKeyPrefix</code>, and placeholder <code>setupSnippet</code> / <code>codexSetupSnippet</code>. Remove full bearer tokens and prompt bodies.</li>
           </ul>
         </div>
       </section>
@@ -332,6 +364,23 @@ curl "$OPENAI_BASE_URL/models" \
       }
     }
 
+    async function copyApiTroubleshootingCodexSnippet(statusId) {
+      const snippet = document.getElementById('api-troubleshooting-codex-snippet')?.textContent || '';
+      const status = document.getElementById(statusId);
+      if (!snippet.trim()) return;
+      try {
+        await writeClipboardText(snippet.trim());
+        if (status) status.textContent = 'Copied Codex profile. Replace only the placeholder Sage Router key.';
+        trackApiTroubleshootingEvent('api_troubleshooting_setup_copied', {
+          button: 'copy-codex-401-profile',
+          state: statusId === 'api-troubleshooting-codex-copy-status' ? 'codex-panel' : 'hero',
+          snippet: 'api-troubleshooting-codex-401-profile',
+        });
+      } catch {
+        if (status) status.textContent = 'Copy failed. Select the Codex snippet text and copy it manually.';
+      }
+    }
+
     document.querySelectorAll('[data-api-troubleshooting-event]').forEach((link) => {
       link.addEventListener('click', () => {
         trackApiTroubleshootingEvent(link.dataset.apiTroubleshootingEvent, {
@@ -350,6 +399,12 @@ curl "$OPENAI_BASE_URL/models" \
     });
     document.getElementById('api-troubleshooting-copy-python-urllib')?.addEventListener('click', () => {
       copyApiTroubleshootingPythonProbe();
+    });
+    document.getElementById('api-troubleshooting-copy-codex')?.addEventListener('click', () => {
+      copyApiTroubleshootingCodexSnippet('api-troubleshooting-copy-status');
+    });
+    document.getElementById('api-troubleshooting-copy-codex-panel')?.addEventListener('click', () => {
+      copyApiTroubleshootingCodexSnippet('api-troubleshooting-codex-copy-status');
     });
   </script>
   <script src="/marketing-email-activation.js" defer></script>
