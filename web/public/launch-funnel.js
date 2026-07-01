@@ -937,7 +937,21 @@ function renderActivationApprovalChecklist(data = {}) {
   </div>`;
 }
 
-function renderActivationApprovalDecisionControls(data = {}, { compact = false } = {}) {
+function shouldPromoteActivationApprovalDecision(data = {}) {
+  const approvalReadiness = activationApprovalReadiness(data);
+  const activationSend = activationSendTelemetry(data);
+  const delivery = activationDeliveryCounts(data);
+  const marketing = data.marketingIntent || {};
+  const decisionCopies = asNumber(marketing.activationApprovalDecisionCopies);
+  const packetCopies = asNumber(marketing.activationApprovalPacketCopies);
+  return Number(delivery.sendableQueued || activationSend.sendableQueued || 0) > 0
+    && activationSend.dryRunVerified === true
+    && activationSend.sendApprovalRequired === true
+    && decisionCopies === 0
+    && (packetCopies > 0 || approvalReadiness.status === 'approval_required');
+}
+
+function renderActivationApprovalDecisionControls(data = {}, { compact = false, priority = false } = {}) {
   const approvalReadiness = activationApprovalReadiness(data);
   const activationSend = activationSendTelemetry(data);
   const decisionLines = activationApprovalDecisionLines(data);
@@ -950,11 +964,15 @@ function renderActivationApprovalDecisionControls(data = {}, { compact = false }
     ? ` Packet expires ${formatDate(approvalReadiness.approvalPacketExpiresAt)}; refresh before copying an old decision.`
     : ' Refresh the approval packet before copying a real decision.';
   const buttons = [
-    approveLine ? `<button class="btn secondary small" type="button" data-copy-activation-approval-decision="${esc(approveLine)}" data-activation-decision-kind="approve" data-followup-segment="${esc(nextSegment)}" data-followup-count="${integer(sendable)}">Copy approve decision</button>` : '',
-    holdLine ? `<button class="btn secondary small" type="button" data-copy-activation-approval-decision="${esc(holdLine)}" data-activation-decision-kind="hold" data-followup-segment="${esc(nextSegment)}" data-followup-count="${integer(sendable)}">Copy hold decision</button>` : '',
+    approveLine ? `<button class="btn secondary small" type="button" data-copy-activation-approval-decision="${esc(approveLine)}" data-activation-decision-kind="approve" data-followup-segment="${esc(nextSegment)}" data-followup-count="${integer(sendable)}" ${priority ? 'data-activation-decision-priority="true"' : ''}>Copy approve decision</button>` : '',
+    holdLine ? `<button class="btn secondary small" type="button" data-copy-activation-approval-decision="${esc(holdLine)}" data-activation-decision-kind="hold" data-followup-segment="${esc(nextSegment)}" data-followup-count="${integer(sendable)}" ${priority ? 'data-activation-decision-priority="true"' : ''}>Copy hold decision</button>` : '',
   ].filter(Boolean).join('');
-  return `<div class="empty warn">
-    <strong>${compact ? 'Approval decision' : 'Activation approval decision record'}:</strong> Copy one line only after reviewing the no-secret packet for segment <code>${esc(nextSegment)}</code>.
+  const title = priority ? 'Approval decision required now' : compact ? 'Approval decision' : 'Activation approval decision record';
+  const priorityCopy = priority
+    ? ' This is the current blocking handoff: copy approve or hold after reviewing the packet, before any real activation send.'
+    : '';
+  return `<div class="empty ${priority ? 'bad' : 'warn'}">
+    <strong>${title}:</strong> Copy one line only after reviewing the no-secret packet for segment <code>${esc(nextSegment)}</code>.${priorityCopy}
     <p class="muted">This records the human approval/hold text for audit handoff only; it does not send email, mutate queued follow-ups, expose emails, or bypass the typed confirmation gate.${esc(freshness)}</p>
     <div class="actions">${buttons}<span class="status">Real sends still require the private operator token, fresh <code>approvalPacketIssuedAt</code>, browser confirmation, and <code>${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code>.</span></div>
   </div>`;
@@ -1902,8 +1920,9 @@ function renderNextBestActionDock(data = {}) {
   const approvalButton = noKeyCount > 0
     ? `<button class="btn secondary" type="button" data-copy-activation-approval-packet="${esc(approvalPacketText)}" data-followup-count="${integer(activationDelivery.sendableQueued)}">Copy approval packet</button>`
     : '';
+  const approvalDecisionPriority = shouldPromoteActivationApprovalDecision(data);
   const approvalDecisionControls = noKeyCount > 0
-    ? renderActivationApprovalDecisionControls(data, { compact: true })
+    ? renderActivationApprovalDecisionControls(data, { compact: true, priority: approvalDecisionPriority })
     : '';
   const setupBundleText = firstRequestSetupBundleText(data);
   const setupButton = `<button class="btn ${setupCopyFallback ? '' : 'secondary'}" type="button" data-copy-operator-setup-bundle="${esc(setupBundleText)}" data-followup-plan="${esc(followUps.suggestedPlan || 'pro')}">${setupCopyFallback ? 'Copy first-request setup now' : 'Copy first-request setup'}</button>`;
