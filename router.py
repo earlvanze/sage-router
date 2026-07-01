@@ -7790,8 +7790,8 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 {
                     'step': 2,
                     'segment': 'auto_create',
-                    'action': 'Confirm a signed-in no-key account with start=create_key records account_key_recovery_auto_create_started before checkout.',
-                    'successMetric': 'keyCreateAttempts increases after keyFirstRedirects without storing emails or generated keys.',
+                    'action': 'Auto-key telemetry is deployed and allowlisted; generate fresh signed-in start=create_key recovery traffic that records account_key_recovery_auto_create_started, or use the approval packet before any real activation send.',
+                    'successMetric': 'account_key_recovery_auto_create_started appears in fresh traffic, then keyCreateAttempts increases after keyFirstRedirects without storing emails or generated keys.',
                 },
                 {
                     'step': 3,
@@ -7837,7 +7837,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 {
                     'step': 3,
                     'segment': 'account_setup',
-                    'action': 'Confirm the account page opens with start=create_key and records account_key_recovery_auto_create_started.',
+                    'action': 'Use fresh signed-in account setup traffic; the account page now emits account_key_recovery_auto_create_started and clears stale auto-key retry guards after failure.',
                     'successMetric': 'keyCreateAttempts and then keyCreateSuccesses move above zero.',
                 },
                 {
@@ -7892,7 +7892,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 if non_gated_setup_copy_fallback
                 else (
                 (
-                    'Recovery handoffs are reaching account setup but no key-create attempts are starting. Verify signed-in start=create_key auto-create before sending more activation traffic.'
+                    'Recovery handoffs are reaching account setup but no key-create attempts have been recorded yet. Auto-key telemetry is now deployed and accepted by the hosted funnel endpoint; the remaining proof needs fresh signed-in recovery traffic or explicit operator approval before real activation sends.'
                     if recovery_handoff_dropoff
                     else (
                         'The no-secret approval packet has already been reviewed and sendable follow-up dry-runs are covered; the remaining blocker is explicit operator approval for the next segment or fresh recovery traffic, not another recovery-page code change.'

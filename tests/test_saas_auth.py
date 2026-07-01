@@ -3032,7 +3032,9 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('account setup', action['surface'])
         self.assertIn('/account.html', action['ctaPath'])
         self.assertIn('start=create_key', action['ctaPath'])
-        self.assertIn('Recovery handoffs are reaching account setup but no key-create attempts are starting', action['action'])
+        self.assertIn('Recovery handoffs are reaching account setup but no key-create attempts have been recorded yet', action['action'])
+        self.assertIn('Auto-key telemetry is now deployed and accepted by the hosted funnel endpoint', action['action'])
+        self.assertIn('fresh signed-in recovery traffic or explicit operator approval', action['action'])
         self.assertTrue(action['evidence']['recoveryDropoff'])
         self.assertFalse(action['evidence']['recoveryViewDropoff'])
         self.assertTrue(action['evidence']['recoveryHandoffDropoff'])
@@ -3044,6 +3046,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertNotIn('account.html', action['executionChecklist'][0]['action'])
         self.assertEqual('auto_create', action['executionChecklist'][1]['segment'])
         self.assertIn('account_key_recovery_auto_create_started', action['executionChecklist'][1]['action'])
+        self.assertIn('Auto-key telemetry is deployed and allowlisted', action['executionChecklist'][1]['action'])
         self.assertFalse(action['privacy']['containsEmails'])
 
     def test_activation_delivery_counts_mark_auth_repair_review_only(self):
