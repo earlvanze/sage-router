@@ -4169,6 +4169,12 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-start-review" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-start-review"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-hero-copy-contact" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-hero-contact-copy"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-hero-email-draft" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-hero-email-draft"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "first-screen-start-review" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-start-review-funnel"
   fi
