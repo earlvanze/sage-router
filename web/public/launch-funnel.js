@@ -2602,6 +2602,7 @@ function managedAccessPulse(marketingIntent = {}) {
   return [
     ['Anonymous intent clicks', events.managed_access_interest_clicked],
     ['Packet copies', marketingIntent.managedAccessPacketCopies],
+    ['Fast form presented', events.managed_access_quick_form_presented],
     ['Fast form focused', events.managed_access_quick_form_focused],
     ['Email draft opened', events.managed_access_contact_draft_opened],
     ['Quick review submitted', events.managed_access_quick_request_submitted],
@@ -2626,7 +2627,7 @@ function managedAccessContactCapturePacketText(conversion = {}) {
   const intent = conversion.dominantIntent?.bucket || 'one-subscription';
   const commercial = conversion.dominantCommercialPreference?.bucket || 'one-subscription';
   const provider = conversion.dominantTargetProviderFamily?.bucket || 'mixed-frontier';
-  const ctaPath = conversion.ctaPath || '/managed-access?intent=one-subscription';
+  const ctaPath = conversion.ctaPath || '/managed-access?intent=one-subscription#managed-access-quick-form';
   return [
     'Sage Router one-subscription contact-capture packet',
     'Boundary: no prompts, provider credentials, OAuth tokens, generated API keys, private keys, customer data, provider costs, authorization references, or raw provider responses.',
@@ -2648,7 +2649,7 @@ function renderManagedAccessConversion(conversion = {}) {
   if (!hasManagedAccessConversionSignal(conversion)) return '';
   const status = conversion.status || 'no_current_demand';
   const priority = conversion.priority || 'monitor';
-  const ctaPath = conversion.ctaPath || '/managed-access';
+  const ctaPath = conversion.ctaPath || '/managed-access#managed-access-quick-form';
   const dominantIntent = conversion.dominantIntent?.bucket || 'unknown';
   const dominantProvider = conversion.dominantTargetProviderFamily?.bucket || 'unknown';
   const statusClass = status === 'contact_capture_gap' ? 'warn' : (status === 'contact_capture_started' ? 'good' : '');

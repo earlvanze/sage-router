@@ -8858,7 +8858,7 @@ def managed_access_demand_conversion(waitlist_demand, anonymous_demand):
         'dominantIntent': intent,
         'dominantCommercialPreference': commercial,
         'dominantTargetProviderFamily': provider,
-        'ctaPath': f'{MARKETING_BASE_URL.rstrip("/")}/managed-access?{urllib.parse.urlencode(cta_params)}',
+        'ctaPath': f'{MARKETING_BASE_URL.rstrip("/")}/managed-access?{urllib.parse.urlencode(cta_params)}#managed-access-quick-form',
         'action': (
             'Convert anonymous one-subscription managed-access demand into contactable private-beta review requests before enabling managed provider resale.'
             if status == 'contact_capture_gap'
