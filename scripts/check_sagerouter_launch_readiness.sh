@@ -1311,6 +1311,12 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "data-managed-access-promotion" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-managed-access-contact-promotion-actions"
   fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "data-email-managed-contact-capture" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-contact-promotion-email-draft"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "managed-access-contact-capture-email-draft" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-contact-promotion-email-snippet"
+  fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "operator_managed_access_packet_copied" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-managed-access-contact-promotion-funnel"
   fi

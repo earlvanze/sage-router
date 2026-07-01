@@ -1585,6 +1585,16 @@ function managedAccessContactCaptureCta(conversion = {}) {
   return `${MARKETING_BASE}${rawPath.startsWith('/') ? rawPath : `/${rawPath}`}`;
 }
 
+function managedAccessContactCaptureEmailDraftUrl(conversion = {}) {
+  const ctaUrl = managedAccessContactCaptureCta(conversion);
+  const body = managedAccessContactCapturePacketText({ ...conversion, ctaPath: ctaUrl });
+  const params = new URLSearchParams({
+    subject: 'Sage Router one-subscription private-beta review',
+    body,
+  });
+  return `mailto:?${params.toString()}`;
+}
+
 function shouldShowManagedAccessContactPromotionBanner(data = {}) {
   const conversion = data.managedAccessDemandConversion || {};
   const dropoff = data.managedAccessDropoff || {};
@@ -1612,6 +1622,7 @@ function renderManagedAccessContactPromotionBanner(data = {}) {
   const counts = dropoff.counts || {};
   const contactCapturePacket = managedAccessContactCapturePacketText(conversion);
   const ctaUrl = managedAccessContactCaptureCta(conversion);
+  const emailDraftUrl = managedAccessContactCaptureEmailDraftUrl(conversion);
   target.classList.remove('hidden');
   target.innerHTML = `<div class="metricList">
     <div class="metric"><span>Live contact gap</span><strong><span class="pill warn">Managed access</span></strong></div>
@@ -1621,9 +1632,10 @@ function renderManagedAccessContactPromotionBanner(data = {}) {
     <div class="metric"><span>Fast form</span><strong>${integer(counts.quickFormPresented)} shown · ${integer(counts.quickRequestsReceived)} received</strong></div>
   </div>
   <p><strong>Anonymous one-subscription demand has not become contactable.</strong></p>
-  <p class="muted">Copy the no-secret contact-capture packet or open the managed-access fast form while provider resale stays disabled. Copying here records <code>operator_managed_access_packet_copied</code> with snippet <code>managed-access-contact-capture-packet</code>; it does not send email, expose customer data, acknowledge provider terms, stage private costs, or enable managed resale.</p>
+  <p class="muted">Copy the no-secret contact-capture packet, open an email draft, or open the managed-access fast form while provider resale stays disabled. Copying or opening a draft here records <code>operator_managed_access_packet_copied</code>; it does not send email, expose customer data, acknowledge provider terms, stage private costs, or enable managed resale.</p>
   <div class="actions">
     <button class="btn" type="button" data-copy-managed-contact-capture="${esc(contactCapturePacket)}" data-managed-access-promotion="first-screen">Copy contact-capture packet now</button>
+    <a class="btn secondary" href="${esc(emailDraftUrl)}" data-email-managed-contact-capture="first-screen" data-managed-access-promotion="first-screen">Open no-secret email draft</a>
     <a class="btn secondary" href="${esc(ctaUrl)}" target="_blank" rel="noopener noreferrer">Open contact-capture CTA</a>
     <a class="btn secondary" href="#managed-access-demand-breakdown">Review demand panel</a>
     <span class="status">First-screen managed-access handoff: turn anonymous demand into review requests before resale authorization work continues.</span>
@@ -2510,6 +2522,17 @@ async function copyManagedAccessContactCapturePacket(button) {
   }
 }
 
+function trackManagedAccessContactCaptureEmailDraft(link) {
+  const conversion = lastFunnelData?.managedAccessDemandConversion || {};
+  trackOperatorFunnelEvent('operator_managed_access_packet_copied', {
+    state: 'managed_access_contact_capture_email_draft_opened',
+    resultCount: asNumber(conversion.contactableLeadGap),
+    snippet: 'managed-access-contact-capture-email-draft',
+  });
+  setStatus('Opened no-secret managed-access contact email draft. This does not send email or enable managed resale.', 'good');
+  if (link) link.setAttribute('data-managed-contact-draft-opened', '1');
+}
+
 async function copyManagedAccessCommand(button) {
   const text = managedAccessCommand(button, lastFunnelData || {});
   const kind = button.getAttribute('data-copy-managed-command') || 'dry-run';
@@ -2887,6 +2910,7 @@ function renderManagedAccessConversion(conversion = {}) {
   const dominantProvider = conversion.dominantTargetProviderFamily?.bucket || 'unknown';
   const statusClass = status === 'contact_capture_gap' ? 'warn' : (status === 'contact_capture_started' ? 'good' : '');
   const contactCapturePacket = managedAccessContactCapturePacketText(conversion);
+  const emailDraftUrl = managedAccessContactCaptureEmailDraftUrl(conversion);
   return `<div>
     <h3>Managed-access conversion</h3>
     <table>
@@ -2902,6 +2926,7 @@ function renderManagedAccessConversion(conversion = {}) {
     <p class="muted">${esc(conversion.action || 'Monitor managed-access demand before changing managed provider resale controls.')}</p>
     <div class="actions">
       <button class="btn secondary" type="button" data-copy-managed-contact-capture="${esc(contactCapturePacket)}">Copy contact-capture packet</button>
+      <a class="btn secondary" href="${esc(emailDraftUrl)}" data-email-managed-contact-capture="demand-panel">Open no-secret email draft</a>
       <a class="btn secondary" href="${esc(ctaPath)}" target="_blank" rel="noopener">Open contact-capture CTA</a>
     </div>
   </div>`;
@@ -3886,6 +3911,11 @@ function handleFollowUpCopyClick(event) {
   const managedAccessContactCaptureButton = event.target.closest('[data-copy-managed-contact-capture]');
   if (managedAccessContactCaptureButton) {
     copyManagedAccessContactCapturePacket(managedAccessContactCaptureButton);
+    return;
+  }
+  const managedAccessContactCaptureEmailLink = event.target.closest('[data-email-managed-contact-capture]');
+  if (managedAccessContactCaptureEmailLink) {
+    trackManagedAccessContactCaptureEmailDraft(managedAccessContactCaptureEmailLink);
     return;
   }
   const managedAccessCommandButton = event.target.closest('[data-copy-managed-command]');
