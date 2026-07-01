@@ -112,7 +112,12 @@ still measure demand for the future one-subscription path and Max
 implementation support by sending prospects to `/managed-access`. Homepage
 CTAs emit `landing_managed_access_clicked` and `managed_access_interest_clicked`
 with allowlisted intent/commercial-preference/support-need metadata before the
-handoff. That private-beta intake stores contact and allowlisted
+handoff. The homepage one-field review form also emits
+`managed_access_contact_capture_landed`, `managed_access_quick_form_presented`,
+guarded `managed_access_quick_form_focused`, guarded
+`managed_access_quick_form_started`, and `managed_access_quick_request_*`
+events without logging email values, so the operator can distinguish homepage
+presentation, focus, start, submit, and received stages. That private-beta intake stores contact and allowlisted
 qualification buckets only, including target provider family and commercial
 preference demand for Ollama, OpenAI, Anthropic, and BYOK-compatible routes,
 plus support need and target launch window, and coarse inbound intent from

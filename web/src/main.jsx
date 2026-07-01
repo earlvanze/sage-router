@@ -521,7 +521,26 @@ function ManagedAccessReviewPrompt() {
   const [submitting, setSubmitting] = useState(false);
   const widgetRef = useRef(null);
   const widgetIdRef = useRef(null);
+  const presentationTrackedRef = useRef(false);
+  const focusTrackedRef = useRef(false);
+  const startedTrackedRef = useRef(false);
   const [turnstile, setTurnstile] = useState({ required: false, siteKey: '', token: '' });
+
+  useEffect(() => {
+    if (presentationTrackedRef.current) return;
+    presentationTrackedRef.current = true;
+    const telemetry = {
+      plan: 'max',
+      target: '#homepage-managed-access-review-form',
+      button: 'Homepage one-subscription email',
+      state: 'hero-managed-access-quick-form-presented',
+      intent: 'one-subscription',
+      commercialPreference: 'one-subscription',
+      supportNeed: 'managed-provider-review',
+    };
+    trackLandingFunnelEvent('managed_access_contact_capture_landed', telemetry);
+    trackLandingFunnelEvent('managed_access_quick_form_presented', telemetry);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -678,6 +697,36 @@ function ManagedAccessReviewPrompt() {
     }
   };
 
+  const focusManagedAccessReview = () => {
+    if (focusTrackedRef.current) return;
+    focusTrackedRef.current = true;
+    trackLandingFunnelEvent('managed_access_quick_form_focused', {
+      plan: 'max',
+      target: '#homepage-managed-access-review-form',
+      button: 'Homepage one-subscription email',
+      state: 'hero-managed-access-quick-form',
+      intent: 'one-subscription',
+      commercialPreference: 'one-subscription',
+      supportNeed: 'managed-provider-review',
+    });
+  };
+
+  const updateManagedAccessEmail = (event) => {
+    const nextEmail = event.target.value;
+    setEmail(nextEmail);
+    if (startedTrackedRef.current || !nextEmail.trim()) return;
+    startedTrackedRef.current = true;
+    trackLandingFunnelEvent('managed_access_quick_form_started', {
+      plan: 'max',
+      target: '#homepage-managed-access-review-form',
+      button: 'Homepage one-subscription email',
+      state: 'hero-managed-access-quick-form',
+      intent: 'one-subscription',
+      commercialPreference: 'one-subscription',
+      supportNeed: 'managed-provider-review',
+    });
+  };
+
   return (
     <div className="managedAccessPrompt" aria-label="One-subscription private beta review">
       <div>
@@ -688,16 +737,8 @@ function ManagedAccessReviewPrompt() {
         <input
           type="email"
           value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          onFocus={() => trackLandingFunnelEvent('managed_access_quick_form_focused', {
-            plan: 'max',
-            target: '#homepage-managed-access-review-form',
-            button: 'Homepage one-subscription email',
-            state: 'hero-managed-access-quick-form',
-            intent: 'one-subscription',
-            commercialPreference: 'one-subscription',
-            supportNeed: 'managed-provider-review',
-          })}
+          onChange={updateManagedAccessEmail}
+          onFocus={focusManagedAccessReview}
           placeholder="work email"
           aria-label="Work email for one-subscription review"
         />

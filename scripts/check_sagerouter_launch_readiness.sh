@@ -2000,8 +2000,17 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managedAccessInlineForm" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-managed-access-inline-form-style"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_contact_capture_landed" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-inline-contact-capture"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_form_presented" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-inline-presentation-funnel"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_form_focused" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-managed-access-inline-focus-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_form_started" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-inline-start-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_request_submitted" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-managed-access-inline-submit-funnel"

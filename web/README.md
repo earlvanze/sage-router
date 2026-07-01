@@ -108,7 +108,12 @@ sticky bar and first-screen hero now expose `One-subscription beta` /
 `Request one-subscription review` private-beta review paths that record both
 `landing_managed_access_clicked` and `managed_access_interest_clicked` with
 allowlisted `intent`, `commercialPreference`, and `supportNeed` metadata. The
-hero also offers a copyable no-secret one-subscription review packet measured as
+hero one-field review form also records homepage
+`managed_access_contact_capture_landed`, `managed_access_quick_form_presented`,
+guarded `managed_access_quick_form_focused`, guarded
+`managed_access_quick_form_started`, and `managed_access_quick_request_*`
+telemetry without logging email values. The hero also offers a copyable
+no-secret one-subscription review packet measured as
 `managed_access_review_packet_copied` with `landing-one-subscription-review-packet`;
 it states that hosted managed provider access still depends on provider
 authorization, terms, cost controls, and margin checks. The hero keeps pricing, quickstart, public status,
