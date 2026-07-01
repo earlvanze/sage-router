@@ -2483,6 +2483,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(all(row['publicSafe'] for row in pricing_managed['nextActions']))
         self.assertTrue(all(row['sendsEmail'] is False for row in pricing_managed['nextActions']))
         self.assertTrue(all(row['managedResaleEnabled'] is False for row in pricing_managed['nextActions']))
+        self.assertTrue(all(row['ctaPath'].startswith('https://sagerouter.dev/') for row in pricing_managed['nextActions']))
         self.assertTrue(all(row['secretFree'] for row in pricing_managed['onboardingSequence']))
         self.assertTrue(all(row['publicSafe'] for row in pricing_managed['onboardingSequence']))
         self.assertIn(
@@ -2505,9 +2506,13 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(all(not row['privacy']['containsSecrets'] for row in managed_readiness['nextActions']))
         managed_actions_by_id = {row['id']: row for row in managed_readiness['nextActions']}
         self.assertTrue(managed_actions_by_id['provider_terms_acknowledgment']['mutatesRuntime'])
+        self.assertEqual('https://sagerouter.dev/provider-resale-terms', managed_actions_by_id['provider_terms_acknowledgment']['ctaPath'])
         self.assertTrue(managed_actions_by_id['provider_authorization_evidence']['mutatesRuntime'])
+        self.assertEqual('https://sagerouter.dev/managed-access#managed-provider-readiness', managed_actions_by_id['provider_authorization_evidence']['ctaPath'])
         self.assertTrue(managed_actions_by_id['provider_cost_model']['mutatesRuntime'])
+        self.assertEqual('https://sagerouter.dev/managed-access#unit-economics', managed_actions_by_id['provider_cost_model']['ctaPath'])
         self.assertFalse(managed_actions_by_id['positive_unit_economics']['mutatesRuntime'])
+        self.assertEqual('https://sagerouter.dev/margin-policy', managed_actions_by_id['positive_unit_economics']['ctaPath'])
         self.assertTrue(all(row['sendsEmail'] is False for row in managed_readiness['nextActions']))
         self.assertTrue(all(row['managedResaleEnabled'] is False for row in managed_readiness['nextActions']))
         self.assertTrue(all(not row['privacy']['containsSecrets'] for row in managed_readiness['onboardingSequence']))

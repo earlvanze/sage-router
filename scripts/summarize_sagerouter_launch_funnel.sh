@@ -1221,12 +1221,23 @@ if [[ "$RAW_JSON" == "1" ]]; then
       "provider_cost_model",
       "minimum_gross_margin"
     ] | index($id)) != null;
+  def managed_provider_cta_path($id):
+    if ($id == "provider_resale_terms" or $id == "provider_terms_acknowledgment") then
+      "https://sagerouter.dev/provider-resale-terms"
+    elif ($id == "provider_cost_model") then
+      "https://sagerouter.dev/managed-access#unit-economics"
+    elif ($id == "positive_unit_economics" or $id == "margin_policy" or $id == "minimum_gross_margin") then
+      "https://sagerouter.dev/margin-policy"
+    else
+      "https://sagerouter.dev/managed-access#managed-provider-readiness"
+    end;
   def managed_provider_action_rows($managed):
     ($managed.enabled // false) as $enabled
     | ($managed.nextActions // []) | map(
       . as $row
       | ($row.id // "") as $id
       | $row + {
+        ctaPath: ($row.ctaPath // managed_provider_cta_path($id)),
         managedResaleEnabled: ($row.managedResaleEnabled // $enabled),
         sendsEmail: ($row.sendsEmail // false),
         mutatesRuntime: ($row.mutatesRuntime // managed_provider_mutating_control($id)),

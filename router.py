@@ -519,6 +519,7 @@ MANAGED_PROVIDER_CONTROL_NEXT_ACTIONS = {
     'provider_resale_terms': {
         'title': 'Publish provider resale terms',
         'owner': 'Operator',
+        'ctaPath': '/provider-resale-terms',
         'action': 'Keep the provider-resale terms page published and bind its URL before any managed-access enablement.',
         'successMetric': 'publicLaunch.managedProviderAccess.providerTermsUrl is configured.',
         'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_TERMS_URL'],
@@ -526,6 +527,7 @@ MANAGED_PROVIDER_CONTROL_NEXT_ACTIONS = {
     'provider_terms_acknowledgment': {
         'title': 'Acknowledge reviewed provider terms',
         'owner': 'Operator',
+        'ctaPath': '/provider-resale-terms',
         'action': 'Acknowledge only after provider resale terms and authorization evidence have been reviewed out of band.',
         'successMetric': 'providerTermsAcknowledged is true without exposing the reviewed terms artifact.',
         'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_TERMS_ACKNOWLEDGED'],
@@ -533,6 +535,7 @@ MANAGED_PROVIDER_CONTROL_NEXT_ACTIONS = {
     'provider_authorization_evidence': {
         'title': 'Record provider authorization evidence',
         'owner': 'Operator',
+        'ctaPath': '/managed-access#managed-provider-readiness',
         'action': 'Store a private evidence reference proving Sage Router is authorized to offer managed access for the allowlisted families.',
         'successMetric': 'providerAuthorizationEvidenceConfigured is true; the reference value remains private.',
         'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF'],
@@ -540,6 +543,7 @@ MANAGED_PROVIDER_CONTROL_NEXT_ACTIONS = {
     'authorized_provider_allowlist': {
         'title': 'Bind the managed provider allowlist',
         'owner': 'Operator',
+        'ctaPath': '/managed-access#managed-provider-readiness',
         'action': 'Allowlist only resale-eligible provider families for bundled managed access; keep OpenRouter as BYOK-only unless separately authorized.',
         'successMetric': 'allowedProviderFamilies contains at least one resale-eligible family and no BYOK-only family.',
         'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_ALLOWED_PROVIDERS'],
@@ -547,6 +551,7 @@ MANAGED_PROVIDER_CONTROL_NEXT_ACTIONS = {
     'margin_policy': {
         'title': 'Publish margin policy',
         'owner': 'Operator',
+        'ctaPath': '/margin-policy',
         'action': 'Keep the margin-policy page published and bind its URL so plan-margin checks have an operator-reviewed launch floor.',
         'successMetric': 'marginPolicyUrl is configured and minimumGrossMarginPercent is at least 30.',
         'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_MARGIN_POLICY_URL'],
@@ -554,6 +559,7 @@ MANAGED_PROVIDER_CONTROL_NEXT_ACTIONS = {
     'provider_cost_model': {
         'title': 'Configure private provider cost model',
         'owner': 'Operator',
+        'ctaPath': '/managed-access#unit-economics',
         'action': 'Run the unit-economics preflight with the reviewed private cost candidate, then store the cost model in Secret Manager only after it passes.',
         'successMetric': 'unitEconomics.costModelConfigured is true without public provider-cost disclosure.',
         'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS'],
@@ -561,6 +567,7 @@ MANAGED_PROVIDER_CONTROL_NEXT_ACTIONS = {
     'positive_unit_economics': {
         'title': 'Pass positive unit economics',
         'owner': 'Operator',
+        'ctaPath': '/margin-policy',
         'action': 'Verify Lite, Pro, and Max revenue per 1k requests exceed the reviewed provider cost by the required gross-margin floor.',
         'successMetric': 'unitEconomics.satisfied is true for every fixed public API plan.',
         'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS'],
@@ -568,6 +575,7 @@ MANAGED_PROVIDER_CONTROL_NEXT_ACTIONS = {
     'minimum_gross_margin': {
         'title': 'Set launch gross-margin floor',
         'owner': 'Operator',
+        'ctaPath': '/margin-policy',
         'action': 'Keep the minimum gross-margin threshold at or above the launch floor before enabling managed access.',
         'successMetric': 'minimumGrossMarginPercent is at least 30.',
         'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT'],
@@ -2873,6 +2881,17 @@ def managed_provider_resale_onboarding_sequence(managed_access, unit_economics, 
     return sequence
 
 
+def managed_provider_review_cta_path(path):
+    value = str(path or '').strip()
+    if value.startswith(('http://', 'https://')):
+        return value
+    if not value:
+        value = '/managed-access#managed-provider-readiness'
+    if not value.startswith('/'):
+        value = f'/{value}'
+    return f'{MARKETING_BASE_URL}{value}'
+
+
 def managed_provider_resale_next_actions(missing_controls, managed_access, unit_economics, setup):
     missing = [
         str(item or '').strip()
@@ -2886,6 +2905,7 @@ def managed_provider_resale_next_actions(missing_controls, managed_access, unit_
             'owner': 'Operator',
             'priority': 'monitor',
             'blocked': False,
+            'ctaPath': managed_provider_review_cta_path('/managed-access#managed-provider-readiness'),
             'action': 'Managed provider access is ready for private beta; keep authorization evidence, cost model, and margin review current.',
             'successMetric': 'readinessSatisfied remains true and no provider-family readiness row regresses.',
             'requiredEnv': [],
@@ -2921,6 +2941,7 @@ def managed_provider_resale_next_actions(missing_controls, managed_access, unit_
             'owner': template.get('owner') or 'Operator',
             'priority': 'fix_now' if index == 1 else 'next',
             'blocked': True,
+            'ctaPath': managed_provider_review_cta_path(template.get('ctaPath')),
             'action': template['action'],
             'successMetric': template['successMetric'],
             'requiredEnv': list(template.get('requiredEnv') or []),

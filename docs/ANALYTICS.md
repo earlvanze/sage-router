@@ -145,7 +145,9 @@ sendable/review-only segments, dry-run coverage, sent-recipient counts, and
 approval-required state. Every `nextActions` row declares `managedResaleEnabled`,
 `sendsEmail`, `mutatesRuntime`, `secretFree`, and `publicSafe` so agents can
 execute safe launch handoffs without mistaking them for managed-provider resale
-authorization. `activationApprovalReadiness.decisionLines` exposes the
+authorization. Managed-provider `ctaPath` values are review destinations for
+terms, authorization, cost-model, and unit-economics work; they are not enablement
+commands. `activationApprovalReadiness.decisionLines` exposes the
 no-secret approve/hold review text for agents without requiring packet-text
 parsing. `managedAccessDemandConversion` summarizes anonymous managed-access
 signals, contactable waitlist review signals, the contactable lead gap, and the

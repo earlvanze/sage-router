@@ -824,7 +824,10 @@ sent-recipient counts, and approval-required state, and consume
 `activationApprovalReadiness.decisionLines` for the no-secret approve/hold
 review text. Every bounded `nextActions` row declares `managedResaleEnabled`,
 `sendsEmail`, `mutatesRuntime`, `secretFree`, and `publicSafe` so automation can
-distinguish safe launch handoffs from provider-resale enablement. The bounded
+distinguish safe launch handoffs from provider-resale enablement.
+Managed-provider action `ctaPath` values point to review pages or the private
+launch-funnel readiness panel; they do not acknowledge terms, stage private
+evidence, write cost models, or enable resale. The bounded
 JSON also exposes `activationApproval` as a
 backward-compatible alias for the same aggregate-only approval readiness object,
 so operator dashboards and agents can read the approval gate without scraping
