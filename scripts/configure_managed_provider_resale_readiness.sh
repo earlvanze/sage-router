@@ -1285,7 +1285,7 @@ fi
 
 if [[ "$MODE" == "unit-economics" ]]; then
   require_cmd python3
-  "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/managed_provider_unit_economics.py"
+  python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/managed_provider_unit_economics.py"
   exit $?
 fi
 

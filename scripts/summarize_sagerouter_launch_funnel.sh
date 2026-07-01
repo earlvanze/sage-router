@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--record-activation-approval-review] [--founder-sales-packet] [--record-founder-sales] [--setup-copy-packet] [--record-setup-copy] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section] [--update-distribution-tracker]
+Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--record-activation-approval-review] [--founder-sales-packet] [--record-founder-sales] [--setup-copy-packet] [--record-setup-copy] [--managed-access-dropoff-packet] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section] [--update-distribution-tracker]
 
 Fetch the operator-only /analytics/funnel endpoint and print a privacy-safe
 launch snapshot. The script never prints operator tokens, emails, generated API
@@ -33,6 +33,9 @@ Options:
   --record-setup-copy Print the setup-copy packet and record one aggregate
                       status_first_request_setup_copied event for the
                       operator terminal handoff.
+  --managed-access-dropoff-packet
+                      Print the no-secret managed-access contact-capture
+                      drop-off diagnosis packet for terminal operators.
   --verify-recovery   With --approval-packet, run the no-persistence setup-key
                       recovery handoff verifier and include the result.
   --verify-auth-repair
@@ -96,6 +99,7 @@ FOUNDER_SALES_PACKET=0
 RECORD_FOUNDER_SALES=0
 SETUP_COPY_PACKET=0
 RECORD_SETUP_COPY=0
+MANAGED_ACCESS_DROPOFF_PACKET=0
 VERIFY_RECOVERY=0
 VERIFY_AUTH_REPAIR=0
 TRACKER_SECTION=0
@@ -138,6 +142,10 @@ while [[ $# -gt 0 ]]; do
       RECORD_SETUP_COPY=1
       shift
       ;;
+    --managed-access-dropoff-packet)
+      MANAGED_ACCESS_DROPOFF_PACKET=1
+      shift
+      ;;
     --verify-recovery)
       VERIFY_RECOVERY=1
       shift
@@ -166,8 +174,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if (( RAW_JSON + APPROVAL_PACKET + RECORD_ACTIVATION_APPROVAL_REVIEW + FOUNDER_SALES_PACKET + RECORD_FOUNDER_SALES + SETUP_COPY_PACKET + RECORD_SETUP_COPY + TRACKER_SECTION + UPDATE_TRACKER > 1 )); then
-  printf '%s\n' '--json, --approval-packet, --record-activation-approval-review, --founder-sales-packet, --record-founder-sales, --setup-copy-packet, --record-setup-copy, --distribution-tracker-section, and --update-distribution-tracker cannot be combined' >&2
+if (( RAW_JSON + APPROVAL_PACKET + RECORD_ACTIVATION_APPROVAL_REVIEW + FOUNDER_SALES_PACKET + RECORD_FOUNDER_SALES + SETUP_COPY_PACKET + RECORD_SETUP_COPY + MANAGED_ACCESS_DROPOFF_PACKET + TRACKER_SECTION + UPDATE_TRACKER > 1 )); then
+  printf '%s\n' '--json, --approval-packet, --record-activation-approval-review, --founder-sales-packet, --record-founder-sales, --setup-copy-packet, --record-setup-copy, --managed-access-dropoff-packet, --distribution-tracker-section, and --update-distribution-tracker cannot be combined' >&2
   exit 2
 fi
 if [[ "$VERIFY_RECOVERY" == "1" && "$APPROVAL_PACKET" != "1" && "$RECORD_ACTIVATION_APPROVAL_REVIEW" != "1" ]]; then
@@ -218,10 +226,11 @@ those are the strongest external signals currently visible.
 For a single read-only launch packet before operator review, run
 `scripts/summarize_sagerouter_launch_operator_handoff.sh --days 30
 --skip-readiness` to bundle the live funnel snapshot, setup-copy activation packet,
-activation approval packet, founder-sales next-revenue packet, Cloudflare BIC
-reliability packet, managed-provider readiness packet, provider terms approval packet,
-one-subscription pricing packet, provider outreach packet, and provider reply triage packet
-without approving sends, sending email, mutating Cloudflare,
+activation approval packet, founder-sales next-revenue packet, managed-access
+drop-off packet, Cloudflare BIC reliability packet, managed-provider readiness packet,
+provider terms approval packet, one-subscription pricing packet, provider outreach
+packet, and provider reply triage packet without approving sends, sending email,
+mutating Cloudflare,
 deploying, acknowledging provider terms, enabling managed resale, or printing
 secrets. Omit `--skip-readiness` when the operator packet should include the
 full launch readiness probe.
@@ -307,7 +316,7 @@ printf '{"stage":"not_run","handoffSmoke":{"checked":false,"passed":false,"noPer
 if [[ ("$APPROVAL_PACKET" == "1" || "$RECORD_ACTIVATION_APPROVAL_REVIEW" == "1") && "$VERIFY_RECOVERY" == "1" ]]; then
   bash scripts/diagnose_setup_key_recovery_dropoff.sh --days "$DAYS" --verify-handoff --json > "$recovery_tmp"
 fi
-if [[ "$APPROVAL_PACKET" != "1" && "$RECORD_ACTIVATION_APPROVAL_REVIEW" != "1" && "$RAW_JSON" != "1" && "$SETUP_COPY_PACKET" != "1" && "$RECORD_SETUP_COPY" != "1" ]]; then
+if [[ "$APPROVAL_PACKET" != "1" && "$RECORD_ACTIVATION_APPROVAL_REVIEW" != "1" && "$RAW_JSON" != "1" && "$SETUP_COPY_PACKET" != "1" && "$RECORD_SETUP_COPY" != "1" && "$MANAGED_ACCESS_DROPOFF_PACKET" != "1" ]]; then
   if ! bash scripts/diagnose_setup_key_recovery_dropoff.sh --days "$DAYS" --verify-handoff --json > "$recovery_tmp"; then
     printf '{"stage":"failed","handoffSmoke":{"checked":true,"passed":false,"noPersistence":true},"privacy":{"aggregateOnly":true}}\n' > "$recovery_tmp"
   fi
@@ -426,6 +435,93 @@ EOF
     >/dev/null
 
   printf '\nRecorded setup-copy activation event status_first_request_setup_copied with snippet operator-first-request-setup from SageRouterLaunchFunnelCLI/1.0.\n'
+  exit 0
+fi
+
+if [[ "$MANAGED_ACCESS_DROPOFF_PACKET" == "1" ]]; then
+  jq -r --argjson days "$DAYS" '
+    def n($v): ($v // 0);
+    def buckets($v):
+      (($v // {}) | to_entries | map(select(.value != 0) | "\(.key)=\(.value)")) as $rows
+      | if ($rows | length) > 0 then ($rows | join(", ")) else "none" end;
+
+    . as $root
+    | ($root.stages // {}) as $stages
+    | ($root.marketingIntent // {}) as $marketing
+    | ($marketing.events // {}) as $events
+    | ($root.managedAccessDemand // {}) as $managed_demand
+    | ($root.managedAccessDemandConversion // {
+        status: (
+          if (($stages.anonymousManagedAccessInterest // 0) > 0 and ($stages.managedAccessBetaInterest // 0) <= 0) then "contact_capture_gap"
+          elif (($stages.anonymousManagedAccessInterest // 0) > 0 or ($stages.managedAccessBetaInterest // 0) > 0) then "contact_capture_started"
+          else "no_current_demand" end
+        ),
+        priority: (
+          if (($stages.anonymousManagedAccessInterest // 0) > 0 and ($stages.managedAccessBetaInterest // 0) <= 0) then "fix_now"
+          elif (($stages.anonymousManagedAccessInterest // 0) > 0 or ($stages.managedAccessBetaInterest // 0) > 0) then "next"
+          else "monitor" end
+        ),
+        anonymousSignals: ($stages.anonymousManagedAccessInterest // 0),
+        waitlistSignals: ($stages.managedAccessBetaInterest // 0),
+        contactableLeadGap: ([ (($stages.anonymousManagedAccessInterest // 0) - ($stages.managedAccessBetaInterest // 0)), 0 ] | max),
+        ctaPath: "https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review",
+        action: "Convert anonymous one-subscription managed-access demand into contactable private-beta review requests before enabling managed provider resale.",
+        successMetric: "managedAccessBetaInterest or managed_access_quick_request_received increases without enabling managed provider resale.",
+        managedResaleEnabled: false
+      }) as $conversion
+    | ($events.managed_access_quick_form_focused // 0) as $focused
+    | ($events.managed_access_contact_draft_opened // 0) as $drafts
+    | ($events.managed_access_quick_form_started // 0) as $started
+    | ($events.managed_access_quick_request_validation_failed // 0) as $validation_failed
+    | ($events.managed_access_quick_request_submitted // 0) as $submitted
+    | ($events.managed_access_quick_request_received // 0) as $received
+    | ($events.managed_access_interest_clicked // 0) as $legacy_clicks
+    | ($marketing.managedAccessPacketCopies // 0) as $packet_copies
+    | ($conversion.anonymousSignals // $stages.anonymousManagedAccessInterest // 0) as $anonymous
+    | ($conversion.waitlistSignals // $stages.managedAccessBetaInterest // 0) as $waitlist
+    | ($conversion.contactableLeadGap // ([($anonymous - $waitlist), 0] | max)) as $gap
+    | (
+        if ($anonymous <= 0 and $waitlist <= 0 and $packet_copies <= 0) then
+          "No current managed-access demand signal is visible; drive qualified one-subscription/Max traffic before changing resale controls."
+        elif ($received > 0) then
+          "Contact capture is working; follow up on received private-beta requests and keep provider resale disabled until authorization, terms, costs, quotas, and abuse controls pass."
+        elif ($submitted > $received) then
+          "Quick requests are being submitted but not counted as received; inspect the waitlist endpoint, Turnstile, and app/api routing before more traffic."
+        elif ($validation_failed > 0 and $submitted <= 0) then
+          "Visitors hit validation without a successful request; reduce form friction and verify Turnstile/contact-field error copy."
+        elif (($focused + $started + $drafts) > 0 and $submitted <= 0) then
+          "Visitors engage the fast path but do not submit; keep the email-draft fallback visible and tighten one-field completion copy."
+        elif (($anonymous + $packet_copies + $legacy_clicks) > 0 and ($focused + $started + $drafts + $submitted + $received) <= 0) then
+          "Demand exists before the form, but no fast-form engagement is recorded; put the managed-access CTA in the operator outreach path and verify first-viewport form tracking."
+        else
+          "Managed-access interest is present; continue routing qualified buyers to the contactable review path and watch quickFocused, emailDrafts, quickSubmitted, and quickReceived."
+        end
+      ) as $diagnosis
+    | [
+        "Sage Router managed-access drop-off packet",
+        "Boundary: no emails, customer IDs, generated API keys, OAuth tokens, provider credentials, provider authorization reference values, private provider costs, prompts, raw campaign URLs, raw model search text, or raw provider responses are printed.",
+        "Effect: read-only diagnosis; this command does not send email, record events, acknowledge provider terms, stage authorization evidence, write provider costs, change prices, deploy, or enable managed resale.",
+        "",
+        "Window: last \($days) days",
+        "Conversion: status=\($conversion.status // "unknown"); priority=\($conversion.priority // "monitor"); managedResaleEnabled=\($conversion.managedResaleEnabled // false).",
+        "Demand: anonymousSignals=\(n($anonymous)); waitlistSignals=\(n($waitlist)); contactableLeadGap=\(n($gap)); reviewPacketCopies=\(n($packet_copies)); legacyClicks=\(n($legacy_clicks)).",
+        "Fast funnel: quickFocused=\(n($focused)); emailDrafts=\(n($drafts)); quickStarted=\(n($started)); quickValidationFailed=\(n($validation_failed)); quickSubmitted=\(n($submitted)); quickReceived=\(n($received)).",
+        "Buckets: providers=\(buckets($managed_demand.targetProviderFamily)); commercial=\(buckets($managed_demand.commercialPreference)); intents=\(buckets($managed_demand.intent)).",
+        "",
+        "Diagnosis: \($diagnosis)",
+        "",
+        "Operator next actions:",
+        "- Route one-subscription and Max conversations to the contactable CTA, not to public managed resale.",
+        "- If quickFocused and emailDrafts stay at zero while anonymousSignals or packet copies rise, verify the first-viewport form and use direct founder-sales handoff copy.",
+        "- If quickValidationFailed rises without quickReceived, inspect contact-field validation, Turnstile, and /api/waitlist routing before buying or posting more traffic.",
+        "- If quickReceived rises, follow up privately and keep provider authorization, terms, cost model, quotas, and abuse-review gates closed until reviewed.",
+        "",
+        "CTA: \($conversion.ctaPath // "https://sagerouter.dev/managed-access")",
+        "Success metric: \($conversion.successMetric // "managedAccessBetaInterest or managed_access_quick_request_received increases without enabling managed provider resale.")",
+        "Privacy flags: containsEmails=\($root.privacy.containsEmails // false); containsApiKeys=\($root.privacy.containsApiKeys // false); containsProviderCredentials=\($root.privacy.containsProviderCredentials // false); containsActualProviderCosts=false; aggregateOnly=true."
+      ]
+      | .[]
+  ' "$tmp"
   exit 0
 fi
 
