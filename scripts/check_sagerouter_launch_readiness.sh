@@ -2012,6 +2012,18 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_form_started" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-managed-access-inline-start-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_contact_packet_copied" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-contact-copy-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_contact_draft_opened" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-contact-draft-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "landing-homepage-managed-access-contact-request" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-contact-request-snippet"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "landing-homepage-managed-access-contact-draft" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-contact-draft-snippet"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_request_submitted" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-managed-access-inline-submit-funnel"
   fi

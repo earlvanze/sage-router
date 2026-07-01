@@ -112,7 +112,11 @@ hero one-field review form also records homepage
 `managed_access_contact_capture_landed`, `managed_access_quick_form_presented`,
 guarded `managed_access_quick_form_focused`, guarded
 `managed_access_quick_form_started`, and `managed_access_quick_request_*`
-telemetry without logging email values. The hero also offers a copyable
+telemetry without logging email values. It also provides homepage
+`Copy contact request` and `Open email draft` fallbacks measured as
+`managed_access_contact_packet_copied` and `managed_access_contact_draft_opened`
+with `landing-homepage-managed-access-contact-*` snippets, so browser-blocked
+buyers can still create a no-secret contact handoff. The hero also offers a copyable
 no-secret one-subscription review packet measured as
 `managed_access_review_packet_copied` with `landing-one-subscription-review-packet`;
 it states that hosted managed provider access still depends on provider

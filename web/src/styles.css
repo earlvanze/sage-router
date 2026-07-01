@@ -92,6 +92,8 @@ h3 { font-size: 21px; line-height: 1.2; letter-spacing: -0.035em; margin-bottom:
 .managedAccessInlineForm input:focus { outline: 2px solid rgba(159,199,255,.4); outline-offset: 2px; }
 .managedAccessInlineForm button { color: #04150d; border-color: transparent; background: #9fc7ff; }
 .managedAccessInlineForm button:disabled { opacity: .72; cursor: wait; }
+.managedAccessFallbackActions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.managedAccessFallbackActions button { min-height: 38px; color: #ffe6a0; border-color: rgba(247,213,122,.34); background: rgba(247,213,122,.08); }
 .managedAccessTurnstile { grid-column: 1 / -1; }
 .heroSetupCopyWrap { display: grid; gap: 10px; margin: 0 0 16px; max-width: 720px; }
 .heroSetupCopy { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0; }
@@ -161,8 +163,9 @@ footer span { margin-right: auto; }
   .heroEmailStart .heroOauthButton { width: 100%; min-width: 0; }
   .landingKeyRecovery { border-radius: 20px; align-items: stretch; }
   .landingKeyRecovery a { width: 100%; text-align: center; }
-  .managedAccessPrompt a, .managedAccessInlineForm, .managedAccessInlineForm button { width: 100%; }
+  .managedAccessPrompt a, .managedAccessInlineForm, .managedAccessInlineForm button, .managedAccessFallbackActions button { width: 100%; }
   .managedAccessInlineForm { grid-template-columns: 1fr; }
+  .managedAccessFallbackActions { display: grid; grid-template-columns: 1fr; }
   pre { padding: 22px; }
 }
 .docsGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }

@@ -117,7 +117,11 @@ handoff. The homepage one-field review form also emits
 guarded `managed_access_quick_form_focused`, guarded
 `managed_access_quick_form_started`, and `managed_access_quick_request_*`
 events without logging email values, so the operator can distinguish homepage
-presentation, focus, start, submit, and received stages. That private-beta intake stores contact and allowlisted
+presentation, focus, start, submit, and received stages. It also exposes
+homepage `Copy contact request` and `Open email draft` fallbacks measured as
+`managed_access_contact_packet_copied` and `managed_access_contact_draft_opened`
+with `landing-homepage-managed-access-contact-*` snippets, so a blocked browser
+form can still become a no-secret contact handoff. That private-beta intake stores contact and allowlisted
 qualification buckets only, including target provider family and commercial
 preference demand for Ollama, OpenAI, Anthropic, and BYOK-compatible routes,
 plus support need and target launch window, and coarse inbound intent from

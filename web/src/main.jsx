@@ -191,6 +191,7 @@ const STICKY_SETUP_ACCOUNT_URL = `${ACCOUNT_PAGE_URL}&setup=landing-sticky-setup
 const LANDING_KEY_RECOVERY_URL = 'https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=landing&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email';
 const MANAGED_ONE_SUBSCRIPTION_URL = '/managed-access?intent=one-subscription&utm_source=landing&utm_medium=managed_access&utm_campaign=sage-router-launch&utm_content=one-subscription-review#managed-access-quick-form';
 const MANAGED_MAX_IMPLEMENTATION_URL = '/managed-access?intent=max-implementation&utm_source=landing&utm_medium=managed_access&utm_campaign=sage-router-launch&utm_content=max-implementation-review#managed-access-quick-form';
+const MANAGED_ACCESS_REVIEW_EMAIL = 'support@sagerouter.dev';
 const ACTIVATION_NUDGE_STORAGE_KEY = 'sage_router_activation_nudge_dismissed_until';
 const SUPABASE_URL = 'https://awtangrlqqsdpksarhwo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF3dGFuZ3JscXFzZHBrc2FyaHdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTYzNzEsImV4cCI6MjA4ODU5MjM3MX0.U7TmEJMgYMH0rR8tTWFQ2tzReO5syRwnI3Ytg-BbDaw';
@@ -307,6 +308,28 @@ function landingOneSubscriptionReviewText() {
     'OpenRouter and other OpenAI-compatible endpoints remain customer-authorized BYOK routes unless separate managed-access authorization is added later.',
     '',
     'Do not paste prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, actual provider costs, customer IDs, or customer data.',
+  ].join('\n');
+}
+
+function landingManagedAccessContactRequestText(email = '') {
+  const cleanEmail = String(email || '').trim();
+  return [
+    'Sage Router homepage managed-access contact request',
+    '',
+    `Work email: ${cleanEmail || '[add work email]'}`,
+    'Intent: one-subscription',
+    'Provider access posture: needs-managed-access',
+    'Target provider family: mixed-frontier',
+    'Commercial preference: one-subscription',
+    'Support need: managed-provider-review',
+    'Target launch window: this-month',
+    '',
+    'Request: private-beta review for one Sage Router subscription with hosted routing, quotas, fallback reliability, local-first controls, and Max/BYOK fallback while managed provider access remains gated.',
+    `Review URL: https://sagerouter.dev${MANAGED_ONE_SUBSCRIPTION_URL}`,
+    '',
+    'Boundary: this is a review request, not an enabled managed-provider resale entitlement. Managed access still requires provider authorization, terms acknowledgment, allowed provider families, private cost review, positive unit economics, durable quotas, operator audit events, and acceptable-use controls.',
+    '',
+    'Do not include prompts, workflow text, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, actual provider costs, customer IDs, or customer data.',
   ].join('\n');
 }
 
@@ -607,6 +630,43 @@ function ManagedAccessReviewPrompt() {
     }
   };
 
+  const copyContactRequest = async () => {
+    try {
+      await writeClipboardText(landingManagedAccessContactRequestText(email));
+      trackLandingFunnelEvent('managed_access_contact_packet_copied', {
+        plan: 'max',
+        target: '#homepage-managed-access-review-form',
+        button: 'Homepage copy contact request',
+        state: 'hero-managed-access-contact-copy',
+        snippet: 'landing-homepage-managed-access-contact-request',
+        intent: 'one-subscription',
+        commercialPreference: 'one-subscription',
+        supportNeed: 'managed-provider-review',
+      });
+      setStatus('Copied no-secret contact request. Add work email before sending.');
+    } catch {
+      setStatus('Copy failed. Open the managed-access page or email support without secrets.');
+    }
+  };
+
+  const openContactDraft = () => {
+    const subject = 'Sage Router one-subscription review request';
+    const body = landingManagedAccessContactRequestText(email);
+    const draftUrl = `mailto:${MANAGED_ACCESS_REVIEW_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    trackLandingFunnelEvent('managed_access_contact_draft_opened', {
+      plan: 'max',
+      target: `mailto:${MANAGED_ACCESS_REVIEW_EMAIL}`,
+      button: 'Homepage open contact email draft',
+      state: 'hero-managed-access-contact-draft',
+      snippet: 'landing-homepage-managed-access-contact-draft',
+      intent: 'one-subscription',
+      commercialPreference: 'one-subscription',
+      supportNeed: 'managed-provider-review',
+    });
+    setStatus('Opening no-secret email draft. Add work email before sending.');
+    window.location.href = draftUrl;
+  };
+
   const submitManagedAccessReview = async (event) => {
     event.preventDefault();
     const trimmedEmail = email.trim();
@@ -745,6 +805,10 @@ function ManagedAccessReviewPrompt() {
         <button type="submit" disabled={submitting}>{submitting ? 'Requesting...' : 'Request review'}</button>
         {turnstile.required && <div className="turnstileSlot managedAccessTurnstile" ref={widgetRef} />}
       </form>
+      <div className="managedAccessFallbackActions" aria-label="Homepage managed-access contact fallback">
+        <button type="button" onClick={copyContactRequest}>Copy contact request</button>
+        <button type="button" onClick={openContactDraft}>Open email draft</button>
+      </div>
       <a href={MANAGED_ONE_SUBSCRIPTION_URL} onClick={() => trackManagedAccessReviewClick({
         target: MANAGED_ONE_SUBSCRIPTION_URL,
         button: 'Hero one-subscription review',
