@@ -1218,6 +1218,41 @@ def model_api_auth_setup_snippet():
     )
 
 
+def model_api_auth_codex_profile():
+    return {
+        "configPath": "~/.codex/config.toml",
+        "providerName": "sage-router-hosted",
+        "profileName": "sage-router-frontier",
+        "baseUrl": API_BASE_URL.rstrip("/") + "/v1/",
+        "envKey": "OPENAI_API_KEY",
+        "wireApi": "responses",
+        "model": "sage-router/frontier",
+        "runCommand": "codex --profile sage-router-frontier",
+    }
+
+
+def model_api_auth_codex_setup_snippet():
+    profile = model_api_auth_codex_profile()
+    return (
+        "# Sage Router hosted Codex setup\n"
+        "export OPENAI_API_KEY=sk_sage_REPLACE_WITH_GENERATED_KEY\n"
+        "mkdir -p ~/.codex\n"
+        "cat >> ~/.codex/config.toml <<'TOML'\n"
+        f"[model_providers.{profile['providerName']}]\n"
+        'name = "Sage Router Hosted"\n'
+        f"base_url = \"{profile['baseUrl']}\"\n"
+        f"env_key = \"{profile['envKey']}\"\n"
+        f"wire_api = \"{profile['wireApi']}\"\n"
+        "\n"
+        f"[profiles.{profile['profileName']}]\n"
+        f"model_provider = \"{profile['providerName']}\"\n"
+        f"model = \"{profile['model']}\"\n"
+        "TOML\n"
+        "\n"
+        f"{profile['runCommand']}"
+    )
+
+
 def edge_error_payload(error, path, message=None, **extra):
     payload = {"error": error}
     if message:
@@ -1230,6 +1265,8 @@ def edge_error_payload(error, path, message=None, **extra):
         payload["openaiBaseUrl"] = API_BASE_URL.rstrip("/") + "/v1"
         payload["apiKeyPrefix"] = API_KEY_PREFIX
         payload["setupSnippet"] = model_api_auth_setup_snippet()
+        payload["codexProfile"] = model_api_auth_codex_profile()
+        payload["codexSetupSnippet"] = model_api_auth_codex_setup_snippet()
     elif is_user_jwt_path(path):
         payload["loginUrl"] = LOGIN_URL
         payload["accountUrl"] = ACCOUNT_URL
