@@ -22,7 +22,9 @@ jobs:
         run: python -m py_compile router.py
 
       - name: Node syntax check
-        run: node --check openclaw_gateway_agent.mjs
+        run: |
+          node --check openclaw_gateway_agent.mjs
+          find web/public -maxdepth 1 -name '*.js' -print -exec node --check {} \;
 
       - name: Shell syntax check
         run: for file in scripts/*.sh; do bash -n "$file"; done

@@ -19,6 +19,12 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn('path: "/dashboard"', manifest)
         self.assertIn("port: 8790", manifest)
 
+    def test_ci_syntax_checks_public_launch_javascript(self):
+        workflow = self.read_text(".github", "workflows", "ci.yml")
+        self.assertIn("node --check openclaw_gateway_agent.mjs", workflow)
+        self.assertIn("find web/public -maxdepth 1 -name '*.js'", workflow)
+        self.assertIn("-exec node --check {}", workflow)
+
     def test_env_example_documents_cdn_wide_modality_learning(self):
         env = self.read_text(".env.example")
         self.assertIn("shared modality learning", env)
