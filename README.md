@@ -727,7 +727,10 @@ token-candidate audit summary, required permissions, and next commands without
 mutating Cloudflare or printing token values. If no local token candidate has
 Rulesets permissions, the packet also prints the manual Cloudflare Dashboard
 path and exact host-scoped `http.host eq "api.sagerouter.dev"` rule to disable
-Browser Integrity Check only on the API host.
+Browser Integrity Check only on the API host. The public status page also
+includes a `Cloudflare BIC token scope` copy action for the exact no-secret
+token request, so the operator can rotate or grant `Zone:Zone:Read`,
+`Zone Rulesets:Read`, and `Zone Rulesets:Edit` without exposing the token.
 The public status page copies the same no-secret BIC reliability packet,
 including the docs path, required Cloudflare token permissions, manual rule
 name, host expression, and scope warning, so the remaining warning can be

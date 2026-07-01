@@ -1518,6 +1518,12 @@ check_hosted_onboarding_pages() {
   if [[ "$status_js_code" == "200" ]] && ! grep -q "Zone Rulesets:Edit" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-bic-token-permissions"
   fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "status_cloudflare_bic_token_scope_copied" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-bic-token-scope-copy"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "Sage Router Cloudflare BIC token-scope request" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-bic-token-scope-request"
+  fi
   if [[ "$status_js_code" == "200" ]] && ! grep -q 'http.host eq "api.sagerouter.dev"' /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-bic-host-expression"
   fi
@@ -1849,6 +1855,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("status_managed_one_subscription_pricing_copied") != null) and
     ((.allowedEvents // []) | index("status_managed_provider_authorization_review_copied") != null) and
     ((.allowedEvents // []) | index("status_managed_provider_terms_review_copied") != null) and
+    ((.allowedEvents // []) | index("status_cloudflare_bic_token_scope_copied") != null) and
     ((.allowedEvents // []) | index("operator_managed_access_packet_copied") != null) and
     ((.allowedEvents // []) | index("operator_managed_access_command_copied") != null)
   ' /tmp/sage-router-readiness-body 2>/dev/null || true)"

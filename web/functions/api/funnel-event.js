@@ -252,6 +252,7 @@ const ALLOWED_EVENTS = new Set([
   'status_managed_resale_stage_copied',
   'status_managed_private_cost_stage_copied',
   'status_cloudflare_bic_check_copied',
+  'status_cloudflare_bic_token_scope_copied',
   'account_email_verification_resend_clicked',
   'account_email_verification_resent',
   'account_preauth_setup_next_clicked',

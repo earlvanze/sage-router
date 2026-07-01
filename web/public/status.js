@@ -530,6 +530,25 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
     'scripts/configure_cloudflare_api_bic_skip.sh --check',
     'scripts/configure_cloudflare_api_bic_skip.sh',
   ].join('\n');
+  const cloudflareBicTokenScopeRequest = [
+    'Sage Router Cloudflare BIC token-scope request',
+    'Purpose: verify the host-scoped Browser Integrity Check skip for api.sagerouter.dev so API clients reach the Sage Router auth gate.',
+    'Boundary: never paste token values, customer data, provider credentials, API keys, prompts, OAuth tokens, raw provider responses, or private funnel rows into chat, docs, or tickets.',
+    'Create or rotate CLOUDFLARE_API_TOKEN for zone sagerouter.dev with exactly these permissions: Zone:Zone:Read; Zone Rulesets:Read; Zone Rulesets:Edit.',
+    'Do not reuse the Pages deploy token, customer API keys, provider keys, or router backend tokens.',
+    'Manual UI fallback if token rotation is not ready: Cloudflare Dashboard > sagerouter.dev > Rules > Configuration Rules > Create rule.',
+    'Rule name/ref: sage-router-api-disable-bic.',
+    'Expression: http.host eq "api.sagerouter.dev".',
+    'Action: set configuration setting Browser Integrity Check to Off.',
+    'Scope warning: disable Browser Integrity Check only for api.sagerouter.dev, not sagerouter.dev, app.sagerouter.dev, www.sagerouter.dev, or the whole zone.',
+    '',
+    'Read-only commands:',
+    'scripts/configure_cloudflare_api_bic_skip.sh --operator-packet',
+    'scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens',
+    'scripts/configure_cloudflare_api_bic_skip.sh --check',
+    '',
+    'After a usable token is available, apply the rule only with explicit operator approval.',
+  ].join('\n');
   const managedStagePublicControls = managedSetup.stagePublicControlsCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
   const managedSetupCommand = managedSetup.setupCommand || [
     "SAGEROUTER_PROVIDER_RESALE_TERMS_URL='https://sagerouter.dev/provider-resale-terms' \\",
@@ -725,6 +744,16 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
       meta: 'SDK-style clients reach the auth gate; raw Python urllib may still need the host-scoped Browser Integrity Check skip rule. Audit local token candidates first; the audit prints status only, never token values.',
       command: cloudflareBicCheck,
       copyEvent: 'status_cloudflare_bic_check_copied',
+    },
+    {
+      id: 'cloudflare-bic-token-scope',
+      title: 'Cloudflare BIC token scope',
+      value: 'Rulesets token needed',
+      badge: 'no-secret handoff',
+      state: 'warn',
+      meta: 'Copy the exact Cloudflare token-scope request needed to verify the host-scoped BIC rule without exposing token values or mutating Cloudflare.',
+      command: cloudflareBicTokenScopeRequest,
+      copyEvent: 'status_cloudflare_bic_token_scope_copied',
     },
   ];
 

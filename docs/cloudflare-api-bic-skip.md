@@ -62,6 +62,12 @@ prints the manual Cloudflare UI fallback:
 - Scope warning: do not disable Browser Integrity Check for `sagerouter.dev`,
   `app.sagerouter.dev`, `www.sagerouter.dev`, or the whole zone
 
+The public status page includes the same no-secret token-scope request as a
+copyable `Cloudflare BIC token scope` operator action. Use that handoff when
+requesting a Cloudflare token rotation or permission grant; it intentionally
+excludes token values, customer data, provider credentials, prompts, raw
+provider responses, and private funnel rows.
+
 ## Apply
 
 ```bash

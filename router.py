@@ -7298,6 +7298,9 @@ PROVIDER_TERMS_REVIEW_COPY_EVENTS = {
 ACTIVATION_APPROVAL_PACKET_COPY_EVENTS = {
     'status_activation_approval_packet_copied',
 }
+CLOUDFLARE_BIC_TOKEN_SCOPE_COPY_EVENTS = {
+    'status_cloudflare_bic_token_scope_copied',
+}
 OPERATOR_FOLLOWUP_COPY_EVENTS = {
     'operator_no_key_followup_copied',
     'operator_no_key_followup_batch_copied',
@@ -9755,6 +9758,8 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'activationApprovalPacketCopiesBySnippet': {},
         'activationApprovalDecisionCopies': 0,
         'activationApprovalDecisionCopiesBySnippet': {},
+        'cloudflareBicTokenScopeCopies': 0,
+        'cloudflareBicTokenScopeCopiesBySnippet': {},
         'operatorFollowUpCopies': 0,
         'operatorFollowUpCopiesByKind': {},
         'operatorFollowUpWorked': 0,
@@ -9879,6 +9884,10 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             metrics['activationApprovalPacketCopies'] += 1
             snippet = str(metadata.get('snippet') or metadata.get('state') or 'activation-approval-packet').strip().lower()[:80] or 'activation-approval-packet'
             metrics['activationApprovalPacketCopiesBySnippet'][snippet] = metrics['activationApprovalPacketCopiesBySnippet'].get(snippet, 0) + 1
+        if event in CLOUDFLARE_BIC_TOKEN_SCOPE_COPY_EVENTS:
+            metrics['cloudflareBicTokenScopeCopies'] += 1
+            snippet = str(metadata.get('snippet') or metadata.get('state') or 'cloudflare-bic-token-scope').strip().lower()[:80] or 'cloudflare-bic-token-scope'
+            metrics['cloudflareBicTokenScopeCopiesBySnippet'][snippet] = metrics['cloudflareBicTokenScopeCopiesBySnippet'].get(snippet, 0) + 1
         if event == 'operator_execution_packet_copied':
             snippet = str(metadata.get('snippet') or metadata.get('state') or '').strip().lower()[:80]
             if snippet.startswith('activation-approval-') and snippet.endswith('-decision'):
@@ -9990,6 +9999,8 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'activationApprovalPacketCopiesBySnippet': {},
             'activationApprovalDecisionCopies': 0,
             'activationApprovalDecisionCopiesBySnippet': {},
+            'cloudflareBicTokenScopeCopies': 0,
+            'cloudflareBicTokenScopeCopiesBySnippet': {},
         }.items():
             marketing_metrics.setdefault(key, default)
         marketing_metrics = {
