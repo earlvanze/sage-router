@@ -473,6 +473,7 @@ if [[ "$MANAGED_ACCESS_DROPOFF_PACKET" == "1" ]]; then
     | ($events.managed_access_contact_capture_landed // 0) as $landed
     | ($events.managed_access_quick_form_focused // 0) as $focused
     | ($events.managed_access_contact_draft_opened // 0) as $drafts
+    | ($events.managed_access_contact_packet_copied // 0) as $contact_packets
     | ($events.managed_access_quick_form_started // 0) as $started
     | ($events.managed_access_quick_request_validation_failed // 0) as $validation_failed
     | ($events.managed_access_quick_request_submitted // 0) as $submitted
@@ -491,16 +492,16 @@ if [[ "$MANAGED_ACCESS_DROPOFF_PACKET" == "1" ]]; then
           "Quick requests are being submitted but not counted as received; inspect the waitlist endpoint, Turnstile, and app/api routing before more traffic."
         elif ($validation_failed > 0 and $submitted <= 0) then
           "Visitors hit validation without a successful request; reduce form friction and verify Turnstile/contact-field error copy."
-        elif ($presented > 0 and $landed <= 0 and ($focused + $started + $drafts + $submitted + $received) <= 0) then
+        elif ($presented > 0 and $landed <= 0 and ($focused + $started + $drafts + $contact_packets + $submitted + $received) <= 0) then
           "The fast form is visible, but no contact-capture landing is recorded; route operator/founder-sales CTAs to the anchored managed-access fast form."
-        elif ($landed > 0 and ($focused + $started + $drafts + $submitted + $received) <= 0) then
+        elif ($landed > 0 and ($focused + $started + $drafts + $contact_packets + $submitted + $received) <= 0) then
           "The fast form is being presented, but no focus or fallback action is recorded; make the operator CTA land on the fast form and tighten the first-screen request-review affordance."
-        elif (($focused + $started + $drafts) > 0 and $submitted <= 0) then
-          "Visitors engage the fast path but do not submit; keep the email-draft fallback visible and tighten one-field completion copy."
-        elif (($anonymous + $packet_copies + $legacy_clicks) > 0 and ($focused + $started + $drafts + $submitted + $received) <= 0) then
+        elif (($focused + $started + $drafts + $contact_packets) > 0 and $submitted <= 0) then
+          "Visitors engage the fast path but do not submit; keep the email-draft and contact-packet fallbacks visible and tighten one-field completion copy."
+        elif (($anonymous + $packet_copies + $legacy_clicks) > 0 and ($focused + $started + $drafts + $contact_packets + $submitted + $received) <= 0) then
           "Demand exists before the form, but no fast-form engagement is recorded; put the managed-access CTA in the operator outreach path and verify first-viewport form tracking."
         else
-          "Managed-access interest is present; continue routing qualified buyers to the contactable review path and watch quickFocused, emailDrafts, quickSubmitted, and quickReceived."
+          "Managed-access interest is present; continue routing qualified buyers to the contactable review path and watch quickFocused, contactPackets, emailDrafts, quickSubmitted, and quickReceived."
         end
       ) as $diagnosis
     | [
@@ -511,7 +512,7 @@ if [[ "$MANAGED_ACCESS_DROPOFF_PACKET" == "1" ]]; then
         "Window: last \($days) days",
         "Conversion: status=\($conversion.status // "unknown"); priority=\($conversion.priority // "monitor"); managedResaleEnabled=\($conversion.managedResaleEnabled // false).",
         "Demand: anonymousSignals=\(n($anonymous)); waitlistSignals=\(n($waitlist)); contactableLeadGap=\(n($gap)); reviewPacketCopies=\(n($packet_copies)); legacyClicks=\(n($legacy_clicks)).",
-        "Fast funnel: quickPresented=\(n($presented)); contactCaptureLanded=\(n($landed)); quickFocused=\(n($focused)); emailDrafts=\(n($drafts)); quickStarted=\(n($started)); quickValidationFailed=\(n($validation_failed)); quickSubmitted=\(n($submitted)); quickReceived=\(n($received)).",
+        "Fast funnel: quickPresented=\(n($presented)); contactCaptureLanded=\(n($landed)); quickFocused=\(n($focused)); contactPackets=\(n($contact_packets)); emailDrafts=\(n($drafts)); quickStarted=\(n($started)); quickValidationFailed=\(n($validation_failed)); quickSubmitted=\(n($submitted)); quickReceived=\(n($received)).",
         "Buckets: providers=\(buckets($managed_demand.targetProviderFamily)); commercial=\(buckets($managed_demand.commercialPreference)); intents=\(buckets($managed_demand.intent)).",
         "",
         "Diagnosis: \($diagnosis)",
@@ -519,8 +520,8 @@ if [[ "$MANAGED_ACCESS_DROPOFF_PACKET" == "1" ]]; then
         "Operator next actions:",
         "- Route one-subscription and Max conversations to the contactable CTA, not to public managed resale.",
         "- If quickPresented rises but contactCaptureLanded stays at zero, use the anchored operator CTA from this packet in founder-sales and support replies.",
-        "- If quickPresented rises but quickFocused and emailDrafts stay at zero, tighten the first-screen CTA, focus path, and direct founder-sales handoff copy.",
-        "- If quickFocused and emailDrafts stay at zero while anonymousSignals or packet copies rise, verify the first-viewport form and use direct founder-sales handoff copy.",
+        "- If quickPresented rises but quickFocused, contactPackets, and emailDrafts stay at zero, tighten the first-screen CTA, focus path, and direct founder-sales handoff copy.",
+        "- If quickFocused, contactPackets, and emailDrafts stay at zero while anonymousSignals or packet copies rise, verify the first-viewport form and use direct founder-sales handoff copy.",
         "- If quickValidationFailed rises without quickReceived, inspect contact-field validation, Turnstile, and /api/waitlist routing before buying or posting more traffic.",
         "- If quickReceived rises, follow up privately and keep provider authorization, terms, cost model, quotas, and abuse-review gates closed until reviewed.",
         "",
@@ -1247,7 +1248,7 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
       "- Activation approval packet snippets: \(buckets($marketing.activationApprovalPacketCopiesBySnippet))",
       "- Recovery auth starts: magic=\(n($events.login_key_recovery_magic_link_requested) + n($events.setup_key_recovery_magic_link_requested)), password=\(n($events.login_key_recovery_password_submitted)), oauth=\(n($events.login_key_recovery_oauth_clicked))",
       "- Key-first recovery: setupClicks=\(n($events.login_key_recovery_account_setup_clicked) + n($events.setup_key_recovery_account_clicked) + n($events.setup_key_recovery_next_account_clicked)); scheduled=\(n($followups.keyRecoveryHandoffScheduled)); redirects=\(n($followups.keyFirstRedirects)); paused=\(n($followups.keyRecoveryHandoffPaused)); recoveryViews=\(n($followups.keyRecoveryViews)); keyCreateAttempts=\(n($followups.keyCreateAttempts)); keyCreateSuccesses=\(n($followups.keyCreateSuccesses)); noKeyCreateClicks=\(n($events.account_no_key_setup_create_clicked))",
-      "- Managed-access demand: anonymousSignals=\(n($stages.anonymousManagedAccessInterest)); waitlistSignals=\(n($stages.managedAccessBetaInterest)); legacyClicks=\(n($events.managed_access_interest_clicked)); contactCaptureLanded=\(n($events.managed_access_contact_capture_landed)); quickPresented=\(n($events.managed_access_quick_form_presented)); quickFocused=\(n($events.managed_access_quick_form_focused)); emailDrafts=\(n($events.managed_access_contact_draft_opened)); quickStarted=\(n($events.managed_access_quick_form_started)); quickValidationFailed=\(n($events.managed_access_quick_request_validation_failed)); quickSubmitted=\(n($events.managed_access_quick_request_submitted)); quickReceived=\(n($events.managed_access_quick_request_received))",
+      "- Managed-access demand: anonymousSignals=\(n($stages.anonymousManagedAccessInterest)); waitlistSignals=\(n($stages.managedAccessBetaInterest)); legacyClicks=\(n($events.managed_access_interest_clicked)); contactCaptureLanded=\(n($events.managed_access_contact_capture_landed)); quickPresented=\(n($events.managed_access_quick_form_presented)); quickFocused=\(n($events.managed_access_quick_form_focused)); contactPackets=\(n($events.managed_access_contact_packet_copied)); emailDrafts=\(n($events.managed_access_contact_draft_opened)); quickStarted=\(n($events.managed_access_quick_form_started)); quickValidationFailed=\(n($events.managed_access_quick_request_validation_failed)); quickSubmitted=\(n($events.managed_access_quick_request_submitted)); quickReceived=\(n($events.managed_access_quick_request_received))",
       "- Managed-access conversion: status=\($managedConversion.status // "unknown"); priority=\($managedConversion.priority // "monitor"); contactableLeadGap=\(n($managedConversion.contactableLeadGap)); cta=\($managedConversion.ctaPath // "https://sagerouter.dev/managed-access")",
       "- Managed-access provider buckets: \(buckets($managedDemand.targetProviderFamily))",
       "- Managed-access commercial buckets: \(buckets($managedDemand.commercialPreference))",
