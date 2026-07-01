@@ -39,6 +39,8 @@
         <select id="quick-review-kind" name="reviewType" aria-label="Review type">
           <option value="one-subscription">One subscription</option>
           <option value="max-implementation">Max with BYOK</option>
+          <option value="private-deployment">Private deployment</option>
+          <option value="gateway-migration">Gateway migration</option>
         </select>
         <button id="quick-review-submit" type="submit">Request one-subscription review</button>
         <button id="quick-review-email-draft" class="secondary" type="button">Open email draft</button>
@@ -354,7 +356,10 @@
     }
 
     function quickReviewSubmitLabel(intent = quickReviewIntent()) {
-      return intent === 'max-implementation' ? 'Request Max review' : 'Request one-subscription review';
+      if (intent === 'max-implementation') return 'Request Max review';
+      if (intent === 'private-deployment') return 'Request private deployment review';
+      if (intent === 'gateway-migration') return 'Request migration review';
+      return 'Request one-subscription review';
     }
 
     function quickReviewNextAction(intent = quickReviewIntent()) {
@@ -391,6 +396,51 @@
       if (!quickReviewKind) return;
       const hasOption = Array.from(quickReviewKind.options || []).some((option) => option.value === intent);
       if (hasOption) quickReviewKind.value = intent;
+    }
+
+    function quickReviewIntentProfile(intent = quickReviewIntent()) {
+      if (intent === 'max-implementation') {
+        return {
+          deployment: 'hybrid',
+          monthlyVolume: '200k-1m',
+          providerAccess: 'byok',
+          targetProviderFamily: 'byok-compatible',
+          commercialPreference: 'private-contract',
+          supportNeed: 'implementation-support',
+          targetLaunchWindow: 'this-month',
+        };
+      }
+      if (intent === 'private-deployment') {
+        return {
+          deployment: 'tailnet-private',
+          monthlyVolume: '200k-1m',
+          providerAccess: 'byok',
+          targetProviderFamily: 'byok-compatible',
+          commercialPreference: 'private-contract',
+          supportNeed: 'private-deployment',
+          targetLaunchWindow: 'this-month',
+        };
+      }
+      if (intent === 'gateway-migration') {
+        return {
+          deployment: 'hybrid',
+          monthlyVolume: '200k-1m',
+          providerAccess: 'byok',
+          targetProviderFamily: 'byok-compatible',
+          commercialPreference: 'byok-plus-routing',
+          supportNeed: 'migration-help',
+          targetLaunchWindow: 'this-month',
+        };
+      }
+      return {
+        deployment: 'hybrid',
+        monthlyVolume: '200k-1m',
+        providerAccess: 'needs-managed-access',
+        targetProviderFamily: 'mixed-frontier',
+        commercialPreference: 'one-subscription',
+        supportNeed: 'managed-provider-review',
+        targetLaunchWindow: 'this-month',
+      };
     }
 
     function applyIntentQuickPick(button) {
@@ -472,19 +522,13 @@
 
     function quickReviewPayload(email) {
       const quickIntent = quickReviewIntent();
-      const oneSubscription = quickIntent === 'one-subscription';
+      const profile = quickReviewIntentProfile(quickIntent);
       return {
         email,
         company: '',
         interest: 'managed-access',
         intent: quickIntent,
-        deployment: 'hybrid',
-        monthlyVolume: '200k-1m',
-        providerAccess: oneSubscription ? 'needs-managed-access' : 'byok',
-        targetProviderFamily: 'mixed-frontier',
-        commercialPreference: oneSubscription ? 'one-subscription' : 'private-contract',
-        supportNeed: oneSubscription ? 'managed-provider-review' : 'implementation-support',
-        targetLaunchWindow: 'this-month',
+        ...profile,
         sourcePage: `${window.location.origin}${window.location.pathname}`,
         turnstileToken: turnstileState.token,
       };
@@ -822,7 +866,7 @@
       quickSubmit.disabled = true;
       quickSubmit.textContent = 'Requesting...';
       const quickIntent = quickReviewIntent();
-      const quickKindLabel = quickIntent === 'max-implementation' ? 'Max implementation' : 'one-subscription';
+      const quickKindLabel = humanize(quickIntent);
       setQuickStatus(`Submitting ${quickKindLabel} review request...`);
       trackManagedAccessFunnelEvent('managed_access_quick_request_submitted', {
         state: quickIntent,
