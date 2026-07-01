@@ -573,6 +573,15 @@ MANAGED_PROVIDER_CONTROL_NEXT_ACTIONS = {
         'requiredEnv': ['SAGEROUTER_PROVIDER_RESALE_MIN_GROSS_MARGIN_PERCENT'],
     },
 }
+MANAGED_PROVIDER_MUTATING_CONTROLS = {
+    'provider_resale_terms',
+    'provider_terms_acknowledgment',
+    'provider_authorization_evidence',
+    'authorized_provider_allowlist',
+    'margin_policy',
+    'provider_cost_model',
+    'minimum_gross_margin',
+}
 PUBLIC_BASE_URL = (os.environ.get('SAGE_ROUTER_PUBLIC_BASE_URL') or 'https://sagerouter.dev').rstrip('/')
 MARKETING_BASE_URL = (os.environ.get('SAGE_ROUTER_MARKETING_BASE_URL') or 'https://sagerouter.dev').rstrip('/')
 APP_BASE_URL = (os.environ.get('SAGE_ROUTER_APP_BASE_URL') or os.environ.get('SAGE_ROUTER_PUBLIC_BASE_URL') or 'https://app.sagerouter.dev').rstrip('/')
@@ -2884,11 +2893,16 @@ def managed_provider_resale_next_actions(missing_controls, managed_access, unit_
             'checkCommand': setup.get('dryRunCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --check',
             'secretFree': True,
             'publicSafe': True,
+            'managedResaleEnabled': bool(managed_access.get('enabled')),
+            'sendsEmail': False,
+            'mutatesRuntime': False,
             'privacy': {
                 'containsSecrets': False,
                 'containsProviderCredentials': False,
                 'containsActualProviderCosts': False,
                 'containsAuthorizationReference': False,
+                'containsPrompts': False,
+                'containsRawProviderResponses': False,
             },
         }]
 
@@ -2915,11 +2929,16 @@ def managed_provider_resale_next_actions(missing_controls, managed_access, unit_
             'secretManagerNames': setup.get('secretManagerNames') if isinstance(setup.get('secretManagerNames'), list) else [],
             'secretFree': True,
             'publicSafe': True,
+            'managedResaleEnabled': bool(managed_access.get('enabled')),
+            'sendsEmail': False,
+            'mutatesRuntime': control in MANAGED_PROVIDER_MUTATING_CONTROLS,
             'privacy': {
                 'containsSecrets': False,
                 'containsProviderCredentials': False,
                 'containsActualProviderCosts': False,
                 'containsAuthorizationReference': False,
+                'containsPrompts': False,
+                'containsRawProviderResponses': False,
             },
         }
         if control in {'provider_cost_model', 'positive_unit_economics'}:

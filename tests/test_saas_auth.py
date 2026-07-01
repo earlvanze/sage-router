@@ -2474,6 +2474,8 @@ class SaaSAuthTests(unittest.TestCase):
         )
         self.assertTrue(all(row['secretFree'] for row in pricing_managed['nextActions']))
         self.assertTrue(all(row['publicSafe'] for row in pricing_managed['nextActions']))
+        self.assertTrue(all(row['sendsEmail'] is False for row in pricing_managed['nextActions']))
+        self.assertTrue(all(row['managedResaleEnabled'] is False for row in pricing_managed['nextActions']))
         self.assertTrue(all(row['secretFree'] for row in pricing_managed['onboardingSequence']))
         self.assertTrue(all(row['publicSafe'] for row in pricing_managed['onboardingSequence']))
         self.assertIn(
@@ -2494,6 +2496,13 @@ class SaaSAuthTests(unittest.TestCase):
             [row['id'] for row in managed_readiness['onboardingSequence']],
         )
         self.assertTrue(all(not row['privacy']['containsSecrets'] for row in managed_readiness['nextActions']))
+        managed_actions_by_id = {row['id']: row for row in managed_readiness['nextActions']}
+        self.assertTrue(managed_actions_by_id['provider_terms_acknowledgment']['mutatesRuntime'])
+        self.assertTrue(managed_actions_by_id['provider_authorization_evidence']['mutatesRuntime'])
+        self.assertTrue(managed_actions_by_id['provider_cost_model']['mutatesRuntime'])
+        self.assertFalse(managed_actions_by_id['positive_unit_economics']['mutatesRuntime'])
+        self.assertTrue(all(row['sendsEmail'] is False for row in managed_readiness['nextActions']))
+        self.assertTrue(all(row['managedResaleEnabled'] is False for row in managed_readiness['nextActions']))
         self.assertTrue(all(not row['privacy']['containsSecrets'] for row in managed_readiness['onboardingSequence']))
         self.assertEqual(
             pricing_managed['allowedProviderFamilies'],
