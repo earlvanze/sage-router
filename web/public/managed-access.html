@@ -57,7 +57,7 @@
         <button type="button" data-quick-managed-intent="gateway-migration">I am migrating gateways</button>
       </div>
       <div id="managed-access-intent-handoff" class="packetPanel" hidden>
-        <strong>Intent handoff</strong>
+        <strong>No-email intent handoff</strong>
         <p id="managed-access-intent-handoff-copy">Copy a no-secret review packet or use Max with BYOK while private-beta review is pending.</p>
         <div class="packetActions">
           <button id="managed-access-copy-intent-review-packet" type="button">Copy intent review packet</button>
@@ -476,11 +476,13 @@
       applyRequestedIntent(intent);
       quickSubmit.textContent = quickReviewSubmitLabel();
       markQuickFormStarted(intent, '#managed-access-quick-form');
+      showManagedAccessIntentHandoff(intent, '#managed-access-intent-handoff');
       trackManagedAccessFunnelEvent('managed_access_interest_clicked', {
         state: intent,
         target: '#managed-access-quick-form',
+        snippet: 'managed-access-intent-handoff',
       });
-      setQuickStatus('Intent captured. Add email to request review; do not send secrets.');
+      setQuickStatus('Intent captured. Add work email, or use the no-secret intent packet below without sending secrets.');
       document.getElementById('quick-review-email')?.focus();
     }
 
@@ -782,6 +784,19 @@
       trackManagedAccessFunnelEvent('managed_access_quick_form_focused', { state, target, ...extra });
     }
 
+    function showManagedAccessIntentHandoff(state = quickReviewIntent(), target = '#managed-access-intent-handoff') {
+      const handoff = document.getElementById('managed-access-intent-handoff');
+      const handoffCopy = document.getElementById('managed-access-intent-handoff-copy');
+      if (!handoff) return;
+      handoff.hidden = false;
+      if (handoffCopy) {
+        const label = humanize(state);
+        handoffCopy.textContent = state === 'one-subscription'
+          ? 'One-subscription intent captured. Copy the no-secret buyer packet for internal review, request review with work email, or use Max with BYOK while managed access remains gated.'
+          : `${label} intent captured. Copy a no-secret packet, request review with work email, or use Max with BYOK while review is pending.`;
+      }
+    }
+
     function presentQuickFormFromRequestedIntent() {
       const state = quickReviewIntent();
       if (!quickFormPresented) {
@@ -794,16 +809,7 @@
       if (isContactCaptureLanding()) {
         markContactCaptureLanding(state, '#managed-access-quick-form');
         setQuickStatus(quickReviewNextAction(state));
-        const handoff = document.getElementById('managed-access-intent-handoff');
-        const handoffCopy = document.getElementById('managed-access-intent-handoff-copy');
-        if (handoff) {
-          handoff.hidden = false;
-          if (handoffCopy) {
-            handoffCopy.textContent = state === 'one-subscription'
-              ? 'One-subscription intent detected. Copy the no-secret buyer packet for internal review, request review with work email, or use Max with BYOK while managed access remains gated.'
-              : 'Managed-access intent detected. Copy a no-secret packet, request review with work email, or use Max with BYOK while review is pending.';
-          }
-        }
+        showManagedAccessIntentHandoff(state, '#managed-access-quick-form');
         window.setTimeout(() => {
           quickForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
           markQuickFormFocused(state, '#managed-access-quick-form', {
