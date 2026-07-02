@@ -922,8 +922,11 @@ and secret values are never printed.
 The helper builds Cloudflare Pages from a clean temporary copy so local
 `node_modules` or Dropbox permissions cannot affect the production build, then
 deploys project `sage-router-web` to production branch `main` and reruns launch
-readiness. To update Cloud Run in the same pass, set an immutable release image
-digest:
+readiness. After a Pages deploy, it waits for the production app alias to serve
+the freshly uploaded static assets for `/status`, `/status.js`, and
+`/launch-funnel.js` before readiness runs, so Cloudflare production-alias lag
+does not produce stale-content false failures. To update Cloud Run in the same
+pass, set an immutable release image digest:
 
 ```bash
 GHCR_IMAGE_DIGEST=sha256:... scripts/deploy_sagerouter_public.sh
@@ -937,7 +940,8 @@ Cloud Run traffic switch, the helper waits for the public edge to serve
 fail-closed guard before running the full readiness suite; tune that bounded
 warmup with `SAGEROUTER_POST_DEPLOY_WARMUP_ATTEMPTS` and
 `SAGEROUTER_POST_DEPLOY_WARMUP_DELAY_SECONDS` if the edge cache needs longer to
-settle.
+settle. Set `SAGEROUTER_APP_BASE_URL` if the hosted app alias is not
+`https://app.sagerouter.dev`.
 
 Monthly API-key quotas require the Supabase usage counter table and RPC. Apply
 the idempotent migration through the Supabase Management API before enabling

@@ -15,7 +15,7 @@ load_deploy_env_file() {
       SAGEROUTER_CLOUDFLARE_PAGES_PROJECT|SAGEROUTER_CLOUDFLARE_PAGES_PRODUCTION_BRANCH|\
       SAGEROUTER_DEPLOY_PAGES|SAGEROUTER_DEPLOY_CLOUD_RUN|SAGEROUTER_DEPLOY_RUN_READINESS|\
       SAGEROUTER_DEPLOY_REQUIRE_ALL_EDGE_UPSTREAMS|SAGEROUTER_GHCR_IMAGE_DIGEST|GHCR_IMAGE_DIGEST|\
-      SAGEROUTER_API_BASE_URL|SAGEROUTER_POST_DEPLOY_WARMUP_ATTEMPTS|SAGEROUTER_POST_DEPLOY_WARMUP_DELAY_SECONDS|\
+      SAGEROUTER_API_BASE_URL|SAGEROUTER_APP_BASE_URL|SAGEROUTER_POST_DEPLOY_WARMUP_ATTEMPTS|SAGEROUTER_POST_DEPLOY_WARMUP_DELAY_SECONDS|\
       SAGEROUTER_MIN_HEALTHY_UPSTREAMS|SAGEROUTER_EDGE_HEALTH_RETRY_ATTEMPTS|\
       SAGEROUTER_EDGE_HEALTH_RETRY_DELAY_SECONDS|SAGEROUTER_EDGE_HEALTH_STABLE_ATTEMPTS|\
       SERVICE_NAME|REGION|REPOSITORY|IMAGE_TAG|PROJECT_ID|SAGE_ROUTER_GCP_PROJECT_ID|\
@@ -48,9 +48,11 @@ RUN_READINESS="${SAGEROUTER_DEPLOY_RUN_READINESS:-1}"
 REQUIRE_ALL_EDGE_UPSTREAMS="${SAGEROUTER_DEPLOY_REQUIRE_ALL_EDGE_UPSTREAMS:-1}"
 GHCR_IMAGE_DIGEST="${GHCR_IMAGE_DIGEST:-${SAGEROUTER_GHCR_IMAGE_DIGEST:-}}"
 API_BASE="${SAGEROUTER_API_BASE_URL:-https://api.sagerouter.dev}"
+APP_BASE="${SAGEROUTER_APP_BASE_URL:-${SAGE_ROUTER_APP_BASE_URL:-https://app.sagerouter.dev}}"
 POST_DEPLOY_WARMUP_ATTEMPTS="${SAGEROUTER_POST_DEPLOY_WARMUP_ATTEMPTS:-18}"
 POST_DEPLOY_WARMUP_DELAY_SECONDS="${SAGEROUTER_POST_DEPLOY_WARMUP_DELAY_SECONDS:-5}"
 CLOUD_RUN_DEPLOYED=0
+PAGES_DEPLOYED=0
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -146,6 +148,7 @@ deploy_pages() {
     wrangler_args+=(--commit-message "$commit_message")
   fi
   npx wrangler "${wrangler_args[@]}"
+  PAGES_DEPLOYED=1
 }
 
 deploy_cloud_run() {
@@ -168,6 +171,63 @@ http_code_to_file() {
   local url="$1"
   shift
   curl -sS -o /tmp/sage-router-deploy-warmup-body -w '%{http_code}' "$url" "$@"
+}
+
+wait_for_pages_alias_after_deploy() {
+  require_cmd curl
+  require_cmd sha256sum
+
+  local attempt commit_hash cache_buster check file path source expected tmp_body code actual
+  local -a checks last_mismatches mismatches
+  checks=(
+    "status.html:/status"
+    "status.js:/status.js"
+    "launch-funnel.js:/launch-funnel.js"
+  )
+  commit_hash="$(git_value rev-parse HEAD)"
+  cache_buster="${commit_hash:-$(date +%s)}"
+
+  for attempt in $(seq 1 "$POST_DEPLOY_WARMUP_ATTEMPTS"); do
+    mismatches=()
+    for check in "${checks[@]}"; do
+      file="${check%%:*}"
+      path="${check#*:}"
+      source="${WEB_DIR}/public/${file}"
+      if [[ ! -f "$source" ]]; then
+        mismatches+=("${file}=missing-local")
+        continue
+      fi
+
+      expected="$(sha256sum "$source" | awk '{print $1}')"
+      tmp_body="$(mktemp /tmp/sage-router-pages-warmup.XXXXXX)"
+      code="$(curl -sS -L -o "$tmp_body" -w '%{http_code}' "${APP_BASE%/}${path}?deployWarmup=${cache_buster}" || printf '000')"
+      actual="$(sha256sum "$tmp_body" 2>/dev/null | awk '{print $1}')"
+      rm -f "$tmp_body"
+
+      if [[ "$code" != "200" ]]; then
+        mismatches+=("${path}=http-${code}")
+      elif [[ "$actual" != "$expected" ]]; then
+        mismatches+=("${path}=stale")
+      fi
+    done
+
+    if [[ "${#mismatches[@]}" -eq 0 ]]; then
+      printf 'Cloudflare Pages production alias warmup passed after %s attempt(s): %s\n' \
+        "$attempt" "${APP_BASE%/}" >&2
+      return 0
+    fi
+
+    last_mismatches=("${mismatches[@]}")
+    printf 'Waiting for Cloudflare Pages production alias attempt %s/%s: %s\n' \
+      "$attempt" "$POST_DEPLOY_WARMUP_ATTEMPTS" "${mismatches[*]}" >&2
+    if [[ "$attempt" -lt "$POST_DEPLOY_WARMUP_ATTEMPTS" ]]; then
+      sleep "$POST_DEPLOY_WARMUP_DELAY_SECONDS"
+    fi
+  done
+
+  printf 'Cloudflare Pages production alias warmup failed after %s attempt(s): %s\n' \
+    "$POST_DEPLOY_WARMUP_ATTEMPTS" "${last_mismatches[*]:-unknown}" >&2
+  return 1
 }
 
 wait_for_public_edge_after_cloud_run_deploy() {
@@ -217,6 +277,9 @@ else
 fi
 
 if [[ "$RUN_READINESS" != "0" ]]; then
+  if [[ "$PAGES_DEPLOYED" == "1" ]]; then
+    wait_for_pages_alias_after_deploy
+  fi
   if [[ "$CLOUD_RUN_DEPLOYED" == "1" ]]; then
     wait_for_public_edge_after_cloud_run_deploy
   fi
