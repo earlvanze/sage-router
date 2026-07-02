@@ -955,7 +955,7 @@ function signedInNextActionState() {
     if (isKeyRecoveryIntent()) {
       return {
         title: 'Finish key recovery',
-        copy: 'This recovery link is ready to create your hosted sk_sage setup key now. Checkout and email verification can follow after the key exists.',
+        copy: 'This recovery link is ready to create your hosted sk_sage setup key now. Press the button once; the raw key appears on this page one time, and checkout can follow after it exists.',
         label: 'Create setup key now',
         state: 'create_key',
         target: '/account/api-keys',
@@ -964,8 +964,8 @@ function signedInNextActionState() {
     return {
       title: 'Finish activation: create API key',
       copy: activationState.emailVerified
-        ? 'Create the generated sk_sage setup key now. The raw key is shown once, inserted into setup snippets, and becomes the fastest path to first routed request.'
-        : 'Create the setup key now. It remains blocked from routing until email verification and checkout are complete, but the key step no longer has to wait.',
+        ? 'Create the generated sk_sage setup key now. No checkout is required for this step; the raw key is shown once, inserted into setup snippets, and becomes the fastest path to first routed request.'
+        : 'Create the setup key now. No checkout is required for this step. The key remains blocked from routing until email verification and checkout are complete, but the key step no longer has to wait.',
       label: 'Create setup key now',
       state: 'create_key',
       target: '/account/api-keys',
@@ -1072,8 +1072,8 @@ function renderNoKeySetupPanel() {
   if (!visible) return;
   const recoveryIntent = isKeyRecoveryIntent();
   set('no-key-setup-copy-text', recoveryIntent
-    ? 'Recovery sign-in is complete and this account still needs a generated sk_sage setup key. Create it now; checkout and email verification can follow after the key exists.'
-    : 'You are signed in but do not have a generated sk_sage key yet. Create the setup key first; checkout and email verification can follow after the key exists.');
+    ? 'Recovery sign-in is complete and this account still needs a generated sk_sage setup key. Press Create setup key now; the raw key appears once, and checkout can follow after it exists.'
+    : 'You are signed in but do not have a generated sk_sage key yet. Press Create setup key now; no checkout is required for this step, and the raw key appears once.');
   set('no-key-setup-status', activationState.emailVerified
     ? 'Next conversion step: create the setup key, then verify /v1/models.'
     : 'Next conversion step: create the setup key now; email verification can happen after the key exists.');
@@ -1511,7 +1511,7 @@ async function maybeCreateKeyFromIntent({ emailVerified, keyCount } = {}) {
   set('no-key-setup-status', fromKeyRecoveryIntent
     ? 'Recovery sign-in complete. Creating the setup key automatically now...'
     : 'Creating the setup key automatically from your saved activation path...');
-  $('create-key')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  ($('no-key-setup-panel') || $('create-key'))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   trackAccountFunnelEvent(fromKeyRecoveryIntent ? 'account_key_recovery_auto_create_started' : 'account_auto_key_create_started', {
     button: autoButton,
     target: '/account/api-keys',

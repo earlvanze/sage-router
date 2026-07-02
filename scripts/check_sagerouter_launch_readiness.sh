@@ -1164,6 +1164,9 @@ check_hosted_onboarding_pages() {
   if [[ "$account_code" == "200" ]] && ! grep -q "no-key-setup-copy" /tmp/sage-router-readiness-body; then
     account_code="200:missing-no-key-setup-copy"
   fi
+  if [[ "$account_code" == "200" ]] && ! grep -q 'data-conversion-step="signed-in-no-key-setup"' /tmp/sage-router-readiness-body; then
+    account_code="200:missing-signed-in-no-key-conversion-marker"
+  fi
   if [[ "$account_code" == "200" ]] && ! grep -q "Copy setup first" /tmp/sage-router-readiness-body; then
     account_code="200:missing-no-key-setup-copy-label"
   fi
@@ -1666,6 +1669,9 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "This recovery link is set to create the generated sk_sage setup key first" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-key-recovery-copy"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "No checkout is required for this step" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-signed-in-no-key-checkout-bypass-copy"
   fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "Continue with .* to create setup key" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-key-recovery-oauth-label"

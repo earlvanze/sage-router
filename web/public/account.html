@@ -93,6 +93,13 @@
         <div class="actions"><a class="btn secondary" href="/analytics.html">Open dashboard</a></div>
       </div>
 
+      <div id="no-key-setup-panel" class="panel hidden" data-conversion-step="signed-in-no-key-setup">
+        <h3>One-minute setup key</h3>
+        <p id="no-key-setup-copy-text" class="small">You are signed in but do not have a generated <code>sk_sage_*</code> key yet. Create the setup key first; checkout and email verification can follow after the key exists.</p>
+        <div class="actions"><button id="no-key-setup-create" class="btn" type="button">Create setup key now</button><button id="no-key-setup-copy" class="btn secondary" type="button" data-copy-target="preauth-setup-code" data-copy-label="Copy setup before key">Copy setup first</button><button id="no-key-setup-focus" class="btn secondary" type="button">Review key form</button></div>
+        <p id="no-key-setup-status" class="status small"></p>
+      </div>
+
       <div class="panel">
         <h3>Launch checklist</h3>
         <p class="small">This tracks the generated-key to first routed request funnel for the hosted API path. Browser verification proves the key reaches <code>/v1/models</code>; completed usage proves a routed request was recorded.</p>
@@ -104,13 +111,6 @@
           <div class="activationItem"><span id="launch-first-request-status" class="pill">Waiting</span><div><strong>First routed request</strong><p class="small">Run the browser Responses API probe and refresh usage after it succeeds.</p></div></div>
         </div>
         <p id="launch-next-action" class="status small"></p>
-      </div>
-
-      <div id="no-key-setup-panel" class="panel hidden">
-        <h3>One-minute setup key</h3>
-        <p id="no-key-setup-copy-text" class="small">You are signed in but do not have a generated <code>sk_sage_*</code> key yet. Create the setup key first; checkout and email verification can follow after the key exists.</p>
-        <div class="actions"><button id="no-key-setup-create" class="btn" type="button">Create setup key now</button><button id="no-key-setup-copy" class="btn secondary" type="button" data-copy-target="preauth-setup-code" data-copy-label="Copy setup before key">Copy setup first</button><button id="no-key-setup-focus" class="btn secondary" type="button">Review key form</button></div>
-        <p id="no-key-setup-status" class="status small"></p>
       </div>
 
       <div id="post-key-activation-panel" class="panel">
