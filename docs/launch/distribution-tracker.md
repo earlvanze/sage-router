@@ -26,8 +26,8 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 ```
 
 - Window: last 30 days
-- Generated at epoch: 1783002203
-- Marketing intent events: 461
+- Generated at epoch: 1783003921
+- Marketing intent events: 463
 - Setup snippet copies: 2
 - Founder-sales outreach copies: 0
 - Founder-sales outreach snippets: none
@@ -39,10 +39,10 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 - Provider authorization review snippets: operator-provider-authorization-review-packet=1
 - Provider terms review copies: 1
 - Provider terms review snippets: operator-provider-terms-review-packet=1
-- Activation approval packet reviews: 1
-- Activation approval packet snippets: operator-activation-approval-packet=1
-- Activation approval decision copies: 0
-- Activation approval decision snippets: none
+- Activation approval packet reviews: 2
+- Activation approval packet snippets: operator-activation-approval-packet=2
+- Activation approval decision copies: 1
+- Activation approval decision snippets: activation-approval-hold-decision=1
 - Cloudflare BIC token-scope copies: 0
 - Cloudflare BIC token-scope snippets: none
 - Recovery auth starts: magic=0, password=0, oauth=0
@@ -62,10 +62,10 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 
 - Metric: signupToGeneratedKey
 - Priority: fix_now
-- Owner/surface: Activation / activation approval
-- Action: The last no-secret approval packet is stale after the sendable queue changed; refresh the packet with recovery and auth-repair verification before recording an approve/hold decision or sending activation email.
-- Success metric: activationApprovalPacketReviewedRecipients reaches the current sendableQueued count before any approve/hold decision.
-- CTA: https://app.sagerouter.dev/launch-funnel.html#activation-approval
+- Owner/surface: Activation / account setup
+- Action: Recovery handoffs are reaching account setup but no key-create attempts have been recorded yet. Auto-key telemetry is now deployed and accepted by the hosted funnel endpoint; the remaining proof needs fresh signed-in recovery traffic or explicit operator approval before real activation sends.
+- Success metric: Move no-key signups into generated-key accounts, then first routed request.
+- CTA: https://app.sagerouter.dev/account.html?start=create_key&plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&auth=github
 
 ### Activation Queue
 
@@ -90,10 +90,10 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 - Packet command: scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet --verify-recovery --verify-auth-repair
 - Terminal review recording: scripts/summarize_sagerouter_launch_funnel.sh --days 30 --record-activation-approval-review --verify-recovery --verify-auth-repair after an operator actually reviews the packet.
 - Review worksheet: docs/launch/execution/activation-approval-review.md
-- Decision handoff status: packet_review_stale; priority=fix_now; packetReviewed=false; decisionRecorded=false.
-- Decision handoff action: Refresh the no-secret approval packet before recording a decision; the last recorded packet covered fewer recipients than the current sendable queue.
+- Decision handoff status: decision_recorded; priority=monitor; packetReviewed=true; decisionRecorded=true.
+- Decision handoff action: Decision handoff has been recorded; execute only the approved next step if separately authorized.
 - Approval decision: approval_required for next segment verified; blocker=explicit_operator_approval_required.
-- Decision lines: approve=APPROVE_ACTIVATION_FOLLOWUP segment="verified" issuedAt=1783002206 expiresAt=1783003106; hold=HOLD_ACTIVATION_FOLLOWUP segment="verified" reason="<reason>".
+- Decision lines: approve=APPROVE_ACTIVATION_FOLLOWUP segment="verified" issuedAt=1783003924 expiresAt=1783004824; hold=HOLD_ACTIVATION_FOLLOWUP segment="verified" reason="<reason>".
 - Decision copy tracking: activationApprovalDecisionCopies counts copied APPROVE_ACTIVATION_FOLLOWUP or HOLD_ACTIVATION_FOLLOWUP handoff lines; it does not send email or approve by itself.
 - Default snapshot policy: No send command is printed in this default snapshot. Real activation sends still require explicit operator approval and typed SEND_ACTIVATION_FOLLOWUPS confirmation.
 - Safe review: the approval packet is no-secret and excludes emails, customer IDs, generated keys, prompts, OAuth tokens, provider credentials, and raw responses.
@@ -193,9 +193,8 @@ scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
 - Prompts stored: false
 
 Prioritize the no-key activation queue before broad public posting: moving the
-current sendable signups into generated-key accounts should raise the
-conversion rate faster than buying or posting into more top-of-funnel traffic.
-After that,
+current sendable signups into generated-key accounts should raise the conversion
+rate faster than buying or posting into more top-of-funnel traffic. After that,
 scale Reddit reliability/comparison posts and GitHub README/docs traffic because
 those are the strongest external signals currently visible.
 

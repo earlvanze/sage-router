@@ -548,10 +548,12 @@ flag.
   with `managed-access-default-idle-handoff`; analytics surfaces that as
   `contactHandoffPrompts`, a pre-contact prompt signal rather than a captured
   lead, before any email is collected.
-  Operator contact-capture URLs also show a route nudge and re-run the
-  work-email focus path on hash changes and browser page restore, so routed
-  buyers keep landing on `#managed-access-quick-form` instead of only adding a
-  presentation event.
+  Operator contact-capture URLs also show a route nudge, record the same prompt
+  immediately with `managed-access-contact-capture-landing-handoff`, keep a
+  `managed-access-explicit-route-fallback-handoff` prompt available if no focus
+  or start follows, and re-run the work-email focus path on hash changes and
+  browser page restore, so routed buyers keep landing on
+  `#managed-access-quick-form` instead of only adding a presentation event.
 - Keep `/api/waitlist` guarded before Supabase inserts: browser-originating
   writes must come from Sage Router production hosts, Pages previews, local
   development, or exact origins configured with

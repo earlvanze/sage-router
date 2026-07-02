@@ -899,6 +899,8 @@
       contactCaptureLanded = true;
       quickForm?.classList.add('contactCaptureLanding');
       document.getElementById('managed-access-contact-capture-notice')?.removeAttribute('hidden');
+      showManagedAccessIntentHandoff(state, '#managed-access-quick-form');
+      showStickyContactHandoff(state, 'managed-access-contact-capture-landing-handoff');
       trackManagedAccessFunnelEvent('managed_access_contact_capture_landed', { state, target });
     }
 
@@ -1000,6 +1002,11 @@
           window.setTimeout(() => {
             focusQuickReviewFormForContactCapture(state, 'contact-capture-auto-focus');
           }, 250);
+          window.setTimeout(() => {
+            if (quickFormFocused || quickFormStarted || document.visibilityState === 'hidden') return;
+            setQuickStatus('Choose a work email, copy request, or open a draft. Managed provider resale remains gated.');
+            showStickyContactHandoff(state, 'managed-access-explicit-route-fallback-handoff');
+          }, 1200);
         }
       }
     }

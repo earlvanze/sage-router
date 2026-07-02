@@ -138,7 +138,10 @@ Default visits now show a bounded idle contact handoff instead of counting every
 view as a contact-capture landing; the prompt records
 `managed_access_contact_handoff_prompted` with
 `managed-access-default-idle-handoff` and keeps work-email, copied request, and
-email-draft choices visible.
+email-draft choices visible. Explicit operator/contact-capture URLs also record
+the same prompt immediately with `managed-access-contact-capture-landing-handoff`
+and keep a `managed-access-explicit-route-fallback-handoff` prompt available if
+the work-email field still is not focused or started.
 The public status page doubles as a no-secret operator launch-actions surface:
 it exposes a first-screen no-secret founder-sales Pro reply, a hosted setup bundle,
 the no-secret signup-to-key activation approval packet, and copies

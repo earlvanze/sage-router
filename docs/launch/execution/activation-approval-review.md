@@ -34,9 +34,9 @@ Current launch state:
 - Approval readiness: `approval_required; blocker=explicit_operator_approval_required.`
 - Decision needed: approve or hold the next real activation send for segment "verified".
 - Approval packet freshness: `issuedAt=<CURRENT_APPROVAL_PACKET_ISSUED_AT>; expiresAt=<CURRENT_APPROVAL_PACKET_EXPIRES_AT>; validSeconds=900; requiredForRealSend=true.`
-- Queue: `4 total; 2 sendable; 2 review-only; 0 unknown.`
-- Dry-run coverage: `verified for 2 unique sendable recipient(s). Sent: 0; failed: 0.`
-- Dry-run segments: `covered=verified, unverified; pending=none; duplicate raw recipient records=2.`
+- Queue: `6 total; 4 sendable; 2 review-only; 0 unknown.`
+- Dry-run coverage: `verified for 4 unique sendable recipient(s). Sent: 0; failed: 0.`
+- Dry-run segments: `covered=verified, unverified; pending=none; duplicate raw recipient records=0.`
 - Approval required: yes, do not send until explicit operator approval.
 - Primary recovery CTA:
   `https://sagerouter.dev/setup-key-recovery?plan=pro&utm_source=operator&utm_medium=launch_funnel&utm_campaign=signup_to_key_recovery&source_surface=operator_activation.`
@@ -58,24 +58,24 @@ Effect: read-only review packet; this command does not approve, copy a send comm
 Approval readiness: approval_required; blocker=explicit_operator_approval_required.
 Decision needed: approve or hold the next real activation send for segment "verified".
 Decision lines:
-- Approve after review: APPROVE_ACTIVATION_FOLLOWUP segment="verified" issuedAt=<CURRENT_APPROVAL_PACKET_ISSUED_AT> expiresAt=<CURRENT_APPROVAL_PACKET_EXPIRES_AT>
-- Hold: HOLD_ACTIVATION_FOLLOWUP segment="verified" reason="<reason>"
+- APPROVE_ACTIVATION_FOLLOWUP segment="verified" issuedAt=<CURRENT_APPROVAL_PACKET_ISSUED_AT> expiresAt=<CURRENT_APPROVAL_PACKET_EXPIRES_AT>
+- HOLD_ACTIVATION_FOLLOWUP segment="verified" reason="<reason>"
 Approval packet freshness: issuedAt=<CURRENT_APPROVAL_PACKET_ISSUED_AT>; expiresAt=<CURRENT_APPROVAL_PACKET_EXPIRES_AT>; validSeconds=900; requiredForRealSend=true.
-Queued: 4 total; 2 sendable; 2 review-only; 0 unknown.
-Dry-run: verified for 2 unique sendable recipient(s). Sent: 0; failed: 0.
-Dry-run segments: covered=verified, unverified; pending=none; duplicate raw recipient records=2.
+Queued: 6 total; 4 sendable; 2 review-only; 0 unknown.
+Dry-run: verified for 4 unique sendable recipient(s). Sent: 0; failed: 0.
+Dry-run segments: covered=verified, unverified; pending=none; duplicate raw recipient records=0.
 Approval required: yes, do not send until explicit operator approval.
 Next actions: fix_now:approve_activation_followups, next:review_auth_repair_segments.
 
 Pre-send recovery proof:
-- Current bottleneck: signupToGeneratedKey — Recovery handoff is verified with no persistence; the next blocker is explicit operator approval for segment "verified" or fresh recovery traffic, not recovery-page code.
+- Current bottleneck: signupToGeneratedKey — Recovery handoffs are reaching account setup but no key-create attempts have been recorded yet. Auto-key telemetry is now deployed and accepted by the hosted funnel endpoint; the remaining proof needs fresh signed-in recovery traffic or explicit operator approval before real activation sends.
 - Verification command: bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff
-- Verification result: stage=verified_handoff_waiting_for_fresh_traffic; checked=true; passed=true; noPersistence=true.
+- Verification result: stage=account_handoff_to_key_create; checked=true; passed=true; noPersistence=true.
 - Approval boundary: if the verification command does not report verified_handoff_waiting_for_fresh_traffic, hold real activation sends and inspect the recovery path first.
 
 Approval checklist:
 - review_no_secret_packet=ready: Packet excludes emails, customer IDs, generated keys, prompts, OAuth tokens, provider credentials, and raw provider responses.
-- verify_dry_run_coverage=ready: 2 unique sendable recipient(s); 4 raw dry-run recipient record(s); 2 duplicate record(s); covered=verified, unverified; pending=none.
+- verify_dry_run_coverage=ready: 4 unique sendable recipient(s); 4 raw dry-run recipient record(s); 0 duplicate record(s); covered=verified, unverified; pending=none.
 - exclude_review_only_segments=review: 2 review-only signup(s) need auth repair or exclusion before email outreach.
 - repair_missing_auth_users=review: Review account-link repair or exclusion for segments missing_auth_user; hydration has no missing customer rows to create.
 - refresh_recent_approval_packet=ready: Packet issued at <CURRENT_APPROVAL_PACKET_ISSUED_AT>; expires at <CURRENT_APPROVAL_PACKET_EXPIRES_AT>; re-run the approval packet after 900 seconds before any real send.
@@ -83,8 +83,8 @@ Approval checklist:
 - require_typed_confirmation=protected: Real sends require SEND_ACTIVATION_FOLLOWUPS plus the private operator token and trusted browser origin.
 
 Sendable segments:
-- verified: 1 queued; order=1; dryRun=verified; worked=verified_marked_worked
-- unverified: 1 queued; order=2; dryRun=verified; worked=unverified_marked_worked
+- verified: 2 queued; order=1; dryRun=verified; worked=verified_marked_worked
+- unverified: 2 queued; order=2; dryRun=verified; worked=unverified_marked_worked
 
 Review-only segments:
 - missing_auth_user: 2 queued; reason=Needs auth-user repair before recovery email can be sent.
@@ -142,7 +142,7 @@ bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff
 
 Current verified result:
 
-- Verification result: `stage=verified_handoff_waiting_for_fresh_traffic; checked=true; passed=true; noPersistence=true.`
+- Verification result: `stage=account_handoff_to_key_create; checked=true; passed=true; noPersistence=true.`
 - Account-link repair dry-run proof: `stage=dry_run_completed; checked=true; passed=true; eligible=0; updated=0; missingAuthCustomers=2; noAuthEmailMatch=2; aggregateOnly=true.`
 
 Hold real activation sends if the recovery verifier stops reporting
@@ -162,7 +162,7 @@ is reviewed.
 - Review-only rows excluded: `missing_auth_user` rows stay out of real sends
   until auth repair or explicit exclusion is reviewed.
 - Recovery proof reviewed: the verifier result is
-  `verified_handoff_waiting_for_fresh_traffic`.
+  `account_handoff_to_key_create`.
 - Decision line reviewed: use the packet's
   `APPROVE_ACTIVATION_FOLLOWUP segment="verified"` or
   `HOLD_ACTIVATION_FOLLOWUP segment="verified"` line as the human
@@ -218,7 +218,7 @@ The command still requires `SAGE_ROUTER_API_KEY` in the shell and
 - decision: pending
 - approvedSegment: `verified`
 - approvalScope: next segment only
-- recoveryVerifierResult: `verified_handoff_waiting_for_fresh_traffic`
+- recoveryVerifierResult: `account_handoff_to_key_create`
 - dryRunReviewed: false
 - reviewOnlyRowsExcluded: true
 - typedConfirmationAccepted: false
