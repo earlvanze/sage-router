@@ -2695,6 +2695,14 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(approval['privacy']['aggregateOnly'])
         self.assertFalse(approval['privacy']['containsEmails'])
         self.assertNotIn('buyer@example.com', json.dumps(approval))
+        decision_handoff = snapshot['activationApprovalDecisionHandoff']
+        self.assertEqual('no_pending_decision', decision_handoff['status'])
+        self.assertFalse(decision_handoff['required'])
+        self.assertFalse(decision_handoff['packetReviewStale'])
+        self.assertFalse(decision_handoff['sendsEmail'])
+        self.assertFalse(decision_handoff['mutatesRuntime'])
+        self.assertTrue(decision_handoff['privacy']['aggregateOnly'])
+        self.assertFalse(decision_handoff['privacy']['containsEmails'])
         self.assertEqual(2, snapshot['stages']['setupSnippetCopies'])
         self.assertEqual(1, snapshot['stages']['customersWithFirstRoutedRequest'])
         self.assertEqual(1, snapshot['stages']['paidConversions'])
@@ -3217,6 +3225,65 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('SEND_ACTIVATION_FOLLOWUPS', checklist['require_typed_confirmation']['detail'])
         self.assertFalse(readiness['privacy']['containsEmails'])
         self.assertTrue(readiness['privacy']['aggregateOnly'])
+
+    def test_activation_approval_decision_handoff_requires_current_packet_coverage(self):
+        readiness = {
+            'sendableQueued': 4,
+            'dryRunVerified': True,
+            'approvalRequired': True,
+            'nextSendSegment': 'verified',
+            'approvalPacketIssuedAt': 123,
+            'approvalPacketExpiresAt': 456,
+            'decisionLines': [
+                {
+                    'id': 'approve_after_review',
+                    'value': 'APPROVE_ACTIVATION_FOLLOWUP segment="verified" issuedAt=123 expiresAt=456',
+                },
+                {
+                    'id': 'hold',
+                    'value': 'HOLD_ACTIVATION_FOLLOWUP segment="verified" reason="<reason>"',
+                },
+            ],
+        }
+
+        stale = router.launch_activation_approval_decision_handoff(
+            readiness,
+            {
+                'activationApprovalPacketCopies': 1,
+                'activationApprovalPacketReviewedRecipients': 2,
+                'activationApprovalDecisionCopies': 0,
+            },
+        )
+
+        self.assertEqual('packet_review_stale', stale['status'])
+        self.assertTrue(stale['required'])
+        self.assertFalse(stale['packetReviewed'])
+        self.assertTrue(stale['packetReviewStale'])
+        self.assertFalse(stale['decisionRecorded'])
+        self.assertEqual(4, stale['sendableQueued'])
+        self.assertEqual(2, stale['packetReviewedRecipients'])
+        self.assertIn('covered fewer recipients than the current sendable queue', stale['action'])
+        self.assertFalse(stale['sendsEmail'])
+        self.assertFalse(stale['mutatesRuntime'])
+        self.assertTrue(stale['privacy']['aggregateOnly'])
+        self.assertFalse(stale['privacy']['containsEmails'])
+
+        covered = router.launch_activation_approval_decision_handoff(
+            readiness,
+            {
+                'activationApprovalPacketCopies': 1,
+                'activationApprovalPacketReviewedRecipients': 4,
+                'activationApprovalDecisionCopies': 0,
+            },
+        )
+
+        self.assertEqual('decision_required', covered['status'])
+        self.assertTrue(covered['packetReviewed'])
+        self.assertFalse(covered['packetReviewStale'])
+        self.assertEqual(
+            'APPROVE_ACTIVATION_FOLLOWUP segment="verified" issuedAt=123 expiresAt=456',
+            covered['approveLine'],
+        )
 
     def test_operator_execution_packet_marks_auth_repair_segments_review_only(self):
         action = {

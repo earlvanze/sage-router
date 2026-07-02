@@ -8566,6 +8566,90 @@ def launch_activation_approval_readiness(operator_execution_packet, activation_f
     }
 
 
+def launch_activation_approval_decision_handoff(activation_approval_readiness, activation_follow_ups=None):
+    """Return the current no-secret approval decision handoff state."""
+    approval = activation_approval_readiness if isinstance(activation_approval_readiness, dict) else {}
+    activation_follow_ups = activation_follow_ups if isinstance(activation_follow_ups, dict) else {}
+    sendable_queued = int(approval.get('sendableQueued') or activation_follow_ups.get('sendableQueued') or 0)
+    packet_copies = int(activation_follow_ups.get('activationApprovalPacketCopies') or 0)
+    packet_reviewed_recipients = int(activation_follow_ups.get('activationApprovalPacketReviewedRecipients') or 0)
+    decision_copies = int(activation_follow_ups.get('activationApprovalDecisionCopies') or 0)
+    required = (
+        sendable_queued > 0
+        and bool(approval.get('dryRunVerified'))
+        and bool(approval.get('approvalRequired'))
+    )
+    packet_reviewed = packet_copies > 0 and packet_reviewed_recipients >= sendable_queued
+    packet_review_stale = required and packet_copies > 0 and not packet_reviewed
+    if not required:
+        status = 'no_pending_decision'
+    elif decision_copies > 0:
+        status = 'decision_recorded'
+    elif packet_reviewed:
+        status = 'decision_required'
+    elif packet_review_stale:
+        status = 'packet_review_stale'
+    else:
+        status = 'packet_review_required'
+
+    decision_lines = approval.get('decisionLines') if isinstance(approval.get('decisionLines'), list) else []
+    approve_line = next((row.get('value') for row in decision_lines if isinstance(row, dict) and row.get('id') == 'approve_after_review'), '')
+    hold_line = next((row.get('value') for row in decision_lines if isinstance(row, dict) and row.get('id') == 'hold'), '')
+    next_send_segment = str(approval.get('nextSendSegment') or 'all').strip() or 'all'
+    if not approve_line:
+        approve_line = (
+            f'APPROVE_ACTIVATION_FOLLOWUP segment="{next_send_segment}" '
+            f'issuedAt={int(approval.get("approvalPacketIssuedAt") or 0)} '
+            f'expiresAt={int(approval.get("approvalPacketExpiresAt") or 0)}'
+        )
+    if not hold_line:
+        hold_line = f'HOLD_ACTIVATION_FOLLOWUP segment="{next_send_segment}" reason="<reason>"'
+
+    if not required:
+        action = 'Monitor activation; no approval decision is pending.'
+    elif decision_copies > 0:
+        action = 'Decision handoff has been recorded; execute only the approved next step if separately authorized.'
+    elif packet_reviewed:
+        action = 'Copy either the approve or hold decision line after reviewing the no-secret packet; this records the human handoff only.'
+    elif packet_review_stale:
+        action = 'Refresh the no-secret approval packet before recording a decision; the last recorded packet covered fewer recipients than the current sendable queue.'
+    else:
+        action = 'Copy and review the no-secret approval packet before recording an approve or hold decision.'
+
+    return {
+        'status': status,
+        'priority': 'fix_now' if required and decision_copies <= 0 else 'monitor',
+        'required': required,
+        'packetReviewed': packet_reviewed,
+        'packetReviewStale': packet_review_stale,
+        'decisionRecorded': decision_copies > 0,
+        'packetCopies': packet_copies,
+        'packetReviewedRecipients': packet_reviewed_recipients,
+        'decisionCopies': decision_copies,
+        'nextSendSegment': next_send_segment,
+        'sendableQueued': sendable_queued,
+        'dryRunVerified': bool(approval.get('dryRunVerified')),
+        'approvalRequired': bool(approval.get('approvalRequired')),
+        'approveLine': approve_line,
+        'holdLine': hold_line,
+        'action': action,
+        'successMetric': 'activationApprovalDecisionCopies increases without operatorFollowUpSends unless a separate explicit send is approved.',
+        'managedResaleEnabled': False,
+        'secretFree': True,
+        'publicSafe': True,
+        'mutatesRuntime': False,
+        'sendsEmail': False,
+        'privacy': {
+            'containsEmails': False,
+            'containsCustomerIds': False,
+            'containsApiKeys': False,
+            'containsProviderCredentials': False,
+            'containsProviderResponses': False,
+            'aggregateOnly': True,
+        },
+    }
+
+
 def public_plan_monthly_price_usd(plan_name):
     plan = PUBLIC_PLAN_CATALOG.get(str(plan_name or '').strip().lower()) or {}
     price = str(plan.get('price') or '')
@@ -10316,6 +10400,10 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
     )
     operator_execution_packet = launch_operator_execution_packet(next_best_action, activation_follow_ups)
     activation_approval_readiness = launch_activation_approval_readiness(operator_execution_packet, activation_follow_ups)
+    activation_approval_decision_handoff = launch_activation_approval_decision_handoff(
+        activation_approval_readiness,
+        activation_follow_ups,
+    )
     pricing_metadata = {
         **public_launch_metadata(),
         'plans': public_plan_catalog(),
@@ -10349,6 +10437,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
         'nextBestAction': next_best_action,
         'operatorExecutionPacket': operator_execution_packet,
         'activationApprovalReadiness': activation_approval_readiness,
+        'activationApprovalDecisionHandoff': activation_approval_decision_handoff,
         'pricing': pricing_metadata,
         'managedProviderReadiness': managed_provider_readiness,
         'stages': stages,
