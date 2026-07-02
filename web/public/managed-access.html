@@ -169,7 +169,7 @@
           <article class="panel" id="managed-access-offer-ladder">
             <h3>Managed-access offer ladder</h3>
             <p>Private-beta review candidates if fixed public plans cannot include managed access. These are public-threshold-only packaging options, not public entitlements or enabled provider resale.</p>
-            <div class="offerGrid">
+            <div class="offerGrid" id="managed-access-offer-grid">
               <div class="offerCard"><strong>Managed Access Pilot</strong><span class="offerPrice">$10/mo review</span><span>10,000 managed requests; public threshold 65.0c per 1k.</span></div>
               <div class="offerCard"><strong>Managed Access Pro Add-on</strong><span class="offerPrice">$30/mo review</span><span>25,000 managed requests; public threshold 78.0c per 1k.</span></div>
               <div class="offerCard"><strong>Managed Access Max Contract Floor</strong><span class="offerPrice">$100/mo review</span><span>75,000 managed requests; public threshold 86.6667c per 1k.</span></div>
@@ -353,7 +353,12 @@
 
     function formatCents(value) {
       const number = Number(value);
-      return Number.isFinite(number) ? `${number.toFixed(number % 1 === 0 ? 0 : 1)}c` : 'n/a';
+      return Number.isFinite(number) ? `${number.toLocaleString(undefined, { maximumFractionDigits: 4 })}c` : 'n/a';
+    }
+
+    function formatWholeNumber(value) {
+      const number = Number(value);
+      return Number.isFinite(number) ? number.toLocaleString() : 'n/a';
     }
 
     function listLabel(values) {
@@ -394,6 +399,10 @@
         const guardrails = Array.isArray(managed.pricingGuardrails)
           ? managed.pricingGuardrails
           : (Array.isArray(unit.pricingGuardrails) ? unit.pricingGuardrails : []);
+        const offerGrid = document.getElementById('managed-access-offer-grid');
+        const offerRows = Array.isArray(managed.oneSubscriptionPackaging)
+          ? managed.oneSubscriptionPackaging
+          : (Array.isArray(managed.offerLadder) ? managed.offerLadder : []);
         const missingBadges = missing.length
           ? missing.map((item) => `<span class="readinessBadge">${esc(humanize(item))}</span>`).join('')
           : '<span class="readinessBadge good">no missing controls reported</span>';
@@ -406,6 +415,13 @@
         const guardrailLabels = guardrails.length
           ? guardrails.map((row) => `${String(row.plan || '').toUpperCase()}: ${humanize(row.guidance || 'review_private_cost_model_before_bundling_managed_access')}`).join(' · ')
           : 'Run unit-economics preflight before bundling managed access';
+        if (offerGrid && offerRows.length) {
+          offerGrid.innerHTML = offerRows.map((row) => {
+            const price = Number(row.monthlyPriceUsd);
+            const priceLabel = Number.isFinite(price) ? `$${price.toLocaleString()}/mo review` : 'Review required';
+            return `<div class="offerCard"><strong>${esc(row.label || 'Managed Access Review')}</strong><span class="offerPrice">${esc(priceLabel)}</span><span>${esc(formatWholeNumber(row.monthlyManagedRequests))} managed requests; public threshold ${esc(formatCents(row.maximumSafeProviderCostCentsPerThousandRequests))} per 1k.</span></div>`;
+          }).join('');
+        }
         summary.textContent = managed.enabled
           ? 'Managed access reports private-beta readiness. Keep provider authorization, terms, quotas, and audit evidence current.'
           : `Managed access is disabled: ${humanize(managed.status || 'pending controls')}. Request review now, or start Max with BYOK while controls are completed.`;

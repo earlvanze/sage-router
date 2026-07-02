@@ -316,6 +316,32 @@ PUBLIC_PLAN_CATALOG = {
         'routingProfiles': ['eco', 'balanced', 'premium', 'agentic', 'fusion'],
     },
 }
+MANAGED_ACCESS_PUBLIC_OFFER_LADDER = (
+    {
+        'id': 'managed_access_pilot',
+        'label': 'Managed Access Pilot',
+        'monthlyPriceUsd': 10,
+        'monthlyManagedRequests': 10000,
+        'commercialPreference': 'one-subscription',
+        'reviewPath': '/managed-access?intent=one-subscription&utm_source=pricing-metadata&utm_medium=offer-ladder&utm_campaign=sage-router-launch#managed-access-quick-form',
+    },
+    {
+        'id': 'managed_access_pro_add_on',
+        'label': 'Managed Access Pro Add-on',
+        'monthlyPriceUsd': 30,
+        'monthlyManagedRequests': 25000,
+        'commercialPreference': 'one-subscription',
+        'reviewPath': '/managed-access?intent=one-subscription&utm_source=pricing-metadata&utm_medium=offer-ladder&utm_campaign=sage-router-launch#managed-access-quick-form',
+    },
+    {
+        'id': 'managed_access_max_contract_floor',
+        'label': 'Managed Access Max Contract Floor',
+        'monthlyPriceUsd': 100,
+        'monthlyManagedRequests': 75000,
+        'commercialPreference': 'private-contract',
+        'reviewPath': '/managed-access?intent=max-implementation&utm_source=pricing-metadata&utm_medium=offer-ladder&utm_campaign=sage-router-launch#managed-access-quick-form',
+    },
+)
 PUBLIC_AGENT_NATIVE_FEATURES = {
     'agenticAutoDetection': {
         'description': 'Detects tool use and multi-step execution language, then prefers models with reliable tool-calling/autonomous task behavior.',
@@ -2661,6 +2687,57 @@ def managed_provider_pricing_guardrail(row, failed_plans, cost_configured):
     }
 
 
+def managed_access_public_offer_ladder(minimum_gross_margin_percent):
+    try:
+        margin = max(0, int(float(minimum_gross_margin_percent or 0)))
+    except (TypeError, ValueError):
+        margin = 0
+    offers = []
+    for item in MANAGED_ACCESS_PUBLIC_OFFER_LADDER:
+        monthly_requests = int(item.get('monthlyManagedRequests') or 0)
+        monthly_price_usd = float(item.get('monthlyPriceUsd') or 0)
+        revenue_cents_per_thousand = (
+            (monthly_price_usd * 100.0) / (monthly_requests / 1000.0)
+            if monthly_requests > 0
+            else 0.0
+        )
+        offers.append({
+            'id': item.get('id'),
+            'label': item.get('label'),
+            'monthlyPriceUsd': int(monthly_price_usd) if monthly_price_usd.is_integer() else monthly_price_usd,
+            'monthlyManagedRequests': monthly_requests,
+            'revenueCentsPerThousandRequests': round(revenue_cents_per_thousand, 4),
+            'minimumGrossMarginPercent': margin,
+            'maximumSafeProviderCostCentsPerThousandRequests': round(
+                revenue_cents_per_thousand * max(0, 100 - margin) / 100.0,
+                4,
+            ),
+            'commercialPreference': item.get('commercialPreference') or 'one-subscription',
+            'reviewUrl': f"{MARKETING_BASE_URL}{item.get('reviewPath') or '/managed-access#managed-access-quick-form'}",
+            'status': 'review_only_not_public_entitlement',
+            'enabled': False,
+            'publicEntitlement': False,
+            'stripePriceChange': False,
+            'requiresOperatorApproval': True,
+            'requiresProviderAuthorization': True,
+            'requiresProviderTermsAcknowledgment': True,
+            'requiresPrivateCostReview': True,
+            'requiresPositiveUnitEconomics': True,
+            'requiresAuthorizedProviderAllowlist': True,
+            'privacy': {
+                'classification': 'public_threshold_only',
+                'safeForPublicDisplay': True,
+                'containsSecrets': False,
+                'containsProviderCredentials': False,
+                'containsActualProviderCosts': False,
+                'containsGrossMarginPercent': False,
+                'containsPrompts': False,
+                'containsRawProviderResponses': False,
+            },
+        })
+    return offers
+
+
 def managed_provider_unit_economics(cost_cents_per_thousand, minimum_gross_margin_percent):
     plans = public_plan_catalog()
     evaluated = []
@@ -3101,6 +3178,9 @@ def public_launch_metadata():
         parse_provider_resale_cost_cents_per_thousand_requests(),
         int(managed_provider_access.get('minimumGrossMarginPercent') or 0),
     )
+    managed_access_offer_ladder = managed_access_public_offer_ladder(
+        int(managed_provider_access.get('minimumGrossMarginPercent') or 0),
+    )
     provider_terms_ready = bool(provider_terms_url and provider_terms_acknowledged)
     provider_allowlist_ready = bool(allowed_provider_families)
     managed_provider_ready = bool(
@@ -3197,6 +3277,7 @@ def public_launch_metadata():
         'resaleEligibleProviderFamilies': list(MANAGED_PROVIDER_RESALE_ELIGIBLE_PROVIDER_FAMILIES),
         'byokOnlyProviderFamilies': list(MANAGED_PROVIDER_BYOK_ONLY_PROVIDER_FAMILIES),
         'managedAccessUrl': f"{MARKETING_BASE_URL}/managed-access",
+        'offerLadder': managed_access_offer_ladder,
         'safeForPublicDisplay': True,
     }
     managed_provider_access['providerBoundary'] = (
@@ -3207,6 +3288,8 @@ def public_launch_metadata():
     managed_provider_access['marginPolicyUrl'] = margin_policy_url
     managed_provider_access['unitEconomics'] = unit_economics
     managed_provider_access['pricingGuardrails'] = unit_economics.get('pricingGuardrails') or []
+    managed_provider_access['oneSubscriptionPackaging'] = managed_access_offer_ladder
+    managed_provider_access['offerLadder'] = managed_access_offer_ladder
     managed_provider_access['acceptableUseUrl'] = f"{MARKETING_BASE_URL}/acceptable-use"
     readiness_setup = managed_provider_resale_readiness_setup(
         enabled=bool(managed_provider_access.get('enabled'))

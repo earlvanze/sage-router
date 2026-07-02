@@ -1450,6 +1450,31 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual([], managed['oneSubscriptionReadiness']['readyProviderFamilies'])
         self.assertIn('openrouter', managed['oneSubscriptionReadiness']['blockedProviderFamilies'])
         self.assertIn('openrouter', managed['oneSubscriptionReadiness']['byokOnlyProviderFamilies'])
+        offers = managed['oneSubscriptionPackaging']
+        self.assertEqual(offers, managed['offerLadder'])
+        self.assertEqual(offers, managed['oneSubscriptionReadiness']['offerLadder'])
+        self.assertEqual(
+            ['managed_access_pilot', 'managed_access_pro_add_on', 'managed_access_max_contract_floor'],
+            [row['id'] for row in offers],
+        )
+        self.assertEqual([10, 30, 100], [row['monthlyPriceUsd'] for row in offers])
+        self.assertEqual([10000, 25000, 75000], [row['monthlyManagedRequests'] for row in offers])
+        self.assertEqual([65.0, 78.0, 86.6667], [
+            row['maximumSafeProviderCostCentsPerThousandRequests'] for row in offers
+        ])
+        self.assertTrue(all(row['status'] == 'review_only_not_public_entitlement' for row in offers))
+        self.assertTrue(all(row['enabled'] is False for row in offers))
+        self.assertTrue(all(row['publicEntitlement'] is False for row in offers))
+        self.assertTrue(all(row['stripePriceChange'] is False for row in offers))
+        self.assertTrue(all(row['requiresProviderAuthorization'] for row in offers))
+        self.assertTrue(all(row['requiresProviderTermsAcknowledgment'] for row in offers))
+        self.assertTrue(all(row['requiresPrivateCostReview'] for row in offers))
+        self.assertTrue(all(row['privacy']['classification'] == 'public_threshold_only' for row in offers))
+        self.assertTrue(all(row['privacy']['safeForPublicDisplay'] for row in offers))
+        self.assertTrue(all(not row['privacy']['containsSecrets'] for row in offers))
+        self.assertTrue(all(not row['privacy']['containsActualProviderCosts'] for row in offers))
+        self.assertNotIn('actualProviderCost', json.dumps(offers))
+        self.assertIn('https://sagerouter.dev/managed-access', offers[0]['reviewUrl'])
         self.assertIn('provider_resale_terms', managed['missingControls'])
         self.assertIn('provider_terms_acknowledgment', managed['missingControls'])
         self.assertIn('provider_authorization_evidence', managed['missingControls'])
@@ -1507,6 +1532,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertFalse(setup['privacy']['containsGrossMarginPercent'])
         self.assertEqual(
             [
+                'review_provider_public_sources',
                 'collect_provider_authorization',
                 'review_terms_and_public_controls',
                 'verify_private_unit_economics',
@@ -1519,10 +1545,11 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertTrue(all(step['secretFree'] for step in managed['onboardingSequence']))
         self.assertTrue(all(step['publicSafe'] for step in managed['onboardingSequence']))
         self.assertTrue(all(not step['privacy']['containsSecrets'] for step in managed['onboardingSequence']))
-        self.assertIn('--provider-outreach-packet', managed['onboardingSequence'][0]['primaryCommand'])
-        self.assertIn('--unit-economics', managed['onboardingSequence'][2]['primaryCommand'])
-        self.assertIn('--private-cost-model-template', managed['onboardingSequence'][2]['secondaryCommand'])
-        self.assertIn('--one-subscription-pricing-packet', managed['onboardingSequence'][2]['reviewCommand'])
+        self.assertIn('--provider-source-review-packet', managed['onboardingSequence'][0]['primaryCommand'])
+        self.assertIn('--provider-outreach-packet', managed['onboardingSequence'][1]['primaryCommand'])
+        self.assertIn('--unit-economics', managed['onboardingSequence'][3]['primaryCommand'])
+        self.assertIn('--private-cost-model-template', managed['onboardingSequence'][3]['secondaryCommand'])
+        self.assertIn('--one-subscription-pricing-packet', managed['onboardingSequence'][3]['reviewCommand'])
         self.assertFalse(managed['providerAuthorizationEvidenceConfigured'])
         self.assertEqual(
             'SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF',
@@ -2497,12 +2524,21 @@ class SaaSAuthTests(unittest.TestCase):
         )
         self.assertEqual(
             [
+                'review_provider_public_sources',
                 'collect_provider_authorization',
                 'review_terms_and_public_controls',
                 'verify_private_unit_economics',
                 'final_private_beta_enablement_review',
             ],
             [row['id'] for row in pricing_managed['onboardingSequence']],
+        )
+        self.assertEqual(
+            ['managed_access_pilot', 'managed_access_pro_add_on', 'managed_access_max_contract_floor'],
+            [row['id'] for row in pricing_managed['oneSubscriptionPackaging']],
+        )
+        self.assertEqual(
+            pricing_managed['oneSubscriptionPackaging'],
+            pricing_managed['oneSubscriptionReadiness']['offerLadder'],
         )
         self.assertTrue(all(row['secretFree'] for row in pricing_managed['nextActions']))
         self.assertTrue(all(row['publicSafe'] for row in pricing_managed['nextActions']))
