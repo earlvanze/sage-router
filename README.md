@@ -755,6 +755,10 @@ The default snapshot includes a `Cloudflare BIC Reliability Handoff` section
 with the no-secret operator packet command, status-page token-scope copy action,
 required `Zone:Zone:Read` plus `Zone Rulesets:Read/Edit` permissions,
 verification command, and manual host-scoped fallback for `api.sagerouter.dev`.
+Its `Founder Sales Fallback` section now prints the no-secret founder-sales
+packet command, recommended first-reply/next-revenue copy path, and
+post-use-only recording command so Lite/Pro/Max outreach can move while
+activation sends and managed resale stay gated.
 It also includes a `Managed Access Contact Handoff` section that promotes the
 current anonymous one-subscription contact-capture gap into the no-secret
 drop-off packet command, contactable fast-form CTA, copy-ready founder-sales
