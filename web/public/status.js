@@ -521,6 +521,7 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
   const managedTermsApproval = managedSetup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
   const managedAuthorizationPacket = managedSetup.authorizationPacketCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet';
   const managedAuthorizationLedgerTemplate = managedSetup.authorizationLedgerTemplateCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template';
+  const managedProviderSourceReview = managedSetup.providerSourceReviewCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-source-review-packet';
   const managedProviderOutreach = managedSetup.providerOutreachCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet';
   const managedTermsReviewRecord = 'scripts/configure_managed_provider_resale_readiness.sh --record-terms-review';
   const managedAuthorizationReviewRecord = 'scripts/configure_managed_provider_resale_readiness.sh --record-authorization-review';
@@ -626,6 +627,16 @@ function renderOperatorLaunchActions(pricing = {}, health = {}) {
         : `${topManagedAction.action || 'Run the dry-run before staging provider terms, allowlist, private cost model, and margin controls.'} Onboarding step: ${topManagedOnboarding.title || 'collect provider authorization evidence'}. OpenRouter remains BYOK-only unless separate authorization is added.`,
       command: managed.enabled ? (managedSetup.enableCommandTemplate || managedDryRun) : managedDryRun,
       copyEvent: 'status_managed_resale_dry_run_copied',
+    },
+    {
+      id: 'managed-provider-source-review',
+      title: 'Provider source review',
+      value: managed.enabled ? 'Review complete' : 'Source packet required',
+      badge: 'no-secret review',
+      state: managed.enabled ? 'good' : 'warn',
+      meta: 'Review current official OpenAI, Anthropic, Ollama, and Sage Router source URLs before provider outreach, terms acknowledgment, authorization evidence staging, cost review, or public enablement.',
+      command: managedProviderSourceReview,
+      copyEvent: 'status_managed_provider_source_review_copied',
     },
     {
       id: 'managed-terms-approval',

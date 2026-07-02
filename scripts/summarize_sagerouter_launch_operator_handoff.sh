@@ -103,6 +103,9 @@ run_read_only bash scripts/configure_cloudflare_api_bic_skip.sh --operator-packe
 section "Managed Provider Readiness Packet"
 run_read_only bash scripts/configure_managed_provider_resale_readiness.sh --operator-packet
 
+section "Provider Source Review Packet"
+run_read_only bash scripts/configure_managed_provider_resale_readiness.sh --provider-source-review-packet
+
 section "Provider Terms Approval Packet"
 run_read_only bash scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet
 

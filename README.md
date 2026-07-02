@@ -620,6 +620,7 @@ public resale or writing the private provider-cost model:
 ```bash
 scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
 scripts/configure_managed_provider_resale_readiness.sh --operator-packet
+scripts/configure_managed_provider_resale_readiness.sh --provider-source-review-packet
 scripts/configure_managed_provider_resale_readiness.sh --authorization-packet
 scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet
 scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template
@@ -642,7 +643,8 @@ only presence, counts, binding names, and public thresholds.
 
 The `/pricing`, `/status`, and private launch-funnel metadata exposes
 `readinessSetup.stagePublicControlsCommand` separately from the full
-`setupCommand`. Use `stagePublicControlsCommand` first because it stages public
+`setupCommand`, and `readinessSetup.providerSourceReviewCommand` for the
+official-source review packet. Use `stagePublicControlsCommand` first because it stages public
 terms, margin-policy, allowlist, margin floor, and disabled-public-enable
 controls without a provider authorization reference or private provider-cost
 candidate. Use `readinessSetup.privateCostModelTemplateCommand` to prepare the
@@ -667,6 +669,16 @@ The checked-in no-secret worksheet is
 durable review record and keep the actual provider agreements, account details,
 authorization reference values, and cost schedules in the private system of
 record.
+
+Use `--provider-source-review-packet` before provider outreach, terms
+acknowledgment, authorization evidence staging, or private cost review. It
+prints the official OpenAI, Anthropic, Ollama, and Sage Router policy/source
+URLs, provider-family review rows, the OpenRouter BYOK-only hold, and safe next
+commands without printing provider agreements, authorization-reference values,
+actual provider costs, prompts, raw provider responses, OAuth tokens, generated
+API keys, or customer data. Store only an opaque `sourceReviewReference` in the
+private review record. The checked-in no-secret worksheet is
+`docs/launch/execution/provider-source-review.md`; Consumer/subscription plans are not provider-cost sources for managed resale.
 
 Use `--authorization-packet` before acknowledging terms to generate the
 provider-family authorization checklist and private evidence-reference format.

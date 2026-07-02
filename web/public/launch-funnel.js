@@ -1722,6 +1722,7 @@ function managedAccessApprovalPacketText(data = {}) {
   const termsCommand = setup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
   const authorizationPacketCommand = setup.authorizationPacketCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet';
   const authorizationLedgerTemplateCommand = setup.authorizationLedgerTemplateCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template';
+  const providerSourceReviewCommand = setup.providerSourceReviewCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-source-review-packet';
   const providerOutreachCommand = setup.providerOutreachCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet';
   const dryRunCommand = setup.dryRunCommand || 'scripts/configure_managed_provider_resale_readiness.sh --check';
   const oneSubscriptionPricingCommand = setup.oneSubscriptionPricingCommand || 'scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet';
@@ -1774,6 +1775,7 @@ function managedAccessApprovalPacketText(data = {}) {
     '',
     'Secret-safe commands',
     `- Terms approval packet: ${termsCommand}`,
+    `- Provider source review packet: ${providerSourceReviewCommand}`,
     `- Authorization evidence packet: ${authorizationPacketCommand}`,
     `- Authorization ledger template: ${authorizationLedgerTemplateCommand}`,
     `- Provider outreach packet: ${providerOutreachCommand}`,
@@ -1844,6 +1846,7 @@ function managedAccessCommand(button, data = {}) {
   if (kind === 'terms-approval') return setup.termsApprovalCommand || 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet';
   if (kind === 'authorization-packet') return setup.authorizationPacketCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet';
   if (kind === 'authorization-ledger-template') return setup.authorizationLedgerTemplateCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template';
+  if (kind === 'provider-source-review') return setup.providerSourceReviewCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-source-review-packet';
   if (kind === 'provider-outreach') return setup.providerOutreachCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet';
   if (kind === 'one-subscription-pricing') return setup.oneSubscriptionPricingCommand || 'scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet';
   if (kind === 'unit-economics') return setup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";

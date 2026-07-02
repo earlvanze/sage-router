@@ -16,6 +16,7 @@ prices, or send provider/customer email.
 Generate the current no-secret packet before review:
 
 ```bash
+scripts/configure_managed_provider_resale_readiness.sh --provider-source-review-packet
 scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet
 ```
 
@@ -55,13 +56,15 @@ managed resale.
 
 1. Provider authorization evidence exists privately for every managed resale
    family under review.
-2. Provider terms permit the planned managed-access customer category, resale or
+2. A private `sourceReviewReference` records the review date, official source
+   URLs, and reviewer for every managed resale family under review.
+3. Provider terms permit the planned managed-access customer category, resale or
    service-provider boundary, and one-subscription packaging.
-3. Customer terms, acceptable-use policy, quota limits, revocation path, audit
+4. Customer terms, acceptable-use policy, quota limits, revocation path, audit
    logging, and abuse-review process satisfy provider obligations.
-4. The private cost model has a separate review owner. Do not acknowledge terms
+5. The private cost model has a separate review owner. Do not acknowledge terms
    only because public provider terms pages exist.
-5. Public managed resale remains disabled until the terms acknowledgment,
+6. Public managed resale remains disabled until the terms acknowledgment,
    authorization evidence, provider-cost model, and positive unit-economics
    controls all pass.
 
@@ -70,6 +73,7 @@ managed resale.
 - reviewDate:
 - reviewer:
 - providerFamiliesReviewed: ollama, openai, anthropic
+- sourceReviewReference: provider-source-review-YYYYMMDD-doc-or-ticket-id
 - privateAuthorizationReference: provider-review-YYYYMMDD-doc-or-ticket-id
 - termsAcknowledgmentApproved: false
 - authorizationEvidenceReady: false

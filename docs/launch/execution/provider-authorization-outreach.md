@@ -17,6 +17,13 @@ Current public boundary:
   1,000 requests, but actual provider costs and authorization evidence remain
   private.
 
+Run the source-review packet first so the provider outreach request is anchored
+to current official public terms and a private `sourceReviewReference`:
+
+```bash
+scripts/configure_managed_provider_resale_readiness.sh --provider-source-review-packet
+```
+
 Run this command for the live, copyable packet:
 
 ```bash
@@ -105,6 +112,8 @@ cap, model exclusion, or compliance process.
 ## After Provider Reply
 
 - Save the provider reply or contract in a private system of record.
+- Save the source review in a private system of record and record only an
+  opaque `sourceReviewReference`.
 - Record only a private evidence reference, such as
   `provider-review-YYYYMMDD-doc-or-ticket-id`, in
   `SAGEROUTER_PROVIDER_RESALE_AUTHORIZATION_REF`.

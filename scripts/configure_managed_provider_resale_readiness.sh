@@ -58,7 +58,7 @@ AUTHORIZATION_LEDGER_TEMPLATE="${ROOT}/docs/launch/execution/provider-authorizat
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--record-authorization-review|--authorization-ledger-template|--provider-outreach-packet|--record-provider-outreach|--provider-reply-triage-packet|--terms-approval-packet|--record-terms-review|--one-subscription-pricing-packet|--private-cost-model-template|--stage-public-controls|--unit-economics]
+Usage: scripts/configure_managed_provider_resale_readiness.sh [--check|--operator-packet|--authorization-packet|--record-authorization-review|--authorization-ledger-template|--provider-source-review-packet|--provider-outreach-packet|--record-provider-outreach|--provider-reply-triage-packet|--terms-approval-packet|--record-terms-review|--one-subscription-pricing-packet|--private-cost-model-template|--stage-public-controls|--unit-economics]
 
 Stage Sage Router managed provider-access readiness on Cloud Run.
 
@@ -105,6 +105,12 @@ Options:
                            references, and cost-review handoffs without
                            exposing agreements, account IDs, credentials, or
                            costs.
+  --provider-source-review-packet
+                           Print the no-secret current-source review packet for
+                           official provider terms/policy URLs and required
+                           private review references before outreach, terms
+                           acknowledgment, authorization evidence staging, cost
+                           review, or public enablement.
   --provider-outreach-packet
                            Print copyable, no-secret provider-facing outreach
                            requests for Ollama, OpenAI, and Anthropic managed
@@ -185,6 +191,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --authorization-ledger-template)
       MODE="authorization-ledger-template"
+      shift
+      ;;
+    --provider-source-review-packet)
+      MODE="provider-source-review-packet"
       shift
       ;;
     --provider-outreach-packet)
@@ -703,6 +713,80 @@ managed_provider_outreach_packet() {
   printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false; sendsEmail=false.\n'
 }
 
+managed_provider_source_review_packet() {
+  require_cmd curl
+  require_cmd jq
+
+  local body code allowed eligible byok missing ready blocked terms_url margin_url
+  body="$(mktemp)"
+  code="$(curl -sS -o "$body" -w '%{http_code}' https://api.sagerouter.dev/pricing || printf '000')"
+
+  printf 'Sage Router provider source review packet\n'
+  printf 'Boundary: read-only current-source worksheet; no provider agreements, account IDs, provider credentials, OAuth tokens, generated API keys, customer data, prompts, private provider costs, cost schedules, authorization-reference values, or raw provider responses.\n'
+  printf 'Effect: this command does not contact providers, acknowledge terms, stage authorization evidence, write secrets, deploy Cloud Run, change prices, or enable managed resale.\n\n'
+
+  if [[ "$code" == "200" ]]; then
+    allowed="$(jq -r '(.publicLaunch.managedProviderAccess.allowedProviderFamilies // []) | join(", ")' "$body")"
+    eligible="$(jq -r '(.publicLaunch.managedProviderAccess.resaleEligibleProviderFamilies // []) | join(", ")' "$body")"
+    byok="$(jq -r '(.publicLaunch.managedProviderAccess.byokOnlyProviderFamilies // []) | join(", ")' "$body")"
+    missing="$(jq -r '(.publicLaunch.managedProviderAccess.missingControls // []) | join(", ")' "$body")"
+    ready="$(jq -r '(.publicLaunch.managedProviderAccess.oneSubscriptionReadiness.readyProviderFamilies // []) | join(", ")' "$body")"
+    blocked="$(jq -r '(.publicLaunch.managedProviderAccess.oneSubscriptionReadiness.blockedProviderFamilies // []) | join(", ")' "$body")"
+    terms_url="$(jq -r '.publicLaunch.managedProviderAccess.providerTermsUrl // "https://sagerouter.dev/provider-resale-terms"' "$body")"
+    margin_url="$(jq -r '.publicLaunch.managedProviderAccess.marginPolicyUrl // "https://sagerouter.dev/margin-policy"' "$body")"
+
+    printf 'Live public context:\n'
+    printf -- '- allowed managed families: %s\n' "${allowed:-none}"
+    printf -- '- resale-eligible families: %s\n' "${eligible:-none}"
+    printf -- '- BYOK-only families excluded from managed resale: %s\n' "${byok:-none}"
+    printf -- '- one-subscription ready families: %s\n' "${ready:-none}"
+    printf -- '- one-subscription blocked families: %s\n' "${blocked:-none}"
+    printf -- '- missing controls: %s\n' "${missing:-none}"
+    printf -- '- Sage Router provider terms boundary: %s\n' "${terms_url:-missing}"
+    printf -- '- Sage Router margin policy: %s\n\n' "${margin_url:-missing}"
+  else
+    printf 'Live public context: unavailable HTTP %s from https://api.sagerouter.dev/pricing\n\n' "$code"
+  fi
+  rm -f "$body"
+
+  printf 'Current source review targets:\n'
+  printf -- '- OpenAI Services Agreement: https://openai.com/policies/services-agreement/\n'
+  printf -- '- OpenAI Service Terms: https://openai.com/policies/service-terms/\n'
+  printf -- '- Anthropic Commercial Terms: https://www.anthropic.com/legal/commercial-terms\n'
+  printf -- '- Anthropic Usage Policy: https://www.anthropic.com/legal/aup\n'
+  printf -- '- Anthropic Consumer Terms: https://www.anthropic.com/legal/consumer-terms\n'
+  printf -- '- Ollama Terms: https://ollama.com/terms\n'
+  printf -- '- Sage Router provider resale terms: https://sagerouter.dev/provider-resale-terms\n'
+  printf -- '- Sage Router margin policy: https://sagerouter.dev/margin-policy\n\n'
+
+  printf 'Provider family review rows:\n'
+  printf -- '| providerFamily | currentPublicTermsUrl | requiredPrivateReview | explicitAuthorizationRequired | costSourceAllowed | currentDecision |\n'
+  printf -- '| --- | --- | --- | --- | --- | --- |\n'
+  printf -- '| ollama | https://ollama.com/terms | Record sourceReviewReference, providerAuthorizationReference, allowed account type, end-customer terms, model/capacity limits, and private cost reference | yes | reviewed provider commercial quote or contract only | hold |\n'
+  printf -- '| openai | https://openai.com/policies/services-agreement/ and https://openai.com/policies/service-terms/ | Record sourceReviewReference, providerAuthorizationReference, permitted customer-application boundary, account/billing structure, policies, and private cost reference | yes | reviewed API/commercial billing source only | hold |\n'
+  printf -- '| anthropic | https://www.anthropic.com/legal/commercial-terms and https://www.anthropic.com/legal/aup | Record sourceReviewReference, providerAuthorizationReference, service-provider/resale approval, usage-policy obligations, and private cost reference | yes | reviewed API/commercial billing source only | hold |\n'
+  printf -- '| openrouter | provider docs/account terms under separate review | Keep BYOK-only unless separate written authorization explicitly promotes it to managed resale | yes | separate written authorization and cost source required | BYOK-only hold |\n\n'
+
+  printf 'Source-review rules:\n'
+  printf -- '- Source review is required before provider terms acknowledgment, authorization evidence staging, private cost review, public enablement, or customer-facing one-subscription entitlement language.\n'
+  printf -- '- Review official provider terms and usage policies on the review date; do not infer permission from public pages alone.\n'
+  printf -- '- Record only opaque sourceReviewReference and providerAuthorizationReference values in operator worksheets or environment variables.\n'
+  printf -- '- Do not use consumer, subscription, OAuth, trial, or personal-plan access as managed-resale provider-cost sources.\n'
+  printf -- '- Consumer/subscription plans are not provider-cost sources for managed resale.\n'
+  printf -- '- Keep OpenRouter BYOK-only unless separate written authorization and cost review explicitly promote it later.\n'
+  printf -- '- Run provider outreach and reply triage before terms acknowledgment; run unit economics only after private authorization and cost sources are reviewed.\n\n'
+
+  printf 'Safe next commands:\n'
+  printf '  scripts/configure_managed_provider_resale_readiness.sh --provider-source-review-packet\n'
+  printf '  scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet\n'
+  printf '  scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet\n'
+  printf '  scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template\n'
+  printf '  scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet\n'
+  printf "  SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics\n\n"
+
+  printf 'Privacy flags: containsSecrets=false; containsProviderCredentials=false; containsActualProviderCosts=false; containsAuthorizationReference=false; containsProviderReplyBody=false; mutatesRuntime=false; sendsEmail=false; publicEnableApproved=false.\n'
+}
+
 managed_provider_reply_triage_packet() {
   require_cmd curl
   require_cmd jq
@@ -1187,6 +1271,11 @@ fi
 
 if [[ "$MODE" == "authorization-ledger-template" ]]; then
   managed_provider_authorization_ledger_template
+  exit 0
+fi
+
+if [[ "$MODE" == "provider-source-review-packet" ]]; then
+  managed_provider_source_review_packet
   exit 0
 fi
 

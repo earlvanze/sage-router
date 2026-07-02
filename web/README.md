@@ -120,7 +120,13 @@ buyers can still create a no-secret contact handoff. The hero also offers a copy
 no-secret one-subscription review packet measured as
 `managed_access_review_packet_copied` with `landing-one-subscription-review-packet`;
 it states that hosted managed provider access still depends on provider
-authorization, terms, cost controls, and margin checks. The hero keeps pricing, quickstart, public status,
+source review, authorization, terms, cost controls, and margin checks. Start
+operator review from
+`scripts/configure_managed_provider_resale_readiness.sh --provider-source-review-packet`
+and `docs/launch/execution/provider-source-review.md`; do not turn public
+one-subscription copy into an enabled managed-provider resale offer until the
+private source review, provider authorization, terms acknowledgment, private
+cost model, and margin checks all pass. The hero keeps pricing, quickstart, public status,
 model-gateway comparison, model catalog, calculator, security, analytics, login,
 managed-access private beta review, support, and local GitHub install paths
 visible so a prospect can move from discovery to generated `sk_sage_*` key setup

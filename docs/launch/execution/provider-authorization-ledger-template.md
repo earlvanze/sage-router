@@ -18,20 +18,24 @@ Run, enable managed resale, or send provider/customer email.
 - termsAcknowledgmentApproved: false
 - costModelReviewed: false
 - unitEconomicsPreflightPassed: false
+- sourceReviewStatus: pending
+- sourceReviewReference: provider-source-review-YYYYMMDD-doc-or-ticket-id
 - privateEvidenceReference: provider-review-YYYYMMDD-doc-or-ticket-id
 - privateCostReviewReference:
 - notes:
 
 ## Provider Family Rows
 
-| providerFamily | authorizationStatus | termsStatus | evidenceReference | costReviewReference | allowedAccountType | allowedUseCase | resaleOrServiceProviderBoundary | quotaOrCapacityLimit | modelExclusions | dataProcessingRestrictions | abuseContactOrProcess | renewalOrExpiry | publicEnableApproved |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| ollama | pending | pending | private-ref-only | private-ref-only | TBD | managed access private beta | TBD | TBD | TBD | TBD | TBD | TBD | false |
-| openai | pending | pending | private-ref-only | private-ref-only | TBD | managed access private beta | TBD | TBD | TBD | TBD | TBD | TBD | false |
-| anthropic | pending | pending | private-ref-only | private-ref-only | TBD | managed access private beta | TBD | TBD | TBD | TBD | TBD | TBD | false |
+| providerFamily | sourceTermsUrl | sourceReviewReference | authorizationStatus | termsStatus | evidenceReference | costReviewReference | allowedAccountType | allowedUseCase | resaleOrServiceProviderBoundary | quotaOrCapacityLimit | modelExclusions | dataProcessingRestrictions | abuseContactOrProcess | renewalOrExpiry | publicEnableApproved |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ollama | `https://ollama.com/terms` | private-ref-only | pending | pending | private-ref-only | private-ref-only | TBD | managed access private beta | TBD | TBD | TBD | TBD | TBD | TBD | false |
+| openai | `https://openai.com/policies/services-agreement/` | private-ref-only | pending | pending | private-ref-only | private-ref-only | TBD | managed access private beta | TBD | TBD | TBD | TBD | TBD | TBD | false |
+| anthropic | `https://www.anthropic.com/legal/commercial-terms` | private-ref-only | pending | pending | private-ref-only | private-ref-only | TBD | managed access private beta | TBD | TBD | TBD | TBD | TBD | TBD | false |
 
 ## Approval Checklist
 
+- Official source review has been generated and stored privately with:
+  `scripts/configure_managed_provider_resale_readiness.sh --provider-source-review-packet`
 - Provider replies have been classified with:
   `scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet`
 - The no-secret authorization packet has been reviewed and, after review, the

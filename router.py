@@ -2750,6 +2750,9 @@ def managed_provider_resale_readiness_setup(enabled=False):
     authorization_ledger_template_command = (
         "scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template"
     )
+    provider_source_review_command = (
+        "scripts/configure_managed_provider_resale_readiness.sh --provider-source-review-packet"
+    )
     provider_outreach_command = (
         "scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet"
     )
@@ -2777,6 +2780,7 @@ def managed_provider_resale_readiness_setup(enabled=False):
         'termsApprovalCommand': terms_approval_command,
         'authorizationPacketCommand': authorization_packet_command,
         'authorizationLedgerTemplateCommand': authorization_ledger_template_command,
+        'providerSourceReviewCommand': provider_source_review_command,
         'providerOutreachCommand': provider_outreach_command,
         'oneSubscriptionPricingCommand': one_subscription_pricing_command,
         'privateCostModelTemplateCommand': private_cost_model_template_command,
@@ -2819,7 +2823,20 @@ def managed_provider_resale_onboarding_sequence(managed_access, unit_economics, 
     allowlist_ready = bool(managed_access.get('allowedProviderFamilies'))
     cost_ready = bool(unit_economics.get('costModelConfigured'))
     margin_ready = bool(unit_economics.get('satisfied'))
+    source_review_ready = bool(enabled or authorization_ready or terms_ready)
     sequence = [
+        {
+            'id': 'review_provider_public_sources',
+            'title': 'Review official provider sources',
+            'status': 'complete' if source_review_ready else 'required',
+            'operatorAction': 'Review current provider terms and policies, then store only an opaque sourceReviewReference in the private review record.',
+            'primaryCommand': setup.get('providerSourceReviewCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --provider-source-review-packet',
+            'secondaryCommand': 'docs/launch/execution/provider-source-review.md',
+            'successMetric': 'sourceReviewReference exists privately before outreach, terms acknowledgment, authorization evidence staging, or cost review.',
+            'blocksPublicEnable': not source_review_ready,
+            'publicSafe': True,
+            'secretFree': True,
+        },
         {
             'id': 'collect_provider_authorization',
             'title': 'Collect provider authorization evidence',
@@ -3337,6 +3354,7 @@ def compact_managed_provider_readiness(pricing_metadata):
             'termsApprovalCommand': setup.get('termsApprovalCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --terms-approval-packet',
             'authorizationPacketCommand': setup.get('authorizationPacketCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --authorization-packet',
             'authorizationLedgerTemplateCommand': setup.get('authorizationLedgerTemplateCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template',
+            'providerSourceReviewCommand': setup.get('providerSourceReviewCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --provider-source-review-packet',
             'providerOutreachCommand': setup.get('providerOutreachCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet',
             'oneSubscriptionPricingCommand': setup.get('oneSubscriptionPricingCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet',
             'privateCostModelTemplateCommand': setup.get('privateCostModelTemplateCommand') or 'scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template',
