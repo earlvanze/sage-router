@@ -937,29 +937,67 @@ function renderActivationApprovalChecklist(data = {}) {
   </div>`;
 }
 
-function shouldPromoteActivationApprovalDecision(data = {}) {
-  const approvalReadiness = activationApprovalReadiness(data);
-  const activationSend = activationSendTelemetry(data);
-  const delivery = activationDeliveryCounts(data);
+function activationApprovalDecisionHandoff(data = {}) {
+  const handoff = data.activationApprovalDecisionHandoff || {};
   const marketing = data.marketingIntent || {};
-  const decisionCopies = asNumber(marketing.activationApprovalDecisionCopies);
-  const packetCopies = asNumber(marketing.activationApprovalPacketCopies);
-  return Number(delivery.sendableQueued || activationSend.sendableQueued || 0) > 0
-    && activationSend.dryRunVerified === true
-    && activationSend.sendApprovalRequired === true
-    && decisionCopies === 0
-    && (packetCopies > 0 || approvalReadiness.status === 'approval_required');
+  const readiness = activationApprovalReadiness(data);
+  const delivery = activationDeliveryCounts(data);
+  const packetCopies = asNumber(handoff.packetCopies ?? marketing.activationApprovalPacketCopies);
+  const reviewedRecipients = asNumber(handoff.packetReviewedRecipients ?? marketing.activationApprovalPacketReviewedRecipients);
+  const decisionCopies = asNumber(handoff.decisionCopies ?? marketing.activationApprovalDecisionCopies);
+  const sendable = asNumber(handoff.sendableQueued ?? readiness.sendableQueued ?? delivery.sendableQueued);
+  const required = handoff.required === true || (sendable > 0 && readiness.dryRunVerified === true && readiness.approvalRequired === true);
+  const packetReviewed = handoff.packetReviewed === true || (packetCopies > 0 && reviewedRecipients >= sendable && sendable > 0);
+  const packetReviewStale = handoff.packetReviewStale === true || (required && packetCopies > 0 && !packetReviewed);
+  return {
+    status: String(handoff.status || (required ? (packetReviewed ? 'decision_required' : packetCopies > 0 ? 'packet_review_stale' : 'packet_review_required') : 'no_pending_decision')),
+    priority: String(handoff.priority || (required && decisionCopies === 0 ? 'fix_now' : 'monitor')),
+    required,
+    packetReviewed,
+    packetReviewStale,
+    decisionRecorded: handoff.decisionRecorded === true || decisionCopies > 0,
+    packetCopies,
+    packetReviewedRecipients: reviewedRecipients,
+    decisionCopies,
+    nextSendSegment: String(handoff.nextSendSegment || readiness.nextSendSegment || 'all'),
+    sendableQueued: sendable,
+    approveLine: String(handoff.approveLine || ''),
+    holdLine: String(handoff.holdLine || ''),
+    action: String(handoff.action || ''),
+  };
+}
+
+function shouldPromoteActivationApprovalDecision(data = {}) {
+  const handoff = activationApprovalDecisionHandoff(data);
+  return handoff.required === true && handoff.decisionRecorded !== true;
 }
 
 function renderActivationApprovalDecisionControls(data = {}, { compact = false, priority = false, anchorId = '' } = {}) {
   const approvalReadiness = activationApprovalReadiness(data);
   const activationSend = activationSendTelemetry(data);
+  const handoff = activationApprovalDecisionHandoff(data);
+  const delivery = activationDeliveryCounts(data);
   const decisionLines = activationApprovalDecisionLines(data);
   if (!decisionLines.length) return '';
-  const approveLine = decisionLines.find(line => String(line).startsWith('APPROVE_ACTIVATION_FOLLOWUP')) || '';
-  const holdLine = decisionLines.find(line => String(line).startsWith('HOLD_ACTIVATION_FOLLOWUP')) || '';
-  const nextSegment = approvalReadiness.nextSendSegment || activationSend.nextSendSegment || 'all';
-  const sendable = activationDeliveryCounts(data).sendableQueued;
+  const approveLine = handoff.approveLine || decisionLines.find(line => String(line).startsWith('APPROVE_ACTIVATION_FOLLOWUP')) || '';
+  const holdLine = handoff.holdLine || decisionLines.find(line => String(line).startsWith('HOLD_ACTIVATION_FOLLOWUP')) || '';
+  const nextSegment = handoff.nextSendSegment || approvalReadiness.nextSendSegment || activationSend.nextSendSegment || 'all';
+  const sendable = handoff.sendableQueued || delivery.sendableQueued;
+  const anchor = anchorId ? ` id="${esc(anchorId)}"` : '';
+  const packetText = activationApprovalPacketText(data);
+  if (handoff.required && !handoff.packetReviewed) {
+    const stale = handoff.packetReviewStale || handoff.status === 'packet_review_stale';
+    const tone = stale ? 'bad' : 'warn';
+    const title = stale ? 'Approval packet refresh required' : 'Approval packet review required';
+    const detail = stale
+      ? `The last recorded no-secret packet covered ${integer(handoff.packetReviewedRecipients)} of ${integer(sendable)} current sendable recipient(s). Refresh the packet before copying approve/hold.`
+      : `Copy and review the no-secret approval packet for ${integer(sendable)} current sendable recipient(s) before copying approve/hold.`;
+    return `<div${anchor} class="empty ${tone}">
+      <strong>${title}:</strong> ${esc(handoff.action || detail)}
+      <p class="muted">${esc(detail)} This does not send email, mutate queued follow-ups, expose customer data, or bypass the typed <code>${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code> gate.</p>
+      <div class="actions"><button class="btn secondary small" type="button" data-copy-activation-approval-packet="${esc(packetText)}" data-followup-count="${integer(sendable)}" data-activation-approval-promotion="stale-decision-refresh">Copy refreshed approval packet</button><span class="status">Decision buttons stay unavailable until the reviewed packet covers the live queue.</span></div>
+    </div>`;
+  }
   const freshness = approvalReadiness.approvalPacketExpiresAt
     ? ` Packet expires ${formatDate(approvalReadiness.approvalPacketExpiresAt)}; refresh before copying an old decision.`
     : ' Refresh the approval packet before copying a real decision.';
@@ -971,7 +1009,6 @@ function renderActivationApprovalDecisionControls(data = {}, { compact = false, 
   const priorityCopy = priority
     ? ' This is the current blocking handoff: copy approve or hold after reviewing the packet, before any real activation send.'
     : '';
-  const anchor = anchorId ? ` id="${esc(anchorId)}"` : '';
   return `<div${anchor} class="empty ${priority ? 'bad' : 'warn'}">
     <strong>${title}:</strong> Copy one line only after reviewing the no-secret packet for segment <code>${esc(nextSegment)}</code>.${priorityCopy}
     <p class="muted">This records the human approval/hold text for audit handoff only; it does not send email, mutate queued follow-ups, expose emails, or bypass the typed confirmation gate.${esc(freshness)}</p>
@@ -985,13 +1022,14 @@ function renderActivationNextSendStep(data = {}, { compact = false } = {}) {
   const delivery = activationDeliveryCounts(data);
   const activationSend = activationSendTelemetry(data);
   const approvalReadiness = activationApprovalReadiness(data);
+  const decisionHandoff = activationApprovalDecisionHandoff(data);
   const sendCommand = activationSendCommand(emailReadiness, activationSend);
   const nextSegment = activationSend.nextSendSegment || approvalReadiness.nextSendSegment || 'all';
   const dryRunReady = activationSend.dryRunVerified === true;
   const approvalNeeded = activationSend.sendApprovalRequired === true;
   const approvalExpiresAt = asNumber(approvalReadiness.approvalPacketExpiresAt);
   const approvalValidSeconds = asNumber(approvalReadiness.approvalPacketValidSeconds);
-  const canCopySend = Boolean(sendCommand && dryRunReady && approvalNeeded);
+  const canCopySend = Boolean(sendCommand && dryRunReady && approvalNeeded && decisionHandoff.packetReviewed && !decisionHandoff.packetReviewStale);
   const pendingSegments = activationSend.dryRunPendingSegments.join(', ') || 'none';
   const coveredSegments = activationSend.dryRunCoveredSegments.join(', ') || 'none';
   const nextAction = !delivery.sendableQueued
@@ -1008,7 +1046,7 @@ function renderActivationNextSendStep(data = {}, { compact = false } = {}) {
   return `<div class="empty ${approvalNeeded ? 'warn' : 'good'}">
     <strong>${compact ? 'Activation next step' : 'Activation next send step'}:</strong> ${esc(nextAction)}
     <p class="muted">${esc(detail)}${esc(freshness)} Real sends remain protected by private operator token, fresh <code>approvalPacketIssuedAt</code>, browser confirmation, and typed approval phrase <code>${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code>. Do not mark worked until the outreach is actually sent or copied into the outbound channel.</p>
-    ${sendCommand ? `<div class="actions"><button class="btn secondary small" type="button" data-copy-activation-send-command="${esc(sendCommand)}" data-followup-segment="${esc(nextSegment)}" data-followup-count="${integer(activationSend.sendableQueued)}" ${canCopySend ? '' : 'disabled'}>Copy next approved send command</button><span class="status">${canCopySend ? 'Dry-run verified; approval still required before real send.' : 'Complete dry-run verification and approval before copying the real-send command.'}</span></div>` : ''}
+    ${sendCommand ? `<div class="actions"><button class="btn secondary small" type="button" data-copy-activation-send-command="${esc(sendCommand)}" data-followup-segment="${esc(nextSegment)}" data-followup-count="${integer(activationSend.sendableQueued)}" ${canCopySend ? '' : 'disabled'}>Copy next approved send command</button><span class="status">${canCopySend ? 'Dry-run verified; current packet is reviewed; approval still required before real send.' : decisionHandoff.packetReviewStale ? 'Refresh and review the stale approval packet before copying the real-send command.' : 'Complete dry-run verification and approval before copying the real-send command.'}</span></div>` : ''}
   </div>`;
 }
 
@@ -1515,21 +1553,30 @@ function renderActivationApprovalHandoffBanner(data = {}) {
   const activationSend = activationSendTelemetry(data);
   const delivery = activationDeliveryCounts(data);
   const approvalReadiness = activationApprovalReadiness(data);
+  const decisionHandoff = activationApprovalDecisionHandoff(data);
   const approvalPacketText = activationApprovalPacketText(data);
   const decisionControls = renderActivationApprovalDecisionControls(data, {
     compact: true,
     priority: true,
   });
+  const stalePacket = decisionHandoff.packetReviewStale === true;
+  const bannerTitle = stalePacket
+    ? 'Refresh the approval packet before any decision.'
+    : 'Copy an approve or hold decision record before any real activation send.';
+  const bannerDetail = stalePacket
+    ? `The current packet review covers ${integer(decisionHandoff.packetReviewedRecipients)} of ${integer(decisionHandoff.sendableQueued || delivery.sendableQueued)} sendable recipient(s), so approve/hold stays unavailable until a refreshed no-secret packet is reviewed.`
+    : 'This first-screen handoff is no-secret and audit-only. It records the operator decision text for the activation approval step without sending email, mutating queued follow-ups, exposing customer data, or bypassing the typed confirmation gate.';
   target.classList.remove('hidden');
   target.innerHTML = `<div class="metricList">
     <div class="metric"><span>Live next move</span><strong><span class="pill bad">Activation approval</span></strong></div>
     <div class="metric"><span>Queued</span><strong>${integer(delivery.sendableQueued)} sendable · ${integer(delivery.reviewOnlyQueued)} review-only</strong></div>
     <div class="metric"><span>Dry-run</span><strong>${activationSend.dryRunVerified ? 'Verified' : 'Pending'} · ${integer(activationSend.dryRunRecipients)} unique</strong></div>
     <div class="metric"><span>Decision copies</span><strong>${integer(evidence.activationApprovalDecisionCopies ?? data.marketingIntent?.activationApprovalDecisionCopies)}</strong></div>
+    <div class="metric"><span>Packet coverage</span><strong>${integer(decisionHandoff.packetReviewedRecipients)} / ${integer(decisionHandoff.sendableQueued || delivery.sendableQueued)}</strong></div>
     <div class="metric"><span>Approval packet</span><strong>${formatDate(approvalReadiness.approvalPacketIssuedAt)}</strong></div>
   </div>
-  <p><strong>Copy an approve or hold decision record before any real activation send.</strong></p>
-  <p class="muted">This first-screen handoff is no-secret and audit-only. It records the operator decision text for the activation approval step without sending email, mutating queued follow-ups, exposing customer data, or bypassing the typed <code>${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code> gate.</p>
+  <p><strong>${esc(bannerTitle)}</strong></p>
+  <p class="muted">${esc(bannerDetail)} Real sends still require typed <code>${ACTIVATION_FOLLOWUP_SEND_CONFIRMATION}</code>.</p>
   ${decisionControls || '<div class="empty warn">Refresh the approval packet before copying an approve/hold decision.</div>'}
   <div class="actions">
     <button class="btn" type="button" data-copy-activation-approval-packet="${esc(approvalPacketText)}" data-followup-count="${integer(delivery.sendableQueued)}" data-activation-approval-promotion="first-screen">Copy approval packet first</button>
@@ -1967,8 +2014,10 @@ function renderOperatorExecutionPacket(data = {}) {
   const activationDelivery = activationDeliveryCounts(data);
   const activationSend = activationSendTelemetry(data);
   const approvalReadiness = activationApprovalReadiness(data);
+  const decisionHandoff = activationApprovalDecisionHandoff(data);
   const authRepair = activationAuthRepair(data);
   const sendCommand = activationSendCommand(emailReadiness, activationSend);
+  const canCopyApprovedSend = Boolean(sendCommand && activationSend.dryRunVerified && activationSend.sendApprovalRequired && decisionHandoff.packetReviewed && !decisionHandoff.packetReviewStale);
   const managedReadiness = managedProviderReadiness(data);
   const managedSetup = managedReadiness.readinessSetup || {};
   const authPosture = operatorAuthPosture(data);
@@ -1988,7 +2037,7 @@ function renderOperatorExecutionPacket(data = {}) {
         const segment = row.segment || 'all';
         const draftReady = followUpSegmentDraftReady(plan, segment);
         const segmentSendCommand = row.sendCommand || (row.sendable === false ? '' : activationSendCommand(emailReadiness, { ...activationSend, nextSendSegment: segment }));
-        const canCopySegmentSend = Boolean(segmentSendCommand && row.sendable !== false && activationSend.dryRunVerified && activationSend.sendApprovalRequired);
+        const canCopySegmentSend = Boolean(segmentSendCommand && row.sendable !== false && activationSend.dryRunVerified && activationSend.sendApprovalRequired && decisionHandoff.packetReviewed && !decisionHandoff.packetReviewStale);
         const segmentDraft = [
           `Subject: ${draft.subject || 'Finish your Sage Router setup key'}`,
           '',
@@ -2035,7 +2084,7 @@ function renderOperatorExecutionPacket(data = {}) {
   <div class="actions">
     <button class="btn secondary" type="button" data-copy-operator-packet="${esc(packetText)}">Copy execution packet</button>
     <button class="btn secondary" type="button" data-copy-activation-approval-packet="${esc(approvalPacketText)}" data-followup-count="${integer(activationDelivery.sendableQueued)}">Copy approval packet</button>
-    ${sendCommand ? `<button class="btn secondary" type="button" data-copy-activation-send-command="${esc(sendCommand)}" data-followup-segment="${esc(activationSend.nextSendSegment || 'all')}" data-followup-count="${integer(activationSend.sendableQueued)}" ${activationSend.dryRunVerified && activationSend.sendApprovalRequired ? '' : 'disabled'}>Copy approved send command</button>` : ''}
+    ${sendCommand ? `<button class="btn secondary" type="button" data-copy-activation-send-command="${esc(sendCommand)}" data-followup-segment="${esc(activationSend.nextSendSegment || 'all')}" data-followup-count="${integer(activationSend.sendableQueued)}" ${canCopyApprovedSend ? '' : 'disabled'}>Copy approved send command</button>` : ''}
     <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(urls.setupKeyRecovery || urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(draftText)}" data-followup-copy-kind="operator_packet_draft_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(packet.totalQueued)}">Copy packet draft</button>
     <button class="btn secondary" type="button" data-copy-primary-followup-url="${esc(urls.setupKeyRecovery || urls.passwordFallback || '')}" data-copy-primary-followup-text="${esc(primaryFollowUpLinkSet(plan, urls))}" data-followup-copy-kind="operator_packet_links_copied" data-followup-plan="${esc(plan)}" data-followup-count="${integer(packet.totalQueued)}">Copy packet links</button>
     ${urls.setupKeyRecovery ? `<a class="btn secondary" href="${esc(urls.setupKeyRecovery)}" target="_blank" rel="noopener noreferrer">Open setup recovery</a>` : ''}
