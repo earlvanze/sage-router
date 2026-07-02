@@ -563,6 +563,13 @@ function ManagedAccessReviewPrompt() {
     };
     trackLandingFunnelEvent('managed_access_contact_capture_landed', telemetry);
     trackLandingFunnelEvent('managed_access_quick_form_presented', telemetry);
+    trackLandingFunnelEvent('managed_access_contact_handoff_prompted', {
+      ...telemetry,
+      target: '#homepage-managed-access-contact-fallback',
+      button: 'Homepage managed-access contact fallback',
+      state: 'hero-managed-access-contact-handoff',
+      snippet: 'landing-homepage-managed-access-contact-handoff',
+    });
   }, []);
 
   useEffect(() => {
@@ -805,9 +812,19 @@ function ManagedAccessReviewPrompt() {
         <button type="submit" disabled={submitting}>{submitting ? 'Requesting...' : 'Request review'}</button>
         {turnstile.required && <div className="turnstileSlot managedAccessTurnstile" ref={widgetRef} />}
       </form>
-      <div className="managedAccessFallbackActions" aria-label="Homepage managed-access contact fallback">
+      <div id="homepage-managed-access-contact-fallback" className="managedAccessFallbackActions" aria-label="Homepage managed-access contact fallback">
         <button type="button" onClick={copyContactRequest}>Copy contact request</button>
         <button type="button" onClick={openContactDraft}>Open email draft</button>
+        <a href={`mailto:${MANAGED_ACCESS_REVIEW_EMAIL}?subject=${encodeURIComponent('Sage Router one-subscription review request')}`} onClick={() => trackLandingFunnelEvent('managed_access_contact_draft_opened', {
+          plan: 'max',
+          target: `mailto:${MANAGED_ACCESS_REVIEW_EMAIL}`,
+          button: 'Homepage direct managed-access email',
+          state: 'hero-managed-access-direct-email',
+          snippet: 'landing-homepage-managed-access-direct-email',
+          intent: 'one-subscription',
+          commercialPreference: 'one-subscription',
+          supportNeed: 'managed-provider-review',
+        })}>Email support</a>
       </div>
       <a href={MANAGED_ONE_SUBSCRIPTION_URL} onClick={() => trackManagedAccessReviewClick({
         target: MANAGED_ONE_SUBSCRIPTION_URL,

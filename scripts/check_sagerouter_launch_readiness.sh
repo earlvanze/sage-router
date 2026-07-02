@@ -2150,6 +2150,12 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_form_presented" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-managed-access-inline-presentation-funnel"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_contact_handoff_prompted" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-contact-handoff-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "landing-homepage-managed-access-contact-handoff" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-contact-handoff-snippet"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_form_focused" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-managed-access-inline-focus-funnel"
   fi
@@ -2167,6 +2173,9 @@ check_marketing_homepage_activation() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "landing-homepage-managed-access-contact-draft" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-managed-access-contact-draft-snippet"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "landing-homepage-managed-access-direct-email" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-managed-access-direct-email-snippet"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_quick_request_submitted" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-managed-access-inline-submit-funnel"
