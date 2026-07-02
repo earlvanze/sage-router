@@ -173,8 +173,14 @@ http_code_to_file() {
   curl -sS -o /tmp/sage-router-deploy-warmup-body -w '%{http_code}' "$url" "$@"
 }
 
+pages_warmup_hash() {
+  local path="$1"
+  sed -E 's#href="(mailto:[^"]+|/cdn-cgi/l/email-protection#[^"]+)"#href="EMAIL_PROTECTED"#g' "$path" | sha256sum | awk '{print $1}'
+}
+
 wait_for_pages_alias_after_deploy() {
   require_cmd curl
+  require_cmd sed
   require_cmd sha256sum
 
   local attempt commit_hash cache_buster check file path source expected tmp_body code actual
@@ -198,10 +204,10 @@ wait_for_pages_alias_after_deploy() {
         continue
       fi
 
-      expected="$(sha256sum "$source" | awk '{print $1}')"
+      expected="$(pages_warmup_hash "$source")"
       tmp_body="$(mktemp /tmp/sage-router-pages-warmup.XXXXXX)"
       code="$(curl -sS -L -o "$tmp_body" -w '%{http_code}' "${APP_BASE%/}${path}?deployWarmup=${cache_buster}" || printf '000')"
-      actual="$(sha256sum "$tmp_body" 2>/dev/null | awk '{print $1}')"
+      actual="$(pages_warmup_hash "$tmp_body" 2>/dev/null || true)"
       rm -f "$tmp_body"
 
       if [[ "$code" != "200" ]]; then
