@@ -1,12 +1,13 @@
 ---
 name: sage-router
 description: Local-first AI model routing for serious agents. One endpoint. Any provider. The router figures out the rest.
-version: 4.157.9
+version: 4.157.10
 env:
   - SAGE_ROUTER_HOME (required: path to sage-router repo)
   - SAGE_ROUTER_DISABLED_PROVIDERS (optional: comma-separated provider names to suppress)
   - SAGE_ROUTER_DISABLED_MODELS (optional: comma-separated model IDs or provider/model keys to suppress)
   - SAGE_ROUTER_OLLAMA_TIMEOUT_SECONDS (optional, default 120)
+  - SAGE_ROUTER_OPENAI_CODEX_TIMEOUT_SECONDS (optional, default 900)
   - SAGE_ROUTER_OLLAMA_AUTO_PULL_PATTERNS (optional, default :cloud)
   - OPENCLAW_GATEWAY_TOKEN (optional: token for OpenClaw gateway agent bridge)
 ---
