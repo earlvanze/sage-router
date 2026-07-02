@@ -4337,6 +4337,9 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-direct-email" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-direct-email"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-first-screen-direct-email" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-first-screen-direct-email"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-contact-direct-email" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-contact-direct-email"
   fi

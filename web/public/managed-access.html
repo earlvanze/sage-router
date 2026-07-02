@@ -85,6 +85,7 @@
         <div class="firstScreenContactChoiceActions">
           <button id="managed-access-first-screen-copy" type="button">Copy request first</button>
           <button id="managed-access-first-screen-email" class="secondary" type="button">Open draft</button>
+          <a id="managed-access-first-screen-direct-email" class="button secondary directEmailLink" href="mailto:support@sagerouter.dev?subject=Sage%20Router%20one-subscription%20private-beta%20review">Email support</a>
           <button id="managed-access-first-screen-focus" class="secondary" type="button">Add work email</button>
         </div>
       </div>
@@ -1415,12 +1416,13 @@
     directEmailLinks.forEach((link) => {
       link.addEventListener('click', () => {
         syncDirectEmailLinks();
-        markQuickFormFocused(quickReviewIntent(), '#managed-access-direct-email', {
+        const linkTarget = `#${link.id || 'managed-access-direct-email'}`;
+        markQuickFormFocused(quickReviewIntent(), linkTarget, {
           snippet: link.id || 'managed-access-direct-email-link',
         });
         trackManagedAccessFunnelEvent('managed_access_contact_draft_opened', {
           state: quickReviewIntent(),
-          target: `#${link.id || 'managed-access-direct-email'}`,
+          target: linkTarget,
           snippet: link.id || 'managed-access-direct-email-link',
         });
         setQuickStatus('Opening a no-secret work-inbox draft. Send it from your work email; managed resale remains gated.');
