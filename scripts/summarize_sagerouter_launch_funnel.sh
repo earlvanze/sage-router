@@ -1163,7 +1163,9 @@ if [[ "$RAW_JSON" == "1" ]]; then
     | (($approval.decisionLines // []) | map(select((.id // "") == "hold")) | .[0].value // "") as $holdLine
     | (($approval.sendableQueued // $packet.sendableQueued // $root.activationFollowUps.sendableQueued // 0) | tonumber) as $sendable
     | (($marketing.activationApprovalPacketCopies // 0) | tonumber) as $packetCopies
+    | (($marketing.activationApprovalPacketReviewedRecipients // 0) | tonumber) as $packetReviewedRecipients
     | (($marketing.activationApprovalDecisionCopies // 0) | tonumber) as $decisionCopies
+    | ($packetCopies > 0 and $packetReviewedRecipients >= $sendable) as $packetReviewed
     | (
       $sendable > 0
       and (($approval.dryRunVerified // $send.dryRunVerified // false) == true)
@@ -1173,7 +1175,8 @@ if [[ "$RAW_JSON" == "1" ]]; then
         status: (
           if ($required | not) then "no_pending_decision"
           elif $decisionCopies > 0 then "decision_recorded"
-          elif $packetCopies > 0 then "decision_required"
+          elif $packetReviewed then "decision_required"
+          elif $packetCopies > 0 then "packet_review_stale"
           else "packet_review_required"
           end
         ),
@@ -1181,9 +1184,11 @@ if [[ "$RAW_JSON" == "1" ]]; then
           if ($required and $decisionCopies == 0) then "fix_now" else "monitor" end
         ),
         required: $required,
-        packetReviewed: ($packetCopies > 0),
+        packetReviewed: $packetReviewed,
+        packetReviewStale: ($required and $packetCopies > 0 and ($packetReviewed | not)),
         decisionRecorded: ($decisionCopies > 0),
         packetCopies: $packetCopies,
+        packetReviewedRecipients: $packetReviewedRecipients,
         decisionCopies: $decisionCopies,
         nextSendSegment: ($approval.nextSendSegment // $send.nextSendSegment // "all"),
         sendableQueued: $sendable,
@@ -1194,7 +1199,8 @@ if [[ "$RAW_JSON" == "1" ]]; then
         action: (
           if ($required | not) then "Monitor activation; no approval decision is pending."
           elif $decisionCopies > 0 then "Decision handoff has been recorded; execute only the approved next step if separately authorized."
-          elif $packetCopies > 0 then "Copy either the approve or hold decision line after reviewing the no-secret packet; this records the human handoff only."
+          elif $packetReviewed then "Copy either the approve or hold decision line after reviewing the no-secret packet; this records the human handoff only."
+          elif $packetCopies > 0 then "Refresh the no-secret approval packet before recording a decision; the last recorded packet covered fewer recipients than the current sendable queue."
           else "Copy and review the no-secret approval packet before recording an approve or hold decision."
           end
         ),
@@ -1610,6 +1616,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
         providerTermsReviewCopiesBySnippet: ($marketing.providerTermsReviewCopiesBySnippet // {}),
         activationApprovalPacketCopies: ($marketing.activationApprovalPacketCopies // 0),
         activationApprovalPacketCopiesBySnippet: ($marketing.activationApprovalPacketCopiesBySnippet // {}),
+        activationApprovalPacketReviewedRecipients: ($marketing.activationApprovalPacketReviewedRecipients // 0),
         activationApprovalDecisionCopies: ($marketing.activationApprovalDecisionCopies // 0),
         activationApprovalDecisionCopiesBySnippet: ($marketing.activationApprovalDecisionCopiesBySnippet // {}),
         cloudflareBicTokenScopeCopies: ($marketing.cloudflareBicTokenScopeCopies // 0),
@@ -1793,7 +1800,9 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
     ) as $holdLine
     | (($approval.sendableQueued // $packet.sendableQueued // $root.activationFollowUps.sendableQueued // 0) | tonumber) as $sendable
     | (($marketing.activationApprovalPacketCopies // $root.activationFollowUps.activationApprovalPacketCopies // $root.nextBestAction.evidence.activationApprovalPacketCopies // 0) | tonumber) as $packetCopies
+    | (($marketing.activationApprovalPacketReviewedRecipients // $root.activationFollowUps.activationApprovalPacketReviewedRecipients // $root.nextBestAction.evidence.activationApprovalPacketReviewedRecipients // 0) | tonumber) as $packetReviewedRecipients
     | (($marketing.activationApprovalDecisionCopies // $root.activationFollowUps.activationApprovalDecisionCopies // $root.nextBestAction.evidence.activationApprovalDecisionCopies // 0) | tonumber) as $decisionCopies
+    | ($packetCopies > 0 and $packetReviewedRecipients >= $sendable) as $packetReviewed
     | (
       $sendable > 0
       and (($approval.dryRunVerified // $send.dryRunVerified // false) == true)
@@ -1803,19 +1812,23 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
         status: (
           if ($required | not) then "no_pending_decision"
           elif $decisionCopies > 0 then "decision_recorded"
-          elif $packetCopies > 0 then "decision_required"
+          elif $packetReviewed then "decision_required"
+          elif $packetCopies > 0 then "packet_review_stale"
           else "packet_review_required"
           end
         ),
         priority: (if ($required and $decisionCopies == 0) then "fix_now" else "monitor" end),
-        packetReviewed: ($packetCopies > 0),
+        packetReviewed: $packetReviewed,
+        packetReviewStale: ($required and $packetCopies > 0 and ($packetReviewed | not)),
         decisionRecorded: ($decisionCopies > 0),
+        packetReviewedRecipients: $packetReviewedRecipients,
         approveLine: $approveLine,
         holdLine: $holdLine,
         action: (
           if ($required | not) then "Monitor activation; no approval decision is pending."
           elif $decisionCopies > 0 then "Decision handoff has been recorded; execute only the approved next step if separately authorized."
-          elif $packetCopies > 0 then "Copy either the approve or hold decision line after reviewing the no-secret packet; this records the human handoff only."
+          elif $packetReviewed then "Copy either the approve or hold decision line after reviewing the no-secret packet; this records the human handoff only."
+          elif $packetCopies > 0 then "Refresh the no-secret approval packet before recording a decision; the last recorded packet covered fewer recipients than the current sendable queue."
           else "Copy and review the no-secret approval packet before recording an approve or hold decision."
           end
         )

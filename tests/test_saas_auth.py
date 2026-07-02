@@ -2910,7 +2910,7 @@ class SaaSAuthTests(unittest.TestCase):
             stages,
             rates,
             {'estimatedCurrentMrrUsd': 60, 'targetMrrUsd': 10000},
-            {**activation_follow_ups, 'activationApprovalPacketCopies': 1},
+            {**activation_follow_ups, 'activationApprovalPacketCopies': 1, 'activationApprovalPacketReviewedRecipients': 2},
             [],
         )
         self.assertIn('approval packet has already been reviewed', reviewed_packet['action'])
@@ -2925,6 +2925,25 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('current decision lines', reviewed_packet['executionChecklist'][0]['action'])
         self.assertIn('operatorFollowUpSends', reviewed_packet['executionChecklist'][0]['successMetric'])
         self.assertIn('do not re-run recovery diagnostics', reviewed_packet['executionChecklist'][3]['action'])
+
+        stale_packet = router.launch_next_best_action(
+            stages,
+            rates,
+            {'estimatedCurrentMrrUsd': 60, 'targetMrrUsd': 10000},
+            {**activation_follow_ups, 'activationApprovalPacketCopies': 1, 'activationApprovalPacketReviewedRecipients': 1},
+            [],
+        )
+        self.assertEqual('activation approval', stale_packet['surface'])
+        self.assertIn('/launch-funnel.html#activation-approval', stale_packet['ctaPath'])
+        self.assertNotIn('/launch-funnel.html#activation-approval-decision', stale_packet['ctaPath'])
+        self.assertIn('approval packet is stale', stale_packet['action'])
+        self.assertFalse(stale_packet['evidence']['approvalPacketAlreadyReviewed'])
+        self.assertTrue(stale_packet['evidence']['approvalPacketReviewStale'])
+        self.assertFalse(stale_packet['evidence']['approvalPacketReviewCoversQueue'])
+        self.assertEqual(1, stale_packet['evidence']['activationApprovalPacketReviewedRecipients'])
+        self.assertEqual(2, stale_packet['evidence']['sendableQueued'])
+        self.assertEqual('approval_packet', stale_packet['executionChecklist'][0]['segment'])
+        self.assertIn('covered fewer sendable recipients than the current queue', stale_packet['executionChecklist'][0]['action'])
 
         needs_diagnostic = router.launch_next_best_action(
             stages,
@@ -3060,7 +3079,12 @@ class SaaSAuthTests(unittest.TestCase):
             stages,
             rates,
             {'estimatedCurrentMrrUsd': 60, 'targetMrrUsd': 10000},
-            {**activation_follow_ups, 'operatorFollowUpSendDryRuns': 3, 'activationApprovalPacketCopies': 1},
+            {
+                **activation_follow_ups,
+                'operatorFollowUpSendDryRuns': 3,
+                'activationApprovalPacketCopies': 1,
+                'activationApprovalPacketReviewedRecipients': 2,
+            },
             [],
         )
         self.assertEqual('activation approval', reviewed_packet['surface'])
@@ -4390,6 +4414,7 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(1, metrics['founderSalesOutreachCopiesBySnippet']['founder-recommended-first-reply-email-draft'])
         self.assertEqual(1, metrics['activationApprovalPacketCopies'])
         self.assertEqual(1, metrics['activationApprovalPacketCopiesBySnippet']['operator-activation-approval-packet'])
+        self.assertEqual(2, metrics['activationApprovalPacketReviewedRecipients'])
         self.assertEqual(1, metrics['providerAuthorizationOutreachCopies'])
         self.assertEqual(1, metrics['providerAuthorizationOutreachCopiesBySnippet']['operator-provider-outreach-packet'])
         self.assertEqual(1, metrics['providerAuthorizationReviewCopies'])

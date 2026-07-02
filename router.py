@@ -7796,6 +7796,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
     operator_follow_up_sent_recipients = int(activation_follow_ups.get('operatorFollowUpSentRecipients') or 0)
     operator_follow_up_send_failure_recipients = int(activation_follow_ups.get('operatorFollowUpSendFailureRecipients') or 0)
     activation_approval_packet_copies = int(activation_follow_ups.get('activationApprovalPacketCopies') or 0)
+    activation_approval_packet_reviewed_recipients = int(activation_follow_ups.get('activationApprovalPacketReviewedRecipients') or 0)
     activation_approval_decision_copies = int(activation_follow_ups.get('activationApprovalDecisionCopies') or 0)
     key_first_redirects = int(activation_follow_ups.get('keyFirstRedirects') or 0)
     key_recovery_views = int(activation_follow_ups.get('keyRecoveryViews') or 0)
@@ -7829,7 +7830,16 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
             and operator_follow_up_sends <= 0
             and activation_approval_decision_copies <= 0
         )
-        approval_packet_already_reviewed = activation_decision_ready_for_review and activation_approval_packet_copies > 0
+        approval_packet_review_covers_queue = (
+            activation_approval_packet_copies > 0
+            and activation_approval_packet_reviewed_recipients >= sendable_queued
+        )
+        approval_packet_review_stale = (
+            activation_decision_ready_for_review
+            and activation_approval_packet_copies > 0
+            and not approval_packet_review_covers_queue
+        )
+        approval_packet_already_reviewed = activation_decision_ready_for_review and approval_packet_review_covers_queue
         non_gated_setup_copy_fallback = activation_send_ready_for_approval and setup_snippet_copies <= 0
         recommended_segments = [
             segment for segment in ('verified', 'unverified', 'missing_auth_user', 'missing_user_id', 'unavailable', 'not_required')
@@ -7841,15 +7851,19 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
             execution_checklist = [
                 {
                     'step': 1,
-                    'segment': 'approval_decision' if approval_packet_already_reviewed else 'account_handoff',
+                    'segment': 'approval_decision' if approval_packet_already_reviewed else ('approval_packet' if approval_packet_review_stale else 'account_handoff'),
                     'action': (
                         'Use the already reviewed no-secret approval packet and current decision lines to approve or hold only the next sendable segment; this records the human handoff only and does not send email.'
                         if approval_packet_already_reviewed
+                        else 'Refresh the no-secret approval packet before any decision; the last recorded packet covered fewer sendable recipients than the current queue.'
+                        if approval_packet_review_stale
                         else 'Verify recovery handoffs land on /account with start=create_key, plan, and signup_to_key_recovery attribution intact.'
                     ),
                     'successMetric': (
                         'activationApprovalDecisionCopies increases without operatorFollowUpSends unless a separate explicit send is approved.'
                         if approval_packet_already_reviewed
+                        else 'activationApprovalPacketReviewedRecipients reaches the current sendableQueued count without sending email.'
+                        if approval_packet_review_stale
                         else 'account_key_recovery_viewed increases after login_key_recovery_account_setup_auto_redirected.'
                     ),
                 },
@@ -7869,8 +7883,10 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                     'step': 4,
                     'segment': 'operator_outreach',
                     'action': (
-                        'After the approve/hold decision, either execute the separately approved next-segment send or wait for fresh signed-in recovery traffic; do not re-run approval packet review unless the packet timestamp expires.'
+                        'After the approve/hold decision, either execute the separately approved next-segment send or wait for fresh signed-in recovery traffic; do not re-run approval packet review unless the packet timestamp expires or the sendable queue grows.'
                         if approval_packet_already_reviewed
+                        else 'After refreshing the approval packet, record an approve/hold decision only for the newly covered queue; do not send email from the packet review.'
+                        if approval_packet_review_stale
                         else 'After account handoff to auto-create is verified, send or copy only the sendable verified/unverified follow-up drafts.'
                     ),
                     'successMetric': 'operatorFollowUpSends or operatorFollowUpCopies increases before more keyRecoveryViews.',
@@ -7888,6 +7904,8 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                     'action': (
                         'Use the already recorded no-secret approval packet and current decision lines to approve or hold only the next sendable segment; re-run the packet only if the timestamp has expired.'
                         if approval_packet_already_reviewed else
+                        'Re-run the approval packet with --verify-recovery before any decision; the last recorded no-secret packet is stale because it covered fewer sendable recipients than the current queue.'
+                        if approval_packet_review_stale else
                         'Run bash scripts/summarize_sagerouter_launch_funnel.sh --approval-packet --verify-recovery --verify-auth-repair so the approval decision includes the live no-persistence recovery handoff smoke before any real send.'
                         if activation_send_ready_for_approval
                         else 'Run bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff to classify the aggregate stage and include the live no-persistence handoff smoke.'
@@ -7895,6 +7913,8 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                     'successMetric': (
                         'operatorFollowUpSends, operatorFollowUpSentRecipients, or fresh recovery traffic increases without send failures.'
                         if approval_packet_already_reviewed
+                        else 'activationApprovalPacketReviewedRecipients reaches the current sendableQueued count without operatorFollowUpSends.'
+                        if approval_packet_review_stale
                         else 'The diagnosis names verified_handoff_waiting_for_fresh_traffic after the smoke probe accepts setup_key_recovery_auto_account_redirected, login_key_recovery_account_setup_auto_redirected, and account_setup_handoff_viewed without storing emails or generated keys.'
                     ),
                 },
@@ -7916,6 +7936,8 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                     'action': (
                         'After the approve/hold decision, either execute the approved next-segment send or wait for fresh recovery traffic; do not re-run recovery diagnostics unless new evidence changes.'
                         if approval_packet_already_reviewed else
+                        'After the refreshed no-secret packet is reviewed, copy an approve/hold decision line before any real activation send.'
+                        if approval_packet_review_stale else
                         'If the approval packet reports verified_handoff_waiting_for_fresh_traffic, the next blocker is explicit operator approval or fresh recovery traffic, not a recovery-page code fix.'
                         if activation_send_ready_for_approval
                         else 'After the dual smoke probe passes, wait for new traffic or use the approval packet before any real verified/unverified activation send.'
@@ -7929,7 +7951,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
             'owner': 'Activation',
             'surface': (
                 'activation approval'
-                if approval_packet_already_reviewed
+                if (approval_packet_already_reviewed or approval_packet_review_stale)
                 else
                 'launch funnel'
                 if non_gated_setup_copy_fallback
@@ -7940,8 +7962,12 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 )
             ),
             'ctaPath': (
-                f'{APP_BASE_URL.rstrip("/")}/launch-funnel.html#activation-approval-decision'
-                if approval_packet_already_reviewed
+                (
+                    f'{APP_BASE_URL.rstrip("/")}/launch-funnel.html#activation-approval-decision'
+                    if approval_packet_already_reviewed
+                    else f'{APP_BASE_URL.rstrip("/")}/launch-funnel.html#activation-approval'
+                )
+                if (approval_packet_already_reviewed or approval_packet_review_stale)
                 else
                 f'{APP_BASE_URL.rstrip("/")}/launch-funnel.html#next-best-action-dock'
                 if non_gated_setup_copy_fallback
@@ -7958,17 +7984,24 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 )
             ),
             'action': (
+                'The last no-secret approval packet is stale after the sendable queue changed; refresh the packet with recovery and auth-repair verification before recording an approve/hold decision or sending activation email.'
+                if approval_packet_review_stale
+                else
                 'Real activation sends are approval-gated and setup-copy activation is still zero. Copy the first-request setup bundle from the Do Next dock now; it moves a no-secret setup-copy KPI without sending email, exposing a real key, or changing billing/provider resale.'
                 if non_gated_setup_copy_fallback
                 else (
                 (
                     'The no-secret approval packet has already been reviewed and recovery handoffs are reaching account setup with no key-create attempts yet; the remaining blocker is explicit operator approval for the next segment, an approve/hold decision record, or fresh signed-in recovery traffic.'
                     if approval_packet_already_reviewed
+                    else 'The last no-secret approval packet is stale after the sendable queue changed; refresh the packet with recovery and auth-repair verification before recording an approve/hold decision or sending activation email.'
+                    if approval_packet_review_stale
                     else 'Recovery handoffs are reaching account setup but no key-create attempts have been recorded yet. Auto-key telemetry is now deployed and accepted by the hosted funnel endpoint; the remaining proof needs fresh signed-in recovery traffic or explicit operator approval before real activation sends.'
                     if recovery_handoff_dropoff
                     else (
                         'The no-secret approval packet has already been reviewed and sendable follow-up dry-runs are covered; the remaining blocker is explicit operator approval for the next segment or fresh recovery traffic, not another recovery-page code change.'
                         if approval_packet_already_reviewed else
+                        'The last no-secret approval packet is stale after the sendable queue changed. Re-run the approval packet with --verify-recovery and --verify-auth-repair so the approve/hold decision covers the current queue.'
+                        if approval_packet_review_stale else
                         'Recovery pages have views but no account handoffs or key-create attempts, while sendable follow-up dry runs are already covered. Run the approval packet with --verify-recovery; if it reports verified_handoff_waiting_for_fresh_traffic, the next blocker is explicit operator approval or fresh recovery traffic, not a recovery-page code fix.'
                         if activation_send_ready_for_approval
                         else 'Recovery pages are getting views but no account handoffs or key-create attempts. The public recovery page now leads with Email same-email setup link; run bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff and expect verified_handoff_waiting_for_fresh_traffic when the no-persistence smoke passes, then watch for setup_key_recovery_magic_link_requested/sent before key creation, or use the approval packet before any real activation send.'
@@ -7986,6 +8019,9 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
             'successMetric': (
                 'operatorFollowUpSends, operatorFollowUpSentRecipients, or fresh recovery traffic increases without send failures.'
                 if approval_packet_already_reviewed
+                else
+                'activationApprovalPacketReviewedRecipients reaches the current sendableQueued count before any approve/hold decision.'
+                if approval_packet_review_stale
                 else
                 'status_first_request_setup_copied increases with snippet operator-first-request-setup, then first routed request and generated-key conversion can be measured.'
                 if non_gated_setup_copy_fallback
@@ -8020,6 +8056,9 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 'operatorFollowUpSendFailureRecipients': operator_follow_up_send_failure_recipients,
                 'activationApprovalPacketCopies': activation_approval_packet_copies,
                 'activationApprovalPacketCopiesBySnippet': activation_follow_ups.get('activationApprovalPacketCopiesBySnippet') or {},
+                'activationApprovalPacketReviewedRecipients': activation_approval_packet_reviewed_recipients,
+                'approvalPacketReviewCoversQueue': approval_packet_review_covers_queue,
+                'approvalPacketReviewStale': approval_packet_review_stale,
                 'activationApprovalDecisionCopies': activation_approval_decision_copies,
                 'activationApprovalDecisionCopiesBySnippet': activation_follow_ups.get('activationApprovalDecisionCopiesBySnippet') or {},
                 'approvalPacketAlreadyReviewed': approval_packet_already_reviewed,
@@ -9835,6 +9874,7 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'providerTermsReviewCopiesBySnippet': {},
         'activationApprovalPacketCopies': 0,
         'activationApprovalPacketCopiesBySnippet': {},
+        'activationApprovalPacketReviewedRecipients': 0,
         'activationApprovalDecisionCopies': 0,
         'activationApprovalDecisionCopiesBySnippet': {},
         'cloudflareBicTokenScopeCopies': 0,
@@ -9963,6 +10003,10 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             metrics['activationApprovalPacketCopies'] += 1
             snippet = str(metadata.get('snippet') or metadata.get('state') or 'activation-approval-packet').strip().lower()[:80] or 'activation-approval-packet'
             metrics['activationApprovalPacketCopiesBySnippet'][snippet] = metrics['activationApprovalPacketCopiesBySnippet'].get(snippet, 0) + 1
+            metrics['activationApprovalPacketReviewedRecipients'] = max(
+                int(metrics.get('activationApprovalPacketReviewedRecipients') or 0),
+                marketing_event_result_count(metadata),
+            )
         if event in CLOUDFLARE_BIC_TOKEN_SCOPE_COPY_EVENTS:
             metrics['cloudflareBicTokenScopeCopies'] += 1
             snippet = str(metadata.get('snippet') or metadata.get('state') or 'cloudflare-bic-token-scope').strip().lower()[:80] or 'cloudflare-bic-token-scope'
@@ -10076,6 +10120,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'providerTermsReviewCopiesBySnippet': {},
             'activationApprovalPacketCopies': 0,
             'activationApprovalPacketCopiesBySnippet': {},
+            'activationApprovalPacketReviewedRecipients': 0,
             'activationApprovalDecisionCopies': 0,
             'activationApprovalDecisionCopiesBySnippet': {},
             'cloudflareBicTokenScopeCopies': 0,
@@ -10242,6 +10287,7 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'operatorFollowUpSendFailureRecipients': int(marketing_metrics.get('operatorFollowUpSendFailureRecipients') or 0),
             'activationApprovalPacketCopies': int(marketing_metrics.get('activationApprovalPacketCopies') or 0),
             'activationApprovalPacketCopiesBySnippet': marketing_metrics.get('activationApprovalPacketCopiesBySnippet') or {},
+            'activationApprovalPacketReviewedRecipients': int(marketing_metrics.get('activationApprovalPacketReviewedRecipients') or 0),
             'activationApprovalDecisionCopies': int(marketing_metrics.get('activationApprovalDecisionCopies') or 0),
             'activationApprovalDecisionCopiesBySnippet': marketing_metrics.get('activationApprovalDecisionCopiesBySnippet') or {},
             'keyFirstRedirects': int(marketing_metrics.get('keyFirstRedirects') or 0),
