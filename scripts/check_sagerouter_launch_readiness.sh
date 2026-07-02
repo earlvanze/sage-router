@@ -4097,11 +4097,17 @@ check_marketing_founder_sales_kit_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "email-founder-recommended-first-reply" /tmp/sage-router-readiness-body; then
     page_code="200:missing-email-founder-recommended-first-reply"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-email-founder-recommended-first-reply" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-email-founder-recommended-first-reply"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "copy-founder-next-revenue-packet" /tmp/sage-router-readiness-body; then
     page_code="200:missing-copy-founder-next-revenue-packet"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "email-founder-next-revenue-packet" /tmp/sage-router-readiness-body; then
     page_code="200:missing-email-founder-next-revenue-packet"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copy-email-founder-next-revenue-packet" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-copy-email-founder-next-revenue-packet"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Public managed-provider access remains gated" /tmp/sage-router-readiness-body; then
     page_code="200:missing-founder-next-revenue-managed-boundary"
@@ -4174,6 +4180,9 @@ check_marketing_founder_sales_kit_page() {
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "openEmailDraft" /tmp/sage-router-readiness-body; then
     page_code="200:missing-founder-sales-email-draft-handler"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "copyAndOpenEmailDraft" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-founder-sales-copy-and-draft-handler"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickstart_snippet_copied" /tmp/sage-router-readiness-body; then
     page_code="200:missing-founder-sales-setup-copy-funnel"

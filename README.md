@@ -332,7 +332,7 @@ boundaries for the `$10k MRR` campaign. Copying those launch posts records
 reserved for snippets that help prospects configure Sage Router.
 `https://sagerouter.dev/founder-sales-kit` gives the operator a first-viewport
 `Copy recommended first reply` action, first-viewport `Open email draft` mailto fallback,
-`Copy next revenue packet` action, plus `Copy next Pro reply` and `Copy 60-second setup bundle` actions, and copyable no-secret direct outreach
+first-viewport `Copy and open draft` action, `Copy next revenue packet` action, plus `Copy next Pro reply` and `Copy 60-second setup bundle` actions, and copyable no-secret direct outreach
 for Lite pilots, Pro activation, Max implementation review, one-subscription
 managed-access review, gateway migration replies, OpenRouter migration replies,
 and calculator follow-up with measured
