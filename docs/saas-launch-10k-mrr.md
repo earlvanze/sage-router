@@ -505,7 +505,7 @@ flag.
   can be measured through the same contact-capture drop-off funnel as pricing
   and managed-access traffic without logging email values in marketing events.
   `/analytics/funnel` and the CLI summarizer expose that as
-  `managedAccessDropoff` with aggregate presentation/focus/start/submit/received
+  `managedAccessDropoff` with aggregate presentation/handoff-prompt/focus/start/submit/received
   counts, rates, status, and next action for operator follow-up. The private
   launch funnel promotes the same gap into a first-screen managed-access
   contact-capture handoff, so an operator can copy the no-secret review packet
@@ -515,7 +515,9 @@ flag.
   idle contact handoff live so a buyer can focus the work-email field, copy the
   no-secret contact request, or open the email draft without enabling provider
   resale. The idle handoff records `managed_access_contact_handoff_prompted`
-  with `managed-access-default-idle-handoff` before any email is collected.
+  with `managed-access-default-idle-handoff`; analytics surfaces that as
+  `contactHandoffPrompts`, a pre-contact prompt signal rather than a captured
+  lead, before any email is collected.
   Operator contact-capture URLs also show a route nudge and re-run the
   work-email focus path on hash changes and browser page restore, so routed
   buyers keep landing on `#managed-access-quick-form` instead of only adding a

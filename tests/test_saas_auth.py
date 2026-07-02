@@ -2139,6 +2139,7 @@ class SaaSAuthTests(unittest.TestCase):
                 'pricing_checkout_clicked': 1,
                 'managed_access_interest_clicked': 1,
                 'managed_access_contact_capture_landed': 2,
+                'managed_access_contact_handoff_prompted': 3,
                 'managed_access_quick_form_presented': 2,
                 'managed_access_quick_form_focused': 1,
                 'managed_access_quick_form_started': 1,
@@ -2394,11 +2395,13 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual('receiving_requests', snapshot['managedAccessDropoff']['status'])
         self.assertEqual('follow_up', snapshot['managedAccessDropoff']['priority'])
         self.assertEqual(2, snapshot['managedAccessDropoff']['counts']['contactCaptureLandings'])
+        self.assertEqual(3, snapshot['managedAccessDropoff']['counts']['contactHandoffPrompts'])
         self.assertEqual(2, snapshot['managedAccessDropoff']['counts']['quickFormPresented'])
         self.assertEqual(1, snapshot['managedAccessDropoff']['counts']['quickFormFocused'])
         self.assertEqual(1, snapshot['managedAccessDropoff']['counts']['quickFormStarted'])
         self.assertEqual(1, snapshot['managedAccessDropoff']['counts']['quickRequestsSubmitted'])
         self.assertEqual(1, snapshot['managedAccessDropoff']['counts']['quickRequestsReceived'])
+        self.assertEqual(8, snapshot['managedAccessDropoff']['counts']['preContactSignals'])
         self.assertEqual(0.5, snapshot['managedAccessDropoff']['rates']['presentedToFocused'])
         self.assertEqual(1.0, snapshot['managedAccessDropoff']['rates']['submittedToReceived'])
         self.assertFalse(snapshot['managedAccessDropoff']['managedResaleEnabled'])

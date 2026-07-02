@@ -8766,6 +8766,7 @@ MANAGED_ACCESS_MARKETING_EVENTS = {
     'gateway_compare_managed_access_clicked',
     'landing_managed_access_clicked',
     'managed_access_contact_capture_landed',
+    'managed_access_contact_handoff_prompted',
     'launch_plan_managed_access_clicked',
     'managed_access_interest_clicked',
     'managed_access_contact_draft_opened',
@@ -9016,6 +9017,7 @@ def managed_access_dropoff(marketing_metrics, conversion=None):
         'anonymousIntentClicks': int(events.get('managed_access_interest_clicked') or 0),
         'reviewPacketCopies': int((marketing_metrics or {}).get('managedAccessPacketCopies') or 0) if isinstance(marketing_metrics, dict) else 0,
         'contactCaptureLandings': int(events.get('managed_access_contact_capture_landed') or 0),
+        'contactHandoffPrompts': int(events.get('managed_access_contact_handoff_prompted') or 0),
         'quickFormPresented': int(events.get('managed_access_quick_form_presented') or 0),
         'quickFormFocused': int(events.get('managed_access_quick_form_focused') or 0),
         'quickFormStarted': int(events.get('managed_access_quick_form_started') or 0),
@@ -9030,6 +9032,7 @@ def managed_access_dropoff(marketing_metrics, conversion=None):
         counts['anonymousIntentClicks']
         + counts['reviewPacketCopies']
         + counts['contactCaptureLandings']
+        + counts['contactHandoffPrompts']
         + counts['quickFormPresented']
     )
     counts['fastPathEngagements'] = (
@@ -9067,6 +9070,10 @@ def managed_access_dropoff(marketing_metrics, conversion=None):
         status = 'engaged_not_submitted'
         priority = 'fix_now'
         action = 'Visitors engage the fast path but do not submit; keep the email-draft/contact-packet fallbacks visible and tighten completion copy.'
+    elif counts['contactHandoffPrompts'] > 0:
+        status = 'handoff_prompted_not_engaged'
+        priority = 'fix_now'
+        action = 'The idle contact handoff is visible but no copy, draft, focus, or submit action followed; tighten the prompt copy and route warm outreach to a direct contact action.'
     elif counts['contactCaptureLandings'] > 0 or counts['quickFormPresented'] > 0:
         status = 'presented_not_engaged'
         priority = 'fix_now'
