@@ -892,6 +892,15 @@ to record one aggregate `status_activation_approval_packet_copied` event with
 the `operator-activation-approval-packet` snippet. That records terminal review
 work for the live funnel, but still does not approve a send, send email, repair
 auth links, expose secrets, or enable managed resale.
+After the operator actually chooses a no-secret decision line, run
+`scripts/summarize_sagerouter_launch_funnel.sh --days 30 --record-activation-approval-decision hold --decision-reason operator_hold_pending_review`
+or the same command with `approve` to record one aggregate
+`operator_execution_packet_copied` event with the
+`activation-approval-hold-decision` or `activation-approval-approve-decision`
+snippet. This records the human approve/hold handoff only; it still does not
+send activation follow-ups, approve a real send by itself, mutate queued
+follow-ups, repair auth links, expose secrets, or bypass the fresh approval
+packet and `SEND_ACTIVATION_FOLLOWUPS` typed-confirmation gate.
 
 Use the public deploy helper to avoid branch/digest drift between the static
 site and hosted API:

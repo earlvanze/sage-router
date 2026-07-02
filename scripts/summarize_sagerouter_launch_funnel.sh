@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--record-activation-approval-review] [--founder-sales-packet] [--record-founder-sales] [--setup-copy-packet] [--record-setup-copy] [--managed-access-dropoff-packet] [--moltbook-packet] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section] [--update-distribution-tracker]
+Usage: scripts/summarize_sagerouter_launch_funnel.sh [--days N] [--json] [--approval-packet] [--record-activation-approval-review] [--record-activation-approval-decision approve|hold] [--decision-reason TEXT] [--founder-sales-packet] [--record-founder-sales] [--setup-copy-packet] [--record-setup-copy] [--managed-access-dropoff-packet] [--moltbook-packet] [--verify-recovery] [--verify-auth-repair] [--distribution-tracker-section] [--update-distribution-tracker]
 
 Fetch the operator-only /analytics/funnel endpoint and print a privacy-safe
 launch snapshot. The script never prints operator tokens, emails, generated API
@@ -19,6 +19,15 @@ Options:
                       for the operator terminal review. Run only after an
                       operator actually reviews the packet; this does not
                       approve or send activation follow-ups.
+  --record-activation-approval-decision approve|hold
+                      Record one aggregate operator_execution_packet_copied
+                      approve/hold decision-copy event after an operator
+                      actually uses that decision line. This does not approve
+                      sends, send email, mutate queued follow-ups, repair auth
+                      links, or bypass SEND_ACTIVATION_FOLLOWUPS.
+  --decision-reason TEXT
+                      Optional no-secret reason for hold decisions. Defaults
+                      to operator_hold_pending_review.
   --founder-sales-packet
                       Print the no-secret founder-sales next-revenue packet
                       for direct warm outreach while sends/resale are gated.
@@ -97,6 +106,8 @@ DAYS=30
 RAW_JSON=0
 APPROVAL_PACKET=0
 RECORD_ACTIVATION_APPROVAL_REVIEW=0
+RECORD_ACTIVATION_APPROVAL_DECISION=""
+DECISION_REASON="operator_hold_pending_review"
 FOUNDER_SALES_PACKET=0
 RECORD_FOUNDER_SALES=0
 SETUP_COPY_PACKET=0
@@ -128,6 +139,30 @@ while [[ $# -gt 0 ]]; do
     --record-activation-approval-review)
       RECORD_ACTIVATION_APPROVAL_REVIEW=1
       shift
+      ;;
+    --record-activation-approval-decision)
+      if [[ $# -lt 2 || "${2:-}" == -* ]]; then
+        printf '%s\n' '--record-activation-approval-decision requires approve or hold' >&2
+        exit 2
+      fi
+      case "${2:-}" in
+        approve|hold)
+          RECORD_ACTIVATION_APPROVAL_DECISION="${2:-}"
+          ;;
+        *)
+          printf '%s\n' '--record-activation-approval-decision must be approve or hold' >&2
+          exit 2
+          ;;
+      esac
+      shift 2
+      ;;
+    --decision-reason)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2:-}" == -* ]]; then
+        printf '%s\n' '--decision-reason requires a non-empty no-secret value' >&2
+        exit 2
+      fi
+      DECISION_REASON="${2:-}"
+      shift 2
       ;;
     --founder-sales-packet)
       FOUNDER_SALES_PACKET=1
@@ -181,8 +216,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if (( RAW_JSON + APPROVAL_PACKET + RECORD_ACTIVATION_APPROVAL_REVIEW + FOUNDER_SALES_PACKET + RECORD_FOUNDER_SALES + SETUP_COPY_PACKET + RECORD_SETUP_COPY + MANAGED_ACCESS_DROPOFF_PACKET + MOLTBOOK_PACKET + TRACKER_SECTION + UPDATE_TRACKER > 1 )); then
-  printf '%s\n' '--json, --approval-packet, --record-activation-approval-review, --founder-sales-packet, --record-founder-sales, --setup-copy-packet, --record-setup-copy, --managed-access-dropoff-packet, --moltbook-packet, --distribution-tracker-section, and --update-distribution-tracker cannot be combined' >&2
+DECISION_MODE_COUNT=0
+if [[ -n "$RECORD_ACTIVATION_APPROVAL_DECISION" ]]; then
+  DECISION_MODE_COUNT=1
+fi
+if (( RAW_JSON + APPROVAL_PACKET + RECORD_ACTIVATION_APPROVAL_REVIEW + DECISION_MODE_COUNT + FOUNDER_SALES_PACKET + RECORD_FOUNDER_SALES + SETUP_COPY_PACKET + RECORD_SETUP_COPY + MANAGED_ACCESS_DROPOFF_PACKET + MOLTBOOK_PACKET + TRACKER_SECTION + UPDATE_TRACKER > 1 )); then
+  printf '%s\n' '--json, --approval-packet, --record-activation-approval-review, --record-activation-approval-decision, --founder-sales-packet, --record-founder-sales, --setup-copy-packet, --record-setup-copy, --managed-access-dropoff-packet, --moltbook-packet, --distribution-tracker-section, and --update-distribution-tracker cannot be combined' >&2
   exit 2
 fi
 if [[ "$VERIFY_RECOVERY" == "1" && "$APPROVAL_PACKET" != "1" && "$RECORD_ACTIVATION_APPROVAL_REVIEW" != "1" ]]; then
@@ -359,7 +398,7 @@ printf '{"stage":"not_run","handoffSmoke":{"checked":false,"passed":false,"noPer
 if [[ ("$APPROVAL_PACKET" == "1" || "$RECORD_ACTIVATION_APPROVAL_REVIEW" == "1") && "$VERIFY_RECOVERY" == "1" ]]; then
   bash scripts/diagnose_setup_key_recovery_dropoff.sh --days "$DAYS" --verify-handoff --json > "$recovery_tmp"
 fi
-if [[ "$APPROVAL_PACKET" != "1" && "$RECORD_ACTIVATION_APPROVAL_REVIEW" != "1" && "$RAW_JSON" != "1" && "$SETUP_COPY_PACKET" != "1" && "$RECORD_SETUP_COPY" != "1" && "$MANAGED_ACCESS_DROPOFF_PACKET" != "1" ]]; then
+if [[ "$APPROVAL_PACKET" != "1" && "$RECORD_ACTIVATION_APPROVAL_REVIEW" != "1" && -z "$RECORD_ACTIVATION_APPROVAL_DECISION" && "$RAW_JSON" != "1" && "$SETUP_COPY_PACKET" != "1" && "$RECORD_SETUP_COPY" != "1" && "$MANAGED_ACCESS_DROPOFF_PACKET" != "1" ]]; then
   if ! bash scripts/diagnose_setup_key_recovery_dropoff.sh --days "$DAYS" --verify-handoff --json > "$recovery_tmp"; then
     printf '{"stage":"failed","handoffSmoke":{"checked":true,"passed":false,"noPersistence":true},"privacy":{"aggregateOnly":true}}\n' > "$recovery_tmp"
   fi
@@ -471,6 +510,8 @@ EOF
     }')"
 
   curl -fsS -X POST "${APP_BASE%/}/api/funnel-event" \
+    --connect-timeout 8 \
+    --max-time 20 \
     -H "Origin: ${APP_BASE%/}" \
     -H "Content-Type: application/json" \
     -H "User-Agent: SageRouterLaunchFunnelCLI/1.0" \
@@ -587,6 +628,109 @@ if [[ "$MANAGED_ACCESS_DROPOFF_PACKET" == "1" ]]; then
       ]
       | .[]
   ' "$tmp"
+  exit 0
+fi
+
+if [[ -n "$RECORD_ACTIVATION_APPROVAL_DECISION" ]]; then
+  plan="$(jq -r '.activationFollowUps.suggestedPlan // .nextBestAction.evidence.suggestedPlan // "pro"' "$tmp")"
+  case "$plan" in
+    lite|pro|max)
+      ;;
+    *)
+      plan="pro"
+      ;;
+  esac
+  next_segment="$(jq -r '.activationApprovalReadiness.nextSendSegment // .operatorExecutionPacket.sendTelemetry.nextSendSegment // "verified"' "$tmp")"
+  case "$next_segment" in
+    verified|unverified|not_required|all)
+      ;;
+    *)
+      next_segment="verified"
+      ;;
+  esac
+  queued_count="$(jq -r '.activationApprovalReadiness.sendableQueued // .operatorExecutionPacket.sendableQueued // .activationFollowUps.sendableQueued // 0' "$tmp")"
+  safe_reason="$(printf '%s' "$DECISION_REASON" | tr '\r\n' '  ' | sed 's/[^A-Za-z0-9 ._:-]/_/g; s/^ *//; s/ *$//; s/  */ /g' | cut -c1-120)"
+  if [[ -z "$safe_reason" ]]; then
+    safe_reason="operator_hold_pending_review"
+  fi
+
+  decision_line="$(
+    jq -r \
+      --arg kind "$RECORD_ACTIVATION_APPROVAL_DECISION" \
+      --arg segment "$next_segment" \
+      '
+      (.activationApprovalReadiness.decisionLines // []) as $lines
+      | if $kind == "approve" then
+          (($lines[]? | .value // "" | select(startswith("APPROVE_ACTIVATION_FOLLOWUP"))) // "APPROVE_ACTIVATION_FOLLOWUP segment=\"\($segment)\" issuedAt=\(.activationApprovalReadiness.approvalPacketIssuedAt // .operatorExecutionPacket.emailReadiness.approvalPacketIssuedAt // 0) expiresAt=\(.activationApprovalReadiness.approvalPacketExpiresAt // .operatorExecutionPacket.emailReadiness.approvalPacketExpiresAt // 0)")
+        else
+          (($lines[]? | .value // "" | select(startswith("HOLD_ACTIVATION_FOLLOWUP"))) // "HOLD_ACTIVATION_FOLLOWUP segment=\"\($segment)\" reason=\"<reason>\"")
+        end
+      ' "$tmp"
+  )"
+  if [[ "$RECORD_ACTIVATION_APPROVAL_DECISION" == "hold" ]]; then
+    decision_line="${decision_line//<reason>/$safe_reason}"
+  fi
+
+  snippet="activation-approval-${RECORD_ACTIVATION_APPROVAL_DECISION}-decision"
+  source_page="${APP_BASE%/}/launch-funnel.html#activation-approval-decision"
+  target_url="${APP_BASE%/}/launch-funnel.html#activation-approval-decision"
+
+  cat <<EOF
+Sage Router activation approval decision handoff
+Boundary: no emails, customer IDs, generated API keys, prompts, OAuth tokens, provider credentials, raw campaign URLs, raw model search text, raw provider responses, or private provider costs are printed.
+Effect: records one aggregate operator_execution_packet_copied event for the ${RECORD_ACTIVATION_APPROVAL_DECISION} decision line only. This does not send email, approve a real send, mutate queued follow-ups, repair auth links, expose secrets, change billing, or enable managed resale.
+
+Decision line recorded:
+${decision_line}
+
+Segment: ${next_segment}
+Queued sendable count: ${queued_count}
+Snippet: ${snippet}
+EOF
+
+  payload="$(jq -n \
+    --arg plan "$plan" \
+    --arg segment "$next_segment" \
+    --arg kind "$RECORD_ACTIVATION_APPROVAL_DECISION" \
+    --arg snippet "$snippet" \
+    --arg sourcePage "$source_page" \
+    --arg target "$target_url" \
+    --arg decisionLine "$decision_line" \
+    --argjson resultCount "$queued_count" \
+    '{
+      event: "operator_execution_packet_copied",
+      plan: $plan,
+      sourcePage: $sourcePage,
+      target: $target,
+      metadata: {
+        source: "operator-launch-funnel-cli",
+        sourceSurface: "launch-funnel",
+        button: "activation-approval-decision-cli",
+        state: ("activation_approval_" + $kind + "_decision_recorded"),
+        snippet: $snippet,
+        segment: $segment,
+        decisionKind: $kind,
+        decisionLine: $decisionLine,
+        resultCount: $resultCount,
+        sendsEmail: false,
+        mutatesRuntime: false,
+        utmSource: "operator",
+        utmMedium: "launch_funnel",
+        utmCampaign: "signup_to_key_recovery"
+      }
+    }')"
+
+  curl -fsS -X POST "${APP_BASE%/}/api/funnel-event" \
+    --connect-timeout 8 \
+    --max-time 20 \
+    -H "Origin: ${APP_BASE%/}" \
+    -H "Content-Type: application/json" \
+    -H "User-Agent: SageRouterLaunchFunnelCLI/1.0" \
+    --data "$payload" \
+    >/dev/null
+
+  printf '\nRecorded activation approval %s decision-copy event operator_execution_packet_copied with snippet %s from SageRouterLaunchFunnelCLI/1.0.\n' "$RECORD_ACTIVATION_APPROVAL_DECISION" "$snippet"
+  printf '%s\n' 'This does not send activation follow-ups. A real send still requires a fresh approval packet, private operator token, trusted origin, and SEND_ACTIVATION_FOLLOWUPS typed confirmation.'
   exit 0
 fi
 
