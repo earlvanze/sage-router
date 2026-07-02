@@ -1665,6 +1665,52 @@ function renderFounderSalesDockBackup(data = {}) {
   </div>`;
 }
 
+function cloudflareBicTokenScopePacketText() {
+  return [
+    'Sage Router Cloudflare BIC token-scope request',
+    '',
+    'Purpose: verify the host-scoped Browser Integrity Check skip for api.sagerouter.dev so raw API clients reach the Sage Router auth gate.',
+    '',
+    'Boundary: this is a no-secret operator handoff. Do not paste Cloudflare token values, customer data, provider credentials, API keys, prompts, OAuth tokens, raw provider responses, or private funnel rows into chat, docs, PRs, or tickets.',
+    '',
+    'Create or rotate CLOUDFLARE_API_TOKEN for zone sagerouter.dev with exactly these permissions:',
+    '- Zone:Zone:Read',
+    '- Zone Rulesets:Read',
+    '- Zone Rulesets:Edit',
+    '',
+    'Do not reuse the Pages deploy token, customer API keys, provider keys, router backend tokens, or OAuth tokens.',
+    '',
+    'Manual UI fallback:',
+    'Cloudflare Dashboard > sagerouter.dev > Rules > Configuration Rules > Create rule.',
+    'Rule name/ref: sage-router-api-disable-bic.',
+    'Expression: http.host eq "api.sagerouter.dev".',
+    'Action: set configuration setting Browser Integrity Check to Off.',
+    'Scope warning: disable Browser Integrity Check only for api.sagerouter.dev, not sagerouter.dev, app.sagerouter.dev, www.sagerouter.dev, or the whole zone.',
+    '',
+    'Read-only commands:',
+    'scripts/configure_cloudflare_api_bic_skip.sh --operator-packet',
+    'scripts/configure_cloudflare_api_bic_skip.sh --audit-local-tokens',
+    'scripts/configure_cloudflare_api_bic_skip.sh --check',
+    '',
+    'Apply only after a usable scoped token is available and the operator explicitly approves the host-scoped rule.',
+  ].join('\n');
+}
+
+function renderCloudflareBicDockBackup(data = {}) {
+  const marketing = data.marketingIntent || {};
+  const copies = asNumber(marketing.cloudflareBicTokenScopeCopies);
+  if (copies > 0) return '';
+  const packet = cloudflareBicTokenScopePacketText();
+  return `<div class="empty warn" style="margin-top:12px">
+    <strong>Reliability token handoff is still open.</strong>
+    <p class="muted">Cloudflare BIC token-scope copies are zero while readiness still warns that raw Python urllib can be challenged. Copy the no-secret scoped-token packet before trying to mutate Cloudflare; this does not print token values, change rules, deploy, or disable BIC.</p>
+    <div class="actions">
+      <button class="btn secondary" type="button" data-copy-cloudflare-bic-token-scope="${esc(packet)}">Copy BIC token-scope packet</button>
+      <a class="btn secondary" href="/status#cloudflare-bic-token-scope" target="_blank" rel="noopener noreferrer">Open status handoff</a>
+    </div>
+  </div>`;
+}
+
 function managedAccessContactCaptureCta(conversion = {}) {
   const rawPath = conversion.ctaPath
     || '/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review#managed-access-quick-form';
@@ -2216,6 +2262,7 @@ function renderNextBestActionDock(data = {}) {
   ${renderActivationNextSendStep(data, { compact: true })}
   <div class="actions">${dockActions}<span class="status">${actionStatus}</span></div>
   ${renderFounderSalesDockBackup(data)}
+  ${renderCloudflareBicDockBackup(data)}
   ${segmentDraftDock}`;
 }
 
@@ -2644,6 +2691,30 @@ async function copyManagedAccessCommand(button) {
   } catch (error) {
     button.textContent = 'Copy failed';
     setStatus(`Managed-access command copy failed: ${error.message}`, 'bad');
+  } finally {
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1500);
+  }
+}
+
+async function copyCloudflareBicTokenScopePacket(button) {
+  const text = button.getAttribute('data-copy-cloudflare-bic-token-scope') || '';
+  const original = button.textContent;
+  if (!text) return;
+  try {
+    await writeClipboard(text);
+    button.textContent = 'Copied';
+    trackOperatorFunnelEvent('status_cloudflare_bic_token_scope_copied', {
+      state: 'operator_bic_token_scope_packet_copied',
+      resultCount: 1,
+      snippet: 'operator-cloudflare-bic-token-scope',
+      target: '/status#cloudflare-bic-token-scope',
+    });
+    setStatus('Copied no-secret Cloudflare BIC token-scope packet. This did not mutate Cloudflare or print token values.', 'warn');
+  } catch (error) {
+    button.textContent = 'Copy failed';
+    setStatus(`Cloudflare BIC packet copy failed: ${error.message}`, 'bad');
   } finally {
     setTimeout(() => {
       button.textContent = original;
@@ -4033,6 +4104,11 @@ function handleFollowUpCopyClick(event) {
   const managedAccessCommandButton = event.target.closest('[data-copy-managed-command]');
   if (managedAccessCommandButton) {
     copyManagedAccessCommand(managedAccessCommandButton);
+    return;
+  }
+  const cloudflareBicTokenScopeButton = event.target.closest('[data-copy-cloudflare-bic-token-scope]');
+  if (cloudflareBicTokenScopeButton) {
+    copyCloudflareBicTokenScopePacket(cloudflareBicTokenScopeButton);
     return;
   }
   const founderSalesFallbackButton = event.target.closest('[data-copy-founder-sales-fallback]');
