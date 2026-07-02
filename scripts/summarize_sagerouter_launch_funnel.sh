@@ -391,6 +391,10 @@ auth_repair_raw_tmp="$(mktemp)"
 trap 'rm -f "$tmp" "$recovery_tmp" "$auth_repair_tmp" "$auth_repair_raw_tmp"' EXIT
 
 curl -fsS "${API_BASE%/}/analytics/funnel?days=${DAYS}&limit=10000" \
+  --connect-timeout 8 \
+  --max-time 30 \
+  --retry 2 \
+  --retry-delay 1 \
   -H "Authorization: Bearer ${TOKEN}" \
   -o "$tmp"
 
@@ -411,6 +415,10 @@ if [[ ("$APPROVAL_PACKET" == "1" || "$RECORD_ACTIVATION_APPROVAL_REVIEW" == "1")
     printf '{"stage":"skipped_missing_admin_token","checked":false,"passed":false,"dryRun":true,"privacy":{"aggregateOnly":true}}\n' > "$auth_repair_tmp"
   else
     if curl -fsS -X POST "${API_BASE%/}/admin/customers/repair-auth-links" \
+      --connect-timeout 8 \
+      --max-time 30 \
+      --retry 2 \
+      --retry-delay 1 \
       -H "Authorization: Bearer ${AUTH_REPAIR_TOKEN}" \
       -H "Origin: https://app.sagerouter.dev" \
       -H "Content-Type: application/json" \
