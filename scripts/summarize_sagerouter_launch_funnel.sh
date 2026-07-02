@@ -1960,6 +1960,7 @@ jq -r --arg days "$DAYS" --slurpfile recoveryProof "$recovery_tmp" '
       "",
       "- Token-scope copies recorded: \(n($marketing.cloudflareBicTokenScopeCopies)); snippets: \(buckets($marketing.cloudflareBicTokenScopeCopiesBySnippet))",
       "- Operator packet: bash scripts/configure_cloudflare_api_bic_skip.sh --operator-packet",
+      "- Execution handoff: docs/launch/execution/cloudflare-bic-reliability-handoff.md",
       "- Status-page copy action: https://app.sagerouter.dev/status#cloudflare-bic-token-scope",
       "- Required token scope: Zone:Zone:Read; Zone Rulesets:Read; Zone Rulesets:Edit for sagerouter.dev.",
       "- Verification command: bash scripts/configure_cloudflare_api_bic_skip.sh --check",

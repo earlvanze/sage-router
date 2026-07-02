@@ -26,9 +26,9 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 ```
 
 - Window: last 30 days
-- Generated at epoch: 1782875016
-- Marketing intent events: 414
-- Setup snippet copies: 1
+- Generated at epoch: 1783002203
+- Marketing intent events: 461
+- Setup snippet copies: 2
 - Founder-sales outreach copies: 0
 - Founder-sales outreach snippets: none
 - Managed-access packet copies: 0
@@ -41,14 +41,18 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 - Provider terms review snippets: operator-provider-terms-review-packet=1
 - Activation approval packet reviews: 1
 - Activation approval packet snippets: operator-activation-approval-packet=1
+- Activation approval decision copies: 0
+- Activation approval decision snippets: none
+- Cloudflare BIC token-scope copies: 0
+- Cloudflare BIC token-scope snippets: none
 - Recovery auth starts: magic=0, password=0, oauth=0
-- Key-first recovery: setupClicks=0; scheduled=0; redirects=0; paused=0; recoveryViews=8; keyCreateAttempts=0; keyCreateSuccesses=0; noKeyCreateClicks=0
-- Managed-access demand: anonymousSignals=5; waitlistSignals=0; legacyClicks=0; contactCaptureLanded=0; quickPresented=1; quickFocused=0; contactPackets=0; emailDrafts=0; quickStarted=0; quickValidationFailed=0; quickSubmitted=0; quickReceived=0
-- Managed-access conversion: status=contact_capture_gap; priority=fix_now; contactableLeadGap=5; cta=https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review#managed-access-quick-form
-- Managed-access provider buckets: mixed-frontier=4, unknown=1
-- Managed-access commercial buckets: one-subscription=4, unknown=1
-- Managed-access intent buckets: one-subscription=4, unknown=1
-- Signups: 4
+- Key-first recovery: setupClicks=0; scheduled=0; redirects=1; paused=0; recoveryViews=12; manualPrompts=0; keyCreateAttempts=0; keyCreateSuccesses=0; noKeyCreateClicks=0
+- Managed-access demand: anonymousSignals=13; waitlistSignals=0; legacyClicks=0; contactCaptureLanded=4; handoffPrompts=0; quickPresented=5; quickFocused=0; contactPackets=0; emailDrafts=0; quickStarted=0; quickValidationFailed=0; quickSubmitted=0; quickReceived=0
+- Managed-access conversion: status=contact_capture_gap; priority=fix_now; contactableSignals=0; quickReceivedSignals=0; contactableLeadGap=13; cta=https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review#managed-access-quick-form
+- Managed-access provider buckets: mixed-frontier=12, unknown=1
+- Managed-access commercial buckets: one-subscription=12, unknown=1
+- Managed-access intent buckets: one-subscription=12, unknown=1
+- Signups: 6
 - Generated-key customers: 1
 - First-routed-request customers: 1
 - Paid customers: 2
@@ -59,19 +63,19 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 - Metric: signupToGeneratedKey
 - Priority: fix_now
 - Owner/surface: Activation / activation approval
-- Action: Recovery handoff is verified with no persistence; the next blocker is explicit operator approval for the next sendable follow-up or fresh recovery traffic, not recovery-page code.
-- Success metric: operatorFollowUpSends, operatorFollowUpSentRecipients, or fresh recovery traffic increases without send failures.
-- CTA: https://app.sagerouter.dev/launch-funnel.html#no-key-followups:segments
+- Action: The last no-secret approval packet is stale after the sendable queue changed; refresh the packet with recovery and auth-repair verification before recording an approve/hold decision or sending activation email.
+- Success metric: activationApprovalPacketReviewedRecipients reaches the current sendableQueued count before any approve/hold decision.
+- CTA: https://app.sagerouter.dev/launch-funnel.html#activation-approval
 
 ### Activation Queue
 
-- Total no-key follow-ups: 4
-- Sendable queued: 2
+- Total no-key follow-ups: 6
+- Sendable queued: 4
 - Review-only queued: 2
 - Unknown queued: 0
-- Dry-run unique sendable recipients: 2
+- Dry-run unique sendable recipients: 4
 - Dry-run raw recorded recipients: 4
-- Dry-run duplicate recipient records: 2
+- Dry-run duplicate recipient records: 0
 - Dry-run covered segments: verified, unverified
 - Dry-run pending segments: none
 - Real sends recorded: 0
@@ -86,24 +90,48 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 - Packet command: scripts/summarize_sagerouter_launch_funnel.sh --days 30 --approval-packet --verify-recovery --verify-auth-repair
 - Terminal review recording: scripts/summarize_sagerouter_launch_funnel.sh --days 30 --record-activation-approval-review --verify-recovery --verify-auth-repair after an operator actually reviews the packet.
 - Review worksheet: docs/launch/execution/activation-approval-review.md
+- Decision handoff status: packet_review_stale; priority=fix_now; packetReviewed=false; decisionRecorded=false.
+- Decision handoff action: Refresh the no-secret approval packet before recording a decision; the last recorded packet covered fewer recipients than the current sendable queue.
 - Approval decision: approval_required for next segment verified; blocker=explicit_operator_approval_required.
+- Decision lines: approve=APPROVE_ACTIVATION_FOLLOWUP segment="verified" issuedAt=1783002206 expiresAt=1783003106; hold=HOLD_ACTIVATION_FOLLOWUP segment="verified" reason="<reason>".
+- Decision copy tracking: activationApprovalDecisionCopies counts copied APPROVE_ACTIVATION_FOLLOWUP or HOLD_ACTIVATION_FOLLOWUP handoff lines; it does not send email or approve by itself.
 - Default snapshot policy: No send command is printed in this default snapshot. Real activation sends still require explicit operator approval and typed SEND_ACTIVATION_FOLLOWUPS confirmation.
 - Safe review: the approval packet is no-secret and excludes emails, customer IDs, generated keys, prompts, OAuth tokens, provider credentials, and raw responses.
+
+### Managed Access Contact Handoff
+
+- Status: contact_capture_gap; priority=fix_now; leadGap=13; managedResaleEnabled=false.
+- Drop-off packet: scripts/summarize_sagerouter_launch_funnel.sh --days 30 --managed-access-dropoff-packet
+- Contactable CTA: https://sagerouter.dev/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review#managed-access-quick-form
+- Copy-ready handoff: use the drop-off packet text for founder-sales/support replies when one-subscription is the buying trigger.
+- Success metric: managedAccessBetaInterest or managed_access_quick_request_received increases without enabling managed provider resale.
+- Safety boundary: this is private-beta contact capture only; it does not acknowledge provider terms, stage authorization evidence, write provider costs, change prices, send email, or enable managed resale.
+
+### Cloudflare BIC Reliability Handoff
+
+- Token-scope copies recorded: 0; snippets: none
+- Operator packet: bash scripts/configure_cloudflare_api_bic_skip.sh --operator-packet
+- Execution handoff: docs/launch/execution/cloudflare-bic-reliability-handoff.md
+- Status-page copy action: https://app.sagerouter.dev/status#cloudflare-bic-token-scope
+- Required token scope: Zone:Zone:Read; Zone Rulesets:Read; Zone Rulesets:Edit for sagerouter.dev.
+- Verification command: bash scripts/configure_cloudflare_api_bic_skip.sh --check
+- Safety boundary: the packet is read-only and no-secret; copying it records status_cloudflare_bic_token_scope_copied only when the operator uses the status-page action, and it does not mutate Cloudflare or print token values.
+- Manual fallback: Cloudflare Dashboard > sagerouter.dev > Rules > Configuration Rules; disable Browser Integrity Check only when http.host eq "api.sagerouter.dev".
 
 ### Verified Recovery Diagnosis
 
 - Command: bash scripts/diagnose_setup_key_recovery_dropoff.sh --verify-handoff
-- Result: verified_handoff_waiting_for_fresh_traffic
-- Interpretation: Recovery handoff is verified with no persistence; the remaining activation work is fresh setup-copy traffic or explicit operator approval for real follow-up sends.
-- Evidence: checked=true; passed=true; noPersistence=true; recoveryViews=8; scheduledHandoffs=0; accountHandoffs=0; pausedHandoffs=0; keyCreateAttempts=0; keyCreateSuccesses=0.
-- Next action: Use the no-secret approval packet for the next sendable activation follow-up or wait for fresh real recovery traffic.
+- Result: account_handoff_to_key_create
+- Interpretation: Recovery handoff verification has not produced a final send-ready diagnosis yet.
+- Evidence: checked=true; passed=true; noPersistence=true; recoveryViews=12; scheduledHandoffs=0; accountHandoffs=1; pausedHandoffs=0; keyCreateAttempts=0; keyCreateSuccesses=0.
+- Next action: Follow the recovery diagnosis before approving any real activation send.
 
 ### Top Acquisition Actions
-- attributionChannel/sagerouter: 318 clicks - Cross-link internal Sage Router pages toward the current lowest-performing activation step.
-- sourceSurface/article: 120 clicks - Turn long-form local-first routing readers into quickstart, Codex setup, and gateway comparison CTAs.
-- sourceSurface/landing: 116 clicks - Keep the homepage focused on account creation, pricing, model catalog, and migration CTAs.
-- attributionChannel/reddit: 41 clicks - Package comparison, migration, and reliability proof for Reddit-style evaluation threads.
-- sourceSurface/account: 39 clicks - Reduce signed-in friction from plan selection to generated key and first routed request.
+- attributionChannel/sagerouter: 360 clicks - Cross-link internal Sage Router pages toward the current lowest-performing activation step.
+- sourceSurface/landing: 137 clicks - Keep the homepage focused on account creation, pricing, model catalog, and migration CTAs.
+- sourceSurface/article: 123 clicks - Turn long-form local-first routing readers into quickstart, Codex setup, and gateway comparison CTAs.
+- sourceSurface/account: 48 clicks - Reduce signed-in friction from plan selection to generated key and first routed request.
+- attributionChannel/reddit: 45 clicks - Package comparison, migration, and reliability proof for Reddit-style evaluation threads.
 
 ### Revenue Gap
 - pro: 198 customers, $5940 remaining MRR - Convert active generated-key users into Pro with frontier profile, analytics, and fallback proof.
@@ -114,11 +142,15 @@ scripts/summarize_sagerouter_launch_funnel.sh --days 30 --update-distribution-tr
 
 - Use when: activation sends are approval-gated or provider resale is waiting on terms/evidence, but founder-led Lite/Pro/Max conversations can still move.
 - Kit: https://sagerouter.dev/founder-sales-kit?utm_source=founder-sales&utm_medium=direct&utm_campaign=sage-router-launch
+- Terminal packet: scripts/summarize_sagerouter_launch_funnel.sh --days 30 --founder-sales-packet
 - Outreach copies recorded: 0; snippets: none
 - Managed-access packet copies recorded: 0; snippets: none
 - Primary revenue motion: pro needs 198 customers and $5940 remaining MRR; Convert active generated-key users into Pro with frontier profile, analytics, and fallback proof.
 - Lite pilot motion: 100 Lite customers and $600 remaining MRR; use the Lite pilot snippet for one-agent evaluations and low-friction hosted key trials.
 - Max review motion: 50 Max customers and $3600 remaining MRR; use the Max implementation snippet for teams with production agents, Tailnet/local routing, or gateway migration pain.
+- Copy-ready path: use the packet recommended first reply for a warm thread; use next-revenue packet when the buyer needs Lite/Pro/Max options and one-subscription review boundary in one message.
+- Recording command: scripts/summarize_sagerouter_launch_funnel.sh --days 30 --record-founder-sales
+- Recording boundary: only run the recording command after an operator actually uses or shares this packet; it records one aggregate outreach_snippet_copied event and does not send email, approve activation sends, expose secrets, or enable managed resale.
 - Safety rule: use one no-secret snippet per warm conversation; do not paste prompts, provider credentials, generated keys, customer data, private funnel rows, OAuth tokens, or raw provider responses.
 
 ### Managed Access Readiness
@@ -150,9 +182,8 @@ scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
 - One-subscription pricing packet: scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet
 - Private cost-model template: scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template
 - One-subscription pricing review: docs/launch/execution/one-subscription-pricing-review.md
-- Cloudflare BIC reliability handoff: docs/launch/execution/cloudflare-bic-reliability-handoff.md
 - Unit-economics preflight: SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics
-- Managed-access beta interest: 0; anonymous interest: 5; target-provider buckets: mixed-frontier=4, unknown=1; commercial buckets: one-subscription=4, unknown=1; intent buckets: one-subscription=4, unknown=1
+- Managed-access beta interest: 0; anonymous interest: 13; target-provider buckets: mixed-frontier=12, unknown=1; commercial buckets: one-subscription=12, unknown=1; intent buckets: one-subscription=12, unknown=1
 
 ### Privacy
 
@@ -162,8 +193,9 @@ scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
 - Prompts stored: false
 
 Prioritize the no-key activation queue before broad public posting: moving the
-two sendable signups into generated-key accounts should raise the conversion
-rate faster than buying or posting into more top-of-funnel traffic. After that,
+current sendable signups into generated-key accounts should raise the
+conversion rate faster than buying or posting into more top-of-funnel traffic.
+After that,
 scale Reddit reliability/comparison posts and GitHub README/docs traffic because
 those are the strongest external signals currently visible.
 
