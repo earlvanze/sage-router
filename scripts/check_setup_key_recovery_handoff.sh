@@ -121,6 +121,12 @@ grep -q "requestedSetupSourceFromUrl() || 'no-setup'" "$tmp_body" || fail 'accou
 grep -q "requestedSourceSurfaceFromUrl() || 'no-surface'" "$tmp_body" || fail 'account.js auto-key guard does not include source surface'
 grep -q "get('next')) || 'no-next'" "$tmp_body" || fail 'account.js auto-key guard does not include next-step context'
 grep -q 'function maybeCreateKeyFromIntent' "$tmp_body" || fail 'account.js missing saved-intent auto key creation'
+grep -q 'function renderImmediateSignedOutKeyRecoveryPrompt' "$tmp_body" || fail 'account.js missing immediate signed-out key-recovery prompt'
+python3 - "$tmp_body" <<'PY' || fail 'account.js does not render signed-out key recovery before pricing metadata'
+import sys
+body = open(sys.argv[1], encoding='utf-8').read()
+sys.exit(0 if body.index('renderImmediateSignedOutKeyRecoveryPrompt();') < body.index('fetch(`${sageRouterUrl}/pricing`)') else 1)
+PY
 grep -q 'account_key_recovery_auto_create_started' "$tmp_body" || fail 'account.js missing key-recovery auto-create started telemetry'
 grep -q 'account_key_recovery_signed_out_prompt_shown' "$tmp_body" || fail 'account.js missing signed-out key-recovery prompt telemetry'
 grep -q 'account_key_recovery_auto_create_succeeded' "$tmp_body" || fail 'account.js missing key-recovery auto-create success telemetry'

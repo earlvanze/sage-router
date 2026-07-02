@@ -551,6 +551,14 @@ function renderKeyRecoveryDock() {
   maybeFocusSameEmailRecovery();
 }
 
+function renderImmediateSignedOutKeyRecoveryPrompt() {
+  if (!isKeyRecoveryIntent() || activationState.signedIn) return;
+  renderAccountIntent();
+  set('launch-next-action', requestedEmailAuthFromUrl()
+    ? 'Recovery link loaded. Use the original signup email, open the magic link, then create the sk_sage setup key before checkout.'
+    : 'Recovery link loaded. Continue with the same signup identity, then create the sk_sage setup key before checkout.');
+}
+
 function maybeTrackSignedOutKeyRecoveryPrompt() {
   if (!isKeyRecoveryIntent() || activationState.signedIn) return;
   if (hasKeyRecoveryMarker(KEY_RECOVERY_SIGNED_OUT_PROMPT_STORAGE_KEY)) return;
@@ -1532,6 +1540,7 @@ async function refresh() {
   show('account-panel', !!s);
   show('sign-out', !!s);
   renderLaunchNextAction({ signedIn: !!s, emailVerified: !s, routingEnabled: false, keyCount: 0, keyVerified: keyVerifiedThisSession, requestCount: 0 });
+  renderImmediateSignedOutKeyRecoveryPrompt();
   renderSupportContext({ plan: selectedPlan, status: s ? 'loading' : 'signed_out', routingEnabled: false, usage: null });
   try {
     const metadata = await fetch(`${sageRouterUrl}/pricing`).then(response => response.ok ? response.json() : null);
