@@ -9,6 +9,7 @@ WORKER = ROOT / "deploy" / "tailnet-edge" / "cloudflare-api-worker.js"
 WRANGLER_EXAMPLE = ROOT / "deploy" / "tailnet-edge" / "wrangler.api-sagerouter.example.toml"
 CLOUDFLARE_BIC_SKIP = ROOT / "scripts" / "configure_cloudflare_api_bic_skip.sh"
 CLOUDFLARE_BIC_DOC = ROOT / "docs" / "cloudflare-api-bic-skip.md"
+CLOUDFLARE_BIC_EXECUTION_DOC = ROOT / "docs" / "launch" / "execution" / "cloudflare-bic-reliability-handoff.md"
 README = ROOT / "README.md"
 
 
@@ -24,6 +25,9 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
 
     def read_bic_skip_doc(self):
         return CLOUDFLARE_BIC_DOC.read_text(encoding="utf-8")
+
+    def read_bic_execution_doc(self):
+        return CLOUDFLARE_BIC_EXECUTION_DOC.read_text(encoding="utf-8")
 
     def read_readme(self):
         return README.read_text(encoding="utf-8")
@@ -215,6 +219,26 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
         self.assertIn("read-only reliability handoff", readme)
         self.assertIn("manual Cloudflare Dashboard", readme)
         self.assertIn('http.host eq "api.sagerouter.dev"', readme)
+
+    def test_cloudflare_bic_launch_execution_handoff_is_no_secret(self):
+        doc = self.read_bic_execution_doc()
+        tracker = (ROOT / "docs" / "launch" / "distribution-tracker.md").read_text(encoding="utf-8")
+
+        self.assertIn("Sage Router Cloudflare BIC Reliability Handoff", doc)
+        self.assertIn("scripts/configure_cloudflare_api_bic_skip.sh --operator-packet", doc)
+        self.assertIn("scripts/configure_cloudflare_api_bic_skip.sh --check", doc)
+        self.assertIn("scripts/check_sagerouter_launch_readiness.sh", doc)
+        self.assertIn("Zone:Zone:Read", doc)
+        self.assertIn("Zone Rulesets:Read", doc)
+        self.assertIn("Zone Rulesets:Edit", doc)
+        self.assertIn('http.host eq "api.sagerouter.dev"', doc)
+        self.assertIn("Browser Integrity Check", doc)
+        self.assertIn("OpenAI/Python-style API clients reach the guided Sage Router auth gate", doc)
+        self.assertIn("Raw default Python `urllib` is still challenged", doc)
+        self.assertIn("do not paste Cloudflare token values", doc)
+        self.assertIn("containsCloudflareToken=false", doc)
+        self.assertIn("mutatesCloudflare=false", doc)
+        self.assertIn("docs/launch/execution/cloudflare-bic-reliability-handoff.md", tracker)
 
 
 if __name__ == "__main__":

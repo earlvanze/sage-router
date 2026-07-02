@@ -150,6 +150,7 @@ scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls
 - One-subscription pricing packet: scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet
 - Private cost-model template: scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template
 - One-subscription pricing review: docs/launch/execution/one-subscription-pricing-review.md
+- Cloudflare BIC reliability handoff: docs/launch/execution/cloudflare-bic-reliability-handoff.md
 - Unit-economics preflight: SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics
 - Managed-access beta interest: 0; anonymous interest: 5; target-provider buckets: mixed-frontier=4, unknown=1; commercial buckets: one-subscription=4, unknown=1; intent buckets: one-subscription=4, unknown=1
 
