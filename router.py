@@ -7600,6 +7600,7 @@ KEY_RECOVERY_VIEW_EVENTS = {
 }
 KEY_RECOVERY_HANDOFF_DIAGNOSTIC_EVENTS = {
     'account_key_recovery_account_load_retry_scheduled',
+    'account_key_recovery_key_list_load_failed',
     'login_key_recovery_account_setup_scheduled',
     'login_key_recovery_account_setup_paused',
     'setup_key_recovery_account_setup_scheduled',

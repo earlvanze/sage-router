@@ -1546,13 +1546,22 @@ async function refresh() {
   set('email-verification-status', '');
   renderUsage(null, FALLBACK_PLANS, selectedPlan, false);
   try {
-    const [accountData, keys, planData, usageData, paymentStatusData] = await Promise.all([
+    const [accountData, keysResult, planData, usageData, paymentStatusData] = await Promise.all([
       api('/account'),
-      api('/account/api-keys'),
+      api('/account/api-keys').catch(error => ({ api_keys: [], loadError: error })),
       api('/account/plan').catch(() => null),
       api('/account/usage').catch(() => null),
       api('/billing/crypto/status').catch(() => null),
     ]);
+    const keys = keysResult || { api_keys: [] };
+    if (keys.loadError && isKeyRecoveryIntent()) {
+      trackAccountFunnelEvent('account_key_recovery_key_list_load_failed', {
+        button: 'key_recovery_key_list_load',
+        target: '/account/api-keys',
+        state: billingFailureState(keys.loadError, 'key_list_load_failed'),
+      });
+      set('no-key-setup-status', 'Signed in, but key-list loading failed. Trying setup-key creation directly from the recovery link...');
+    }
     const customer = accountData.customer || {};
     const emailVerification = accountData.emailVerification || planData?.emailVerification || usageData?.emailVerification || {};
     const emailVerified = applyEmailVerificationState(emailVerification);

@@ -125,10 +125,12 @@ grep -q 'account_key_recovery_auto_create_started' "$tmp_body" || fail 'account.
 grep -q 'account_key_recovery_signed_out_prompt_shown' "$tmp_body" || fail 'account.js missing signed-out key-recovery prompt telemetry'
 grep -q 'account_key_recovery_auto_create_succeeded' "$tmp_body" || fail 'account.js missing key-recovery auto-create success telemetry'
 grep -q 'account_key_recovery_auto_create_failed' "$tmp_body" || fail 'account.js missing key-recovery auto-create failure telemetry'
+grep -q 'account_key_recovery_key_list_load_failed' "$tmp_body" || fail 'account.js missing key-list degraded recovery telemetry'
 grep -q 'account_key_recovery_manual_create_prompt_shown' "$tmp_body" || fail 'account.js missing signed-in recovery manual-create prompt telemetry'
 grep -q 'KEY_RECOVERY_MANUAL_CREATE_PROMPT_STORAGE_KEY' "$tmp_body" || fail 'account.js missing signed-in recovery manual-create prompt guard'
 grep -q 'no-key-setup-create' "$tmp_body" || fail 'account.js missing no-key setup create button focus target'
 grep -q 'clearAutoKeyAttempted(selectedPlan)' "$tmp_body" || fail 'account.js does not clear failed auto-key attempts'
+grep -Fq "api('/account/api-keys').catch(error => ({ api_keys: [], loadError: error }))" "$tmp_body" || fail 'account.js does not degrade key-list load failure for recovery'
 grep -q 'fromKeyRecoveryIntent ? '\''auto_key_recovery_create'\''' "$tmp_body" || fail 'account.js missing key-recovery auto-create button label'
 grep -q 'fromKeyRecoveryIntent ? '\''saved_key_recovery_auto_key'\''' "$tmp_body" || fail 'account.js missing key-recovery auto-create state'
 grep -q 'const autoKeyCreated = await maybeCreateKeyFromIntent' "$tmp_body" || fail 'account.js does not run auto-key creation after refresh'
@@ -138,7 +140,7 @@ endpoint_code="$(http_get "$FUNNEL_ENDPOINT")"
 if [[ "$endpoint_code" != "200" ]]; then
   fail "funnel endpoint returned HTTP ${endpoint_code}"
 fi
-for event in setup_key_recovery_auto_account_redirected setup_key_recovery_fast_account_clicked setup_key_recovery_fast_account_link_copied login_key_recovery_account_setup_auto_redirected account_setup_handoff_viewed; do
+for event in setup_key_recovery_auto_account_redirected setup_key_recovery_fast_account_clicked setup_key_recovery_fast_account_link_copied login_key_recovery_account_setup_auto_redirected account_setup_handoff_viewed account_key_recovery_key_list_load_failed; do
   jq -e --arg event "$event" '(.allowedEvents // []) | index($event) != null' "$tmp_body" >/dev/null \
     || fail "funnel endpoint missing allowed event ${event}"
 done
@@ -192,5 +194,12 @@ post_smoke_event \
   "${APP_BASE%/}/account.html?start=create_key&setup=login-key-recovery&source_surface=recovery&next=generated-key&smoke=1" \
   '#intent-email' \
   'smoke'
+
+post_smoke_event \
+  'account_key_recovery_key_list_load_failed' \
+  "$APP_BASE" \
+  "${APP_BASE%/}/account.html?start=create_key&setup=login-key-recovery&source_surface=recovery&next=generated-key&smoke=1" \
+  '/account/api-keys' \
+  'key_list_load_failed'
 
 printf 'Setup-key recovery handoff smoke passed. No emails, customer IDs, prompts, generated keys, OAuth tokens, provider credentials, or raw responses were sent or stored.\n'

@@ -198,7 +198,10 @@ flag.
   hydration races: signed-in no-key recovery views should retry account loading
   twice, record `account_key_recovery_account_load_retry_scheduled`, then keep
   the manual `Create setup key now` path visible without exposing emails or
-  generated keys in telemetry.
+  generated keys in telemetry. If the signed-in account identity loads but
+  `/account/api-keys` listing fails, record
+  `account_key_recovery_key_list_load_failed` and try setup-key creation
+  directly so a secondary panel failure does not block activation.
 - Keep `bash scripts/diagnose_setup_key_recovery_dropoff.sh` available as the
   no-secret operator diagnostic for signup-to-generated-key stalls. It should
   classify the aggregate dropoff as no recovery traffic, recovery view to
