@@ -169,6 +169,7 @@ curl -i "$OPENAI_BASE_URL/models" \
     const SETUP_RECOVERY_SUPABASE_JS_URL = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
     const SETUP_RECOVERY_ATTRIBUTED_HANDOFF_DELAY_MS = 1400;
     const SETUP_RECOVERY_DEFAULT_HANDOFF_DELAY_MS = 5200;
+    const SETUP_RECOVERY_AUTO_HANDOFF_DEDUPE_MS = 120000;
     let setupRecoveryUserInteracted = false;
     let setupRecoveryAutoPaused = false;
 
@@ -335,6 +336,16 @@ curl -i "$OPENAI_BASE_URL/models" \
         : SETUP_RECOVERY_ATTRIBUTED_HANDOFF_DELAY_MS;
     }
 
+    function setupRecoveryAutoOpenDedupeAllows(key) {
+      const now = Date.now();
+      const previous = Number(window.sessionStorage?.getItem(key) || 0);
+      if (Number.isFinite(previous) && previous > 0 && now - previous < SETUP_RECOVERY_AUTO_HANDOFF_DEDUPE_MS) {
+        return false;
+      }
+      window.sessionStorage?.setItem(key, String(now));
+      return true;
+    }
+
     function markSetupRecoveryUserInteraction(reason = 'user-interaction') {
       setupRecoveryUserInteracted = true;
       if (setupRecoveryAutoPaused) return;
@@ -355,8 +366,7 @@ curl -i "$OPENAI_BASE_URL/models" \
       const delayMs = setupRecoveryAutoOpenDelayMs(state);
       try {
         const key = `sage_router_setup_recovery_auto_account:${targetUrl}`;
-        if (window.sessionStorage?.getItem(key) === '1') return;
-        window.sessionStorage?.setItem(key, '1');
+        if (!setupRecoveryAutoOpenDedupeAllows(key)) return;
       } catch {
         // A missing marker only risks one repeated handoff in locked-down browsers.
       }
