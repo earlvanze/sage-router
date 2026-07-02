@@ -1787,6 +1787,32 @@ function renderManagedAccessContactPromotionBanner(data = {}) {
   </div>${founderBackup}`;
 }
 
+function renderManagedAccessContactDockBackup(data = {}) {
+  if (!shouldShowManagedAccessContactPromotionBanner(data)) return '';
+  const conversion = data.managedAccessDemandConversion || {};
+  const dropoff = data.managedAccessDropoff || {};
+  const counts = dropoff.counts || {};
+  const contactCapturePacket = managedAccessContactCapturePacketText(conversion);
+  const ctaUrl = managedAccessContactCaptureCta(conversion);
+  const emailDraftUrl = managedAccessContactCaptureEmailDraftUrl(conversion);
+  return `<div class="empty warn" style="margin-top:12px">
+    <strong>Managed-access contact gap is still unworked.</strong>
+    <p class="muted">Anonymous one-subscription demand has not become contactable. Copy the no-secret packet, open a draft, or open the fast form from the Do Next dock; this records managed-access handoff telemetry without acknowledging provider terms, staging costs, sending email, or enabling resale.</p>
+    <div class="metricList">
+      <div class="metric"><span>Anonymous demand</span><strong>${integer(conversion.anonymousSignals)}</strong></div>
+      <div class="metric"><span>Contactable leads</span><strong>${integer(conversion.waitlistSignals)}</strong></div>
+      <div class="metric"><span>Lead gap</span><strong>${integer(conversion.contactableLeadGap)}</strong></div>
+      <div class="metric"><span>Fast form</span><strong>${integer(counts.quickFormPresented)} shown · ${integer(counts.quickRequestsReceived)} received</strong></div>
+    </div>
+    <div class="actions">
+      <button class="btn" type="button" data-copy-managed-contact-capture="${esc(contactCapturePacket)}" data-managed-access-promotion="do-next">Copy managed-access contact packet</button>
+      <a class="btn secondary" href="${esc(emailDraftUrl)}" data-email-managed-contact-capture="do-next" data-managed-access-promotion="do-next">Open managed-access draft</a>
+      <a class="btn secondary" href="${esc(ctaUrl)}" target="_blank" rel="noopener noreferrer">Open fast review form</a>
+      <a class="btn secondary" href="#managed-access-demand-breakdown">Review demand panel</a>
+    </div>
+  </div>`;
+}
+
 function managedAccessApprovalPacketText(data = {}) {
   const managed = managedProviderReadiness(data);
   const setup = managed.readinessSetup || {};
@@ -2275,6 +2301,7 @@ function renderNextBestActionDock(data = {}) {
   ${approvalDecisionControls}
   ${renderActivationNextSendStep(data, { compact: true })}
   <div class="actions">${dockActions}<span class="status">${actionStatus}</span></div>
+  ${renderManagedAccessContactDockBackup(data)}
   ${renderFounderSalesDockBackup(data)}
   ${renderCloudflareBicDockBackup(data)}
   ${segmentDraftDock}`;

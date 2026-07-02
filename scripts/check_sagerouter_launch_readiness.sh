@@ -1329,6 +1329,12 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "data-managed-access-promotion" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-managed-access-contact-promotion-actions"
   fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "Managed-access contact gap is still unworked" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-contact-do-next-copy"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "data-managed-access-promotion=\"do-next\"" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-contact-do-next-actions"
+  fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "data-email-managed-contact-capture" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-managed-access-contact-promotion-email-draft"
   fi
