@@ -6296,6 +6296,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("Live handoff smoke: not run", dropoff_script)
         self.assertIn("handoffSmoke", dropoff_script)
         self.assertIn("account_handoff_to_key_create", dropoff_script)
+        self.assertIn("account_handoff_probe_filtered_waiting_for_real_sign_in", dropoff_script)
+        self.assertIn("filteredSyntheticKeyRecoverySignedOutPrompts", dropoff_script)
         self.assertIn("key_create_attempt_to_success", dropoff_script)
         self.assertIn("bash scripts/summarize_sagerouter_launch_funnel.sh --days", dropoff_script)
         self.assertIn("--approval-packet --verify-recovery --verify-auth-repair", dropoff_script)

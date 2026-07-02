@@ -99,6 +99,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
     | (n($e.keyFirstRedirects)) as $redirects
     | (n($e.keyRecoveryHandoffPaused)) as $paused
     | (n($e.keyRecoverySignedOutPrompts)) as $signed_out_prompts
+    | (n($e.filteredSyntheticKeyRecoverySignedOutPrompts)) as $filtered_synthetic_signed_out_prompts
     | (n($e.keyCreateAttempts)) as $attempts
     | (n($e.keyCreateSuccesses)) as $successes
     | {
@@ -110,6 +111,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
           elif $redirects <= 0 and $handoffSmokeChecked and $handoffSmokePassed then "verified_handoff_waiting_for_fresh_traffic"
           elif $redirects <= 0 then "recovery_view_to_account_handoff"
           elif $attempts <= 0 and $signed_out_prompts > 0 then "account_handoff_waiting_for_same_email_sign_in"
+          elif $attempts <= 0 and $filtered_synthetic_signed_out_prompts > 0 then "account_handoff_probe_filtered_waiting_for_real_sign_in"
           elif $attempts <= 0 then "account_handoff_to_key_create"
           elif $successes <= 0 then "key_create_attempt_to_success"
           else "recovery_path_working"
@@ -123,6 +125,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
           elif $redirects <= 0 and $handoffSmokeChecked and $handoffSmokePassed then "The live setup-key recovery handoff smoke passed; wait for fresh real recovery traffic or use the no-secret approval packet before any real activation send."
           elif $redirects <= 0 then "Run bash scripts/check_setup_key_recovery_handoff.sh, then inspect the public recovery/login CTAs before sending more traffic."
           elif $attempts <= 0 and $signed_out_prompts > 0 then "Account setup is opening while users are still signed out; watch account_magic_link_requested/sent or same-OAuth clicks before debugging API-key creation."
+          elif $attempts <= 0 and $filtered_synthetic_signed_out_prompts > 0 then "Synthetic/headless probes have proved the signed-out account prompt stores successfully, but launch metrics exclude them; wait for real same-email/OAuth recovery traffic or use the no-secret approval packet before any real activation send."
           elif $attempts <= 0 then "Inspect /account start=create_key handling and signed-in no-key setup controls before sending more recovery traffic."
           elif $successes <= 0 then "Inspect account API-key creation errors, email verification gates, and checkout/key-first state."
           else "Monitor first routed request and paid conversion."
@@ -134,6 +137,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
           keyFirstRedirects: $redirects,
           keyRecoveryHandoffPaused: $paused,
           keyRecoverySignedOutPrompts: $signed_out_prompts,
+          filteredSyntheticKeyRecoverySignedOutPrompts: $filtered_synthetic_signed_out_prompts,
           keyCreateAttempts: $attempts,
           keyCreateSuccesses: $successes,
           noKeyFollowUpsQueued: n($e.noKeyFollowUpsQueued),
@@ -145,6 +149,7 @@ if [[ "$RAW_JSON" == "1" ]]; then
         redirectsByState: ($e.keyFirstRedirectsByState // {}),
         pausedByState: ($e.keyRecoveryHandoffPausedByState // {}),
         signedOutPromptsByState: ($e.keyRecoverySignedOutPromptsByState // {}),
+        filteredSyntheticSignedOutPromptsByState: ($e.filteredSyntheticKeyRecoverySignedOutPromptsByState // {}),
         attemptsByState: ($e.keyCreateAttemptsByState // {}),
         successesByState: ($e.keyCreateSuccessesByState // {}),
         handoffSmoke: {
@@ -188,6 +193,7 @@ jq -r \
   | (n($e.keyFirstRedirects)) as $redirects
   | (n($e.keyRecoveryHandoffPaused)) as $paused
   | (n($e.keyRecoverySignedOutPrompts)) as $signed_out_prompts
+  | (n($e.filteredSyntheticKeyRecoverySignedOutPrompts)) as $filtered_synthetic_signed_out_prompts
   | (n($e.keyCreateAttempts)) as $attempts
   | (n($e.keyCreateSuccesses)) as $successes
   | [
@@ -195,13 +201,14 @@ jq -r \
       "Boundary: aggregate-only; no emails, customer IDs, generated keys, prompts, OAuth tokens, provider credentials, raw campaign URLs, or raw provider responses.",
       "",
       "Window: last \($days) days",
-      "Counts: recoveryViews=\($views); scheduledHandoffs=\($scheduled); accountHandoffs=\($redirects); pausedHandoffs=\($paused); signedOutPrompts=\($signed_out_prompts); keyCreateAttempts=\($attempts); keyCreateSuccesses=\($successes).",
+      "Counts: recoveryViews=\($views); scheduledHandoffs=\($scheduled); accountHandoffs=\($redirects); pausedHandoffs=\($paused); signedOutPrompts=\($signed_out_prompts); filteredSyntheticSignedOutPrompts=\($filtered_synthetic_signed_out_prompts); keyCreateAttempts=\($attempts); keyCreateSuccesses=\($successes).",
       "Queue: noKey=\(n($e.noKeyFollowUpsQueued)); sendable=\(n($e.sendableQueued)); reviewOnly=\(n($e.reviewOnlyQueued)).",
       "Recovery view states: \(list($e.keyRecoveryViewsByState))",
       "Scheduled handoff states: \(list($e.keyRecoveryHandoffScheduledByState))",
       "Account handoff states: \(list($e.keyFirstRedirectsByState))",
       "Paused handoff states: \(list($e.keyRecoveryHandoffPausedByState))",
       "Signed-out account prompt states: \(list($e.keyRecoverySignedOutPromptsByState))",
+      "Filtered synthetic signed-out prompt states: \(list($e.filteredSyntheticKeyRecoverySignedOutPromptsByState))",
       "Key-create attempt states: \(list($e.keyCreateAttemptsByState))",
       "Key-create success states: \(list($e.keyCreateSuccessesByState))",
       (
@@ -227,6 +234,8 @@ jq -r \
           "Diagnosis: recovery_view_to_account_handoff. Users are viewing recovery but not reaching account setup. Run the handoff smoke test, then inspect public recovery/login CTAs before sending more traffic."
         elif $attempts <= 0 and $signed_out_prompts > 0 then
           "Diagnosis: account_handoff_waiting_for_same_email_sign_in. Account setup is opening while users are still signed out. Watch account_magic_link_requested/sent or same-OAuth clicks before debugging API-key creation."
+        elif $attempts <= 0 and $filtered_synthetic_signed_out_prompts > 0 then
+          "Diagnosis: account_handoff_probe_filtered_waiting_for_real_sign_in. Synthetic/headless probes have proved the signed-out account prompt stores successfully, but launch metrics exclude them. Wait for real same-email/OAuth recovery traffic or use the no-secret approval packet before any real activation send."
         elif $attempts <= 0 then
           "Diagnosis: account_handoff_to_key_create. Recovery reaches account setup but key creation is not starting. Inspect /account start=create_key handling and signed-in no-key controls."
         elif $successes <= 0 then

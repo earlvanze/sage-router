@@ -3101,6 +3101,23 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertEqual(2, signed_out_action['evidence']['keyRecoverySignedOutPrompts'])
         self.assertEqual(2, signed_out_action['evidence']['keyRecoverySignedOutPromptsByState']['same_email'])
 
+        synthetic_prompt_action = router.launch_next_best_action(
+            stages,
+            rates,
+            {'estimatedCurrentMrrUsd': 60, 'targetMrrUsd': 10000},
+            {
+                **activation_follow_ups,
+                'filteredSyntheticKeyRecoverySignedOutPrompts': 2,
+                'filteredSyntheticKeyRecoverySignedOutPromptsByState': {'same_email': 2},
+            },
+            [],
+        )
+        self.assertIn('Synthetic/headless probes have proved the signed-out recovery prompt stores successfully', synthetic_prompt_action['action'])
+        self.assertIn('launch metrics correctly exclude them', synthetic_prompt_action['action'])
+        self.assertIn('fresh non-synthetic same-email or OAuth traffic', synthetic_prompt_action['executionChecklist'][1]['action'])
+        self.assertEqual(2, synthetic_prompt_action['evidence']['filteredSyntheticKeyRecoverySignedOutPrompts'])
+        self.assertEqual(2, synthetic_prompt_action['evidence']['filteredSyntheticKeyRecoverySignedOutPromptsByState']['same_email'])
+
         reviewed_packet = router.launch_next_best_action(
             stages,
             rates,
@@ -4694,6 +4711,16 @@ class SaaSAuthTests(unittest.TestCase):
                 'created_at': '2026-06-19T00:01:00Z',
                 'source_page': 'https://sagerouter.dev/openai-api-router',
                 'metadata': {'source': 'article', 'user_agent': old_chrome},
+            }, {
+                'event': 'account_key_recovery_signed_out_prompt_shown',
+                'plan': 'pro',
+                'created_at': '2026-06-19T00:01:30Z',
+                'source_page': 'https://app.sagerouter.dev/account.html',
+                'metadata': {
+                    'source': 'account',
+                    'state': 'same_email',
+                    'user_agent': 'Mozilla/5.0 HeadlessChrome/125.0.0.0',
+                },
             }]
             for idx in range(8):
                 rows.append({
@@ -4711,7 +4738,11 @@ class SaaSAuthTests(unittest.TestCase):
 
         self.assertIsNone(error)
         self.assertEqual(2, metrics['total'])
-        self.assertEqual(9, metrics['filteredSyntheticEvents'])
+        self.assertEqual(10, metrics['filteredSyntheticEvents'])
+        self.assertEqual(1, metrics['filteredSyntheticEventsByEvent']['account_key_recovery_signed_out_prompt_shown'])
+        self.assertEqual(1, metrics['filteredSyntheticKeyRecoverySignedOutPrompts'])
+        self.assertEqual(1, metrics['filteredSyntheticKeyRecoverySignedOutPromptsByState']['same_email'])
+        self.assertEqual(0, metrics['keyRecoverySignedOutPrompts'])
         self.assertEqual(1, metrics['events']['pricing_viewed'])
         self.assertEqual(1, metrics['events']['content_article_snippet_copied'])
         self.assertNotIn('content_article_viewed', metrics['events'])

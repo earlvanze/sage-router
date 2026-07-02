@@ -7962,6 +7962,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
     key_first_redirects = int(activation_follow_ups.get('keyFirstRedirects') or 0)
     key_recovery_views = int(activation_follow_ups.get('keyRecoveryViews') or 0)
     key_recovery_signed_out_prompts = int(activation_follow_ups.get('keyRecoverySignedOutPrompts') or 0)
+    filtered_synthetic_key_recovery_signed_out_prompts = int(activation_follow_ups.get('filteredSyntheticKeyRecoverySignedOutPrompts') or 0)
     key_create_attempts = int(activation_follow_ups.get('keyCreateAttempts') or 0)
     key_create_successes = int(activation_follow_ups.get('keyCreateSuccesses') or 0)
     key_create_failures = int(activation_follow_ups.get('keyCreateFailures') or 0)
@@ -7977,6 +7978,7 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
         recovery_view_dropoff = key_recovery_views > 0 and key_first_redirects <= 0 and key_create_attempts <= 0
         recovery_handoff_dropoff = key_recovery_views > 0 and key_first_redirects > 0 and key_create_attempts <= 0
         recovery_signed_out_handoff = recovery_handoff_dropoff and key_recovery_signed_out_prompts > 0
+        recovery_probe_filtered_handoff = recovery_handoff_dropoff and key_recovery_signed_out_prompts <= 0 and filtered_synthetic_key_recovery_signed_out_prompts > 0
         recovery_dropoff = recovery_view_dropoff or recovery_handoff_dropoff
         verification_counts = activation_follow_ups.get('countsByEmailVerification') if isinstance(activation_follow_ups, dict) else {}
         delivery_counts = launch_activation_delivery_counts(activation_follow_ups, verification_counts, no_key_total)
@@ -8036,11 +8038,15 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                     'action': (
                         'Signed-out recovery prompts are now tracked; first watch account_magic_link_requested/sent or same-OAuth clicks, then generate fresh signed-in start=create_key recovery traffic that records account_key_recovery_auto_create_started.'
                         if recovery_signed_out_handoff
+                        else 'A synthetic probe has proved signed-out recovery prompt telemetry stores successfully but is excluded from conversion metrics; use fresh non-synthetic same-email or OAuth traffic before debugging API-key creation.'
+                        if recovery_probe_filtered_handoff
                         else 'Auto-key telemetry is deployed and allowlisted; generate fresh signed-in start=create_key recovery traffic that records account_key_recovery_auto_create_started, or use the approval packet before any real activation send.'
                     ),
                     'successMetric': (
                         'account_magic_link_requested/sent or same-OAuth telemetry appears before account_key_recovery_auto_create_started and keyCreateAttempts.'
                         if recovery_signed_out_handoff
+                        else 'A non-synthetic account_key_recovery_signed_out_prompt_shown or account_key_recovery_auto_create_started event appears after real account handoff.'
+                        if recovery_probe_filtered_handoff
                         else 'account_key_recovery_auto_create_started appears in fresh traffic, then keyCreateAttempts increases after keyFirstRedirects without storing emails or generated keys.'
                     ),
                 },
@@ -8168,6 +8174,8 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                     if approval_packet_review_stale
                     else 'Recovery handoffs are reaching account setup while users are still signed out. Watch same-email magic-link or same-OAuth recovery events first; API-key creation can only start after that session exists.'
                     if recovery_signed_out_handoff
+                    else 'Synthetic/headless probes have proved the signed-out recovery prompt stores successfully, but launch metrics correctly exclude them. The remaining proof needs real same-email/OAuth recovery traffic or explicit operator approval before real activation sends.'
+                    if recovery_probe_filtered_handoff
                     else 'Recovery handoffs are reaching account setup but no key-create attempts have been recorded yet. Auto-key telemetry is now deployed and accepted by the hosted funnel endpoint; the remaining proof needs fresh signed-in recovery traffic or explicit operator approval before real activation sends.'
                     if recovery_handoff_dropoff
                     else (
@@ -8243,6 +8251,8 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 'keyRecoveryViewsByState': activation_follow_ups.get('keyRecoveryViewsByState') or {},
                 'keyRecoverySignedOutPrompts': key_recovery_signed_out_prompts,
                 'keyRecoverySignedOutPromptsByState': activation_follow_ups.get('keyRecoverySignedOutPromptsByState') or {},
+                'filteredSyntheticKeyRecoverySignedOutPrompts': filtered_synthetic_key_recovery_signed_out_prompts,
+                'filteredSyntheticKeyRecoverySignedOutPromptsByState': activation_follow_ups.get('filteredSyntheticKeyRecoverySignedOutPromptsByState') or {},
                 'keyCreateAttempts': key_create_attempts,
                 'keyCreateAttemptsByState': activation_follow_ups.get('keyCreateAttemptsByState') or {},
                 'keyCreateSuccesses': key_create_successes,
@@ -10170,6 +10180,9 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
         'keyCreateFailures': 0,
         'keyCreateFailuresByState': {},
         'filteredSyntheticEvents': 0,
+        'filteredSyntheticEventsByEvent': {},
+        'filteredSyntheticKeyRecoverySignedOutPrompts': 0,
+        'filteredSyntheticKeyRecoverySignedOutPromptsByState': {},
     }
     try:
         try:
@@ -10202,6 +10215,11 @@ def read_launch_marketing_funnel_counts(since, limit=10000):
             continue
         if marketing_event_is_synthetic(row, metadata, synthetic_sweep_keys):
             metrics['filteredSyntheticEvents'] += 1
+            metrics['filteredSyntheticEventsByEvent'][event] = metrics['filteredSyntheticEventsByEvent'].get(event, 0) + 1
+            if event == 'account_key_recovery_signed_out_prompt_shown':
+                metrics['filteredSyntheticKeyRecoverySignedOutPrompts'] += 1
+                state = str(metadata.get('state') or event).strip().lower()[:80] or event
+                metrics['filteredSyntheticKeyRecoverySignedOutPromptsByState'][state] = metrics['filteredSyntheticKeyRecoverySignedOutPromptsByState'].get(state, 0) + 1
             continue
         metrics['total'] += 1
         metrics['events'][event] = metrics['events'].get(event, 0) + 1
@@ -10369,6 +10387,9 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'keyCreateSuccessesByState': {},
             'keyCreateFailures': 0,
             'keyCreateFailuresByState': {},
+            'filteredSyntheticEventsByEvent': {},
+            'filteredSyntheticKeyRecoverySignedOutPrompts': 0,
+            'filteredSyntheticKeyRecoverySignedOutPromptsByState': {},
             'keyRecoveryHandoffScheduled': 0,
             'keyRecoveryHandoffScheduledByState': {},
             'keyRecoveryHandoffPaused': 0,
@@ -10565,6 +10586,8 @@ def build_launch_funnel_snapshot(window_seconds=30 * 24 * 3600, event_limit=None
             'keyRecoveryHandoffPausedByState': marketing_metrics.get('keyRecoveryHandoffPausedByState') or {},
             'keyRecoverySignedOutPrompts': int(marketing_metrics.get('keyRecoverySignedOutPrompts') or 0),
             'keyRecoverySignedOutPromptsByState': marketing_metrics.get('keyRecoverySignedOutPromptsByState') or {},
+            'filteredSyntheticKeyRecoverySignedOutPrompts': int(marketing_metrics.get('filteredSyntheticKeyRecoverySignedOutPrompts') or 0),
+            'filteredSyntheticKeyRecoverySignedOutPromptsByState': marketing_metrics.get('filteredSyntheticKeyRecoverySignedOutPromptsByState') or {},
             'keyRecoveryViews': int(marketing_metrics.get('keyRecoveryViews') or 0),
             'keyRecoveryViewsByState': marketing_metrics.get('keyRecoveryViewsByState') or {},
             'keyCreateAttempts': int(marketing_metrics.get('keyCreateAttempts') or 0),
