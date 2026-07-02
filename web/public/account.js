@@ -10,6 +10,7 @@ const AUTO_CHECKOUT_ATTEMPT_STORAGE_KEY = 'sage_router_auto_checkout_attempt';
 const AUTO_KEY_ATTEMPT_STORAGE_KEY = 'sage_router_auto_key_attempt';
 const AUTO_OAUTH_ATTEMPT_STORAGE_KEY = 'sage_router_auto_oauth_attempt';
 const KEY_RECOVERY_EMAIL_FOCUS_STORAGE_KEY = 'sage_router_key_recovery_email_focus';
+const KEY_RECOVERY_SIGNED_OUT_PROMPT_STORAGE_KEY = 'sage_router_key_recovery_signed_out_prompt';
 const KEY_RECOVERY_SIGNED_IN_PROMPT_STORAGE_KEY = 'sage_router_key_recovery_signed_in_prompt';
 const KEY_RECOVERY_MANUAL_CREATE_PROMPT_STORAGE_KEY = 'sage_router_key_recovery_manual_create_prompt';
 const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
@@ -478,7 +479,19 @@ function renderKeyRecoveryDock() {
   set('key-recovery-dock-status', sameEmailRecovery
     ? 'Recommended: send the same-email magic link, then create the key before checkout.'
     : 'Recommended: use GitHub only if it is the same signup account; otherwise use email.');
+  maybeTrackSignedOutKeyRecoveryPrompt();
   maybeFocusSameEmailRecovery();
+}
+
+function maybeTrackSignedOutKeyRecoveryPrompt() {
+  if (!isKeyRecoveryIntent() || activationState.signedIn) return;
+  if (hasKeyRecoveryMarker(KEY_RECOVERY_SIGNED_OUT_PROMPT_STORAGE_KEY)) return;
+  markKeyRecoveryMarker(KEY_RECOVERY_SIGNED_OUT_PROMPT_STORAGE_KEY);
+  trackAccountFunnelEvent('account_key_recovery_signed_out_prompt_shown', {
+    button: requestedEmailAuthFromUrl() ? 'same_email_recovery_prompt' : 'account_recovery_prompt',
+    target: requestedEmailAuthFromUrl() ? '#intent-email' : '#intent-oauth-actions',
+    state: requestedKeyRecoveryStateFromUrl(),
+  });
 }
 
 function maybeFocusSameEmailRecovery() {

@@ -189,6 +189,7 @@ const ALLOWED_EVENTS = new Set([
   'account_key_recovery_viewed',
   'account_key_recovery_email_field_auto',
   'account_key_recovery_same_email_prompt_shown',
+  'account_key_recovery_signed_out_prompt_shown',
   'account_key_recovery_signed_in_prompt_shown',
   'account_key_recovery_same_email_selected',
   'account_key_recovery_github_selected',

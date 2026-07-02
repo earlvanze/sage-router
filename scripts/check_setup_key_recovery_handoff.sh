@@ -122,6 +122,7 @@ grep -q "requestedSourceSurfaceFromUrl() || 'no-surface'" "$tmp_body" || fail 'a
 grep -q "get('next')) || 'no-next'" "$tmp_body" || fail 'account.js auto-key guard does not include next-step context'
 grep -q 'function maybeCreateKeyFromIntent' "$tmp_body" || fail 'account.js missing saved-intent auto key creation'
 grep -q 'account_key_recovery_auto_create_started' "$tmp_body" || fail 'account.js missing key-recovery auto-create started telemetry'
+grep -q 'account_key_recovery_signed_out_prompt_shown' "$tmp_body" || fail 'account.js missing signed-out key-recovery prompt telemetry'
 grep -q 'account_key_recovery_auto_create_succeeded' "$tmp_body" || fail 'account.js missing key-recovery auto-create success telemetry'
 grep -q 'account_key_recovery_auto_create_failed' "$tmp_body" || fail 'account.js missing key-recovery auto-create failure telemetry'
 grep -q 'account_key_recovery_manual_create_prompt_shown' "$tmp_body" || fail 'account.js missing signed-in recovery manual-create prompt telemetry'

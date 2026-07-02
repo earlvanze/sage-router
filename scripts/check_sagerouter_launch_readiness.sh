@@ -1628,6 +1628,9 @@ check_hosted_onboarding_pages() {
   if [[ "$account_js_code" == "200" ]] && ! grep -q "account_intent_create_key_clicked" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-account-intent-key-create-funnel"
   fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "account_key_recovery_signed_out_prompt_shown" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-account-key-recovery-signed-out-prompt"
+  fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "account_activation_nudge_shown" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-account-activation-nudge"
   fi
@@ -1887,6 +1890,7 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("account_key_recovery_auto_create_started") != null) and
     ((.allowedEvents // []) | index("account_key_recovery_auto_create_succeeded") != null) and
     ((.allowedEvents // []) | index("account_key_recovery_auto_create_failed") != null) and
+    ((.allowedEvents // []) | index("account_key_recovery_signed_out_prompt_shown") != null) and
     ((.allowedEvents // []) | index("account_key_recovery_manual_create_prompt_shown") != null) and
     ((.allowedEvents // []) | index("account_key_recovery_create_failed") != null) and
     ((.allowedEvents // []) | index("account_api_key_create_failed") != null) and
