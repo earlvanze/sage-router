@@ -1927,6 +1927,7 @@ function managedAccessCommand(button, data = {}) {
   if (kind === 'authorization-ledger-template') return setup.authorizationLedgerTemplateCommand || 'scripts/configure_managed_provider_resale_readiness.sh --authorization-ledger-template';
   if (kind === 'provider-source-review') return setup.providerSourceReviewCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-source-review-packet';
   if (kind === 'provider-outreach') return setup.providerOutreachCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-outreach-packet';
+  if (kind === 'provider-reply-triage') return setup.providerReplyTriageCommand || 'scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet';
   if (kind === 'one-subscription-pricing') return setup.oneSubscriptionPricingCommand || 'scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet';
   if (kind === 'unit-economics') return setup.unitEconomicsCommand || "SAGEROUTER_PROVIDER_RESALE_COST_CENTS_PER_1K_REQUESTS='REVIEWED_PRIVATE_COST' scripts/configure_managed_provider_resale_readiness.sh --unit-economics";
   if (kind === 'stage-public-controls') return setup.stagePublicControlsCommand || 'scripts/configure_managed_provider_resale_readiness.sh --stage-public-controls';
@@ -1999,6 +2000,7 @@ function renderManagedAccessReadiness(data = {}) {
     <button class="btn secondary" type="button" data-copy-managed-command="authorization-packet">Copy authorization packet</button>
     <button class="btn secondary" type="button" data-copy-managed-command="authorization-ledger-template">Copy authorization ledger template</button>
     <button class="btn secondary" type="button" data-copy-managed-command="provider-outreach">Copy provider outreach packet</button>
+    <button class="btn secondary" type="button" data-copy-managed-command="provider-reply-triage">Copy provider reply triage</button>
     <button class="btn secondary" type="button" data-copy-managed-command="one-subscription-pricing">Copy one-subscription pricing packet</button>
     <button class="btn secondary" type="button" data-copy-managed-command="dry-run">Copy resale dry-run</button>
     <button class="btn secondary" type="button" data-copy-managed-command="unit-economics">Copy unit-economics preflight</button>
