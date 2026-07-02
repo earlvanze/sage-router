@@ -86,6 +86,9 @@ class TailnetEdgeAuthTests(unittest.TestCase):
         self.assertFalse(ctx["preserve_authorization"])
         self.assertEqual(1, len(patches))
 
+    def test_edge_proxy_model_request_timeout_default_is_generous(self):
+        self.assertEqual(300, self.edge.REQUEST_TIMEOUT)
+
     def test_generated_api_key_auth_rechecks_by_default_for_revocation(self):
         raw_key = "sk_sage_test_key"
         digest = hashlib.sha256(("pepper" + raw_key).encode("utf-8")).hexdigest()

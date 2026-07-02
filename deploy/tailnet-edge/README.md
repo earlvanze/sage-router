@@ -233,7 +233,7 @@ gcloud app domain-mappings list
 - The Cloudflare Worker retries replayable public API requests against the next healthy public origin when the selected origin returns a status in `SAGE_ROUTER_EDGE_RETRY_STATUSES` or cannot be reached. The default retry statuses are `502,503,504`; large or non-JSON request bodies are sent to only one origin so the Worker does not replay an unsafe stream.
 - Upstream health probes use `SAGE_ROUTER_HEALTH_PATH`, `SAGE_ROUTER_HEALTH_INTERVAL_SECONDS`, and `SAGE_ROUTER_HEALTH_TIMEOUT_SECONDS`.
 - Upstream health probes require an HTTP `2xx` response. Redirects, login pages, app-proxy redirects, `401`, `403`, and `5xx` responses stay out of the healthy pool so the edge does not route model traffic to a dashboard or onboarding page.
-- Proxied request timeout uses `SAGE_ROUTER_REQUEST_TIMEOUT_SECONDS` and defaults to 120 seconds so slower frontier/model fallback attempts can complete.
+- Proxied request timeout uses `SAGE_ROUTER_REQUEST_TIMEOUT_SECONDS` and defaults to 300 seconds so slower frontier/model fallback attempts can complete.
 - Proxied requests retry the next healthy upstream on backend `401`, `429`, `502`, `503`, or `504`; responses include `X-Sage-Router-Retry-Count` when a retry was needed.
 - Keep the edge token separate from backend router tokens so you can rotate customer/client access without reconfiguring private Sage Router installs.
 - Do not mount `.openclaw`, provider keys, OAuth profiles, or billing secrets into the edge container.

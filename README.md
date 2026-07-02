@@ -63,6 +63,11 @@ the model for final assistant text, withholds additional tool definitions for
 that request, and returns a bounded final fallback if the upstream still emits
 only empty/tool-call output. Set the threshold to `0` to disable the guard.
 
+Long-running agent calls also use generous defaults: OpenAI-compatible,
+Anthropic, and Google provider calls default to 180 seconds; Ollama and audio
+proxy calls default to 300 seconds; OpenClaw gateway calls default to 900
+seconds. The same env vars can still lower or raise those values per install.
+
 ### Umbrel (Home Server)
 
 Install from the [Umbrel App Store](https://github.com/getumbrel/umbrel-apps/pull/5720) or add the personal repo:

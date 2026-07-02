@@ -22,6 +22,15 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertEqual(router.ThinkingLevel.LOW, router.normalize_thinking('low'))
         self.assertEqual(router.ThinkingLevel.MEDIUM, router.normalize_thinking('medium'))
 
+    def test_long_running_agent_timeout_defaults_are_generous(self):
+        self.assertEqual(300, router.OLLAMA_TIMEOUT_SECONDS)
+        self.assertEqual(180, router.OPENAI_COMPAT_TIMEOUT_SECONDS)
+        self.assertEqual(180, router.ANTHROPIC_TIMEOUT_SECONDS)
+        self.assertEqual(180, router.GOOGLE_TIMEOUT_SECONDS)
+        self.assertEqual(900, router.OPENCLAW_GATEWAY_TIMEOUT_SECONDS)
+        self.assertEqual(900, router.OPENCLAW_GATEWAY_CODE_TIMEOUT_SECONDS)
+        self.assertEqual(300, router.AUDIO_PROXY_TIMEOUT_SECONDS)
+
     def test_detects_visible_tool_code_blocks(self):
         self.assertTrue(router.looks_like_visible_tool_call('tool_code\nmessage(action="delete")'))
         self.assertTrue(router.looks_like_visible_tool_call('```tool_code\n{"tool":"message","arguments":{}}\n```'))

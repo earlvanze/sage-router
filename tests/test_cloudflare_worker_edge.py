@@ -94,6 +94,7 @@ class CloudflareWorkerEdgeTests(unittest.TestCase):
     def test_worker_retries_replayable_requests_across_healthy_origins(self):
         worker = self.read_worker()
         self.assertIn("const DEFAULT_RETRY_STATUSES = [502, 503, 504]", worker)
+        self.assertIn("const DEFAULT_TIMEOUT_MS = 300000", worker)
         self.assertIn("function retryStatuses(env)", worker)
         self.assertIn("function shouldRetryOriginStatus(env, status)", worker)
         self.assertIn("function chooseOriginCandidates(env)", worker)
