@@ -1467,6 +1467,15 @@ check_hosted_onboarding_pages() {
   if [[ "$status_code" == "200" ]] && ! grep -q "status-copy-one-subscription-review-packet" /tmp/sage-router-readiness-body; then
     status_code="200:missing-status-one-subscription-review-packet-copy"
   fi
+  if [[ "$status_code" == "200" ]] && ! grep -q "status-managed-access-contact-packet" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-managed-access-contact-packet"
+  fi
+  if [[ "$status_code" == "200" ]] && ! grep -q "status-copy-managed-access-contact-packet" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-managed-access-contact-packet-copy"
+  fi
+  if [[ "$status_code" == "200" ]] && ! grep -q "status-email-managed-access-contact-packet" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-managed-access-contact-draft"
+  fi
   if [[ "$status_code" == "200" ]] && ! grep -q "status-activation-approval-packet" /tmp/sage-router-readiness-body; then
     status_code="200:missing-status-activation-approval-packet"
   fi
@@ -1538,6 +1547,18 @@ check_hosted_onboarding_pages() {
   fi
   if [[ "$status_js_code" == "200" ]] && ! grep -q "status-one-subscription-review-packet" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-one-subscription-review-packet-snippet"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "managed_access_contact_packet_copied" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-managed-access-contact-packet-funnel"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "managed_access_contact_draft_opened" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-managed-access-contact-draft-funnel"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "status-managed-access-contact-packet" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-managed-access-contact-packet-snippet"
+  fi
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "status-managed-access-contact-draft" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-managed-access-contact-draft-snippet"
   fi
   if [[ "$status_js_code" == "200" ]] && ! grep -q "status_activation_approval_packet_copied" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-activation-approval-packet-funnel"

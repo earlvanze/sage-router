@@ -74,6 +74,14 @@ async function writeClipboardText(text) {
   textarea.remove();
 }
 
+function statusMailtoUrl(subject, body) {
+  const params = new URLSearchParams({
+    subject,
+    body,
+  });
+  return `mailto:support@sagerouter.dev?${params.toString()}`;
+}
+
 document.querySelectorAll('[data-status-event]').forEach((link) => {
   link.addEventListener('click', () => {
     trackStatusFunnelEvent(link.dataset.statusEvent, {
@@ -149,6 +157,39 @@ $('status-copy-one-subscription-review-packet')?.addEventListener('click', async
     });
   } catch (_error) {
     if (status) status.textContent = 'Copy failed. Select the review packet manually.';
+  }
+});
+
+function statusManagedAccessContactPacketText() {
+  return $('status-managed-access-contact-packet')?.textContent.trim() || '';
+}
+
+$('status-email-managed-access-contact-packet')?.addEventListener('click', (event) => {
+  const text = statusManagedAccessContactPacketText();
+  if (text) event.currentTarget.href = statusMailtoUrl('Sage Router one-subscription private-beta contact request', text);
+  const status = $('status-founder-pro-status');
+  if (status) status.textContent = 'Opened no-secret managed-access contact draft.';
+  trackStatusFunnelEvent('managed_access_contact_draft_opened', {
+    target: 'status-revenue-action',
+    button: 'Open contact draft',
+    state: 'status-managed-access-contact',
+    snippet: 'status-managed-access-contact-draft',
+  });
+});
+
+$('status-copy-managed-access-contact-packet')?.addEventListener('click', async () => {
+  const status = $('status-founder-pro-status');
+  try {
+    await writeClipboardText(statusManagedAccessContactPacketText());
+    if (status) status.textContent = 'Copied no-secret managed-access contact request.';
+    trackStatusFunnelEvent('managed_access_contact_packet_copied', {
+      target: 'status-revenue-action',
+      button: 'Copy contact request',
+      state: 'status-managed-access-contact',
+      snippet: 'status-managed-access-contact-packet',
+    });
+  } catch (_error) {
+    if (status) status.textContent = 'Copy failed. Select the contact request manually.';
   }
 });
 
