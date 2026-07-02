@@ -79,13 +79,13 @@
       </form>
       <div id="managed-access-first-screen-contact-choice" class="firstScreenContactChoice">
         <div>
-          <strong>Pick the lowest-friction review path.</strong>
-          <p>Use work email for direct follow-up, or copy/open a no-secret request if you are just sharing the one-subscription review internally.</p>
+          <strong>Fastest path: copy the review request.</strong>
+          <p>Copy or open a no-secret request first, then add work email when you want direct follow-up. Managed provider access stays gated.</p>
         </div>
         <div class="firstScreenContactChoiceActions">
-          <button id="managed-access-first-screen-focus" type="button">Add work email</button>
-          <button id="managed-access-first-screen-copy" class="secondary" type="button">Copy request</button>
+          <button id="managed-access-first-screen-copy" type="button">Copy request first</button>
           <button id="managed-access-first-screen-email" class="secondary" type="button">Open draft</button>
+          <button id="managed-access-first-screen-focus" class="secondary" type="button">Add work email</button>
         </div>
       </div>
       <div class="heroReviewPrompt" aria-label="Start managed-access review">
@@ -100,9 +100,9 @@
         <strong>No contact yet from one-subscription demand.</strong>
         <p>Choose one path now: add a work email for private-beta review, or copy/open the no-secret contact request. Managed provider access stays gated.</p>
         <div class="contactDecisionActions">
-          <button id="managed-access-contact-focus" type="button">Add work email</button>
-          <button id="managed-access-contact-copy" class="secondary" type="button">Copy contact request</button>
+          <button id="managed-access-contact-copy" type="button">Copy contact request</button>
           <button id="managed-access-contact-email" class="secondary" type="button">Open email draft</button>
+          <button id="managed-access-contact-focus" class="secondary" type="button">Add work email</button>
           <a id="managed-access-contact-direct-email" class="button secondary directEmailLink" href="mailto:support@sagerouter.dev?subject=Sage%20Router%20one-subscription%20private-beta%20review">Email support@sagerouter.dev</a>
         </div>
       </div>
@@ -292,9 +292,9 @@
       <span>Use work email, copy the no-secret request, or open a draft. Managed provider access stays gated.</span>
     </div>
     <div class="managedAccessStickyActions">
-      <button id="managed-access-sticky-focus" type="button">Add work email</button>
-      <button id="managed-access-sticky-copy" class="secondary" type="button">Copy request</button>
+      <button id="managed-access-sticky-copy" type="button">Copy request</button>
       <button id="managed-access-sticky-email" class="secondary" type="button">Open draft</button>
+      <button id="managed-access-sticky-focus" class="secondary" type="button">Add work email</button>
     </div>
   </div>
 
@@ -968,10 +968,18 @@
       focusQuickReviewFormForContactCapture('one-subscription', 'managed-access-contact-decision-focus');
     });
     contactDecisionCopy?.addEventListener('click', () => {
-      quickCopyContact?.click();
+      copyQuickReviewContactRequest(contactDecisionCopy, {
+        target: '#managed-access-contact-decision',
+        focusedTarget: '#managed-access-contact-copy',
+        snippet: 'managed-access-contact-decision-contact-request',
+      });
     });
     contactDecisionEmail?.addEventListener('click', () => {
-      quickEmailDraft?.click();
+      openQuickReviewEmailDraft(
+        '#managed-access-contact-decision',
+        'managed-access-contact-decision-email-draft',
+        'Opening the contact-decision no-secret email draft. Send from a work inbox; managed resale remains gated.'
+      );
     });
     stickyHandoffFocus?.addEventListener('click', () => {
       applyRequestedIntent('one-subscription');
@@ -981,23 +989,39 @@
     });
     stickyHandoffCopy?.addEventListener('click', () => {
       applyRequestedIntent('one-subscription');
-      quickCopyContact?.click();
+      copyQuickReviewContactRequest(stickyHandoffCopy, {
+        target: '#managed-access-sticky-handoff',
+        focusedTarget: '#managed-access-sticky-copy',
+        snippet: 'managed-access-sticky-contact-request',
+      });
     });
     stickyHandoffEmail?.addEventListener('click', () => {
       applyRequestedIntent('one-subscription');
-      quickEmailDraft?.click();
+      openQuickReviewEmailDraft(
+        '#managed-access-sticky-handoff',
+        'managed-access-sticky-email-draft',
+        'Opening the sticky no-secret email draft. Send from a work inbox; managed resale remains gated.'
+      );
     });
     heroCopyContact?.addEventListener('click', () => {
       applyRequestedIntent('one-subscription');
       showManagedAccessIntentHandoff('one-subscription', '#managed-access-quick-form');
       setQuickStatus('Copying the no-secret contact request from the first screen. Add work email before sending if you want direct follow-up.');
-      quickCopyContact?.click();
+      copyQuickReviewContactRequest(heroCopyContact, {
+        target: '#managed-access-hero-copy-contact',
+        focusedTarget: '#managed-access-hero-copy-contact',
+        snippet: 'managed-access-hero-contact-request',
+      });
     });
     heroEmailDraft?.addEventListener('click', () => {
       applyRequestedIntent('one-subscription');
       showManagedAccessIntentHandoff('one-subscription', '#managed-access-quick-form');
       setQuickStatus('Opening a no-secret email draft from the first screen. Send it from a work inbox; managed resale remains gated.');
-      quickEmailDraft?.click();
+      openQuickReviewEmailDraft(
+        '#managed-access-hero-email-draft',
+        'managed-access-hero-email-draft',
+        'Opening a no-secret email draft from the first screen. Send it from a work inbox; managed resale remains gated.'
+      );
     });
     firstScreenFocus?.addEventListener('click', () => {
       applyRequestedIntent('one-subscription');
@@ -1009,13 +1033,21 @@
       applyRequestedIntent('one-subscription');
       showManagedAccessIntentHandoff('one-subscription', '#managed-access-first-screen-contact-choice');
       setQuickStatus('Copying the first-screen no-secret contact request. Add work email first if you want direct follow-up.');
-      quickCopyContact?.click();
+      copyQuickReviewContactRequest(firstScreenCopy, {
+        target: '#managed-access-first-screen-contact-choice',
+        focusedTarget: '#managed-access-first-screen-copy',
+        snippet: 'managed-access-first-screen-contact-request',
+      });
     });
     firstScreenEmail?.addEventListener('click', () => {
       applyRequestedIntent('one-subscription');
       showManagedAccessIntentHandoff('one-subscription', '#managed-access-first-screen-contact-choice');
       setQuickStatus('Opening the first-screen no-secret email draft. Send from a work inbox for direct follow-up.');
-      quickEmailDraft?.click();
+      openQuickReviewEmailDraft(
+        '#managed-access-first-screen-contact-choice',
+        'managed-access-first-screen-email-draft',
+        'Opening the first-screen no-secret email draft. Send from a work inbox for direct follow-up.'
+      );
     });
 
     let formStarted = false;
@@ -1324,16 +1356,61 @@
       });
     });
 
-    quickEmailDraft?.addEventListener('click', () => {
-      const email = String(new FormData(quickForm).get('email') || '').trim();
-      markQuickFormFocused(quickReviewIntent(), '#quick-review-email-draft');
+    function quickReviewEmailValue() {
+      return String(new FormData(quickForm).get('email') || '').trim();
+    }
+
+    function openQuickReviewEmailDraft(target = '#managed-access-quick-form', snippet = 'managed-access-quick-email-draft', message = 'Opening a no-secret review email draft. Send it from your work inbox; managed resale remains gated.') {
+      const email = quickReviewEmailValue();
+      markManagedAccessUserInteraction();
+      markQuickFormFocused(quickReviewIntent(), target, { snippet });
       trackManagedAccessFunnelEvent('managed_access_contact_draft_opened', {
         state: quickReviewIntent(),
-        target: '#managed-access-quick-form',
-        snippet: 'managed-access-quick-email-draft',
+        target,
+        snippet,
       });
-      setQuickStatus('Opening a no-secret review email draft. Send it from your work inbox; managed resale remains gated.');
+      setQuickStatus(message);
       window.location.href = quickReviewMailtoUrl(email);
+    }
+
+    async function copyQuickReviewContactRequest(button, options = {}) {
+      if (!button) return;
+      const {
+        target = '#managed-access-quick-form',
+        focusedTarget = '#quick-review-copy-contact',
+        snippet = 'managed-access-fast-contact-request',
+      } = options;
+      const original = button.textContent;
+      const email = quickReviewEmailValue();
+      markManagedAccessUserInteraction();
+      markQuickFormFocused(quickReviewIntent(), focusedTarget, { snippet });
+      button.disabled = true;
+      button.textContent = 'Copying...';
+      try {
+        await writeClipboardText(quickReviewContactRequestText(email));
+        button.textContent = 'Copied';
+        trackManagedAccessFunnelEvent('managed_access_contact_packet_copied', {
+          state: quickReviewIntent(),
+          target,
+          snippet,
+        });
+        setQuickStatus(email
+          ? 'Copied no-secret contact request. Paste it into your work email or support channel; managed resale remains gated.'
+          : 'Copied no-secret contact request with a work-email placeholder. Add your address before sending; managed resale remains gated.'
+        );
+      } catch (_error) {
+        button.textContent = 'Copy failed';
+        setQuickStatus('Copy failed. Use the email draft or full form below without sending secrets.');
+      } finally {
+        window.setTimeout(() => {
+          button.disabled = false;
+          button.textContent = original;
+        }, 1800);
+      }
+    }
+
+    quickEmailDraft?.addEventListener('click', () => {
+      openQuickReviewEmailDraft();
     });
     directEmailLinks.forEach((link) => {
       link.addEventListener('click', () => {
@@ -1350,33 +1427,7 @@
       });
     });
     quickCopyContact?.addEventListener('click', async (event) => {
-      const button = event.currentTarget;
-      const original = button.textContent;
-      const email = String(new FormData(quickForm).get('email') || '').trim();
-      markQuickFormFocused(quickReviewIntent(), '#quick-review-copy-contact');
-      button.disabled = true;
-      button.textContent = 'Copying...';
-      try {
-        await writeClipboardText(quickReviewContactRequestText(email));
-        button.textContent = 'Copied';
-        trackManagedAccessFunnelEvent('managed_access_contact_packet_copied', {
-          state: quickReviewIntent(),
-          target: '#managed-access-quick-form',
-          snippet: 'managed-access-fast-contact-request',
-        });
-        setQuickStatus(email
-          ? 'Copied no-secret contact request. Paste it into your work email or support channel; managed resale remains gated.'
-          : 'Copied no-secret contact request with a work-email placeholder. Add your address before sending; managed resale remains gated.'
-        );
-      } catch (_error) {
-        button.textContent = 'Copy failed';
-        setQuickStatus('Copy failed. Use the email draft or full form below without sending secrets.');
-      } finally {
-        window.setTimeout(() => {
-          button.disabled = false;
-          button.textContent = original;
-        }, 1800);
-      }
+      await copyQuickReviewContactRequest(event.currentTarget);
     });
     document.getElementById('managed-access-offer-grid')?.addEventListener('click', async (event) => {
       const button = event.target.closest('button[data-offer-action]');
