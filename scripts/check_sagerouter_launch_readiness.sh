@@ -4296,6 +4296,12 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "contact-capture-pageshow-focus" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-pageshow-focus"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "scheduleManagedAccessIdleFocus" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-idle-focus"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-default-idle-focus" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-idle-focus-funnel"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickCopyContact?.click()" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-contact-decision-copy"
   fi

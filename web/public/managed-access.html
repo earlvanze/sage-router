@@ -829,6 +829,8 @@
     let quickFormStarted = false;
     let quickFormFocused = false;
     let quickFormPresented = false;
+    let managedAccessUserInteracted = false;
+    let managedAccessIdleFocusTimer = null;
     function hasExplicitContactCaptureRoute() {
       const currentHash = attributionValue(window.location.hash.replace(/^#/, ''));
       return Boolean(
@@ -888,6 +890,21 @@
       }, 100);
     }
 
+    function markManagedAccessUserInteraction() {
+      managedAccessUserInteracted = true;
+      if (managedAccessIdleFocusTimer) window.clearTimeout(managedAccessIdleFocusTimer);
+    }
+
+    function scheduleManagedAccessIdleFocus() {
+      if (!quickForm || hasExplicitContactCaptureRoute()) return;
+      if (quickFormFocused || quickFormStarted || managedAccessUserInteracted) return;
+      managedAccessIdleFocusTimer = window.setTimeout(() => {
+        if (managedAccessUserInteracted || quickFormFocused || quickFormStarted || document.visibilityState === 'hidden') return;
+        setQuickStatus('Add work email for private-beta review, or copy/open the no-secret contact request. Managed resale remains gated.');
+        focusQuickReviewFormForContactCapture(quickReviewIntent(), 'managed-access-default-idle-focus');
+      }, 2200);
+    }
+
     function showManagedAccessIntentHandoff(state = quickReviewIntent(), target = '#managed-access-intent-handoff') {
       const handoff = document.getElementById('managed-access-intent-handoff');
       const handoffCopy = document.getElementById('managed-access-intent-handoff-copy');
@@ -932,10 +949,12 @@
       trackManagedAccessFunnelEvent('managed_access_form_started', { state: 'started' });
     });
     quickForm.addEventListener('input', () => {
+      markManagedAccessUserInteraction();
       markQuickFormStarted();
       syncDirectEmailLinks();
     });
     quickForm.addEventListener('change', () => {
+      markManagedAccessUserInteraction();
       markQuickFormStarted();
       syncDirectEmailLinks();
     });
@@ -1269,11 +1288,14 @@
         focusExplicitContactCaptureRoute('contact-capture-pageshow-focus');
       }
     });
+    window.addEventListener('pointerdown', markManagedAccessUserInteraction, { capture: true, once: true });
+    window.addEventListener('keydown', markManagedAccessUserInteraction, { capture: true, once: true });
 
     applyRequestedIntent();
     syncDirectEmailLinks();
     quickSubmit.textContent = quickReviewSubmitLabel();
     presentQuickFormFromRequestedIntent();
+    scheduleManagedAccessIdleFocus();
     trackManagedAccessFunnelEvent('managed_access_viewed', { state: 'page-view' });
     loadManagedReadiness();
     configureTurnstile();
