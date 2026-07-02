@@ -511,10 +511,12 @@ flag.
   contact-capture handoff, so an operator can copy the no-secret review packet
   or open the `/managed-access` fast-form CTA before enabling resale. If the
   status is `presented_not_engaged`, the managed-access page should keep the
-  first-screen `Start 30-second review` control and contact-decision panel live
-  so a deliberate buyer click focuses the work-email field, copies the
-  no-secret contact request, or opens the email draft without enabling provider
-  resale. Operator contact-capture URLs also show a route nudge and re-run the
+  first-screen `Start 30-second review` control, contact-decision panel, and
+  idle contact handoff live so a buyer can focus the work-email field, copy the
+  no-secret contact request, or open the email draft without enabling provider
+  resale. The idle handoff records `managed_access_contact_handoff_prompted`
+  with `managed-access-default-idle-handoff` before any email is collected.
+  Operator contact-capture URLs also show a route nudge and re-run the
   work-email focus path on hash changes and browser page restore, so routed
   buyers keep landing on `#managed-access-quick-form` instead of only adding a
   presentation event.

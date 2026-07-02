@@ -4299,14 +4299,23 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "scheduleManagedAccessIdleFocus" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-idle-focus"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-default-idle-focus" /tmp/sage-router-readiness-body; then
-    page_code="200:missing-managed-access-idle-focus-funnel"
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-default-idle-handoff" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-idle-handoff-funnel"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickCopyContact?.click()" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-contact-decision-copy"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "quickEmailDraft?.click()" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-contact-decision-email"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-sticky-handoff" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-sticky-handoff"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed_access_contact_handoff_prompted" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-sticky-prompt-funnel"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-sticky-focus" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-sticky-actions"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-copy-review-packet" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-review-packet-copy"

@@ -134,6 +134,11 @@ The dedicated `/managed-access` page mirrors that low-friction path with a
 first-screen contact-decision panel that focuses the work-email field or reuses
 the no-secret contact request and email-draft fallbacks, making anonymous
 one-subscription demand actionable without enabling managed-provider resale.
+Default visits now show a bounded idle contact handoff instead of counting every
+view as a contact-capture landing; the prompt records
+`managed_access_contact_handoff_prompted` with
+`managed-access-default-idle-handoff` and keeps work-email, copied request, and
+email-draft choices visible.
 The public status page doubles as a no-secret operator launch-actions surface:
 it exposes a first-screen no-secret founder-sales Pro reply, a hosted setup bundle,
 the no-secret signup-to-key activation approval packet, and copies

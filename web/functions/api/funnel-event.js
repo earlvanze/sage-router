@@ -60,6 +60,7 @@ const ALLOWED_EVENTS = new Set([
   'managed_access_quick_form_presented',
   'managed_access_quick_form_focused',
   'managed_access_quick_form_started',
+  'managed_access_contact_handoff_prompted',
   'managed_access_contact_draft_opened',
   'managed_access_contact_packet_copied',
   'managed_access_quick_request_submitted',
