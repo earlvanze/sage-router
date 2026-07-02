@@ -194,6 +194,11 @@ flag.
   provider access stays disabled until provider terms, authorization evidence,
   allowlist, cost model, and
   margin controls pass.
+- Keep app-hosted `start=create_key` recovery landings resilient to auth/customer
+  hydration races: signed-in no-key recovery views should retry account loading
+  twice, record `account_key_recovery_account_load_retry_scheduled`, then keep
+  the manual `Create setup key now` path visible without exposing emails or
+  generated keys in telemetry.
 - Keep `bash scripts/diagnose_setup_key_recovery_dropoff.sh` available as the
   no-secret operator diagnostic for signup-to-generated-key stalls. It should
   classify the aggregate dropoff as no recovery traffic, recovery view to

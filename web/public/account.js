@@ -8,6 +8,7 @@ const SELECTED_PLAN_STORAGE_KEY = 'sage_router_selected_plan';
 const START_ACTION_STORAGE_KEY = 'sage_router_start_action';
 const AUTO_CHECKOUT_ATTEMPT_STORAGE_KEY = 'sage_router_auto_checkout_attempt';
 const AUTO_KEY_ATTEMPT_STORAGE_KEY = 'sage_router_auto_key_attempt';
+const ACCOUNT_LOAD_KEY_CREATE_RETRY_STORAGE_KEY = 'sage_router_account_load_key_create_retry';
 const AUTO_OAUTH_ATTEMPT_STORAGE_KEY = 'sage_router_auto_oauth_attempt';
 const KEY_RECOVERY_EMAIL_FOCUS_STORAGE_KEY = 'sage_router_key_recovery_email_focus';
 const KEY_RECOVERY_SIGNED_OUT_PROMPT_STORAGE_KEY = 'sage_router_key_recovery_signed_out_prompt';
@@ -17,6 +18,7 @@ const ONBOARDING_CONTEXT_STORAGE_KEY = 'sage_router_onboarding_context';
 const KEY_RECOVERY_HANDOFF_STORAGE_KEY = 'sage_router_key_recovery_handoff';
 const ACCOUNT_AUTH_NUDGE_STORAGE_KEY = 'sage_router_account_auth_nudge_dismissed_until';
 const AUTO_KEY_ATTEMPT_TTL_MS = 10 * 60 * 1000;
+const ACCOUNT_LOAD_KEY_CREATE_RETRY_DELAYS_MS = [1400, 4200];
 const FALLBACK_PLANS = {
   lite: { name: 'Lite', price: '$6/month', limits: { monthlyRequests: 10000, rateLimitPerMinute: 60 }, features: ['agent-native routing', 'API keys', 'usage analytics'] },
   pro: { name: 'Pro', price: '$30/month', limits: { monthlyRequests: 50000, rateLimitPerMinute: 180 }, features: ['frontier routing', 'agentic tool-use preference', 'Fusion synthesis', 'analytics snapshots'] },
@@ -271,6 +273,72 @@ function autoKeyAttemptContext() {
 
 function autoKeyAttemptKey(plan = selectedPlan) {
   return `${AUTO_KEY_ATTEMPT_STORAGE_KEY}:${normalizePlan(plan) || 'unknown'}:${autoKeyAttemptContext()}`;
+}
+
+function accountLoadKeyCreateRetryKey(plan = selectedPlan) {
+  return `${ACCOUNT_LOAD_KEY_CREATE_RETRY_STORAGE_KEY}:${normalizePlan(plan) || 'unknown'}:${autoKeyAttemptContext()}`;
+}
+
+function accountLoadKeyCreateRetryRecord(plan = selectedPlan) {
+  try {
+    const key = accountLoadKeyCreateRetryKey(plan);
+    const raw = window.sessionStorage?.getItem(key);
+    if (!raw) return { count: 0 };
+    const parsed = JSON.parse(raw);
+    const attemptedAt = Number(parsed?.attemptedAt || 0);
+    const ageMs = Date.now() - attemptedAt;
+    if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > AUTO_KEY_ATTEMPT_TTL_MS) {
+      window.sessionStorage?.removeItem(key);
+      return { count: 0 };
+    }
+    return { count: Math.max(0, Number(parsed?.count || 0)) };
+  } catch (_error) {
+    try {
+      window.sessionStorage?.removeItem(accountLoadKeyCreateRetryKey(plan));
+    } catch (_nestedError) {
+    }
+    return { count: 0 };
+  }
+}
+
+function clearAccountLoadKeyCreateRetry(plan = selectedPlan) {
+  try {
+    window.sessionStorage?.removeItem(accountLoadKeyCreateRetryKey(plan));
+  } catch (_error) {
+  }
+}
+
+function scheduleAccountLoadKeyCreateRetry(error) {
+  if (pendingStartAction !== 'create_key') return false;
+  if (!activationState.signedIn || activationState.keyCount > 0 || hasSessionApiKey()) return false;
+  const record = accountLoadKeyCreateRetryRecord(selectedPlan);
+  if (record.count >= ACCOUNT_LOAD_KEY_CREATE_RETRY_DELAYS_MS.length) return false;
+  const delayMs = ACCOUNT_LOAD_KEY_CREATE_RETRY_DELAYS_MS[record.count] || ACCOUNT_LOAD_KEY_CREATE_RETRY_DELAYS_MS[0];
+  const nextCount = record.count + 1;
+  try {
+    window.sessionStorage?.setItem(accountLoadKeyCreateRetryKey(selectedPlan), JSON.stringify({
+      attemptedAt: Date.now(),
+      count: nextCount,
+      plan: normalizePlan(selectedPlan) || 'unknown',
+      action: pendingStartAction || 'none',
+      context: autoKeyAttemptContext(),
+    }));
+  } catch (_storageError) {
+  }
+  const state = requestedKeyRecoveryStateFromUrl();
+  const message = nextCount >= ACCOUNT_LOAD_KEY_CREATE_RETRY_DELAYS_MS.length
+    ? 'Account setup is still loading. Retrying key recovery once more, then use Create setup key now if it does not start.'
+    : 'Account setup is still loading. Retrying the saved key-recovery setup automatically...';
+  set('account-status', `${error?.message || 'Account setup is still loading.'} Retrying setup-key recovery.`);
+  set('launch-next-action', message);
+  set('no-key-setup-status', message);
+  trackAccountFunnelEvent('account_key_recovery_account_load_retry_scheduled', {
+    button: 'auto_key_recovery_account_load_retry',
+    target: '/account/api-keys',
+    state,
+  });
+  window.setTimeout(() => refresh(), delayMs);
+  return true;
 }
 
 function hasAutoKeyAttempted(plan = selectedPlan) {
@@ -1425,6 +1493,7 @@ async function maybeCreateKeyFromIntent({ emailVerified, keyCount } = {}) {
   const fromKeyRecoveryIntent = pendingStartAction === 'create_key';
   const autoButton = fromKeyRecoveryIntent ? 'auto_key_recovery_create' : (fromSavedIntent ? 'auto_activation_create' : 'first_signed_in_auto_setup');
   const autoState = fromKeyRecoveryIntent ? 'saved_key_recovery_auto_key' : (fromSavedIntent ? 'saved_intent_auto_key' : 'first_signed_in_auto_key');
+  clearAccountLoadKeyCreateRetry(selectedPlan);
   markAutoKeyAttempted(selectedPlan);
   set('key-once', fromKeyRecoveryIntent
     ? 'Creating your sk_sage key from the saved key-recovery link...'
@@ -1529,6 +1598,7 @@ async function refresh() {
     renderPlans(FALLBACK_PLANS, 'free');
     renderUsage(null, FALLBACK_PLANS, 'free', false);
     renderLaunchNextAction({ signedIn: true, emailVerified: true, routingEnabled: false, keyCount: 0, keyVerified: keyVerifiedThisSession, requestCount: 0 });
+    scheduleAccountLoadKeyCreateRetry(error);
   }
 }
 

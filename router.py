@@ -7599,6 +7599,7 @@ KEY_RECOVERY_VIEW_EVENTS = {
     'support_key_recovery_clicked',
 }
 KEY_RECOVERY_HANDOFF_DIAGNOSTIC_EVENTS = {
+    'account_key_recovery_account_load_retry_scheduled',
     'login_key_recovery_account_setup_scheduled',
     'login_key_recovery_account_setup_paused',
     'setup_key_recovery_account_setup_scheduled',
