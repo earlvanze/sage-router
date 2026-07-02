@@ -751,6 +751,11 @@ operator dashboard or printing secrets, run:
 scripts/summarize_sagerouter_launch_funnel.sh --days 30
 ```
 
+The default snapshot includes a `Cloudflare BIC Reliability Handoff` section
+with the no-secret operator packet command, status-page token-scope copy action,
+required `Zone:Zone:Read` plus `Zone Rulesets:Read/Edit` permissions,
+verification command, and manual host-scoped fallback for `api.sagerouter.dev`.
+
 For a single no-secret operator handoff that bundles the live funnel snapshot,
 setup-copy activation packet, activation approval packet, founder-sales next-revenue packet,
 managed-access drop-off packet, Cloudflare BIC reliability packet, managed-provider readiness packet,
