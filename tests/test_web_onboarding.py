@@ -6743,6 +6743,7 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("pages_warmup_hash", script)
         self.assertIn("EMAIL_PROTECTED", script)
         self.assertIn("/cdn-cgi/l/email-protection", script)
+        self.assertIn("cloudflare-static/email-decode.min.js", script)
         self.assertIn("sha256sum", script)
         self.assertIn("status.html:/status", script)
         self.assertIn("status.js:/status.js", script)

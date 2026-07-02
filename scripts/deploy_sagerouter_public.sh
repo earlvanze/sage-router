@@ -178,6 +178,7 @@ pages_warmup_hash() {
   sed -E \
     -e 's@href="mailto:[^"]+"@href="EMAIL_PROTECTED"@g' \
     -e 's@href="/cdn-cgi/l/email-protection#[^"]+"@href="EMAIL_PROTECTED"@g' \
+    -e 's@<script data-cfasync="false" src="/cdn-cgi/scripts/[^"]+/cloudflare-static/email-decode.min.js"></script>@@g' \
     "$path" | sha256sum | awk '{print $1}'
 }
 
