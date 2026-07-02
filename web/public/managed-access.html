@@ -31,6 +31,7 @@
     .firstScreenContactChoice p{margin:0;color:#d2eadf}
     .firstScreenContactChoiceActions{display:flex;flex-wrap:wrap;gap:10px}
     .firstScreenContactChoiceActions button.secondary{background:rgba(255,255,255,.04);color:var(--text);border:1px solid var(--border)}
+    .offerActions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}.offerActions button{min-height:40px;width:100%;font-size:13px}.offerActions button.secondary{background:rgba(255,255,255,.04);color:var(--text);border:1px solid var(--border)}
     @media(max-width:900px){.quickReviewPrimaryRow,.quickReviewSecondaryRow,.secondaryReviewActions{grid-template-columns:1fr}.quickReviewPrimaryRow input,.quickReviewPrimaryRow button{width:100%}}
     @media(max-width:900px){.firstScreenContactChoice{grid-template-columns:1fr}.firstScreenContactChoiceActions{display:grid;grid-template-columns:1fr}.firstScreenContactChoiceActions button{width:100%}}
   </style>
@@ -170,9 +171,9 @@
             <h3>Managed-access offer ladder</h3>
             <p>Private-beta review candidates if fixed public plans cannot include managed access. These are public-threshold-only packaging options, not public entitlements or enabled provider resale.</p>
             <div class="offerGrid" id="managed-access-offer-grid">
-              <div class="offerCard"><strong>Managed Access Pilot</strong><span class="offerPrice">$10/mo review</span><span>10,000 managed requests; public threshold 65.0c per 1k.</span></div>
-              <div class="offerCard"><strong>Managed Access Pro Add-on</strong><span class="offerPrice">$30/mo review</span><span>25,000 managed requests; public threshold 78.0c per 1k.</span></div>
-              <div class="offerCard"><strong>Managed Access Max Contract Floor</strong><span class="offerPrice">$100/mo review</span><span>75,000 managed requests; public threshold 86.6667c per 1k.</span></div>
+              <div class="offerCard" data-offer-id="managed_access_pilot" data-offer-label="Managed Access Pilot" data-offer-price="10" data-offer-requests="10000" data-offer-threshold="65.0" data-commercial-preference="one-subscription"><strong>Managed Access Pilot</strong><span class="offerPrice">$10/mo review</span><span>10,000 managed requests; public threshold 65.0c per 1k.</span><div class="offerActions"><button type="button" data-offer-action="request">Request this review</button><button class="secondary" type="button" data-offer-action="copy">Copy package request</button></div></div>
+              <div class="offerCard" data-offer-id="managed_access_pro_add_on" data-offer-label="Managed Access Pro Add-on" data-offer-price="30" data-offer-requests="25000" data-offer-threshold="78.0" data-commercial-preference="one-subscription"><strong>Managed Access Pro Add-on</strong><span class="offerPrice">$30/mo review</span><span>25,000 managed requests; public threshold 78.0c per 1k.</span><div class="offerActions"><button type="button" data-offer-action="request">Request this review</button><button class="secondary" type="button" data-offer-action="copy">Copy package request</button></div></div>
+              <div class="offerCard" data-offer-id="managed_access_max_contract_floor" data-offer-label="Managed Access Max Contract Floor" data-offer-price="100" data-offer-requests="75000" data-offer-threshold="86.6667" data-commercial-preference="private-contract"><strong>Managed Access Max Contract Floor</strong><span class="offerPrice">$100/mo review</span><span>75,000 managed requests; public threshold 86.6667c per 1k.</span><div class="offerActions"><button type="button" data-offer-action="request">Request this review</button><button class="secondary" type="button" data-offer-action="copy">Copy package request</button></div></div>
             </div>
             <p class="note">Operator approval, provider authorization, terms acknowledgment, private cost review, positive unit economics, quotas, audit events, and abuse controls still gate every offer.</p>
           </article>
@@ -419,7 +420,7 @@
           offerGrid.innerHTML = offerRows.map((row) => {
             const price = Number(row.monthlyPriceUsd);
             const priceLabel = Number.isFinite(price) ? `$${price.toLocaleString()}/mo review` : 'Review required';
-            return `<div class="offerCard"><strong>${esc(row.label || 'Managed Access Review')}</strong><span class="offerPrice">${esc(priceLabel)}</span><span>${esc(formatWholeNumber(row.monthlyManagedRequests))} managed requests; public threshold ${esc(formatCents(row.maximumSafeProviderCostCentsPerThousandRequests))} per 1k.</span></div>`;
+            return `<div class="offerCard" data-offer-id="${esc(row.id || '')}" data-offer-label="${esc(row.label || 'Managed Access Review')}" data-offer-price="${esc(row.monthlyPriceUsd ?? '')}" data-offer-requests="${esc(row.monthlyManagedRequests ?? '')}" data-offer-threshold="${esc(row.maximumSafeProviderCostCentsPerThousandRequests ?? '')}" data-commercial-preference="${esc(row.commercialPreference || 'one-subscription')}"><strong>${esc(row.label || 'Managed Access Review')}</strong><span class="offerPrice">${esc(priceLabel)}</span><span>${esc(formatWholeNumber(row.monthlyManagedRequests))} managed requests; public threshold ${esc(formatCents(row.maximumSafeProviderCostCentsPerThousandRequests))} per 1k.</span><div class="offerActions"><button type="button" data-offer-action="request">Request this review</button><button class="secondary" type="button" data-offer-action="copy">Copy package request</button></div></div>`;
           }).join('');
         }
         summary.textContent = managed.enabled
@@ -746,6 +747,90 @@
         '',
         'Do not paste prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, actual provider costs, or customer data.',
       ].join('\n');
+    }
+
+    function offerCardData(card) {
+      const source = card?.dataset || {};
+      return {
+        id: attributionValue(source.offerId || 'managed_access_review'),
+        label: source.offerLabel || 'Managed Access Review',
+        monthlyPriceUsd: source.offerPrice || 'review',
+        monthlyManagedRequests: source.offerRequests || 'review',
+        maximumSafeProviderCostCentsPerThousandRequests: source.offerThreshold || 'review',
+        commercialPreference: attributionValue(source.commercialPreference || 'one-subscription'),
+      };
+    }
+
+    function offerIntentFromPreference(preference) {
+      return preference === 'private-contract' ? 'max-implementation' : 'one-subscription';
+    }
+
+    function managedAccessOfferRequestText(card) {
+      const offer = offerCardData(card);
+      const intent = offerIntentFromPreference(offer.commercialPreference);
+      return [
+        `Sage Router ${offer.label} review request`,
+        '',
+        `Package: ${offer.label}`,
+        `Review price: $${offer.monthlyPriceUsd}/mo review`,
+        `Managed requests: ${formatWholeNumber(offer.monthlyManagedRequests)}`,
+        `Public max-safe provider-cost threshold: ${formatCents(offer.maximumSafeProviderCostCentsPerThousandRequests)} per 1k requests`,
+        `Commercial preference: ${offer.commercialPreference}`,
+        `Requested review path: ${intent}`,
+        '',
+        'Boundary: this is a package review request only. It is not a public entitlement, not a Stripe price change, and not enabled provider resale.',
+        'Managed provider access stays disabled until provider authorization, provider terms acknowledgment, an authorized provider allowlist, a private cost model, positive unit economics, quotas, audit events, and acceptable-use controls pass.',
+        `Review URL: https://sagerouter.dev/managed-access?intent=${intent}&utm_source=offer-ladder&utm_medium=shared&utm_campaign=sage-router-launch#managed-access-quick-form`,
+        'Immediate fallback: https://app.sagerouter.dev/account.html?plan=max&start=create_key&utm_source=managed-access&utm_medium=offer-ladder&utm_campaign=sage-router-launch',
+        '',
+        'Do not paste prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, actual provider costs, or customer data.',
+      ].join('\n');
+    }
+
+    function requestManagedAccessOffer(card) {
+      const offer = offerCardData(card);
+      const intent = offerIntentFromPreference(offer.commercialPreference);
+      applyRequestedIntent(intent);
+      quickSubmit.textContent = quickReviewSubmitLabel();
+      trackManagedAccessFunnelEvent('managed_access_interest_clicked', {
+        state: intent,
+        target: '#managed-access-offer-ladder',
+        snippet: `managed-access-offer-ladder-${offer.id}`,
+      });
+      recordManagedAccessContactHandoff(
+        intent,
+        '#managed-access-offer-ladder',
+        `managed-access-offer-ladder-${offer.id}-handoff`
+      );
+      focusQuickReviewFormForContactCapture(intent, `managed-access-offer-ladder-${offer.id}`);
+      setQuickStatus(`${offer.label} selected. Add work email, copy the package request, or open a draft; managed resale remains gated.`);
+    }
+
+    async function copyManagedAccessOfferRequest(button, card) {
+      if (!button || !card) return;
+      const offer = offerCardData(card);
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Copying...';
+      try {
+        await writeClipboardText(managedAccessOfferRequestText(card));
+        button.textContent = 'Copied';
+        trackManagedAccessFunnelEvent('managed_access_contact_packet_copied', {
+          state: offerIntentFromPreference(offer.commercialPreference),
+          target: '#managed-access-offer-ladder',
+          snippet: `managed-access-offer-ladder-${offer.id}-packet`,
+        });
+        setQuickStatus(`Copied ${offer.label} request. Paste it into your work email or support channel; managed resale remains gated.`);
+        if (packetStatus) packetStatus.textContent = `Copied ${offer.label} request. It contains no secrets or provider cost values.`;
+      } catch (_error) {
+        button.textContent = 'Copy failed';
+        setQuickStatus('Copy failed. Use the email draft or fast review form without sending secrets.');
+      } finally {
+        window.setTimeout(() => {
+          button.disabled = false;
+          button.textContent = original;
+        }, 1800);
+      }
     }
 
     function providerAuthorizationRequestText() {
@@ -1273,6 +1358,21 @@
           button.disabled = false;
           button.textContent = original;
         }, 1800);
+      }
+    });
+    document.getElementById('managed-access-offer-grid')?.addEventListener('click', async (event) => {
+      const button = event.target.closest('button[data-offer-action]');
+      if (!button) return;
+      const card = button.closest('.offerCard');
+      if (!card) return;
+      markManagedAccessUserInteraction();
+      const action = button.dataset.offerAction;
+      if (action === 'request') {
+        requestManagedAccessOffer(card);
+        return;
+      }
+      if (action === 'copy') {
+        await copyManagedAccessOfferRequest(button, card);
       }
     });
     async function copyManagedAccessReviewPacket(

@@ -316,12 +316,12 @@
           <div class="tableWrap">
             <table id="managed-access-offer-table">
               <thead>
-                <tr><th>Review package</th><th>Monthly review price</th><th>Managed requests</th><th>Max safe provider cost / 1k</th></tr>
+                <tr><th>Review package</th><th>Monthly review price</th><th>Managed requests</th><th>Max safe provider cost / 1k</th><th>Action</th></tr>
               </thead>
               <tbody>
-                <tr><td>Managed Access Pilot</td><td>$10/month review</td><td>10,000</td><td>65 cents</td></tr>
-                <tr><td>Managed Access Pro Add-on</td><td>$30/month review</td><td>25,000</td><td>78 cents</td></tr>
-                <tr><td>Managed Access Max Contract Floor</td><td>$100/month review</td><td>75,000</td><td>86.6667 cents</td></tr>
+                <tr><td>Managed Access Pilot</td><td>$10/month review</td><td>10,000</td><td>65 cents</td><td><a href="/managed-access?intent=one-subscription&utm_source=pricing&utm_medium=offer-ladder&utm_campaign=sage-router-launch#managed-access-quick-form">Review package</a></td></tr>
+                <tr><td>Managed Access Pro Add-on</td><td>$30/month review</td><td>25,000</td><td>78 cents</td><td><a href="/managed-access?intent=one-subscription&utm_source=pricing&utm_medium=offer-ladder&utm_campaign=sage-router-launch#managed-access-quick-form">Review package</a></td></tr>
+                <tr><td>Managed Access Max Contract Floor</td><td>$100/month review</td><td>75,000</td><td>86.6667 cents</td><td><a href="/managed-access?intent=max-implementation&utm_source=pricing&utm_medium=offer-ladder&utm_campaign=sage-router-launch#managed-access-quick-form">Review package</a></td></tr>
               </tbody>
             </table>
           </div>
@@ -525,13 +525,18 @@
           const price = document.createElement('td');
           const requests = document.createElement('td');
           const maxCost = document.createElement('td');
+          const action = document.createElement('td');
+          const link = document.createElement('a');
           const priceUsd = Number(row.monthlyPriceUsd);
           const monthlyRequests = Number(row.monthlyManagedRequests);
           label.textContent = row.label || 'Managed Access Review';
           price.textContent = Number.isFinite(priceUsd) ? `$${priceUsd.toLocaleString()}/month review` : 'Review required';
           requests.textContent = Number.isFinite(monthlyRequests) ? monthlyRequests.toLocaleString() : 'Review required';
           maxCost.textContent = formatCents(row.maximumSafeProviderCostCentsPerThousandRequests);
-          tr.append(label, price, requests, maxCost);
+          link.href = row.reviewUrl || '/managed-access?intent=one-subscription&utm_source=pricing&utm_medium=offer-ladder&utm_campaign=sage-router-launch#managed-access-quick-form';
+          link.textContent = 'Review package';
+          action.append(link);
+          tr.append(label, price, requests, maxCost, action);
           return tr;
         }));
       }
