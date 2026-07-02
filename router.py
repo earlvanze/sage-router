@@ -7823,7 +7823,13 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
             and operator_follow_up_send_dry_runs > 0
             and operator_follow_up_sends <= 0
         )
-        approval_packet_already_reviewed = activation_send_ready_for_approval and activation_approval_packet_copies > 0
+        activation_decision_ready_for_review = (
+            sendable_queued > 0
+            and operator_follow_up_send_dry_runs > 0
+            and operator_follow_up_sends <= 0
+            and activation_approval_decision_copies <= 0
+        )
+        approval_packet_already_reviewed = activation_decision_ready_for_review and activation_approval_packet_copies > 0
         non_gated_setup_copy_fallback = activation_send_ready_for_approval and setup_snippet_copies <= 0
         recommended_segments = [
             segment for segment in ('verified', 'unverified', 'missing_auth_user', 'missing_user_id', 'unavailable', 'not_required')
@@ -7835,9 +7841,17 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
             execution_checklist = [
                 {
                     'step': 1,
-                    'segment': 'account_handoff',
-                    'action': 'Verify recovery handoffs land on /account with start=create_key, plan, and signup_to_key_recovery attribution intact.',
-                    'successMetric': 'account_key_recovery_viewed increases after login_key_recovery_account_setup_auto_redirected.',
+                    'segment': 'approval_decision' if approval_packet_already_reviewed else 'account_handoff',
+                    'action': (
+                        'Use the already reviewed no-secret approval packet and current decision lines to approve or hold only the next sendable segment; this records the human handoff only and does not send email.'
+                        if approval_packet_already_reviewed
+                        else 'Verify recovery handoffs land on /account with start=create_key, plan, and signup_to_key_recovery attribution intact.'
+                    ),
+                    'successMetric': (
+                        'activationApprovalDecisionCopies increases without operatorFollowUpSends unless a separate explicit send is approved.'
+                        if approval_packet_already_reviewed
+                        else 'account_key_recovery_viewed increases after login_key_recovery_account_setup_auto_redirected.'
+                    ),
                 },
                 {
                     'step': 2,
@@ -7854,7 +7868,11 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 {
                     'step': 4,
                     'segment': 'operator_outreach',
-                    'action': 'After account handoff to auto-create is verified, send or copy only the sendable verified/unverified follow-up drafts.',
+                    'action': (
+                        'After the approve/hold decision, either execute the separately approved next-segment send or wait for fresh signed-in recovery traffic; do not re-run approval packet review unless the packet timestamp expires.'
+                        if approval_packet_already_reviewed
+                        else 'After account handoff to auto-create is verified, send or copy only the sendable verified/unverified follow-up drafts.'
+                    ),
                     'successMetric': 'operatorFollowUpSends or operatorFollowUpCopies increases before more keyRecoveryViews.',
                 },
             ]
@@ -7944,7 +7962,9 @@ def launch_next_best_action(stages, rates, mrr, activation_follow_ups, conversio
                 if non_gated_setup_copy_fallback
                 else (
                 (
-                    'Recovery handoffs are reaching account setup but no key-create attempts have been recorded yet. Auto-key telemetry is now deployed and accepted by the hosted funnel endpoint; the remaining proof needs fresh signed-in recovery traffic or explicit operator approval before real activation sends.'
+                    'The no-secret approval packet has already been reviewed and recovery handoffs are reaching account setup with no key-create attempts yet; the remaining blocker is explicit operator approval for the next segment, an approve/hold decision record, or fresh signed-in recovery traffic.'
+                    if approval_packet_already_reviewed
+                    else 'Recovery handoffs are reaching account setup but no key-create attempts have been recorded yet. Auto-key telemetry is now deployed and accepted by the hosted funnel endpoint; the remaining proof needs fresh signed-in recovery traffic or explicit operator approval before real activation sends.'
                     if recovery_handoff_dropoff
                     else (
                         'The no-secret approval packet has already been reviewed and sendable follow-up dry-runs are covered; the remaining blocker is explicit operator approval for the next segment or fresh recovery traffic, not another recovery-page code change.'

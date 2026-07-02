@@ -3056,6 +3056,24 @@ class SaaSAuthTests(unittest.TestCase):
         self.assertIn('Auto-key telemetry is deployed and allowlisted', action['executionChecklist'][1]['action'])
         self.assertFalse(action['privacy']['containsEmails'])
 
+        reviewed_packet = router.launch_next_best_action(
+            stages,
+            rates,
+            {'estimatedCurrentMrrUsd': 60, 'targetMrrUsd': 10000},
+            {**activation_follow_ups, 'operatorFollowUpSendDryRuns': 3, 'activationApprovalPacketCopies': 1},
+            [],
+        )
+        self.assertEqual('activation approval', reviewed_packet['surface'])
+        self.assertIn('/launch-funnel.html#activation-approval-decision', reviewed_packet['ctaPath'])
+        self.assertIn('approval packet has already been reviewed', reviewed_packet['action'])
+        self.assertIn('approve/hold decision', reviewed_packet['action'])
+        self.assertTrue(reviewed_packet['evidence']['approvalPacketAlreadyReviewed'])
+        self.assertFalse(reviewed_packet['evidence']['activationSendReadyForApproval'])
+        self.assertEqual('approval_decision', reviewed_packet['executionChecklist'][0]['segment'])
+        self.assertIn('does not send email', reviewed_packet['executionChecklist'][0]['action'])
+        self.assertIn('activationApprovalDecisionCopies', reviewed_packet['executionChecklist'][0]['successMetric'])
+        self.assertIn('do not re-run approval packet review', reviewed_packet['executionChecklist'][3]['action'])
+
     def test_activation_delivery_counts_mark_auth_repair_review_only(self):
         delivery = router.launch_activation_delivery_counts({
             'total': 4,
