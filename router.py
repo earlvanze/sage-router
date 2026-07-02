@@ -176,6 +176,10 @@ GOOGLE_VERTEX_ADC_SCOPE = 'https://www.googleapis.com/auth/cloud-platform'
 GOOGLE_VERTEX_TOKEN_CACHE = {'access_token': '', 'expires_at': 0}
 OPENCLAW_GATEWAY_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENCLAW_TIMEOUT_SECONDS', '900'))
 OPENCLAW_GATEWAY_CODE_TIMEOUT_SECONDS = int(os.environ.get('SAGE_ROUTER_OPENCLAW_CODE_TIMEOUT_SECONDS', '900'))
+OPENAI_CODEX_RESPONSES_TIMEOUT_SECONDS = int(os.environ.get(
+    'SAGE_ROUTER_OPENAI_CODEX_TIMEOUT_SECONDS',
+    str(OPENCLAW_GATEWAY_CODE_TIMEOUT_SECONDS),
+))
 OPENCLAW_GATEWAY_AGENT_ID = os.environ.get('SAGE_ROUTER_OPENCLAW_AGENT_ID', 'main')
 AUDIO_STT_PROVIDER = os.environ.get('SAGE_ROUTER_AUDIO_STT_PROVIDER', 'openai').strip() or 'openai'
 AUDIO_TTS_PROVIDER = os.environ.get('SAGE_ROUTER_AUDIO_TTS_PROVIDER', 'openai').strip() or 'openai'
@@ -16173,7 +16177,7 @@ def call_codex_completion(base_url, model, payload, api_key='', provider_name=''
         
         req = urllib.request.Request(url, data=data, headers=hdrs)
         
-        with urllib.request.urlopen(req, timeout=OPENAI_COMPAT_TIMEOUT_SECONDS) as resp:
+        with urllib.request.urlopen(req, timeout=OPENAI_CODEX_RESPONSES_TIMEOUT_SECONDS) as resp:
             text, tool_calls = parse_responses_stream(resp)
         
         text = sanitize_visible_output(text)

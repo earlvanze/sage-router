@@ -65,8 +65,11 @@ only empty/tool-call output. Set the threshold to `0` to disable the guard.
 
 Long-running agent calls also use generous defaults: OpenAI-compatible,
 Anthropic, and Google provider calls default to 180 seconds; Ollama and audio
-proxy calls default to 300 seconds; OpenClaw gateway calls default to 900
-seconds. The same env vars can still lower or raise those values per install.
+proxy calls default to 300 seconds; direct Codex OAuth Responses and OpenClaw
+gateway calls default to 900 seconds. The same env vars can still lower or
+raise those values per install. Use `SAGE_ROUTER_OPENAI_CODEX_TIMEOUT_SECONDS`
+for the direct Codex subscription path and `SAGE_ROUTER_OPENCLAW_CODE_TIMEOUT_SECONDS`
+for the OpenClaw gateway bridge.
 
 ### Umbrel (Home Server)
 

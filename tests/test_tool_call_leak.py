@@ -29,7 +29,44 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertEqual(180, router.GOOGLE_TIMEOUT_SECONDS)
         self.assertEqual(900, router.OPENCLAW_GATEWAY_TIMEOUT_SECONDS)
         self.assertEqual(900, router.OPENCLAW_GATEWAY_CODE_TIMEOUT_SECONDS)
+        self.assertEqual(900, router.OPENAI_CODEX_RESPONSES_TIMEOUT_SECONDS)
         self.assertEqual(300, router.AUDIO_PROXY_TIMEOUT_SECONDS)
+
+    def test_codex_responses_uses_agentic_timeout(self):
+        captured = {}
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        old_urlopen = router.urllib.request.urlopen
+        old_parse = router.parse_responses_stream
+        try:
+            def fake_urlopen(_req, timeout=None):
+                captured['timeout'] = timeout
+                return FakeResponse()
+
+            router.urllib.request.urlopen = fake_urlopen
+            router.parse_responses_stream = lambda _resp: ('done', [])
+
+            ok, result = router.call_codex_completion(
+                'https://chatgpt.com/backend-api/codex',
+                'gpt-5.5',
+                {'messages': [{'role': 'user', 'content': 'finish'}]},
+                api_key='token',
+                provider_name='openai-codex',
+                request_id='req-codex-timeout',
+            )
+        finally:
+            router.urllib.request.urlopen = old_urlopen
+            router.parse_responses_stream = old_parse
+
+        self.assertTrue(ok)
+        self.assertEqual('done', result['choices'][0]['message']['content'])
+        self.assertEqual(router.OPENAI_CODEX_RESPONSES_TIMEOUT_SECONDS, captured['timeout'])
 
     def test_detects_visible_tool_code_blocks(self):
         self.assertTrue(router.looks_like_visible_tool_call('tool_code\nmessage(action="delete")'))
