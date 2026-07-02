@@ -117,6 +117,7 @@
         <h3>Post-key activation</h3>
         <p class="small">After creating an <code>sk_sage_*</code> key, keep the next conversion step visible: verify <code>/v1/models</code>, send the first <code>sage-router/frontier</code> request, or copy Codex setup.</p>
         <div class="actions">
+          <button id="post-key-checkout-button" class="btn hidden" type="button" data-post-key-action="checkout">Continue to checkout</button>
           <button id="post-key-verify-button" class="btn secondary" type="button" data-post-key-action="verify">Verify /v1/models</button>
           <button id="post-key-first-request-button" class="btn" type="button" data-post-key-action="first-request">Send first request</button>
           <button id="post-key-copy-codex-button" class="btn secondary" type="button" data-copy-target="client-codex-code" data-copy-label="Copy Codex setup">Copy Codex setup</button>

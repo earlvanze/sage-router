@@ -1006,12 +1006,27 @@ function renderNoKeySetupPanel() {
 function renderPostKeyActivationPanel() {
   const keyVerified = activationState.keyVerified || activationState.requestCount > 0;
   const canUseSessionKey = hasSessionApiKey();
+  const hasGeneratedKey = activationState.keyCount || canUseSessionKey;
+  const needsPaidRouting = Boolean(activationState.signedIn && hasGeneratedKey && !activationState.routingEnabled);
+  const checkoutReady = stripeCheckoutReadyForPlan(selectedPlan);
   setBusy('post-key-verify-button', false);
   setBusy('post-key-first-request-button', false);
+  setBusy('post-key-checkout-button', false);
   const verifyButton = $('post-key-verify-button');
   const firstRequestButton = $('post-key-first-request-button');
+  const checkoutButton = $('post-key-checkout-button');
   if (verifyButton) verifyButton.disabled = !activationState.signedIn || (!activationState.keyCount && !canUseSessionKey);
-  if (firstRequestButton) firstRequestButton.disabled = !activationState.signedIn || (!activationState.keyCount && !canUseSessionKey);
+  if (firstRequestButton) firstRequestButton.disabled = !activationState.signedIn || (!activationState.keyCount && !canUseSessionKey) || !activationState.routingEnabled;
+  show('post-key-checkout-button', needsPaidRouting);
+  if (checkoutButton) {
+    checkoutButton.disabled = false;
+    checkoutButton.textContent = !activationState.emailVerified
+      ? 'Verify email before checkout'
+      : (checkoutReady ? `Continue to ${planDisplay(selectedPlan)} checkout` : 'Open billing options');
+    checkoutButton.title = !activationState.emailVerified
+      ? 'Verify email before checkout can attach to the generated key.'
+      : (checkoutReady ? '' : stripeCheckoutUnavailableMessage(selectedPlan));
+  }
 
   if (!activationState.signedIn) {
     set('post-key-activation-status', 'Sign in first, then generate the hosted key.');
@@ -1021,10 +1036,12 @@ function renderPostKeyActivationPanel() {
       : 'Create the setup key now; it remains blocked from routing until email verification and checkout are complete.');
   } else if (!activationState.keyCount && !canUseSessionKey) {
     set('post-key-activation-status', 'Create a generated sk_sage key first; the raw key is shown once and inserted into these setup snippets.');
+  } else if (!activationState.routingEnabled) {
+    set('post-key-activation-status', checkoutReady
+      ? `Generated key is ready. Continue to ${planDisplay(selectedPlan)} checkout so the first routed request can pass.`
+      : 'Generated key is ready. Stripe checkout is not available for this plan, so open billing options or manual settlement.');
   } else if (!canUseSessionKey) {
     set('post-key-activation-status', 'An active key exists. Paste it into the verifier or create a fresh key to populate setup snippets.');
-  } else if (!activationState.routingEnabled) {
-    set('post-key-activation-status', 'Verify the key now, then finish checkout so the first routed request can pass.');
   } else if (!keyVerified) {
     set('post-key-activation-status', 'Next: verify /v1/models, then send the first sage-router/frontier request.');
   } else if (!activationState.requestCount) {
@@ -1032,6 +1049,25 @@ function renderPostKeyActivationPanel() {
   } else {
     set('post-key-activation-status', `Activated: ${fmtNumber(activationState.requestCount)} routed request${activationState.requestCount === 1 ? '' : 's'} recorded.`);
   }
+}
+
+async function postKeyCheckout() {
+  trackAccountFunnelEvent('account_post_key_checkout_clicked', {
+    button: 'post_key_checkout',
+    target: stripeCheckoutReadyForPlan(selectedPlan) ? '/billing/stripe/checkout' : '#billing',
+    state: selectedPlan,
+  });
+  if (!activationState.emailVerified) {
+    set('post-key-activation-status', 'Verify your email first so checkout can attach safely to this generated key.');
+    $('resend-verification-email')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  if (stripeCheckoutReadyForPlan(selectedPlan)) {
+    await stripeCheckout({ button: 'post_key_checkout', state: 'post_key_checkout' });
+    return;
+  }
+  set('billing-status', stripeCheckoutUnavailableMessage(selectedPlan));
+  $('stripe-checkout')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function renderLaunchNextAction(patch = {}) {
@@ -2130,6 +2166,7 @@ $('stripe-portal')?.addEventListener('click', billingPortal);
 $('crypto-intent')?.addEventListener('click', cryptoIntent);
 $('crypto-status-check')?.addEventListener('click', cryptoStatus);
 $('signed-in-next-button')?.addEventListener('click', runSignedInNextAction);
+$('post-key-checkout-button')?.addEventListener('click', postKeyCheckout);
 $('no-key-setup-focus')?.addEventListener('click', () => {
   trackAccountFunnelEvent('account_no_key_setup_focus_clicked', {
     button: 'no_key_setup_focus',

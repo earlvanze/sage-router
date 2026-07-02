@@ -721,8 +721,10 @@ flag.
   generated-key-first recovery CTA instead of only reporting the broad `$10k
   MRR` gap.
 - Keep `app.sagerouter.dev/account.html` aligned with the same activation
-  funnel: signed-in account, paid routing, generated key, public-edge
-  `/v1/models` verification, and server-recorded first routed usage.
+  funnel: signed-in account, generated key, paid routing checkout,
+  public-edge `/v1/models` verification, and server-recorded first routed
+  usage. Once the key exists but routing is still locked, the post-key panel
+  should make checkout the next visible action before first-request testing.
 - Keep `/analytics/funnel` tied to the `$10k MRR` operating plan by reporting
   estimated current MRR, target attainment, and per-plan gaps against the
   recommended 100 Lite / 200 Pro / 50 Max launch mix.

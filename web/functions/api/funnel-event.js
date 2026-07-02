@@ -295,6 +295,7 @@ const ALLOWED_EVENTS = new Set([
   'account_key_verified',
   'account_first_request_clicked',
   'account_first_request_succeeded',
+  'account_post_key_checkout_clicked',
   'account_post_key_verify_clicked',
   'account_post_key_first_request_clicked',
   'account_post_key_codex_copied',
