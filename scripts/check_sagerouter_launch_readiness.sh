@@ -2367,6 +2367,12 @@ check_marketing_local_first_article_page() {
   if [[ "$dock_code" == "200" ]] && ! grep -q "managed_access_quick_form_started" /tmp/sage-router-readiness-body; then
     dock_code="200:missing-article-managed-access-start-funnel"
   fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "managed_access_contact_packet_copied" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-managed-access-contact-packet"
+  fi
+  if [[ "$dock_code" == "200" ]] && ! grep -q "managed_access_contact_draft_opened" /tmp/sage-router-readiness-body; then
+    dock_code="200:missing-article-managed-access-email-draft"
+  fi
   if [[ "$dock_code" == "200" ]] && ! grep -q "Copy setup first" /tmp/sage-router-readiness-body; then
     dock_code="200:missing-article-copy-setup-first"
   fi

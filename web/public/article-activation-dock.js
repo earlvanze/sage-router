@@ -14,6 +14,7 @@
   const oneSubscriptionUrl = `/managed-access?intent=one-subscription&utm_source=article-dock&utm_medium=managed-access&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-one-subscription-review`)}#managed-access-quick-form`;
   const openRouterCompareUrl = `/compare/openrouter?utm_source=article-dock&utm_medium=evaluation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-openrouter`)}`;
   const codexSetupUrl = `/docs/codex?utm_source=article-dock&utm_medium=activation&utm_campaign=sage-router-launch&utm_content=${encodeURIComponent(`${articleSlug}-codex`)}`;
+  const MANAGED_ACCESS_REVIEW_EMAIL = 'support@sagerouter.dev';
   const hostedSetupBundle = `# Sage Router hosted setup
 export OPENAI_BASE_URL=https://api.sagerouter.dev/v1
 export OPENAI_API_KEY=sk_sage_REPLACE_WITH_GENERATED_KEY
@@ -434,6 +435,34 @@ curl https://api.sagerouter.dev/v1/models \\
     };
   }
 
+  function articleManagedAccessContactRequestText(email = '') {
+    const payload = articleManagedAccessPayload(email || '<work email>');
+    return [
+      'Sage Router article one-subscription contact request',
+      '',
+      `Source article: ${title}`,
+      `Source URL: ${window.location.origin}${window.location.pathname}`,
+      `Work email: ${payload.email}`,
+      `Intent: ${payload.intent}`,
+      `Provider access posture: ${payload.providerAccess}`,
+      `Target provider family: ${payload.targetProviderFamily}`,
+      `Commercial preference: ${payload.commercialPreference}`,
+      `Support need: ${payload.supportNeed}`,
+      `Target launch window: ${payload.targetLaunchWindow}`,
+      '',
+      'Boundary: this is a contact request only. Managed provider access stays disabled until provider authorization, provider terms acknowledgment, an authorized provider allowlist, a private cost model, positive unit economics, quotas, audit events, and acceptable-use controls pass.',
+      `Review URL: https://sagerouter.dev${oneSubscriptionUrl}`,
+      'Immediate fallback: https://app.sagerouter.dev/account.html?plan=max&start=create_key&utm_source=article-dock&utm_medium=contact-packet&utm_campaign=sage-router-launch',
+      '',
+      'Do not paste prompts, provider credentials, OAuth tokens, generated API keys, private keys, cookies, raw provider responses, actual provider costs, or customer data.',
+    ].join('\n');
+  }
+
+  function articleManagedAccessMailtoUrl(email = '') {
+    const subject = 'Sage Router one-subscription private-beta review';
+    return `mailto:${MANAGED_ACCESS_REVIEW_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(articleManagedAccessContactRequestText(email))}`;
+  }
+
   function articleManagedAccessTelemetry(state = 'article-managed-access-quick-form', extra = {}) {
     return {
       plan: 'max',
@@ -481,11 +510,57 @@ curl https://api.sagerouter.dev/v1/models \\
     form.innerHTML = `
       <input type="email" name="email" autocomplete="email" inputmode="email" placeholder="work email" aria-label="Email address for one-subscription review" required>
       <button type="submit">Request one-subscription review</button>
+      <div class="articleDockManagedAccessActions">
+        <button type="button" data-article-managed-access-copy-contact>Copy contact request</button>
+        <button type="button" data-article-managed-access-email-draft>Open email draft</button>
+      </div>
       <small id="${id}-status" class="articleDockEmailStatus" aria-live="polite"></small>
     `;
+    const copyContactButton = form.querySelector('[data-article-managed-access-copy-contact]');
+    const emailDraftButton = form.querySelector('[data-article-managed-access-email-draft]');
     recordArticleManagedAccessPresentation();
     form.addEventListener('focusin', () => recordArticleManagedAccessFocus(`#${id}`));
     form.addEventListener('input', () => recordArticleManagedAccessStart(`#${id}`), { once: true });
+    copyContactButton?.addEventListener('click', async () => {
+      const emailInput = form.querySelector('input[type="email"]');
+      const status = form.querySelector('.articleDockEmailStatus');
+      const email = String(emailInput?.value || '').trim();
+      const original = copyContactButton.textContent;
+      copyContactButton.disabled = true;
+      copyContactButton.textContent = 'Copying...';
+      try {
+        await copyText(articleManagedAccessContactRequestText(email));
+        recordArticleManagedAccessContactCapture('article-managed-access-contact-copy');
+        track('managed_access_contact_packet_copied', articleManagedAccessTelemetry('article-managed-access-contact-copy', {
+          target: `#${id}`,
+          snippet: 'article-managed-access-contact-request',
+        }));
+        status.textContent = email
+          ? 'Copied no-secret contact request. Send it from your work inbox; managed resale stays gated.'
+          : 'Copied contact request with a work-email placeholder. Add your address before sending.';
+        copyContactButton.textContent = 'Copied';
+      } catch (_error) {
+        status.textContent = 'Copy failed. Open the full managed-access form; do not send secrets.';
+        copyContactButton.textContent = 'Copy failed';
+      } finally {
+        window.setTimeout(() => {
+          copyContactButton.disabled = false;
+          copyContactButton.textContent = original;
+        }, 1800);
+      }
+    });
+    emailDraftButton?.addEventListener('click', () => {
+      const emailInput = form.querySelector('input[type="email"]');
+      const status = form.querySelector('.articleDockEmailStatus');
+      const email = String(emailInput?.value || '').trim();
+      recordArticleManagedAccessContactCapture('article-managed-access-email-draft');
+      track('managed_access_contact_draft_opened', articleManagedAccessTelemetry('article-managed-access-email-draft', {
+        target: `#${id}`,
+        snippet: 'article-managed-access-email-draft',
+      }));
+      status.textContent = 'Opening a no-secret email draft. Send it from a work inbox; managed resale stays gated.';
+      window.location.href = articleManagedAccessMailtoUrl(email);
+    });
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const emailInput = form.querySelector('input[type="email"]');
@@ -549,9 +624,11 @@ curl https://api.sagerouter.dev/v1/models \\
       .articleDockEmailForm input::placeholder{color:#789184}
       .articleDockEmailForm button{min-height:44px;border:0;border-radius:999px;background:linear-gradient(135deg,#8df0b2,#50d891);color:#04150d;padding:0 14px;font:900 13px/1 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer;white-space:nowrap}
       .articleDockEmailForm button:disabled{opacity:.72;cursor:wait}
+      .articleDockManagedAccessActions{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+      .articleDockManagedAccessActions button{min-height:38px;border:1px solid rgba(166,255,207,.2);background:rgba(255,255,255,.065);color:#edfdf5}
       .articleDockEmailStatus{grid-column:1/-1;color:#a9c5b8;font:600 12px/1.25 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:15px}
       @media(max-width:820px){#article-activation-inline{grid-template-columns:1fr}#article-activation-inline a{width:100%}}
-      @media(max-width:520px){.articleDockEmailForm{grid-template-columns:1fr}.articleDockEmailForm button{width:100%}}
+      @media(max-width:520px){.articleDockEmailForm{grid-template-columns:1fr}.articleDockEmailForm button{width:100%}.articleDockManagedAccessActions{display:grid;grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
 
