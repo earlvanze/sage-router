@@ -384,6 +384,29 @@ function accountPageUrlWithPlan(plan = selectedPlan, options = {}) {
   if (normalized) url.searchParams.set('plan', normalized);
   const start = normalizeStartAction(options.start || (options.preserveStart === false ? '' : pendingStartAction));
   if (start) url.searchParams.set('start', start);
+  if (options.preserveAttribution !== false) {
+    const params = new URLSearchParams(window.location.search || '');
+    [
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_content',
+      'setup',
+      'setupSource',
+      'source_surface',
+      'sourceSurface',
+      'next',
+      'auth',
+      'provider',
+    ].forEach((key) => {
+      const value = params.get(key);
+      if (value && !url.searchParams.has(key)) url.searchParams.set(key, value);
+    });
+  }
+  if (options.authProvider) {
+    url.searchParams.set('auth', options.authProvider);
+    url.searchParams.delete('provider');
+  }
   return url.toString();
 }
 
@@ -1531,7 +1554,7 @@ async function oauthLogin(provider, options = {}) {
   setAuthStatus(`Opening ${provider} sign-in...`, mirrorIntent);
   rememberOnboardingContext(onboardingContext({ authMethod: provider }));
   trackAccountFunnelEvent('account_oauth_clicked', { button, target: '/auth/v1/authorize', state: provider });
-  const redirectTo = hostedAccountAuthCallbackUrl();
+  const redirectTo = hostedAccountAuthCallbackUrl(selectedPlan, { authProvider: provider });
   const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo } });
   if (error) {
     trackAccountFunnelEvent('account_oauth_failed', { button, target: '/auth/v1/authorize', state: provider });

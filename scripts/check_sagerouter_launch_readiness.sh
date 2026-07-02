@@ -1652,6 +1652,12 @@ check_hosted_onboarding_pages() {
   if [[ "$account_js_code" == "200" ]] && ! grep -q "get('next')) || 'no-next'" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-auto-key-next-context"
   fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "options.preserveAttribution !== false" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-auth-callback-attribution-preservation"
+  fi
+  if [[ "$account_js_code" == "200" ]] && ! grep -q "url.searchParams.set('auth', options.authProvider)" /tmp/sage-router-readiness-body; then
+    account_js_code="200:missing-auth-callback-provider-override"
+  fi
   if [[ "$account_js_code" == "200" ]] && ! grep -q "maybeCreateKeyFromIntent" /tmp/sage-router-readiness-body; then
     account_js_code="200:missing-saved-intent-key-create"
   fi
