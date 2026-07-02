@@ -1303,6 +1303,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
   const activationDelivery = activationDeliveryCounts(data);
   const activationSend = activationSendTelemetry(data);
   const approvalReadiness = activationApprovalReadiness(data);
+  const decisionHandoff = activationApprovalDecisionHandoff(data);
   const authRepair = activationAuthRepair(data);
   const sendCommand = activationSendCommand(emailReadiness, activationSend);
   return [
@@ -1312,6 +1313,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
     `Send telemetry: dry-run actions=${integer(activationSend.dryRunActions)} uniqueRecipients=${integer(activationSend.dryRunRecipients)} rawRecordedRecipients=${integer(activationSend.dryRunRecordedRecipients)} duplicateRecords=${integer(activationSend.dryRunDuplicateRecipients)}; sent actions=${integer(activationSend.sendActions)} recipients=${integer(activationSend.sentRecipients)}; failures=${integer(activationSend.failedActions)} recipients=${integer(activationSend.failedRecipients)}; approvalRequired=${activationSend.sendApprovalRequired === true}`,
     `Next send segment: ${activationSend.nextSendSegment || 'all'}; dryRunVerified=${activationSend.dryRunVerified === true}; approvalRequired=${activationSend.sendApprovalRequired === true}`,
     `Approval readiness: ${approvalReadiness.status || 'unknown'}; blockedReason=${approvalReadiness.blockedReason || 'none'}; nextActions=${(approvalReadiness.nextActions || []).map(row => `${row.priority || 'next'}:${row.id || 'review'}`).join(', ') || 'monitor_activation_queue'}`,
+    `Approval decision handoff: status=${decisionHandoff.status || 'unknown'}; packetReviewed=${decisionHandoff.packetReviewed === true}; packetReviewStale=${decisionHandoff.packetReviewStale === true}; packetReviewedRecipients=${integer(decisionHandoff.packetReviewedRecipients)}; sendableQueued=${integer(decisionHandoff.sendableQueued)}; decisionCopies=${integer(decisionHandoff.decisionCopies)}; action=${decisionHandoff.action || 'Review the no-secret activation approval packet.'}`,
     `Approval freshness: issuedAt=${integer(approvalReadiness.approvalPacketIssuedAt)}; expiresAt=${integer(approvalReadiness.approvalPacketExpiresAt)}; validSeconds=${integer(approvalReadiness.approvalPacketValidSeconds)}; approvalPacketIssuedAtRequired=${approvalReadiness.approvalPacketRequiredForRealSend !== false}`,
     `Auth repair: status=${authRepair.status || 'unknown'}; queued=${integer(authRepair.reviewOnlyQueued)}; segments=${safeList(authRepair.reviewOnlySegments).join(', ') || 'none'}; endpoint=${authRepair.endpoint || '/admin/customers/hydrate-auth-users'}; aggregateOnly=${authRepair.privacy?.aggregateOnly === true}`,
     `Auth repair fallback: ${authRepair.noopFallbackAction || 'none'}`,
@@ -1322,6 +1324,7 @@ function operatorExecutionPacketText(packet = {}, data = {}) {
     `Activation sender setup: ${emailReadiness.setupScript || 'scripts/configure_activation_email_sender.sh'}`,
     ...(emailReadiness.setupCommand ? ['', 'Setup command template:', emailReadiness.setupCommand] : []),
     ...(emailReadiness.dryRunCommand ? ['', 'Dry-run send command:', emailReadiness.dryRunCommand] : []),
+    ...(decisionHandoff.packetReviewStale ? ['', 'Stale approval packet boundary:', 'Do not copy or run any real-send command until a refreshed no-secret approval packet covers the current sendable queue.'] : []),
     ...(emailReadiness.sendCommandTemplate ? ['', 'Real send command template (legacy):', emailReadiness.sendCommandTemplate] : []),
     ...(sendCommand ? ['', 'Approval send command for next segment:', sendCommand] : []),
     '',
