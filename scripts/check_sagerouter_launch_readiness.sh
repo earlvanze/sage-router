@@ -4352,10 +4352,10 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-default-idle-handoff" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-idle-handoff-funnel"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "quickCopyContact?.click()" /tmp/sage-router-readiness-body; then
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-contact-decision-contact-request" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-contact-decision-copy"
   fi
-  if [[ "$page_code" == "200" ]] && ! grep -q "quickEmailDraft?.click()" /tmp/sage-router-readiness-body; then
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-contact-decision-email-draft" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-contact-decision-email"
   fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-sticky-handoff" /tmp/sage-router-readiness-body; then
