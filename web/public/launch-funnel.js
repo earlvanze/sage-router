@@ -1756,6 +1756,18 @@ function renderManagedAccessContactPromotionBanner(data = {}) {
   const contactCapturePacket = managedAccessContactCapturePacketText(conversion);
   const ctaUrl = managedAccessContactCaptureCta(conversion);
   const emailDraftUrl = managedAccessContactCaptureEmailDraftUrl(conversion);
+  const founderCopies = asNumber((data.marketingIntent || {}).founderSalesOutreachCopies);
+  const founderDraftUrl = founderSalesRecommendedEmailDraftUrl(data);
+  const founderBackup = founderCopies === 0 ? `
+    <div class="empty warn" style="margin-top:12px">
+      <strong>Founder-sales fallback is also unworked.</strong>
+      <p class="muted">If the buyer is reachable in a warm thread, copy the recommended first reply or open the no-secret draft from this same gap banner. This records <code>outreach_snippet_copied</code> or <code>outreach_email_draft_opened</code>; it does not send email, approve activation sends, or enable managed resale.</p>
+      <div class="actions">
+        <button class="btn" type="button" data-copy-founder-sales-recommended="1" data-founder-sales-promotion="managed-access-gap">Copy founder-sales first reply</button>
+        <a class="btn secondary" href="${esc(founderDraftUrl)}" data-email-founder-sales-recommended="managed-access-gap" data-founder-sales-promotion="managed-access-gap">Open founder-sales draft</a>
+        <button class="btn secondary" type="button" data-copy-founder-sales-next="1" data-founder-sales-promotion="managed-access-gap">Copy next-revenue outreach</button>
+      </div>
+    </div>` : '';
   target.classList.remove('hidden');
   target.innerHTML = `<div class="metricList">
     <div class="metric"><span>Live contact gap</span><strong><span class="pill warn">Managed access</span></strong></div>
@@ -1772,7 +1784,7 @@ function renderManagedAccessContactPromotionBanner(data = {}) {
     <a class="btn secondary" href="${esc(ctaUrl)}" target="_blank" rel="noopener noreferrer">Open contact-capture CTA</a>
     <a class="btn secondary" href="#managed-access-demand-breakdown">Review demand panel</a>
     <span class="status">First-screen managed-access handoff: turn anonymous demand into review requests before resale authorization work continues.</span>
-  </div>`;
+  </div>${founderBackup}`;
 }
 
 function managedAccessApprovalPacketText(data = {}) {

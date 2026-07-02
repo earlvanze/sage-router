@@ -1338,6 +1338,12 @@ check_hosted_onboarding_pages() {
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "operator_managed_access_packet_copied" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-managed-access-contact-promotion-funnel"
   fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "Founder-sales fallback is also unworked" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-contact-promotion-founder-backup"
+  fi
+  if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "data-founder-sales-promotion=\"managed-access-gap\"" /tmp/sage-router-readiness-body; then
+    launch_funnel_js_code="200:missing-managed-access-contact-promotion-founder-actions"
+  fi
   if [[ "$launch_funnel_js_code" == "200" ]] && ! grep -q "renderReviewFlags" /tmp/sage-router-readiness-body; then
     launch_funnel_js_code="200:missing-customer-review-flags"
   fi
