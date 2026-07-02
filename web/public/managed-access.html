@@ -54,7 +54,7 @@
       <p class="eyebrow">Private beta intake</p>
       <h1>Sage Router Managed Access Private Beta</h1>
       <p class="lead">Use this path if your team wants one Sage Router subscription for hosted routing, quotas, fallback reliability, Max implementation support, private deployment review, and a managed-provider access pilot only when Sage Router has the right provider authorization, provider allowlist, terms acknowledgment, and unit economics.</p>
-      <form id="managed-access-quick-form" class="quickReviewForm primaryQuickReviewForm">
+      <form id="managed-access-quick-form" class="quickReviewForm primaryQuickReviewForm" novalidate>
         <label for="quick-review-email">One-field private-beta review</label>
         <p class="quickReviewIntro">Enter work email to request one-subscription review. Managed provider access stays gated until authorization, terms, cost, quota, and abuse checks pass.</p>
         <div class="quickReviewPrimaryRow">
@@ -200,7 +200,7 @@
             <button type="button" data-managed-intent="gateway-migration" data-support-need="migration-help" data-provider-access="byok">Gateway migration <span>Move from another API gateway</span></button>
             <button type="button" data-managed-intent="private-deployment" data-support-need="private-deployment" data-deployment="tailnet-private">Private deployment <span>Tailnet or self-hosted review</span></button>
           </div>
-          <form id="managed-access-form" class="formGrid">
+          <form id="managed-access-form" class="formGrid" novalidate>
             <input name="website" tabIndex="-1" autoComplete="off" class="honeypot" aria-hidden="true" />
             <input name="interest" type="hidden" value="managed-access" />
             <label>Email
@@ -641,6 +641,10 @@
         sourcePage: `${window.location.origin}${window.location.pathname}`,
         turnstileToken: turnstileState.token,
       };
+    }
+
+    function isValidManagedAccessEmail(email) {
+      return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email || '').trim());
     }
 
     function managedAccessReviewPacketText() {
@@ -1195,11 +1199,22 @@
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      const payload = Object.fromEntries(new FormData(form));
+      const email = String(payload.email || '').trim();
+      if (!isValidManagedAccessEmail(email)) {
+        trackManagedAccessFunnelEvent('managed_access_request_validation_failed', {
+          state: activeIntent || 'managed-access',
+          target: '#managed-access-form',
+        });
+        setStatus('Enter a valid work email, or use the no-secret copy/email draft above without sending secrets.');
+        form.elements.email?.focus({ preventScroll: true });
+        showStickyContactHandoff(quickReviewIntent(), 'managed-access-full-form-validation-fallback');
+        return;
+      }
       if (turnstileState.required && !turnstileState.token) {
         setStatus('Complete verification first.');
         return;
       }
-      const payload = Object.fromEntries(new FormData(form));
       setStatus('Submitting private-beta request...');
       trackManagedAccessFunnelEvent('managed_access_request_submitted', { state: 'submitted' });
       try {
@@ -1230,12 +1245,15 @@
       event.preventDefault();
       markQuickFormStarted(quickReviewIntent(), '#managed-access-quick-form-submit');
       const email = String(new FormData(quickForm).get('email') || '').trim();
-      if (!email) {
+      if (!isValidManagedAccessEmail(email)) {
         trackManagedAccessFunnelEvent('managed_access_quick_request_validation_failed', {
           state: quickReviewIntent(),
           target: '#managed-access-quick-form',
         });
-        setQuickStatus('Enter a work email to request review.');
+        showManagedAccessIntentHandoff(quickReviewIntent(), '#managed-access-quick-form');
+        showStickyContactHandoff(quickReviewIntent(), 'managed-access-fast-form-validation-fallback');
+        setQuickStatus('Enter a valid work email to request review, or copy/open the no-secret contact request without submitting the form.');
+        document.getElementById('quick-review-email')?.focus({ preventScroll: true });
         return;
       }
       if (turnstileState.required && !turnstileState.token) {

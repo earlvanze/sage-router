@@ -54,6 +54,7 @@ const ALLOWED_EVENTS = new Set([
   'managed_access_interest_clicked',
   'managed_access_viewed',
   'managed_access_form_started',
+  'managed_access_request_validation_failed',
   'managed_access_request_submitted',
   'managed_access_request_received',
   'managed_access_contact_capture_landed',
