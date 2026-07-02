@@ -1644,6 +1644,27 @@ function renderFounderSalesPromotionBanner(data = {}) {
   </div>`;
 }
 
+function renderFounderSalesDockBackup(data = {}) {
+  if (!shouldShowFounderSalesPromotionBanner(data)) return '';
+  const revenueActions = planRevenueActions(data);
+  const topRevenue = revenueActions.slice().sort((left, right) =>
+    asNumber(right.remainingMrrToTargetUsd) - asNumber(left.remainingMrrToTargetUsd)
+  )[0] || {};
+  const plan = String(topRevenue.plan || 'pro').toLowerCase();
+  const safePlan = ['lite', 'pro', 'max'].includes(plan) ? plan : 'pro';
+  const emailDraftUrl = founderSalesRecommendedEmailDraftUrl(data);
+  return `<div class="empty warn" style="margin-top:12px">
+    <strong>Revenue backup is available now.</strong>
+    <p class="muted">Founder-sales copies are still zero while activation sends or managed-provider resale are gated. Use this no-secret first reply to move ${esc(safePlan.toUpperCase())} conversations without approving sends, exposing customer data, changing provider controls, or enabling managed resale.</p>
+    <div class="actions">
+      <button class="btn" type="button" data-copy-founder-sales-recommended="1" data-founder-sales-promotion="do-next">Copy founder-sales first reply</button>
+      <a class="btn secondary" href="${esc(emailDraftUrl)}" data-email-founder-sales-recommended="do-next" data-founder-sales-promotion="do-next">Open no-secret founder-sales draft</a>
+      <button class="btn secondary" type="button" data-copy-founder-sales-next="1" data-founder-sales-promotion="do-next">Copy next-revenue outreach</button>
+      <a class="btn secondary" href="#founder-sales-fallback">Review founder-sales panel</a>
+    </div>
+  </div>`;
+}
+
 function managedAccessContactCaptureCta(conversion = {}) {
   const rawPath = conversion.ctaPath
     || '/managed-access?intent=one-subscription&utm_source=operator&utm_medium=launch_funnel&utm_campaign=managed_access_contact_capture&utm_content=anonymous-demand-to-review#managed-access-quick-form';
@@ -2193,7 +2214,9 @@ function renderNextBestActionDock(data = {}) {
   <p class="muted">Success metric: ${esc(action.successMetric || followUps.successMetric || 'Improve the next funnel stage.')} ${activationSend.sendApprovalRequired ? `Dry-run verified=${activationSend.dryRunVerified ? 'yes' : 'no'}; real send still needs explicit operator approval.` : ''}</p>${checklist}
   ${approvalDecisionControls}
   ${renderActivationNextSendStep(data, { compact: true })}
-  <div class="actions">${dockActions}<span class="status">${actionStatus}</span></div>${segmentDraftDock}`;
+  <div class="actions">${dockActions}<span class="status">${actionStatus}</span></div>
+  ${renderFounderSalesDockBackup(data)}
+  ${segmentDraftDock}`;
 }
 
 async function writeClipboard(value) {
