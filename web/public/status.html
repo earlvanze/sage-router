@@ -168,8 +168,12 @@ Approval boundary:
 Do not paste emails, customer IDs, generated keys, key hashes, prompts, OAuth tokens, provider credentials, raw campaign URLs, raw provider responses, or private funnel rows.</pre>
         <pre id="status-activation-worksheet-refresh" class="commandText">scripts/update_activation_approval_review.sh --days 30 --write</pre>
         <pre id="status-activation-review-record" class="commandText">scripts/summarize_sagerouter_launch_funnel.sh --days 30 --record-activation-approval-review --verify-recovery --verify-auth-repair</pre>
-        <pre id="status-activation-approve-decision" class="commandText">APPROVE_ACTIVATION_FOLLOWUP segment="verified" issuedAt=&lt;CURRENT_APPROVAL_PACKET_ISSUED_AT&gt; expiresAt=&lt;CURRENT_APPROVAL_PACKET_EXPIRES_AT&gt;</pre>
-        <pre id="status-activation-hold-decision" class="commandText">HOLD_ACTIVATION_FOLLOWUP segment="verified" reason="&lt;reason&gt;"</pre>
+        <pre id="status-activation-decision-private-boundary" class="commandText">Private launch funnel required for approve/hold decisions.
+
+Public /pricing metadata cannot verify whether the last approval packet covers the live sendable queue.
+Open https://app.sagerouter.dev/launch-funnel.html#activation-approval-decision after refreshing the no-secret approval packet.
+
+Do not copy approve/hold decisions from the public status page.</pre>
       </details>
       <div class="actions">
         <button id="status-copy-founder-recommended-first-reply" class="btn" type="button">Copy recommended first reply</button>
@@ -179,8 +183,7 @@ Do not paste emails, customer IDs, generated keys, key hashes, prompts, OAuth to
         <button id="status-copy-activation-approval-packet" class="btn" type="button">Copy approval packet</button>
         <button id="status-copy-activation-worksheet-refresh" class="btn secondary" type="button">Copy worksheet refresh</button>
         <button id="status-copy-activation-review-record" class="btn secondary" type="button">Copy review record</button>
-        <button id="status-copy-activation-approve-decision" class="btn secondary" type="button">Copy approve decision</button>
-        <button id="status-copy-activation-hold-decision" class="btn secondary" type="button">Copy hold decision</button>
+        <a id="status-open-private-activation-decision" class="btn secondary" href="https://app.sagerouter.dev/launch-funnel.html#activation-approval-decision">Open private decision gate</a>
         <a id="status-create-api-key-link" class="btn secondary" href="https://app.sagerouter.dev/account.html?plan=pro&start=create_key&utm_source=status&utm_medium=setup-copy&utm_campaign=sage-router-launch&utm_content=status-revenue-panel" data-status-event="content_article_key_activation_clicked" data-status-state="status-create-api-key">Create API key</a>
         <a id="status-founder-sales-kit-link" class="btn secondary" href="https://sagerouter.dev/founder-sales-kit?utm_source=status&utm_medium=founder-sales&utm_campaign=sage-router-launch&utm_content=status-revenue-panel" data-status-event="content_article_launch_plan_clicked" data-status-state="status-founder-sales-kit">Founder sales kit</a>
         <a id="status-one-subscription-review-link" class="btn secondary" href="/managed-access?intent=one-subscription&utm_source=status&utm_medium=founder-sales&utm_campaign=sage-router-launch&utm_content=status-revenue-panel#managed-access-quick-form" data-status-event="content_article_managed_access_clicked" data-status-state="status-one-subscription-review">One-subscription review</a>

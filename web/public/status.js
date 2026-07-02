@@ -157,31 +157,18 @@ function updateStatusActivationApprovalDecisionLines(pricing = {}) {
   const lines = Array.isArray(readiness.decisionLines) ? readiness.decisionLines : [];
   const approve = lines.find(row => String(row?.value || '').startsWith('APPROVE_ACTIVATION_FOLLOWUP'))?.value || '';
   const hold = lines.find(row => String(row?.value || '').startsWith('HOLD_ACTIVATION_FOLLOWUP'))?.value || '';
-  if (approve) set('status-activation-approve-decision', approve);
-  if (hold) set('status-activation-hold-decision', hold);
-}
-
-async function copyStatusActivationApprovalDecision(kind) {
-  const block = $(`status-activation-${kind}-decision`);
-  const status = $('status-founder-pro-status');
-  const text = block?.textContent.trim() || '';
-  if (!text) return;
-  const snippet = kind === 'approve' ? 'activation-approval-approve-decision' : 'activation-approval-hold-decision';
-  const state = kind === 'approve' ? 'activation_approval_approve_decision_copied' : 'activation_approval_hold_decision_copied';
-  try {
-    await writeClipboardText(text);
-    if (status) status.textContent = `Copied activation ${kind} decision record. This does not send email or mutate queued follow-ups.`;
-    trackStatusFunnelEvent('operator_execution_packet_copied', {
-      target: 'status-revenue-action',
-      button: `Copy ${kind} decision`,
-      state,
-      snippet,
-      segment: (text.match(/segment="([^"]+)"/) || [])[1] || 'verified',
-      resultCount: 1,
-    });
-  } catch (_error) {
-    if (status) status.textContent = `Copy failed. Select the ${kind} decision manually.`;
-  }
+  const boundary = [
+    'Private launch funnel required for approve/hold decisions.',
+    '',
+    'Public /pricing metadata cannot verify whether the last approval packet covers the live sendable queue.',
+    'Open https://app.sagerouter.dev/launch-funnel.html#activation-approval-decision after refreshing the no-secret approval packet.',
+    '',
+    approve ? `Current public-safe approve template exists for private use only: ${approve}` : 'No public-safe approve template is currently published.',
+    hold ? `Current public-safe hold template exists for private use only: ${hold}` : 'No public-safe hold template is currently published.',
+    '',
+    'Do not copy approve/hold decisions from the public status page.',
+  ].join('\n');
+  set('status-activation-decision-private-boundary', boundary);
 }
 
 $('status-copy-activation-approval-packet')?.addEventListener('click', async () => {
@@ -235,13 +222,6 @@ $('status-copy-activation-review-record')?.addEventListener('click', async () =>
   }
 });
 
-$('status-copy-activation-approve-decision')?.addEventListener('click', () => {
-  copyStatusActivationApprovalDecision('approve');
-});
-
-$('status-copy-activation-hold-decision')?.addEventListener('click', () => {
-  copyStatusActivationApprovalDecision('hold');
-});
 const originKind = (url = '') => {
   if (url && typeof url === 'object') return url.originKind || originKind(url.url || url.label || url.id || '');
   const name = host(url).toLowerCase();

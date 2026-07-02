@@ -1449,17 +1449,17 @@ check_hosted_onboarding_pages() {
   if [[ "$status_code" == "200" ]] && ! grep -q "status-copy-activation-review-record" /tmp/sage-router-readiness-body; then
     status_code="200:missing-status-activation-review-record-copy"
   fi
-  if [[ "$status_code" == "200" ]] && ! grep -q "status-activation-approve-decision" /tmp/sage-router-readiness-body; then
-    status_code="200:missing-status-activation-approve-decision"
+  if [[ "$status_code" == "200" ]] && ! grep -q "status-activation-decision-private-boundary" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-activation-private-decision-boundary"
   fi
-  if [[ "$status_code" == "200" ]] && ! grep -q "status-copy-activation-approve-decision" /tmp/sage-router-readiness-body; then
-    status_code="200:missing-status-activation-approve-decision-copy"
+  if [[ "$status_code" == "200" ]] && ! grep -q "status-open-private-activation-decision" /tmp/sage-router-readiness-body; then
+    status_code="200:missing-status-private-activation-decision-link"
   fi
-  if [[ "$status_code" == "200" ]] && ! grep -q "status-activation-hold-decision" /tmp/sage-router-readiness-body; then
-    status_code="200:missing-status-activation-hold-decision"
+  if [[ "$status_code" == "200" ]] && grep -q "status-copy-activation-approve-decision" /tmp/sage-router-readiness-body; then
+    status_code="200:public-status-activation-approve-copy-present"
   fi
-  if [[ "$status_code" == "200" ]] && ! grep -q "status-copy-activation-hold-decision" /tmp/sage-router-readiness-body; then
-    status_code="200:missing-status-activation-hold-decision-copy"
+  if [[ "$status_code" == "200" ]] && grep -q "status-copy-activation-hold-decision" /tmp/sage-router-readiness-body; then
+    status_code="200:public-status-activation-hold-copy-present"
   fi
   rm -f /tmp/sage-router-readiness-body
 
@@ -1524,14 +1524,14 @@ check_hosted_onboarding_pages() {
   if [[ "$status_js_code" == "200" ]] && ! grep -q "updateStatusActivationApprovalDecisionLines" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-activation-decision-live-render"
   fi
-  if [[ "$status_js_code" == "200" ]] && ! grep -q "operator_execution_packet_copied" /tmp/sage-router-readiness-body; then
-    status_js_code="200:missing-status-activation-decision-funnel"
+  if [[ "$status_js_code" == "200" ]] && ! grep -q "Public /pricing metadata cannot verify whether the last approval packet covers the live sendable queue" /tmp/sage-router-readiness-body; then
+    status_js_code="200:missing-status-private-decision-boundary-copy"
   fi
-  if [[ "$status_js_code" == "200" ]] && ! grep -q "activation-approval-approve-decision" /tmp/sage-router-readiness-body; then
-    status_js_code="200:missing-status-activation-approve-decision-snippet"
+  if [[ "$status_js_code" == "200" ]] && grep -q "activation-approval-approve-decision" /tmp/sage-router-readiness-body; then
+    status_js_code="200:public-status-activation-approve-decision-snippet-present"
   fi
-  if [[ "$status_js_code" == "200" ]] && ! grep -q "activation-approval-hold-decision" /tmp/sage-router-readiness-body; then
-    status_js_code="200:missing-status-activation-hold-decision-snippet"
+  if [[ "$status_js_code" == "200" ]] && grep -q "activation-approval-hold-decision" /tmp/sage-router-readiness-body; then
+    status_js_code="200:public-status-activation-hold-decision-snippet-present"
   fi
   if [[ "$status_js_code" == "200" ]] && ! grep -q "status_managed_provider_authorization_review_copied" /tmp/sage-router-readiness-body; then
     status_js_code="200:missing-status-managed-authorization-review-record-funnel"
