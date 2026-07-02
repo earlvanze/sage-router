@@ -25,14 +25,17 @@ scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricin
 
 Current launch state:
 
-- Managed access enabled/requested/ready: `false / false / false`
+- Managed access enabled/requested/ready: `false / true / false`
 - Missing controls: `provider_terms_acknowledgment`,
   `provider_authorization_evidence`, `provider_cost_model`,
   `positive_unit_economics`
 - Allowed managed families: `ollama`, `openai`, `anthropic`
+- Resale-eligible families: `ollama`, `openai`, `anthropic`
 - BYOK-only families excluded from managed resale: `openrouter`,
   `byok-compatible`
 - One-subscription ready families: `none`
+- One-subscription blocked families: `ollama`, `openai`, `anthropic`,
+  `openrouter`, `byok-compatible`
 - Binding public plan: `max`
 - Minimum gross-margin floor: `35%`
 

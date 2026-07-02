@@ -9,6 +9,22 @@ resale, pooled provider accounts, or unauthorized provider access.
 
 Target: `$10,000 MRR` from hosted Sage Router subscriptions.
 
+Current verified snapshot from the hosted launch funnel:
+
+- Estimated MRR: `$60 / $10,000` target (`0.6%`).
+- Paid customers: `2`.
+- Generated-key customers: `1`.
+- First routed request customers: `1`.
+- Setup snippet copies: `2`.
+- Founder-sales outreach copies: `0`.
+- Managed-access packet copies: `0`.
+
+Near-term revenue priority: convert active generated-key and first-request
+users into Pro buyers with the frontier profile, analytics, and live failover
+proof before claiming bundled managed-provider access. One-subscription demand
+should route to managed-access review until provider authorization, terms,
+private cost model, and positive unit economics are approved.
+
 Current public plan ladder:
 
 | Plan | Price | Included requests | Rate limit | Best fit |
@@ -29,6 +45,12 @@ Straight-line paths:
 Recommended launch target: the mixed path. It proves low-friction signup, a
 serious Pro workflow, and a high-volume Max segment without depending on a
 single buyer type.
+
+Current gap to the mixed path:
+
+- Lite pilot: `100` Lite customers, `$600` remaining MRR.
+- Pro conversion: `198` Pro customers, `$5,940` remaining MRR.
+- Max review: `50` Max customers, `$3,600` remaining MRR.
 
 ## Conversion funnel
 
