@@ -919,6 +919,7 @@
     let quickFormPresented = false;
     let firstScreenChoicePresented = false;
     let stickyHandoffPresented = false;
+    const managedAccessContactHandoffSnippets = new Set();
     let managedAccessUserInteracted = false;
     let managedAccessIdleFocusTimer = null;
     function hasExplicitContactCaptureRoute() {
@@ -940,6 +941,7 @@
       quickForm?.classList.add('contactCaptureLanding');
       document.getElementById('managed-access-contact-capture-notice')?.removeAttribute('hidden');
       showManagedAccessIntentHandoff(state, '#managed-access-quick-form');
+      recordManagedAccessContactHandoff(state, '#managed-access-quick-form', 'managed-access-contact-capture-direct-handoff');
       showStickyContactHandoff(state, 'managed-access-contact-capture-landing-handoff');
       trackManagedAccessFunnelEvent('managed_access_contact_capture_landed', { state, target });
     }
@@ -1004,20 +1006,23 @@
       document.body.classList.add('managedAccessHandoffVisible');
       if (stickyHandoffPresented) return;
       stickyHandoffPresented = true;
-      trackManagedAccessFunnelEvent('managed_access_contact_handoff_prompted', {
-        state,
-        target: '#managed-access-sticky-handoff',
-        snippet,
-      });
+      recordManagedAccessContactHandoff(state, '#managed-access-sticky-handoff', snippet);
     }
 
     function markFirstScreenContactChoicePresented(state = quickReviewIntent()) {
       if (!firstScreenContactChoice || firstScreenChoicePresented) return;
       firstScreenChoicePresented = true;
+      recordManagedAccessContactHandoff(state, '#managed-access-first-screen-contact-choice', 'managed-access-first-screen-contact-choice');
+    }
+
+    function recordManagedAccessContactHandoff(state = quickReviewIntent(), target = '#managed-access-quick-form', snippet = 'managed-access-contact-handoff') {
+      const dedupeKey = `${target}:${snippet}`;
+      if (managedAccessContactHandoffSnippets.has(dedupeKey)) return;
+      managedAccessContactHandoffSnippets.add(dedupeKey);
       trackManagedAccessFunnelEvent('managed_access_contact_handoff_prompted', {
         state,
-        target: '#managed-access-first-screen-contact-choice',
-        snippet: 'managed-access-first-screen-contact-choice',
+        target,
+        snippet,
       });
     }
 
