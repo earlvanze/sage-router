@@ -175,7 +175,10 @@ http_code_to_file() {
 
 pages_warmup_hash() {
   local path="$1"
-  sed -E 's#href="(mailto:[^"]+|/cdn-cgi/l/email-protection#[^"]+)"#href="EMAIL_PROTECTED"#g' "$path" | sha256sum | awk '{print $1}'
+  sed -E \
+    -e 's@href="mailto:[^"]+"@href="EMAIL_PROTECTED"@g' \
+    -e 's@href="/cdn-cgi/l/email-protection#[^"]+"@href="EMAIL_PROTECTED"@g' \
+    "$path" | sha256sum | awk '{print $1}'
 }
 
 wait_for_pages_alias_after_deploy() {
