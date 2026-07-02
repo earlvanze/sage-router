@@ -622,6 +622,124 @@ class ToolCallLeakTests(unittest.TestCase):
         self.assertEqual('tool_calls', response['choices'][0]['finish_reason'])
         self.assertIn('tool_calls', message)
 
+    def test_agent_final_output_guard_disables_more_tools_after_threshold(self):
+        old_threshold = router.AGENT_FINAL_OUTPUT_TOOL_CALL_THRESHOLD
+        router.AGENT_FINAL_OUTPUT_TOOL_CALL_THRESHOLD = 2
+        try:
+            payload = {
+                'model': 'sage-router/frontier',
+                'tools': [{'type': 'function', 'function': {'name': 'lookup'}}],
+                'messages': [
+                    {
+                        'role': 'assistant',
+                        'tool_calls': [{
+                            'id': 'call_1',
+                            'type': 'function',
+                            'function': {'name': 'lookup', 'arguments': '{}'},
+                        }],
+                    },
+                    {'role': 'tool', 'tool_call_id': 'call_1', 'content': 'one'},
+                    {
+                        'role': 'assistant',
+                        'tool_calls': [{
+                            'id': 'call_2',
+                            'type': 'function',
+                            'function': {'name': 'lookup', 'arguments': '{}'},
+                        }],
+                    },
+                    {'role': 'tool', 'tool_call_id': 'call_2', 'content': 'two'},
+                    {'role': 'user', 'content': 'finish'},
+                ],
+            }
+
+            guarded, info = router.apply_agent_final_output_guard(payload)
+        finally:
+            router.AGENT_FINAL_OUTPUT_TOOL_CALL_THRESHOLD = old_threshold
+
+        self.assertEqual({'toolDepth': 2, 'threshold': 2}, info)
+        self.assertNotIn('tools', guarded)
+        self.assertNotIn('tool_choice', guarded)
+        self.assertFalse(guarded['parallel_tool_calls'])
+        self.assertEqual('system', guarded['messages'][0]['role'])
+        self.assertIn('Produce a final assistant response now', guarded['messages'][0]['content'])
+
+    def test_agent_final_output_guard_rewrites_tool_only_completion_to_final_text(self):
+        result = router.build_openai_completion(
+            'ollama-2',
+            'kimi-k2.5',
+            'req-final-guard',
+            '',
+            [{
+                'id': 'call_3',
+                'type': 'function',
+                'function': {'name': 'lookup', 'arguments': '{}'},
+            }],
+            'tool_calls',
+        )
+
+        rewritten = router.ensure_agent_final_output_completion(
+            result,
+            'req-final-guard',
+            'sage-router/frontier',
+            {'toolDepth': 64, 'threshold': 64},
+        )
+
+        choice = rewritten['choices'][0]
+        self.assertEqual('sage-router/frontier', rewritten['model'])
+        self.assertEqual('stop', choice['finish_reason'])
+        self.assertIn('tool-call budget', choice['message']['content'])
+        self.assertNotIn('tool_calls', choice['message'])
+
+    def test_agent_final_output_guard_preserves_final_text_and_drops_extra_tool_call(self):
+        result = {
+            'id': 'chatcmpl-1',
+            'object': 'chat.completion',
+            'created': 1,
+            'model': 'sage-router/frontier',
+            'choices': [{
+                'index': 0,
+                'message': {
+                    'role': 'assistant',
+                    'content': 'Final summary from tool results.',
+                    'tool_calls': [{
+                        'id': 'call_4',
+                        'type': 'function',
+                        'function': {'name': 'lookup', 'arguments': '{}'},
+                    }],
+                },
+                'finish_reason': 'tool_calls',
+            }],
+        }
+
+        rewritten = router.ensure_agent_final_output_completion(
+            result,
+            'req-final-text',
+            'sage-router/frontier',
+            {'toolDepth': 64, 'threshold': 64},
+        )
+
+        choice = rewritten['choices'][0]
+        self.assertEqual('Final summary from tool results.', choice['message']['content'])
+        self.assertEqual('stop', choice['finish_reason'])
+        self.assertNotIn('tool_calls', choice['message'])
+
+    def test_agent_final_output_fallback_converts_to_responses_output_text(self):
+        completion = router.build_agent_final_output_fallback_completion(
+            'req-responses-final-guard',
+            'sage-router/frontier',
+            {'toolDepth': 64, 'threshold': 64},
+        )
+
+        response = router.openai_chat_completion_to_responses(
+            completion,
+            {'model': 'sage-router/frontier'},
+            'req-responses-final-guard',
+        )
+
+        self.assertIn('tool-call budget', response['output_text'])
+        self.assertEqual('message', response['output'][0]['type'])
+        self.assertIn('tool-call budget', response['output'][0]['content'][0]['text'])
+
     def test_detects_codex_inline_tool_leaks(self):
         noisy = '''I’ll pull the records.
 {"cmd":"cd /data/.openclaw/workspace-discord-public && find EARLCoin -maxdepth 4 -type f", "yieldMs":1000}

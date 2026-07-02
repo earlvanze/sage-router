@@ -189,6 +189,7 @@ FAILURE_COOLDOWN_BASE_SECONDS = int(os.environ.get('SAGE_ROUTER_FAILURE_COOLDOWN
 CONSECUTIVE_FAILURE_COOLDOWN_THRESHOLD = int(os.environ.get('SAGE_ROUTER_CONSECUTIVE_FAILURE_COOLDOWN_THRESHOLD', '2'))
 MODEL_MISSING_COOLDOWN_SECONDS = int(os.environ.get('SAGE_ROUTER_MODEL_MISSING_COOLDOWN_SECONDS', '1800'))
 EMPTY_OUTPUT_COOLDOWN_SECONDS = int(os.environ.get('SAGE_ROUTER_EMPTY_OUTPUT_COOLDOWN_SECONDS', '600'))
+AGENT_FINAL_OUTPUT_TOOL_CALL_THRESHOLD = max(0, int(os.environ.get('SAGE_ROUTER_AGENT_FINAL_OUTPUT_TOOL_CALL_THRESHOLD', '64') or '0'))
 PROVIDER_HEALTH_CACHE = {}
 LATENCY_STATS_PATH = os.path.expanduser(os.environ.get('SAGE_ROUTER_LATENCY_STATS_PATH', '~/.cache/sage-router/latency-stats.json'))
 ROUTE_EVENTS_PATH = os.path.expanduser(os.environ.get('SAGE_ROUTER_ROUTE_EVENTS_PATH', '~/.cache/sage-router/route-events.jsonl'))
@@ -5096,6 +5097,163 @@ def openai_completion_has_visible_output(result):
     has_text = bool(str(content or '').strip())
     has_tools = bool(message.get('tool_calls'))
     return has_text or has_tools
+
+
+def openai_completion_visible_text(result):
+    if not isinstance(result, dict):
+        return ''
+    choices = result.get('choices') or []
+    if not choices:
+        return ''
+    message = (choices[0] or {}).get('message') or {}
+    return sanitize_visible_output(message.get('content') or '')
+
+
+def openai_completion_tool_calls(result):
+    if not isinstance(result, dict):
+        return []
+    choices = result.get('choices') or []
+    if not choices:
+        return []
+    message = (choices[0] or {}).get('message') or {}
+    return message.get('tool_calls') or []
+
+
+def structured_tool_loop_depth(messages):
+    """Count prior tool executions without double-counting call/result pairs."""
+    function_calls = 0
+    tool_results = 0
+    for msg in messages or []:
+        if not isinstance(msg, dict):
+            continue
+        if msg.get('role') == 'tool':
+            tool_results += 1
+        if msg.get('type') == 'function_call_output':
+            tool_results += 1
+        if msg.get('type') == 'function_call':
+            function_calls += 1
+        tool_calls = msg.get('tool_calls')
+        if isinstance(tool_calls, list):
+            function_calls += len(tool_calls)
+    return max(function_calls, tool_results)
+
+
+def agent_final_output_guard_instruction(tool_depth, threshold):
+    return (
+        'Sage Router/OpenClaw final-output guard is active.\n'
+        f'The conversation already contains {tool_depth} structured tool execution(s), '
+        f'which meets or exceeds the configured budget of {threshold}.\n'
+        'Produce a final assistant response now using the available tool results. '
+        'Do not request, describe, or emit additional tool calls. If the available '
+        'tool results are insufficient, state exactly what is still missing and stop.'
+    )
+
+
+def apply_agent_final_output_guard(payload):
+    if not isinstance(payload, dict):
+        return payload, None
+    threshold = int(AGENT_FINAL_OUTPUT_TOOL_CALL_THRESHOLD or 0)
+    if threshold <= 0:
+        return payload, None
+    if not payload.get('tools'):
+        return payload, None
+    messages = payload.get('messages')
+    if not isinstance(messages, list):
+        return payload, None
+    tool_depth = structured_tool_loop_depth(messages)
+    if tool_depth < threshold:
+        return payload, None
+    guarded = dict(payload)
+    guarded['messages'] = [
+        {'role': 'system', 'content': agent_final_output_guard_instruction(tool_depth, threshold)},
+        *list(messages),
+    ]
+    guarded.pop('tools', None)
+    guarded.pop('tool_choice', None)
+    guarded['parallel_tool_calls'] = False
+    requirements = guarded.get('requirements') if isinstance(guarded.get('requirements'), dict) else {}
+    requirements = dict(requirements)
+    requirements['suppressToolCallContent'] = True
+    guarded['requirements'] = requirements
+    metadata = guarded.get('metadata') if isinstance(guarded.get('metadata'), dict) else {}
+    metadata = dict(metadata)
+    metadata['sageRouterFinalOutputGuard'] = {
+        'toolDepth': tool_depth,
+        'threshold': threshold,
+    }
+    guarded['metadata'] = metadata
+    return guarded, metadata['sageRouterFinalOutputGuard']
+
+
+AGENT_FINAL_OUTPUT_FALLBACK_TEXT = (
+    'I reached the configured Sage Router/OpenClaw tool-call budget before the upstream model produced a final assistant answer. '
+    'I stopped requesting more tools so this session can finish. Continue with a narrower prompt if more execution is required.'
+)
+
+
+def build_agent_final_output_fallback_completion(request_id, model, guard_info=None):
+    created = int(time.time())
+    model_id = str(model or 'sage-router/auto')
+    return {
+        'id': f'chatcmpl-{created}',
+        'object': 'chat.completion',
+        'created': created,
+        'model': model_id,
+        'choices': [{
+            'index': 0,
+            'message': {'role': 'assistant', 'content': AGENT_FINAL_OUTPUT_FALLBACK_TEXT},
+            'finish_reason': 'stop',
+        }],
+        'usage': {'prompt_tokens': 0, 'completion_tokens': 0},
+        'sage_router': {
+            'finalOutputGuard': guard_info or {},
+            'request_id': request_id,
+            'fallback': 'tool_loop_exhausted_without_final_text',
+        },
+    }
+
+
+def ensure_agent_final_output_completion(result, request_id, model, guard_info=None):
+    if not guard_info:
+        return result
+    if not isinstance(result, dict):
+        return build_agent_final_output_fallback_completion(request_id, model, guard_info)
+    text = openai_completion_visible_text(result)
+    tool_calls = openai_completion_tool_calls(result)
+    if text and not tool_calls:
+        return result
+    if text and tool_calls:
+        updated = dict(result)
+        choices = list(updated.get('choices') or [])
+        if choices:
+            choice = dict(choices[0] or {})
+            message = dict(choice.get('message') or {})
+            message['content'] = text
+            message.pop('tool_calls', None)
+            choice['message'] = message
+            choice['finish_reason'] = 'stop'
+            choices[0] = choice
+            updated['choices'] = choices
+            return updated
+    return build_agent_final_output_fallback_completion(request_id, model, guard_info)
+
+
+def agent_final_output_attempts_allow_fallback(attempts):
+    if not attempts:
+        return False
+    soft_fragments = (
+        'empty visible content',
+        'empty codex response',
+        'empty content',
+        'returned empty',
+        'thinking-only output',
+        'provider leaked tool call',
+    )
+    for attempt in attempts:
+        detail = str((attempt or {}).get('detail') or '').lower()
+        if not detail or not any(fragment in detail for fragment in soft_fragments):
+            return False
+    return True
 
 
 def is_sage_router_fusion_request(payload):
@@ -17057,6 +17215,14 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
     if requirements.get('document') and not requirements.get('vision'):
         provider_payload = dict(payload)
         provider_payload['messages'] = enrich_document_messages(payload.get('messages', []))
+    provider_payload, final_output_guard = apply_agent_final_output_guard(provider_payload)
+    if final_output_guard:
+        LAST_ROUTE_DEBUG['finalOutputGuard'] = final_output_guard
+        logger.warning(
+            f"[{request_id}] Sage Router final-output guard active after "
+            f"{final_output_guard.get('toolDepth')} structured tool execution(s); "
+            "requesting final assistant text without more tools"
+        )
 
     attempts = []
     overall_started = time.time()
@@ -17156,6 +17322,16 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
             logger.warning(f"[{request_id}] Streaming/advanced call failed for {pn}/{model}: {error_detail}")
             ok = False
 
+        if ok and not want_stream and final_output_guard:
+            fallback_model = client_visible_model or original_requested_model or (
+                result.get('model') if isinstance(result, dict) else ''
+            ) or 'sage-router/auto'
+            result = ensure_agent_final_output_completion(
+                result,
+                request_id,
+                fallback_model,
+                final_output_guard,
+            )
         if ok and not want_stream and not openai_completion_has_visible_output(result):
             ok = False
             error_detail = 'empty visible content'
@@ -17184,6 +17360,23 @@ def handle_openai_chat_completions(self, payload, request_id, started, force_rea
         logger.warning(f"[{request_id}] Failed {pn}/{model} after {elapsed:.2f}s")
 
     total_elapsed = time.time() - overall_started
+    if final_output_guard and agent_final_output_attempts_allow_fallback(attempts):
+        result = build_agent_final_output_fallback_completion(
+            request_id,
+            client_visible_model or original_requested_model or 'sage-router/auto',
+            final_output_guard,
+        )
+        LAST_ROUTE_DEBUG.update({'selected': None, 'attempts': attempts[-12:], 'status': 'ok', 'error': None, 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'finalOutputGuard': final_output_guard})
+        append_route_event({'request_id': request_id, 'status': 'ok', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': bool(want_stream), 'requirements': requirements, 'selected': None, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]], 'finalOutputGuard': final_output_guard})
+        logger.warning(f"[{request_id}] Final-output guard returned fallback after empty/tool-only provider results")
+        headers = self.routing_headers(result, request_id)
+        if return_result:
+            return 200, result, headers
+        if client_wants_stream:
+            write_openai_completion_as_sse(self, result, request_id)
+            return
+        self.write_json(200, result, extra_headers=headers)
+        return
     LAST_ROUTE_DEBUG.update({'selected': None, 'attempts': attempts[-12:], 'status': 'failed', 'error': 'All providers failed', 'totalElapsedMs': round(total_elapsed * 1000.0, 2)})
     append_route_event({'request_id': request_id, 'status': 'failed', 'intent': intent.name, 'complexity': complexity.name, 'thinking': thinking.value, 'routeMode': route_mode, 'estimatedTokens': estimated_tokens, 'json': want_json, 'stream': bool(want_stream), 'requirements': requirements, 'selected': None, 'attempts': attempts[-12:], 'totalElapsedMs': round(total_elapsed * 1000.0, 2), 'chain': [{'provider': cp, 'model': cm} for cp, cm in chain[:MAX_PROVIDER_ATTEMPTS]], 'error': 'All providers failed'})
     failure = {'error': 'All providers failed', 'request_id': request_id, 'attempts': attempts, 'choices': [{'message': {'content': 'Error: No providers available'}}]}

@@ -54,6 +54,15 @@ pip install -r requirements.txt  # if any
 python3 router.py --port 8790
 ```
 
+### OpenClaw/Codex Tool-Loop Guard
+
+Sage Router protects long OpenClaw and Codex tool-call loops from ending with no
+assistant text. After `SAGE_ROUTER_AGENT_FINAL_OUTPUT_TOOL_CALL_THRESHOLD`
+prior structured tool executions, default `64`, the next routed request asks
+the model for final assistant text, withholds additional tool definitions for
+that request, and returns a bounded final fallback if the upstream still emits
+only empty/tool-call output. Set the threshold to `0` to disable the guard.
+
 ### Umbrel (Home Server)
 
 Install from the [Umbrel App Store](https://github.com/getumbrel/umbrel-apps/pull/5720) or add the personal repo:
