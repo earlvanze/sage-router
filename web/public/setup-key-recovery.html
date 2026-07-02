@@ -47,7 +47,7 @@
         <p class="eyebrow">Setup-key recovery</p>
         <h1>Finish the generated API key for your signup.</h1>
         <p class="lead">If Sage Router returned a 401 or you signed up without an <code>sk_sage_*</code> key, use the same email or GitHub identity, create the generated setup key, then verify <code>/v1/models</code> before wiring Codex or another agent.</p>
-        <form class="emailStart" id="setup-key-recovery-email-form">
+        <form class="emailStart" id="setup-key-recovery-email-form" novalidate>
           <label for="setup-key-recovery-email">Email yourself the same-email setup link</label>
           <input id="setup-key-recovery-email" type="email" name="email" autocomplete="email" inputmode="email" placeholder="you@company.com" required />
           <button id="setup-key-recovery-email-submit" class="button primary" type="submit">Email setup key link</button>
@@ -453,6 +453,10 @@ curl -i "$OPENAI_BASE_URL/models" \
       }
     });
 
+    function isValidSetupRecoveryEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
+    }
+
     document.getElementById('setup-key-recovery-email-form')?.addEventListener('submit', async (event) => {
       event.preventDefault();
       markSetupRecoveryUserInteraction('email-setup-key-link');
@@ -462,8 +466,13 @@ curl -i "$OPENAI_BASE_URL/models" \
       const status = document.getElementById('setup-key-recovery-email-status');
       const email = String(input?.value || '').trim();
       const targetUrl = setupRecoveryAccountUrl();
-      if (!email) {
-        status.textContent = 'Enter the email used for signup.';
+      if (!isValidSetupRecoveryEmail(email)) {
+        status.textContent = 'Enter a valid signup email, or open account setup if you are already signed in.';
+        trackSetupRecoveryEvent('setup_key_recovery_email_validation_failed', {
+          button: 'email-setup-key-link',
+          state: 'invalid-email',
+          target: targetUrl,
+        });
         input?.focus();
         return;
       }
