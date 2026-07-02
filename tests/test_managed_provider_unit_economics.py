@@ -13,6 +13,7 @@ CONFIGURE_SCRIPT = ROOT / 'scripts' / 'configure_managed_provider_resale_readine
 OUTREACH_DOC = ROOT / 'docs' / 'launch' / 'execution' / 'provider-authorization-outreach.md'
 PRICING_REVIEW_DOC = ROOT / 'docs' / 'launch' / 'execution' / 'one-subscription-pricing-review.md'
 TERMS_REVIEW_DOC = ROOT / 'docs' / 'launch' / 'execution' / 'provider-terms-approval-review.md'
+SAAS_LAUNCH_DOC = ROOT / 'docs' / 'saas-launch-10k-mrr.md'
 
 
 class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
@@ -220,6 +221,9 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertIn('scripts/configure_managed_provider_resale_readiness.sh --one-subscription-pricing-packet', pricing_review)
         self.assertIn('scripts/configure_managed_provider_resale_readiness.sh --private-cost-model-template', pricing_review)
         self.assertIn('scripts/configure_managed_provider_resale_readiness.sh --provider-reply-triage-packet', pricing_review)
+        self.assertIn('Managed access enabled/requested/ready: `false / true / false`', pricing_review)
+        self.assertIn('Resale-eligible families: `ollama`, `openai`, `anthropic`', pricing_review)
+        self.assertIn('One-subscription blocked families: `ollama`, `openai`, `anthropic`,', pricing_review)
         self.assertIn('Binding public plan: `max`', pricing_review)
         self.assertIn('| Max | `$72/mo` | `200,000` | `36.0c` | `23.4c` | `1` |', pricing_review)
         self.assertIn('Public Managed-Access Offer Ladder', pricing_review)
@@ -242,6 +246,16 @@ class ManagedProviderUnitEconomicsCliTests(unittest.TestCase):
         self.assertIn('publicEnableApproved: false', terms_review)
         self.assertIn('containsActualProviderCosts=false', terms_review)
         self.assertIn('containsAuthorizationReference=false', terms_review)
+
+        launch_doc = SAAS_LAUNCH_DOC.read_text(encoding='utf-8')
+        self.assertIn('Current verified snapshot from the hosted launch funnel:', launch_doc)
+        self.assertIn('Estimated MRR: `$60 / $10,000` target (`0.6%`)', launch_doc)
+        self.assertIn('Paid customers: `2`', launch_doc)
+        self.assertIn('Generated-key customers: `1`', launch_doc)
+        self.assertIn('First routed request customers: `1`', launch_doc)
+        self.assertIn('One-subscription demand', launch_doc)
+        self.assertIn('should route to managed-access review until provider authorization', launch_doc)
+        self.assertIn('Pro conversion: `198` Pro customers, `$5,940` remaining MRR', launch_doc)
 
     def test_configure_helper_one_subscription_pricing_packet_is_public_threshold_only(self):
         script = CONFIGURE_SCRIPT.read_text(encoding='utf-8')
