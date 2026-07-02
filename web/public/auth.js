@@ -13,6 +13,8 @@ const KEY_RECOVERY_ACCOUNT_HANDOFF_DELAY_MS = 1000;
 let keyRecoverySessionRedirecting = false;
 let keyRecoveryAccountHandoffScheduled = false;
 let keyRecoveryUserInteracted = false;
+let keyRecoveryIdentityChoiceShown = false;
+let latestOauthExternalState = {};
 
 function setKeyRecoveryHandoffStatus(text) {
   set('login-key-recovery-handoff-status', text);
@@ -265,6 +267,25 @@ function trackLoginKeyRecoveryAuthEvent(event, data = {}) {
     ...data,
   });
 }
+
+function markKeyRecoveryIdentityChoiceShown() {
+  if (!isKeyRecoveryLanding() || keyRecoveryIdentityChoiceShown) return;
+  keyRecoveryIdentityChoiceShown = true;
+  trackLoginFunnelEvent('login_key_recovery_identity_choice_shown', {
+    button: 'identity_choice_panel',
+    target: '#login-key-recovery-identity-choice',
+    state: keyRecoveryLandingState(),
+  });
+}
+
+function trackKeyRecoveryIdentityChoice(button, target, state) {
+  if (!isKeyRecoveryLanding()) return;
+  trackLoginFunnelEvent('login_key_recovery_identity_choice_clicked', {
+    button,
+    target,
+    state,
+  });
+}
 async function writeLoginClipboardText(text) {
   if (navigator.clipboard?.writeText && window.isSecureContext) {
     await navigator.clipboard.writeText(text);
@@ -333,6 +354,7 @@ async function applyAuthSettings() {
       return;
     }
     const external = (await res.json()).external || {};
+    latestOauthExternalState = external;
     applyOauthButtons(external);
     trackAuthProviderState(external, 'loaded');
   } catch (_error) {
@@ -342,6 +364,7 @@ async function applyAuthSettings() {
 }
 function applyKeyRecoveryLandingMode() {
   if (!isKeyRecoveryLanding()) return;
+  markKeyRecoveryIdentityChoiceShown();
   activateSameEmailKeyRecovery(keyRecoveryLandingState());
 }
 function activateSameEmailKeyRecovery(state = keyRecoveryLandingState(), options = {}) {
@@ -458,6 +481,21 @@ document.querySelectorAll('[data-key-recovery]').forEach((link) => link.addEvent
 $('login-key-recovery-email-focus')?.addEventListener('click', () => {
   markKeyRecoveryUserInteraction();
   activateSameEmailKeyRecovery('manual_same_email_focus');
+});
+$('login-key-recovery-identity-email')?.addEventListener('click', () => {
+  markKeyRecoveryUserInteraction();
+  trackKeyRecoveryIdentityChoice('identity_choice_same_email', '#login-key-recovery-email-form', 'same_email');
+  activateSameEmailKeyRecovery('identity_choice_same_email');
+});
+$('login-key-recovery-identity-github')?.addEventListener('click', async () => {
+  markKeyRecoveryUserInteraction();
+  trackKeyRecoveryIdentityChoice('identity_choice_same_github', '/auth/v1/authorize', 'github');
+  if (latestOauthExternalState.github === false) {
+    set('auth-status', 'GitHub sign-in is pending owner setup. Use same-email setup instead.');
+    activateSameEmailKeyRecovery('identity_choice_github_unavailable', { focus: false });
+    return;
+  }
+  await oauthLogin('github');
 });
 $('login-key-recovery-email-form')?.addEventListener('submit', async (event) => {
   event.preventDefault();

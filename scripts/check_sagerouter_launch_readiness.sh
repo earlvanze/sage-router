@@ -1077,6 +1077,18 @@ check_hosted_onboarding_pages() {
   if [[ "$login_code" == "200" ]] && ! grep -q "login-key-recovery-primary-handoff" /tmp/sage-router-readiness-body; then
     login_code="200:missing-login-key-recovery-primary-handoff"
   fi
+  if [[ "$login_code" == "200" ]] && ! grep -q "login-key-recovery-identity-choice" /tmp/sage-router-readiness-body; then
+    login_code="200:missing-login-key-recovery-identity-choice"
+  fi
+  if [[ "$login_code" == "200" ]] && ! grep -q "login-key-recovery-identity-email" /tmp/sage-router-readiness-body; then
+    login_code="200:missing-login-key-recovery-identity-email"
+  fi
+  if [[ "$login_code" == "200" ]] && ! grep -q "login-key-recovery-identity-github" /tmp/sage-router-readiness-body; then
+    login_code="200:missing-login-key-recovery-identity-github"
+  fi
+  if [[ "$login_code" == "200" ]] && ! grep -q "identity_choice_account_setup" /tmp/sage-router-readiness-body; then
+    login_code="200:missing-login-key-recovery-identity-account"
+  fi
   if [[ "$login_code" == "200" ]] && ! grep -q "primary_account_setup_handoff" /tmp/sage-router-readiness-body; then
     login_code="200:missing-login-key-recovery-primary-handoff-telemetry"
   fi
@@ -1873,6 +1885,8 @@ check_funnel_event_endpoint() {
     ((.allowedEvents // []) | index("login_key_recovery_account_setup_auto_redirected") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_account_setup_paused") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_clicked") != null) and
+    ((.allowedEvents // []) | index("login_key_recovery_identity_choice_shown") != null) and
+    ((.allowedEvents // []) | index("login_key_recovery_identity_choice_clicked") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_magic_link_requested") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_magic_link_sent") != null) and
     ((.allowedEvents // []) | index("login_key_recovery_password_submitted") != null) and

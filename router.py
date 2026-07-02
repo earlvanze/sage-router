@@ -7568,6 +7568,8 @@ KEY_RECOVERY_VIEW_EVENTS = {
     'login_key_recovery_account_setup_auto_redirected',
     'login_key_recovery_clicked',
     'login_key_recovery_same_account_prompted',
+    'login_key_recovery_identity_choice_shown',
+    'login_key_recovery_identity_choice_clicked',
     'login_key_recovery_session_redirected',
     'billing_account_clicked',
     'api_reference_key_recovery_clicked',

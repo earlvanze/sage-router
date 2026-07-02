@@ -215,6 +215,8 @@ const ALLOWED_EVENTS = new Set([
   'login_key_recovery_clicked',
   'login_key_recovery_account_setup_clicked',
   'login_key_recovery_same_account_prompted',
+  'login_key_recovery_identity_choice_shown',
+  'login_key_recovery_identity_choice_clicked',
   'login_key_recovery_session_redirected',
   'login_key_recovery_magic_link_requested',
   'login_key_recovery_magic_link_sent',
