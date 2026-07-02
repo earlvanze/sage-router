@@ -852,6 +852,8 @@ class HostedOnboardingTests(unittest.TestCase):
         self.assertIn("Already signed up but no", landing)
         self.assertIn("Finish setup key", landing)
         self.assertIn("landing_key_recovery_clicked", landing)
+        self.assertIn("/setup-key-recovery?utm_source=landing&utm_medium=recovery&utm_campaign=signup_to_key_recovery&source_surface=landing", landing)
+        self.assertNotIn("https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=landing", landing)
         self.assertIn("signup_to_key_recovery", landing)
         self.assertIn("landing-returning-user", landing)
         self.assertIn("function StickyActivationBar", landing)

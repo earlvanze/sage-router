@@ -188,7 +188,7 @@ const ACCOUNT_PAGE_HREF = ACCOUNT_PAGE_URL;
 const LANDING_SETUP_ACCOUNT_URL = `${ACCOUNT_PAGE_URL}&setup=landing-full-setup-bundle&source_surface=landing`;
 const HERO_SETUP_ACCOUNT_URL = `${ACCOUNT_PAGE_URL}&setup=landing-hero-setup-bundle&source_surface=landing`;
 const STICKY_SETUP_ACCOUNT_URL = `${ACCOUNT_PAGE_URL}&setup=landing-sticky-setup-bundle&source_surface=landing`;
-const LANDING_KEY_RECOVERY_URL = 'https://app.sagerouter.dev/login.html?plan=pro&start=create_key&utm_source=landing&utm_medium=recovery&utm_campaign=signup_to_key_recovery&auth=email';
+const LANDING_KEY_RECOVERY_URL = '/setup-key-recovery?utm_source=landing&utm_medium=recovery&utm_campaign=signup_to_key_recovery&source_surface=landing';
 const MANAGED_ONE_SUBSCRIPTION_URL = '/managed-access?intent=one-subscription&utm_source=landing&utm_medium=managed_access&utm_campaign=sage-router-launch&utm_content=one-subscription-review#managed-access-quick-form';
 const MANAGED_MAX_IMPLEMENTATION_URL = '/managed-access?intent=max-implementation&utm_source=landing&utm_medium=managed_access&utm_campaign=sage-router-launch&utm_content=max-implementation-review#managed-access-quick-form';
 const MANAGED_ACCESS_REVIEW_EMAIL = 'support@sagerouter.dev';

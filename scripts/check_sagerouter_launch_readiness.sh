@@ -2090,6 +2090,9 @@ check_marketing_homepage_activation() {
   if [[ "$page_code" == "200" ]] && ! grep -q "source_surface=landing" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-setup-source-surface"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "/setup-key-recovery?utm_source=landing&utm_medium=recovery&utm_campaign=signup_to_key_recovery&source_surface=landing" "$homepage_body" "$bundle_body"; then
+    page_code="200:missing-homepage-setup-key-recovery-handoff"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "Create API key next" "$homepage_body" "$bundle_body"; then
     page_code="200:missing-homepage-post-copy-account-cta"
   fi
