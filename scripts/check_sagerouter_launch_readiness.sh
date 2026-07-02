@@ -4296,6 +4296,15 @@ check_marketing_managed_access_page() {
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-contact-decision" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-contact-decision"
   fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-first-screen-contact-choice" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-first-screen-contact-choice"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-first-screen-choice-focus" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-first-screen-choice-focus"
+  fi
+  if [[ "$page_code" == "200" ]] && ! grep -q "snippet: 'managed-access-first-screen-contact-choice'" /tmp/sage-router-readiness-body; then
+    page_code="200:missing-managed-access-first-screen-choice-funnel"
+  fi
   if [[ "$page_code" == "200" ]] && ! grep -q "managed-access-contact-decision-focus" /tmp/sage-router-readiness-body; then
     page_code="200:missing-managed-access-contact-decision-focus"
   fi

@@ -26,7 +26,13 @@
     .heroReviewPrompt{margin-top:14px}
     .heroReviewPrompt button,.heroReviewPrompt .button{min-height:42px}
     .heroReviewPrompt .primaryAsSecondary{background:rgba(255,255,255,.04);color:var(--text);border:1px solid var(--border)}
+    .firstScreenContactChoice{max-width:1040px;margin:12px 0 0;padding:14px;border:1px solid rgba(141,240,178,.44);border-radius:8px;background:rgba(141,240,178,.09);display:grid;grid-template-columns:minmax(240px,1fr) auto;gap:12px;align-items:center}
+    .firstScreenContactChoice strong{display:block;color:var(--text);margin-bottom:4px}
+    .firstScreenContactChoice p{margin:0;color:#d2eadf}
+    .firstScreenContactChoiceActions{display:flex;flex-wrap:wrap;gap:10px}
+    .firstScreenContactChoiceActions button.secondary{background:rgba(255,255,255,.04);color:var(--text);border:1px solid var(--border)}
     @media(max-width:900px){.quickReviewPrimaryRow,.quickReviewSecondaryRow,.secondaryReviewActions{grid-template-columns:1fr}.quickReviewPrimaryRow input,.quickReviewPrimaryRow button{width:100%}}
+    @media(max-width:900px){.firstScreenContactChoice{grid-template-columns:1fr}.firstScreenContactChoiceActions{display:grid;grid-template-columns:1fr}.firstScreenContactChoiceActions button{width:100%}}
   </style>
 </head>
 <body>
@@ -70,6 +76,17 @@
         <div id="quick-turnstile-slot" class="quickTurnstileSlot" aria-label="Review request verification"></div>
         <p id="quick-review-status" class="quickReviewStatus" role="status" aria-live="polite">One field now; defaults to reviewed managed access. If verification blocks you, open the email draft. Do not send secrets.</p>
       </form>
+      <div id="managed-access-first-screen-contact-choice" class="firstScreenContactChoice">
+        <div>
+          <strong>Pick the lowest-friction review path.</strong>
+          <p>Use work email for direct follow-up, or copy/open a no-secret request if you are just sharing the one-subscription review internally.</p>
+        </div>
+        <div class="firstScreenContactChoiceActions">
+          <button id="managed-access-first-screen-focus" type="button">Add work email</button>
+          <button id="managed-access-first-screen-copy" class="secondary" type="button">Copy request</button>
+          <button id="managed-access-first-screen-email" class="secondary" type="button">Open draft</button>
+        </div>
+      </div>
       <div class="heroReviewPrompt" aria-label="Start managed-access review">
         <button id="managed-access-hero-copy-contact" class="secondary" type="button">Copy contact request</button>
         <button id="managed-access-hero-email-draft" class="secondary" type="button">Open email draft</button>
@@ -292,6 +309,10 @@
     const startReviewButton = document.getElementById('managed-access-start-review');
     const heroCopyContact = document.getElementById('managed-access-hero-copy-contact');
     const heroEmailDraft = document.getElementById('managed-access-hero-email-draft');
+    const firstScreenContactChoice = document.getElementById('managed-access-first-screen-contact-choice');
+    const firstScreenFocus = document.getElementById('managed-access-first-screen-focus');
+    const firstScreenCopy = document.getElementById('managed-access-first-screen-copy');
+    const firstScreenEmail = document.getElementById('managed-access-first-screen-email');
     const contactDecisionFocus = document.getElementById('managed-access-contact-focus');
     const contactDecisionCopy = document.getElementById('managed-access-contact-copy');
     const contactDecisionEmail = document.getElementById('managed-access-contact-email');
@@ -873,11 +894,30 @@
       setQuickStatus('Opening a no-secret email draft from the first screen. Send it from a work inbox; managed resale remains gated.');
       quickEmailDraft?.click();
     });
+    firstScreenFocus?.addEventListener('click', () => {
+      applyRequestedIntent('one-subscription');
+      quickSubmit.textContent = quickReviewSubmitLabel();
+      setQuickStatus('Add work email for direct follow-up, or copy/open the no-secret request. Managed provider access remains gated.');
+      focusQuickReviewFormForContactCapture('one-subscription', 'managed-access-first-screen-choice-focus');
+    });
+    firstScreenCopy?.addEventListener('click', () => {
+      applyRequestedIntent('one-subscription');
+      showManagedAccessIntentHandoff('one-subscription', '#managed-access-first-screen-contact-choice');
+      setQuickStatus('Copying the first-screen no-secret contact request. Add work email first if you want direct follow-up.');
+      quickCopyContact?.click();
+    });
+    firstScreenEmail?.addEventListener('click', () => {
+      applyRequestedIntent('one-subscription');
+      showManagedAccessIntentHandoff('one-subscription', '#managed-access-first-screen-contact-choice');
+      setQuickStatus('Opening the first-screen no-secret email draft. Send from a work inbox for direct follow-up.');
+      quickEmailDraft?.click();
+    });
 
     let formStarted = false;
     let quickFormStarted = false;
     let quickFormFocused = false;
     let quickFormPresented = false;
+    let firstScreenChoicePresented = false;
     let stickyHandoffPresented = false;
     let managedAccessUserInteracted = false;
     let managedAccessIdleFocusTimer = null;
@@ -971,6 +1011,16 @@
       });
     }
 
+    function markFirstScreenContactChoicePresented(state = quickReviewIntent()) {
+      if (!firstScreenContactChoice || firstScreenChoicePresented) return;
+      firstScreenChoicePresented = true;
+      trackManagedAccessFunnelEvent('managed_access_contact_handoff_prompted', {
+        state,
+        target: '#managed-access-first-screen-contact-choice',
+        snippet: 'managed-access-first-screen-contact-choice',
+      });
+    }
+
     function showManagedAccessIntentHandoff(state = quickReviewIntent(), target = '#managed-access-intent-handoff') {
       const handoff = document.getElementById('managed-access-intent-handoff');
       const handoffCopy = document.getElementById('managed-access-intent-handoff-copy');
@@ -993,6 +1043,7 @@
           target: '#managed-access-quick-form',
           snippet: 'first-screen-primary-email-form',
         });
+        markFirstScreenContactChoicePresented(state);
       }
       if (isContactCaptureLanding()) {
         markContactCaptureLanding(state, '#managed-access-quick-form');
